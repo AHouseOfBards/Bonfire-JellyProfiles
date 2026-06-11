@@ -1,0 +1,16 @@
+using System;
+using System.Collections.Generic;
+
+namespace Jellyfin.Profiles.Models
+{
+    public class UpdateProfileRequest
+    {
+        public Guid ProfileId { get; set; }
+        public string ProfileName { get; set; } = string.Empty;
+        public string? Pin { get; set; }
+        public string AvatarColor { get; set; } = "#1F77B4";
+        public string? MaxParentalRating { get; set; }
+        public List<Guid>? EnabledFolders { get; set; }
+        public string? MasterPin { get; set; }
+    }
+}

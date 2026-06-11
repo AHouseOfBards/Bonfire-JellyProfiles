@@ -1,0 +1,43 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Build (Release)
+        run: dotnet build -c Release
+
+      - name: Package DLL into zip
+        run: |
+          mkdir -p dist
+          zip -j dist/Jellyfin.Profiles.zip bin/Release/net9.0/Jellyfin.Profiles.dll
+
+      - name: Compute MD5 checksum
+        id: checksum
+        run: |
+          echo "md5=$(md5sum dist/Jellyfin.Profiles.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
+
+      - name: Print checksum (update manifest.json manually after release)
+        run: echo "MD5 checksum -> ${{ steps.checksum.outputs.md5 }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Jellyfin.Profiles.zip
+          generate_release_notes: true

@@ -1,0 +1,189 @@
+<div id="profilesConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="libraryloading,embyrouter,selectmenu,dialogHelper">
+    <div data-role="content">
+        <div class="content-primary">
+            <form id="profilesConfigurationForm">
+                <div class="sectionTitleContainer">
+                    <h2 class="sectionTitle">Profiles Management Settings</h2>
+                </div>
+                
+                <div class="inputContainer">
+                    <label class="inputLabel" for="maxProfiles">Maximum Profiles Per User</label>
+                    <input is="emby-input" type="number" id="maxProfiles" min="1" max="10" required />
+                    <div class="fieldDescription">The maximum number of sub-profiles a master account is allowed to create (Default: 5).</div>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="requireMasterPin" />
+                        <span>Require Master PIN for creating new profiles</span>
+                    </label>
+                    <div class="fieldDescription">If checked, users must enter their PIN code to add new sub-profiles.</div>
+                </div>
+
+                <div class="buttonContainer">
+                    <button is="emby-button" type="submit" class="raised button-submit block">Save Settings</button>
+                </div>
+            </form>
+
+            <div class="sectionTitleContainer" style="margin-top: 3em;">
+                <h2 class="sectionTitle">Master Accounts</h2>
+            </div>
+            <div class="fieldDescription" style="margin-bottom: 1em;">
+                Below is a list of all primary master users on the server. Administrators can reset the PIN of any master account.
+            </div>
+            <div class="paperList" id="masterUsersList" style="margin-bottom: 3em;">
+                <!-- Master Users dynamically loaded here -->
+            </div>
+
+            <div class="sectionTitleContainer" style="margin-top: 3em;">
+                <h2 class="sectionTitle">Sub-Profiles</h2>
+            </div>
+            <div class="fieldDescription" style="margin-bottom: 1em;">
+                Below is a list of all sub-profiles managed by the plugin. Administrators can reset the PIN of any sub-profile.
+            </div>
+            <div class="paperList" id="subProfilesList" style="margin-bottom: 3em;">
+                <!-- Sub-Profiles dynamically loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        (function () {
+            const pluginId = "b1462fca-774b-4b13-8d02-e2d4f2bc18b9";
+
+            function loadConfiguration(page) {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
+                    page.querySelector('#requireMasterPin').checked = config.RequireMasterPinForCreation;
+                    loadMappings(page);
+                }).catch(function (err) {
+                    console.error("Failed to load plugin configuration:", err);
+                    Dashboard.hideLoadingMsg();
+                });
+            }
+
+            function loadMappings(page) {
+                const url = ApiClient.getUrl('plugins/profiles/admin/mappings');
+                ApiClient.getJSON(url).then(function (result) {
+                    const masterContainer = page.querySelector('#masterUsersList');
+                    const subContainer = page.querySelector('#subProfilesList');
+
+                    const masterUsers = result.MasterUsers || result.masterUsers || [];
+                    const subProfiles = result.SubProfiles || result.subProfiles || [];
+
+                    // Render Master Users
+                    if (masterUsers.length === 0) {
+                        masterContainer.innerHTML = '<div class="listItem" style="padding:15px;"><div class="listItemBody">No master accounts found.</div></div>';
+                    } else {
+                        masterContainer.innerHTML = masterUsers.map(function (m) {
+                            var pName = m.profileName || m.ProfileName || '';
+                            var pId = m.profileUserId || m.ProfileUserId || '';
+                            var reqPin = m.requiresPin !== undefined ? m.requiresPin : (m.RequiresPin !== undefined ? m.RequiresPin : false);
+                            var pinStatus = reqPin 
+                                ? '<span style="color:#ff6b6b;font-weight:600;">PIN Protected</span>' 
+                                : '<span style="color:#51cf66;font-weight:600;">No PIN</span>';
+                            var resetBtn = reqPin 
+                                ? '<button type="button" class="raised button-accent button-mini reset-pin-btn" data-id="' + pId + '" style="margin-left:auto; background:#d23f3f; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer;">Reset PIN</button>' 
+                                : '';
+                            return '<div class="listItem" style="display:flex; align-items:center; padding:15px; border-bottom:1px solid rgba(255,255,255,0.08);">' +
+                                   '<div class="listItemBody" style="flex:1;">' +
+                                   '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#fff;">' + pName + '</div>' +
+                                   '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">' +
+                                   'Status: ' + pinStatus +
+                                   '</div>' +
+                                   '</div>' +
+                                   resetBtn +
+                                   '</div>';
+                        }).join('');
+                    }
+
+                    // Render Sub Profiles
+                    if (subProfiles.length === 0) {
+                        subContainer.innerHTML = '<div class="listItem" style="padding:15px;"><div class="listItemBody">No sub-profiles configured yet.</div></div>';
+                    } else {
+                        subContainer.innerHTML = subProfiles.map(function (m) {
+                            var pName = m.profileName || m.ProfileName || '';
+                            var pId = m.profileUserId || m.ProfileUserId || '';
+                            var reqPin = m.requiresPin !== undefined ? m.requiresPin : (m.RequiresPin !== undefined ? m.RequiresPin : false);
+                            var mName = m.masterName || m.MasterName || '';
+                            var pinStatus = reqPin 
+                                ? '<span style="color:#ff6b6b;font-weight:600;">PIN Protected</span>' 
+                                : '<span style="color:#51cf66;font-weight:600;">No PIN</span>';
+                            var resetBtn = reqPin 
+                                ? '<button type="button" class="raised button-accent button-mini reset-pin-btn" data-id="' + pId + '" style="margin-left:auto; background:#d23f3f; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer;">Reset PIN</button>' 
+                                : '';
+                            return '<div class="listItem" style="display:flex; align-items:center; padding:15px; border-bottom:1px solid rgba(255,255,255,0.08);">' +
+                                   '<div class="listItemBody" style="flex:1;">' +
+                                   '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#fff;">' + pName + '</div>' +
+                                   '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">' +
+                                   'Master Account: <strong>' + mName + '</strong> | Status: ' + pinStatus +
+                                   '</div>' +
+                                   '</div>' +
+                                   resetBtn +
+                                   '</div>';
+                        }).join('');
+                    }
+
+                    // Attach reset PIN event handlers for both lists
+                    page.querySelectorAll('.reset-pin-btn').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            const profileId = btn.getAttribute('data-id');
+                            if (confirm('Are you sure you want to reset and clear the PIN for this profile?')) {
+                                resetPin(page, profileId);
+                            }
+                        });
+                    });
+
+                    Dashboard.hideLoadingMsg();
+                }).catch(function (err) {
+                    console.error("Failed to load mappings:", err);
+                    Dashboard.hideLoadingMsg();
+                });
+            }
+
+            function resetPin(page, profileId) {
+                Dashboard.showLoadingMsg();
+                const url = ApiClient.getUrl('plugins/profiles/admin/reset-pin');
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: url,
+                    data: JSON.stringify({ profileId: profileId }),
+                    contentType: 'application/json'
+                }).then(function () {
+                    loadMappings(page);
+                }).catch(function (err) {
+                    console.error("Failed to reset PIN:", err);
+                    alert("Failed to reset PIN.");
+                    Dashboard.hideLoadingMsg();
+                });
+            }
+
+            function saveConfiguration(page) {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    config.MaxProfilesPerUser = parseInt(page.querySelector('#maxProfiles').value, 10) || 5;
+                    config.RequireMasterPinForCreation = page.querySelector('#requireMasterPin').checked;
+
+                    ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    }).catch(function (err) {
+                        console.error("Failed to update plugin configuration:", err);
+                        Dashboard.hideLoadingMsg();
+                        alert("Failed to save settings.");
+                    });
+                });
+            }
+
+            document.getElementById('profilesConfigurationPage').addEventListener('pageshow', function () {
+                const page = this;
+                loadConfiguration(page);
+                page.querySelector('form').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    saveConfiguration(page);
+                    return false;
+                });
+            });
+        })();
+    </script>
+</div>
