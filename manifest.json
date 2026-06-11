@@ -12,7 +12,7 @@
         "changelog": "Fix: Switch Profile button rendering as a full-height bar on some Jellyfin installations. Root cause: Jellyfin's React layout applies CSS transforms to body and inner containers, causing position:fixed to be contained by the transformed element instead of the viewport. Fix: fallback button is now appended to the html element (outside the transform chain) with all styles set inline. Also improved header container detection to use a parent-of-existing-button strategy, making it work across Jellyfin versions that use different class names.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/JellyProfiles/releases/download/v1.0.6/Jellyfin.Profiles.zip",
-        "checksum": "PLACEHOLDER",
+        "checksum": "5339be01ffc5226c841e4032990fe998",
         "timestamp": "2026-06-11T20:03:00Z"
       },
       {
