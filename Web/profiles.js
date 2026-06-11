@@ -65,38 +65,32 @@
         },
 
         bindEvents: function () {
-            // Support legacy viewshow event
-            document.addEventListener('viewshow', (e) => {
-                const currentView = e.detail.type;
-                if (currentView === 'home' && !this.isProfileSessionActive()) {
-                    this.interceptHomeAndShowProfiles();
-                }
-                this.evaluateFloatingBubbleVisibility(currentView);
+            const doCheck = () => this.checkRoute();
+
+            // Jellyfin view-system events (fires on every page/view change)
+            // Use doCheck so all logic is centralised in checkRoute.
+            document.addEventListener('viewshow', doCheck);
+
+            // SPA navigation events
+            window.addEventListener('popstate', doCheck);
+            window.addEventListener('hashchange', doCheck);
+
+            // Intercept history.pushState / replaceState (React-router style navigation)
+            ['pushState', 'replaceState'].forEach(method => {
+                const orig = history[method];
+                history[method] = function (...args) {
+                    orig.apply(history, args);
+                    // Small delay so the URL is committed before we read it
+                    setTimeout(doCheck, 0);
+                };
             });
 
-            // Support SPA navigation in new React client via popstate and hashchange
-            window.addEventListener('popstate', () => this.checkRoute());
-            window.addEventListener('hashchange', () => this.checkRoute());
-
-            // Intercept history.pushState and history.replaceState
-            const pushState = history.pushState;
-            history.pushState = function (...args) {
-                pushState.apply(history, args);
-                window.dispatchEvent(new Event('pushstate'));
-            };
-            const replaceState = history.replaceState;
-            history.replaceState = function (...args) {
-                replaceState.apply(history, args);
-                window.dispatchEvent(new Event('replacestate'));
-            };
-            window.addEventListener('pushstate', () => this.checkRoute());
-            window.addEventListener('replacestate', () => this.checkRoute());
-
-            // Periodically verify route in case of framework-specific silent transition
-            setInterval(() => this.checkRoute(), 500);
+            // Reduced polling interval: 150 ms catches DOM changes (e.g. video OSD
+            // appearing) within a single frame budget without noticeable CPU impact.
+            setInterval(doCheck, 150);
 
             // Initial check on load
-            setTimeout(() => this.checkRoute(), 200);
+            setTimeout(doCheck, 200);
         },
 
         checkRoute: function () {
@@ -149,23 +143,47 @@
                 this.subProfileIdsToHide = null;
             }
 
-            // Active video/audio player — OSD is visible
+            // ── Active player: URL-based detection ──────────────────────────────
             const isActivePlayer = hash.includes('videoosd') ||
                                    hash.includes('/nowplaying') ||
                                    (hash.includes('video') && !hash.includes('videos'));
 
-            // Jellyfin admin / server dashboard pages
-            const isDashboard = hash.includes('dashboard') ||
-                                hash.includes('/admin') ||
-                                hash.includes('serveractivity') ||
-                                hash.includes('installedplugins') ||
-                                path.includes('dashboard') ||
-                                path.includes('/admin');
+            // ── Active player: DOM-based detection (catches delayed URL updates) ──
+            // The OSD element appears in the DOM the moment playback starts.
+            const hasOsdDom = !!document.querySelector(
+                '.videoOsdBottom, .osdControls, .upNextContainer, ' +
+                '[class*="videoOsd"], [class*="osdBottom"], .btnExitVideo'
+            );
 
-            const viewType = isActivePlayer  ? 'videoosd'
-                           : isDashboard     ? 'dashboard'
-                           : isHome          ? 'home'
-                                            : 'other';
+            // ── Admin / server-management pages ─────────────────────────────────
+            // Exception: our own plugin settings page (configurationpage?name=Profiles)
+            // is the only admin-area page where the button should remain visible.
+            const isProfilesSettingsPage = hash.includes('configurationpage') &&
+                                           hash.toLowerCase().includes('name=profiles');
+
+            const isDashboard = !isProfilesSettingsPage && (
+                hash.includes('dashboard')       || hash.includes('/admin')       ||
+                hash.includes('useredit')        || hash.includes('usernew')      ||
+                hash.includes('userparentalcontrol') || hash.includes('userlibraryaccess') ||
+                hash.includes('userpassword')    || hash.includes('scheduledtasks') ||
+                hash.includes('serveractivity')  || hash.includes('installedplugins') ||
+                hash.includes('pluginscatalog')  || hash.includes('apikeys')      ||
+                hash.includes('devices')         || hash.includes('dlnaprofiles') ||
+                hash.includes('dlnasettings')    || hash.includes('networking')   ||
+                hash.includes('notificationlist')|| hash.includes('streamingsettings') ||
+                hash.includes('playbackconfiguration') ||                           
+                hash.includes('library.html')    || hash.includes('librarydisplay') ||
+                hash.includes('librarypathmapping') || hash.includes('log.html')  ||
+                hash.includes('metadataeditor')  || hash.includes('metadatamanager') ||
+                hash.includes('edititemmetadata')|| hash.includes('mediainfo')    ||
+                hash.includes('configurationpage')  || // all other plugin config pages
+                path.includes('dashboard')       || path.includes('/admin')
+            );
+
+            const viewType = (isActivePlayer || hasOsdDom) ? 'videoosd'
+                           : isDashboard                   ? 'dashboard'
+                           : isHome                        ? 'home'
+                                                          : 'other';
             this.evaluateFloatingBubbleVisibility(viewType);
         },
 
@@ -1372,17 +1390,40 @@
             .catch(err => alert("Error deleting profile: " + err.message));
         },
 
+        // ── Bubble visibility helpers ──────────────────────────────────────────
+        _bubbleHide: function (bubble) {
+            if (!bubble || bubble.dataset.profilesHiding === '1') return;
+            bubble.dataset.profilesHiding = '1';
+            bubble.classList.add('profiles-bubble-hiding');
+            setTimeout(() => {
+                // Only commit display:none if still in hiding state
+                if (bubble.dataset.profilesHiding === '1') {
+                    bubble.style.display = 'none';
+                    bubble.classList.remove('profiles-bubble-hiding');
+                    delete bubble.dataset.profilesHiding;
+                }
+            }, 160);
+        },
+        _bubbleShow: function (bubble) {
+            if (!bubble) return;
+            delete bubble.dataset.profilesHiding;
+            bubble.style.display = '';
+            // Tick so the browser has a chance to paint display:'' before removing
+            // the opacity class, triggering the CSS transition.
+            requestAnimationFrame(() => bubble.classList.remove('profiles-bubble-hiding'));
+        },
+
         evaluateFloatingBubbleVisibility: function (viewType) {
             let bubble = document.getElementById('profiles-floating-bubble');
-            
-            // Hide the button during active playback/OSD or on the server dashboard.
-            // Item detail/browse pages are NOT considered "watching" — the bubble stays visible there.
+
+            // Hide during active playback/OSD or on any server-management page.
             if (viewType === 'videoosd' || viewType === 'dashboard') {
-                if (bubble) bubble.style.display = 'none';
+                this._bubbleHide(bubble);
                 return;
             }
 
             if (!this.isProfileSessionActive()) {
+                // No active session — remove entirely (will be re-created when needed)
                 if (bubble) bubble.remove();
                 return;
             }
@@ -1391,11 +1432,20 @@
                               || document.querySelector('.headerSelfView')
                               || document.querySelector('.skinHeader-rightButtons')
                               || document.querySelector('.headerButtons-right');
+
             if (headerRight) {
-                // Remove fallback bubble if it exists in the body
-                if (bubble && (bubble.tagName === 'DIV' || bubble.parentElement !== headerRight)) {
-                    bubble.remove();
-                    bubble = null;
+                if (bubble) {
+                    // If the bubble exists but is detached from the DOM entirely, reset it.
+                    // Do NOT remove it just because React re-rendered its parent — that causes
+                    // the race condition where a click lands on an element being destroyed.
+                    if (!document.contains(bubble)) {
+                        bubble.remove();
+                        bubble = null;
+                    } else if (!headerRight.contains(bubble)) {
+                        // Still in DOM but moved outside header — re-insert, keep element
+                        const userBtn = headerRight.querySelector('.headerButton-user') || headerRight.lastElementChild;
+                        userBtn ? headerRight.insertBefore(bubble, userBtn) : headerRight.appendChild(bubble);
+                    }
                 }
 
                 if (!bubble) {
@@ -1403,50 +1453,55 @@
                     bubble.id = 'profiles-floating-bubble';
                     bubble.className = 'paper-icon-button-light headerButton';
                     bubble.title = 'Switch Profile';
-                    // Material Icon "people" is standard for multiple users/profiles
                     bubble.innerHTML = '<span class="material-icons">people</span>';
-                    
-                    // Insert before the user profile button
+
                     const userBtn = headerRight.querySelector('.headerButton-user') || headerRight.lastElementChild;
-                    if (userBtn) {
-                        headerRight.insertBefore(bubble, userBtn);
-                    } else {
-                        headerRight.appendChild(bubble);
-                    }
+                    userBtn ? headerRight.insertBefore(bubble, userBtn) : headerRight.appendChild(bubble);
 
                     this.attachBubbleClickHandler(bubble);
                 }
             } else {
-                // Fallback to absolute positioned floating bubble if header buttons container is not found
-                if (bubble && bubble.tagName === 'BUTTON') {
+                // Fallback floating button when header slot not found
+                if (bubble && !bubble.classList.contains('profiles-floating-fallback')) {
                     bubble.remove();
                     bubble = null;
                 }
-
                 if (!bubble) {
                     bubble = document.createElement('button');
                     bubble.id = 'profiles-floating-bubble';
                     bubble.className = 'profiles-floating-fallback';
                     bubble.innerText = 'Profiles';
                     document.body.appendChild(bubble);
-                    
                     this.attachBubbleClickHandler(bubble);
                 }
             }
 
-            if (bubble) bubble.style.display = '';
+            this._bubbleShow(bubble);
         },
 
         attachBubbleClickHandler: function (bubble) {
             const activate = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+
+                // Immediate visual feedback so the user knows the tap/click registered.
+                // The page will reload momentarily; this prevents a confusing dead-looking button.
+                bubble.disabled = true;
+                bubble.style.opacity = '0.45';
+                bubble.style.cursor = 'wait';
+
                 const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
                 if (masterState && masterState.masterToken) {
                     sessionStorage.removeItem(this.config.activeSessionKey);
                     this.updateStoredCredentials(masterState.masterToken, masterState.masterUserId);
                     ApiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
                     window.location.reload();
+                } else {
+                    // No master state found — restore button so the user can try again
+                    bubble.disabled = false;
+                    bubble.style.opacity = '';
+                    bubble.style.cursor = '';
+                    console.warn('ProfilesPlugin: Master state missing from localStorage — cannot switch profiles.');
                 }
             };
 
@@ -1811,6 +1866,27 @@
                     color: rgba(255,255,255,0.4);
                     margin-top: -0.2rem;
                     text-align: left;
+                }
+
+                /* Switch-Profile bubble — fade transition */
+                #profiles-floating-bubble {
+                    transition: opacity 0.15s ease;
+                }
+                #profiles-floating-bubble.profiles-bubble-hiding {
+                    opacity: 0 !important;
+                    pointer-events: none;
+                }
+                .profiles-floating-fallback {
+                    position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+                    background: rgba(0,164,220,0.85); color: #fff;
+                    border: none; border-radius: 999px; padding: 10px 20px;
+                    font-size: 0.9rem; font-weight: 600; cursor: pointer;
+                    backdrop-filter: blur(8px);
+                    transition: opacity 0.15s ease;
+                }
+                .profiles-floating-fallback.profiles-bubble-hiding {
+                    opacity: 0 !important;
+                    pointer-events: none;
                 }
 
                 /* Keyframe Animations */
