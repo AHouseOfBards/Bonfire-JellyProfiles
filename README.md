@@ -48,11 +48,12 @@ Adds multi-user profile switching to Jellyfin. A single account can have up to f
 **Works out of the box:**
 - Jellyfin Web (desktop browsers — Chrome, Firefox, Safari, Edge)
 - Jellyfin Web (mobile browsers — iOS Safari, Android Chrome)
+- Jellyfin (official Android app — renders the Jellyfin web UI internally)
 - Jellyfin Media Player (Windows, macOS, Linux)
 
 **Requires developer integration to support profiles:**
-- Swiftfin (iOS / tvOS)
-- Findroid (Android / Android TV)
+- Swiftfin (iOS / tvOS — fully native, does not use the web UI)
+- Findroid (Android / Android TV — fully native, does not use the web UI)
 - Jellyfin for Roku
 - Infuse (iOS / tvOS / macOS — closed source, requires Firecore)
 - Any other native Jellyfin client
