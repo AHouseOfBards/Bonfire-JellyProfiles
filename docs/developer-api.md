@@ -623,10 +623,293 @@ element.addEventListener('keydown', (e) => {
 
 **`sessionStorage` on TV:** Some TV browsers clear `sessionStorage` when the app is backgrounded or when the user presses the Home button and returns. This will cause a fresh profile selection screen to appear on re-entry, which is the correct behavior for a shared TV.
 
-**`AbortController` support:** Available on Tizen 5+ (Samsung TVs, 2018+), webOS 4+ (LG TVs, 2019+), and Fire TV. For older devices, include a graceful fallback:
+**`AbortController` support:** Available on Tizen 5+ (Samsung TVs, 2018+), webOS 5+ (LG TVs, 2020+), and Fire TV Gen 3+. For older devices, include a graceful fallback:
 
 ```javascript
 verifyController = typeof AbortController !== 'undefined' ? new AbortController() : null;
 // In fetch options:
 ...(verifyController ? { signal: verifyController.signal } : {})
 ```
+
+#### Tizen (Samsung Smart TVs) — Version Matrix
+
+| Tizen version | TV model years | `fetch()` | `AbortController` | Pointer events |
+|---|---|---|---|---|
+| 2.4 | 2015 | ❌ Use XHR | ❌ | ❌ |
+| 3.0 | 2016–2017 | ✅ | ❌ | ❌ |
+| 4.0 | 2017–2018 | ✅ | ❌ | ❌ |
+| 5.0 | 2018–2019 | ✅ | ✅ | ✅ (pointer-mode remote) |
+| 5.5–6.5 | 2020–2022 | ✅ | ✅ | ✅ |
+| 7.0+ | 2023+ | ✅ | ✅ | ✅ |
+
+On Tizen 2.4–4.x you must fall back to `XMLHttpRequest` for PIN verification. The `AbortController` fallback pattern already handles this gracefully by treating the absence of the constructor as "no cancellation available."
+
+#### webOS (LG Smart TVs) — Version Matrix
+
+| webOS version | TV model years | `fetch()` | `AbortController` | Magic Remote pointer |
+|---|---|---|---|---|
+| 3.x | 2016–2017 | ✅ | ❌ | `mousemove` only |
+| 4.x | 2018–2019 | ✅ | ❌ | `pointermove` + `mousemove` |
+| 5.x | 2020–2021 | ✅ | ✅ | `pointermove` + `mousemove` |
+| 6.x / 22–24 | 2022+ | ✅ | ✅ | `pointermove` + `mousemove` |
+
+On webOS 3.x–4.x, LG Magic Remote swipe generates `mousemove` (not `pointermove`). The plugin already includes `mousemove` in the inactivity event list, so this is handled. On webOS 4.x+, both event types fire simultaneously.
+
+#### Navigating the "Switch Profile" Button on Tizen and webOS
+
+The plugin injects a **Switch Profile** button directly into Jellyfin's existing header button row (the same row as the search and user account icons). On TV, users access it via the remote's D-pad.
+
+**How it appears:**
+- The button sits in `.headerRightButtons` next to the other header icons.
+- It is a native `<button>` element with `title="Switch Profile"` and a people icon.
+- A fallback floating button (text label "Profiles") is rendered if the header slot can't be found.
+
+**How a user reaches it (Tizen / webOS standard browser navigation):**
+
+1. From the home screen content grid, press **Up** on the D-pad to move focus into the header bar.
+2. Press **Left** or **Right** to navigate between header buttons until the Switch Profile button is focused. It will receive a visible `:focus` glow via the plugin's CSS.
+3. Press **OK / Enter / Select** to activate it. This clears the active profile session and reloads the page, showing the profile selector overlay.
+
+> [!NOTE]
+> Jellyfin's own React client intercepts some arrow-key events for horizontal scrolling of content rows. If focus gets "stuck" inside a content row and pressing Up doesn't reach the header, this is the Jellyfin web client's own focus management, not the plugin's. Custom TV clients can work around this by providing their own dedicated UI button that calls the switch-profile sequence directly (see [Returning to the Profile Selector](#returning-to-the-profile-selector)).
+
+**Keyboard/remote event handling on the button:**
+
+The plugin registers both a `click` handler and an explicit `keydown` handler (`Enter` / `Space`) on the bubble button. This covers:
+- Standard browser click (mouse / Magic Remote click)
+- Native button keyboard activation (most browsers)
+- Older Tizen / webOS versions that don't automatically fire `click` on `Enter` for injected elements
+
+```javascript
+// Plugin internal — shown for reference only
+bubble.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') activate(e);
+});
+```
+
+**When the button is intentionally hidden:**
+
+| Context | Button visible? | Reason |
+|---|---|---|
+| Home screen | ✅ Yes | Primary location for profile switching |
+| Library / browse pages | ✅ Yes | User may want to switch while browsing |
+| Item detail page | ✅ Yes | Browsing, not watching |
+| Active video/audio playback (`videoosd`, `nowplaying`) | ❌ No | Distracting during playback; player has its own UI |
+| Server dashboard / admin pages | ❌ No | Sub-profiles never have admin access; confusing to show |
+| Login / server-select / plugin config pages | ❌ No | No active session exists here |
+
+**Custom TV clients:** If your client provides its own dedicated remote-accessible "Switch Profile" button (in a side menu, settings panel, etc.), the action to perform when it's pressed is identical to clicking the bubble:
+
+```javascript
+function switchProfile() {
+    const masterState = JSON.parse(localStorage.getItem('jellyfin_profiles_master_state'));
+    if (!masterState) return;
+    sessionStorage.removeItem('jellyfin_profiles_active_token');
+    ApiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
+    window.location.reload(); // or navigate to your profile selector screen
+}
+```
+
+---
+
+### Roku
+
+Roku channels are written in **BrightScript** with SceneGraph UI components. There is no JavaScript runtime at all. Developers building a native Roku channel for Jellyfin must interact with this plugin exclusively via the REST API using Roku's native HTTP APIs.
+
+**HTTP Requests:** Use `roUrlTransfer` for all API calls. It is callback/event-based, not `async/await` or `Promise`-based.
+
+```brightscript
+' POST to verify-pin
+request = CreateObject("roUrlTransfer")
+request.SetUrl("https://<server>/plugins/profiles/verify-pin")
+request.AddHeader("Authorization", "MediaBrowser Token=""" + masterToken + """")
+request.AddHeader("Content-Type", "application/json")
+request.AsyncPostFromString('{"profileId":"' + profileId + '","pin":"' + pin + '"}')
+```
+
+**Silent PIN Verification:** The Roku message loop can call `verify-pin` after each digit by waiting on `roMessagePort` for the `roUrlEvent` completion and checking the response code. Because BrightScript is single-threaded, use `Task` nodes for background HTTP to avoid blocking the UI thread.
+
+**Token Storage:** Use `roRegistry` for persistent storage (survives channel restarts) and in-memory variables (the `m` scope of a SceneGraph node) for active session state:
+
+```brightscript
+' Store master token (persists across launches)
+reg = CreateObject("roRegistry")
+section = reg.GetSection("JellyfinProfiles")
+section.Write("masterToken", masterToken)
+section.Flush()
+
+' Active profile token (in-memory only — cleared when channel exits)
+m.activeProfileToken = activeProfileToken
+```
+
+**Lockout Timer:** Use `roSGTimer` (a SceneGraph timer component) set to `lockoutMinutes * 60` seconds. Reset it on `roUniversalControlEvent` (remote button press) to track inactivity:
+
+```brightscript
+m.lockoutTimer = CreateObject("roSGNode", "Timer")
+m.lockoutTimer.duration = lockoutMinutes * 60
+m.lockoutTimer.repeat = false
+m.lockoutTimer.ObserveField("fire", "onLockoutFired")
+m.lockoutTimer.control = "start"
+```
+
+**PIN Entry:** Build a custom digit-entry grid using `ZoomRowList` or `MarkupGrid` with 10 number buttons (0–9) plus a delete button. The Siri remote's OK button on the selected digit calls your input handler. There is no system PIN keyboard on Roku.
+
+**D-pad Navigation:** Roku remote D-pad fires `roUniversalControlEvent` with integer key codes (0=back, 2=up, 3=down, 4=left, 5=right, 6=OK). Route focus manually between profile cards using these events or use SceneGraph's built-in focus chain.
+
+> [!NOTE]
+> Roku does not support `sessionStorage`, `localStorage`, `fetch()`, `AbortController`, or any web standard. Everything in the JavaScript sections of this guide is irrelevant for native BrightScript channels. Only the REST API contract applies.
+
+---
+
+### Xbox (Microsoft)
+
+Jellyfin on Xbox is accessible both through the **Edge browser** (standard web client) and via native **UWP apps** built with WinUI or React Native for Windows.
+
+#### Xbox Edge Browser
+
+The Chromium-based Edge on Xbox is largely a full desktop browser. All web standard APIs (`fetch`, `AbortController`, `localStorage`, `sessionStorage`) work normally. The controller mapping for web content:
+
+| Xbox button | Web event | `key` value |
+|---|---|---|
+| A (confirm) | `keydown` | `'Enter'` |
+| B (back) | `keydown` | `'Escape'` |
+| D-pad | `keydown` | `'ArrowUp'` / `'ArrowDown'` / `'ArrowLeft'` / `'ArrowRight'` |
+| Left stick | `keydown` (arrows) | Same as D-pad |
+
+No pointer events are generated from the controller. Mouse events require a physical USB/Bluetooth mouse connected to the Xbox. Ensure all interactive elements have `:focus` styles — the controller navigates via Tab/Arrow focus, not hover.
+
+The browser tab remains active even when the Xbox guide menu is opened. `setTimeout` timers keep firing. Inactivity tracking is accurate.
+
+#### UWP / Native Xbox Apps
+
+Use `Windows.Storage.ApplicationData.Current.LocalSettings` (equivalent to `localStorage`) for persistent data, and in-memory variables for active session state. For security-sensitive tokens, use the `Windows.Security.Credentials.PasswordVault`:
+
+```csharp
+var vault = new PasswordVault();
+vault.Add(new PasswordCredential("JellyfinProfiles", "masterToken", tokenValue));
+```
+
+Subscribe to `CoreApplication.Suspending` to record the last-active timestamp and `CoreApplication.Resuming` to evaluate whether lockout should trigger.
+
+---
+
+### PlayStation (PS4 / PS5)
+
+**PS5:** The PS5 browser is a modern WebKit. `fetch()` and `AbortController` are supported. Standard web client behavior applies. D-pad navigation generates `keydown` with standard arrow keys; Cross (✕) = `'Enter'`; Circle (○) = `'Escape'` (region-dependent).
+
+**PS4:** The PS4 browser uses a significantly older WebKit engine (circa 2012–2015 depending on firmware) with major limitations:
+
+| Feature | PS4 browser | PS5 browser |
+|---|---|---|
+| `fetch()` | ❌ Must use XHR | ✅ |
+| `AbortController` | ❌ | ✅ |
+| `localStorage` | ✅ | ✅ |
+| `sessionStorage` | ✅ (may be volatile) | ✅ |
+| `Promise` | ❌ (older firmware) / ✅ (newer) | ✅ |
+
+On PS4 you must implement PIN verification using `XMLHttpRequest`. The silent-verify abort pattern is not possible; cancel previous requests by tracking the XHR object and calling `.abort()` on it manually:
+
+```javascript
+let activeXhr = null;
+
+pinInput.addEventListener('input', function() {
+    if (activeXhr) activeXhr.abort();
+    activeXhr = new XMLHttpRequest();
+    activeXhr.open('POST', verifyPinUrl, true);
+    activeXhr.setRequestHeader('Authorization', masterAuthHeader);
+    activeXhr.setRequestHeader('Content-Type', 'application/json');
+    activeXhr.onreadystatechange = function() {
+        if (activeXhr.readyState === 4) {
+            if (activeXhr.status === 200) performSwitch();
+            activeXhr = null;
+        }
+    };
+    activeXhr.send(JSON.stringify({ profileId, pin: pinInput.value }));
+});
+```
+
+> [!CAUTION]
+> Do not attempt to build a production Jellyfin plugin experience for PS4 unless you are prepared to test on actual PS4 hardware. The browser is inconsistent across firmware versions and has a very small memory budget that causes crashes on DOM-heavy pages.
+
+---
+
+### Desktop Apps (Electron / Jellyfin Media Player)
+
+Jellyfin Media Player and similar Electron-based clients embed a Chromium renderer. All standard web APIs work fully. The key behavioral difference from mobile is **timer handling during window minimization**:
+
+- On mobile/tvOS, the app is **suspended** when backgrounded — JS timers stop.
+- On desktop Electron, **minimizing or hiding the window does NOT suspend JavaScript**. Timers keep firing normally.
+
+This means the inactivity lockout timer will correctly trigger even if the user minimizes the app, which may or may not be the desired behavior. If you want to suppress lockout while the window is not visible, listen for the Electron-injected `visibilitychange` event:
+
+```javascript
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        // Window is minimized/hidden — pause the inactivity timer
+        clearTimeout(lockTimer);
+    } else {
+        // Window is back in focus — restart the timer
+        startInactivityTimer(lockoutMinutes);
+    }
+});
+```
+
+There is no `contextIsolation` or `nodeIntegration` concern for this plugin since it runs purely in the renderer's web context and uses only standard web APIs.
+
+---
+
+### Android Native Apps
+
+The official Jellyfin Android app is a native Kotlin/Java app. Like tvOS, it calls the REST API directly via `OkHttp` or `Retrofit`, not through the web plugin UI.
+
+**HTTP Requests:** Use `OkHttp` or `Retrofit`. The plugin's REST API accepts standard HTTP — no Android-specific changes needed.
+
+**Token Storage:** Use `EncryptedSharedPreferences` (backed by Android Keystore) for tokens — never plain `SharedPreferences`. On Android 6+, hardware-backed key storage is available.
+
+```kotlin
+val masterPrefs = EncryptedSharedPreferences.create(
+    context,
+    "jellyfin_profiles_master",
+    MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC),
+    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+)
+masterPrefs.edit().putString("masterToken", token).apply()
+```
+
+**Lockout Timer:** Use a `CountDownTimer` or coroutine `delay()`. Subscribe to `ProcessLifecycleOwner` to detect app backgrounding:
+
+```kotlin
+ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+    override fun onStop(owner: LifecycleOwner) {
+        // App going to background — record timestamp
+        prefs.edit().putLong("lastActiveMs", System.currentTimeMillis()).apply()
+    }
+    override fun onStart(owner: LifecycleOwner) {
+        // App returning — check elapsed time
+        val elapsed = System.currentTimeMillis() - prefs.getLong("lastActiveMs", 0)
+        if (elapsed > lockoutMinutes * 60_000L && lockoutMinutes > 0) {
+            showProfileSelector()
+        }
+    }
+})
+```
+
+**Samsung Internet Browser on Android:** Samsung's browser has occasional issues where `sessionStorage` survives tab swaps in a way that standard Chrome does not. The practical result is that a user might return to a Jellyfin tab after hours away and still have an active profile session — bypassing the lockout. If supporting Samsung Internet specifically, validate the session freshness against a stored timestamp on every page focus event.
+
+---
+
+## Cross-Platform API Support Matrix
+
+| Feature | Web (Chrome/Firefox) | Safari (macOS/iOS) | Electron | Android native | tvOS native | tvOS WKWebView | Tizen 3-4 | Tizen 5+ | webOS 3-4 | webOS 5+ | Roku | Xbox Edge | PS4 | PS5 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `fetch()` | ✅ | ✅ | ✅ | Via OkHttp | Via URLSession | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ XHR only | ✅ | ❌ XHR only | ✅ |
+| `AbortController` | ✅ | ✅ 12.1+ | ✅ | N/A | N/A | ✅ | ❌ | ✅ | ❌ | ✅ | N/A | ✅ | ❌ | ✅ |
+| `localStorage` | ✅ | ✅ ⚠️ ITP | ✅ | Native storage | Native Keychain | Volatile | ✅ | ✅ | ✅ | ✅ | `roRegistry` | ✅ | ✅ | ✅ |
+| `sessionStorage` | ✅ | ✅ | ✅ | N/A | Volatile | Volatile | ✅ | ✅ | ✅ | ✅ | N/A | ✅ | ⚠️ | ✅ |
+| Pointer events | ✅ | ✅ | ✅ | Touch only | N/A | Siri → `mousemove` | ❌ | ✅ remote | ✅ Magic Remote | ✅ | N/A | ❌ | ❌ | ❌ |
+| Timer during suspend | Keeps running | Paused | Keeps running | Paused (use lifecycle) | Paused (use lifecycle) | Paused | Keeps running | Keeps running | Keeps running | Keeps running | `roSGTimer` | Keeps running | Keeps running | Keeps running |
+| Secure token storage | `localStorage` (best available) | `localStorage` ⚠️ | `localStorage` | `EncryptedSharedPreferences` | Keychain | Keychain + inject | `localStorage` | `localStorage` | `localStorage` | `localStorage` | `roRegistry` | `PasswordVault` | `localStorage` | `localStorage` |
+
+> [!TIP]
+> For any platform where timers pause during suspension, **always use the timestamp comparison pattern** on resume rather than relying on a timer to have fired at the correct moment. This is the only approach that works correctly across all native platforms.

@@ -149,8 +149,24 @@
                 this.subProfileIdsToHide = null;
             }
 
-            const isPlayer = hash.includes('videoosd') || hash.includes('item') || path.includes('videoosd') || path.includes('item');
-            this.evaluateFloatingBubbleVisibility(isPlayer ? 'videoosd' : (isHome ? 'home' : 'other'));
+            // Active video/audio player — OSD is visible
+            const isActivePlayer = hash.includes('videoosd') ||
+                                   hash.includes('/nowplaying') ||
+                                   (hash.includes('video') && !hash.includes('videos'));
+
+            // Jellyfin admin / server dashboard pages
+            const isDashboard = hash.includes('dashboard') ||
+                                hash.includes('/admin') ||
+                                hash.includes('serveractivity') ||
+                                hash.includes('installedplugins') ||
+                                path.includes('dashboard') ||
+                                path.includes('/admin');
+
+            const viewType = isActivePlayer  ? 'videoosd'
+                           : isDashboard     ? 'dashboard'
+                           : isHome          ? 'home'
+                                            : 'other';
+            this.evaluateFloatingBubbleVisibility(viewType);
         },
 
         isMonitoringUsers: false,
@@ -1348,8 +1364,9 @@
         evaluateFloatingBubbleVisibility: function (viewType) {
             let bubble = document.getElementById('profiles-floating-bubble');
             
-            // Hide the button during playback/OSD
-            if (viewType === 'videoosd' || viewType === 'item') {
+            // Hide the button during active playback/OSD or on the server dashboard.
+            // Item detail/browse pages are NOT considered "watching" — the bubble stays visible there.
+            if (viewType === 'videoosd' || viewType === 'dashboard') {
                 if (bubble) bubble.style.display = 'none';
                 return;
             }
@@ -1410,7 +1427,7 @@
         },
 
         attachBubbleClickHandler: function (bubble) {
-            bubble.addEventListener('click', (e) => {
+            const activate = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
@@ -1420,6 +1437,15 @@
                     ApiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
                     window.location.reload();
                 }
+            };
+
+            bubble.addEventListener('click', activate);
+
+            // Explicit D-pad/keyboard Enter+Space handler.
+            // Native <button> fires click on Enter in most browsers, but some TV browsers
+            // (notably older Tizen and webOS) skip this for non-focused or injected elements.
+            bubble.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') activate(e);
             });
         },
 
