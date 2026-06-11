@@ -1,8 +1,11 @@
 # Jellyfin Profiles Plugin — Developer API Reference
 
-**Plugin ID:** `b1462fca-774b-4b13-8d02-e2d4f2bc18b9`
+**Plugin GUID:** `b1462fca-774b-4b13-8d02-e2d4f2bc18b9`
 **Compatible with:** Jellyfin Server 10.11.x
-**Base path:** All endpoints are relative to your Jellyfin server root: `https://<server>/plugins/profiles/`
+**Base path:** All endpoints are relative to your Jellyfin server root:
+```
+https://<server>/plugins/profiles/<endpoint>
+```
 
 ---
 
@@ -26,7 +29,37 @@ Every request to the plugin API must include a standard Jellyfin authorization h
 Authorization: MediaBrowser Client="<AppName>", Device="<DeviceName>", DeviceId="<UniqueId>", Version="<AppVersion>", Token="<token>"
 ```
 
-The `Authorization` and `X-Emby-Authorization` header names are both accepted.
+Both `Authorization` and `X-Emby-Authorization` header names are accepted.
+
+---
+
+## Plugin Detection
+
+Before using any plugin endpoints, verify the plugin is installed on the server by calling `GET /list`. If the plugin is not installed, Jellyfin will return `404 Not Found` for that route (since the route simply does not exist). If it returns `200 OK` or `401 Unauthorized`, the plugin is active.
+
+**Recommended check on app launch:**
+```
+GET /plugins/profiles/list
+```
+- `200` or `401` → Plugin is installed, proceed with profile flow.
+- `404` → Plugin is not installed. Skip the profile gate and log in normally.
+
+---
+
+## Error Responses
+
+All error responses return a plain-text string body describing the reason. Do not attempt to parse them as JSON.
+
+| Status | Typical meaning |
+|---|---|
+| `400 Bad Request` | Missing or invalid field in the request body |
+| `401 Unauthorized` | Missing/invalid token, incorrect PIN, or insufficient permission |
+| `404 Not Found` | The referenced `profileId` does not exist |
+
+Example `401` body:
+```
+Invalid PIN code.
+```
 
 ---
 
@@ -36,7 +69,7 @@ The `Authorization` and `X-Emby-Authorization` header names are both accepted.
 
 Returns all profiles available to the authenticated user, including the master profile and all sub-profiles.
 
-**Authorization:** Master User token
+**Authorization:** Master User token or any active sub-profile token (always returns profiles scoped to the same master account).
 
 **Response `200 OK`:**
 ```json
@@ -64,8 +97,8 @@ Returns all profiles available to the authenticated user, including the master p
 |---|---|---|
 | `profileUserId` | `string (GUID)` | Jellyfin user ID for this profile |
 | `profileName` | `string` | Display name |
-| `avatarInitial` | `string` | Single character initial for the avatar |
-| `avatarColor` | `string` | Hex color for the avatar background |
+| `avatarInitial` | `string` | First character of the profile name, uppercased |
+| `avatarColor` | `string` | Hex color string for the avatar background |
 | `requiresPin` | `boolean` | Whether a PIN is required to select this profile |
 | `isMaster` | `boolean` | Whether this entry is the master account |
 
@@ -75,7 +108,9 @@ Returns all profiles available to the authenticated user, including the master p
 
 Authenticates a profile selection and returns a scoped session token. This token must replace your client's active session immediately.
 
-**Authorization:** Master User token
+To **switch back to the master profile**, pass the master account's `profileUserId` as the `profileId`. The master user's PIN (if set) will be required.
+
+**Authorization:** Master User token or any active sub-profile token
 
 **Request body:**
 ```json
@@ -99,7 +134,7 @@ Authenticates a profile selection and returns a scoped session token. This token
 ```
 
 > [!IMPORTANT]
-> You must replace your client's active token and user ID with these values immediately. All subsequent Jellyfin API calls — library browsing, playback, progress reporting — must use `activeProfileToken` and `jellyfinUserId`. Store the original Master token separately so the user can switch profiles again later.
+> Replace your client's active token and user ID with these values immediately. All subsequent Jellyfin API calls — library browsing, playback, progress reporting — must use `activeProfileToken` and `jellyfinUserId`. Store the original Master token separately so the user can switch profiles again later.
 
 **Error responses:**
 
@@ -112,9 +147,9 @@ Authenticates a profile selection and returns a scoped session token. This token
 
 ### `POST /plugins/profiles/verify-pin`
 
-Validates a PIN for a given profile without performing a switch. Use this if you want to verify the PIN before showing a confirmation UI, or to pre-validate the master PIN before profile management operations.
+Validates a PIN for a given profile without performing a switch. Use this to pre-validate a PIN before showing a confirmation UI, or before profile management operations.
 
-**Authorization:** Master User token
+**Authorization:** Master User token or any active sub-profile token
 
 **Request body:**
 ```json
@@ -125,6 +160,30 @@ Validates a PIN for a given profile without performing a switch. Use this if you
 ```
 
 **Response:** `200 OK` if the PIN is correct, `401 Unauthorized` if incorrect.
+
+---
+
+### `GET /plugins/profiles/libraries`
+
+Returns the list of media libraries visible to the authenticated user. Use this to populate a library access selector when creating or editing profiles.
+
+**Authorization:** Master User token
+
+**Response `200 OK`:**
+```json
+[
+  {
+    "id": "e67b2d5a39cb400ba45a7b0a70198de7",
+    "name": "Movies",
+    "collectionType": "movies"
+  },
+  {
+    "id": "c19b2e7a25ff402da18b2b6c90197ee4",
+    "name": "TV Shows",
+    "collectionType": "tvshows"
+  }
+]
+```
 
 ---
 
@@ -143,8 +202,8 @@ sequenceDiagram
     User->>App: Launch app
     App->>Jellyfin: Authenticate with master credentials
     Jellyfin-->>App: Master token + userId
-    App->>Plugin: GET /list
-    Plugin-->>App: Profile list
+    App->>Plugin: GET /list (detect plugin & fetch profiles)
+    Plugin-->>App: Profile list (or 404 if not installed)
     App->>User: Show profile selection screen
     User->>App: Select a profile
     alt Profile requires PIN
@@ -186,13 +245,13 @@ When `POST /switch` returns `401` on a PIN-protected profile, the user entered a
 
 ---
 
-## Profile Management (Master Only)
+## Profile Management (Master Account Only)
 
-The following endpoints are only callable by the master user. Sub-profile tokens will receive `401 Unauthorized`.
+The following endpoints are only callable by the **master account**. Requests made with a sub-profile token will receive `401 Unauthorized`.
 
 ### `POST /plugins/profiles/create`
 
-Creates a new sub-profile.
+Creates a new sub-profile under the master account. The server enforces a maximum of 5 sub-profiles per master account by default (configurable by the server administrator).
 
 **Request body:**
 ```json
@@ -210,15 +269,15 @@ Creates a new sub-profile.
 |---|---|---|---|
 | `profileName` | `string` | Yes | Display name for the new profile |
 | `pin` | `string` | No | 4–8 digit numeric PIN. Omit or pass `null` for no PIN |
-| `avatarColor` | `string` | No | Hex color for the avatar. Defaults to `#00A4DC` |
+| `avatarColor` | `string` | No | Hex color string (e.g. `"#EC4899"`). Defaults to `"#00A4DC"` |
 | `maxParentalRating` | `string` | No | `"6"` (G), `"10"` (PG), `"14"` (PG-13), `"17"` (R). Omit for no restriction |
-| `enabledFolders` | `string[]` | No | Array of library IDs accessible to this profile. Pass an empty array to deny all library access |
-| `masterPin` | `string` | Conditional | Required if the master account has a PIN and the server is configured to require it for profile creation |
+| `enabledFolders` | `string[]` | No | Array of library IDs from `/libraries` this profile can access. Pass empty array to deny all library access. Omit to inherit master's access |
+| `masterPin` | `string` | Conditional | Required if the master account has a PIN and the server requires it for profile creation |
 
 **Response `200 OK`:**
 ```json
 {
-  "profileUserId": "...",
+  "profileUserId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
   "profileName": "Kids"
 }
 ```
@@ -246,10 +305,10 @@ Updates an existing profile's name, PIN, color, parental rating, or library acce
 |---|---|---|---|
 | `profileId` | `string (GUID)` | Yes | The profile to update |
 | `profileName` | `string` | Yes | New display name |
-| `pin` | `string \| null` | No | Pass a new value to set/change the PIN. Pass `""` (empty string) to **remove** the PIN. Pass `null` to leave the current PIN unchanged |
-| `avatarColor` | `string` | No | New hex color |
-| `maxParentalRating` | `string \| null` | No | See create endpoint for values. Pass `null` to remove restriction |
-| `enabledFolders` | `string[] \| null` | No | Updated library access list. Pass `null` to leave unchanged |
+| `pin` | `string \| null` | No | New value to set/change the PIN. Pass `""` (empty string) to **remove** the PIN. Pass `null` to leave unchanged |
+| `avatarColor` | `string` | No | New hex color string |
+| `maxParentalRating` | `string \| null` | No | New rating limit. Pass `null` to remove restriction |
+| `enabledFolders` | `string[] \| null` | No | New library access list. Pass `null` to leave unchanged |
 | `masterPin` | `string` | Conditional | Required if the master account has a PIN set |
 
 ---
@@ -268,32 +327,72 @@ Permanently deletes a sub-profile and its underlying Jellyfin user account. This
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `profileId` | `string (GUID)` | Yes | The profile to delete |
+| `profileId` | `string (GUID)` | Yes | The profile to delete. Cannot be the master profile itself |
 | `masterPin` | `string` | Conditional | Required if the master account has a PIN set |
 
 **Response:** `200 OK` on success. `404 Not Found` if the profile does not exist.
 
 ---
 
-### `GET /plugins/profiles/libraries`
+## Admin Endpoints (Jellyfin Administrators Only)
 
-Returns the list of media libraries visible to the currently authenticated user. Use this to populate a library access selector when creating or editing profiles.
+The following endpoints require the calling user to be a **Jellyfin server administrator** (`IsAdministrator = true`). They are intended for server management tools and admin dashboards — not for regular user-facing client flows. Non-admin tokens will receive `401 Unauthorized`.
+
+---
+
+### `GET /plugins/profiles/admin/mappings`
+
+Returns a full server-wide view of all master accounts and all sub-profiles across every user on the server. Useful for building an admin panel to audit profile usage.
+
+**Authorization:** Jellyfin administrator token
 
 **Response `200 OK`:**
 ```json
-[
-  {
-    "id": "e67b2d5a39cb400ba45a7b0a70198de7",
-    "name": "Movies",
-    "collectionType": "movies"
-  },
-  {
-    "id": "c19b2e7a25ff402da18b2b6c90197ee4",
-    "name": "TV Shows",
-    "collectionType": "tvshows"
-  }
-]
+{
+  "masterUsers": [
+    {
+      "profileUserId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a",
+      "profileName": "john",
+      "requiresPin": true
+    }
+  ],
+  "subProfiles": [
+    {
+      "profileUserId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
+      "profileName": "Kids",
+      "masterName": "john",
+      "requiresPin": false
+    }
+  ]
+}
 ```
+
+| Field | Type | Description |
+|---|---|---|
+| `masterUsers` | `array` | All Jellyfin users who are master accounts |
+| `subProfiles` | `array` | All sub-profiles across the server |
+| `subProfiles[].masterName` | `string` | Username of the master account that owns this profile |
+
+---
+
+### `POST /plugins/profiles/admin/reset-pin`
+
+Clears the PIN on any profile server-wide. Intended for account recovery when a user is locked out. Does not require the master PIN — admin privilege is the only requirement.
+
+**Authorization:** Jellyfin administrator token
+
+**Request body:**
+```json
+{
+  "profileId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `profileId` | `string (GUID)` | Yes | The profile whose PIN should be cleared |
+
+**Response:** `200 OK` on success. `404 Not Found` if the profile mapping does not exist.
 
 ---
 
@@ -315,3 +414,12 @@ element.addEventListener('keydown', (e) => {
 ```
 
 **Focus styling:** Remote controls do not trigger CSS `:hover`. Replicate your hover animations on `:focus` and `:focus-within` to provide visible selection feedback for TV users.
+
+```css
+.profile-card:hover,
+.profile-card:focus,
+.profile-card:focus-within {
+    transform: scale(1.08);
+    outline: none;
+}
+```
