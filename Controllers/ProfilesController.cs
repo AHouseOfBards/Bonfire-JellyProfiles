@@ -76,7 +76,8 @@ namespace Jellyfin.Profiles.Controllers
                 AvatarColor = masterMapping?.AvatarColor ?? "#00A4DC",
                 RequiresPin = masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash),
                 IsMaster = true,
-                LockoutMinutes = masterMapping?.LockoutMinutes ?? 5
+                LockoutMinutes = masterMapping?.LockoutMinutes ?? 5,
+                MaxSubProfiles = config.MaxProfilesPerUser
             });
 
             // Add all shadow profiles

@@ -344,7 +344,8 @@
                     avatarColor: p.avatarColor || p.AvatarColor,
                     requiresPin: p.requiresPin !== undefined ? p.requiresPin : p.RequiresPin,
                     isMaster: p.isMaster !== undefined ? p.isMaster : p.IsMaster,
-                    lockoutMinutes: p.lockoutMinutes !== undefined ? p.lockoutMinutes : (p.LockoutMinutes !== undefined ? p.LockoutMinutes : 5)
+                    lockoutMinutes: p.lockoutMinutes !== undefined ? p.lockoutMinutes : (p.LockoutMinutes !== undefined ? p.LockoutMinutes : 5),
+                    maxSubProfiles: p.maxSubProfiles !== undefined ? p.maxSubProfiles : (p.MaxSubProfiles !== undefined ? p.MaxSubProfiles : 5)
                 }));
                 this.cachedProfiles = normalized;
                 this.showProfileOverlay(normalized);
@@ -487,6 +488,11 @@
             const title = this.isManageMode ? "Manage Profiles" : "Who's Watching?";
             const manageBtnText = this.isManageMode ? "Done" : "Manage Profiles";
 
+            const masterProfile = profiles.find(p => p.isMaster);
+            const maxSubProfiles = masterProfile ? masterProfile.maxSubProfiles : 5;
+            const subProfileCount = profiles.filter(p => !p.isMaster).length;
+            const atLimit = subProfileCount >= maxSubProfiles;
+
             overlay.innerHTML = `
                 <div class="profiles-modal-content anim-fade-in">
                     <h1 class="profiles-title">${title}</h1>
@@ -533,14 +539,16 @@
                             </div>
                         `).join('')}
                         
-                        ${!this.isManageMode ? `
+                        ${!this.isManageMode && !atLimit ? `
                         <div class="profile-card action-add-profile" tabindex="0">
                             <div class="profile-avatar-container">
                                 <div class="profile-avatar add-avatar">+</div>
                             </div>
                             <div class="profile-name">Add Profile</div>
                         </div>
-                        ` : ''}
+                        ` : (!this.isManageMode ? `
+                        <div class="profiles-limit-notice">${subProfileCount}/${maxSubProfiles} profiles — limit reached</div>
+                        ` : '')}
                     </div>
                     
                     <div class="profiles-footer">
@@ -990,6 +998,7 @@
                                 `).join('')}
                             </div>
                         </div>
+                        <div id="create-error-msg" style="display:none; color:#ff6b6b; font-size:0.88rem; font-weight:600; text-align:center; padding: 8px 12px; background: rgba(255,107,107,0.1); border-radius:8px; border: 1px solid rgba(255,107,107,0.25);"></div>
                         <div class="pin-actions">
                             <button id="create-submit-btn" class="profiles-btn btn-primary">Create</button>
                             <button id="create-cancel-btn" class="profiles-btn btn-secondary">Cancel</button>
@@ -1046,13 +1055,18 @@
                         checkedLibs.push(cb.value);
                     });
 
+                    const showCreateError = (msg) => {
+                        const el = document.getElementById('create-error-msg');
+                        if (el) { el.textContent = msg; el.style.display = 'block'; }
+                    };
+
                     if (!name) {
-                        alert("Profile name is required.");
+                        showCreateError('Profile name is required.');
                         return;
                     }
 
                     if (pin && (pin.length < 4 || pin.length > 8 || !/^\d+$/.test(pin))) {
-                        alert("PIN code must be a numeric value between 4 and 8 digits.");
+                        showCreateError('PIN must be 4–8 digits.');
                         return;
                     }
 
@@ -1080,7 +1094,10 @@
                     .then(() => {
                         this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
                     })
-                    .catch(err => alert("Error: " + err.message));
+                    .catch(err => {
+                        const el = document.getElementById('create-error-msg');
+                        if (el) { el.textContent = err.message; el.style.display = 'block'; }
+                    });
                 });
 
                 document.getElementById('create-cancel-btn').addEventListener('click', () => {
@@ -1651,6 +1668,11 @@
                     margin-top: 1rem; font-size: 1.25rem; font-weight: 500;
                     opacity: 0.75; transition: opacity 0.3s ease;
                     display: flex; flex-direction: column; align-items: center; gap: 4px;
+                }
+                .profiles-limit-notice {
+                    font-size: 0.85rem; color: rgba(255,255,255,0.35);
+                    font-style: italic; align-self: center; padding: 1rem 0;
+                    width: 140px; text-align: center;
                 }
                 .master-badge {
                     font-size: 0.8rem; opacity: 0.6; font-weight: 400;
