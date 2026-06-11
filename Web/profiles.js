@@ -19,21 +19,10 @@
             const device = typeof apiClient.deviceName === 'function' ? apiClient.deviceName() : (apiClient.deviceName || apiClient._deviceName || 'Chrome');
             const deviceId = typeof apiClient.deviceId === 'function' ? apiClient.deviceId() : (apiClient.deviceId || apiClient._deviceId || '');
             const version = typeof apiClient.appVersion === 'function' ? apiClient.appVersion() : (apiClient.appVersion || apiClient._appVersion || '');
-            
-            const headers = {
+
+            return {
                 'Authorization': `MediaBrowser Client="${client}", Device="${device}", DeviceId="${deviceId}", Version="${version}", Token="${token}"`
             };
-            
-            console.log("ProfilesPlugin [Auth Debug]:", {
-                client: client,
-                device: device,
-                deviceId: deviceId,
-                version: version,
-                token: token,
-                generatedHeaders: headers
-            });
-
-            return headers;
         },
 
         updateStoredCredentials: function (newToken, newUserId) {
@@ -354,6 +343,13 @@
             document.documentElement.classList.add('profiles-no-scroll');
 
             this.renderOverlayContent(overlay, profiles);
+
+            // Auto-focus the first interactive element so TV/keyboard users
+            // don't need to Tab before they can navigate the profile grid.
+            setTimeout(() => {
+                const first = overlay.querySelector('[tabindex="0"], button, input');
+                if (first) first.focus();
+            }, 50);
         },
 
         removeProfileOverlay: function () {
@@ -408,12 +404,16 @@
         },
 
         // Arms the inactivity timer. Resets on any user interaction.
-        // Any device event (mouse, keyboard, touch, scroll) counts as activity,
-        // making this safe for TV remotes and game pads.
+        // Any device event (mouse, keyboard, touch, pointer, scroll) counts as activity,
+        // making this safe for TV remotes, magic remotes, game pads, and touchscreens.
         startInactivityTimer: function (minutes) {
             this.stopInactivityTimer();
             const ms = minutes * 60 * 1000;
-            const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'wheel', 'click'];
+            const events = [
+                'mousemove', 'mousedown', 'keydown',
+                'touchstart', 'scroll', 'wheel', 'click',
+                'pointermove', 'pointerdown'  // covers LG Magic Remote and pointer-based TV inputs
+            ];
 
             const resetTimer = () => {
                 clearTimeout(this.inactivityTimer);
