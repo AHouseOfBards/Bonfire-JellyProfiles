@@ -8,6 +8,14 @@
     "owner": "AHouseOfBards",
     "versions": [
       {
+        "version": "1.0.6.0",
+        "changelog": "Fix: Switch Profile button rendering as a full-height bar on some Jellyfin installations. Root cause: Jellyfin's React layout applies CSS transforms to body and inner containers, causing position:fixed to be contained by the transformed element instead of the viewport. Fix: fallback button is now appended to the html element (outside the transform chain) with all styles set inline. Also improved header container detection to use a parent-of-existing-button strategy, making it work across Jellyfin versions that use different class names.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/JellyProfiles/releases/download/v1.0.6/Jellyfin.Profiles.zip",
+        "checksum": "PLACEHOLDER",
+        "timestamp": "2026-06-11T20:03:00Z"
+      },
+      {
         "version": "1.0.5.0",
         "changelog": "Performance: reduce route-check interval to 150ms; add DOM-based video player detection so the Switch Profile button hides the instant the OSD appears (no URL change needed). UX: button now fades out smoothly instead of jumping. Fix: button no longer appears on any admin/dashboard page — hidden across all server-management routes except the Profiles plugin settings page. Fix: clicking the button now dims it immediately to confirm the tap registered. Fix: eliminated race condition where rapid React re-renders could destroy the button element mid-click.",
         "targetAbi": "10.11.0.0",

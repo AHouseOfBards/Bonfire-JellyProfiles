@@ -1428,10 +1428,23 @@
                 return;
             }
 
-            const headerRight = document.querySelector('.headerRightButtons')
-                              || document.querySelector('.headerSelfView')
-                              || document.querySelector('.skinHeader-rightButtons')
-                              || document.querySelector('.headerButtons-right');
+            // ── Locate the header button container ──────────────────────────────
+            // Strategy 1: known class names (fast path)
+            // Strategy 2: find the parent element of any existing Jellyfin header
+            //   icon button — works regardless of class name changes across versions.
+            const headerRight = (
+                document.querySelector('.headerRightButtons') ||
+                document.querySelector('.headerSelfView') ||
+                document.querySelector('.skinHeader-rightButtons') ||
+                document.querySelector('.headerButtons-right') ||
+                (() => {
+                    const ref = document.querySelector(
+                        '.btnCurrentUser, .headerButtonUser, .headerButton-user, ' +
+                        '[class*="headerButton"]:not(#profiles-floating-bubble)'
+                    );
+                    return ref ? ref.parentElement : null;
+                })()
+            );
 
             if (headerRight) {
                 if (bubble) {
@@ -1461,7 +1474,13 @@
                     this.attachBubbleClickHandler(bubble);
                 }
             } else {
-                // Fallback floating button when header slot not found
+                // ── Fallback floating button ─────────────────────────────────────
+                // Appended to <html> (document.documentElement) rather than <body>.
+                // Jellyfin's React layout applies CSS transforms to body and inner
+                // containers, which causes position:fixed children to be positioned
+                // relative to the transformed element instead of the viewport —
+                // resulting in a full-height stretched bar. <html> is outside that
+                // transform chain, so fixed positioning works correctly from there.
                 if (bubble && !bubble.classList.contains('profiles-floating-fallback')) {
                     bubble.remove();
                     bubble = null;
@@ -1471,7 +1490,25 @@
                     bubble.id = 'profiles-floating-bubble';
                     bubble.className = 'profiles-floating-fallback';
                     bubble.innerText = 'Profiles';
-                    document.body.appendChild(bubble);
+                    // Use inline styles so nothing in the host stylesheet can override them.
+                    bubble.style.cssText = [
+                        'position:fixed',
+                        'bottom:24px',
+                        'right:24px',
+                        'z-index:2147483647',
+                        'background:rgba(0,164,220,0.9)',
+                        'color:#fff',
+                        'border:none',
+                        'border-radius:999px',
+                        'padding:10px 20px',
+                        'font-size:0.9rem',
+                        'font-weight:600',
+                        'cursor:pointer',
+                        'backdrop-filter:blur(8px)',
+                        'transition:opacity 0.15s ease',
+                        'display:inline-block'
+                    ].join(';');
+                    document.documentElement.appendChild(bubble);
                     this.attachBubbleClickHandler(bubble);
                 }
             }

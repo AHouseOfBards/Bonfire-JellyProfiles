@@ -1,8 +1,20 @@
 # Jellyfin Profiles Plugin
 
-Adds Netflix-style multi-user profiles to Jellyfin. A single Jellyfin account can have multiple isolated profiles with separate watch history, parental controls, and library access — no extra Jellyfin accounts required.
+Adds multi-user profile switching to Jellyfin. A single account can have up to five isolated profiles — each with its own watch history, parental controls, and library access.
 
 > Built for Jellyfin Server **10.11.x** (all minor versions supported).
+
+---
+
+## Screenshots
+
+![Profile selection screen](images/profile-selector.png)
+
+*Profile selector — shown on launch and when switching profiles.*
+
+![Create profile screen](images/create-profile.png)
+
+*Create profile — name, PIN, auto-lock timer, avatar color, parental rating, and library access.*
 
 ---
 
@@ -20,23 +32,24 @@ Adds Netflix-style multi-user profiles to Jellyfin. A single Jellyfin account ca
 
 ## Features
 
-- Create up to 5 isolated profiles per Jellyfin account
-- Per-profile PIN protection
+- Up to 5 isolated profiles per Jellyfin account
+- Per-profile PIN protection with auto-submit on correct entry
+- Configurable inactivity auto-lock (1 min – 1 hour) per profile
 - Parental rating limits per profile
 - Per-profile library access control
-- Profile avatars with customizable colors
-- Full profile management dashboard in the Jellyfin web UI
-- Works on any Jellyfin web client or web-wrapper app
+- Profile avatars with 18 customizable colors
+- Full profile management dashboard built into the Jellyfin web UI
+- Switch Profile button injected into the Jellyfin header — works on desktop, mobile, and TV browsers
 
 ---
 
 ## For Developers
 
-Building a native app or custom Jellyfin client and want to integrate profile switching?
+Building a native app or custom Jellyfin client?
 
 📄 **[Developer API Reference](docs/developer-api.md)**
 
-The API reference covers all endpoints, request/response schemas, the session lifecycle, and TV remote control implementation notes.
+Covers all endpoints, request/response schemas, the session lifecycle, silent PIN verification, inactivity lockout, and platform-specific implementation notes for tvOS, Android, Roku, Tizen, webOS, Xbox, PS4/PS5, and Electron.
 
 ---
 
