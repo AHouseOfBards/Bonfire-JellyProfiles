@@ -14,6 +14,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Use a token with push access so the manifest commit can be pushed
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup .NET 9
         uses: actions/setup-dotnet@v4
@@ -32,12 +35,47 @@ jobs:
         id: checksum
         run: |
           echo "md5=$(md5sum dist/Jellyfin.Profiles.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "Checksum: $(md5sum dist/Jellyfin.Profiles.zip | awk '{print $1}')"
 
-      - name: Print checksum (update manifest.json manually after release)
-        run: echo "MD5 checksum -> ${{ steps.checksum.outputs.md5 }}"
+      - name: Extract version from csproj
+        id: version
+        run: |
+          VERSION=$(grep '<Version>' Jellyfin.Profiles.csproj | sed 's/.*<Version>\(.*\)<\/Version>/\1/' | tr -d '[:space:]')
+          FULL="${VERSION}.0"
+          echo "version=${FULL}" >> $GITHUB_OUTPUT
+          echo "Detected version: ${FULL}"
 
-      - name: Create GitHub Release
+      - name: Update manifest.json with correct checksum
+        run: |
+          jq --arg v "${{ steps.version.outputs.version }}" \
+             --arg c "${{ steps.checksum.outputs.md5 }}" \
+             '.[0].versions |= map(if .version == $v then .checksum = $c else . end)' \
+             manifest.json > manifest.tmp.json
+          mv manifest.tmp.json manifest.json
+          echo "Manifest entry for ${{ steps.version.outputs.version }}:"
+          jq --arg v "${{ steps.version.outputs.version }}" '.[0].versions[] | select(.version == $v)' manifest.json
+
+      - name: Commit and push updated manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git diff --staged --quiet && echo "No changes to commit" && exit 0
+          git commit -m "ci: update manifest checksum for ${{ github.ref_name }} [skip ci]"
+          git push origin HEAD:main
+
+      - name: Get release notes from manifest changelog
+        id: notes
+        run: |
+          NOTES=$(jq -r --arg v "${{ steps.version.outputs.version }}" \
+            '.[0].versions[] | select(.version == $v) | .changelog' manifest.json)
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/Jellyfin.Profiles.zip
-          generate_release_notes: true
+          body: ${{ steps.notes.outputs.notes }}
+          make_latest: true

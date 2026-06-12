@@ -61,6 +61,10 @@
                 setTimeout(() => this.init(), 100);
                 return;
             }
+            // viewshow fires when Jellyfin's React view system finishes rendering a view.
+            // We gate _revealPage() on this event so we never fade in to a blank shell.
+            this._viewShowFired = false;
+            this._pendingReveal = false;
             this.bindEvents();
             this.injectStyles();
             this.validateSessionState();
@@ -73,7 +77,13 @@
 
             // Jellyfin view-system events (fires on every page/view change)
             // Use doCheck so all logic is centralised in checkRoute.
-            document.addEventListener('viewshow', doCheck);
+            document.addEventListener('viewshow', () => {
+                // Mark the view as ready so _revealPage() knows content is rendered.
+                this._viewShowFired = true;
+                // If _revealPage() was deferred waiting for this event, run it now.
+                if (this._pendingReveal) this._revealPage();
+                doCheck();
+            });
 
             // SPA navigation events
             window.addEventListener('popstate', doCheck);
@@ -123,8 +133,14 @@
                 (!hash && (path.endsWith('index.html') || path === '/' || path === '/web/'))
             );
 
+            // skipReveal: set to true when we know the gate overlay is about to be shown.
+            // In that case showProfileOverlay() will call _revealPage() once the overlay
+            // covers the page, preventing a blank-home flash during the async profile fetch.
+            let skipReveal = false;
+
             if (isHome) {
                 if (!this.isProfileSessionActive() && !document.getElementById('profiles-gate-overlay')) {
+                    skipReveal = true;
                     this.interceptHomeAndShowProfiles();
                 }
             } else {
@@ -191,18 +207,26 @@
             this.evaluateFloatingBubbleVisibility(viewType);
 
             // Reveal the page now that the gate decision has been made.
-            // This is a no-op on normal loads; it only matters after a profile
-            // switch that used the early-hide head script to suppress the flash.
-            this._revealPage();
+            // Skip when skipReveal is set — the overlay isn't in the DOM yet and
+            // revealing now would show a blank page during the profile fetch.
+            if (!skipReveal) this._revealPage();
         },
 
         // Smoothly fades the page back in after a profile switch.
-        // The early-hide inline <script> in <head> sets html opacity to 0 before
-        // React renders, ensuring zero visible flash during the reload.
-        // This method is a no-op on normal page loads where the flag was never set.
+        // Guards on _viewShowFired to ensure React has rendered the view before we
+        // expose it — otherwise a blank white shell flashes for a moment.
         _revealPage: function () {
             if (this._pageRevealed || !document.documentElement.style.opacity) return;
+
+            // Defer until Jellyfin's view system has finished rendering the view.
+            // _viewShowFired is set by the viewshow listener in bindEvents().
+            if (!this._viewShowFired) {
+                this._pendingReveal = true;
+                return;
+            }
+
             this._pageRevealed = true;
+            this._pendingReveal = false;
 
             if (window.__jpReveal) {
                 clearTimeout(window.__jpReveal);
@@ -414,6 +438,12 @@
             document.documentElement.classList.add('profiles-no-scroll');
 
             this.renderOverlayContent(overlay, profiles);
+
+            // Reveal the page NOW — the overlay covers the home screen so there
+            // is no blank-page flash.  checkRoute() skipped _revealPage() earlier
+            // specifically so we could do it here at the right moment.
+            this._viewShowFired = true; // overlay is rendered; treat this as view-ready
+            this._revealPage();
 
             // Auto-focus the first interactive element so TV/keyboard users
             // don't need to Tab before they can navigate the profile grid.
