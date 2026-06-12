@@ -1485,93 +1485,156 @@
                 return;
             }
 
-            // ── Locate the header button container ──────────────────────────────
-            // Strategy 1: known class names (fast path)
-            // Strategy 2: find the parent element of any existing Jellyfin header
-            //   icon button — works regardless of class name changes across versions.
-            const headerRight = (
-                document.querySelector('.headerRightButtons') ||
-                document.querySelector('.headerSelfView') ||
-                document.querySelector('.skinHeader-rightButtons') ||
-                document.querySelector('.headerButtons-right') ||
-                (() => {
-                    const ref = document.querySelector(
-                        '.btnCurrentUser, .headerButtonUser, .headerButton-user, ' +
-                        '[class*="headerButton"]:not(#profiles-floating-bubble)'
-                    );
-                    return ref ? ref.parentElement : null;
-                })()
-            );
+            // ── Strategy 1: find the header button container by class name ─────────
+            const headerContainer = this._findHeaderContainer();
 
-            if (headerRight) {
+            if (headerContainer) {
                 if (bubble) {
-                    // If the bubble exists but is detached from the DOM entirely, reset it.
-                    // Do NOT remove it just because React re-rendered its parent — that causes
-                    // the race condition where a click lands on an element being destroyed.
                     if (!document.contains(bubble)) {
                         bubble.remove();
                         bubble = null;
-                    } else if (!headerRight.contains(bubble)) {
-                        // Still in DOM but moved outside header — re-insert, keep element
-                        const userBtn = headerRight.querySelector('.headerButton-user') || headerRight.lastElementChild;
-                        userBtn ? headerRight.insertBefore(bubble, userBtn) : headerRight.appendChild(bubble);
+                    } else if (!headerContainer.contains(bubble)) {
+                        // Button is in the DOM but drifted outside the header — re-insert.
+                        this._insertBeforeUserBtn(headerContainer, bubble);
                     }
                 }
-
                 if (!bubble) {
-                    bubble = document.createElement('button');
-                    bubble.id = 'profiles-floating-bubble';
-                    bubble.className = 'paper-icon-button-light headerButton';
-                    bubble.title = 'Switch Profile';
-                    bubble.innerHTML = '<span class="material-icons">people</span>';
-
-                    const userBtn = headerRight.querySelector('.headerButton-user') || headerRight.lastElementChild;
-                    userBtn ? headerRight.insertBefore(bubble, userBtn) : headerRight.appendChild(bubble);
-
+                    bubble = this._buildHeaderBubble();
+                    this._insertBeforeUserBtn(headerContainer, bubble);
                     this.attachBubbleClickHandler(bubble);
                 }
+
             } else {
-                // ── Fallback floating button ─────────────────────────────────────
-                // Appended to <html> (document.documentElement) rather than <body>.
-                // Jellyfin's React layout applies CSS transforms to body and inner
-                // containers, which causes position:fixed children to be positioned
-                // relative to the transformed element instead of the viewport —
-                // resulting in a full-height stretched bar. <html> is outside that
-                // transform chain, so fixed positioning works correctly from there.
-                if (bubble && !bubble.classList.contains('profiles-floating-fallback')) {
-                    bubble.remove();
-                    bubble = null;
-                }
-                if (!bubble) {
-                    bubble = document.createElement('button');
-                    bubble.id = 'profiles-floating-bubble';
-                    bubble.className = 'profiles-floating-fallback';
-                    bubble.innerText = 'Profiles';
-                    // Use inline styles so nothing in the host stylesheet can override them.
-                    bubble.style.cssText = [
-                        'position:fixed',
-                        'bottom:24px',
-                        'right:24px',
-                        'z-index:2147483647',
-                        'background:rgba(0,164,220,0.9)',
-                        'color:#fff',
-                        'border:none',
-                        'border-radius:999px',
-                        'padding:10px 20px',
-                        'font-size:0.9rem',
-                        'font-weight:600',
-                        'cursor:pointer',
-                        'backdrop-filter:blur(8px)',
-                        'transition:opacity 0.15s ease',
-                        'display:inline-block'
-                    ].join(';');
-                    document.documentElement.appendChild(bubble);
-                    this.attachBubbleClickHandler(bubble);
+                // ── Strategy 2: geometry-based anchor ────────────────────────────────
+                // If no named container matched (e.g. a custom Skin Manager theme),
+                // find the rightmost visible button in the top 80px of the viewport
+                // and insert next to it.  Works for ANY theme regardless of class names.
+                const anchor = this._findGeometricHeaderAnchor();
+                if (anchor) {
+                    if (bubble) {
+                        if (!document.contains(bubble)) {
+                            bubble.remove(); bubble = null;
+                        } else if (!anchor.parentElement.contains(bubble)) {
+                            bubble.remove(); bubble = null;
+                        }
+                    }
+                    if (!bubble) {
+                        bubble = this._buildHeaderBubble();
+                        anchor.parentElement.insertBefore(bubble, anchor);
+                        this.attachBubbleClickHandler(bubble);
+                    }
+
+                } else {
+                    // ── Strategy 3: true corner-pill fallback ────────────────────────
+                    // Appended to <html> (outside the body transform chain) so
+                    // position:fixed works correctly regardless of CSS transforms.
+                    if (bubble && !bubble.classList.contains('profiles-floating-fallback')) {
+                        bubble.remove();
+                        bubble = null;
+                    }
+                    if (!bubble) {
+                        bubble = this._buildFallbackBubble();
+                        document.documentElement.appendChild(bubble);
+                        this.attachBubbleClickHandler(bubble);
+                    }
                 }
             }
 
             this._bubbleShow(bubble);
         },
+
+        // ── Header-container detection ───────────────────────────────────────────
+
+        _findHeaderContainer: function () {
+            // Strategy A: explicit Jellyfin class names (fast path)
+            const byClass =
+                document.querySelector('.headerRightButtons') ||
+                document.querySelector('.headerSelfView') ||
+                document.querySelector('.skinHeader-rightButtons') ||
+                document.querySelector('.headerButtons-right') ||
+                document.querySelector('.headerRight') ||
+                document.querySelector('.viewHeaderRight');
+            if (byClass) return byClass;
+
+            // Strategy B: parent of any known Jellyfin icon button
+            const knownBtn = document.querySelector(
+                '.btnCurrentUser, .headerButtonUser, .headerButton-user, ' +
+                '.btnCast, .headerButton-cast, ' +
+                '[class*="headerButton"]:not(#profiles-floating-bubble)'
+            );
+            if (knownBtn) return knownBtn.parentElement;
+
+            // Strategy C: find the button cluster inside a custom skin/theme header.
+            // ElegantFin and Skin Manager themes wrap everything in .skinHeader or
+            // a similarly named element; we pick the child that contains the most
+            // icon buttons (likely the right-side group).
+            const skinHeader = document.querySelector(
+                '.skinHeader, .jellyfinHeader, [class*="skinHeader"], [class*="topBar"]'
+            );
+            if (skinHeader) {
+                const children = skinHeader.querySelectorAll('div, nav, ul, span');
+                let best = null, bestCount = 0;
+                for (const el of children) {
+                    const btns = el.querySelectorAll('button, a[role="button"]');
+                    if (btns.length > bestCount && btns.length >= 2) {
+                        bestCount = btns.length;
+                        best = el;
+                    }
+                }
+                return best;
+            }
+
+            return null;
+        },
+
+        // Finds the rightmost visible button within the top 80px of the viewport.
+        // Theme-agnostic: works even when class names are completely non-standard.
+        _findGeometricHeaderAnchor: function () {
+            const candidates = document.querySelectorAll(
+                'button:not(#profiles-floating-bubble), a[role="button"]:not(#profiles-floating-bubble)'
+            );
+            let rightmost = null, rightmostX = -Infinity;
+            for (const el of candidates) {
+                const r = el.getBoundingClientRect();
+                if (r.top >= 0 && r.bottom <= 80 && r.width > 0 && r.right > rightmostX) {
+                    rightmostX = r.right;
+                    rightmost = el;
+                }
+            }
+            return rightmost;
+        },
+
+        // Builds the icon-style button for header insertion.
+        _buildHeaderBubble: function () {
+            const b = document.createElement('button');
+            b.id = 'profiles-floating-bubble';
+            b.className = 'paper-icon-button-light headerButton';
+            b.title = 'Switch Profile';
+            b.setAttribute('aria-label', 'Switch Profile');
+            b.innerHTML = '<span class="material-icons">people</span>';
+            return b;
+        },
+
+        // Builds the corner pill button (last-resort fallback).
+        _buildFallbackBubble: function () {
+            const b = document.createElement('button');
+            b.id = 'profiles-floating-bubble';
+            b.className = 'profiles-floating-fallback';
+            b.title = 'Switch Profile';
+            b.setAttribute('aria-label', 'Switch Profile');
+            // Icon + label so it's recognisable at any screen size.
+            b.innerHTML = '<span class="material-icons" aria-hidden="true" style="font-size:1.1rem;vertical-align:middle;margin-right:5px">people</span>Profiles';
+            return b;
+        },
+
+        // Inserts bubble before the user-account button, or appends if not found.
+        _insertBeforeUserBtn: function (container, bubble) {
+            const userBtn =
+                container.querySelector('.headerButton-user, .btnCurrentUser, .headerButtonUser') ||
+                container.lastElementChild;
+            userBtn ? container.insertBefore(bubble, userBtn) : container.appendChild(bubble);
+        },
+
 
         attachBubbleClickHandler: function (bubble) {
             const activate = (e) => {
@@ -1768,14 +1831,18 @@
                     border: 1px solid rgba(0, 230, 0, 0.25);
                 }
 
-                /* Floating Profiles Selector Bubble - Fallback style */
+                /* Floating Profiles Selector Bubble — fallback corner pill */
+                /* This only appears when header injection fails entirely.    */
                 #profiles-floating-bubble.profiles-floating-fallback {
-                    position: fixed; top: 15px; right: 220px; z-index: 9999;
+                    position: fixed;
+                    bottom: 24px; right: 24px; top: auto;
+                    z-index: 9999;
                     background: var(--theme-accent-color, #00a4dc);
-                    color: #fff; padding: 7px 16px; border-radius: 20px;
+                    color: #fff; padding: 8px 18px; border-radius: 999px;
                     font-weight: 600; cursor: pointer; font-size: 0.85rem;
-                    box-shadow: 0 6px 16px rgba(0,164,220,0.3);
-                    transition: transform 0.25s ease, box-shadow 0.25s ease;
+                    display: inline-flex; align-items: center;
+                    box-shadow: 0 4px 16px rgba(0,164,220,0.35);
+                    transition: transform 0.2s ease, box-shadow 0.2s ease;
                     border: none;
                 }
                 #profiles-floating-bubble.profiles-floating-fallback:hover,
@@ -1883,9 +1950,8 @@
                 /* Mobile Responsiveness Media Queries */
                 @media (max-width: 600px) {
                     #profiles-floating-bubble.profiles-floating-fallback {
-                        right: 15px;
-                        bottom: 15px;
-                        top: auto;
+                        right: 12px;
+                        bottom: 12px;
                     }
                 }
                 @media (max-width: 480px) {
@@ -1978,12 +2044,8 @@
                     opacity: 0 !important;
                     pointer-events: none;
                 }
+                /* Fallback bubble — fade transition (defers all positioning to ID rule above) */
                 .profiles-floating-fallback {
-                    position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-                    background: rgba(0,164,220,0.85); color: #fff;
-                    border: none; border-radius: 999px; padding: 10px 20px;
-                    font-size: 0.9rem; font-weight: 600; cursor: pointer;
-                    backdrop-filter: blur(8px);
                     transition: opacity 0.15s ease;
                 }
                 .profiles-floating-fallback.profiles-bubble-hiding {
