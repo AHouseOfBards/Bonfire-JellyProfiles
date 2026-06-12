@@ -1,4 +1,4 @@
-# Jellyfin Profiles Plugin
+# Bonfire/JellyProfiles
 
 Adds multi-user profile switching to Jellyfin. A single account can have up to five isolated profiles — each with its own watch history, parental controls, and library access.
 
@@ -11,10 +11,6 @@ Adds multi-user profile switching to Jellyfin. A single account can have up to f
 ![Profile selection screen](images/profile-selector.png)
 
 *Profile selector — shown on launch and when switching profiles.*
-
-![Create profile screen](images/create-profile.png)
-
-*Create profile — name, PIN, auto-lock timer, avatar color, parental rating, and library access.*
 
 ---
 
@@ -37,17 +33,11 @@ Once the server restarts, the plugin is active and will automatically load on al
 
 ## Features
 
-- Up to 5 isolated profiles per Jellyfin account
-- Per-profile PIN protection with auto-submit on correct entry
-- **Local Network PIN Bypass:** Option to skip PIN prompts automatically when connected via local home network (LAN)
-- **Device Restrictions:** Restrict specific sub-profiles to designated devices only (whitelist)
-- **Connected Device History:** View a server-wide log of all devices that have connected through the plugin, and remove entries to keep it tidy
-- **Plex Home-style Bonfire Codes:** Securely link separate master accounts using server-generated 6-character codes, protected by brute-force rate limiting
-- Configurable inactivity auto-lock (1 min – 1 hour) per profile
-- Parental rating limits per profile
-- Per-profile library access control
-- Profile avatars with 18 customizable colors
-- Full profile management dashboard built into the Jellyfin web UI
+- **Multi-User Profile Switching**: Up to 5 isolated sub-profiles per Jellyfin account, each with separate watch history, library access, and parental ratings.
+- **Bonfire Grouping**: Link different master accounts together using secure 6-character codes to share switcher screens.
+- **PIN Protection & LAN Bypass**: Secure profiles with PIN codes and bypass verification automatically when connected on your local network (LAN).
+- **Device Whitelists**: Limit specific profiles to designated devices.
+- **Premium UI**: Seamless native UI integration with custom profile pictures, custom avatar colors, and TV D-pad navigation support.
 
 ---
 
@@ -70,7 +60,6 @@ Once the server restarts, the plugin is active and will automatically load on al
 
 **Skin Manager / custom themes**  
 The Switch Profile button is designed to align with standard Jellyfin layouts. If you use custom themes or a skin manager, the button might occasionally appear misaligned or out of place. If you run into visual conflicts, please open an issue with the name of the theme you are using.
-
 
 **Profile creation is on the home screen, not the admin dashboard**  
 Profiles are created and managed via the Switch Profile button on the Jellyfin home screen. The admin dashboard page (**Dashboard → Plugins → Profiles**) is only for server-wide settings (maximum profile count, require-PIN policy) and administrator PIN resets.
