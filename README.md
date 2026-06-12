@@ -48,7 +48,7 @@ On restart the plugin automatically injects its client script into Jellyfin's `i
 - Per-profile library access control
 - Profile avatars with 18 customizable colors
 - Full profile management dashboard built into the Jellyfin web UI
-- Switch Profile button injected into the Jellyfin header and focusable TV sidebar with full D-pad remote compatibility
+- Switch Profile button on the home screen and in the sidebar navigation with full remote control (D-pad) compatibility
 
 ---
 
