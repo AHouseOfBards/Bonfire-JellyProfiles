@@ -17,6 +17,7 @@
         inactivityTimer: null,
         inactivityEventHandlers: null,
         _pageRevealed: false,
+        _switchLock: false,
 
         getAuthHeaders: function (token) {
             const apiClient = ApiClient;
@@ -1315,7 +1316,9 @@
             });
 
             // Manual submit — only place where we show an error on wrong master PIN
+            let verifyInProgress = false;
             const submitPin = () => {
+                if (verifyInProgress) return;
                 if (verifyController) verifyController.abort();
                 verifyController = null;
                 const pin = pinInput.value;
@@ -1324,6 +1327,7 @@
                 const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
                 if (!masterState) return;
 
+                verifyInProgress = true;
                 fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
                     method: 'POST',
                     headers: {
@@ -1333,17 +1337,23 @@
                     body: JSON.stringify({ profileId: masterProfile.profileUserId, pin: pin })
                 })
                 .then(res => {
+                    verifyInProgress = false;
                     if (res.status === 401) {
                         this.handleSessionExpired();
                         throw new Error('Session expired');
                     }
-                    if (!res.ok) throw new Error('Invalid PIN');
+                    if (!res.ok) {
+                        return res.text().then(text => {
+                            throw new Error(text || 'Incorrect Master PIN. Please try again.');
+                        });
+                    }
                     this.masterPin = pin;
                     callback();
                 })
                 .catch(err => {
+                    verifyInProgress = false;
                     if (err.message !== 'Session expired') {
-                        showPinError('Incorrect Master PIN. Please try again.');
+                        showPinError(err.message || 'Incorrect Master PIN. Please try again.');
                     }
                 });
             };
@@ -1363,10 +1373,13 @@
         // Callers capture their own DOM references via closure so we never re-query
         // the DOM inside an async callback (which can race against overlay teardown).
         executeProfileSwitch: function (profileId, pin, onError) {
+            if (this._switchLock) return;
+
             const apiClient = ApiClient;
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
             if (!masterState) return;
 
+            this._switchLock = true;
             const url = apiClient.getUrl('plugins/profiles/switch');
 
             fetch(url, {
@@ -1379,10 +1392,15 @@
             })
             .then(res => {
                 if (res.status === 401) {
+                    this._switchLock = false;
                     this.handleSessionExpired();
                     throw new Error('Session expired');
                 }
-                if (!res.ok) throw new Error('Incorrect PIN');
+                if (!res.ok) {
+                    return res.text().then(text => {
+                        throw new Error(text || 'Incorrect PIN. Please try again.');
+                    });
+                }
                 return res.json();
             })
             .then(data => {
@@ -1424,10 +1442,11 @@
                 window.location.reload();
             })
             .catch(err => {
+                this._switchLock = false;
                 if (err.message === 'Session expired') return;
                 if (typeof onError === 'function') {
                     // Caller has closed-over references to the DOM — no re-query needed
-                    onError('Incorrect PIN. Please try again.');
+                    onError(err.message || 'Incorrect PIN. Please try again.');
                 } else {
                     // Fallback: no PIN screen is currently shown (e.g. direct card tap without PIN prompt)
                     this.isManageMode = false;
