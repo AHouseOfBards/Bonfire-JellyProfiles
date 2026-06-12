@@ -16,5 +16,6 @@ namespace Jellyfin.Profiles.Models
         public int? LockoutMinutes { get; set; }
         public bool? BypassPinOnLocalNetwork { get; set; }
         public List<string>? AllowedDeviceIds { get; set; }
+        public string? ProfileImage { get; set; }
     }
 }

@@ -8,6 +8,14 @@
     "owner": "AHouseOfBards",
     "versions": [
       {
+        "version": "1.0.29.0",
+        "changelog": "Fix: Bonfire join code generation and membership check matching. Fix: Manage profiles button click logic and session cache switch. Fix: Sidebar avatar 'P' bug by dynamically updating instead of returning early and resolving default user fallback. Optimization: Throttled device activity logging (15m lockout) to drastically minimize database writes and server load. Optimization: Added static expiration pruning loop to BonfireRateLimiter dictionary to prevent unbounded memory growth. Feature: Custom profile picture file uploading, client-side canvas auto-resizing (96x96), TV platform URL fallback support, and picture removal option.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/JellyProfiles/releases/download/v1.0.29/Jellyfin.Profiles.zip",
+        "checksum": "placeholder-checksum-to-be-replaced",
+        "timestamp": "2026-06-12T14:40:00Z"
+      },
+      {
         "version": "1.0.28.0",
         "changelog": "Fix: Manage Profiles button silently did nothing when the master user had a PIN set (promptMasterPinEntry was reading from the already-cleared cachedProfiles). Introduced currentProfiles to hold the live displayed list, fixing PIN-cancel and master-PIN-cancel 'no profiles' regression too. Fix: Bonfire Generate/Join/Kick/Leave/Delete buttons failed silently because they relied on container.closest() to resolve the modal root after an async fetch — content is now passed directly through the render chain. Added .catch() handlers to all bonfire action fetches.",
         "targetAbi": "10.11.0.0",

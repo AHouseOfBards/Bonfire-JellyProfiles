@@ -99,7 +99,8 @@ namespace Jellyfin.Profiles.Controllers
                     MaxSubProfiles = config.MaxProfilesPerUser,
                     BypassPinOnLocalNetwork = linkedMapping?.BypassPinOnLocalNetwork ?? false,
                     AllowedDeviceIds = linkedMapping?.AllowedDeviceIds ?? new List<string>(),
-                    IsBonfire = (linkedId != masterUserId)
+                    IsBonfire = (linkedId != masterUserId),
+                    ProfileImage = linkedMapping?.ProfileImage
                 });
 
                 // Add all shadow profiles for this master
@@ -123,7 +124,8 @@ namespace Jellyfin.Profiles.Controllers
                             EnabledFolders = m.EnabledFolders ?? new List<Guid>(),
                             BypassPinOnLocalNetwork = m.BypassPinOnLocalNetwork,
                             AllowedDeviceIds = m.AllowedDeviceIds ?? new List<string>(),
-                            IsBonfire = (linkedId != masterUserId)
+                            IsBonfire = (linkedId != masterUserId),
+                            m.ProfileImage
                         };
                     });
 
@@ -316,7 +318,8 @@ namespace Jellyfin.Profiles.Controllers
                 // Store the selected libraries as the plugin's own ground truth
                 EnabledFolders = request.EnabledFolders?.ToList() ?? new List<Guid>(),
                 BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork ?? false,
-                AllowedDeviceIds = request.AllowedDeviceIds ?? new List<string>()
+                AllowedDeviceIds = request.AllowedDeviceIds ?? new List<string>(),
+                ProfileImage = request.ProfileImage
             });
 
             Plugin.Instance?.SaveConfiguration();
@@ -843,6 +846,11 @@ namespace Jellyfin.Profiles.Controllers
 
                 mappingEntry.AvatarColor = request.AvatarColor;
 
+                if (request.ProfileImage != null)
+                {
+                    mappingEntry.ProfileImage = request.ProfileImage;
+                }
+
                 // Handle PIN updates
                 if (request.Pin == string.Empty)
                 {
@@ -1080,11 +1088,25 @@ namespace Jellyfin.Profiles.Controllers
             lock (config)
             {
                 var existing = config.KnownDevices.FirstOrDefault(d => d.DeviceId == deviceId);
+                bool shouldSave = false;
                 if (existing != null)
                 {
-                    existing.DeviceName = deviceName ?? existing.DeviceName;
-                    existing.Client = client ?? existing.Client;
-                    existing.LastSeen = DateTime.UtcNow;
+                    if (deviceName != null && existing.DeviceName != deviceName)
+                    {
+                        existing.DeviceName = deviceName;
+                        shouldSave = true;
+                    }
+                    if (client != null && existing.Client != client)
+                    {
+                        existing.Client = client;
+                        shouldSave = true;
+                    }
+                    var now = DateTime.UtcNow;
+                    if ((now - existing.LastSeen).TotalMinutes >= 15)
+                    {
+                        existing.LastSeen = now;
+                        shouldSave = true;
+                    }
                 }
                 else
                 {
@@ -1095,8 +1117,13 @@ namespace Jellyfin.Profiles.Controllers
                         Client = client ?? "Unknown Client",
                         LastSeen = DateTime.UtcNow
                     });
+                    shouldSave = true;
                 }
-                Plugin.Instance?.SaveConfiguration();
+
+                if (shouldSave)
+                {
+                    Plugin.Instance?.SaveConfiguration();
+                }
             }
         }
 
@@ -1464,10 +1491,42 @@ namespace Jellyfin.Profiles.Controllers
     public static class BonfireRateLimiter
     {
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<DateTime>> _failedAttempts = new();
+        private static readonly object _cleanupLock = new();
+        private static DateTime _nextCleanup = DateTime.UtcNow.AddMinutes(5);
+
+        private static void PruneExpiredEntries()
+        {
+            var now = DateTime.UtcNow;
+            if (now < _nextCleanup) return;
+
+            lock (_cleanupLock)
+            {
+                if (now < _nextCleanup) return;
+                _nextCleanup = now.AddMinutes(5);
+
+                var cutoff = now.AddMinutes(-15);
+                foreach (var key in _failedAttempts.Keys)
+                {
+                    if (_failedAttempts.TryGetValue(key, out var list))
+                    {
+                        lock (list)
+                        {
+                            list.RemoveAll(t => t < cutoff);
+                            if (list.Count == 0)
+                            {
+                                _failedAttempts.TryRemove(key, out _);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         public static bool IsRateLimited(string ipAddress)
         {
             if (string.IsNullOrEmpty(ipAddress)) return false;
+
+            PruneExpiredEntries();
 
             if (_failedAttempts.TryGetValue(ipAddress, out var attempts))
             {
@@ -1483,6 +1542,8 @@ namespace Jellyfin.Profiles.Controllers
         public static void RecordFailure(string ipAddress)
         {
             if (string.IsNullOrEmpty(ipAddress)) return;
+
+            PruneExpiredEntries();
 
             var attempts = _failedAttempts.GetOrAdd(ipAddress, _ => new List<DateTime>());
             lock (attempts)

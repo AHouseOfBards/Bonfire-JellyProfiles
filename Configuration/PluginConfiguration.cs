@@ -50,5 +50,6 @@ namespace Jellyfin.Profiles.Configuration
         public List<Guid>? EnabledFolders { get; set; }
         public bool BypassPinOnLocalNetwork { get; set; } = false;
         public List<string> AllowedDeviceIds { get; set; } = new List<string>();
+        public string? ProfileImage { get; set; }
     }
 }

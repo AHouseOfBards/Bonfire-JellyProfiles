@@ -354,7 +354,8 @@
                                 const info = {
                                     name: profile.profileName,
                                     color: profile.avatarColor || '#00A4DC',
-                                    initial: profile.avatarInitial || (profile.profileName ? profile.profileName.charAt(0).toUpperCase() : 'P')
+                                    initial: profile.avatarInitial || (profile.profileName ? profile.profileName.charAt(0).toUpperCase() : 'P'),
+                                    profileImage: profile.profileImage || null
                                 };
                                 // Store it in sessionStorage for future fast access
                                 sessionStorage.setItem('jellyfin_profiles_active_info', JSON.stringify(info));
@@ -368,10 +369,21 @@
             }
 
             // Ultimate fallback (e.g. before any profile list has been loaded)
+            const apiClient = ApiClient;
+            let fallbackName = 'Profiles';
+            let fallbackInitial = 'P';
+            if (apiClient) {
+                const user = apiClient._currentUser || apiClient.currentUser;
+                if (user && user.Name) {
+                    fallbackName = user.Name;
+                    fallbackInitial = user.Name.charAt(0).toUpperCase();
+                }
+            }
             return {
-                name: 'Profiles',
+                name: fallbackName,
                 color: '#00A4DC',
-                initial: 'P'
+                initial: fallbackInitial,
+                profileImage: null
             };
         },
 
@@ -490,7 +502,8 @@
                     maxSubProfiles: p.maxSubProfiles !== undefined ? p.maxSubProfiles : (p.MaxSubProfiles !== undefined ? p.MaxSubProfiles : 5),
                     bypassPinOnLocalNetwork: p.bypassPinOnLocalNetwork !== undefined ? p.bypassPinOnLocalNetwork : (p.BypassPinOnLocalNetwork !== undefined ? p.BypassPinOnLocalNetwork : false),
                     allowedDeviceIds: p.allowedDeviceIds || p.AllowedDeviceIds || [],
-                    isBonfire: p.isBonfire !== undefined ? p.isBonfire : (p.IsBonfire !== undefined ? p.IsBonfire : false)
+                    isBonfire: p.isBonfire !== undefined ? p.isBonfire : (p.IsBonfire !== undefined ? p.IsBonfire : false),
+                    profileImage: p.profileImage || p.ProfileImage || null
                 }));
                 this.cachedProfiles = normalized;
                 localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
@@ -655,7 +668,7 @@
             const title = this.isManageMode ? "Manage Profiles" : "Who's Watching?";
             const manageBtnText = this.isManageMode ? "Done" : "Manage Profiles";
 
-            const masterProfile = profiles.find(p => p.isMaster);
+            const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
             const maxSubProfiles = masterProfile ? masterProfile.maxSubProfiles : 5;
             const subProfileCount = profiles.filter(p => !p.isMaster).length;
             const atLimit = subProfileCount >= maxSubProfiles;
@@ -675,8 +688,8 @@
                                         </svg>
                                     </div>
                                     ` : ''}
-                                    <div class="profile-avatar" style="background-color: ${p.avatarColor}">
-                                        ${p.avatarInitial}
+                                    <div class="profile-avatar" style="background-color: ${p.avatarColor}; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                                        ${p.profileImage ? `<img src="${p.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : p.avatarInitial}
                                         ${this.isManageMode ? `
                                         <div class="profile-avatar-overlay-wrap">
                                             <svg class="profile-avatar-overlay-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 32px; height: 32px; color: #fff;">
@@ -759,7 +772,7 @@
                 card.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const profileId = card.getAttribute('data-id');
-                    const profile = profiles.find(p => p.profileUserId === profileId);
+                    const profile = profiles.find(p => this.normalizeGuid(p.profileUserId) === this.normalizeGuid(profileId));
                     if (!profile) return;
 
                     if (this.isManageMode) {
@@ -778,7 +791,7 @@
             const addCard = overlay.querySelector('.action-add-profile');
             if (addCard) {
                 addCard.addEventListener('click', () => {
-                    const masterProfile = profiles.find(p => p.isMaster);
+                    const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
                     const masterRequiresPin = masterProfile && masterProfile.requiresPin;
                     
                     if (masterRequiresPin) {
@@ -816,7 +829,7 @@
                         this.masterPin = null;
                         this.renderOverlayContent(overlay, profiles);
                     } else {
-                        const masterProfile = profiles.find(p => p.isMaster);
+                        const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
                         if (masterProfile && masterProfile.requiresPin) {
                             this.promptMasterPinEntry('manage', () => {
                                 this.isManageMode = true;
@@ -1098,12 +1111,13 @@
 
                 sessionStorage.setItem(this.config.activeSessionKey, activeProfileToken);
                 
-                const profile = this.cachedProfiles.find(p => this.normalizeGuid(p.profileUserId) === this.normalizeGuid(profileId));
+                const profile = this.currentProfiles.find(p => this.normalizeGuid(p.profileUserId) === this.normalizeGuid(profileId));
                 if (profile) {
                     sessionStorage.setItem('jellyfin_profiles_active_info', JSON.stringify({
                         name: profile.profileName,
                         color: profile.avatarColor,
-                        initial: profile.avatarInitial
+                        initial: profile.avatarInitial,
+                        profileImage: profile.profileImage || null
                     }));
                 }
 
@@ -1239,6 +1253,28 @@
                             </div>
                         </div>
                         <div class="form-group">
+                            <label>Profile Picture</label>
+                            <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 10px;">
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <div id="create-image-upload-preview" style="width: 64px; height: 64px; border-radius: 50%; background-color: #00A4DC; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: bold; text-transform: uppercase; overflow: hidden; border: 2px solid rgba(255,255,255,0.2);">
+                                        +
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                                        <input type="file" id="create-profile-image-file" accept="image/*" style="font-size: 0.85rem; color: rgba(255,255,255,0.7);" />
+                                        <div style="font-size: 0.75rem; opacity: 0.6;">Maximum size: 96x96 pixels (auto-resized)</div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; opacity: 0.5; font-size: 0.8rem; margin: 5px 0;">
+                                    <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
+                                    <span>OR</span>
+                                    <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <input type="text" id="create-profile-image-url" placeholder="Paste image URL (fallback for TV platforms)" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
                             <label>Max Parental Rating Limit (Optional)</label>
                             <select id="create-rating-select">
                                 <option value="">No Restrictions</option>
@@ -1281,8 +1317,90 @@
                         dots.forEach(d => d.classList.remove('active'));
                         dot.classList.add('active');
                         selectedColor = dot.getAttribute('data-color');
+                        const createPreview = document.getElementById('create-image-upload-preview');
+                        if (createPreview && !createPreview.querySelector('img')) {
+                            createPreview.style.backgroundColor = selectedColor;
+                        }
                     });
                 });
+
+                // Profile Image Upload / URL Handlers for Create
+                let uploadedImageBase64 = null;
+                const fileInput = document.getElementById('create-profile-image-file');
+                const urlInput = document.getElementById('create-profile-image-url');
+                const previewDiv = document.getElementById('create-image-upload-preview');
+
+                const updatePreview = (src) => {
+                    if (src) {
+                        previewDiv.innerHTML = `<img src="${src}" style="width: 100%; height: 100%; object-fit: cover;" />`;
+                    } else {
+                        const nameVal = document.getElementById('create-name-input')?.value?.trim();
+                        previewDiv.innerHTML = nameVal ? nameVal.charAt(0).toUpperCase() : '+';
+                    }
+                };
+
+                const nameInput = document.getElementById('create-name-input');
+                if (nameInput) {
+                    nameInput.addEventListener('input', () => {
+                        if (!uploadedImageBase64) {
+                            updatePreview(null);
+                        }
+                    });
+                }
+
+                if (fileInput) {
+                    fileInput.addEventListener('change', (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            const img = new Image();
+                            img.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                let width = img.width;
+                                let height = img.height;
+                                const max_size = 96;
+
+                                if (width > height) {
+                                    if (width > max_size) {
+                                        height *= max_size / width;
+                                        width = max_size;
+                                    }
+                                } else {
+                                    if (height > max_size) {
+                                        width *= max_size / height;
+                                        height = max_size;
+                                    }
+                                }
+                                canvas.width = width;
+                                canvas.height = height;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(img, 0, 0, width, height);
+
+                                uploadedImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                                updatePreview(uploadedImageBase64);
+                                if (urlInput) urlInput.value = '';
+                            };
+                            img.src = event.target.result;
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                }
+
+                if (urlInput) {
+                    urlInput.addEventListener('input', () => {
+                        const url = urlInput.value.trim();
+                        if (url) {
+                            uploadedImageBase64 = url;
+                            updatePreview(url);
+                            if (fileInput) fileInput.value = '';
+                        } else {
+                            uploadedImageBase64 = null;
+                            updatePreview(null);
+                        }
+                    });
+                }
 
                 // Support D-pad Enter/Space select on color dots
                 content.addEventListener('keydown', (e) => {
@@ -1406,7 +1524,8 @@
                             masterPin: this.masterPin,
                             lockoutMinutes: lockoutMinutes,
                             bypassPinOnLocalNetwork: bypassPin,
-                            allowedDeviceIds: checkedDevices
+                            allowedDeviceIds: checkedDevices,
+                            profileImage: uploadedImageBase64
                         })
                     })
                     .then(res => {
@@ -1518,6 +1637,31 @@
                                 <div class="color-dot" style="background-color: #64748B" data-color="#64748B" tabindex="0"></div>
                             </div>
                         </div>
+                        <div class="form-group">
+                            <label>Profile Picture</label>
+                            <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 10px;">
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <div id="edit-image-upload-preview" style="width: 64px; height: 64px; border-radius: 50%; background-color: ${profile.avatarColor || '#00A4DC'}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: bold; text-transform: uppercase; overflow: hidden; border: 2px solid rgba(255,255,255,0.2);">
+                                        ${profile.profileImage ? `<img src="${profile.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : profile.avatarInitial}
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                                        <input type="file" id="edit-profile-image-file" accept="image/*" style="font-size: 0.85rem; color: rgba(255,255,255,0.7);" />
+                                        <div style="font-size: 0.75rem; opacity: 0.6;">Maximum size: 96x96 pixels (auto-resized)</div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; opacity: 0.5; font-size: 0.8rem; margin: 5px 0;">
+                                    <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
+                                    <span>OR</span>
+                                    <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <input type="text" id="edit-profile-image-url" placeholder="Paste image URL (fallback for TV platforms)" value="${profile.profileImage && !profile.profileImage.startsWith('data:') ? profile.profileImage : ''}" />
+                                </div>
+                                ${profile.profileImage ? `
+                                    <button type="button" id="edit-clear-profile-image-btn" class="profiles-btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; align-self: flex-start;">Remove Picture</button>
+                                ` : ''}
+                            </div>
+                        </div>
 
                         ${!profile.isMaster ? `
                         <div class="form-group">
@@ -1615,8 +1759,93 @@
                         dots.forEach(d => d.classList.remove('active'));
                         dot.classList.add('active');
                         selectedColor = color;
+                        const editPreview = document.getElementById('edit-image-upload-preview');
+                        if (editPreview && !editPreview.querySelector('img')) {
+                            editPreview.style.backgroundColor = selectedColor;
+                        }
                     });
                 });
+
+                // Profile Image Upload / URL Handlers for Edit
+                let uploadedImageBase64 = profile.profileImage || null;
+                const fileInput = document.getElementById('edit-profile-image-file');
+                const urlInput = document.getElementById('edit-profile-image-url');
+                const previewDiv = document.getElementById('edit-image-upload-preview');
+                const clearImgBtn = document.getElementById('edit-clear-profile-image-btn');
+
+                const updatePreview = (src) => {
+                    if (src) {
+                        previewDiv.innerHTML = `<img src="${src}" style="width: 100%; height: 100%; object-fit: cover;" />`;
+                    } else {
+                        previewDiv.innerHTML = profile.avatarInitial;
+                    }
+                };
+
+                if (fileInput) {
+                    fileInput.addEventListener('change', (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            const img = new Image();
+                            img.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                let width = img.width;
+                                let height = img.height;
+                                const max_size = 96;
+
+                                if (width > height) {
+                                    if (width > max_size) {
+                                        height *= max_size / width;
+                                        width = max_size;
+                                    }
+                                } else {
+                                    if (height > max_size) {
+                                        width *= max_size / height;
+                                        height = max_size;
+                                    }
+                                }
+                                canvas.width = width;
+                                canvas.height = height;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(img, 0, 0, width, height);
+
+                                uploadedImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                                updatePreview(uploadedImageBase64);
+                                if (urlInput) urlInput.value = '';
+                                if (clearImgBtn) clearImgBtn.style.display = 'block';
+                            };
+                            img.src = event.target.result;
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                }
+
+                if (urlInput) {
+                    urlInput.addEventListener('input', () => {
+                        const url = urlInput.value.trim();
+                        if (url) {
+                            uploadedImageBase64 = url;
+                            updatePreview(url);
+                            if (fileInput) fileInput.value = '';
+                            if (clearImgBtn) clearImgBtn.style.display = 'block';
+                        } else {
+                            uploadedImageBase64 = null;
+                            updatePreview(null);
+                        }
+                    });
+                }
+
+                if (clearImgBtn) {
+                    clearImgBtn.addEventListener('click', () => {
+                        uploadedImageBase64 = ''; // Empty string instructs backend to clear
+                        updatePreview(null);
+                        if (fileInput) fileInput.value = '';
+                        if (urlInput) urlInput.value = '';
+                        clearImgBtn.style.display = 'none';
+                    });
+                }
 
                 // Support D-pad Enter/Space select on color dots
                 content.addEventListener('keydown', (e) => {
@@ -1800,7 +2029,8 @@
                             masterPin: this.masterPin,
                             lockoutMinutes: lockoutMinutes,
                             bypassPinOnLocalNetwork: bypassPin,
-                            allowedDeviceIds: checkedDevices
+                            allowedDeviceIds: checkedDevices,
+                            profileImage: uploadedImageBase64
                         })
                     })
                     .then(res => {
@@ -1914,21 +2144,31 @@
         },
 
         renderBonfireStatus: function (container, content, status, apiClient, masterToken) {
-            if (status.isOwner) {
+            const isOwner = status.isOwner !== undefined ? status.isOwner : status.IsOwner;
+            const isMember = status.isMember !== undefined ? status.isMember : status.IsMember;
+            const ownedCode = status.ownedCode || status.OwnedCode || '';
+            const ownedMembers = status.ownedMembers || status.OwnedMembers || [];
+            const joinedOwnerName = status.joinedOwnerName || status.JoinedOwnerName || '';
+
+            if (isOwner) {
                 container.innerHTML = `
                     <div style="margin-bottom: 12px;">
                         <span style="font-size: 0.9rem; opacity: 0.8;">You are the host of a Bonfire Group. Share this 6-character code with other users on the server so they can join your home:</span>
-                        <div style="font-size: 2rem; font-weight: 700; color: #22c55e; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; border: 1px dashed rgba(34,197,94,0.3);">${status.ownedCode}</div>
+                        <div style="font-size: 2rem; font-weight: 700; color: #22c55e; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; border: 1px dashed rgba(34,197,94,0.3);">${ownedCode}</div>
                     </div>
                     <div style="margin-top: 16px;">
-                        <label style="font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; display: block;">Members (${status.ownedMembers ? status.ownedMembers.length : 0})</label>
+                        <label style="font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; display: block;">Members (${ownedMembers.length})</label>
                         <div style="display: flex; flex-direction: column; gap: 8px; max-height: 150px; overflow-y: auto;">
-                            ${status.ownedMembers && status.ownedMembers.length > 0 ? status.ownedMembers.map(m => `
+                            ${ownedMembers.length > 0 ? ownedMembers.map(m => {
+                                const mUserId = m.userId || m.UserId;
+                                const mUsername = m.username || m.Username || 'Unknown User';
+                                return `
                                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; background: rgba(255,255,255,0.03); border-radius: 4px;">
-                                    <span style="font-size: 0.9rem; font-weight: 500;">${m.username}</span>
-                                    <button type="button" class="bonfire-kick-btn" data-id="${m.userId}" style="background: #ff6b6b; border: none; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 600;">Kick</button>
+                                    <span style="font-size: 0.9rem; font-weight: 500;">${mUsername}</span>
+                                    <button type="button" class="bonfire-kick-btn" data-id="${mUserId}" style="background: #ff6b6b; border: none; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 600;">Kick</button>
                                 </div>
-                            `).join('') : '<div style="font-size: 0.85rem; opacity: 0.5; font-style: italic;">No members joined yet.</div>'}
+                                `;
+                            }).join('') : '<div style="font-size: 0.85rem; opacity: 0.5; font-style: italic;">No members joined yet.</div>'}
                         </div>
                     </div>
                     <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
@@ -1968,11 +2208,11 @@
                     }
                 });
 
-            } else if (status.isMember) {
+            } else if (isMember) {
                 container.innerHTML = `
                     <div style="margin-bottom: 12px;">
                         <span style="font-size: 0.9rem; opacity: 0.8;">You have joined a Bonfire Group owned by:</span>
-                        <div style="font-size: 1.1rem; font-weight: 600; color: #00a4dc; margin: 8px 0;">${status.joinedOwnerName}</div>
+                        <div style="font-size: 1.1rem; font-weight: 600; color: #00a4dc; margin: 8px 0;">${joinedOwnerName}</div>
                         <span style="font-size: 0.85rem; opacity: 0.6; display: block; margin-top: 4px;">You can access each other's profiles from the switcher grid.</span>
                     </div>
                     <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
@@ -2075,9 +2315,22 @@
         },
 
         injectSidebarLink: function () {
-            if (!this.isProfileSessionActive()) {
-                const existing = document.getElementById('profiles-sidebar-link');
-                if (existing) existing.remove();
+            const existingLink = document.getElementById('profiles-sidebar-link');
+            const activeInfo = this.getCachedActiveProfile();
+            const initial = activeInfo.initial;
+            const color = activeInfo.color;
+            const name = activeInfo.name;
+
+            if (existingLink) {
+                const avatarEl = existingLink.querySelector('.sidebar-profile-avatar');
+                if (avatarEl) {
+                    avatarEl.style.backgroundColor = color;
+                    avatarEl.innerHTML = activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : initial;
+                }
+                const textEl = existingLink.querySelector('.sidebarLinkText');
+                if (textEl) {
+                    textEl.textContent = `${name} (Switch)`;
+                }
                 return;
             }
 
@@ -2085,8 +2338,6 @@
                               document.querySelector('.navMenu') || 
                               document.getElementById('menuItems');
             if (!container) return;
-
-            if (document.getElementById('profiles-sidebar-link')) return;
 
             const link = document.createElement('a');
             link.id = 'profiles-sidebar-link';
@@ -2098,14 +2349,9 @@
             link.style.gap = '10px';
             link.style.cursor = 'pointer';
 
-            const activeInfo = this.getCachedActiveProfile();
-            const initial = activeInfo.initial;
-            const color = activeInfo.color;
-            const name = activeInfo.name;
-
             link.innerHTML = `
-                <div class="sidebar-profile-avatar" style="width: 24px; height: 24px; border-radius: 50%; background-color: ${color}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; flex-shrink: 0;">
-                    ${initial}
+                <div class="sidebar-profile-avatar" style="width: 24px; height: 24px; border-radius: 50%; background-color: ${color}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; flex-shrink: 0; overflow: hidden;">
+                    ${activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : initial}
                 </div>
                 <span class="sidebarLinkText">${name} (Switch)</span>
             `;
@@ -2184,6 +2430,13 @@
                     } else if (!headerContainer.contains(bubble)) {
                         // Button is in the DOM but drifted outside the header — re-insert.
                         this._insertBeforeUserBtn(headerContainer, bubble);
+                    } else {
+                        // Update existing bubble avatar
+                        const avatarEl = bubble.querySelector('.profiles-header-avatar');
+                        if (avatarEl) {
+                            avatarEl.style.backgroundColor = activeInfo.color;
+                            avatarEl.innerHTML = activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : activeInfo.initial;
+                        }
                     }
                 }
                 if (!bubble) {
@@ -2208,6 +2461,13 @@
                             bubble.remove(); bubble = null;
                         } else if (!anchor.parentElement.contains(bubble)) {
                             bubble.remove(); bubble = null;
+                        } else {
+                            // Update existing bubble avatar
+                            const avatarEl = bubble.querySelector('.profiles-header-avatar');
+                            if (avatarEl) {
+                                avatarEl.style.backgroundColor = activeInfo.color;
+                                avatarEl.innerHTML = activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : activeInfo.initial;
+                            }
                         }
                     }
                     if (!bubble) {
@@ -2276,7 +2536,8 @@
                         maxSubProfiles: p.maxSubProfiles !== undefined ? p.maxSubProfiles : (p.MaxSubProfiles !== undefined ? p.MaxSubProfiles : 5),
                         bypassPinOnLocalNetwork: p.bypassPinOnLocalNetwork !== undefined ? p.bypassPinOnLocalNetwork : (p.BypassPinOnLocalNetwork !== undefined ? p.BypassPinOnLocalNetwork : false),
                         allowedDeviceIds: p.allowedDeviceIds || p.AllowedDeviceIds || [],
-                        isBonfire: p.isBonfire !== undefined ? p.isBonfire : (p.IsBonfire !== undefined ? p.IsBonfire : false)
+                        isBonfire: p.isBonfire !== undefined ? p.isBonfire : (p.IsBonfire !== undefined ? p.IsBonfire : false),
+                        profileImage: p.profileImage || p.ProfileImage || null
                     }));
                     this.cachedProfiles = normalized;
                     localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
@@ -2290,7 +2551,8 @@
                             const info = {
                                 name: currentProfile.profileName,
                                 color: currentProfile.avatarColor || '#00A4DC',
-                                initial: currentProfile.avatarInitial || (currentProfile.profileName ? currentProfile.profileName.charAt(0).toUpperCase() : 'P')
+                                initial: currentProfile.avatarInitial || (currentProfile.profileName ? currentProfile.profileName.charAt(0).toUpperCase() : 'P'),
+                                profileImage: currentProfile.profileImage || null
                             };
                             sessionStorage.setItem('jellyfin_profiles_active_info', JSON.stringify(info));
                         }
@@ -2374,8 +2636,8 @@
 
             const activeInfo = this.getCachedActiveProfile();
             b.innerHTML = `
-                <div class="profiles-header-avatar" style="background-color: ${activeInfo.color}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box;">
-                    ${activeInfo.initial}
+                <div class="profiles-header-avatar" style="background-color: ${activeInfo.color}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden;">
+                    ${activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : activeInfo.initial}
                 </div>
             `;
             return b;
@@ -2398,8 +2660,8 @@
 
             const activeInfo = this.getCachedActiveProfile();
             b.innerHTML = `
-                <div class="profiles-header-avatar" style="background-color: ${activeInfo.color}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box;">
-                    ${activeInfo.initial}
+                <div class="profiles-header-avatar" style="background-color: ${activeInfo.color}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden;">
+                    ${activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : activeInfo.initial}
                 </div>
             `;
             return b;

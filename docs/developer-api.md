@@ -163,6 +163,7 @@ Returns all profiles available to the authenticated user.
 | `bypassPinOnLocalNetwork` | `boolean` | Whether PIN checking is bypassed when the client is on the local home network (LAN). |
 | `allowedDeviceIds` | `string[]` | Specific Device IDs allowed to access this sub-profile. If empty/null, no device restriction is applied. |
 | `isBonfire` | `boolean` | Whether this profile is from a linked Bonfire group (remote profile). |
+| `profileImage` | `string` | Base64-encoded JPEG data-URL or image URL representing the profile picture. `null` if none. |
 
 ---
 
@@ -497,6 +498,7 @@ Creates a new sub-profile.
 | `masterPin` | `string` | Conditional | Required if the master account has a PIN |
 | `bypassPinOnLocalNetwork` | `boolean` | No | Enable local network PIN bypass for this profile. Defaults to `false` |
 | `allowedDeviceIds` | `string[]` | No | Specific device IDs allowed to switch to this sub-profile. Empty/null for no restriction |
+| `profileImage` | `string` | No | Base64-encoded JPEG data-URL or image URL representing the profile picture |
 
 **Response `200 OK`:**
 ```json
@@ -540,6 +542,7 @@ Updates an existing profile.
 | `masterPin` | `string` | Conditional | Required if the master account has a PIN |
 | `bypassPinOnLocalNetwork` | `boolean` | No | Updated local network bypass setting. Pass `null` to leave unchanged |
 | `allowedDeviceIds` | `string[]` | No | Updated list of allowed device IDs. Pass `null` to leave unchanged |
+| `profileImage` | `string` | No | Base64-encoded JPEG data-URL or image URL representing the profile picture. Pass `""` to clear the picture |
 
 ---
 
