@@ -2320,6 +2320,8 @@
                 });
 
                 // Delete handler
+                const delBtn = document.getElementById('edit-delete-btn');
+                if (delBtn) {
                     delBtn.addEventListener('click', () => {
                         this.showConfirmDialog('Delete Profile', `Are you sure you want to delete profile "${profile.profileName}" and its underlying user account? This action is irreversible.`, () => {
                             this.executeProfileDeletion(profile.profileUserId);
