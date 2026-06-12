@@ -5,6 +5,19 @@
                 <div class="sectionTitleContainer">
                     <h2 class="sectionTitle">Profiles Management Settings</h2>
                 </div>
+
+                <div style="background:rgba(0,164,220,0.12);border:1px solid rgba(0,164,220,0.35);border-radius:6px;padding:14px 18px;margin-bottom:2em;font-size:0.95rem;line-height:1.6;">
+                    <strong style="display:block;margin-bottom:6px;">&#9432;&nbsp; Where to create &amp; manage profiles</strong>
+                    Profiles are created, edited, and deleted from the <strong>Jellyfin home screen</strong>.
+                    After logging in, look for the <strong>Switch Profile</strong> button in the top navigation bar
+                    (a person icon next to the search and account buttons). Clicking it opens the profile
+                    manager where you can add sub-profiles, set PINs, pick avatar colors, and configure
+                    library access &amp; parental controls.
+                    <br><br>
+                    This settings page is for <strong>server administrators only</strong> and controls the
+                    maximum number of profiles allowed per account and whether a master PIN is required
+                    before creating new sub-profiles.
+                </div>
                 
                 <div class="inputContainer">
                     <label class="inputLabel" for="maxProfiles">Maximum Profiles Per User</label>
@@ -154,8 +167,8 @@
                     loadMappings(page);
                 }).catch(function (err) {
                     console.error("Failed to reset PIN:", err);
-                    alert("Failed to reset PIN.");
                     Dashboard.hideLoadingMsg();
+                    Dashboard.alert({ message: 'Failed to reset PIN. Check the server logs for details.', title: 'Error' });
                 });
             }
 

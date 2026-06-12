@@ -1,0 +1,240 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
+using MediaBrowser.Common.Configuration;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+namespace Jellyfin.Profiles
+{
+    /// <summary>
+    /// Runs once every time the Jellyfin server starts via the IHostedService lifecycle.
+    ///
+    /// Ensures that the Profiles client script tag is present in Jellyfin's index.html
+    /// so the profile gate and switch button load automatically for all users without
+    /// any manual post-installation steps.
+    ///
+    /// The patch is idempotent — if the tag is already present the file is left untouched.
+    /// Because Jellyfin replaces index.html when the web client is updated, running
+    /// this check on every startup keeps the injection self-healing.
+    ///
+    /// If the file cannot be written (admin-locked directory, insufficient permissions)
+    /// a clear, platform-specific warning is written to the Jellyfin log with
+    /// copy-pasteable fix commands for Docker, Linux, and Windows.
+    /// </summary>
+    public class ProfilesBootstrapTask : IHostedService
+    {
+        // The exact script tag to inject.  The URL /plugins/profiles/profiles.js is
+        // the path Jellyfin uses to serve embedded plugin resources at runtime.
+        private const string ScriptTag =
+            "<script src=\"/plugins/profiles/profiles.js\" defer></script>";
+
+        // Unique substring used to detect whether the tag is already present so
+        // we never inject it twice.
+        private const string Marker = "/plugins/profiles/profiles.js";
+
+        // Exposed so the dashboard page JS can check whether setup is complete.
+        internal static bool InjectionSucceeded { get; private set; }
+
+        private readonly IApplicationPaths _appPaths;
+        private readonly ILogger<ProfilesBootstrapTask> _logger;
+
+        public ProfilesBootstrapTask(
+            IApplicationPaths appPaths,
+            ILogger<ProfilesBootstrapTask> logger)
+        {
+            _appPaths = appPaths;
+            _logger = logger;
+        }
+
+        /// <inheritdoc />
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            TryPatchIndex();
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc />
+        public Task StopAsync(CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        // ── Main logic ──────────────────────────────────────────────────────────
+
+        private void TryPatchIndex()
+        {
+            var indexPath = FindIndexHtml();
+
+            if (indexPath is null)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: Could not locate index.html in any known Jellyfin web path. " +
+                    "The Profiles client script will not load automatically. " +
+                    "Manually add the following line before </body> in your index.html: {Tag}",
+                    ScriptTag);
+                return;
+            }
+
+            try
+            {
+                var html = File.ReadAllText(indexPath);
+
+                if (html.Contains(Marker, StringComparison.Ordinal))
+                {
+                    _logger.LogDebug(
+                        "ProfilesPlugin: Client script tag already present in {Path} — no changes made.",
+                        indexPath);
+                    InjectionSucceeded = true;
+                    return;
+                }
+
+                html = html.Replace(
+                    "</body>",
+                    ScriptTag + "\n</body>",
+                    StringComparison.OrdinalIgnoreCase);
+
+                File.WriteAllText(indexPath, html);
+                InjectionSucceeded = true;
+
+                _logger.LogInformation(
+                    "ProfilesPlugin: Client script tag injected successfully into {Path}.",
+                    indexPath);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                LogPermissionError(indexPath, ex);
+            }
+            catch (IOException ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "ProfilesPlugin: IO error reading/writing {Path}. " +
+                    "Manually add the following line before </body>: {Tag}",
+                    indexPath, ScriptTag);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "ProfilesPlugin: Unexpected error while patching {Path}.", indexPath);
+            }
+        }
+
+        // ── Path discovery ───────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Searches all locations Jellyfin is known to place its web client on every
+        /// supported platform (Windows installer, Linux packages, Docker images,
+        /// portable/Scoop). Returns the full path to index.html or <c>null</c>.
+        /// </summary>
+        private string? FindIndexHtml()
+        {
+            var candidates = new List<string?>();
+
+            // ── 1. Jellyfin's own reported WebPath (highest confidence) ──────────
+            //    IApplicationPaths.WebPath is set by Jellyfin at startup from its
+            //    own config, so this is correct on any properly configured install.
+            candidates.Add(_appPaths.WebPath);
+
+            // ── 2. Relative to the running executable ────────────────────────────
+            //    Works for Windows portable, Scoop, and some Docker images where
+            //    jellyfin-web is placed next to / near the server binary.
+            var baseDir = AppContext.BaseDirectory;
+            candidates.Add(Path.Combine(baseDir, "jellyfin-web"));
+            candidates.Add(Path.Combine(baseDir, "..", "jellyfin-web"));
+            candidates.Add(Path.Combine(baseDir, "..", "..", "jellyfin-web"));
+
+            // ── 3. Windows — standard installer path ─────────────────────────────
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                candidates.Add(Path.Combine(pf, "Jellyfin", "Server", "jellyfin-web"));
+                candidates.Add(Path.Combine(pf, "Jellyfin", "jellyfin-web"));
+            }
+
+            // ── 4. Linux — package manager installs (apt/rpm/AUR) ───────────────
+            candidates.Add("/usr/share/jellyfin/web");
+            candidates.Add("/usr/lib/jellyfin/web");
+            candidates.Add("/usr/local/share/jellyfin/web");
+            candidates.Add("/opt/jellyfin/web");
+
+            // ── 5. Docker — common image layouts ────────────────────────────────
+            candidates.Add("/jellyfin/jellyfin-web");
+            candidates.Add("/jellyfin/web");
+            candidates.Add("/app/jellyfin-web");
+            candidates.Add("/config/jellyfin-web");
+            candidates.Add("/data/jellyfin-web");
+
+            foreach (var dir in candidates)
+            {
+                if (string.IsNullOrWhiteSpace(dir)) continue;
+
+                try
+                {
+                    var fullDir = Path.GetFullPath(dir);
+                    var candidate = Path.Combine(fullDir, "index.html");
+                    if (File.Exists(candidate))
+                    {
+                        _logger.LogDebug(
+                            "ProfilesPlugin: Found index.html at {Path}.", candidate);
+                        return candidate;
+                    }
+                }
+                catch
+                {
+                    // Path may be syntactically invalid on this OS — skip it.
+                }
+            }
+
+            return null;
+        }
+
+        // ── Error reporting ──────────────────────────────────────────────────────
+
+        private void LogPermissionError(string indexPath, Exception ex)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                _logger.LogWarning(
+                    ex,
+                    "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
+                    "WINDOWS FIX — Grant the Jellyfin service account write access (run as Administrator):\n" +
+                    "  icacls \"{IndexPath}\" /grant \"NT AUTHORITY\\NetworkService:(M)\"\n\n" +
+                    "Or add the following line before </body> manually (Notepad as Administrator):\n" +
+                    "  {Tag}",
+                    indexPath, indexPath, ScriptTag);
+            }
+            else if (IsRunningInDocker())
+            {
+                _logger.LogWarning(
+                    ex,
+                    "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
+                    "DOCKER FIX — One-time patch from the host:\n" +
+                    "  docker exec -u root <container> sed -i 's|</body>|{Tag}\\n</body>|' {IndexPath}\n\n" +
+                    "Or bind-mount the web directory so the container can write it:\n" +
+                    "  -v /host/jellyfin-web:/jellyfin/jellyfin-web\n" +
+                    "The plugin will re-inject automatically on the next server restart.",
+                    indexPath, ScriptTag, indexPath);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    ex,
+                    "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
+                    "LINUX FIX — Grant write access to the Jellyfin service account, then restart:\n" +
+                    "  sudo chown jellyfin:jellyfin {IndexPath} && sudo chmod 644 {IndexPath}\n\n" +
+                    "Or apply the patch once as root:\n" +
+                    "  sudo sed -i 's|</body>|{Tag}\\n</body>|' {IndexPath}",
+                    indexPath, indexPath, indexPath, ScriptTag, indexPath);
+            }
+        }
+
+        private static bool IsRunningInDocker() =>
+            File.Exists("/.dockerenv") ||
+            string.Equals(
+                Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"),
+                "true",
+                StringComparison.OrdinalIgnoreCase);
+    }
+}
