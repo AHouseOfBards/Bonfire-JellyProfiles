@@ -72,6 +72,9 @@ namespace Jellyfin.Profiles.Controllers
             var remoteIp = HttpContext.Connection.RemoteIpAddress;
             bool isLocal = remoteIp != null && _networkManager.IsInLocalNetwork(remoteIp);
 
+            var localMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            bool localHidesOthers = localMapping?.HideOthersSubProfilesFromMe ?? false;
+
             var linkedMasterIds = GetLinkedMasterUserIds(masterUserId, config);
             var profileList = new List<object>();
 
@@ -104,34 +107,47 @@ namespace Jellyfin.Profiles.Controllers
                     MasterUserId = linkedId
                 });
 
-                // Add all shadow profiles for this master
-                var shadowProfiles = config.Mappings
-                    .Where(m => m.MasterUserId == linkedId && m.ProfileUserId != linkedId)
-                    .Select(m => {
-                        bool requiresPin = !string.IsNullOrEmpty(m.PinHash);
-                        if (isLocal && m.BypassPinOnLocalNetwork)
-                        {
-                            requiresPin = false;
-                        }
-                        return new
-                        {
-                            m.ProfileUserId,
-                            m.ProfileName,
-                            AvatarInitial = string.IsNullOrEmpty(m.ProfileName) ? "?" : m.ProfileName.Substring(0, 1).ToUpper(),
-                            m.AvatarColor,
-                            RequiresPin = requiresPin,
-                            IsMaster = false,
-                            m.LockoutMinutes,
-                            EnabledFolders = m.EnabledFolders ?? new List<Guid>(),
-                            BypassPinOnLocalNetwork = m.BypassPinOnLocalNetwork,
-                            AllowedDeviceIds = m.AllowedDeviceIds ?? new List<string>(),
-                            IsBonfire = (linkedId != masterUserId),
-                            m.ProfileImage,
-                            m.MasterUserId
-                        };
-                    });
+                bool shouldAddShadowProfiles = true;
+                if (linkedId != masterUserId)
+                {
+                    bool linkedHidesOwn = linkedMapping?.HideMySubProfilesFromOthers ?? false;
+                    if (localHidesOthers || linkedHidesOwn)
+                    {
+                        shouldAddShadowProfiles = false;
+                    }
+                }
 
-                profileList.AddRange(shadowProfiles);
+                if (shouldAddShadowProfiles)
+                {
+                    // Add all shadow profiles for this master
+                    var shadowProfiles = config.Mappings
+                        .Where(m => m.MasterUserId == linkedId && m.ProfileUserId != linkedId)
+                        .Select(m => {
+                            bool requiresPin = !string.IsNullOrEmpty(m.PinHash);
+                            if (isLocal && m.BypassPinOnLocalNetwork)
+                            {
+                                requiresPin = false;
+                            }
+                            return new
+                            {
+                                m.ProfileUserId,
+                                m.ProfileName,
+                                AvatarInitial = string.IsNullOrEmpty(m.ProfileName) ? "?" : m.ProfileName.Substring(0, 1).ToUpper(),
+                                m.AvatarColor,
+                                RequiresPin = requiresPin,
+                                IsMaster = false,
+                                m.LockoutMinutes,
+                                EnabledFolders = m.EnabledFolders ?? new List<Guid>(),
+                                BypassPinOnLocalNetwork = m.BypassPinOnLocalNetwork,
+                                AllowedDeviceIds = m.AllowedDeviceIds ?? new List<string>(),
+                                IsBonfire = (linkedId != masterUserId),
+                                m.ProfileImage,
+                                m.MasterUserId
+                            };
+                        });
+
+                    profileList.AddRange(shadowProfiles);
+                }
             }
 
             return Ok(profileList);
@@ -1268,6 +1284,7 @@ namespace Jellyfin.Profiles.Controllers
 
             var ownedGroup = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterId);
             var joinedGroup = config.BonfireGroups.FirstOrDefault(g => g.MemberUserIds.Contains(masterId));
+            var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
 
             return Ok(new
             {
@@ -1276,7 +1293,9 @@ namespace Jellyfin.Profiles.Controllers
                 OwnedMembers = ownedGroup != null ? GetBonfireGroupMembers(ownedGroup, config) : null,
                 IsMember = joinedGroup != null,
                 JoinedOwnerName = joinedGroup != null ? (_userManager.GetUserById(joinedGroup.OwnerUserId)?.Username ?? "Unknown") : null,
-                JoinedOwnerId = joinedGroup?.OwnerUserId
+                JoinedOwnerId = joinedGroup?.OwnerUserId,
+                HideMySubProfilesFromOthers = masterMapping?.HideMySubProfilesFromOthers ?? false,
+                HideOthersSubProfilesFromMe = masterMapping?.HideOthersSubProfilesFromMe ?? false
             });
         }
 
@@ -1487,6 +1506,46 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             return BadRequest("You do not own a Bonfire group.");
+        }
+
+        [HttpPost("bonfire/settings")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult UpdateBonfireSettings([FromBody] UpdateBonfireSettingsRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterUserId = currentUserIdVal.Value;
+
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
+            {
+                return Unauthorized("Only the master profile can update Bonfire settings.");
+            }
+
+            var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            if (masterMapping == null)
+            {
+                masterMapping = new ProfileMapping
+                {
+                    ProfileUserId = masterUserId,
+                    MasterUserId = masterUserId,
+                    ProfileName = _userManager.GetUserById(masterUserId)?.Username ?? "Master",
+                    IsHidden = false
+                };
+                config.Mappings.Add(masterMapping);
+            }
+
+            masterMapping.HideMySubProfilesFromOthers = request.HideMySubProfilesFromOthers;
+            masterMapping.HideOthersSubProfilesFromMe = request.HideOthersSubProfilesFromMe;
+
+            Plugin.Instance?.SaveConfiguration();
+
+            return Ok();
         }
     }
 

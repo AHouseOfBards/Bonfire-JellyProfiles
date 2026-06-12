@@ -2145,6 +2145,24 @@
                             <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid #00a4dc; width: 24px; height: 24px; animation: spin 1s linear infinite;"></div>
                         </div>
                     </div>
+
+                    <div id="bonfire-settings-container" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; display: none; flex-direction: column; gap: 16px;">
+                        <div class="form-group" style="gap: 4px;">
+                            <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none; font-size: 0.9rem; font-weight: 600;">
+                                <input type="checkbox" id="bonfire-hide-mine-checkbox" style="cursor: pointer; accent-color: #00a4dc;" />
+                                <span>Hide my sub-profiles from others</span>
+                            </label>
+                            <div class="form-hint" style="margin-left: 1.6rem; opacity: 0.5; font-size: 0.75rem;">If enabled, guest homes you connect with won't see your sub-profiles (only your master profile).</div>
+                        </div>
+
+                        <div class="form-group" style="gap: 4px;">
+                            <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none; font-size: 0.9rem; font-weight: 600;">
+                                <input type="checkbox" id="bonfire-hide-others-checkbox" style="cursor: pointer; accent-color: #00a4dc;" />
+                                <span>Hide other people's sub-profiles from me</span>
+                            </label>
+                            <div class="form-hint" style="margin-left: 1.6rem; opacity: 0.5; font-size: 0.75rem;">If enabled, you will only see the master profiles of connected guest homes.</div>
+                        </div>
+                    </div>
                     
                     <div class="profile-dialog-actions" style="margin-top: 2rem; display: flex; justify-content: center;">
                         <button id="bonfire-back-btn" class="profiles-btn btn-secondary">Back</button>
@@ -2155,6 +2173,34 @@
             document.getElementById('bonfire-back-btn').addEventListener('click', () => {
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
             });
+
+            // Settings checkbox listeners
+            const hideMineCb = content.querySelector('#bonfire-hide-mine-checkbox');
+            const hideOthersCb = content.querySelector('#bonfire-hide-others-checkbox');
+
+            const saveSettings = () => {
+                const hideMine = hideMineCb ? hideMineCb.checked : false;
+                const hideOthers = hideOthersCb ? hideOthersCb.checked : false;
+                
+                fetch(apiClient.getUrl('plugins/profiles/bonfire/settings'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...this.getAuthHeaders(masterState.masterToken)
+                    },
+                    body: JSON.stringify({
+                        hideMySubProfilesFromOthers: hideMine,
+                        hideOthersSubProfilesFromMe: hideOthers
+                    })
+                })
+                .then(res => {
+                    if (!res.ok) console.error("Failed to save Bonfire settings.");
+                })
+                .catch(err => console.error("Error saving Bonfire settings:", err));
+            };
+
+            if (hideMineCb) hideMineCb.addEventListener('change', saveSettings);
+            if (hideOthersCb) hideOthersCb.addEventListener('change', saveSettings);
 
             this.loadBonfireStatus(content, apiClient, masterState.masterToken);
 
@@ -2205,6 +2251,15 @@
             })
             .then(status => {
                 this.renderBonfireStatus(container, content, status, apiClient, masterToken);
+
+                const settingsDiv = content.querySelector('#bonfire-settings-container');
+                if (settingsDiv) {
+                    settingsDiv.style.display = 'flex';
+                    const hideMineCb = content.querySelector('#bonfire-hide-mine-checkbox');
+                    const hideOthersCb = content.querySelector('#bonfire-hide-others-checkbox');
+                    if (hideMineCb) hideMineCb.checked = status.hideMySubProfilesFromOthers || status.HideMySubProfilesFromOthers || false;
+                    if (hideOthersCb) hideOthersCb.checked = status.hideOthersSubProfilesFromMe || status.HideOthersSubProfilesFromMe || false;
+                }
             })
             .catch(err => {
                 container.innerHTML = `<div style="color: #ff6b6b; font-size: 0.9rem;">Failed to load Bonfire status: ${err.message}</div>`;

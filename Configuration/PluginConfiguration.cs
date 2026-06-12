@@ -51,5 +51,7 @@ namespace Jellyfin.Profiles.Configuration
         public bool BypassPinOnLocalNetwork { get; set; } = false;
         public List<string> AllowedDeviceIds { get; set; } = new List<string>();
         public string? ProfileImage { get; set; }
+        public bool HideMySubProfilesFromOthers { get; set; } = false;
+        public bool HideOthersSubProfilesFromMe { get; set; } = false;
     }
 }
