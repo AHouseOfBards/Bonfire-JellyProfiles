@@ -12,7 +12,7 @@
         "changelog": "Fix: white flash when opening the profile selector or after selecting a profile. _revealPage() is now gated on Jellyfin's viewshow event (fires after React renders the view) so the page is never faded in to a blank shell. When checkRoute() is about to show the gate overlay it skips the reveal entirely and lets showProfileOverlay() call it once the overlay is in the DOM — ensuring the page is always covered before it becomes visible.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/JellyProfiles/releases/download/v1.0.13/Jellyfin.Profiles.zip",
-        "checksum": "00000000000000000000000000000000",
+        "checksum": "b072a935d6997b1210aa64cd68103068",
         "timestamp": "2026-06-12T01:06:00Z"
       },
       {
