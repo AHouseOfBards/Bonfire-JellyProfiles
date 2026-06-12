@@ -56,6 +56,27 @@
             return guid.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
         },
 
+        initTVCheckboxes: function (container) {
+            container.querySelectorAll('.library-check-label').forEach(label => {
+                if (!label.hasAttribute('tabindex')) {
+                    label.setAttribute('tabindex', '0');
+                }
+                if (label._tvInit) return;
+                label._tvInit = true;
+
+                label.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        const checkbox = label.querySelector('input[type="checkbox"]');
+                        if (checkbox) {
+                            checkbox.checked = !checkbox.checked;
+                            checkbox.dispatchEvent(new Event('change'));
+                        }
+                    }
+                });
+            });
+        },
+
         init: function () {
             if (typeof ApiClient === 'undefined') {
                 // If ApiClient is not defined yet, wait for it
@@ -1612,6 +1633,7 @@
                 document.getElementById('create-cancel-btn').addEventListener('click', () => {
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
                 });
+                this.initTVCheckboxes(content);
             });
         },
 
@@ -2122,6 +2144,7 @@
                 document.getElementById('edit-cancel-btn').addEventListener('click', () => {
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
                 });
+                this.initTVCheckboxes(content);
             })
             .catch(err => {
                 alert("Failed to load profile details: " + err.message);
@@ -2202,6 +2225,7 @@
             if (hideMineCb) hideMineCb.addEventListener('change', saveSettings);
             if (hideOthersCb) hideOthersCb.addEventListener('change', saveSettings);
 
+            this.initTVCheckboxes(content);
             this.loadBonfireStatus(content, apiClient, masterState.masterToken);
 
             // Auto-focus first focusable element for TV D-pad navigation
@@ -3231,6 +3255,17 @@
                         font-size: 2.2rem;
                         margin-bottom: 2rem;
                     }
+                    .profiles-home-section {
+                        padding: 1.25rem 1rem;
+                        margin-bottom: 1.5rem;
+                        border-radius: 12px;
+                    }
+                    .profiles-home-title {
+                        font-size: 1.25rem;
+                    }
+                    .profiles-grid {
+                        gap: 1.5rem;
+                    }
                     .profile-dialog-actions {
                         flex-direction: column;
                     }
@@ -3297,9 +3332,19 @@
                 .library-check-label {
                     display: flex; align-items: center; gap: 0.6rem; cursor: pointer;
                     font-size: 0.95rem; color: rgba(255,255,255,0.85);
+                    border-radius: 4px; padding: 4px 8px; margin-left: -8px;
+                    transition: background 0.2s, color 0.2s;
                 }
                 .library-check-label input {
                     cursor: pointer; accent-color: #00a4dc;
+                }
+                .library-check-label:focus, .library-check-label:hover {
+                    background: rgba(255, 255, 255, 0.05);
+                    color: #fff;
+                    outline: none;
+                }
+                .library-check-label:focus input, .library-check-label:hover input {
+                    box-shadow: 0 0 8px rgba(0, 164, 220, 0.6);
                 }
                 .form-hint {
                     font-size: 0.78rem;
