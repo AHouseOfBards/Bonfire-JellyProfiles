@@ -625,7 +625,7 @@ Removes the PIN from any profile without requiring the existing PIN. Intended fo
 
 - Use `fetch()` with `AbortController` for silent PIN verification.
 - Store master credentials in `localStorage` (persists across sessions). Store the active profile token in `sessionStorage` (cleared when the tab closes, which forces re-selection — this is expected behavior).
-- On mobile, use `inputmode="numeric"` on PIN inputs to show the numeric keypad. Combine with `type="password"` to mask digits as they're entered.
+- On mobile, use `inputmode="numeric"` on PIN inputs to show the numeric keypad. Combine with `type="text"` (or `type="tel"`) and CSS `-webkit-text-security: disc;` to mask digits as they're entered. Avoid using `type="password"` to prevent password managers and system autofill services from trying to autofill the master Jellyfin password.
 
 ---
 
@@ -803,7 +803,7 @@ container.addEventListener('keydown', (e) => {
 
 **Inactivity events on TV:** Include `pointermove` and `pointerdown` in your event list. LG Magic Remote, Samsung Smart Remote in pointer mode, and similar devices generate pointer events rather than mouse events.
 
-**PIN entry on TV:** On most TV browsers, `type="password"` combined with `inputmode="numeric"` will suggest a numeric keyboard, but some older platforms show a full character keyboard regardless. Design PIN entry to work with either.
+**PIN entry on TV:** On most TV browsers, `type="text"` (or `type="tel"`) with `-webkit-text-security: disc` combined with `inputmode="numeric"` will suggest a numeric keyboard, but some older platforms show a full character keyboard regardless. Design PIN entry to work with either. Avoid `type="password"` to prevent autofill conflicts.
 
 **`sessionStorage` on TV:** Some TV browsers clear `sessionStorage` when the user presses Home and returns. This causes a fresh profile selection on re-entry, which is the correct behavior for a shared TV.
 

@@ -752,7 +752,7 @@
             content.innerHTML = `
                 <h1 class="profiles-title">Enter Profile PIN</h1>
                 <div class="pin-entry-container">
-                    <input type="password" id="profile-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autofocus />
+                    <input type="text" id="profile-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
                     <div id="pin-error-msg" style="display:none; color:#ff6b6b; font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions">
                         <button id="pin-submit-btn" class="profiles-btn btn-primary">Unlock</button>
@@ -861,7 +861,7 @@
             content.innerHTML = `
                 <h1 class="profiles-title">Enter Master PIN</h1>
                 <div class="pin-entry-container">
-                    <input type="password" id="master-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autofocus />
+                    <input type="text" id="master-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
                     <div id="master-pin-error-msg" style="display:none; color:#ff6b6b; font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions">
                         <button id="master-pin-submit-btn" class="profiles-btn btn-primary">Submit</button>
@@ -1070,7 +1070,7 @@
                         </div>
                         <div class="form-group">
                             <label>PIN Code (Optional, 4-8 digits)</label>
-                            <input type="password" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="Leave empty for no PIN" />
+                            <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="Leave empty for no PIN" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                         </div>
                         <div class="form-group">
                             <label>Auto-lock after inactivity</label>
@@ -1282,7 +1282,7 @@
                         <div class="form-group">
                             <label>PIN Code (Optional, 4-8 digits)</label>
                             <div class="pin-edit-group" style="display:flex; gap:10px;">
-                                <input type="password" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.requiresPin ? '••••' : 'Unprotected'}" style="flex:1;" />
+                                <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.requiresPin ? '••••' : 'Unprotected'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1;" />
                                 ${profile.requiresPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">Clear PIN</button>` : ''}
                             </div>
                         </div>
@@ -2025,6 +2025,10 @@
                     border-radius: 12px; color: #fff; font-size: 2.5rem; text-align: center;
                     padding: 12px; width: 180px; letter-spacing: 0.6rem;
                     transition: border-color 0.3s ease, box-shadow 0.3s ease;
+                    -webkit-text-security: disc;
+                }
+                #create-pin-input, #edit-pin-input {
+                    -webkit-text-security: disc;
                 }
                 #profile-pin-input:focus, #master-pin-input:focus {
                     border-color: #00a4dc; outline: none;
