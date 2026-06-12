@@ -2679,23 +2679,15 @@
 
         injectSidebarLink: function () {
             const existingLink = document.getElementById('profiles-sidebar-link');
+            if (existingLink) {
+                // Already injected and configured. No need to touch it!
+                return;
+            }
+
             const activeInfo = this.getCachedActiveProfile();
             const initial = activeInfo.initial;
             const color = activeInfo.color;
             const name = activeInfo.name;
-
-            if (existingLink) {
-                const avatarEl = existingLink.querySelector('.sidebar-profile-avatar');
-                if (avatarEl) {
-                    avatarEl.style.backgroundColor = color;
-                    avatarEl.innerHTML = activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : initial;
-                }
-                const textEl = existingLink.querySelector('.sidebarLinkText');
-                if (textEl) {
-                    textEl.textContent = `${name} (Switch)`;
-                }
-                return;
-            }
 
             const container = document.querySelector('.sidebar-nav') || 
                               document.querySelector('.navMenu') || 
@@ -2793,13 +2785,6 @@
                     } else if (!headerContainer.contains(bubble)) {
                         // Button is in the DOM but drifted outside the header — re-insert.
                         this._insertBeforeUserBtn(headerContainer, bubble);
-                    } else {
-                        // Update existing bubble avatar
-                        const avatarEl = bubble.querySelector('.profiles-header-avatar');
-                        if (avatarEl) {
-                            avatarEl.style.backgroundColor = activeInfo.color;
-                            avatarEl.innerHTML = activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : activeInfo.initial;
-                        }
                     }
                 }
                 if (!bubble) {
@@ -2824,13 +2809,6 @@
                             bubble.remove(); bubble = null;
                         } else if (!anchor.parentElement.contains(bubble)) {
                             bubble.remove(); bubble = null;
-                        } else {
-                            // Update existing bubble avatar
-                            const avatarEl = bubble.querySelector('.profiles-header-avatar');
-                            if (avatarEl) {
-                                avatarEl.style.backgroundColor = activeInfo.color;
-                                avatarEl.innerHTML = activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : activeInfo.initial;
-                            }
                         }
                     }
                     if (!bubble) {
