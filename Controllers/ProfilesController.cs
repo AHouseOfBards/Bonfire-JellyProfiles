@@ -99,7 +99,7 @@ namespace Jellyfin.Profiles.Controllers
                     RequiresPin = masterRequiresPin,
                     IsMaster = true,
                     LockoutMinutes = linkedMapping?.LockoutMinutes ?? 5,
-                    MaxSubProfiles = config.MaxProfilesPerUser,
+                    MaxSubProfiles = GetMaxProfilesForUser(linkedId, config),
                     BypassPinOnLocalNetwork = linkedMapping?.BypassPinOnLocalNetwork ?? false,
                     AllowedDeviceIds = linkedMapping?.AllowedDeviceIds ?? new List<string>(),
                     IsBonfire = (linkedId != masterUserId),
@@ -230,10 +230,11 @@ namespace Jellyfin.Profiles.Controllers
             if (masterUser == null) return NotFound("Master user not found.");
 
             // Enforce max profiles limit
+            var maxProfiles = GetMaxProfilesForUser(masterUserId, config);
             var existingCount = config.Mappings.Count(m => m.MasterUserId == masterUserId && m.ProfileUserId != masterUserId);
-            if (existingCount >= config.MaxProfilesPerUser)
+            if (existingCount >= maxProfiles)
             {
-                return BadRequest($"Maximum profile limit of {config.MaxProfilesPerUser} reached.");
+                return BadRequest($"Maximum profile limit of {maxProfiles} reached.");
             }
 
             // PIN validation (4-8 digits numeric)
@@ -337,7 +338,7 @@ namespace Jellyfin.Profiles.Controllers
                 EnabledFolders = request.EnabledFolders?.ToList() ?? new List<Guid>(),
                 BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork ?? false,
                 AllowedDeviceIds = request.AllowedDeviceIds ?? new List<string>(),
-                ProfileImage = request.ProfileImage
+                ProfileImage = SaveProfileImage(targetUser.Id, request.ProfileImage)
             });
 
             Plugin.Instance?.SaveConfiguration();
@@ -404,6 +405,9 @@ namespace Jellyfin.Profiles.Controllers
                 await _userManager.DeleteUserAsync(targetUser.Id).ConfigureAwait(false);
             }
 
+            // Clean up static profile image if any
+            SaveProfileImage(request.ProfileId, null);
+
             config.Mappings.Remove(mapping);
             Plugin.Instance?.SaveConfiguration();
 
@@ -465,6 +469,7 @@ namespace Jellyfin.Profiles.Controllers
 
             var remoteIp = HttpContext.Connection.RemoteIpAddress;
             bool isLocal = remoteIp != null && _networkManager.IsInLocalNetwork(remoteIp);
+            var ip = remoteIp?.ToString() ?? "127.0.0.1";
 
             // Verify PIN if set
             var pinHashToCheck = mapping?.PinHash;
@@ -473,13 +478,21 @@ namespace Jellyfin.Profiles.Controllers
                 bool bypass = mapping != null && mapping.BypassPinOnLocalNetwork && isLocal;
                 if (!bypass)
                 {
+                    if (PinRateLimiter.IsRateLimited(ip))
+                    {
+                        return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
+                    }
+
                     var inputHash = HashPin(request.Pin);
                     if (pinHashToCheck != inputHash)
                     {
+                        PinRateLimiter.RecordFailure(ip);
                         return BadRequest("Invalid PIN code.");
                     }
                 }
             }
+
+            PinRateLimiter.Reset(ip);
 
             var targetUser = _userManager.GetUserById(request.ProfileId);
             if (targetUser == null) return NotFound("Underlying system user missing.");
@@ -589,6 +602,9 @@ namespace Jellyfin.Profiles.Controllers
             // Authenticate directly bypassing password check (securely validated caller + PIN validation)
             var session = await _sessionManager.AuthenticateDirect(authRequest).ConfigureAwait(false);
 
+            // Record profile switch audit log
+            RecordAuditLog(masterUser?.Username ?? "Unknown", targetUser.Username);
+
             return Ok(new
             {
                 ActiveProfileToken = session.AccessToken,
@@ -630,6 +646,7 @@ namespace Jellyfin.Profiles.Controllers
 
             var remoteIp = HttpContext.Connection.RemoteIpAddress;
             bool isLocal = remoteIp != null && _networkManager.IsInLocalNetwork(remoteIp);
+            var ip = remoteIp?.ToString() ?? "127.0.0.1";
 
             if (linkedMasterIds.Contains(request.ProfileId))
             {
@@ -641,12 +658,19 @@ namespace Jellyfin.Profiles.Controllers
                     bool bypass = masterMapping != null && masterMapping.BypassPinOnLocalNetwork && isLocal;
                     if (!bypass)
                     {
+                        if (PinRateLimiter.IsRateLimited(ip))
+                        {
+                            return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
+                        }
+
                         if (string.IsNullOrEmpty(request.Pin) || HashPin(request.Pin) != pinHash)
                         {
+                            PinRateLimiter.RecordFailure(ip);
                             return BadRequest("Invalid PIN.");
                         }
                     }
                 }
+                PinRateLimiter.Reset(ip);
                 return Ok();
             }
             else
@@ -661,12 +685,19 @@ namespace Jellyfin.Profiles.Controllers
                     bool bypass = mapping.BypassPinOnLocalNetwork && isLocal;
                     if (!bypass)
                     {
+                        if (PinRateLimiter.IsRateLimited(ip))
+                        {
+                            return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
+                        }
+
                         if (string.IsNullOrEmpty(request.Pin) || HashPin(request.Pin) != pinHash)
                         {
+                            PinRateLimiter.RecordFailure(ip);
                             return BadRequest("Invalid PIN.");
                         }
                     }
                 }
+                PinRateLimiter.Reset(ip);
                 return Ok();
             }
         }
@@ -717,11 +748,14 @@ namespace Jellyfin.Profiles.Controllers
                 else
                 {
                     var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == user.Id);
+                    var limitOverride = config.UserProfileLimitOverrides?.FirstOrDefault(o => o.UserId == user.Id)?.MaxProfiles;
                     masterUsersList.Add(new
                     {
                         ProfileUserId = user.Id,
                         ProfileName = user.Username,
-                        RequiresPin = mapping != null && !string.IsNullOrEmpty(mapping.PinHash)
+                        RequiresPin = mapping != null && !string.IsNullOrEmpty(mapping.PinHash),
+                        MaxProfiles = GetMaxProfilesForUser(user.Id, config),
+                        LimitOverride = limitOverride
                     });
                 }
             }
@@ -866,7 +900,7 @@ namespace Jellyfin.Profiles.Controllers
 
                 if (request.ProfileImage != null)
                 {
-                    mappingEntry.ProfileImage = request.ProfileImage;
+                    mappingEntry.ProfileImage = SaveProfileImage(request.ProfileId, request.ProfileImage);
                 }
 
                 // Handle PIN updates
@@ -1553,6 +1587,221 @@ namespace Jellyfin.Profiles.Controllers
 
             return Ok();
         }
+
+        private int GetMaxProfilesForUser(Guid userId, PluginConfiguration config)
+        {
+            var overrideEntry = config.UserProfileLimitOverrides?.FirstOrDefault(o => o.UserId == userId);
+            return overrideEntry?.MaxProfiles ?? config.MaxProfilesPerUser;
+        }
+
+        private string? SaveProfileImage(Guid profileId, string? profileImageInput)
+        {
+            if (string.IsNullOrEmpty(profileImageInput))
+            {
+                var pluginDataFolder = Path.Combine(Plugin.Instance!.AppPaths.DataPath, "plugins", "ProfilesManagement");
+                var jpgPath = Path.Combine(pluginDataFolder, $"{profileId}.jpg");
+                var pngPath = Path.Combine(pluginDataFolder, $"{profileId}.png");
+                if (System.IO.File.Exists(jpgPath)) System.IO.File.Delete(jpgPath);
+                if (System.IO.File.Exists(pngPath)) System.IO.File.Delete(pngPath);
+                return null;
+            }
+
+            if (profileImageInput.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                return profileImageInput;
+            }
+
+            if (profileImageInput.StartsWith("/plugins/profiles/image/", StringComparison.OrdinalIgnoreCase))
+            {
+                return profileImageInput;
+            }
+
+            if (profileImageInput.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var commaIndex = profileImageInput.IndexOf(',');
+                    if (commaIndex >= 0)
+                    {
+                        var mimePart = profileImageInput.Substring(0, commaIndex);
+                        var base64Part = profileImageInput.Substring(commaIndex + 1);
+                        var bytes = Convert.FromBase64String(base64Part);
+
+                        string ext = ".jpg";
+                        if (mimePart.Contains("image/png")) ext = ".png";
+                        else if (mimePart.Contains("image/gif")) ext = ".gif";
+
+                        var pluginDataFolder = Path.Combine(Plugin.Instance!.AppPaths.DataPath, "plugins", "ProfilesManagement");
+                        Directory.CreateDirectory(pluginDataFolder);
+
+                        var oldJpg = Path.Combine(pluginDataFolder, $"{profileId}.jpg");
+                        var oldPng = Path.Combine(pluginDataFolder, $"{profileId}.png");
+                        if (System.IO.File.Exists(oldJpg)) System.IO.File.Delete(oldJpg);
+                        if (System.IO.File.Exists(oldPng)) System.IO.File.Delete(oldPng);
+
+                        var filePath = Path.Combine(pluginDataFolder, $"{profileId}{ext}");
+                        System.IO.File.WriteAllBytes(filePath, bytes);
+
+                        return $"/plugins/profiles/image/{profileId}?v={DateTime.UtcNow.Ticks}";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "ProfilesPlugin: Failed to save base64 profile image for {ProfileId}", profileId);
+                }
+            }
+
+            return profileImageInput;
+        }
+
+        private void RecordAuditLog(string masterUsername, string targetUsername)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return;
+
+            var device = GetAuthorizationParameter("Device") ?? "Unknown Device";
+            var client = GetAuthorizationParameter("Client") ?? "Unknown Client";
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
+
+            lock (config)
+            {
+                if (config.AuditLogs == null)
+                {
+                    config.AuditLogs = new List<AuditLogEntry>();
+                }
+                config.AuditLogs.Add(new AuditLogEntry
+                {
+                    Timestamp = DateTime.UtcNow,
+                    MasterUsername = masterUsername,
+                    TargetUsername = targetUsername,
+                    DeviceName = device,
+                    Client = client,
+                    IpAddress = ip
+                });
+
+                if (config.AuditLogs.Count > 1000)
+                {
+                    config.AuditLogs = config.AuditLogs.OrderBy(l => l.Timestamp).Skip(config.AuditLogs.Count - 1000).ToList();
+                }
+
+                Plugin.Instance?.SaveConfiguration();
+            }
+        }
+
+        [HttpGet("image/{profileId}")]
+        [AllowAnonymous]
+        public ActionResult GetProfileImage(Guid profileId)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return NotFound();
+
+            var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+            if (mapping == null || string.IsNullOrEmpty(mapping.ProfileImage))
+            {
+                return NotFound();
+            }
+
+            var pluginDataFolder = Path.Combine(Plugin.Instance!.AppPaths.DataPath, "plugins", "ProfilesManagement");
+            var filePath = Path.Combine(pluginDataFolder, $"{profileId}.jpg");
+            if (!System.IO.File.Exists(filePath))
+            {
+                filePath = Path.Combine(pluginDataFolder, $"{profileId}.png");
+            }
+
+            if (System.IO.File.Exists(filePath))
+            {
+                var bytes = System.IO.File.ReadAllBytes(filePath);
+                var contentType = filePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg";
+                return File(bytes, contentType);
+            }
+
+            if (mapping.ProfileImage.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                return Redirect(mapping.ProfileImage);
+            }
+
+            return NotFound();
+        }
+
+        public class SetProfileLimitRequest
+        {
+            public Guid UserId { get; set; }
+            public int? MaxProfiles { get; set; }
+        }
+
+        [HttpPost("admin/set-profile-limit")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public ActionResult SetProfileLimit([FromBody] SetProfileLimitRequest request)
+        {
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+
+            var caller = _userManager.GetUserById(currentUserIdVal.Value);
+            if (caller == null) return Unauthorized();
+
+            var callerDto = _userManager.GetUserDto(caller, string.Empty);
+            if (!callerDto.Policy.IsAdministrator)
+            {
+                return Unauthorized("Only administrators can update profile limits.");
+            }
+
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            if (request.MaxProfiles.HasValue)
+            {
+                if (request.MaxProfiles.Value < 1)
+                {
+                    return BadRequest("Maximum profiles must be at least 1.");
+                }
+                var existing = config.UserProfileLimitOverrides.FirstOrDefault(o => o.UserId == request.UserId);
+                if (existing != null)
+                {
+                    existing.MaxProfiles = request.MaxProfiles.Value;
+                }
+                else
+                {
+                    config.UserProfileLimitOverrides.Add(new UserProfileLimitOverride
+                    {
+                        UserId = request.UserId,
+                        MaxProfiles = request.MaxProfiles.Value
+                    });
+                }
+            }
+            else
+            {
+                config.UserProfileLimitOverrides.RemoveAll(o => o.UserId == request.UserId);
+            }
+
+            Plugin.Instance?.SaveConfiguration();
+            return Ok();
+        }
+
+        [HttpGet("admin/audit-logs")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<IEnumerable<AuditLogEntry>> GetAuditLogs()
+        {
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+
+            var caller = _userManager.GetUserById(currentUserIdVal.Value);
+            if (caller == null) return Unauthorized();
+
+            var callerDto = _userManager.GetUserDto(caller, string.Empty);
+            if (!callerDto.Policy.IsAdministrator)
+            {
+                return Unauthorized("Only administrators can view audit logs.");
+            }
+
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var logs = config.AuditLogs ?? new List<AuditLogEntry>();
+            return Ok(logs.OrderByDescending(l => l.Timestamp).ToList());
+        }
     }
 
     public static class BonfireRateLimiter
@@ -1601,6 +1850,77 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     attempts.RemoveAll(t => t < DateTime.UtcNow.AddMinutes(-15));
                     return attempts.Count >= 3;
+                }
+            }
+            return false;
+        }
+
+        public static void RecordFailure(string ipAddress)
+        {
+            if (string.IsNullOrEmpty(ipAddress)) return;
+
+            PruneExpiredEntries();
+
+            var attempts = _failedAttempts.GetOrAdd(ipAddress, _ => new List<DateTime>());
+            lock (attempts)
+            {
+                attempts.Add(DateTime.UtcNow);
+            }
+        }
+
+        public static void Reset(string ipAddress)
+        {
+            if (string.IsNullOrEmpty(ipAddress)) return;
+            _failedAttempts.TryRemove(ipAddress, out _);
+        }
+    }
+
+    public static class PinRateLimiter
+    {
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<DateTime>> _failedAttempts = new();
+        private static readonly object _cleanupLock = new();
+        private static DateTime _nextCleanup = DateTime.UtcNow.AddMinutes(5);
+
+        private static void PruneExpiredEntries()
+        {
+            var now = DateTime.UtcNow;
+            if (now < _nextCleanup) return;
+
+            lock (_cleanupLock)
+            {
+                if (now < _nextCleanup) return;
+                _nextCleanup = now.AddMinutes(5);
+
+                var cutoff = now.AddMinutes(-15);
+                foreach (var key in _failedAttempts.Keys)
+                {
+                    if (_failedAttempts.TryGetValue(key, out var list))
+                    {
+                        lock (list)
+                        {
+                            list.RemoveAll(t => t < cutoff);
+                            if (list.Count == 0)
+                            {
+                                _failedAttempts.TryRemove(key, out _);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        public static bool IsRateLimited(string ipAddress)
+        {
+            if (string.IsNullOrEmpty(ipAddress)) return false;
+
+            PruneExpiredEntries();
+
+            if (_failedAttempts.TryGetValue(ipAddress, out var attempts))
+            {
+                lock (attempts)
+                {
+                    attempts.RemoveAll(t => t < DateTime.UtcNow.AddMinutes(-15));
+                    return attempts.Count >= 5;
                 }
             }
             return false;

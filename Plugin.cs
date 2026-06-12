@@ -15,10 +15,13 @@ namespace Jellyfin.Profiles
 
         public static Plugin? Instance { get; private set; }
 
+        public IApplicationPaths AppPaths { get; }
+
         public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
             : base(applicationPaths, xmlSerializer)
         {
             Instance = this;
+            AppPaths = applicationPaths;
         }
 
         public IEnumerable<PluginPageInfo> GetPages()

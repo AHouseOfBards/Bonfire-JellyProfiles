@@ -569,7 +569,12 @@
             }
 
             const currentToken = apiClient.accessToken();
-            if (!currentToken) return;
+            if (!currentToken) {
+                localStorage.removeItem(this.config.masterStorageKey);
+                sessionStorage.removeItem(this.config.activeSessionKey);
+                sessionStorage.removeItem('jellyfin_profiles_active_info');
+                return;
+            }
 
             // Dual-token check: if tab/app was closed, sessionStorage is wiped out.
             // If the current token in Jellyfin is NOT the master token, but sessionStorage is empty,
@@ -788,6 +793,17 @@
             .catch(() => { /* silent — lockout timer is best-effort */ });
         },
 
+        isMediaPlaying: function () {
+            const mediaElements = document.querySelectorAll('video, audio');
+            for (let i = 0; i < mediaElements.length; i++) {
+                const media = mediaElements[i];
+                if (media && !media.paused && !media.ended && media.currentTime > 0) {
+                    return true;
+                }
+            }
+            return false;
+        },
+
         // Arms the inactivity timer. Resets on any user interaction.
         // Any device event (mouse, keyboard, touch, pointer, scroll) counts as activity,
         // making this safe for TV remotes, magic remotes, game pads, and touchscreens.
@@ -800,9 +816,18 @@
                 'pointermove', 'pointerdown'  // covers LG Magic Remote and pointer-based TV inputs
             ];
 
+            const checkAndLock = () => {
+                if (this.isMediaPlaying()) {
+                    // Defer lockout by 1 minute if media is actively playing
+                    this.inactivityTimer = setTimeout(checkAndLock, 60 * 1000);
+                } else {
+                    this.lockActiveProfile();
+                }
+            };
+
             const resetTimer = () => {
                 clearTimeout(this.inactivityTimer);
-                this.inactivityTimer = setTimeout(() => this.lockActiveProfile(), ms);
+                this.inactivityTimer = setTimeout(checkAndLock, ms);
             };
 
             events.forEach(ev => document.addEventListener(ev, resetTimer, { passive: true }));

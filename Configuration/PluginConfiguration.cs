@@ -11,6 +11,8 @@ namespace Jellyfin.Profiles.Configuration
         public List<ProfileMapping> Mappings { get; set; } = new List<ProfileMapping>();
         public List<KnownDevice> KnownDevices { get; set; } = new List<KnownDevice>();
         public List<BonfireGroup> BonfireGroups { get; set; } = new List<BonfireGroup>();
+        public List<UserProfileLimitOverride> UserProfileLimitOverrides { get; set; } = new List<UserProfileLimitOverride>();
+        public List<AuditLogEntry> AuditLogs { get; set; } = new List<AuditLogEntry>();
     }
 
     public class KnownDevice
@@ -53,5 +55,21 @@ namespace Jellyfin.Profiles.Configuration
         public string? ProfileImage { get; set; }
         public bool HideMySubProfilesFromOthers { get; set; } = false;
         public bool HideOthersSubProfilesFromMe { get; set; } = false;
+    }
+
+    public class UserProfileLimitOverride
+    {
+        public Guid UserId { get; set; }
+        public int MaxProfiles { get; set; }
+    }
+
+    public class AuditLogEntry
+    {
+        public DateTime Timestamp { get; set; }
+        public string MasterUsername { get; set; } = string.Empty;
+        public string TargetUsername { get; set; } = string.Empty;
+        public string DeviceName { get; set; } = string.Empty;
+        public string Client { get; set; } = string.Empty;
+        public string IpAddress { get; set; } = string.Empty;
     }
 }

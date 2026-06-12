@@ -57,6 +57,16 @@
             <div class="paperList" id="subProfilesList" style="margin-bottom: 3em;">
                 <!-- Sub-Profiles dynamically loaded here -->
             </div>
+
+            <div class="sectionTitleContainer" style="margin-top: 3em;">
+                <h2 class="sectionTitle">Profile Switch Audit Logs</h2>
+            </div>
+            <div class="fieldDescription" style="margin-bottom: 1em;">
+                Displays the 1,000 most recent profile switching events on the server.
+            </div>
+            <div class="paperList" id="auditLogsList" style="margin-bottom: 3em; max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.15);">
+                <!-- Audit logs dynamically loaded here -->
+            </div>
         </div>
     </div>
 
@@ -70,6 +80,7 @@
                     page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
                     page.querySelector('#requireMasterPin').checked = config.RequireMasterPinForCreation;
                     loadMappings(page);
+                    loadAuditLogs(page);
                 }).catch(function (err) {
                     console.error("Failed to load plugin configuration:", err);
                     Dashboard.hideLoadingMsg();
@@ -93,18 +104,30 @@
                             var pName = m.profileName || m.ProfileName || '';
                             var pId = m.profileUserId || m.ProfileUserId || '';
                             var reqPin = m.requiresPin !== undefined ? m.requiresPin : (m.RequiresPin !== undefined ? m.RequiresPin : false);
+                            var maxProfiles = m.maxProfiles || m.MaxProfiles || 5;
+                            var limitOverride = m.limitOverride !== undefined ? m.limitOverride : (m.LimitOverride !== undefined ? m.LimitOverride : null);
                             var pinStatus = reqPin 
                                 ? '<span style="color:#ff6b6b;font-weight:600;">PIN Protected</span>' 
                                 : '<span style="color:#51cf66;font-weight:600;">No PIN</span>';
                             var resetBtn = reqPin 
-                                ? '<button type="button" class="raised button-accent button-mini reset-pin-btn" data-id="' + pId + '" style="margin-left:auto; background:#d23f3f; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer;">Reset PIN</button>' 
+                                ? '<button type="button" class="raised button-accent button-mini reset-pin-btn" data-id="' + pId + '" style="margin-left:auto; background:#d23f3f; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">Reset PIN</button>' 
                                 : '';
+
+                            var overrideControl = 
+                                '<div style="display:flex; align-items:center; gap:8px; margin-top:8px;">' +
+                                '<span style="font-size:0.85rem; opacity:0.6;">Profile Limit:</span>' +
+                                '<input is="emby-input" type="number" class="user-limit-input" data-id="' + pId + '" min="1" max="20" value="' + maxProfiles + '" style="width:60px !important; height:28px !important; padding:2px 6px !important; font-size:0.85rem !important; margin:0 !important; box-sizing:border-box !important;" />' +
+                                '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + pId + '" style="background:#00a4dc; color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">Set</button>' +
+                                (limitOverride !== null ? '<button type="button" class="raised button-mini clear-limit-btn" data-id="' + pId + '" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.15); padding:3px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer; margin-left:4px;">Reset</button>' : '') +
+                                '</div>';
+
                             return '<div class="listItem" style="display:flex; align-items:center; padding:15px; border-bottom:1px solid rgba(255,255,255,0.08);">' +
                                    '<div class="listItemBody" style="flex:1;">' +
                                    '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#fff;">' + pName + '</div>' +
                                    '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">' +
                                    'Status: ' + pinStatus +
                                    '</div>' +
+                                   overrideControl +
                                    '</div>' +
                                    resetBtn +
                                    '</div>';
@@ -138,7 +161,7 @@
                         }).join('');
                     }
 
-                    // Attach reset PIN event handlers for both lists
+                    // Attach reset PIN event handlers
                     page.querySelectorAll('.reset-pin-btn').forEach(function (btn) {
                         btn.addEventListener('click', function () {
                             const profileId = btn.getAttribute('data-id');
@@ -148,10 +171,82 @@
                         });
                     });
 
+                    // Attach save limit handlers
+                    page.querySelectorAll('.save-limit-btn').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            const userId = btn.getAttribute('data-id');
+                            const input = page.querySelector('.user-limit-input[data-id="' + userId + '"]');
+                            const limit = parseInt(input.value, 10);
+                            setProfileLimit(page, userId, limit);
+                        });
+                    });
+
+                    // Attach clear limit handlers
+                    page.querySelectorAll('.clear-limit-btn').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            const userId = btn.getAttribute('data-id');
+                            setProfileLimit(page, userId, null);
+                        });
+                    });
+
                     Dashboard.hideLoadingMsg();
                 }).catch(function (err) {
                     console.error("Failed to load mappings:", err);
                     Dashboard.hideLoadingMsg();
+                });
+            }
+
+            function loadAuditLogs(page) {
+                const container = page.querySelector('#auditLogsList');
+                if (!container) return;
+
+                const url = ApiClient.getUrl('plugins/profiles/admin/audit-logs');
+                ApiClient.getJSON(url).then(function (logs) {
+                    if (!logs || logs.length === 0) {
+                        container.innerHTML = '<div class="listItem" style="padding:15px;"><div class="listItemBody">No profile switch events recorded yet.</div></div>';
+                    } else {
+                        container.innerHTML = logs.map(function (log) {
+                            const dateStr = new Date(log.Timestamp || log.timestamp).toLocaleString();
+                            const master = log.MasterUsername || log.masterUsername || 'Unknown';
+                            const target = log.TargetUsername || log.targetUsername || 'Unknown';
+                            const device = log.DeviceName || log.deviceName || 'Unknown Device';
+                            const client = log.Client || log.client || 'Unknown Client';
+                            const ip = log.IpAddress || log.ipAddress || 'Unknown IP';
+
+                            return '<div class="listItem" style="display:flex; flex-direction:column; padding:12px 15px; border-bottom:1px solid rgba(255,255,255,0.06);">' +
+                                   '<div style="display:flex; justify-content:space-between; font-size:0.85rem; opacity:0.5; margin-bottom:4px;">' +
+                                   '<span>' + dateStr + '</span>' +
+                                   '<span>IP: ' + ip + '</span>' +
+                                   '</div>' +
+                                   '<div style="font-size:0.95rem; color:#fff;">' +
+                                   'Master <strong>' + master + '</strong> switched to profile <strong>' + target + '</strong>' +
+                                   '</div>' +
+                                   '<div style="font-size:0.85rem; opacity:0.7; margin-top:2px;">' +
+                                   'Device: ' + device + ' (' + client + ')' +
+                                   '</div>' +
+                                   '</div>';
+                        }).join('');
+                    }
+                }).catch(function (err) {
+                    console.error("Failed to load audit logs:", err);
+                    container.innerHTML = '<div class="listItem" style="padding:15px; color:#ff6b6b;"><div class="listItemBody">Error loading audit logs.</div></div>';
+                });
+            }
+
+            function setProfileLimit(page, userId, maxProfiles) {
+                Dashboard.showLoadingMsg();
+                const url = ApiClient.getUrl('plugins/profiles/admin/set-profile-limit');
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: url,
+                    data: JSON.stringify({ userId: userId, maxProfiles: maxProfiles }),
+                    contentType: 'application/json'
+                }).then(function () {
+                    loadMappings(page);
+                }).catch(function (err) {
+                    console.error("Failed to update limit:", err);
+                    Dashboard.hideLoadingMsg();
+                    Dashboard.alert({ message: 'Failed to update profile limit.', title: 'Error' });
                 });
             }
 
