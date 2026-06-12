@@ -2359,7 +2359,7 @@
                     </div>
 
                     <div id="bonfire-settings-container" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; display: none; flex-direction: column; gap: 16px;">
-                        <div class="form-group" style="gap: 4px;">
+                        <div class="bonfire-form-group" style="gap: 4px;">
                             <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none; font-size: 0.9rem; font-weight: 600;">
                                 <input type="checkbox" id="bonfire-hide-mine-checkbox" style="cursor: pointer; accent-color: #00a4dc;" />
                                 <span>Hide my sub-profiles from others</span>
@@ -2367,7 +2367,7 @@
                             <div class="form-hint" style="margin-left: 1.6rem; opacity: 0.5; font-size: 0.75rem;">If enabled, guest homes you connect with won't see your sub-profiles (only your master profile).</div>
                         </div>
 
-                        <div class="form-group" style="gap: 4px;">
+                        <div class="bonfire-form-group" style="gap: 4px;">
                             <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none; font-size: 0.9rem; font-weight: 600;">
                                 <input type="checkbox" id="bonfire-hide-others-checkbox" style="cursor: pointer; accent-color: #00a4dc;" />
                                 <span>Hide other people's sub-profiles from me</span>
@@ -2490,13 +2490,13 @@
             if (isOwner) {
                 hostSectionHtml = `
                     <div style="display: flex; flex-direction: column; gap: 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
-                        <div class="form-group">
+                        <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; color: #ff9900; display: block; margin-bottom: 4px;">Your Hosted Bonfire</label>
                             <span style="font-size: 0.88rem; opacity: 0.75; display: block;">Share this 6-character code with other users on the server to invite them to your bonfire:</span>
                             <div style="font-size: 2rem; font-weight: 700; color: #22c55e; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px dashed rgba(34,197,94,0.3);">${ownedCode}</div>
                         </div>
                         
-                        <div class="form-group">
+                        <div class="bonfire-form-group">
                             <label style="font-size: 1rem; font-weight: 600; color: #fff; display: block; margin-bottom: 8px;">Members (${ownedMembers.length})</label>
                             <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px;">
                                 ${ownedMembers.length > 0 ? ownedMembers.map(m => {
@@ -2518,7 +2518,7 @@
                 `;
             } else {
                 hostSectionHtml = `
-                    <div class="form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+                    <div class="bonfire-form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
                         <label style="font-size: 1.1rem; font-weight: 700; color: #ff9900; display: block; margin-bottom: 4px;">Host a Bonfire</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">Host your own group to share your sub-profiles with friends.</span>
                         <button type="button" id="bonfire-generate-btn" class="profiles-btn btn-primary" style="width: 100%; padding: 12px; font-weight: 600;">Generate Join Code</button>
@@ -2530,7 +2530,7 @@
             if (isMember) {
                 guestSectionHtml = `
                     <div style="display: flex; flex-direction: column; gap: 1.25rem;">
-                        <div class="form-group">
+                        <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; color: #3b82f6; display: block; margin-bottom: 4px;">Joined Bonfire</label>
                             <span style="font-size: 0.88rem; opacity: 0.75;">You have joined a bonfire group owned by:</span>
                             <div style="font-size: 1.25rem; font-weight: 700; color: #00a4dc; margin: 12px 0; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">${joinedOwnerName}</div>
@@ -2543,7 +2543,7 @@
                 `;
             } else {
                 guestSectionHtml = `
-                    <div class="form-group">
+                    <div class="bonfire-form-group">
                         <label style="font-size: 1.1rem; font-weight: 700; color: #3b82f6; display: block; margin-bottom: 4px;">Join a Bonfire</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">Enter a friend's Bonfire Code to join their group:</span>
                         <div style="display: flex; gap: 10px; align-items: center;">
@@ -3478,13 +3478,16 @@
                         text-align: center;
                     }
                 }
-                .form-group {
+                .form-group,
+                .bonfire-form-group {
                     display: flex; flex-direction: column; gap: 0.5rem;
                 }
-                .form-group label {
+                .form-group label,
+                .bonfire-form-group label {
                     font-size: 0.9rem; font-weight: 600; color: rgba(255,255,255,0.6);
                 }
                 .form-group input[type="text"],
+                .bonfire-form-group input[type="text"],
                 .form-group input[type="password"] {
                     background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
                     border-radius: 8px; padding: 10px; color: #fff; font-size: 1rem;
