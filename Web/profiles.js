@@ -331,19 +331,17 @@
             const apiClient = ApiClient;
             if (!apiClient) return;
 
-            const currentToken = apiClient.accessToken();
-            if (!currentToken) {
-                // Only clear master credentials if we are on a page that indicates logout,
-                // like login or selectserver, to prevent premature wiping during connection initialization
-                const hash = window.location.hash || '';
-                const path = window.location.pathname || '';
-                if (hash.includes('login') || hash.includes('selectserver') || path.includes('login') || path.includes('selectserver')) {
-                    localStorage.removeItem(this.config.masterStorageKey);
-                    sessionStorage.removeItem(this.config.activeSessionKey);
-                    sessionStorage.removeItem('jellyfin_profiles_active_info');
-                }
+            const hash = window.location.hash || '';
+            const path = window.location.pathname || '';
+            if (hash.includes('login') || hash.includes('selectserver') || path.includes('login') || path.includes('selectserver')) {
+                localStorage.removeItem(this.config.masterStorageKey);
+                sessionStorage.removeItem(this.config.activeSessionKey);
+                sessionStorage.removeItem('jellyfin_profiles_active_info');
                 return;
             }
+
+            const currentToken = apiClient.accessToken();
+            if (!currentToken) return;
 
             // Dual-token check: if tab/app was closed, sessionStorage is wiped out.
             // If the current token in Jellyfin is NOT the master token, but sessionStorage is empty,
@@ -1650,6 +1648,14 @@
                 }
             }
 
+            if (bubble && bubble.classList.contains('profiles-floating-fallback')) {
+                const pos = this._findBestFallbackPosition();
+                bubble.style.top = pos.top;
+                bubble.style.bottom = pos.bottom;
+                bubble.style.left = pos.left;
+                bubble.style.right = pos.right;
+            }
+
             this._bubbleShow(bubble);
 
             // Pre-fetch the profile list while the button is visible so the overlay
@@ -1789,6 +1795,13 @@
             b.title = 'Switch Profile';
             b.setAttribute('aria-label', 'Switch Profile');
 
+            // Set initial position dynamically
+            const pos = this._findBestFallbackPosition();
+            b.style.top = pos.top;
+            b.style.bottom = pos.bottom;
+            b.style.left = pos.left;
+            b.style.right = pos.right;
+
             const activeInfoStr = sessionStorage.getItem('jellyfin_profiles_active_info');
             if (activeInfoStr) {
                 try {
@@ -1809,6 +1822,34 @@
 
             b.innerHTML = '<span class="material-icons" aria-hidden="true" style="font-size:1.1rem;vertical-align:middle;margin-right:5px">people</span>Profiles';
             return b;
+        },
+
+        _findBestFallbackPosition: function () {
+            const corners = [
+                // Top-Right
+                { top: '80px', bottom: 'auto', left: 'auto', right: '24px', x: () => window.innerWidth - 60, y: () => 95 },
+                // Top-Left
+                { top: '80px', bottom: 'auto', left: '24px', right: 'auto', x: () => 60, y: () => 95 },
+                // Bottom-Left
+                { top: 'auto', bottom: '24px', left: '24px', right: 'auto', x: () => 60, y: () => window.innerHeight - 40 },
+                // Bottom-Right
+                { top: 'auto', bottom: '24px', left: 'auto', right: '24px', x: () => window.innerWidth - 60, y: () => window.innerHeight - 40 }
+            ];
+
+            for (const corner of corners) {
+                const cx = corner.x();
+                const cy = corner.y();
+                if (cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) continue;
+
+                const el = document.elementFromPoint(cx, cy);
+                if (!el) return corner;
+
+                if (!el.closest('button, a, [role="button"], input, select, textarea, .headerButton, .paper-icon-button-light')) {
+                    return corner;
+                }
+            }
+
+            return corners[0];
         },
 
         // Inserts bubble before the user-account button, or appends if not found.
