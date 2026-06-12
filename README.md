@@ -74,7 +74,7 @@ On restart the plugin automatically injects its client script into Jellyfin's `i
 ## Known Limitations
 
 **Skin Manager / custom themes**  
-The Switch Profile button is inserted into the header using a multi-strategy approach: it tries known Jellyfin class names first, falls back to the parent element of any detected header icon button, then scans inside `.skinHeader` and similar Skin Manager wrappers. As a final resort it picks the rightmost button in the top 80 px of the viewport geometrically. This means the button usually lands in the right place even on custom themes. If it still appears in the wrong position, please open an issue with the theme name — layout issues in heavily restructured themes may still occur and may need theme-specific adjustments.
+The Switch Profile button is designed to align with standard Jellyfin layouts. If you use custom themes or a skin manager, the button might occasionally appear misaligned or out of place. If you run into visual conflicts, please open an issue with the name of the theme you are using.
 
 
 **Profile creation is on the home screen, not the admin dashboard**  
