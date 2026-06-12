@@ -12,7 +12,7 @@
         "changelog": "Fix: Fully eliminated the remaining page-load white flash during profile switches. The early-hide script is now injected at the absolute beginning of <head>, running synchronously before any stylesheet links can block the HTML parser. Added color-scheme: dark on the document root to ensure Chrome/Blink defaults its blank canvas color to dark during page tear-down. Older script/style tags from previous versions are cleaned up automatically on update.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/JellyProfiles/releases/download/v1.0.15/Jellyfin.Profiles.zip",
-        "checksum": "placeholder",
+        "checksum": "fd5c10379afd007d47529c954a94bdb8",
         "timestamp": "2026-06-12T01:48:00Z"
       },
       {
