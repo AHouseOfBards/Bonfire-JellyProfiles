@@ -3289,6 +3289,7 @@
                     background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
                     border-radius: 8px; padding: 10px; color: #fff; font-size: 1rem;
                     transition: border-color 0.25s, box-shadow 0.25s;
+                    position: relative !important;
                 }
                 #bonfire-join-input:focus {
                     border-color: #00a4dc; outline: none;
@@ -3533,13 +3534,21 @@
                     max-height: 140px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1);
                 }
                 .library-check-label {
-                    display: flex; align-items: center; gap: 0.6rem; cursor: pointer;
+                    display: flex !important; align-items: center !important; gap: 0.6rem; cursor: pointer;
                     font-size: 0.95rem; color: rgba(255,255,255,0.85);
                     border-radius: 4px; padding: 4px 8px; margin-left: -8px;
                     transition: background 0.2s, color 0.2s;
+                    position: relative !important;
                 }
                 .library-check-label input {
                     cursor: pointer; accent-color: #00a4dc;
+                    position: relative !important;
+                    opacity: 1 !important;
+                    width: 18px !important;
+                    height: 18px !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    flex-shrink: 0 !important;
                 }
                 .library-check-label:focus, .library-check-label:hover {
                     background: rgba(255, 255, 255, 0.05);
@@ -3554,6 +3563,8 @@
                     color: rgba(255,255,255,0.4);
                     margin-top: -0.2rem;
                     text-align: left;
+                    position: relative !important;
+                    display: block !important;
                 }
 
                 /* Switch-Profile bubble — fade transition */
