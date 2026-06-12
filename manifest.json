@@ -12,7 +12,7 @@
         "changelog": "Fix: device dropdown undefined field serialization issue for allowed devices. Fix: Bonfire grouping modal to show host and join controls concurrently. UX: changed header title from My Home to Your Bonfire. Rename bonfire manage card to Bonfire Grouping.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/JellyProfiles/releases/download/v1.0.30/Jellyfin.Profiles.zip",
-        "checksum": "a2bbf34dd84c0ac70b1eb7cd7f882c53",
+        "checksum": "9cc21c6a05ece5b9cc288d62416ab73d",
         "timestamp": "2026-06-12T15:10:00Z"
       },
       {
