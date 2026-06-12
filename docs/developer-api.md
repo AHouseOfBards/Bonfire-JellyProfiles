@@ -60,7 +60,7 @@ Retrieves a list of all profiles (master and sub-profiles) accessible to the aut
 | `masterUserId` | string (GUID) | Jellyfin user ID of the master user account this profile belongs to. |
 
 ### `POST /plugins/profiles/switch`
-Authenticates a profile selection and returns a scoped session token.
+Authenticates a profile selection and returns a scoped session token. Rate limited to 5 failed attempts in 15 minutes.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
 * **Request Body:**
@@ -90,11 +90,13 @@ Authenticates a profile selection and returns a scoped session token.
 | `jellyfinUserId` | string (GUID) | Jellyfin user ID of the target profile. |
 
 * **Error Responses:**
-  * `401 Unauthorized`: Incorrect PIN or caller unauthorized.
-  * `404 Not Found`: Target profile does not exist.
+  * `400 Bad Request`: Incorrect PIN, device restrictions not met, or invalid parameters.
+  * `401 Unauthorized`: Caller is not authenticated, or unauthorized profile switch attempt.
+  * `404 Not Found`: Target profile or underlying system user does not exist.
+  * `429 Too Many Requests`: PIN authentication rate limit exceeded (5 failed attempts per 15 minutes).
 
 ### `POST /plugins/profiles/verify-pin`
-Validates a profile PIN without switching the active session.
+Validates a profile PIN without switching the active session. Rate limited to 5 failed attempts in 15 minutes.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
 * **Request Body:**
@@ -110,9 +112,11 @@ Validates a profile PIN without switching the active session.
 | `profileId` | string (GUID) | Yes | The Jellyfin user ID of the profile. |
 | `pin` | string | Yes | The numeric PIN to validate. |
 
-* **Response:**
-  * `200 OK`: PIN is correct.
-  * `401 Unauthorized`: PIN is incorrect.
+* **Response `200 OK`:** PIN is correct.
+* **Error Responses:**
+  * `400 Bad Request`: Incorrect PIN, device restrictions not met, or invalid parameters.
+  * `401 Unauthorized`: Caller is not authenticated, or unauthorized profile PIN verification.
+  * `429 Too Many Requests`: PIN authentication rate limit exceeded (5 failed attempts per 15 minutes).
 
 ### `POST /plugins/profiles/create`
 Creates a new sub-profile.
@@ -236,6 +240,20 @@ Retrieves media library folders visible to the master user.
 | `id` | string (GUID) | Library folder GUID. |
 | `name` | string | Display name of the library. |
 | `collectionType` | string | Type of media collection (e.g., "movies", "tvshows"). |
+
+---
+
+## Images API
+
+### `GET /plugins/profiles/image/{profileId}`
+Serves the custom profile picture file for the specified profile.
+
+* **Parameters:**
+  * `profileId`: string (GUID) in path.
+* **Response:**
+  * `200 OK`: Binary image file (JPEG or PNG).
+  * `302 Found`: Redirect to the external image URL if not stored locally.
+  * `404 Not Found`: Profile or image not found.
 
 ---
 
@@ -380,6 +398,16 @@ Joins a target group using its 6-character code. Rate limited to 3 failed attemp
 }
 ```
 
+| Field | Type | Description |
+|---|---|---|
+| `message` | string | Confirmation message of successful group joining. |
+| `ownerName` | string | Username of the bonfire group owner. |
+
+* **Error Responses:**
+  * `400 Bad Request`: Invalid code format, invalid Bonfire Code, or attempting to join owned group.
+  * `401 Unauthorized`: Caller is not authenticated, or caller is not a master profile.
+  * `429 Too Many Requests`: Join rate limit exceeded (3 failed attempts per 15 minutes).
+
 ### `POST /plugins/profiles/bonfire/kick`
 Kicks a guest master user from the owned bonfire group.
 
@@ -424,7 +452,9 @@ Retrieves all user profile mappings configured on the server.
     {
       "profileUserId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a",
       "profileName": "john",
-      "requiresPin": true
+      "requiresPin": true,
+      "maxProfiles": 5,
+      "limitOverride": null
     }
   ],
   "subProfiles": [
@@ -440,8 +470,11 @@ Retrieves all user profile mappings configured on the server.
 
 | Field | Type | Description |
 |---|---|---|
-| `masterUsers` | array | List of master accounts. Each entry has `profileUserId`, `profileName`, and `requiresPin`. |
+| `masterUsers` | array | List of master accounts. Each entry has `profileUserId`, `profileName`, `requiresPin`, `maxProfiles`, and `limitOverride`. |
 | `subProfiles` | array | List of sub-profiles. Each entry has `profileUserId`, `profileName`, `masterName`, and `requiresPin`. |
+
+* **Error Responses:**
+  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
 
 ### `POST /plugins/profiles/admin/reset-pin`
 Removes the PIN requirement from the specified profile.
@@ -459,3 +492,60 @@ Removes the PIN requirement from the specified profile.
 | `profileId` | string (GUID) | Yes | The user ID of the target profile. |
 
 * **Response:** `200 OK` on success.
+
+* **Error Responses:**
+  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
+  * `404 Not Found`: Profile mapping not found.
+
+### `POST /plugins/profiles/admin/set-profile-limit`
+Overrides the maximum number of profiles a master user is allowed to create.
+
+* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
+* **Request Body:**
+```json
+{
+  "userId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a",
+  "maxProfiles": 8
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `userId` | string (GUID) | Yes | The user ID of the master account to override. |
+| `maxProfiles` | integer | No | The custom maximum profiles limit. Pass null to remove override. |
+
+* **Response:** `200 OK` on success.
+
+* **Error Responses:**
+  * `400 Bad Request`: Maximum profiles must be at least 1, or plugin configuration missing.
+  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
+
+### `GET /plugins/profiles/admin/audit-logs`
+Retrieves recent profile switching event logs.
+
+* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
+* **Response `200 OK`:**
+```json
+[
+  {
+    "timestamp": "2026-06-12T20:52:00Z",
+    "masterUsername": "john",
+    "targetUsername": "Kids",
+    "deviceName": "Chrome",
+    "client": "Jellyfin Web",
+    "ipAddress": "192.168.1.50"
+  }
+]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `timestamp` | string (ISO-8601) | Timestamp of the profile switch event. |
+| `masterUsername` | string | Username of the master account owner. |
+| `targetUsername` | string | Username of the profile switched to. |
+| `deviceName` | string | Recorded device name. |
+| `client` | string | Recorded client name. |
+| `ipAddress` | string | Client IP address. |
+
+* **Error Responses:**
+  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
