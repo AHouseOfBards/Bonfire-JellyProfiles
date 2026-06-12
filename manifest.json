@@ -8,6 +8,14 @@
     "owner": "AHouseOfBards",
     "versions": [
       {
+        "version": "1.0.16.0",
+        "changelog": "Fix: Resolved user lockout scenario where an expired master session token would cause all PIN entries to be falsely marked as 'Incorrect PIN'. Added distinct server response codes for invalid PINs (400 Bad Request) vs expired session tokens (401 Unauthorized), enabling the client to automatically detect expired master sessions and redirect the user cleanly to the Jellyfin login screen.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/JellyProfiles/releases/download/v1.0.16/Jellyfin.Profiles.zip",
+        "checksum": "placeholder",
+        "timestamp": "2026-06-12T09:25:00Z"
+      },
+      {
         "version": "1.0.15.0",
         "changelog": "Fix: Fully eliminated the remaining page-load white flash during profile switches. The early-hide script is now injected at the absolute beginning of <head>, running synchronously before any stylesheet links can block the HTML parser. Added color-scheme: dark on the document root to ensure Chrome/Blink defaults its blank canvas color to dark during page tear-down. Older script/style tags from previous versions are cleaned up automatically on update.",
         "targetAbi": "10.11.0.0",

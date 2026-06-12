@@ -168,7 +168,7 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     if (string.IsNullOrEmpty(request.MasterPin) || HashPin(request.MasterPin) != masterMapping.PinHash)
                     {
-                        return Unauthorized("Invalid Master PIN code.");
+                        return BadRequest("Invalid Master PIN code.");
                     }
                 }
             }
@@ -328,7 +328,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 if (string.IsNullOrEmpty(request.MasterPin) || HashPin(request.MasterPin) != masterMapping.PinHash)
                 {
-                    return Unauthorized("Invalid Master PIN code.");
+                    return BadRequest("Invalid Master PIN code.");
                 }
             }
 
@@ -397,7 +397,7 @@ namespace Jellyfin.Profiles.Controllers
                 var inputHash = HashPin(request.Pin);
                 if (pinHashToCheck != inputHash)
                 {
-                    return Unauthorized("Invalid PIN code.");
+                    return BadRequest("Invalid PIN code.");
                 }
             }
 
@@ -543,7 +543,7 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     if (string.IsNullOrEmpty(request.Pin) || HashPin(request.Pin) != pinHash)
                     {
-                        return Unauthorized("Invalid PIN.");
+                        return BadRequest("Invalid PIN.");
                     }
                 }
                 return Ok();
@@ -560,7 +560,7 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     if (string.IsNullOrEmpty(request.Pin) || HashPin(request.Pin) != pinHash)
                     {
-                        return Unauthorized("Invalid PIN.");
+                        return BadRequest("Invalid PIN.");
                     }
                 }
                 return Ok();
@@ -692,7 +692,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 if (string.IsNullOrEmpty(request.MasterPin) || HashPin(request.MasterPin) != masterMapping.PinHash)
                 {
-                    return Unauthorized("Invalid Master PIN code.");
+                    return BadRequest("Invalid Master PIN code.");
                 }
             }
 

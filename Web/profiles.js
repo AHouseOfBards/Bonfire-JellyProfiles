@@ -368,6 +368,24 @@
             }
         },
 
+        handleSessionExpired: function () {
+            console.warn("ProfilesPlugin: Master session expired or invalid. Redirecting to login.");
+            localStorage.removeItem(this.config.masterStorageKey);
+            sessionStorage.removeItem(this.config.activeSessionKey);
+            
+            const apiClient = ApiClient;
+            if (apiClient) {
+                if (typeof apiClient.clearUser === 'function') {
+                    apiClient.clearUser();
+                } else if (typeof apiClient.logout === 'function') {
+                    apiClient.logout();
+                }
+            }
+            
+            window.location.hash = '#/login';
+            window.location.reload();
+        },
+
         interceptHomeAndShowProfiles: function () {
             const apiClient = ApiClient;
             if (!apiClient) return;
@@ -406,7 +424,10 @@
                 headers: this.getAuthHeaders(masterToken)
             })
             .then(res => {
-                if (res.status === 401) throw new Error("Unauthorized");
+                if (res.status === 401) {
+                    this.handleSessionExpired();
+                    throw new Error("Unauthorized");
+                }
                 return res.json();
             })
             .then(profiles => {
@@ -792,6 +813,10 @@
                     ...(verifyController ? { signal: verifyController.signal } : {})
                 })
                 .then(res => {
+                    if (res.status === 401) {
+                        this.handleSessionExpired();
+                        return;
+                    }
                     // Only proceed if PIN matched and nothing else already triggered a switch
                     if (res.ok && !switchInProgress) {
                         switchInProgress = true;
@@ -800,7 +825,6 @@
                             switchInProgress = false;
                         });
                     }
-                    // 401: do nothing — user is still typing their full PIN
                 })
                 .catch(err => {
                     // AbortError = user typed another digit, a new verify is already in flight
@@ -893,12 +917,15 @@
                     ...(verifyController ? { signal: verifyController.signal } : {})
                 })
                 .then(res => {
+                    if (res.status === 401) {
+                        this.handleSessionExpired();
+                        return;
+                    }
                     if (res.ok && !verified) {
                         verified = true;
                         this.masterPin = currentValue;
                         callback();
                     }
-                    // 401: do nothing
                 })
                 .catch(() => {
                     // AbortError or network error — ignore silently
@@ -924,12 +951,18 @@
                     body: JSON.stringify({ profileId: masterProfile.profileUserId, pin: pin })
                 })
                 .then(res => {
+                    if (res.status === 401) {
+                        this.handleSessionExpired();
+                        throw new Error('Session expired');
+                    }
                     if (!res.ok) throw new Error('Invalid PIN');
                     this.masterPin = pin;
                     callback();
                 })
-                .catch(() => {
-                    showPinError('Incorrect Master PIN. Please try again.');
+                .catch(err => {
+                    if (err.message !== 'Session expired') {
+                        showPinError('Incorrect Master PIN. Please try again.');
+                    }
                 });
             };
 
@@ -963,6 +996,10 @@
                 body: JSON.stringify({ profileId: profileId, pin: pin })
             })
             .then(res => {
+                if (res.status === 401) {
+                    this.handleSessionExpired();
+                    throw new Error('Session expired');
+                }
                 if (!res.ok) throw new Error('Incorrect PIN');
                 return res.json();
             })
@@ -994,6 +1031,7 @@
                 window.location.reload();
             })
             .catch(err => {
+                if (err.message === 'Session expired') return;
                 if (typeof onError === 'function') {
                     // Caller has closed-over references to the DOM — no re-query needed
                     onError('Incorrect PIN. Please try again.');
