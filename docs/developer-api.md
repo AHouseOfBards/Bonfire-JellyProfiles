@@ -130,7 +130,8 @@ Returns all profiles available to the authenticated user.
     "lockoutMinutes": 10,
     "maxSubProfiles": 5,
     "bypassPinOnLocalNetwork": false,
-    "allowedDeviceIds": []
+    "allowedDeviceIds": [],
+    "isBonfire": false
   },
   {
     "profileUserId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
@@ -142,7 +143,8 @@ Returns all profiles available to the authenticated user.
     "lockoutMinutes": 0,
     "enabledFolders": ["e67b2d5a39cb400ba45a7b0a70198de7"],
     "bypassPinOnLocalNetwork": true,
-    "allowedDeviceIds": ["57bfa7e8d35f492b950bf93c9d747a11"]
+    "allowedDeviceIds": ["57bfa7e8d35f492b950bf93c9d747a11"],
+    "isBonfire": true
   }
 ]
 ```
@@ -160,6 +162,7 @@ Returns all profiles available to the authenticated user.
 | `enabledFolders` | `string[]` | Library GUIDs this profile can access. Only present on sub-profiles (`isMaster: false`). Empty array means no library access. Use this to pre-populate a library selector in your management UI. |
 | `bypassPinOnLocalNetwork` | `boolean` | Whether PIN checking is bypassed when the client is on the local home network (LAN). |
 | `allowedDeviceIds` | `string[]` | Specific Device IDs allowed to access this sub-profile. If empty/null, no device restriction is applied. |
+| `isBonfire` | `boolean` | Whether this profile is from a linked Bonfire group (remote profile). |
 
 ---
 

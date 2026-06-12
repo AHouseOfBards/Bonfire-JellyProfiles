@@ -98,7 +98,8 @@ namespace Jellyfin.Profiles.Controllers
                     LockoutMinutes = linkedMapping?.LockoutMinutes ?? 5,
                     MaxSubProfiles = config.MaxProfilesPerUser,
                     BypassPinOnLocalNetwork = linkedMapping?.BypassPinOnLocalNetwork ?? false,
-                    AllowedDeviceIds = linkedMapping?.AllowedDeviceIds ?? new List<string>()
+                    AllowedDeviceIds = linkedMapping?.AllowedDeviceIds ?? new List<string>(),
+                    IsBonfire = (linkedId != masterUserId)
                 });
 
                 // Add all shadow profiles for this master
@@ -121,7 +122,8 @@ namespace Jellyfin.Profiles.Controllers
                             m.LockoutMinutes,
                             EnabledFolders = m.EnabledFolders ?? new List<Guid>(),
                             BypassPinOnLocalNetwork = m.BypassPinOnLocalNetwork,
-                            AllowedDeviceIds = m.AllowedDeviceIds ?? new List<string>()
+                            AllowedDeviceIds = m.AllowedDeviceIds ?? new List<string>(),
+                            IsBonfire = (linkedId != masterUserId)
                         };
                     });
 

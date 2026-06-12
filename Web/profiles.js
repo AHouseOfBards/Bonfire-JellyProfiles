@@ -488,7 +488,8 @@
                     lockoutMinutes: p.lockoutMinutes !== undefined ? p.lockoutMinutes : (p.LockoutMinutes !== undefined ? p.LockoutMinutes : 5),
                     maxSubProfiles: p.maxSubProfiles !== undefined ? p.maxSubProfiles : (p.MaxSubProfiles !== undefined ? p.MaxSubProfiles : 5),
                     bypassPinOnLocalNetwork: p.bypassPinOnLocalNetwork !== undefined ? p.bypassPinOnLocalNetwork : (p.BypassPinOnLocalNetwork !== undefined ? p.BypassPinOnLocalNetwork : false),
-                    allowedDeviceIds: p.allowedDeviceIds || p.AllowedDeviceIds || []
+                    allowedDeviceIds: p.allowedDeviceIds || p.AllowedDeviceIds || [],
+                    isBonfire: p.isBonfire !== undefined ? p.isBonfire : (p.IsBonfire !== undefined ? p.IsBonfire : false)
                 }));
                 this.cachedProfiles = normalized;
                 localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
@@ -685,6 +686,11 @@
                                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                                             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                                         </svg>
+                                    </div>
+                                    ` : ''}
+                                    ${p.isBonfire ? `
+                                    <div class="profile-bonfire-indicator" title="Bonfire Profile">
+                                        <span class="material-icons" style="font-size: 1.15rem; color: #fff;">local_fire_department</span>
                                     </div>
                                     ` : ''}
                                 </div>
@@ -1847,6 +1853,12 @@
             });
 
             this.loadBonfireStatus(content, apiClient, masterState.masterToken);
+
+            // Auto-focus first focusable element for TV D-pad navigation
+            setTimeout(() => {
+                const first = content.querySelector('input, button');
+                if (first) first.focus();
+            }, 250);
         },
 
         executeProfileDeletion: function (profileId) {
@@ -2038,6 +2050,12 @@
                     if (e.key === 'Enter') performJoin();
                 });
             }
+
+            // TV D-pad Auto-focus helper
+            setTimeout(() => {
+                const target = container.querySelector('input, button');
+                if (target) target.focus();
+            }, 100);
         },
 
         injectSidebarLink: function () {
@@ -2241,7 +2259,8 @@
                         lockoutMinutes: p.lockoutMinutes !== undefined ? p.lockoutMinutes : (p.LockoutMinutes !== undefined ? p.LockoutMinutes : 5),
                         maxSubProfiles: p.maxSubProfiles !== undefined ? p.maxSubProfiles : (p.MaxSubProfiles !== undefined ? p.MaxSubProfiles : 5),
                         bypassPinOnLocalNetwork: p.bypassPinOnLocalNetwork !== undefined ? p.bypassPinOnLocalNetwork : (p.BypassPinOnLocalNetwork !== undefined ? p.BypassPinOnLocalNetwork : false),
-                        allowedDeviceIds: p.allowedDeviceIds || p.AllowedDeviceIds || []
+                        allowedDeviceIds: p.allowedDeviceIds || p.AllowedDeviceIds || [],
+                        isBonfire: p.isBonfire !== undefined ? p.isBonfire : (p.IsBonfire !== undefined ? p.IsBonfire : false)
                     }));
                     this.cachedProfiles = normalized;
                     localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
@@ -2597,6 +2616,31 @@
                     box-shadow: 0 4px 10px rgba(0,0,0,0.55);
                     border: 1.5px solid rgba(255,255,255,0.2);
                     z-index: 10;
+                }
+                .profile-bonfire-indicator {
+                    position: absolute; top: 8px; left: 8px;
+                    background: linear-gradient(135deg, #ff9900 0%, #ff5500 100%);
+                    border-radius: 50%;
+                    width: 32px; height: 32px; display: flex;
+                    align-items: center; justify-content: center;
+                    pointer-events: none;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.55);
+                    border: 1.5px solid rgba(255,255,255,0.2);
+                    z-index: 10;
+                }
+                #bonfire-join-input {
+                    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+                    border-radius: 8px; padding: 10px; color: #fff; font-size: 1rem;
+                    transition: border-color 0.25s, box-shadow 0.25s;
+                }
+                #bonfire-join-input:focus {
+                    border-color: #00a4dc; outline: none;
+                    box-shadow: 0 0 10px rgba(0, 164, 220, 0.4);
+                }
+                .bonfire-kick-btn:focus, .bonfire-kick-btn:hover {
+                    background-color: #e64980 !important;
+                    outline: none;
+                    box-shadow: 0 0 10px rgba(255, 107, 107, 0.4);
                 }
                 .profile-card.manage-mode:hover .profile-avatar {
                     transform: scale(1.08);
