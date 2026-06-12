@@ -699,6 +699,19 @@
                             </div>
                         `).join('')}
                         
+                        ${this.isManageMode ? `
+                        <div class="profile-card action-bonfire" tabindex="0">
+                            <div class="profile-avatar-container">
+                                <div class="profile-avatar" style="background: linear-gradient(135deg, #ff9900 0%, #ff5500 100%); display: flex; align-items: center; justify-content: center;">
+                                    <span class="material-icons" style="font-size: 3.5rem; color: #fff;">local_fire_department</span>
+                                </div>
+                            </div>
+                            <div class="profile-name">
+                                <span>Bonfire</span>
+                            </div>
+                        </div>
+                        ` : ''}
+
                         ${!this.isManageMode && !atLimit ? `
                         <div class="profile-card action-add-profile" tabindex="0">
                             <div class="profile-avatar-container">
@@ -771,6 +784,14 @@
                     } else {
                         this.showAddProfileModal();
                     }
+                });
+            }
+
+            // "Bonfire" action
+            const bonfireCard = overlay.querySelector('.action-bonfire');
+            if (bonfireCard) {
+                bonfireCard.addEventListener('click', () => {
+                    this.showBonfireModal();
                 });
             }
 
@@ -1556,16 +1577,7 @@
                                 }).join('')}
                             </div>
                         </div>
-                        ` : `
-                        <div class="form-group" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.1);">
-                            <label style="font-size: 1.1rem; font-weight: 600; color: #00a4dc; margin-bottom: 0.8rem; display: block;">Bonfire Grouping (Plex Home style)</label>
-                            <div id="bonfire-container" style="background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 16px;">
-                                <div style="display: flex; justify-content: center; padding: 10px;">
-                                    <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid #00a4dc; width: 24px; height: 24px; animation: spin 1s linear infinite;"></div>
-                                </div>
-                            </div>
-                        </div>
-                        `}
+                        ` : ''}
 
                         <div class="profile-dialog-actions">
                             <div class="dialog-action-buttons">
@@ -1718,10 +1730,7 @@
                     });
                 }
 
-                // If master user, load bonfire status
-                if (profile.isMaster) {
-                    this.loadBonfireStatus(content, apiClient, masterState.masterToken);
-                }
+
 
                 // Save handler
                 document.getElementById('edit-submit-btn').addEventListener('click', () => {
@@ -1810,6 +1819,36 @@
             });
         },
 
+        showBonfireModal: function () {
+            const apiClient = ApiClient;
+            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+            if (!masterState) return;
+
+            const content = document.querySelector('.profiles-modal-content');
+            if (!content) return;
+
+            content.innerHTML = `
+                <h1 class="profiles-title">Bonfire Grouping</h1>
+                <div class="create-profile-container" style="max-width: 500px; width: 100%;">
+                    <div id="bonfire-container" style="background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 16px; min-height: 100px;">
+                        <div style="display: flex; justify-content: center; padding: 20px;">
+                            <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid #00a4dc; width: 24px; height: 24px; animation: spin 1s linear infinite;"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-dialog-actions" style="margin-top: 2rem; display: flex; justify-content: center;">
+                        <button id="bonfire-back-btn" class="profiles-btn btn-secondary">Back</button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('bonfire-back-btn').addEventListener('click', () => {
+                this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
+            });
+
+            this.loadBonfireStatus(content, apiClient, masterState.masterToken);
+        },
+
         executeProfileDeletion: function (profileId) {
             const apiClient = ApiClient;
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
@@ -1894,7 +1933,7 @@
                     if (confirm('Are you sure you want to delete your Bonfire group? All members will be disconnected and will no longer appear in your switcher.')) {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/delete-group'), {
                             method: 'POST',
-                            headers: masterToken
+                            headers: this.getAuthHeaders(masterToken)
                         })
                         .then(res => {
                             if (res.ok) this.loadBonfireStatus(container.closest('.create-profile-container'), apiClient, masterToken);
@@ -1919,7 +1958,7 @@
                     if (confirm('Are you sure you want to leave this Bonfire group? You will no longer share profile switchers.')) {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/leave'), {
                             method: 'POST',
-                            headers: masterToken
+                            headers: this.getAuthHeaders(masterToken)
                         })
                         .then(res => {
                             if (res.ok) this.loadBonfireStatus(container.closest('.create-profile-container'), apiClient, masterToken);
