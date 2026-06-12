@@ -20,6 +20,55 @@ As a third-party client, you need to:
 
 ---
 
+## How the Client Script Loads
+
+> This section is relevant if you are building a Jellyfin fork, a server-side integration, or simply want to understand what the plugin does at the OS level beyond the API calls.
+
+The plugin ships two server-side components and one client-side file:
+
+| Component | Type | Purpose |
+|---|---|---|
+| `ProfilesController.cs` | ASP.NET Controller | Serves all `/plugins/profiles/*` API endpoints |
+| `PluginServiceRegistrator.cs` | `IPluginServiceRegistrator` | Registers startup services into Jellyfin's DI container |
+| `ProfilesBootstrapTask.cs` | `IHostedService` | Runs once per server start; patches `index.html` |
+| `profiles.js` | Embedded resource | Client-side overlay, switch button, and API calls |
+
+### Startup injection (`ProfilesBootstrapTask`)
+
+Jellyfin does **not** have a built-in hook for plugins to add scripts to its web frontend. The plugin works around this with a startup task that runs every time the Jellyfin server boots:
+
+1. `IApplicationPaths.WebPath` is used as the primary path to locate `index.html`.
+2. If `WebPath` is empty or does not contain `index.html`, a set of well-known fallback paths is searched:
+   - **Windows installer:** `%ProgramFiles%\Jellyfin\Server\jellyfin-web`
+   - **Linux packages (apt/rpm/AUR):** `/usr/share/jellyfin/web`, `/usr/lib/jellyfin/web`
+   - **Docker images:** `/jellyfin/jellyfin-web`, `/app/jellyfin-web`
+   - **Portable / adjacent to binary:** relative paths from `AppContext.BaseDirectory`
+3. If `index.html` is found and does not already contain the marker, the following tag is inserted before `</body>`:
+   ```html
+   <script src="/plugins/profiles/profiles.js" defer></script>
+   ```
+4. The patch is **idempotent** — subsequent restarts detect the marker and skip the write.
+5. The patch is **self-healing** — if Jellyfin's web client update replaces `index.html`, the next restart re-injects the tag automatically.
+
+### Permission failures
+
+If the server process does not have write access to `index.html` (common on Docker images with a read-only web directory, or on Windows where the service runs as a low-privilege account), the task logs a platform-specific, copy-pasteable fix to the Jellyfin server log and exits gracefully. The rest of the plugin (API endpoints, admin settings page) continues to function normally.
+
+> [!NOTE]
+> Checking `Dashboard → Logs` after the first post-install restart is the fastest way to confirm whether injection succeeded. A successful injection logs at `Information` level; a permission failure logs at `Warning` with the fix command.
+
+### The injected script URL
+
+`profiles.js` is embedded in the plugin DLL and served by Jellyfin at runtime as a plugin resource:
+
+```
+GET /plugins/profiles/profiles.js
+```
+
+This URL is stable across all 10.11.x versions. The script does not need to be fetched or referenced by third-party clients — it is solely responsible for the built-in web UI overlay.
+
+---
+
 ## Authentication
 
 Every request to the plugin API requires a standard Jellyfin authorization header. Use the **master user's token** for all management and list calls. After a successful `/switch`, use the **returned profile token** for all subsequent Jellyfin API calls.

@@ -28,6 +28,11 @@ Adds multi-user profile switching to Jellyfin. A single account can have up to f
 3. Go to **Plugins → Catalog**, find **Profiles Management**, and click **Install**
 4. Restart your Jellyfin server when prompted
 
+On restart the plugin automatically injects its client script into Jellyfin's `index.html` so profiles load for all users with no further setup.
+
+> [!NOTE]
+> **Docker users with a read-only web directory:** If the web directory is not writable by the Jellyfin container, the injection will fail silently and a copy-pasteable fix command will be written to the Jellyfin server log. Check **Dashboard → Logs** after the first restart.
+
 ---
 
 ## Features
@@ -59,6 +64,19 @@ Adds multi-user profile switching to Jellyfin. A single account can have up to f
 - Any other native Jellyfin client
 
 > TV browsers (Samsung, LG, Fire TV, etc.) may work when accessing Jellyfin Web directly, but this is untested. Native TV apps listed above fall into the integration category.
+
+---
+
+## Known Limitations
+
+**Skin Manager / custom themes**  
+The Switch Profile button is injected into Jellyfin's standard header DOM. Themes that significantly restructure the header (such as ElegantFin via Skin Manager) may cause the button to overlap other controls or fall back to a floating pill position. There is no workaround without theme-specific adjustments. If you use a custom theme and experience layout issues, please open an issue with the theme name.
+
+**CSS flash on profile switch**  
+Switching profiles performs a full page reload. There is a brief visual flash between navigation completing and the profile gate appearing. This is inherent to the reload-based approach and cannot be fully eliminated without a significant architectural change.
+
+**Profile creation is on the home screen, not the admin dashboard**  
+Profiles are created and managed via the Switch Profile button on the Jellyfin home screen. The admin dashboard page (**Dashboard → Plugins → Profiles**) is only for server-wide settings (maximum profile count, require-PIN policy) and administrator PIN resets.
 
 ---
 
