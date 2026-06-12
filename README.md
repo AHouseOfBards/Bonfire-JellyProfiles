@@ -72,8 +72,6 @@ On restart the plugin automatically injects its client script into Jellyfin's `i
 **Skin Manager / custom themes**  
 The Switch Profile button is injected into Jellyfin's standard header DOM. Themes that significantly restructure the header (such as ElegantFin via Skin Manager) may cause the button to overlap other controls or fall back to a floating pill position. There is no workaround without theme-specific adjustments. If you use a custom theme and experience layout issues, please open an issue with the theme name.
 
-**CSS flash on profile switch**  
-Switching profiles performs a full page reload. There is a brief visual flash between navigation completing and the profile gate appearing. This is inherent to the reload-based approach and cannot be fully eliminated without a significant architectural change.
 
 **Profile creation is on the home screen, not the admin dashboard**  
 Profiles are created and managed via the Switch Profile button on the Jellyfin home screen. The admin dashboard page (**Dashboard → Plugins → Profiles**) is only for server-wide settings (maximum profile count, require-PIN policy) and administrator PIN resets.

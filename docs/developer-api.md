@@ -35,20 +35,45 @@ The plugin ships two server-side components and one client-side file:
 
 ### Startup injection (`ProfilesBootstrapTask`)
 
-Jellyfin does **not** have a built-in hook for plugins to add scripts to its web frontend. The plugin works around this with a startup task that runs every time the Jellyfin server boots:
+Jellyfin does **not** have a built-in hook for plugins to add scripts to its web frontend. The plugin works around this with a startup task that runs every time the Jellyfin server boots. Two tags are injected into `index.html` — each independently idempotent:
 
-1. `IApplicationPaths.WebPath` is used as the primary path to locate `index.html`.
-2. If `WebPath` is empty or does not contain `index.html`, a set of well-known fallback paths is searched:
-   - **Windows installer:** `%ProgramFiles%\Jellyfin\Server\jellyfin-web`
-   - **Linux packages (apt/rpm/AUR):** `/usr/share/jellyfin/web`, `/usr/lib/jellyfin/web`
-   - **Docker images:** `/jellyfin/jellyfin-web`, `/app/jellyfin-web`
-   - **Portable / adjacent to binary:** relative paths from `AppContext.BaseDirectory`
-3. If `index.html` is found and does not already contain the marker, the following tag is inserted before `</body>`:
-   ```html
-   <script src="/plugins/profiles/profiles.js" defer></script>
-   ```
-4. The patch is **idempotent** — subsequent restarts detect the marker and skip the write.
-5. The patch is **self-healing** — if Jellyfin's web client update replaces `index.html`, the next restart re-injects the tag automatically.
+**1. Early-hide script — injected before `</head>`**
+
+```html
+<script id="jpf-eh">!function(){if(localStorage.getItem('jpf-sw')){var h=document.documentElement;h.style.opacity='0';h.style.background='#101010';window.__jpReveal=setTimeout(function(){h.style.opacity='';h.style.background=''},4e3);localStorage.removeItem('jpf-sw')}}();</script>
+```
+
+This runs **synchronously during HTML parsing**, before any deferred bundle, before React renders. It reads the `jpf-sw` flag from `localStorage`; if present it immediately sets `html { opacity: 0 }` and schedules a 4-second failsafe that restores visibility if `profiles.js` fails to load.
+
+**2. Deferred client script — injected before `</body>`**
+
+```html
+<script src="/plugins/profiles/profiles.js" defer></script>
+```
+
+This loads `profiles.js` after the DOM is parsed. It handles the profile gate, the Switch Profile button, and all API calls. When it finishes its startup check it calls `_revealPage()`, which cancels the failsafe timer and fades the page back in over 180 ms.
+
+**Path discovery order:**
+
+1. `IApplicationPaths.WebPath` (Jellyfin's own reported path — highest confidence)
+2. **Windows installer:** `%ProgramFiles%\Jellyfin\Server\jellyfin-web`
+3. **Linux packages (apt/rpm/AUR):** `/usr/share/jellyfin/web`, `/usr/lib/jellyfin/web`
+4. **Docker images:** `/jellyfin/jellyfin-web`, `/app/jellyfin-web`
+5. **Portable / adjacent to binary:** relative paths from `AppContext.BaseDirectory`
+
+Both patches are **idempotent** (separate marker strings) and **self-healing** — if a Jellyfin web client update replaces `index.html`, the next restart re-injects both tags.
+
+### Flash suppression during profile switches
+
+Profile switches require a full page reload. Without mitigation, the browser shows a flash of the old page or a blank frame during the navigation. The plugin suppresses this with a two-sided approach:
+
+| Side | Mechanism |
+|---|---|
+| **Before reload** (current page) | `profiles.js` sets `localStorage['jpf-sw'] = '1'` and immediately sets `document.documentElement.style.cssText = 'opacity:0;background:#101010'` |
+| **After reload** (new page) | The `<head>` early-hide script reads the flag and keeps `html` at `opacity: 0` before React renders |
+| **Reveal** | `profiles.js` calls `_revealPage()` at the end of `checkRoute()` once the gate or home screen is ready; fades in over 180 ms |
+
+The flag is cleared by the early-hide script on the new page, so it does not persist across unrelated navigations. A 4-second failsafe prevents the page from staying hidden if `profiles.js` fails to execute for any reason.
 
 ### Permission failures
 
