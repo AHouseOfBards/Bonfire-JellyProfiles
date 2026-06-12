@@ -69,9 +69,9 @@ Profile switches require a full page reload. Without mitigation, the browser sho
 
 | Side | Mechanism |
 |---|---|
-| **Before reload** (current page) | `profiles.js` sets `localStorage['jpf-sw'] = '1'` and immediately sets `document.documentElement.style.cssText = 'opacity:0;background:#101010'` |
-| **After reload** (new page) | The `<head>` early-hide script reads the flag and keeps `html` at `opacity: 0` before React renders |
-| **Reveal** | `profiles.js` calls `_revealPage()` at the end of `checkRoute()` once the gate or home screen is ready; fades in over 180 ms |
+| **Before reload** (current page) | `profiles.js` sets `localStorage['jpf-sw'] = '1'` and immediately sets `document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark'` |
+| **After reload** (new page) | The inline `<script>` at the very top of `<head>` (running synchronously before stylesheet links block parsing) reads the flag, setting root `html` to `opacity: 0`, background `#101010`, and `color-scheme: dark` |
+| **Reveal** | `profiles.js` calls `_revealPage()` at the end of `checkRoute()` once the gate or home screen is ready; transitions root `opacity` back to `1` over 180 ms and clears custom styles |
 
 The flag is cleared by the early-hide script on the new page, so it does not persist across unrelated navigations. A 4-second failsafe prevents the page from staying hidden if `profiles.js` fails to execute for any reason.
 

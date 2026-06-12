@@ -48,9 +48,11 @@ namespace Jellyfin.Profiles
                     "var h=document.documentElement;" +
                     "h.style.opacity='0';" +
                     "h.style.background='#101010';" +
+                    "h.style.colorScheme='dark';" +
                     "window.__jpReveal=setTimeout(function(){" +
                         "h.style.opacity='';" +
                         "h.style.background='';" +
+                        "h.style.colorScheme='';" +
                     "},4e3);" +
                     "localStorage.removeItem('jpf-sw');" +
                 "}" +
@@ -105,10 +107,13 @@ namespace Jellyfin.Profiles
             {
                 var html = File.ReadAllText(indexPath);
 
-                if (html.Contains(BodyMarker, StringComparison.Ordinal))
+                bool hasBody = html.Contains(BodyMarker, StringComparison.Ordinal);
+                bool hasHeadInCorrectPlace = html.Contains("<head>\n" + HeadScript, StringComparison.Ordinal);
+
+                if (hasBody && hasHeadInCorrectPlace)
                 {
                     _logger.LogDebug(
-                        "ProfilesPlugin: Body script tag already present in {Path} — no changes made.",
+                        "ProfilesPlugin: Scripts already correctly present in {Path} — no changes made.",
                         indexPath);
                     InjectionSucceeded = true;
                     return;
@@ -116,17 +121,42 @@ namespace Jellyfin.Profiles
 
                 bool changed = false;
 
-                // ── Inject early-hide script into <head> ────────────────────────
-                if (!html.Contains(HeadMarker, StringComparison.Ordinal))
+                // ── 1. Clean up any existing early-hide script ──────────────────
+                int oldScriptIdx = html.IndexOf("<script id=\"jpf-eh\">", StringComparison.OrdinalIgnoreCase);
+                if (oldScriptIdx != -1)
                 {
-                    html = html.Replace(
-                        "</head>",
-                        HeadScript + "\n</head>",
-                        StringComparison.OrdinalIgnoreCase);
-                    changed = true;
+                    int endScriptIdx = html.IndexOf("</script>", oldScriptIdx, StringComparison.OrdinalIgnoreCase);
+                    if (endScriptIdx != -1)
+                    {
+                        html = html.Remove(oldScriptIdx, endScriptIdx + "</script>".Length - oldScriptIdx);
+                        changed = true;
+                    }
                 }
 
-                // ── Inject deferred client script before </body> ────────────────
+                // ── 2. Clean up any existing body script ────────────────────────
+                int oldBodyIdx = html.IndexOf(BodyMarker, StringComparison.OrdinalIgnoreCase);
+                if (oldBodyIdx != -1)
+                {
+                    int tagStart = html.LastIndexOf("<script", oldBodyIdx, StringComparison.OrdinalIgnoreCase);
+                    if (tagStart != -1)
+                    {
+                        int tagEnd = html.IndexOf("</script>", oldBodyIdx, StringComparison.OrdinalIgnoreCase);
+                        if (tagEnd != -1)
+                        {
+                            html = html.Remove(tagStart, tagEnd + "</script>".Length - tagStart);
+                            changed = true;
+                        }
+                    }
+                }
+
+                // ── 3. Inject new early-hide script right after <head> ──────────
+                html = html.Replace(
+                    "<head>",
+                    "<head>\n" + HeadScript,
+                    StringComparison.OrdinalIgnoreCase);
+                changed = true;
+
+                // ── 4. Inject new deferred client script before </body> ──────────
                 html = html.Replace(
                     "</body>",
                     BodyScriptTag + "\n</body>",

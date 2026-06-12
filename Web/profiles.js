@@ -239,6 +239,7 @@
                 document.documentElement.style.removeProperty('opacity');
                 document.documentElement.style.removeProperty('transition');
                 document.documentElement.style.removeProperty('background');
+                document.documentElement.style.removeProperty('color-scheme');
                 this._pageRevealed = false;
             }, 220);
         },
@@ -360,7 +361,7 @@
                     apiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
                     // Hide current page instantly so there is no visible frame
                     // between old page unloading and new page's head script running.
-                    document.documentElement.style.cssText = 'opacity:0;background:#101010';
+                    document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
                     localStorage.setItem(this.config.switchingKey, '1');
                     window.location.reload();
                 }
@@ -988,7 +989,7 @@
                     overlay.style.background = '#101010';
                 }
                 // Hide everything else instantly.
-                document.documentElement.style.cssText = 'opacity:0;background:#101010';
+                document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
                 localStorage.setItem(this.config.switchingKey, '1');
                 window.location.reload();
             })

@@ -8,6 +8,14 @@
     "owner": "AHouseOfBards",
     "versions": [
       {
+        "version": "1.0.15.0",
+        "changelog": "Fix: Fully eliminated the remaining page-load white flash during profile switches. The early-hide script is now injected at the absolute beginning of <head>, running synchronously before any stylesheet links can block the HTML parser. Added color-scheme: dark on the document root to ensure Chrome/Blink defaults its blank canvas color to dark during page tear-down. Older script/style tags from previous versions are cleaned up automatically on update.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/JellyProfiles/releases/download/v1.0.15/Jellyfin.Profiles.zip",
+        "checksum": "placeholder",
+        "timestamp": "2026-06-12T01:48:00Z"
+      },
+      {
         "version": "1.0.14.0",
         "changelog": "Fix: Eliminated remaining white flashes during profile switching. (1) Clicking the Switch Profile button no longer triggers a page reload — the overlay is shown directly in-place, so there is zero reload flash. (2) Profile list is pre-fetched in the background while the button is visible, so the overlay appears instantly on click with no network wait. (3) After selecting a profile, the overlay stays visible and transitions to solid black before the reload fires, so the home screen is never exposed between overlay removal and opacity:0. (4) Removed backdrop-filter:blur from the overlay CSS, which was causing a GPU compositor white flash when the overlay element was first painted. The overlay now uses a solid dark gradient and fades in via double-requestAnimationFrame so the compositing layer is created silently.",
         "targetAbi": "10.11.0.0",
