@@ -8,6 +8,14 @@
     "owner": "AHouseOfBards",
     "versions": [
       {
+        "version": "1.0.30.0",
+        "changelog": "Fix: device dropdown undefined field serialization issue for allowed devices. Fix: Bonfire grouping modal to show host and join controls concurrently. UX: changed header title from My Home to Your Bonfire. Rename bonfire manage card to Bonfire Grouping.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/JellyProfiles/releases/download/v1.0.30/Jellyfin.Profiles.zip",
+        "checksum": "79c472e26add58c8eb26bae3fabe00d9",
+        "timestamp": "2026-06-12T15:10:00Z"
+      },
+      {
         "version": "1.0.29.0",
         "changelog": "Fix: Bonfire join code generation and membership check matching. Fix: Manage profiles button click logic and session cache switch. Fix: Sidebar avatar 'P' bug by dynamically updating instead of returning early and resolving default user fallback. Optimization: Throttled device activity logging (15m lockout) to drastically minimize database writes and server load. Optimization: Added static expiration pruning loop to BonfireRateLimiter dictionary to prevent unbounded memory growth. Feature: Custom profile picture file uploading, client-side canvas auto-resizing (96x96), TV platform URL fallback support, and picture removal option.",
         "targetAbi": "10.11.0.0",

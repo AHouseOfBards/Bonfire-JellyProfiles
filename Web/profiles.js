@@ -777,7 +777,7 @@
                 let isBonfireIcon = false;
 
                 if (isLocalGroup) {
-                    headerTitle = "My Home";
+                    headerTitle = "Your Bonfire";
                     headerIcon = "home";
                 } else {
                     const masterProfileForGroup = groupProfiles.find(p => p.isMaster);
@@ -799,7 +799,7 @@
                                     </div>
                                 </div>
                                 <div class="profile-name">
-                                    <span>Bonfire</span>
+                                    <span>Bonfire Grouping</span>
                                 </div>
                             </div>
                         `;
@@ -1300,13 +1300,18 @@
                                 </div>
                                 <div id="create-devices-dropdown-list" class="devices-dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 10000; margin-top: 4px;">
                                     ${devices && devices.length > 0 ? devices.map(dev => {
+                                        const deviceId = dev.deviceId || dev.DeviceId || '';
+                                        const deviceName = dev.deviceName || dev.DeviceName || 'Unknown Device';
+                                        const client = dev.client || dev.Client || 'Unknown Client';
+                                        const lastSeen = dev.lastSeen || dev.LastSeen;
+                                        const lastSeenStr = lastSeen ? new Date(lastSeen).toLocaleDateString() : 'Unknown';
                                         return `
                                             <div class="device-dropdown-item" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
                                                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem;">
-                                                    <input type="checkbox" class="create-device-checkbox" value="${dev.deviceId}" style="cursor: pointer; accent-color: #00a4dc;" />
+                                                    <input type="checkbox" class="create-device-checkbox" value="${deviceId}" style="cursor: pointer; accent-color: #00a4dc;" />
                                                     <span style="display: flex; flex-direction: column;">
-                                                        <span style="font-weight: 500;">${dev.deviceName}</span>
-                                                        <span style="font-size: 0.75rem; opacity: 0.6;">${dev.client} • Last seen ${new Date(dev.lastSeen).toLocaleDateString()}</span>
+                                                        <span style="font-weight: 500;">${deviceName}</span>
+                                                        <span style="font-size: 0.75rem; opacity: 0.6;">${client} • Last seen ${lastSeenStr}</span>
                                                     </span>
                                                 </label>
                                             </div>
@@ -1763,17 +1768,22 @@
                                 </div>
                                 <div id="devices-dropdown-list" class="devices-dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 10000; margin-top: 4px;">
                                     ${devices && devices.length > 0 ? devices.map(dev => {
-                                        const isChecked = profile.allowedDeviceIds && profile.allowedDeviceIds.includes(dev.deviceId);
+                                        const deviceId = dev.deviceId || dev.DeviceId || '';
+                                        const deviceName = dev.deviceName || dev.DeviceName || 'Unknown Device';
+                                        const client = dev.client || dev.Client || 'Unknown Client';
+                                        const lastSeen = dev.lastSeen || dev.LastSeen;
+                                        const lastSeenStr = lastSeen ? new Date(lastSeen).toLocaleDateString() : 'Unknown';
+                                        const isChecked = profile.allowedDeviceIds && (profile.allowedDeviceIds.includes(deviceId) || (dev.DeviceId && profile.allowedDeviceIds.includes(dev.DeviceId)));
                                         return `
                                             <div class="device-dropdown-item" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
                                                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem;">
-                                                    <input type="checkbox" class="device-checkbox" value="${dev.deviceId}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc;" />
+                                                    <input type="checkbox" class="device-checkbox" value="${deviceId}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc;" />
                                                     <span style="display: flex; flex-direction: column;">
-                                                        <span style="font-weight: 500;">${dev.deviceName}</span>
-                                                        <span style="font-size: 0.75rem; opacity: 0.6;">${dev.client} • Last seen ${new Date(dev.lastSeen).toLocaleDateString()}</span>
+                                                        <span style="font-weight: 500;">${deviceName}</span>
+                                                        <span style="font-size: 0.75rem; opacity: 0.6;">${client} • Last seen ${lastSeenStr}</span>
                                                     </span>
                                                 </label>
-                                                <button type="button" class="device-delete-btn" data-id="${dev.deviceId}" style="background: transparent; border: none; color: #ff6b6b; cursor: pointer; padding: 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,107,107,0.15)'" onmouseout="this.style.background='transparent'">
+                                                <button type="button" class="device-delete-btn" data-id="${deviceId}" style="background: transparent; border: none; color: #ff6b6b; cursor: pointer; padding: 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,107,107,0.15)'" onmouseout="this.style.background='transparent'">
                                                     🗑️
                                                 </button>
                                             </div>
@@ -2297,51 +2307,101 @@
             const ownedMembers = status.ownedMembers || status.OwnedMembers || [];
             const joinedOwnerName = status.joinedOwnerName || status.JoinedOwnerName || '';
 
+            let hostSectionHtml = '';
             if (isOwner) {
-                container.innerHTML = `
-                    <div style="margin-bottom: 12px;">
-                        <span style="font-size: 0.9rem; opacity: 0.8;">You are the host of a Bonfire Group. Share this 6-character code with other users on the server so they can join your home:</span>
+                hostSectionHtml = `
+                    <div style="margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 20px;">
+                        <label style="font-size: 0.95rem; font-weight: 700; display: block; margin-bottom: 8px; color: #ff9900;">Your Hosted Bonfire</label>
+                        <span style="font-size: 0.85rem; opacity: 0.8; display: block; margin-bottom: 8px;">Share this 6-character code with other users on the server to invite them to your bonfire:</span>
                         <div style="font-size: 2rem; font-weight: 700; color: #22c55e; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; border: 1px dashed rgba(34,197,94,0.3);">${ownedCode}</div>
-                    </div>
-                    <div style="margin-top: 16px;">
-                        <label style="font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; display: block;">Members (${ownedMembers.length})</label>
-                        <div style="display: flex; flex-direction: column; gap: 8px; max-height: 150px; overflow-y: auto;">
-                            ${ownedMembers.length > 0 ? ownedMembers.map(m => {
-                                const mUserId = m.userId || m.UserId;
-                                const mUsername = m.username || m.Username || 'Unknown User';
-                                return `
-                                <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; background: rgba(255,255,255,0.03); border-radius: 4px;">
-                                    <span style="font-size: 0.9rem; font-weight: 500;">${mUsername}</span>
-                                    <button type="button" class="bonfire-kick-btn" data-id="${mUserId}" style="background: #ff6b6b; border: none; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 600;">Kick</button>
-                                </div>
-                                `;
-                            }).join('') : '<div style="font-size: 0.85rem; opacity: 0.5; font-style: italic;">No members joined yet.</div>'}
+                        
+                        <div style="margin-top: 16px;">
+                            <label style="font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; display: block;">Members (${ownedMembers.length})</label>
+                            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 150px; overflow-y: auto; margin-bottom: 12px;">
+                                ${ownedMembers.length > 0 ? ownedMembers.map(m => {
+                                    const mUserId = m.userId || m.UserId;
+                                    const mUsername = m.username || m.Username || 'Unknown User';
+                                    return `
+                                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; background: rgba(255,255,255,0.03); border-radius: 4px;">
+                                        <span style="font-size: 0.9rem; font-weight: 500;">${mUsername}</span>
+                                        <button type="button" class="bonfire-kick-btn" data-id="${mUserId}" style="background: #ff6b6b; border: none; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 600;">Kick</button>
+                                    </div>
+                                    `;
+                                }).join('') : '<div style="font-size: 0.85rem; opacity: 0.5; font-style: italic;">No members joined yet.</div>'}
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: flex-end;">
+                            <button type="button" id="bonfire-delete-btn" class="profiles-btn btn-danger" style="padding: 8px 14px; font-size: 0.85rem;">Delete Group</button>
                         </div>
                     </div>
-                    <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
-                        <button type="button" id="bonfire-delete-btn" class="profiles-btn btn-danger" style="padding: 8px 14px; font-size: 0.85rem;">Delete Group</button>
+                `;
+            } else {
+                hostSectionHtml = `
+                    <div style="margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 20px;">
+                        <label style="font-size: 0.95rem; font-weight: 700; display: block; margin-bottom: 8px; color: #ff9900;">Host a Bonfire</label>
+                        <span style="font-size: 0.85rem; opacity: 0.8; display: block; margin-bottom: 12px;">Host your own group to share your sub-profiles with friends.</span>
+                        <button type="button" id="bonfire-generate-btn" class="profiles-btn btn-primary" style="width: 100%; padding: 10px; font-weight: 600;">Generate Join Code</button>
                     </div>
                 `;
+            }
 
-                container.querySelectorAll('.bonfire-kick-btn').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const mId = btn.getAttribute('data-id');
-                        if (confirm('Are you sure you want to kick this user from your Bonfire group?')) {
-                            fetch(apiClient.getUrl('plugins/profiles/bonfire/kick'), {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) },
-                                body: JSON.stringify({ memberId: mId })
-                            })
-                            .then(res => {
-                                if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
-                                else alert('Failed to kick member.');
-                            })
-                            .catch(err => alert('Error: ' + err.message));
-                        }
-                    });
+            let guestSectionHtml = '';
+            if (isMember) {
+                guestSectionHtml = `
+                    <div>
+                        <label style="font-size: 0.95rem; font-weight: 700; display: block; margin-bottom: 8px; color: #3b82f6;">Joined Bonfire</label>
+                        <span style="font-size: 0.85rem; opacity: 0.8; display: block;">You have joined a bonfire group owned by:</span>
+                        <div style="font-size: 1.1rem; font-weight: 600; color: #00a4dc; margin: 8px 0;">${joinedOwnerName}</div>
+                        <span style="font-size: 0.8rem; opacity: 0.6; display: block; margin-bottom: 12px;">You can access each other's profiles from the switcher grid.</span>
+                        <div style="display: flex; justify-content: flex-end;">
+                            <button type="button" id="bonfire-leave-btn" class="profiles-btn btn-danger" style="padding: 8px 14px; font-size: 0.85rem;">Leave Group</button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                guestSectionHtml = `
+                    <div>
+                        <label style="font-size: 0.95rem; font-weight: 700; display: block; margin-bottom: 8px; color: #3b82f6;">Join a Bonfire</label>
+                        <span style="font-size: 0.85rem; opacity: 0.8; display: block; margin-bottom: 8px;">Enter a friend's Bonfire Code to join their group:</span>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="bonfire-join-input" placeholder="e.g. B7F8XA" maxlength="6" style="flex: 1; text-align: center; text-transform: uppercase; font-family: monospace; letter-spacing: 2px;" />
+                            <button type="button" id="bonfire-join-btn" class="profiles-btn btn-primary" style="padding: 10px 18px;">Join</button>
+                        </div>
+                        <div id="bonfire-join-error" style="display: none; color: #ff6b6b; font-size: 0.85rem; font-weight: 600; margin-top: 8px; text-align: center;"></div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    ${hostSectionHtml}
+                    ${guestSectionHtml}
+                </div>
+            `;
+
+            // Event Listeners: Kick Members
+            container.querySelectorAll('.bonfire-kick-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const mId = btn.getAttribute('data-id');
+                    if (confirm('Are you sure you want to kick this user from your Bonfire group?')) {
+                        fetch(apiClient.getUrl('plugins/profiles/bonfire/kick'), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) },
+                            body: JSON.stringify({ memberId: mId })
+                        })
+                        .then(res => {
+                            if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
+                            else alert('Failed to kick member.');
+                        })
+                        .catch(err => alert('Error: ' + err.message));
+                    }
                 });
+            });
 
-                container.querySelector('#bonfire-delete-btn').addEventListener('click', () => {
+            // Event Listeners: Delete Group
+            const deleteBtn = container.querySelector('#bonfire-delete-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', () => {
                     if (confirm('Are you sure you want to delete your Bonfire group? All members will be disconnected and will no longer appear in your switcher.')) {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/delete-group'), {
                             method: 'POST',
@@ -2354,20 +2414,12 @@
                         .catch(err => alert('Error: ' + err.message));
                     }
                 });
+            }
 
-            } else if (isMember) {
-                container.innerHTML = `
-                    <div style="margin-bottom: 12px;">
-                        <span style="font-size: 0.9rem; opacity: 0.8;">You have joined a Bonfire Group owned by:</span>
-                        <div style="font-size: 1.1rem; font-weight: 600; color: #00a4dc; margin: 8px 0;">${joinedOwnerName}</div>
-                        <span style="font-size: 0.85rem; opacity: 0.6; display: block; margin-top: 4px;">You can access each other's profiles from the switcher grid.</span>
-                    </div>
-                    <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
-                        <button type="button" id="bonfire-leave-btn" class="profiles-btn btn-danger" style="padding: 8px 14px; font-size: 0.85rem;">Leave Group</button>
-                    </div>
-                `;
-
-                container.querySelector('#bonfire-leave-btn').addEventListener('click', () => {
+            // Event Listeners: Leave Group
+            const leaveBtn = container.querySelector('#bonfire-leave-btn');
+            if (leaveBtn) {
+                leaveBtn.addEventListener('click', () => {
                     if (confirm('Are you sure you want to leave this Bonfire group? You will no longer share profile switchers.')) {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/leave'), {
                             method: 'POST',
@@ -2380,34 +2432,15 @@
                         .catch(err => alert('Error: ' + err.message));
                     }
                 });
+            }
 
-            } else {
-                container.innerHTML = `
-                    <div style="display: flex; flex-direction: column; gap: 16px;">
-                        <div>
-                            <span style="font-size: 0.88rem; opacity: 0.7; display: block; margin-bottom: 10px;">Link up with other users on this server to share profile switchers.</span>
-                            <button type="button" id="bonfire-generate-btn" class="profiles-btn btn-primary" style="width: 100%; padding: 10px; font-weight: 600;">Generate Join Code</button>
-                        </div>
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 10px; opacity: 0.5;">
-                            <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
-                            <span style="font-size: 0.8rem;">OR</span>
-                            <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
-                        </div>
-                        <div>
-                            <label style="font-size: 0.85rem; opacity: 0.7; margin-bottom: 6px; display: block;">Enter a friend's Bonfire Code to join their group:</label>
-                            <div style="display: flex; gap: 8px;">
-                                <input type="text" id="bonfire-join-input" placeholder="e.g. B7F8XA" maxlength="6" style="flex: 1; text-align: center; text-transform: uppercase; font-family: monospace; letter-spacing: 2px;" />
-                                <button type="button" id="bonfire-join-btn" class="profiles-btn btn-primary" style="padding: 10px 18px;">Join</button>
-                            </div>
-                            <div id="bonfire-join-error" style="display: none; color: #ff6b6b; font-size: 0.85rem; font-weight: 600; margin-top: 8px; text-align: center;"></div>
-                        </div>
-                    </div>
-                `;
-
-                container.querySelector('#bonfire-generate-btn').addEventListener('click', () => {
+            // Event Listeners: Generate Code
+            const generateBtn = container.querySelector('#bonfire-generate-btn');
+            if (generateBtn) {
+                generateBtn.addEventListener('click', () => {
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/generate'), {
                         method: 'POST',
-                        headers: this.getAuthHeaders(masterToken)
+                        headers: masterToken ? this.getAuthHeaders(masterToken) : {}
                     })
                     .then(res => {
                         if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
@@ -2415,11 +2448,13 @@
                     })
                     .catch(err => alert('Failed to generate code: ' + err.message));
                 });
+            }
 
-                const joinInput = container.querySelector('#bonfire-join-input');
-                const joinBtn = container.querySelector('#bonfire-join-btn');
-                const errDiv = container.querySelector('#bonfire-join-error');
-
+            // Event Listeners: Join Group
+            const joinInput = container.querySelector('#bonfire-join-input');
+            const joinBtn = container.querySelector('#bonfire-join-btn');
+            const errDiv = container.querySelector('#bonfire-join-error');
+            if (joinBtn && joinInput && errDiv) {
                 const performJoin = () => {
                     const code = joinInput.value.trim();
                     errDiv.style.display = 'none';
