@@ -405,7 +405,25 @@ namespace Jellyfin.Profiles.Controllers
             var targetUser = _userManager.GetUserById(request.ProfileId);
             if (targetUser != null)
             {
-                await _userManager.DeleteUserAsync(targetUser.Id).ConfigureAwait(false);
+                try
+                {
+                    await _userManager.DeleteUserAsync(targetUser.Id).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "ProfilesPlugin: Error deleting underlying Jellyfin user {UserId} during profile removal. Falling back to disabling the account and removing mapping.", targetUser.Id);
+                    try
+                    {
+                        var targetUserDto = _userManager.GetUserDto(targetUser, string.Empty);
+                        var targetPolicy = targetUserDto.Policy;
+                        targetPolicy.IsDisabled = true;
+                        await _userManager.UpdatePolicyAsync(targetUser.Id, targetPolicy).ConfigureAwait(false);
+                    }
+                    catch (Exception updateEx)
+                    {
+                        _logger.LogError(updateEx, "ProfilesPlugin: Failed to disable underlying user {UserId} as fallback.", targetUser.Id);
+                    }
+                }
             }
 
             // Clean up static profile image if any
