@@ -1,6 +1,19 @@
 <div id="profilesConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="libraryloading,embyrouter,selectmenu,dialogHelper">
     <div data-role="content">
         <div class="content-primary">
+            <div id="injectionWarningContainer" style="display:none; background:rgba(230,73,128,0.12); border:1px solid rgba(230,73,128,0.35); border-radius:6px; padding:14px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#ff6b6b;">
+                <strong style="display:block; margin-bottom:6px; font-weight:700; color:#ff8787;">⚠️ Client Script Auto-Injection Failed</strong>
+                The plugin was unable to automatically modify Jellyfin's <code>index.html</code> due to folder/file write permissions on your host system.
+                Without this script, the "Who's Watching?" profile gate and switcher will not load.
+                <br><br>
+                <strong>How to fix:</strong>
+                Please run the appropriate command for your system:
+                <ul style="margin: 6px 0 0 0; padding-left: 20px;">
+                    <li style="margin-bottom:8px;"><strong>Linux (Native):</strong> Run <code>sudo chown -R jellyfin:jellyfin /usr/share/jellyfin/web</code> then restart Jellyfin.</li>
+                    <li style="margin-bottom:8px;"><strong>Docker:</strong> Run <code>docker exec -u root &lt;container-name&gt; sed -i 's|&lt;/body&gt;|&lt;script src="/plugins/profiles/profiles.js" defer&gt;&lt;/script&gt;\n&lt;/body&gt;|' /jellyfin/jellyfin-web/index.html</code> from the host.</li>
+                    <li><strong>Windows (Admin Command Prompt):</strong> Run <code>icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "NT AUTHORITY\NetworkService:(M)"</code> then restart Jellyfin.</li>
+                </ul>
+            </div>
             <form id="profilesConfigurationForm">
                 <div class="sectionTitleContainer">
                     <h2 class="sectionTitle">Profiles Management Settings</h2>
@@ -90,6 +103,11 @@
             function loadMappings(page) {
                 const url = ApiClient.getUrl('plugins/profiles/admin/mappings');
                 ApiClient.getJSON(url).then(function (result) {
+                    const warningContainer = page.querySelector('#injectionWarningContainer');
+                    if (warningContainer) {
+                        warningContainer.style.display = (result.InjectionSucceeded === false || result.injectionSucceeded === false) ? 'block' : 'none';
+                    }
+
                     const masterContainer = page.querySelector('#masterUsersList');
                     const subContainer = page.querySelector('#subProfilesList');
 
