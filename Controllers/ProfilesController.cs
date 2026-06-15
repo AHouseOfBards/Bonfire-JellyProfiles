@@ -1111,5 +1111,450 @@ namespace Jellyfin.Profiles.Controllers
             return Content(CachedProfilesJs, "application/javascript");
         }
 
+        // ── Bonfire Codes ──────────────────────────────────────────────────────────
+
+        [HttpGet("bonfire/status")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> GetBonfireStatus()
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterUserId = currentUserIdVal.Value;
+
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            Guid masterId = currentMapping != null ? currentMapping.MasterUserId : masterUserId;
+
+            var ownedGroup = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterId);
+            var joinedGroup = config.BonfireGroups.FirstOrDefault(g => g.MemberUserIds.Contains(masterId));
+            var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
+
+            return Ok(new
+            {
+                IsOwner = ownedGroup != null,
+                OwnedCode = ownedGroup?.BonfireCode,
+                OwnedMembers = ownedGroup != null ? GetBonfireGroupMembers(ownedGroup, config) : null,
+                IsMember = joinedGroup != null,
+                JoinedOwnerName = joinedGroup != null ? (_userManager.GetUserById(joinedGroup.OwnerUserId)?.Username ?? "Unknown") : null,
+                JoinedOwnerId = joinedGroup?.OwnerUserId,
+                HideMySubProfilesFromOthers = masterMapping?.HideMySubProfilesFromOthers ?? false,
+                HideOthersSubProfilesFromMe = masterMapping?.HideOthersSubProfilesFromMe ?? false
+            });
+        }
+
+        [HttpPost("bonfire/generate")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> GenerateBonfireCode()
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterUserId = currentUserIdVal.Value;
+
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
+                return Unauthorized("Only the master profile can manage Bonfire groups.");
+
+            string groupId;
+            string bonfireCode;
+            List<object> members;
+
+            lock (config)
+            {
+                var group = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterUserId);
+                if (group == null)
+                {
+                    group = new BonfireGroup
+                    {
+                        GroupId = Guid.NewGuid().ToString("N").Substring(0, 8),
+                        OwnerUserId = masterUserId,
+                        BonfireCode = GenerateSecureCode()
+                    };
+                    config.BonfireGroups.Add(group);
+                }
+                else
+                {
+                    if (string.IsNullOrEmpty(group.GroupId))
+                        group.GroupId = Guid.NewGuid().ToString("N").Substring(0, 8);
+                    if (string.IsNullOrEmpty(group.BonfireCode))
+                        group.BonfireCode = GenerateSecureCode();
+                }
+
+                Plugin.Instance?.SaveConfiguration();
+                groupId = group.GroupId;
+                bonfireCode = group.BonfireCode;
+                members = GetBonfireGroupMembers(group, config);
+            }
+
+            return Ok(new { GroupId = groupId, BonfireCode = bonfireCode, Members = members });
+        }
+
+        [HttpPost("bonfire/join")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+        public ActionResult JoinBonfire([FromBody] JoinBonfireRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterUserId = currentUserIdVal.Value;
+
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            Guid masterId = currentMapping != null ? currentMapping.MasterUserId : masterUserId;
+
+            if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
+                return Unauthorized("Only the master profile can join Bonfire groups.");
+
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+            if (RateLimiter.Bonfire.IsRateLimited(ip))
+                return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed attempts. Please try again in 15 minutes.");
+
+            var code = request.Code?.Trim().ToUpperInvariant();
+            if (string.IsNullOrEmpty(code) || code.Length != 6)
+            {
+                RateLimiter.Bonfire.RecordFailure(ip);
+                return BadRequest("Invalid code format.");
+            }
+
+            Guid ownerUserId;
+            bool newlyJoined = false;
+
+            lock (config)
+            {
+                var group = config.BonfireGroups.FirstOrDefault(g =>
+                    string.Equals(g.BonfireCode, code, StringComparison.OrdinalIgnoreCase));
+                if (group == null)
+                {
+                    RateLimiter.Bonfire.RecordFailure(ip);
+                    return BadRequest("Invalid Bonfire Code.");
+                }
+
+                if (group.OwnerUserId == masterId)
+                    return BadRequest("You cannot join your own Bonfire group.");
+
+                if (group.MemberUserIds.Contains(masterId))
+                    return Ok(new { Message = "Already a member of this group." });
+
+                foreach (var g in config.BonfireGroups)
+                    g.MemberUserIds.Remove(masterId);
+
+                group.MemberUserIds.Add(masterId);
+                Plugin.Instance?.SaveConfiguration();
+                ownerUserId = group.OwnerUserId;
+                newlyJoined = true;
+            }
+
+            if (newlyJoined)
+                RateLimiter.Bonfire.Reset(ip);
+
+            return Ok(new
+            {
+                Message = "Successfully joined Bonfire group.",
+                OwnerName = _userManager.GetUserById(ownerUserId)?.Username ?? "Unknown"
+            });
+        }
+
+        [HttpPost("bonfire/kick")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public ActionResult KickBonfireMember([FromBody] KickBonfireRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterId = currentUserIdVal.Value;
+
+            var callerMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
+            if (callerMapping != null && callerMapping.MasterUserId != masterId)
+                return Unauthorized("Only the master profile can manage Bonfire groups.");
+
+            lock (config)
+            {
+                var group = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterId);
+                if (group == null) return BadRequest("You do not own a Bonfire group.");
+
+                if (group.MemberUserIds.Contains(request.MemberId))
+                {
+                    group.MemberUserIds.Remove(request.MemberId);
+                    Plugin.Instance?.SaveConfiguration();
+                    return Ok();
+                }
+            }
+
+            return NotFound("Member not found in your Bonfire group.");
+        }
+
+        [HttpPost("bonfire/leave")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult LeaveBonfire()
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterId = currentUserIdVal.Value;
+
+            lock (config)
+            {
+                var joinedGroup = config.BonfireGroups.FirstOrDefault(g => g.MemberUserIds.Contains(masterId));
+                if (joinedGroup != null)
+                {
+                    joinedGroup.MemberUserIds.Remove(masterId);
+                    Plugin.Instance?.SaveConfiguration();
+                    return Ok();
+                }
+            }
+
+            return BadRequest("You are not in any Bonfire group.");
+        }
+
+        [HttpPost("bonfire/delete-group")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult DeleteBonfireGroup()
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterId = currentUserIdVal.Value;
+
+            lock (config)
+            {
+                var group = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterId);
+                if (group != null)
+                {
+                    config.BonfireGroups.Remove(group);
+                    Plugin.Instance?.SaveConfiguration();
+                    return Ok();
+                }
+            }
+
+            return BadRequest("You do not own a Bonfire group.");
+        }
+
+        [HttpPost("bonfire/settings")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult UpdateBonfireSettings([FromBody] UpdateBonfireSettingsRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterUserId = currentUserIdVal.Value;
+
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
+                return Unauthorized("Only the master profile can update Bonfire settings.");
+
+            lock (config)
+            {
+                var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+                if (masterMapping == null)
+                {
+                    masterMapping = new ProfileMapping
+                    {
+                        ProfileUserId = masterUserId,
+                        MasterUserId = masterUserId,
+                        ProfileName = _userManager.GetUserById(masterUserId)?.Username ?? "Master",
+                        IsHidden = false
+                    };
+                    config.Mappings.Add(masterMapping);
+                }
+
+                masterMapping.HideMySubProfilesFromOthers = request.HideMySubProfilesFromOthers;
+                masterMapping.HideOthersSubProfilesFromMe = request.HideOthersSubProfilesFromMe;
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            return Ok();
+        }
+
+        // ── Device Management ──────────────────────────────────────────────────────
+
+        [HttpGet("devices")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<IEnumerable<KnownDevice>> GetDevices()
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+
+            var devices = config.KnownDevices
+                .GroupBy(d => d.DeviceId, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.OrderByDescending(d => d.LastSeen).First())
+                .OrderByDescending(d => d.LastSeen)
+                .ToList();
+            return Ok(devices);
+        }
+
+        [HttpPost("devices/delete")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult DeleteDevice([FromBody] DeleteDeviceRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterId = currentUserIdVal.Value;
+
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
+            if (currentMapping != null && currentMapping.MasterUserId != masterId)
+                return Unauthorized("Only the master profile can delete devices.");
+
+            if (string.IsNullOrEmpty(request.DeviceId))
+                return BadRequest("DeviceId is required.");
+
+            lock (config)
+            {
+                var toRemove = config.KnownDevices
+                    .Where(d => string.Equals(d.DeviceId, request.DeviceId, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                foreach (var d in toRemove)
+                    config.KnownDevices.Remove(d);
+
+                foreach (var mapping in config.Mappings)
+                    mapping.AllowedDeviceIds?.RemoveAll(id =>
+                        string.Equals(id, request.DeviceId, StringComparison.OrdinalIgnoreCase));
+
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            return Ok();
+        }
+
+        // ── Profile Image (unauthenticated) ────────────────────────────────────────
+
+        [HttpGet("image/{profileId}")]
+        public ActionResult GetProfileImage(Guid profileId)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return NotFound();
+
+            var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+            if (mapping == null || string.IsNullOrEmpty(mapping.ProfileImage)) return NotFound();
+
+            var instance = Plugin.Instance;
+            if (instance == null) return NotFound();
+
+            var folder = Path.Combine(instance.AppPaths.DataPath, "plugins", "ProfilesManagement");
+            var candidates = new[]
+            {
+                (Path.Combine(folder, $"{profileId}.jpg"), "image/jpeg"),
+                (Path.Combine(folder, $"{profileId}.png"), "image/png"),
+                (Path.Combine(folder, $"{profileId}.gif"), "image/gif"),
+            };
+
+            foreach (var (filePath, contentType) in candidates)
+            {
+                if (System.IO.File.Exists(filePath))
+                    return File(System.IO.File.ReadAllBytes(filePath), contentType);
+            }
+
+            if (mapping.ProfileImage.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                return Redirect(mapping.ProfileImage);
+
+            return NotFound();
+        }
+
+        // ── Admin Endpoints ────────────────────────────────────────────────────────
+
+        [HttpPost("admin/set-profile-limit")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public ActionResult SetProfileLimit([FromBody] SetProfileLimitRequest request)
+        {
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+
+            var caller = _userManager.GetUserById(currentUserIdVal.Value);
+            if (caller == null) return Unauthorized();
+
+            var callerDto = _userManager.GetUserDto(caller, string.Empty);
+            if (!callerDto.Policy.IsAdministrator)
+                return Unauthorized("Only administrators can update profile limits.");
+
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            lock (config)
+            {
+                if (request.MaxProfiles.HasValue)
+                {
+                    if (request.MaxProfiles.Value < 1)
+                        return BadRequest("Maximum profiles must be at least 1.");
+
+                    var existing = config.UserProfileLimitOverrides.FirstOrDefault(o => o.UserId == request.UserId);
+                    if (existing != null)
+                        existing.MaxProfiles = request.MaxProfiles.Value;
+                    else
+                        config.UserProfileLimitOverrides.Add(new UserProfileLimitOverride
+                        {
+                            UserId = request.UserId,
+                            MaxProfiles = request.MaxProfiles.Value
+                        });
+                }
+                else
+                {
+                    config.UserProfileLimitOverrides.RemoveAll(o => o.UserId == request.UserId);
+                }
+
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            return Ok();
+        }
+
+        [HttpGet("admin/audit-logs")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<IEnumerable<AuditLogEntry>> GetAuditLogs()
+        {
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+
+            var caller = _userManager.GetUserById(currentUserIdVal.Value);
+            if (caller == null) return Unauthorized();
+
+            var callerDto = _userManager.GetUserDto(caller, string.Empty);
+            if (!callerDto.Policy.IsAdministrator)
+                return Unauthorized("Only administrators can view audit logs.");
+
+            lock (AuditLogLock)
+            {
+                return Ok(ReadAuditLogs().OrderByDescending(l => l.Timestamp).ToList());
+            }
+        }
+
     }
 }
