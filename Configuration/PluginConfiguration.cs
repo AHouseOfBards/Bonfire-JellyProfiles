@@ -12,7 +12,8 @@ namespace Jellyfin.Profiles.Configuration
         public List<KnownDevice> KnownDevices { get; set; } = new List<KnownDevice>();
         public List<BonfireGroup> BonfireGroups { get; set; } = new List<BonfireGroup>();
         public List<UserProfileLimitOverride> UserProfileLimitOverrides { get; set; } = new List<UserProfileLimitOverride>();
-        public List<AuditLogEntry> AuditLogs { get; set; } = new List<AuditLogEntry>();
+        // AuditLogs have been moved to a separate audit_log.json file so they no longer
+        // cause a full PluginConfiguration.xml rewrite on every profile switch.
     }
 
     public class KnownDevice
@@ -25,7 +26,9 @@ namespace Jellyfin.Profiles.Configuration
 
     public class BonfireGroup
     {
-        public string GroupId { get; set; } = Guid.NewGuid().ToString().Substring(0, 8);
+        // Initialized to empty so deserialization doesn't regenerate it on every load.
+        // The controller sets this explicitly when creating a new group.
+        public string GroupId { get; set; } = string.Empty;
         public string BonfireCode { get; set; } = string.Empty; // 6-character alphanumeric code
         public Guid OwnerUserId { get; set; }
         public List<Guid> MemberUserIds { get; set; } = new List<Guid>();
@@ -63,13 +66,5 @@ namespace Jellyfin.Profiles.Configuration
         public int MaxProfiles { get; set; }
     }
 
-    public class AuditLogEntry
-    {
-        public DateTime Timestamp { get; set; }
-        public string MasterUsername { get; set; } = string.Empty;
-        public string TargetUsername { get; set; } = string.Empty;
-        public string DeviceName { get; set; } = string.Empty;
-        public string Client { get; set; } = string.Empty;
-        public string IpAddress { get; set; } = string.Empty;
-    }
 }
+
