@@ -32,8 +32,8 @@ Once the server restarts, the plugin is active and will automatically load on al
 > 
 > * **How to know:** If injection fails, a prominent **⚠️ Client Script Auto-Injection Failed** banner will appear at the top of your plugin configuration page (**Dashboard → Plugins → Profiles**) with the copy-pasteable fix commands for your host OS.
 > * **Quick Fixes:**
->   * **Linux (Native):** Run `sudo chown -R jellyfin:jellyfin /usr/share/jellyfin/web` and restart Jellyfin.
->   * **Docker (Run on host):** Run `docker exec -u root <container-name> sed -i 's|</body>|<script src="/plugins/profiles/profiles.js" defer></script>\n</body>|' /jellyfin/jellyfin-web/index.html`.
+>   * **Linux (Native):** Run `sudo chmod 666 /usr/share/jellyfin/web/index.html` and restart Jellyfin.
+>   * **Docker (Run on host):** Run `docker exec -u root <container-name> chmod 666 /usr/share/jellyfin/web/index.html` (adjust path if different) and restart the container.
 >   * **Windows (Admin Command Prompt):** Run `icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "NT AUTHORITY\NetworkService:(M)"` and restart Jellyfin.
 
 ---
