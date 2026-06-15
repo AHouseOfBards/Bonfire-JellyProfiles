@@ -2692,6 +2692,9 @@
             const generateBtn = container.querySelector('#bonfire-generate-btn');
             if (generateBtn) {
                 generateBtn.addEventListener('click', () => {
+                    // Disable immediately to prevent double-fire on slow connections
+                    generateBtn.disabled = true;
+                    generateBtn.textContent = 'Generating…';
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/generate'), {
                         method: 'POST',
                         headers: masterToken ? this.getAuthHeaders(masterToken) : {}
@@ -2700,7 +2703,11 @@
                         if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
                         else return res.text().then(text => { throw new Error(text); });
                     })
-                    .catch(err => this.showAlert('Error', 'Failed to generate code: ' + err.message));
+                    .catch(err => {
+                        generateBtn.disabled = false;
+                        generateBtn.textContent = 'Generate Join Code';
+                        this.showAlert('Error', 'Failed to generate code: ' + err.message);
+                    });
                 });
             }
 
@@ -2717,6 +2724,9 @@
                         errDiv.style.display = 'block';
                         return;
                     }
+                    // Disable to prevent double-submit; re-enable on all error paths
+                    joinBtn.disabled = true;
+                    joinBtn.textContent = 'Joining…';
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/join'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) },
@@ -2726,6 +2736,8 @@
                         if (res.status === 429) {
                             errDiv.textContent = 'Too many failed attempts. Try again in 15 minutes.';
                             errDiv.style.display = 'block';
+                            joinBtn.disabled = false;
+                            joinBtn.textContent = 'Join';
                             return;
                         }
                         if (!res.ok) return res.text().then(text => { throw new Error(text); });
@@ -2734,6 +2746,8 @@
                     .catch(err => {
                         errDiv.textContent = err.message || 'Failed to join group.';
                         errDiv.style.display = 'block';
+                        joinBtn.disabled = false;
+                        joinBtn.textContent = 'Join';
                     });
                 };
 
@@ -2743,29 +2757,33 @@
                 });
             }
 
-            // Settings checkbox listeners
+            // Settings checkbox listeners — debounced 300ms to prevent race conditions
+            // when the user toggles both checkboxes in quick succession.
             const hideMineCb = container.querySelector('#bonfire-hide-mine-checkbox');
             const hideOthersCb = container.querySelector('#bonfire-hide-others-checkbox');
-
+            let _settingsDebounceTimer = null;
             const saveSettings = () => {
-                const hideMineVal = hideMineCb ? hideMineCb.checked : false;
-                const hideOthersVal = hideOthersCb ? hideOthersCb.checked : false;
-                
-                fetch(apiClient.getUrl('plugins/profiles/bonfire/settings'), {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...this.getAuthHeaders(masterToken)
-                    },
-                    body: JSON.stringify({
-                        hideMySubProfilesFromOthers: hideMineVal,
-                        hideOthersSubProfilesFromMe: hideOthersVal
+                clearTimeout(_settingsDebounceTimer);
+                _settingsDebounceTimer = setTimeout(() => {
+                    const hideMineVal = hideMineCb ? hideMineCb.checked : false;
+                    const hideOthersVal = hideOthersCb ? hideOthersCb.checked : false;
+
+                    fetch(apiClient.getUrl('plugins/profiles/bonfire/settings'), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...this.getAuthHeaders(masterToken)
+                        },
+                        body: JSON.stringify({
+                            hideMySubProfilesFromOthers: hideMineVal,
+                            hideOthersSubProfilesFromMe: hideOthersVal
+                        })
                     })
-                })
-                .then(res => {
-                    if (!res.ok) console.error("Failed to save Bonfire settings.");
-                })
-                .catch(err => console.error("Error saving Bonfire settings:", err));
+                    .then(res => {
+                        if (!res.ok) console.error('Failed to save Bonfire settings.');
+                    })
+                    .catch(err => console.error('Error saving Bonfire settings:', err));
+                }, 300);
             };
 
             if (hideMineCb) hideMineCb.addEventListener('change', saveSettings);
@@ -3498,6 +3516,12 @@
                     font-weight: 600; font-size: 1rem; cursor: pointer;
                     transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
                 }
+                .profiles-btn:disabled {
+                    opacity: 0.55;
+                    cursor: not-allowed;
+                    transform: none !important;
+                    box-shadow: none !important;
+                }
                 .btn-primary {
                     background-color: #00a4dc; color: #fff;
                 }
@@ -3551,6 +3575,16 @@
                         left: 12px;
                         right: auto;
                         bottom: 12px;
+                    }
+                }
+                /* Wrap Bonfire join row on very small phones so the button
+                   doesn't overflow or clip its label on screens under 360px. */
+                @media (max-width: 360px) {
+                    #bonfire-join-input,
+                    #bonfire-join-btn {
+                        flex: 1 1 100% !important;
+                        width: 100% !important;
+                        box-sizing: border-box !important;
                     }
                 }
                 @media (max-width: 480px) {
