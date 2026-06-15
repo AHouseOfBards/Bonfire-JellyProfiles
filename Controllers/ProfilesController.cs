@@ -666,22 +666,22 @@ namespace Jellyfin.Profiles.Controllers
                 await _userManager.UpdateConfigurationAsync(targetUser.Id, targetConfig).ConfigureAwait(false);
             }
 
-            var authRequest = new AuthenticationRequest
-            {
-                Username = targetUser.Username,
-                RemoteEndPoint = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1"
-            };
-
-            // Propagate client/device identifiers to SessionManager to avoid ArgumentNullException in LogSessionActivity
             var client = GetAuthorizationParameter("Client");
             var device = GetAuthorizationParameter("Device");
             var deviceId = GetAuthorizationParameter("DeviceId");
             var version = GetAuthorizationParameter("Version");
 
-            if (!string.IsNullOrEmpty(client)) authRequest.App = client;
-            if (!string.IsNullOrEmpty(device)) authRequest.DeviceName = device;
-            if (!string.IsNullOrEmpty(deviceId)) authRequest.DeviceId = deviceId;
-            if (!string.IsNullOrEmpty(version)) authRequest.AppVersion = version;
+            // Jellyfin 10.11+ requires App, DeviceName, DeviceId, AppVersion to be non-null/non-empty.
+            // Provide safe fallbacks in case the Authorization header couldn't be parsed.
+            var authRequest = new AuthenticationRequest
+            {
+                Username = targetUser.Username,
+                RemoteEndPoint = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1",
+                App = !string.IsNullOrEmpty(client) ? client : "JellyfinWeb",
+                DeviceName = !string.IsNullOrEmpty(device) ? device : "Profiles Plugin",
+                DeviceId = !string.IsNullOrEmpty(deviceId) ? deviceId : ("profiles-" + targetUser.Id.ToString("N")[..8]),
+                AppVersion = !string.IsNullOrEmpty(version) ? version : "1.0.0"
+            };
             // Authenticate directly bypassing password check (securely validated caller + PIN validation)
             var session = await _sessionManager.AuthenticateDirect(authRequest).ConfigureAwait(false);
 

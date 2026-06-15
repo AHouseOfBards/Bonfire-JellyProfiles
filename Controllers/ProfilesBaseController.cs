@@ -91,6 +91,13 @@ namespace Jellyfin.Profiles.Controllers
         {
             var authHeader = Request.Headers["Authorization"].FirstOrDefault();
             if (string.IsNullOrEmpty(authHeader)) return null;
+
+            // Strip the scheme prefix (e.g. "MediaBrowser ") so the first token
+            // parses as "Client=\"...\"" rather than "MediaBrowser Client=\"...\"".
+            const string scheme = "MediaBrowser ";
+            if (authHeader.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
+                authHeader = authHeader.Substring(scheme.Length);
+
             var parts = authHeader.Split(',');
             foreach (var part in parts)
             {
