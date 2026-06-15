@@ -13,7 +13,7 @@
         "changelog": "Fix: profile switching now works correctly on Jellyfin 10.11+. Root cause: the Authorization header parser was not stripping the 'MediaBrowser ' scheme prefix, so the Client parameter always returned null — causing SessionManager.AuthenticateNewSessionInternal to throw ArgumentNullException (request.App). Fixed in GetAuthorizationParameter; added guaranteed fallbacks on AuthenticationRequest so the switch endpoint can never throw on missing header fields.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1.7/Jellyfin.Profiles.zip",
-        "checksum": "00000000000000000000000000000000",
+        "checksum": "20a6598d8bb3fb94fdda30fbabebab98",
         "timestamp": "2026-06-15T10:44:00Z"
       },
       {
