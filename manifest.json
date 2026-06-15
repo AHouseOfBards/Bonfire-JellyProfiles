@@ -3,7 +3,7 @@
     "category": "General",
     "guid": "b1462fca-774b-4b13-8d02-e2d4f2bc18b9",
     "name": "Bonfire/JellyProfiles",
-    "description": "Adds multi-user profile switching to Jellyfin. A single account can have up to five isolated profiles \u2014 each with its own watch history, parental controls, and library access.",
+    "description": "Adds multi-user profile switching to Jellyfin. A single account can have up to five isolated profiles — each with its own watch history, parental controls, and library access.",
     "overview": "Multi-user profile switching for Jellyfin.",
     "owner": "AHouseOfBards",
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
@@ -13,7 +13,7 @@
         "changelog": "Fix: Simplified client-side script auto-injection troubleshooting instructions to use dynamic resolved file paths and a robust permission-granting chmod approach.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1.1/Jellyfin.Profiles.zip",
-        "checksum": "00000000000000000000000000000000",
+        "checksum": "8b4245e2f41f435789fd701deabb7891",
         "timestamp": "2026-06-15T00:30:00Z"
       },
       {
