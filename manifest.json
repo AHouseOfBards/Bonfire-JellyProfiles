@@ -13,7 +13,7 @@
         "changelog": "Fix: Rename plugin name/directory from 'Bonfire/JellyProfiles' to 'Bonfire' to resolve the Windows server folder deletion and lock conflict bugs. This stops the restart loop and allows clean updates.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1.8/Jellyfin.Profiles.zip",
-        "checksum": "00000000000000000000000000000000",
+        "checksum": "23c4779aa43583be40c45511c487b72c",
         "timestamp": "2026-06-15T13:17:00Z"
       },
       {
