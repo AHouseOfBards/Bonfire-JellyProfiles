@@ -9,9 +9,9 @@
                 <strong>How to fix:</strong>
                 Please run the appropriate command for your system:
                 <ul style="margin: 6px 0 0 0; padding-left: 20px;">
-                    <li style="margin-bottom:8px;"><strong>Linux (Native):</strong> Run <code>sudo chown -R jellyfin:jellyfin /usr/share/jellyfin/web</code> then restart Jellyfin.</li>
-                    <li style="margin-bottom:8px;"><strong>Docker:</strong> Run <code>docker exec -u root &lt;container-name&gt; sed -i 's|&lt;/body&gt;|&lt;script src="/plugins/profiles/profiles.js" defer&gt;&lt;/script&gt;\n&lt;/body&gt;|' /jellyfin/jellyfin-web/index.html</code> from the host.</li>
-                    <li><strong>Windows (Admin Command Prompt):</strong> Run <code>icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "NT AUTHORITY\NetworkService:(M)"</code> then restart Jellyfin.</li>
+                    <li style="margin-bottom:8px;"><strong>Linux (Native):</strong> Run <code id="linuxFixCmd">sudo chmod 666 /usr/share/jellyfin/web/index.html</code> then restart Jellyfin.</li>
+                    <li style="margin-bottom:8px;"><strong>Docker (Run on host):</strong> Run <code id="dockerFixCmd">docker exec -u root &lt;container-name&gt; chmod 666 /jellyfin/jellyfin-web/index.html</code> then restart your container.</li>
+                    <li><strong>Windows (Admin Command Prompt):</strong> Run <code id="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "NT AUTHORITY\NetworkService:(M)"</code> then restart Jellyfin.</li>
                 </ul>
             </div>
             <form id="profilesConfigurationForm">
@@ -105,7 +105,18 @@
                 ApiClient.getJSON(url).then(function (result) {
                     const warningContainer = page.querySelector('#injectionWarningContainer');
                     if (warningContainer) {
-                        warningContainer.style.display = (result.InjectionSucceeded === false || result.injectionSucceeded === false) ? 'block' : 'none';
+                        const failed = (result.InjectionSucceeded === false || result.injectionSucceeded === false || result.injectionSucceeded === undefined);
+                        warningContainer.style.display = failed ? 'block' : 'none';
+                        if (failed) {
+                            const path = result.IndexPath || result.indexPath || '/usr/share/jellyfin/web/index.html';
+                            const linuxEl = page.querySelector('#linuxFixCmd');
+                            const dockerEl = page.querySelector('#dockerFixCmd');
+                            const windowsEl = page.querySelector('#windowsFixCmd');
+                            
+                            if (linuxEl) linuxEl.textContent = 'sudo chmod 666 ' + path;
+                            if (dockerEl) dockerEl.textContent = 'docker exec -u root <container-name> chmod 666 ' + path;
+                            if (windowsEl) windowsEl.textContent = 'icacls "' + path + '" /grant "NT AUTHORITY\\NetworkService:(M)"';
+                        }
                     }
 
                     const masterContainer = page.querySelector('#masterUsersList');

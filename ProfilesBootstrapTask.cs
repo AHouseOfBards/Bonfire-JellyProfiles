@@ -64,6 +64,7 @@ namespace Jellyfin.Profiles
 
         // Exposed so the dashboard page JS can check whether setup is complete.
         internal static bool InjectionSucceeded { get; private set; }
+        internal static string? IndexPath { get; private set; }
 
         private readonly IApplicationPaths _appPaths;
         private readonly ILogger<ProfilesBootstrapTask> _logger;
@@ -92,6 +93,7 @@ namespace Jellyfin.Profiles
         private void TryPatchIndex()
         {
             var indexPath = FindIndexHtml();
+            IndexPath = indexPath;
 
             if (indexPath is null)
             {
@@ -269,7 +271,7 @@ namespace Jellyfin.Profiles
                 _logger.LogWarning(
                     ex,
                     "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "WINDOWS FIX — Grant the Jellyfin service account write access (run as Administrator):\n" +
+                    "WINDOWS FIX — Grant write access and restart Jellyfin (Run CMD as Administrator):\n" +
                     "  icacls \"{IndexPath}\" /grant \"NT AUTHORITY\\NetworkService:(M)\"\n\n" +
                     "Or add the following line before </body> manually (Notepad as Administrator):\n" +
                     "  {Tag}",
@@ -280,23 +282,20 @@ namespace Jellyfin.Profiles
                 _logger.LogWarning(
                     ex,
                     "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "DOCKER FIX — One-time patch from the host:\n" +
-                    "  docker exec -u root <container> sed -i 's|</body>|{Tag}\\n</body>|' {IndexPath}\n\n" +
-                    "Or bind-mount the web directory so the container can write it:\n" +
-                    "  -v /host/jellyfin-web:/jellyfin/jellyfin-web\n" +
-                    "The plugin will re-inject automatically on the next server restart.",
-                    indexPath, BodyScriptTag, indexPath);
+                    "DOCKER FIX — Make the file writable and restart the container:\n" +
+                    "  docker exec -u root <container-name> chmod 666 {IndexPath}\n\n" +
+                    "Once run, restart your Jellyfin container to apply the auto-injection.",
+                    indexPath, indexPath);
             }
             else
             {
                 _logger.LogWarning(
                     ex,
                     "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "LINUX FIX — Grant write access to the Jellyfin service account, then restart:\n" +
-                    "  sudo chown jellyfin:jellyfin {IndexPath} && sudo chmod 644 {IndexPath}\n\n" +
-                    "Or apply the patch once as root:\n" +
-                    "  sudo sed -i 's|</body>|{Tag}\\n</body>|' {IndexPath}",
-                    indexPath, indexPath, indexPath, BodyScriptTag, indexPath);
+                    "LINUX FIX — Grant write access and restart Jellyfin:\n" +
+                    "  sudo chmod 666 {IndexPath}\n\n" +
+                    "Once run, restart Jellyfin to apply the auto-injection.",
+                    indexPath, indexPath);
             }
         }
 

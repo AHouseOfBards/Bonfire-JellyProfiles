@@ -795,7 +795,8 @@ namespace Jellyfin.Profiles.Controllers
             {
                 MasterUsers = masterUsersList,
                 SubProfiles = subProfilesList,
-                InjectionSucceeded = ProfilesBootstrapTask.InjectionSucceeded
+                InjectionSucceeded = ProfilesBootstrapTask.InjectionSucceeded,
+                IndexPath = ProfilesBootstrapTask.IndexPath
             });
         }
 
