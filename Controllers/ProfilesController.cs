@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Jellyfin.Profiles.Configuration;
 using Jellyfin.Profiles.Models;
@@ -23,11 +24,33 @@ using System.Net;
 
 namespace Jellyfin.Profiles.Controllers
 {
+    /// <summary>Model moved here from PluginConfiguration so AuditLogs no longer serialize into the main XML config.</summary>
+    public class AuditLogEntry
+    {
+        public DateTime Timestamp { get; set; }
+        public string MasterUsername { get; set; } = string.Empty;
+        public string TargetUsername { get; set; } = string.Empty;
+        public string DeviceName { get; set; } = string.Empty;
+        public string Client { get; set; } = string.Empty;
+        public string IpAddress { get; set; } = string.Empty;
+    }
+
     [ApiController]
     [Route("plugins/profiles")]
+    // NOTE: The controller is [AllowAnonymous] because two endpoints (GetProfilesJs,
+    // GetProfileImage) must be unauthenticated. All other endpoints validate the caller
+    // via GetCurrentUserId() and return 401 when no valid token is present.
     [AllowAnonymous]
     public class ProfilesController : ControllerBase
     {
+        // ── Static JS content cache (loaded once per app lifetime) ─────────────
+        private static string? _cachedProfilesJs;
+        private static readonly object _jsCacheLock = new();
+
+        // ── Audit log file path (resolved lazily on first use) ───────────────────
+        private static string? _auditLogPath;
+        private static readonly object _auditLogLock = new();
+
         private readonly IUserManager _userManager;
         private readonly ISessionManager _sessionManager;
         private readonly ILibraryManager _libraryManager;
@@ -401,17 +424,28 @@ namespace Jellyfin.Profiles.Controllers
                 return Unauthorized("Unauthorized profile deletion attempt.");
             }
 
-            // Delete underlying native system user
+            // Delete underlying native system user.
+            // Track whether the Jellyfin user was fully removed so we know whether
+            // to remove the plugin mapping (if deletion failed we keep the mapping
+            // so the ghost account remains visible and manageable in the dashboard).
+            bool userFullyDeleted = false;
             var targetUser = _userManager.GetUserById(request.ProfileId);
             if (targetUser != null)
             {
                 try
                 {
                     await _userManager.DeleteUserAsync(targetUser.Id).ConfigureAwait(false);
+                    userFullyDeleted = true;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "ProfilesPlugin: Error deleting underlying Jellyfin user {UserId} during profile removal. Falling back to disabling the account and removing mapping.", targetUser.Id);
+                    // Best-effort fallback: disable the account so it cannot log in,
+                    // but keep the plugin mapping so the admin can see and retry later.
+                    _logger.LogError(ex,
+                        "ProfilesPlugin: Error deleting Jellyfin user {UserId}. " +
+                        "Disabling the account as a fallback — the plugin mapping is PRESERVED " +
+                        "so the profile remains visible in the dashboard for retry.",
+                        targetUser.Id);
                     try
                     {
                         var targetUserDto = _userManager.GetUserDto(targetUser, string.Empty);
@@ -423,19 +457,31 @@ namespace Jellyfin.Profiles.Controllers
                     {
                         _logger.LogError(updateEx, "ProfilesPlugin: Failed to disable underlying user {UserId} as fallback.", targetUser.Id);
                     }
+                    // Return an error so the UI knows deletion did not fully complete.
+                    return StatusCode(StatusCodes.Status500InternalServerError,
+                        "Profile could not be fully deleted. The account has been disabled. " +
+                        "Retry deletion after restarting Jellyfin.");
                 }
             }
-
-            // Clean up static profile image if any
-            SaveProfileImage(request.ProfileId, null);
-
-            lock (config)
+            else
             {
-                var mappingToRemove = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
-                if (mappingToRemove != null)
+                // Underlying Jellyfin user already gone — treat as a clean delete.
+                userFullyDeleted = true;
+            }
+
+            if (userFullyDeleted)
+            {
+                // Clean up static profile image if any
+                SaveProfileImage(request.ProfileId, null);
+
+                lock (config)
                 {
-                    config.Mappings.Remove(mappingToRemove);
-                    Plugin.Instance?.SaveConfiguration();
+                    var mappingToRemove = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
+                    if (mappingToRemove != null)
+                    {
+                        config.Mappings.Remove(mappingToRemove);
+                        Plugin.Instance?.SaveConfiguration();
+                    }
                 }
             }
 
@@ -1038,13 +1084,25 @@ namespace Jellyfin.Profiles.Controllers
         [Produces("application/javascript")]
         public ActionResult GetProfilesJs()
         {
-            var assembly = typeof(Plugin).Assembly;
-            using var stream = assembly.GetManifestResourceStream("Jellyfin.Profiles.Web.profiles.js");
-            if (stream == null) return NotFound();
+            // Cache the JS content statically — it only changes when the plugin DLL changes,
+            // so there is no reason to read the embedded resource on every browser page load.
+            if (_cachedProfilesJs == null)
+            {
+                lock (_jsCacheLock)
+                {
+                    if (_cachedProfilesJs == null)
+                    {
+                        var assembly = typeof(Plugin).Assembly;
+                        using var stream = assembly.GetManifestResourceStream("Jellyfin.Profiles.Web.profiles.js");
+                        if (stream == null) return NotFound();
+                        using var reader = new StreamReader(stream);
+                        _cachedProfilesJs = reader.ReadToEnd();
+                    }
+                }
+            }
 
-            using var reader = new StreamReader(stream);
-            var content = reader.ReadToEnd();
-            return Content(content, "application/javascript");
+            Response.Headers["Cache-Control"] = "public, max-age=3600";
+            return Content(_cachedProfilesJs, "application/javascript");
         }
 
         private Guid? GetCurrentUserId()
@@ -1416,14 +1474,21 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     group = new BonfireGroup
                     {
+                        // Assign GroupId explicitly here — not in the property initializer
+                        // to avoid re-randomization on every XML deserialization.
+                        GroupId = Guid.NewGuid().ToString("N").Substring(0, 8),
                         OwnerUserId = masterUserId,
                         BonfireCode = GenerateSecureCode()
                     };
                     config.BonfireGroups.Add(group);
                 }
-                else if (string.IsNullOrEmpty(group.BonfireCode))
+                else
                 {
-                    group.BonfireCode = GenerateSecureCode();
+                    // Repair any empty GroupId (from configs written before this fix)
+                    if (string.IsNullOrEmpty(group.GroupId))
+                        group.GroupId = Guid.NewGuid().ToString("N").Substring(0, 8);
+                    if (string.IsNullOrEmpty(group.BonfireCode))
+                        group.BonfireCode = GenerateSecureCode();
                 }
 
                 Plugin.Instance?.SaveConfiguration();
@@ -1485,7 +1550,10 @@ namespace Jellyfin.Profiles.Controllers
 
             lock (config)
             {
-                var group = config.BonfireGroups.FirstOrDefault(g => g.BonfireCode == code);
+                // Use OrdinalIgnoreCase so a future change to code generation
+                // cannot silently break matching.
+                var group = config.BonfireGroups.FirstOrDefault(g =>
+                    string.Equals(g.BonfireCode, code, StringComparison.OrdinalIgnoreCase));
                 if (group == null)
                 {
                     BonfireRateLimiter.RecordFailure(ip);
@@ -1676,27 +1744,28 @@ namespace Jellyfin.Profiles.Controllers
             return overrideEntry?.MaxProfiles ?? config.MaxProfilesPerUser;
         }
 
+        private const int MaxProfileImageBytes = 2 * 1024 * 1024; // 2 MB hard limit
+
         private string? SaveProfileImage(Guid profileId, string? profileImageInput)
         {
+            var pluginDataFolder = Path.Combine(Plugin.Instance!.AppPaths.DataPath, "plugins", "ProfilesManagement");
+
             if (string.IsNullOrEmpty(profileImageInput))
             {
-                var pluginDataFolder = Path.Combine(Plugin.Instance!.AppPaths.DataPath, "plugins", "ProfilesManagement");
-                var jpgPath = Path.Combine(pluginDataFolder, $"{profileId}.jpg");
-                var pngPath = Path.Combine(pluginDataFolder, $"{profileId}.png");
-                if (System.IO.File.Exists(jpgPath)) System.IO.File.Delete(jpgPath);
-                if (System.IO.File.Exists(pngPath)) System.IO.File.Delete(pngPath);
+                // Wipe all supported formats so stale files never linger
+                foreach (var ext in new[] { ".jpg", ".png", ".gif" })
+                {
+                    var p = Path.Combine(pluginDataFolder, $"{profileId}{ext}");
+                    if (System.IO.File.Exists(p)) System.IO.File.Delete(p);
+                }
                 return null;
             }
 
             if (profileImageInput.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            {
                 return profileImageInput;
-            }
 
             if (profileImageInput.StartsWith("/plugins/profiles/image/", StringComparison.OrdinalIgnoreCase))
-            {
                 return profileImageInput;
-            }
 
             if (profileImageInput.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
             {
@@ -1709,17 +1778,27 @@ namespace Jellyfin.Profiles.Controllers
                         var base64Part = profileImageInput.Substring(commaIndex + 1);
                         var bytes = Convert.FromBase64String(base64Part);
 
+                        // ── Issue #10 fix: reject oversized uploads ──────────────
+                        if (bytes.Length > MaxProfileImageBytes)
+                        {
+                            _logger.LogWarning(
+                                "ProfilesPlugin: Profile image for {ProfileId} exceeds the 2 MB limit ({Size} bytes). Upload rejected.",
+                                profileId, bytes.Length);
+                            return null;
+                        }
+
                         string ext = ".jpg";
                         if (mimePart.Contains("image/png")) ext = ".png";
                         else if (mimePart.Contains("image/gif")) ext = ".gif";
 
-                        var pluginDataFolder = Path.Combine(Plugin.Instance!.AppPaths.DataPath, "plugins", "ProfilesManagement");
                         Directory.CreateDirectory(pluginDataFolder);
 
-                        var oldJpg = Path.Combine(pluginDataFolder, $"{profileId}.jpg");
-                        var oldPng = Path.Combine(pluginDataFolder, $"{profileId}.png");
-                        if (System.IO.File.Exists(oldJpg)) System.IO.File.Delete(oldJpg);
-                        if (System.IO.File.Exists(oldPng)) System.IO.File.Delete(oldPng);
+                        // Remove any stale files from previous uploads
+                        foreach (var oldExt in new[] { ".jpg", ".png", ".gif" })
+                        {
+                            var oldPath = Path.Combine(pluginDataFolder, $"{profileId}{oldExt}");
+                            if (System.IO.File.Exists(oldPath)) System.IO.File.Delete(oldPath);
+                        }
 
                         var filePath = Path.Combine(pluginDataFolder, $"{profileId}{ext}");
                         System.IO.File.WriteAllBytes(filePath, bytes);
@@ -1736,22 +1815,63 @@ namespace Jellyfin.Profiles.Controllers
             return profileImageInput;
         }
 
+        // ── Audit log helpers (separate JSON file, never bloats PluginConfiguration.xml) ──
+
+        private string GetAuditLogPath()
+        {
+            if (_auditLogPath != null) return _auditLogPath;
+            lock (_auditLogLock)
+            {
+                if (_auditLogPath != null) return _auditLogPath;
+                var folder = Path.Combine(Plugin.Instance!.AppPaths.DataPath, "plugins", "ProfilesManagement");
+                Directory.CreateDirectory(folder);
+                _auditLogPath = Path.Combine(folder, "audit_log.json");
+            }
+            return _auditLogPath!;
+        }
+
+        private List<AuditLogEntry> ReadAuditLogs()
+        {
+            try
+            {
+                var path = GetAuditLogPath();
+                if (System.IO.File.Exists(path))
+                {
+                    var json = System.IO.File.ReadAllText(path);
+                    return JsonSerializer.Deserialize<List<AuditLogEntry>>(json)
+                           ?? new List<AuditLogEntry>();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ProfilesPlugin: Failed to read audit log.");
+            }
+            return new List<AuditLogEntry>();
+        }
+
+        private void WriteAuditLogs(List<AuditLogEntry> logs)
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(logs, new JsonSerializerOptions { WriteIndented = false });
+                System.IO.File.WriteAllText(GetAuditLogPath(), json);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ProfilesPlugin: Failed to write audit log.");
+            }
+        }
+
         private void RecordAuditLog(string masterUsername, string targetUsername)
         {
-            var config = Plugin.Instance?.Configuration;
-            if (config == null) return;
-
             var device = GetAuthorizationParameter("Device") ?? "Unknown Device";
             var client = GetAuthorizationParameter("Client") ?? "Unknown Client";
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
 
-            lock (config)
+            lock (_auditLogLock)
             {
-                if (config.AuditLogs == null)
-                {
-                    config.AuditLogs = new List<AuditLogEntry>();
-                }
-                config.AuditLogs.Add(new AuditLogEntry
+                var logs = ReadAuditLogs();
+                logs.Add(new AuditLogEntry
                 {
                     Timestamp = DateTime.UtcNow,
                     MasterUsername = masterUsername,
@@ -1761,12 +1881,11 @@ namespace Jellyfin.Profiles.Controllers
                     IpAddress = ip
                 });
 
-                if (config.AuditLogs.Count > 1000)
-                {
-                    config.AuditLogs = config.AuditLogs.OrderBy(l => l.Timestamp).Skip(config.AuditLogs.Count - 1000).ToList();
-                }
+                // Keep most recent 1000 entries
+                if (logs.Count > 1000)
+                    logs = logs.OrderByDescending(l => l.Timestamp).Take(1000).ToList();
 
-                Plugin.Instance?.SaveConfiguration();
+                WriteAuditLogs(logs);
             }
         }
 
@@ -1779,28 +1898,29 @@ namespace Jellyfin.Profiles.Controllers
 
             var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
             if (mapping == null || string.IsNullOrEmpty(mapping.ProfileImage))
-            {
                 return NotFound();
-            }
 
             var pluginDataFolder = Path.Combine(Plugin.Instance!.AppPaths.DataPath, "plugins", "ProfilesManagement");
-            var filePath = Path.Combine(pluginDataFolder, $"{profileId}.jpg");
-            if (!System.IO.File.Exists(filePath))
-            {
-                filePath = Path.Combine(pluginDataFolder, $"{profileId}.png");
-            }
 
-            if (System.IO.File.Exists(filePath))
+            // ── Issue #1 fix: check all three supported formats ──────────────────
+            var candidates = new[]
             {
-                var bytes = System.IO.File.ReadAllBytes(filePath);
-                var contentType = filePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg";
-                return File(bytes, contentType);
+                (Path.Combine(pluginDataFolder, $"{profileId}.jpg"), "image/jpeg"),
+                (Path.Combine(pluginDataFolder, $"{profileId}.png"), "image/png"),
+                (Path.Combine(pluginDataFolder, $"{profileId}.gif"), "image/gif"),
+            };
+
+            foreach (var (filePath, contentType) in candidates)
+            {
+                if (System.IO.File.Exists(filePath))
+                {
+                    var bytes = System.IO.File.ReadAllBytes(filePath);
+                    return File(bytes, contentType);
+                }
             }
 
             if (mapping.ProfileImage.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            {
                 return Redirect(mapping.ProfileImage);
-            }
 
             return NotFound();
         }
@@ -1878,15 +1998,15 @@ namespace Jellyfin.Profiles.Controllers
 
             var callerDto = _userManager.GetUserDto(caller, string.Empty);
             if (!callerDto.Policy.IsAdministrator)
-            {
                 return Unauthorized("Only administrators can view audit logs.");
+
+            // Audit logs are now stored in a separate JSON file rather than inside
+            // PluginConfiguration.xml, so reading them does not deserialize the whole config.
+            lock (_auditLogLock)
+            {
+                var logs = ReadAuditLogs();
+                return Ok(logs.OrderByDescending(l => l.Timestamp).ToList());
             }
-
-            var config = Plugin.Instance?.Configuration;
-            if (config == null) return BadRequest("Plugin configuration missing.");
-
-            var logs = config.AuditLogs ?? new List<AuditLogEntry>();
-            return Ok(logs.OrderByDescending(l => l.Timestamp).ToList());
         }
     }
 

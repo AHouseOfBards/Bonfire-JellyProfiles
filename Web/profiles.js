@@ -269,9 +269,21 @@
                 };
             });
 
-            // Reduced polling interval: 150 ms catches DOM changes (e.g. video OSD
-            // appearing) within a single frame budget without noticeable CPU impact.
-            setInterval(doCheck, 150);
+            // Fix #3: Clear the cached master token on native Jellyfin sign-out so it
+            // does not persist in localStorage on shared / public devices.
+            document.addEventListener('usersignedout', () => {
+                try {
+                    localStorage.removeItem(this.config.masterStorageKey);
+                    localStorage.removeItem(this.config.activeSessionKey);
+                    sessionStorage.removeItem(this.config.activeSessionKey);
+                    sessionStorage.removeItem('jellyfin_profiles_active_info');
+                } catch (e) { /* ignore storage errors */ }
+            });
+
+            // Fix #8: 500ms interval is sufficient since viewshow/popstate/hashchange
+            // already cover all SPA navigation. The poll is only a safety net for rare
+            // DOM-mutation scenarios (e.g., video OSD).
+            setInterval(doCheck, 500);
 
             // Initial check on load
             setTimeout(doCheck, 200);
