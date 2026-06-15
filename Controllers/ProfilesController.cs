@@ -24,16 +24,6 @@ using System.Net;
 
 namespace Jellyfin.Profiles.Controllers
 {
-    /// <summary>Model moved here from PluginConfiguration so AuditLogs no longer serialize into the main XML config.</summary>
-    public class AuditLogEntry
-    {
-        public DateTime Timestamp { get; set; }
-        public string MasterUsername { get; set; } = string.Empty;
-        public string TargetUsername { get; set; } = string.Empty;
-        public string DeviceName { get; set; } = string.Empty;
-        public string Client { get; set; } = string.Empty;
-        public string IpAddress { get; set; } = string.Empty;
-    }
 
     [ApiController]
     [Route("plugins/profiles")]
@@ -434,6 +424,39 @@ namespace Jellyfin.Profiles.Controllers
             {
                 try
                 {
+            // Terminate all active sessions for this profile user BEFORE calling
+            // DeleteUserAsync. Jellyfin throws an InvalidOperationException when you
+            // try to delete an account that still has a live session, which was the
+            // root cause of users seeing deletion always fail.
+            try
+            {
+                var activeSessions = _sessionManager.Sessions
+                    .Where(s => s.UserId == request.ProfileId)
+                    .ToList();
+                // Revoke each session's token so Jellyfin considers them dead.
+                // This prevents DeleteUserAsync from throwing due to an active session.
+                foreach (var session in activeSessions)
+                {
+                    try
+                    {
+                        await _sessionManager.RevokeUserTokens(request.ProfileId, null).ConfigureAwait(false);
+                        break; // RevokeUserTokens revokes ALL tokens for the user; no need to loop
+                    }
+                    catch (Exception sessionEx)
+                    {
+                        _logger.LogDebug(sessionEx,
+                            "ProfilesPlugin: Could not revoke tokens before deleting user {UserId}.",
+                            request.ProfileId);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex,
+                    "ProfilesPlugin: Session enumeration failed before deleting {UserId}; attempting deletion anyway.",
+                    request.ProfileId);
+            }
+
                     await _userManager.DeleteUserAsync(targetUser.Id).ConfigureAwait(false);
                     userFullyDeleted = true;
                 }
@@ -552,7 +575,7 @@ namespace Jellyfin.Profiles.Controllers
                 bool bypass = mapping != null && mapping.BypassPinOnLocalNetwork && isLocal;
                 if (!bypass)
                 {
-                    if (PinRateLimiter.IsRateLimited(ip))
+                    if (RateLimiter.Pin.IsRateLimited(ip))
                     {
                         return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
                     }
@@ -560,13 +583,13 @@ namespace Jellyfin.Profiles.Controllers
                     var inputHash = HashPin(request.Pin);
                     if (pinHashToCheck != inputHash)
                     {
-                        PinRateLimiter.RecordFailure(ip);
+                        RateLimiter.Pin.RecordFailure(ip);
                         return BadRequest("Invalid PIN code.");
                     }
                 }
             }
 
-            PinRateLimiter.Reset(ip);
+            RateLimiter.Pin.Reset(ip);
 
             var targetUser = _userManager.GetUserById(request.ProfileId);
             if (targetUser == null) return NotFound("Underlying system user missing.");
@@ -735,19 +758,19 @@ namespace Jellyfin.Profiles.Controllers
                     bool bypass = masterMapping != null && masterMapping.BypassPinOnLocalNetwork && isLocal;
                     if (!bypass)
                     {
-                        if (PinRateLimiter.IsRateLimited(ip))
+                        if (RateLimiter.Pin.IsRateLimited(ip))
                         {
                             return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
                         }
 
                         if (string.IsNullOrEmpty(request.Pin) || HashPin(request.Pin) != pinHash)
                         {
-                            PinRateLimiter.RecordFailure(ip);
+                            RateLimiter.Pin.RecordFailure(ip);
                             return BadRequest("Invalid PIN.");
                         }
                     }
                 }
-                PinRateLimiter.Reset(ip);
+                RateLimiter.Pin.Reset(ip);
                 return Ok();
             }
             else
@@ -762,19 +785,19 @@ namespace Jellyfin.Profiles.Controllers
                     bool bypass = mapping.BypassPinOnLocalNetwork && isLocal;
                     if (!bypass)
                     {
-                        if (PinRateLimiter.IsRateLimited(ip))
+                        if (RateLimiter.Pin.IsRateLimited(ip))
                         {
                             return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
                         }
 
                         if (string.IsNullOrEmpty(request.Pin) || HashPin(request.Pin) != pinHash)
                         {
-                            PinRateLimiter.RecordFailure(ip);
+                            RateLimiter.Pin.RecordFailure(ip);
                             return BadRequest("Invalid PIN.");
                         }
                     }
                 }
-                PinRateLimiter.Reset(ip);
+                RateLimiter.Pin.Reset(ip);
                 return Ok();
             }
         }
@@ -1299,11 +1322,6 @@ namespace Jellyfin.Profiles.Controllers
             return Ok(devices);
         }
 
-        public class DeleteDeviceRequest
-        {
-            public string DeviceId { get; set; } = string.Empty;
-        }
-
         [HttpPost("devices/delete")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -1506,11 +1524,6 @@ namespace Jellyfin.Profiles.Controllers
             });
         }
 
-        public class JoinBonfireRequest
-        {
-            public string Code { get; set; } = string.Empty;
-        }
-
         [HttpPost("bonfire/join")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -1533,7 +1546,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
-            if (BonfireRateLimiter.IsRateLimited(ip))
+            if (RateLimiter.Bonfire.IsRateLimited(ip))
             {
                 return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed attempts. Please try again in 15 minutes.");
             }
@@ -1541,7 +1554,7 @@ namespace Jellyfin.Profiles.Controllers
             var code = request.Code?.Trim().ToUpperInvariant();
             if (string.IsNullOrEmpty(code) || code.Length != 6)
             {
-                BonfireRateLimiter.RecordFailure(ip);
+                RateLimiter.Bonfire.RecordFailure(ip);
                 return BadRequest("Invalid code format.");
             }
 
@@ -1556,7 +1569,7 @@ namespace Jellyfin.Profiles.Controllers
                     string.Equals(g.BonfireCode, code, StringComparison.OrdinalIgnoreCase));
                 if (group == null)
                 {
-                    BonfireRateLimiter.RecordFailure(ip);
+                    RateLimiter.Bonfire.RecordFailure(ip);
                     return BadRequest("Invalid Bonfire Code.");
                 }
 
@@ -1588,7 +1601,7 @@ namespace Jellyfin.Profiles.Controllers
 
             if (newlyJoined)
             {
-                BonfireRateLimiter.Reset(ip);
+            RateLimiter.Bonfire.Reset(ip);
             }
 
             return Ok(new
@@ -1596,11 +1609,6 @@ namespace Jellyfin.Profiles.Controllers
                 Message = "Successfully joined Bonfire group.",
                 OwnerName = _userManager.GetUserById(ownerUserId)?.Username ?? "Unknown"
             });
-        }
-
-        public class KickBonfireRequest
-        {
-            public Guid MemberId { get; set; }
         }
 
         [HttpPost("bonfire/kick")]
@@ -1925,12 +1933,6 @@ namespace Jellyfin.Profiles.Controllers
             return NotFound();
         }
 
-        public class SetProfileLimitRequest
-        {
-            public Guid UserId { get; set; }
-            public int? MaxProfiles { get; set; }
-        }
-
         [HttpPost("admin/set-profile-limit")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -2007,148 +2009,6 @@ namespace Jellyfin.Profiles.Controllers
                 var logs = ReadAuditLogs();
                 return Ok(logs.OrderByDescending(l => l.Timestamp).ToList());
             }
-        }
-    }
-
-    public static class BonfireRateLimiter
-    {
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<DateTime>> _failedAttempts = new();
-        private static readonly object _cleanupLock = new();
-        private static DateTime _nextCleanup = DateTime.UtcNow.AddMinutes(5);
-
-        private static void PruneExpiredEntries()
-        {
-            var now = DateTime.UtcNow;
-            if (now < _nextCleanup) return;
-
-            lock (_cleanupLock)
-            {
-                if (now < _nextCleanup) return;
-                _nextCleanup = now.AddMinutes(5);
-
-                var cutoff = now.AddMinutes(-15);
-                foreach (var key in _failedAttempts.Keys)
-                {
-                    if (_failedAttempts.TryGetValue(key, out var list))
-                    {
-                        lock (list)
-                        {
-                            list.RemoveAll(t => t < cutoff);
-                            if (list.Count == 0)
-                            {
-                                _failedAttempts.TryRemove(key, out _);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        public static bool IsRateLimited(string ipAddress)
-        {
-            if (string.IsNullOrEmpty(ipAddress)) return false;
-
-            PruneExpiredEntries();
-
-            if (_failedAttempts.TryGetValue(ipAddress, out var attempts))
-            {
-                lock (attempts)
-                {
-                    attempts.RemoveAll(t => t < DateTime.UtcNow.AddMinutes(-15));
-                    return attempts.Count >= 3;
-                }
-            }
-            return false;
-        }
-
-        public static void RecordFailure(string ipAddress)
-        {
-            if (string.IsNullOrEmpty(ipAddress)) return;
-
-            PruneExpiredEntries();
-
-            var attempts = _failedAttempts.GetOrAdd(ipAddress, _ => new List<DateTime>());
-            lock (attempts)
-            {
-                attempts.Add(DateTime.UtcNow);
-            }
-        }
-
-        public static void Reset(string ipAddress)
-        {
-            if (string.IsNullOrEmpty(ipAddress)) return;
-            _failedAttempts.TryRemove(ipAddress, out _);
-        }
-    }
-
-    public static class PinRateLimiter
-    {
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<DateTime>> _failedAttempts = new();
-        private static readonly object _cleanupLock = new();
-        private static DateTime _nextCleanup = DateTime.UtcNow.AddMinutes(5);
-
-        private static void PruneExpiredEntries()
-        {
-            var now = DateTime.UtcNow;
-            if (now < _nextCleanup) return;
-
-            lock (_cleanupLock)
-            {
-                if (now < _nextCleanup) return;
-                _nextCleanup = now.AddMinutes(5);
-
-                var cutoff = now.AddMinutes(-15);
-                foreach (var key in _failedAttempts.Keys)
-                {
-                    if (_failedAttempts.TryGetValue(key, out var list))
-                    {
-                        lock (list)
-                        {
-                            list.RemoveAll(t => t < cutoff);
-                            if (list.Count == 0)
-                            {
-                                _failedAttempts.TryRemove(key, out _);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        public static bool IsRateLimited(string ipAddress)
-        {
-            if (string.IsNullOrEmpty(ipAddress)) return false;
-
-            PruneExpiredEntries();
-
-            if (_failedAttempts.TryGetValue(ipAddress, out var attempts))
-            {
-                lock (attempts)
-                {
-                    attempts.RemoveAll(t => t < DateTime.UtcNow.AddMinutes(-15));
-                    return attempts.Count >= 5;
-                }
-            }
-            return false;
-        }
-
-        public static void RecordFailure(string ipAddress)
-        {
-            if (string.IsNullOrEmpty(ipAddress)) return;
-
-            PruneExpiredEntries();
-
-            var attempts = _failedAttempts.GetOrAdd(ipAddress, _ => new List<DateTime>());
-            lock (attempts)
-            {
-                attempts.Add(DateTime.UtcNow);
-            }
-        }
-
-        public static void Reset(string ipAddress)
-        {
-            if (string.IsNullOrEmpty(ipAddress)) return;
-            _failedAttempts.TryRemove(ipAddress, out _);
         }
     }
 }
