@@ -2,12 +2,20 @@
   {
     "category": "General",
     "guid": "b1462fca-774b-4b13-8d02-e2d4f2bc18b9",
-    "name": "Bonfire/JellyProfiles",
+    "name": "Bonfire",
     "description": "Adds multi-user profile switching to Jellyfin. A single account can have up to five isolated profiles — each with its own watch history, parental controls, and library access.",
     "overview": "Multi-user profile switching for Jellyfin.",
     "owner": "AHouseOfBards",
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
+      {
+        "version": "1.1.8.0",
+        "changelog": "Fix: Rename plugin name/directory from 'Bonfire/JellyProfiles' to 'Bonfire' to resolve the Windows server folder deletion and lock conflict bugs. This stops the restart loop and allows clean updates.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1.8/Jellyfin.Profiles.zip",
+        "checksum": "00000000000000000000000000000000",
+        "timestamp": "2026-06-15T13:17:00Z"
+      },
       {
         "version": "1.1.7.0",
         "changelog": "Fix: profile switching now works correctly on Jellyfin 10.11+. Root cause: the Authorization header parser was not stripping the 'MediaBrowser ' scheme prefix, so the Client parameter always returned null — causing SessionManager.AuthenticateNewSessionInternal to throw ArgumentNullException (request.App). Fixed in GetAuthorizationParameter; added guaranteed fallbacks on AuthenticationRequest so the switch endpoint can never throw on missing header fields.",
