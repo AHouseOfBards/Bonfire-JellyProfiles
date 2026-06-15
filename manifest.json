@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.1.6.0",
+        "changelog": "Fix: merged BonfireController and AdminController back into single ProfilesController. Jellyfin's plugin loader does not support multiple controllers with the same route prefix from a plugin assembly, causing a permanent restart loop on v1.1.4 and v1.1.5. All endpoints now in one controller; ProfilesBaseController retained for shared helpers only.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1.6/Jellyfin.Profiles.zip",
+        "checksum": "00000000000000000000000000000000",
+        "timestamp": "2026-06-15T10:14:42Z"
+      },
+      {
         "version": "1.1.5.0",
         "changelog": "Bonfire UI fixes: Generate and Join buttons are now disabled during fetch to prevent double-fire; settings checkboxes are debounced 300ms to prevent race conditions when toggling both quickly; join input/button now wraps to full width on screens under 360px; .profiles-btn:disabled visual state added.",
         "targetAbi": "10.11.0.0",
