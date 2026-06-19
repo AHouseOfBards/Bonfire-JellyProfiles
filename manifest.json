@@ -13,7 +13,7 @@
         "changelog": "Security & Stability Release: resolves a critical privilege escalation bug in library permission mapping (ensuring sub-profiles cannot be assigned unauthorized libraries); fixes index.html script double-injection and corruption by using safe conditional inserting; adds index.html backup before patching; mitigates IP-based PIN brute force by rate limiting per profile; resolves XSS vulnerability in profile name rendering; ensures proper lock synchronization on configuration mappings.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1.9/Jellyfin.Profiles.zip",
-        "checksum": "",
+        "checksum": "e2c022d75338c41ff4c42220f89f1803",
         "timestamp": "2026-06-19T03:45:00Z"
       },
       {
