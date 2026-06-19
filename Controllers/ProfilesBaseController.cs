@@ -184,7 +184,7 @@ namespace Jellyfin.Profiles.Controllers
                 if (instance == null)
                 {
                     _logger.LogError("ProfilesPlugin: Plugin instance unavailable; audit log will not persist.");
-                    return Path.GetTempPath(); // harmless fallback — writes silently to temp
+                    return Path.Combine(Path.GetTempPath(), "bonfire_audit_log_fallback.json"); // harmless fallback — writes silently to temp file
                 }
 
                 var folder = Path.Combine(instance.AppPaths.DataPath, "plugins", "ProfilesManagement");
@@ -304,20 +304,26 @@ namespace Jellyfin.Profiles.Controllers
         protected HashSet<Guid> GetLinkedMasterUserIds(Guid masterUserId, PluginConfiguration config)
         {
             var linked = new HashSet<Guid> { masterUserId };
-            foreach (var g in config.BonfireGroups.Where(g => g.OwnerUserId == masterUserId))
-                foreach (var id in g.MemberUserIds) linked.Add(id);
-            foreach (var g in config.BonfireGroups.Where(g => g.MemberUserIds.Contains(masterUserId)))
+            lock (config)
             {
-                linked.Add(g.OwnerUserId);
-                foreach (var id in g.MemberUserIds) linked.Add(id);
+                foreach (var g in config.BonfireGroups.Where(g => g.OwnerUserId == masterUserId))
+                    foreach (var id in g.MemberUserIds) linked.Add(id);
+                foreach (var g in config.BonfireGroups.Where(g => g.MemberUserIds.Contains(masterUserId)))
+                {
+                    linked.Add(g.OwnerUserId);
+                    foreach (var id in g.MemberUserIds) linked.Add(id);
+                }
             }
             return linked;
         }
 
         protected int GetMaxProfilesForUser(Guid userId, PluginConfiguration config)
         {
-            var ov = config.UserProfileLimitOverrides?.FirstOrDefault(o => o.UserId == userId);
-            return ov?.MaxProfiles ?? config.MaxProfilesPerUser;
+            lock (config)
+            {
+                var ov = config.UserProfileLimitOverrides?.FirstOrDefault(o => o.UserId == userId);
+                return ov?.MaxProfiles ?? config.MaxProfilesPerUser;
+            }
         }
 
         protected const int MaxProfileImageBytes = 2 * 1024 * 1024;
@@ -386,6 +392,25 @@ namespace Jellyfin.Profiles.Controllers
             using var rng = RandomNumberGenerator.Create();
             rng.GetBytes(bytes);
             return new string(bytes.Select(b => chars[b % chars.Length]).ToArray());
+        }
+
+        protected HashSet<Guid> GetMasterAccessibleFolders(UserPolicy masterPolicy)
+        {
+            HashSet<Guid> masterAccessibleFolders;
+            if (masterPolicy.EnableAllFolders)
+            {
+                masterAccessibleFolders = _libraryManager.GetVirtualFolders()
+                    .Select(f => Guid.TryParse(f.ItemId, out var id) ? id : Guid.Empty)
+                    .Where(id => id != Guid.Empty)
+                    .ToHashSet();
+            }
+            else
+            {
+                masterAccessibleFolders = (masterPolicy.EnabledFolders ?? Array.Empty<Guid>()).ToHashSet();
+            }
+            var masterBlocked = masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>();
+            masterAccessibleFolders.ExceptWith(masterBlocked);
+            return masterAccessibleFolders;
         }
 
         protected List<object> GetBonfireGroupMembers(BonfireGroup group, PluginConfiguration config)

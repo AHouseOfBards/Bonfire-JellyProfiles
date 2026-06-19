@@ -16,7 +16,7 @@
             </div>
             <form id="profilesConfigurationForm">
                 <div class="sectionTitleContainer">
-                    <h2 class="sectionTitle">Bonfire/JellyProfiles Settings</h2>
+                    <h2 class="sectionTitle">Bonfire Settings</h2>
                 </div>
 
                 <div style="background:rgba(0,164,220,0.12);border:1px solid rgba(0,164,220,0.35);border-radius:6px;padding:14px 18px;margin-bottom:2em;font-size:0.95rem;line-height:1.6;">
@@ -87,6 +87,16 @@
         (function () {
             const pluginId = "b1462fca-774b-4b13-8d02-e2d4f2bc18b9";
 
+            function escapeHtml(str) {
+                if (!str) return '';
+                return str
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+
             function loadConfiguration(page) {
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
@@ -112,10 +122,15 @@
                             const linuxEl = page.querySelector('#linuxFixCmd');
                             const dockerEl = page.querySelector('#dockerFixCmd');
                             const windowsEl = page.querySelector('#windowsFixCmd');
+
+                            const isWindows = path.includes('\\') || path.includes(':');
+                            const resolvedLinuxPath = isWindows ? '/usr/share/jellyfin/web/index.html' : path;
+                            const resolvedDockerPath = isWindows ? '/jellyfin/jellyfin-web/index.html' : path;
+                            const resolvedWindowsPath = isWindows ? path : 'C:\\Program Files\\Jellyfin\\Server\\jellyfin-web\\index.html';
                             
-                            if (linuxEl) linuxEl.textContent = 'sudo chmod 666 ' + path;
-                            if (dockerEl) dockerEl.textContent = 'docker exec -u root <container-name> chmod 666 ' + path;
-                            if (windowsEl) windowsEl.textContent = 'icacls "' + path + '" /grant "NT AUTHORITY\\NetworkService:(M)"';
+                            if (linuxEl) linuxEl.textContent = 'sudo chmod 666 ' + resolvedLinuxPath;
+                            if (dockerEl) dockerEl.textContent = 'docker exec -u root <container-name> chmod 666 ' + resolvedDockerPath;
+                            if (windowsEl) windowsEl.textContent = 'icacls "' + resolvedWindowsPath + '" /grant "NT AUTHORITY\\NetworkService:(M)"';
                         }
                     }
 
@@ -130,7 +145,7 @@
                         masterContainer.innerHTML = '<div class="listItem" style="padding:15px;"><div class="listItemBody">No master accounts found.</div></div>';
                     } else {
                         masterContainer.innerHTML = masterUsers.map(function (m) {
-                            var pName = m.profileName || m.ProfileName || '';
+                            var pName = escapeHtml(m.profileName || m.ProfileName || '');
                             var pId = m.profileUserId || m.ProfileUserId || '';
                             var reqPin = m.requiresPin !== undefined ? m.requiresPin : (m.RequiresPin !== undefined ? m.RequiresPin : false);
                             var maxProfiles = m.maxProfiles || m.MaxProfiles || 5;
@@ -168,10 +183,10 @@
                         subContainer.innerHTML = '<div class="listItem" style="padding:15px;"><div class="listItemBody">No sub-profiles configured yet.</div></div>';
                     } else {
                         subContainer.innerHTML = subProfiles.map(function (m) {
-                            var pName = m.profileName || m.ProfileName || '';
+                            var pName = escapeHtml(m.profileName || m.ProfileName || '');
                             var pId = m.profileUserId || m.ProfileUserId || '';
                             var reqPin = m.requiresPin !== undefined ? m.requiresPin : (m.RequiresPin !== undefined ? m.RequiresPin : false);
-                            var mName = m.masterName || m.MasterName || '';
+                            var mName = escapeHtml(m.masterName || m.MasterName || '');
                             var pinStatus = reqPin 
                                 ? '<span style="color:#ff6b6b;font-weight:600;">PIN Protected</span>' 
                                 : '<span style="color:#51cf66;font-weight:600;">No PIN</span>';

@@ -1,6 +1,16 @@
 (function () {
     'use strict';
 
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
     const ProfilesPlugin = {
         config: {
             masterStorageKey: 'jellyfin_profiles_master_state',
@@ -961,7 +971,7 @@
                         ` : ''}
                     </div>
                     <div class="profile-name">
-                        <span>${p.profileName}</span>
+                        <span>${escapeHtml(p.profileName)}</span>
                         ${this.isManageMode ? `
                             <span class="profile-pin-badge ${p.requiresPin ? 'locked' : 'unlocked'}">
                                 ${p.requiresPin ? 'PIN Protected' : 'No PIN'}
@@ -985,7 +995,7 @@
                     headerIcon = "home";
                 } else {
                     const masterProfileForGroup = groupProfiles.find(p => p.isMaster);
-                    const groupName = masterProfileForGroup ? masterProfileForGroup.profileName : "Guest";
+                    const groupName = masterProfileForGroup ? escapeHtml(masterProfileForGroup.profileName) : "Guest";
                     headerTitle = `${groupName}'s Bonfire`;
                     headerIcon = "local_fire_department";
                     isBonfireIcon = true;
@@ -1926,7 +1936,7 @@
                     <div class="create-profile-container">
                         <div class="form-group">
                             <label>Profile Name</label>
-                            <input type="text" id="edit-name-input" value="${profile.profileName}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
+                            <input type="text" id="edit-name-input" value="${escapeHtml(profile.profileName)}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
                         </div>
                         
                         <div class="form-group">
@@ -2407,7 +2417,7 @@
                 const delBtn = document.getElementById('edit-delete-btn');
                 if (delBtn) {
                     delBtn.addEventListener('click', () => {
-                        this.showConfirmDialog('Delete Profile', `Are you sure you want to delete profile "${profile.profileName}" and its underlying user account? This action is irreversible.`, () => {
+                        this.showConfirmDialog('Delete Profile', `Are you sure you want to delete profile "${escapeHtml(profile.profileName)}" and its underlying user account? This action is irreversible.`, () => {
                             this.executeProfileDeletion(profile.profileUserId);
                         });
                     });

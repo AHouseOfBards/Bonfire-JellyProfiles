@@ -285,15 +285,19 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // Library folder filtering (propagate master blocks)
+            List<Guid> validatedFolders = new List<Guid>();
             if (request.EnabledFolders != null)
             {
+                var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
+                validatedFolders = request.EnabledFolders.Where(id => masterAccessible.Contains(id)).ToList();
+
                 targetPolicy.EnableAllFolders = false;
-                targetPolicy.EnabledFolders = request.EnabledFolders.ToArray();
+                targetPolicy.EnabledFolders = validatedFolders.ToArray();
 
                 var allFolders = _libraryManager.GetVirtualFolders();
                 var blockedMediaFolders = allFolders
                     .Select(f => Guid.TryParse(f.ItemId, out var id) ? id : Guid.Empty)
-                    .Where(id => id != Guid.Empty && !request.EnabledFolders.Contains(id))
+                    .Where(id => id != Guid.Empty && !validatedFolders.Contains(id))
                     .ToArray();
 
                 var masterBlocked = masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>();
@@ -305,6 +309,9 @@ namespace Jellyfin.Profiles.Controllers
                 targetPolicy.EnableAllFolders = masterPolicy.EnableAllFolders;
                 targetPolicy.EnabledFolders = masterPolicy.EnabledFolders;
                 targetPolicy.BlockedMediaFolders = masterPolicy.BlockedMediaFolders;
+
+                var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
+                validatedFolders = masterAccessible.ToList();
             }
 
             // Clone general non-admin user configurations
@@ -333,7 +340,7 @@ namespace Jellyfin.Profiles.Controllers
                     IsHidden = true,
                     LockoutMinutes = request.LockoutMinutes ?? 5,
                     // Store the selected libraries as the plugin's own ground truth
-                    EnabledFolders = request.EnabledFolders?.ToList() ?? new List<Guid>(),
+                    EnabledFolders = validatedFolders,
                     BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork ?? false,
                     AllowedDeviceIds = request.AllowedDeviceIds ?? new List<string>(),
                     ProfileImage = SaveProfileImage(targetUser.Id, request.ProfileImage)
@@ -407,38 +414,38 @@ namespace Jellyfin.Profiles.Controllers
             {
                 try
                 {
-            // Terminate all active sessions for this profile user BEFORE calling
-            // DeleteUserAsync. Jellyfin throws an InvalidOperationException when you
-            // try to delete an account that still has a live session, which was the
-            // root cause of users seeing deletion always fail.
-            try
-            {
-                var activeSessions = _sessionManager.Sessions
-                    .Where(s => s.UserId == request.ProfileId)
-                    .ToList();
-                // Revoke each session's token so Jellyfin considers them dead.
-                // This prevents DeleteUserAsync from throwing due to an active session.
-                foreach (var session in activeSessions)
-                {
+                    // Terminate all active sessions for this profile user BEFORE calling
+                    // DeleteUserAsync. Jellyfin throws an InvalidOperationException when you
+                    // try to delete an account that still has a live session, which was the
+                    // root cause of users seeing deletion always fail.
                     try
                     {
-                        await _sessionManager.RevokeUserTokens(request.ProfileId, null).ConfigureAwait(false);
-                        break; // RevokeUserTokens revokes ALL tokens for the user; no need to loop
+                        var activeSessions = _sessionManager.Sessions
+                            .Where(s => s.UserId == request.ProfileId)
+                            .ToList();
+                        // Revoke each session's token so Jellyfin considers them dead.
+                        // This prevents DeleteUserAsync from throwing due to an active session.
+                        foreach (var session in activeSessions)
+                        {
+                            try
+                            {
+                                await _sessionManager.RevokeUserTokens(request.ProfileId, null).ConfigureAwait(false);
+                                break; // RevokeUserTokens revokes ALL tokens for the user; no need to loop
+                            }
+                            catch (Exception sessionEx)
+                            {
+                                _logger.LogDebug(sessionEx,
+                                    "ProfilesPlugin: Could not revoke tokens before deleting user {UserId}.",
+                                    request.ProfileId);
+                            }
+                        }
                     }
-                    catch (Exception sessionEx)
+                    catch (Exception ex)
                     {
-                        _logger.LogDebug(sessionEx,
-                            "ProfilesPlugin: Could not revoke tokens before deleting user {UserId}.",
+                        _logger.LogDebug(ex,
+                            "ProfilesPlugin: Session enumeration failed before deleting {UserId}; attempting deletion anyway.",
                             request.ProfileId);
                     }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex,
-                    "ProfilesPlugin: Session enumeration failed before deleting {UserId}; attempting deletion anyway.",
-                    request.ProfileId);
-            }
 
                     await _userManager.DeleteUserAsync(targetUser.Id).ConfigureAwait(false);
                     userFullyDeleted = true;
@@ -550,6 +557,7 @@ namespace Jellyfin.Profiles.Controllers
             var remoteIp = HttpContext.Connection.RemoteIpAddress;
             bool isLocal = remoteIp != null && _networkManager.IsInLocalNetwork(remoteIp);
             var ip = remoteIp?.ToString() ?? "127.0.0.1";
+            var rateLimitKey = $"{ip}_{request.ProfileId}";
 
             // Verify PIN if set
             var pinHashToCheck = mapping?.PinHash;
@@ -558,7 +566,7 @@ namespace Jellyfin.Profiles.Controllers
                 bool bypass = mapping != null && mapping.BypassPinOnLocalNetwork && isLocal;
                 if (!bypass)
                 {
-                    if (RateLimiter.Pin.IsRateLimited(ip))
+                    if (RateLimiter.Pin.IsRateLimited(rateLimitKey))
                     {
                         return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
                     }
@@ -566,13 +574,13 @@ namespace Jellyfin.Profiles.Controllers
                     var inputHash = HashPin(request.Pin);
                     if (pinHashToCheck != inputHash)
                     {
-                        RateLimiter.Pin.RecordFailure(ip);
+                        RateLimiter.Pin.RecordFailure(rateLimitKey);
                         return BadRequest("Invalid PIN code.");
                     }
                 }
             }
 
-            RateLimiter.Pin.Reset(ip);
+            RateLimiter.Pin.Reset(rateLimitKey);
 
             var targetUser = _userManager.GetUserById(request.ProfileId);
             if (targetUser == null) return NotFound("Underlying system user missing.");
@@ -641,6 +649,10 @@ namespace Jellyfin.Profiles.Controllers
                         }
                     }
                 }
+
+                // Intersect authorityFolders with the master's current accessible folders
+                var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
+                authorityFolders = authorityFolders.Where(id => masterAccessible.Contains(id)).ToList();
 
                 // Re-apply the stored library policy (heals resets caused by Jellyfin restarts)
                 targetPolicy.EnableAllFolders = false;
@@ -730,6 +742,7 @@ namespace Jellyfin.Profiles.Controllers
             var remoteIp = HttpContext.Connection.RemoteIpAddress;
             bool isLocal = remoteIp != null && _networkManager.IsInLocalNetwork(remoteIp);
             var ip = remoteIp?.ToString() ?? "127.0.0.1";
+            var rateLimitKey = $"{ip}_{request.ProfileId}";
 
             if (linkedMasterIds.Contains(request.ProfileId))
             {
@@ -741,19 +754,19 @@ namespace Jellyfin.Profiles.Controllers
                     bool bypass = masterMapping != null && masterMapping.BypassPinOnLocalNetwork && isLocal;
                     if (!bypass)
                     {
-                        if (RateLimiter.Pin.IsRateLimited(ip))
+                        if (RateLimiter.Pin.IsRateLimited(rateLimitKey))
                         {
                             return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
                         }
 
                         if (string.IsNullOrEmpty(request.Pin) || HashPin(request.Pin) != pinHash)
                         {
-                            RateLimiter.Pin.RecordFailure(ip);
+                            RateLimiter.Pin.RecordFailure(rateLimitKey);
                             return BadRequest("Invalid PIN.");
                         }
                     }
                 }
-                RateLimiter.Pin.Reset(ip);
+                RateLimiter.Pin.Reset(rateLimitKey);
                 return Ok();
             }
             else
@@ -768,19 +781,19 @@ namespace Jellyfin.Profiles.Controllers
                     bool bypass = mapping.BypassPinOnLocalNetwork && isLocal;
                     if (!bypass)
                     {
-                        if (RateLimiter.Pin.IsRateLimited(ip))
+                        if (RateLimiter.Pin.IsRateLimited(rateLimitKey))
                         {
                             return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
                         }
 
                         if (string.IsNullOrEmpty(request.Pin) || HashPin(request.Pin) != pinHash)
                         {
-                            RateLimiter.Pin.RecordFailure(ip);
+                            RateLimiter.Pin.RecordFailure(rateLimitKey);
                             return BadRequest("Invalid PIN.");
                         }
                     }
                 }
-                RateLimiter.Pin.Reset(ip);
+                RateLimiter.Pin.Reset(rateLimitKey);
                 return Ok();
             }
         }
@@ -967,6 +980,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // Update policy for sub-profiles
+            List<Guid>? validatedFolders = null;
             if (request.ProfileId != masterUserId)
             {
                 var targetUserDto = _userManager.GetUserDto(targetUser, string.Empty);
@@ -993,13 +1007,16 @@ namespace Jellyfin.Profiles.Controllers
                 // Library access propagation
                 if (request.EnabledFolders != null)
                 {
+                    var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
+                    validatedFolders = request.EnabledFolders.Where(id => masterAccessible.Contains(id)).ToList();
+
                     targetPolicy.EnableAllFolders = false;
-                    targetPolicy.EnabledFolders = request.EnabledFolders.ToArray();
+                    targetPolicy.EnabledFolders = validatedFolders.ToArray();
 
                     var allFolders = _libraryManager.GetVirtualFolders();
                     var blockedMediaFolders = allFolders
                         .Select(f => Guid.TryParse(f.ItemId, out var id) ? id : Guid.Empty)
-                        .Where(id => id != Guid.Empty && !request.EnabledFolders.Contains(id))
+                        .Where(id => id != Guid.Empty && !validatedFolders.Contains(id))
                         .ToArray();
 
                     var masterBlocked = masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>();
@@ -1010,6 +1027,9 @@ namespace Jellyfin.Profiles.Controllers
                     targetPolicy.EnableAllFolders = masterPolicy.EnableAllFolders;
                     targetPolicy.EnabledFolders = masterPolicy.EnabledFolders;
                     targetPolicy.BlockedMediaFolders = masterPolicy.BlockedMediaFolders;
+
+                    var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
+                    validatedFolders = masterAccessible.ToList();
                 }
 
                 await _userManager.UpdatePolicyAsync(targetUser.Id, targetPolicy).ConfigureAwait(false);
@@ -1063,9 +1083,9 @@ namespace Jellyfin.Profiles.Controllers
                     }
 
                     // Update stored library list (plugin's ground truth)
-                    if (request.EnabledFolders != null)
+                    if (validatedFolders != null)
                     {
-                        mappingEntry.EnabledFolders = request.EnabledFolders.ToList();
+                        mappingEntry.EnabledFolders = validatedFolders;
                     }
 
                     if (request.BypassPinOnLocalNetwork.HasValue)

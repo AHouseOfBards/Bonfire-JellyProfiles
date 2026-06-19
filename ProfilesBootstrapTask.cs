@@ -30,8 +30,14 @@ namespace Jellyfin.Profiles
         // The exact script tag to inject before </body>.
         // The URL /plugins/profiles/profiles.js is the path
         // Jellyfin uses to serve embedded resources from plugin assemblies.
-        private const string BodyScriptTag =
-            "<script src=\"/plugins/profiles/profiles.js\" defer></script>";
+        private static string BodyScriptTag
+        {
+            get
+            {
+                var version = Plugin.Instance?.Version?.ToString() ?? "1.1.8";
+                return $"<script src=\"/plugins/profiles/profiles.js?v={version}\" defer></script>";
+            }
+        }
 
         // Unique substring to detect whether the body tag is already present.
         private const string BodyMarker = "/plugins/profiles/profiles.js";
@@ -88,8 +94,6 @@ namespace Jellyfin.Profiles
         public Task StopAsync(CancellationToken cancellationToken)
             => Task.CompletedTask;
 
-        // ── Main logic ──────────────────────────────────────────────────────────
-
         private void TryPatchIndex()
         {
             var indexPath = FindIndexHtml();
@@ -107,6 +111,14 @@ namespace Jellyfin.Profiles
 
             try
             {
+                // Create backup if it does not already exist
+                var backupPath = indexPath + ".bonfire.bak";
+                if (!File.Exists(backupPath))
+                {
+                    File.Copy(indexPath, backupPath, false);
+                    _logger.LogInformation("ProfilesPlugin: Created backup of index.html at {Path}.", backupPath);
+                }
+
                 var html = File.ReadAllText(indexPath);
 
                 bool hasBody = html.Contains(BodyMarker, StringComparison.Ordinal);
@@ -152,27 +164,36 @@ namespace Jellyfin.Profiles
                 }
 
                 // ── 3. Inject new early-hide script right after <head> ──────────
-                html = html.Replace(
-                    "<head>",
-                    "<head>" + Environment.NewLine + HeadScript,
-                    StringComparison.OrdinalIgnoreCase);
-                changed = true;
+                if (!html.Contains(HeadMarker, StringComparison.Ordinal))
+                {
+                    int headIdx = html.IndexOf("<head>", StringComparison.OrdinalIgnoreCase);
+                    if (headIdx != -1)
+                    {
+                        html = html.Insert(headIdx + "<head>".Length, Environment.NewLine + HeadScript);
+                        changed = true;
+                    }
+                }
 
                 // ── 4. Inject new deferred client script before </body> ──────────
-                html = html.Replace(
-                    "</body>",
-                    BodyScriptTag + Environment.NewLine + "</body>",
-                    StringComparison.OrdinalIgnoreCase);
-                changed = true;
+                if (!html.Contains(BodyMarker, StringComparison.Ordinal))
+                {
+                    int bodyIdx = html.IndexOf("</body>", StringComparison.OrdinalIgnoreCase);
+                    if (bodyIdx != -1)
+                    {
+                        html = html.Insert(bodyIdx, BodyScriptTag + Environment.NewLine);
+                        changed = true;
+                    }
+                }
 
                 if (changed)
                 {
                     File.WriteAllText(indexPath, html);
-                    InjectionSucceeded = true;
                     _logger.LogInformation(
                         "ProfilesPlugin: Client scripts injected successfully into {Path}.",
                         indexPath);
                 }
+
+                InjectionSucceeded = true;
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -253,9 +274,10 @@ namespace Jellyfin.Profiles
                         return candidate;
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
                     // Path may be syntactically invalid on this OS — skip it.
+                    _logger.LogDebug(ex, "ProfilesPlugin: Candidate path '{Dir}' is invalid or inaccessible.", dir);
                 }
             }
 
