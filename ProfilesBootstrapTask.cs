@@ -111,12 +111,25 @@ namespace Jellyfin.Profiles
 
             try
             {
-                // Create backup if it does not already exist
-                var backupPath = indexPath + ".bonfire.bak";
-                if (!File.Exists(backupPath))
+                // Create backup in the plugin data directory (always writable), NOT next to index.html.
+                // Storing the backup beside index.html requires directory write permission on the web
+                // root (e.g. /usr/share/jellyfin/web/) which the jellyfin service user typically does
+                // not have — even after a `chmod 666 index.html` on the file itself.
+                try
                 {
-                    File.Copy(indexPath, backupPath, false);
-                    _logger.LogInformation("ProfilesPlugin: Created backup of index.html at {Path}.", backupPath);
+                    var backupDir = Path.Combine(_appPaths.DataPath, "plugins", "ProfilesManagement");
+                    Directory.CreateDirectory(backupDir);
+                    var backupPath = Path.Combine(backupDir, "index.html.bonfire.bak");
+                    if (!File.Exists(backupPath))
+                    {
+                        File.Copy(indexPath, backupPath, false);
+                        _logger.LogInformation("ProfilesPlugin: Created backup of index.html at {Path}.", backupPath);
+                    }
+                }
+                catch (Exception backupEx)
+                {
+                    // A backup failure is non-fatal — log a warning and continue with the patch.
+                    _logger.LogWarning(backupEx, "ProfilesPlugin: Could not create backup of index.html. Proceeding with injection anyway.");
                 }
 
                 var html = File.ReadAllText(indexPath);
@@ -304,20 +317,22 @@ namespace Jellyfin.Profiles
                 _logger.LogWarning(
                     ex,
                     "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "DOCKER FIX — Make the file writable and restart the container:\n" +
+                    "DOCKER FIX — Make the file AND its parent directory writable, then restart:\n" +
+                    "  docker exec -u root <container-name> chmod 755 {IndexDir}\n" +
                     "  docker exec -u root <container-name> chmod 666 {IndexPath}\n\n" +
                     "Once run, restart your Jellyfin container to apply the auto-injection.",
-                    indexPath, indexPath);
+                    indexPath, Path.GetDirectoryName(indexPath), indexPath);
             }
             else
             {
                 _logger.LogWarning(
                     ex,
                     "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "LINUX FIX — Grant write access and restart Jellyfin:\n" +
+                    "LINUX FIX — Grant write access to the file AND its directory, then restart Jellyfin:\n" +
+                    "  sudo chmod 755 {IndexDir}\n" +
                     "  sudo chmod 666 {IndexPath}\n\n" +
                     "Once run, restart Jellyfin to apply the auto-injection.",
-                    indexPath, indexPath);
+                    indexPath, Path.GetDirectoryName(indexPath), indexPath);
             }
         }
 
