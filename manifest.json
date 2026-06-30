@@ -13,7 +13,7 @@
         "changelog": "Fix: Settings page no longer shows a false-positive injection error when the plugin is working correctly (the status check was treating a missing camelCase field as a failure when ASP.NET returned PascalCase). Fix: Permission fix instructions now show the correct two-step chown+chmod commands (sudo chown jellyfin:jellyfin / sudo chmod 664) that actually work on native Linux installs, based on user-confirmed testing. Fix: Creating or editing a sub-profile with no libraries explicitly selected now correctly inherits all master-accessible libraries instead of silently locking the profile out of every library.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1.11/Jellyfin.Profiles.zip",
-        "checksum": "00000000000000000000000000000000",
+        "checksum": "7b65d2b3effa762d490af7de63a536d8",
         "timestamp": "2026-06-30T16:30:00Z"
       },
       {
