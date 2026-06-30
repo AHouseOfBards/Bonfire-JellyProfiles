@@ -34,7 +34,7 @@ namespace Jellyfin.Profiles
         {
             get
             {
-                var version = Plugin.Instance?.Version?.ToString() ?? "1.1.8";
+                var version = Plugin.Instance?.Version?.ToString() ?? "1.1.11";
                 return $"<script src=\"/plugins/profiles/profiles.js?v={version}\" defer></script>";
             }
         }
@@ -317,22 +317,24 @@ namespace Jellyfin.Profiles
                 _logger.LogWarning(
                     ex,
                     "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "DOCKER FIX — Make the file AND its parent directory writable, then restart:\n" +
-                    "  docker exec -u root <container-name> chmod 755 {IndexDir}\n" +
-                    "  docker exec -u root <container-name> chmod 666 {IndexPath}\n\n" +
-                    "Once run, restart your Jellyfin container to apply the auto-injection.",
-                    indexPath, Path.GetDirectoryName(indexPath), indexPath);
+                    "DOCKER FIX — Set ownership to the Jellyfin service user, then restart:\n" +
+                    "  docker exec -u root <container-name> chown jellyfin:jellyfin {IndexPath}\n" +
+                    "  docker exec -u root <container-name> chmod 664 {IndexPath}\n\n" +
+                    "After Jellyfin restarts and injects the script you can optionally restore\n" +
+                    "read-only permissions: docker exec -u root <container-name> chmod 644 {IndexPath2}",
+                    indexPath, indexPath, indexPath, indexPath);
             }
             else
             {
                 _logger.LogWarning(
                     ex,
                     "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "LINUX FIX — Grant write access to the file AND its directory, then restart Jellyfin:\n" +
-                    "  sudo chmod 755 {IndexDir}\n" +
-                    "  sudo chmod 666 {IndexPath}\n\n" +
-                    "Once run, restart Jellyfin to apply the auto-injection.",
-                    indexPath, Path.GetDirectoryName(indexPath), indexPath);
+                    "LINUX FIX — Set ownership to the Jellyfin service user and grant write access, then restart Jellyfin:\n" +
+                    "  sudo chown jellyfin:jellyfin {IndexPath}\n" +
+                    "  sudo chmod 664 {IndexPath2}\n\n" +
+                    "After Jellyfin restarts and injects the script you can optionally restore\n" +
+                    "read-only permissions: sudo chmod 644 {IndexPath3}",
+                    indexPath, indexPath, indexPath, indexPath);
             }
         }
 

@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.1.11.0",
+        "changelog": "Fix: Settings page no longer shows a false-positive injection error when the plugin is working correctly (the status check was treating a missing camelCase field as a failure when ASP.NET returned PascalCase). Fix: Permission fix instructions now show the correct two-step chown+chmod commands (sudo chown jellyfin:jellyfin / sudo chmod 664) that actually work on native Linux installs, based on user-confirmed testing. Fix: Creating or editing a sub-profile with no libraries explicitly selected now correctly inherits all master-accessible libraries instead of silently locking the profile out of every library.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1.11/Jellyfin.Profiles.zip",
+        "checksum": "00000000000000000000000000000000",
+        "timestamp": "2026-06-30T16:30:00Z"
+      },
+      {
         "version": "1.1.10.0",
         "changelog": "Fix: index.html backup is now stored in the plugin data directory instead of next to index.html. On Linux and Docker installs the jellyfin service user can write to index.html after chmod 666, but cannot create new files in the web root directory — causing an UnauthorizedAccessException before injection ran. Backup creation is now also non-fatal (injection proceeds even if the backup step fails). Error messages updated to include chmod 755 on the parent directory.",
         "targetAbi": "10.11.0.0",

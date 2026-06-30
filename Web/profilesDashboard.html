@@ -7,11 +7,23 @@
                 Without this script, the "Who's Watching?" profile gate and switcher will not load.
                 <br><br>
                 <strong>How to fix:</strong>
-                Please run the appropriate command for your system:
+                Please run the appropriate commands for your system, then restart Jellyfin:
                 <ul style="margin: 6px 0 0 0; padding-left: 20px;">
-                    <li style="margin-bottom:8px;"><strong>Linux (Native):</strong> Run <code id="linuxFixCmd">sudo chmod 666 /usr/share/jellyfin/web/index.html</code> then restart Jellyfin.</li>
-                    <li style="margin-bottom:8px;"><strong>Docker (Run on host):</strong> Run <code id="dockerFixCmd">docker exec -u root &lt;container-name&gt; chmod 666 /jellyfin/jellyfin-web/index.html</code> then restart your container.</li>
-                    <li><strong>Windows (Admin Command Prompt):</strong> Run <code id="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "NT AUTHORITY\NetworkService:(M)"</code> then restart Jellyfin.</li>
+                    <li style="margin-bottom:10px;">
+                        <strong>Linux (Native):</strong>
+                        <br><code id="linuxChownCmd">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code>
+                        <br><code id="linuxChmodCmd">sudo chmod 664 /usr/share/jellyfin/web/index.html</code>
+                        <br><span style="font-size:0.85em; opacity:0.8;">After Jellyfin restarts and injects the script, you can optionally restore the original permissions with <code>chmod 644</code>.</span>
+                    </li>
+                    <li style="margin-bottom:10px;">
+                        <strong>Docker (Run on host):</strong>
+                        <br><code id="dockerChownCmd">docker exec -u root &lt;container-name&gt; chown jellyfin:jellyfin /jellyfin/jellyfin-web/index.html</code>
+                        <br><code id="dockerChmodCmd">docker exec -u root &lt;container-name&gt; chmod 664 /jellyfin/jellyfin-web/index.html</code>
+                    </li>
+                    <li>
+                        <strong>Windows (Admin Command Prompt):</strong>
+                        <br><code id="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "NT AUTHORITY\NetworkService:(M)"</code>
+                    </li>
                 </ul>
             </div>
             <form id="profilesConfigurationForm">
@@ -115,21 +127,32 @@
                 ApiClient.getJSON(url).then(function (result) {
                     const warningContainer = page.querySelector('#injectionWarningContainer');
                     if (warningContainer) {
-                        const failed = (result.InjectionSucceeded === false || result.injectionSucceeded === false || result.injectionSucceeded === undefined);
+                        // Jellyfin's ASP.NET Core serializer uses camelCase by default.
+                        // Only show the warning when InjectionSucceeded is explicitly false —
+                        // never treat undefined/missing as a failure (avoids a false-positive
+                        // that was firing on every page load when the plugin is working correctly).
+                        const succeeded = result.injectionSucceeded !== undefined
+                            ? result.injectionSucceeded
+                            : result.InjectionSucceeded;
+                        const failed = (succeeded === false);
                         warningContainer.style.display = failed ? 'block' : 'none';
                         if (failed) {
-                            const path = result.IndexPath || result.indexPath || '/usr/share/jellyfin/web/index.html';
-                            const linuxEl = page.querySelector('#linuxFixCmd');
-                            const dockerEl = page.querySelector('#dockerFixCmd');
-                            const windowsEl = page.querySelector('#windowsFixCmd');
-
+                            const path = result.indexPath || result.IndexPath || '/usr/share/jellyfin/web/index.html';
                             const isWindows = path.includes('\\') || path.includes(':');
                             const resolvedLinuxPath = isWindows ? '/usr/share/jellyfin/web/index.html' : path;
                             const resolvedDockerPath = isWindows ? '/jellyfin/jellyfin-web/index.html' : path;
                             const resolvedWindowsPath = isWindows ? path : 'C:\\Program Files\\Jellyfin\\Server\\jellyfin-web\\index.html';
-                            
-                            if (linuxEl) linuxEl.textContent = 'sudo chmod 666 ' + resolvedLinuxPath;
-                            if (dockerEl) dockerEl.textContent = 'docker exec -u root <container-name> chmod 666 ' + resolvedDockerPath;
+
+                            const linuxChownEl = page.querySelector('#linuxChownCmd');
+                            const linuxChmodEl = page.querySelector('#linuxChmodCmd');
+                            const dockerChownEl = page.querySelector('#dockerChownCmd');
+                            const dockerChmodEl = page.querySelector('#dockerChmodCmd');
+                            const windowsEl = page.querySelector('#windowsFixCmd');
+
+                            if (linuxChownEl) linuxChownEl.textContent = 'sudo chown jellyfin:jellyfin ' + resolvedLinuxPath;
+                            if (linuxChmodEl) linuxChmodEl.textContent = 'sudo chmod 664 ' + resolvedLinuxPath;
+                            if (dockerChownEl) dockerChownEl.textContent = 'docker exec -u root <container-name> chown jellyfin:jellyfin ' + resolvedDockerPath;
+                            if (dockerChmodEl) dockerChmodEl.textContent = 'docker exec -u root <container-name> chmod 664 ' + resolvedDockerPath;
                             if (windowsEl) windowsEl.textContent = 'icacls "' + resolvedWindowsPath + '" /grant "NT AUTHORITY\\NetworkService:(M)"';
                         }
                     }

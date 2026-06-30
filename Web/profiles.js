@@ -1874,7 +1874,10 @@
                             pin: pin,
                             avatarColor: selectedColor,
                             maxParentalRating: rating || null,
-                            enabledFolders: checkedLibs,
+                            // Send null (not empty array) when no libraries are checked.
+                            // An empty array tells the server "allow no libraries",
+                            // while null means "inherit all accessible libraries from master".
+                            enabledFolders: checkedLibs.length > 0 ? checkedLibs : null,
                             masterPin: this.masterPin,
                             lockoutMinutes: lockoutMinutes,
                             bypassPinOnLocalNetwork: bypassPin,
@@ -2357,10 +2360,14 @@
                     let checkedDevices = null;
                     if (!profile.isMaster) {
                         rating = document.getElementById('edit-rating-select').value;
-                        checkedLibs = [];
+                        const rawLibs = [];
                         content.querySelectorAll('.library-checkbox:checked').forEach(cb => {
-                            checkedLibs.push(cb.value);
+                            rawLibs.push(cb.value);
                         });
+                        // Send null (not empty array) when no libraries are checked.
+                        // An empty array tells the server "allow no libraries",
+                        // while null means "inherit all accessible libraries from master".
+                        checkedLibs = rawLibs.length > 0 ? rawLibs : null;
                         checkedDevices = [];
                         content.querySelectorAll('.device-checkbox:checked').forEach(cb => {
                             checkedDevices.push(cb.value);
