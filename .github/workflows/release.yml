@@ -62,6 +62,11 @@ jobs:
           git add manifest.json
           git diff --staged --quiet && echo "No changes to commit" && exit 0
           git commit -m "ci: update manifest checksum for ${{ github.ref_name }} [skip ci]"
+          # Fetch latest main and rebase our manifest commit on top of it.
+          # This handles the case where main has advanced since the tag was created
+          # (e.g. a rebase was needed after pushing the tag due to a concurrent CI commit).
+          git fetch origin main
+          git rebase origin/main
           git push origin HEAD:main
 
       - name: Get release notes from manifest changelog
