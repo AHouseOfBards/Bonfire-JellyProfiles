@@ -465,7 +465,8 @@ Retrieves all user profile mappings configured on the server.
       "requiresPin": false
     }
   ],
-  "injectionSucceeded": true
+  "injectionSucceeded": true,
+  "indexPath": "/usr/share/jellyfin/web/index.html"
 }
 ```
 
@@ -474,6 +475,7 @@ Retrieves all user profile mappings configured on the server.
 | `masterUsers` | array | List of master accounts. Each entry has `profileUserId`, `profileName`, `requiresPin`, `maxProfiles`, and `limitOverride`. |
 | `subProfiles` | array | List of sub-profiles. Each entry has `profileUserId`, `profileName`, `masterName`, and `requiresPin`. |
 | `injectionSucceeded` | boolean | Indicates if the client-side script auto-injection into `index.html` succeeded. |
+| `indexPath` | string | The resolved absolute file path to Jellyfin's `index.html` on the host system. |
 
 * **Error Responses:**
   * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
