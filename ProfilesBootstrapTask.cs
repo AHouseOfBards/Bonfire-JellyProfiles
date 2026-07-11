@@ -34,7 +34,7 @@ namespace Jellyfin.Profiles
         {
             get
             {
-                var version = Plugin.Instance?.Version?.ToString() ?? "1.1.11";
+                var version = Plugin.Instance?.Version?.ToString() ?? "1.1.12";
                 return $"<script src=\"/plugins/profiles/profiles.js?v={version}\" defer></script>";
             }
         }

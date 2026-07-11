@@ -264,8 +264,12 @@ namespace Jellyfin.Profiles.Controllers
             var masterPolicy = masterUserDto.Policy;
             var masterConfig = masterUserDto.Configuration;
 
-            // Build target policy
-            var targetPolicy = new UserPolicy();
+            // Build target policy from the newly created Jellyfin user so required provider
+            // fields (e.g. AuthenticationProviderId) are preserved. Jellyfin 10.11 enforces
+            // AuthenticationProviderId as NOT NULL, so using new UserPolicy() would leave it
+            // null and cause UpdatePolicyAsync to throw. (Fix by PepeTechs, PR #6)
+            var targetUserDto = _userManager.GetUserDto(targetUser, string.Empty);
+            var targetPolicy = targetUserDto.Policy;
             CopyUserPolicy(masterPolicy, targetPolicy);
             targetPolicy.IsAdministrator = false;
             targetPolicy.IsHidden = true;
