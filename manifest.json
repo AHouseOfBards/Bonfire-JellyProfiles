@@ -13,7 +13,7 @@
         "changelog": "Fix: Creating a sub-profile no longer throws 'Error processing request' on Jellyfin 10.11. Root cause: the profile policy was initialized with new UserPolicy(), leaving AuthenticationProviderId null — which Jellyfin 10.11 enforces as NOT NULL in UpdatePolicyAsync. Policy is now seeded from the newly created user's own DTO so all required provider fields are preserved. (Thanks to PepeTechs for the PR.) Also corrects the v1.1.11.0 manifest checksum which was mistakenly left as all-zeros.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1.12/Jellyfin.Profiles.zip",
-        "checksum": "00000000000000000000000000000000",
+        "checksum": "c2139849050e6487ed056121a8cc5645",
         "timestamp": "2026-07-11T03:10:00Z"
       },
       {
