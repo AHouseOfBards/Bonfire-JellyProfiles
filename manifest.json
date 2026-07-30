@@ -13,7 +13,7 @@
         "changelog": "Fix: Plugin now loads correctly on Jellyfin 10.11.5. The previous release was compiled against 10.11.6, which caused a loader-level assembly version mismatch (FileNotFoundException on MediaBrowser.Common/Controller/Model) on servers running 10.11.5. Compile target downgraded to 10.11.5 — the plugin remains fully compatible with 10.11.6 and later patch releases.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1.13/Jellyfin.Profiles.zip",
-        "checksum": "00000000000000000000000000000000",
+        "checksum": "dc0ae7f7bf93122af4e2563481a5579e",
         "timestamp": "2026-07-30T20:15:00Z"
       },
       {
