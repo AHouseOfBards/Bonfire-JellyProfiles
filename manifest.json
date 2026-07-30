@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.1.13.0",
+        "changelog": "Fix: Plugin now loads correctly on Jellyfin 10.11.5. The previous release was compiled against 10.11.6, which caused a loader-level assembly version mismatch (FileNotFoundException on MediaBrowser.Common/Controller/Model) on servers running 10.11.5. Compile target downgraded to 10.11.5 — the plugin remains fully compatible with 10.11.6 and later patch releases.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1.13/Jellyfin.Profiles.zip",
+        "checksum": "00000000000000000000000000000000",
+        "timestamp": "2026-07-30T20:15:00Z"
+      },
+      {
         "version": "1.1.12.0",
         "changelog": "Fix: Creating a sub-profile no longer throws 'Error processing request' on Jellyfin 10.11. Root cause: the profile policy was initialized with new UserPolicy(), leaving AuthenticationProviderId null — which Jellyfin 10.11 enforces as NOT NULL in UpdatePolicyAsync. Policy is now seeded from the newly created user's own DTO so all required provider fields are preserved. (Thanks to PepeTechs for the PR.) Also corrects the v1.1.11.0 manifest checksum which was mistakenly left as all-zeros.",
         "targetAbi": "10.11.0.0",
