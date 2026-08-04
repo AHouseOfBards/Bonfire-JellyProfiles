@@ -139,12 +139,17 @@ jobs:
           set -euo pipefail
           V="${{ steps.version.outputs.version }}"
 
-          # Read from the pushed manifest on main, not the local copy.
-          MANIFEST_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/manifest.json"
-          for i in 1 2 3 4 5; do
-            if curl -fsSL "$MANIFEST_URL" -o published-manifest.json; then break; fi
-            echo "Manifest not available yet (attempt $i); retrying in 10s..."
-            sleep 10
+          # Read from the pushed manifest on main using cache-busting headers & query string.
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            MANIFEST_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/manifest.json?cb=$(date +%s)"
+            if curl -fsSL -H "Cache-Control: no-cache, no-store" -H "Pragma: no-cache" "$MANIFEST_URL" -o published-manifest.json; then
+              EXPECTED=$(jq -r --arg v "$V" '.[0].versions[] | select(.version == $v) | .checksum' published-manifest.json || echo "")
+              if [ -n "$EXPECTED" ] && [ "$EXPECTED" != "null" ] && [ "$EXPECTED" != "00000000000000000000000000000000" ]; then
+                break
+              fi
+            fi
+            echo "Manifest or updated checksum not available yet (attempt $i); retrying in 5s..."
+            sleep 5
           done
 
           EXPECTED=$(jq -r --arg v "$V" '.[0].versions[] | select(.version == $v) | .checksum' published-manifest.json)
@@ -152,15 +157,15 @@ jobs:
           echo "Published manifest checksum: ${EXPECTED}"
           echo "Published sourceUrl:         ${SOURCE}"
 
-          if [ -z "$EXPECTED" ] || [ "$EXPECTED" = "null" ]; then
-            echo "::error::Published manifest has no checksum for ${V} — the manifest push did not land."
+          if [ -z "$EXPECTED" ] || [ "$EXPECTED" = "null" ] || [ "$EXPECTED" = "00000000000000000000000000000000" ]; then
+            echo "::error::Published manifest has no valid checksum for ${V} — the manifest push did not land or CDN cache is stale."
             exit 1
           fi
 
-          for i in 1 2 3 4 5; do
-            if curl -fsSL "$SOURCE" -o published.zip; then break; fi
-            echo "Release asset not available yet (attempt $i); retrying in 10s..."
-            sleep 10
+          for i in 1 2 3 4 5 6 7 8; do
+            if curl -fsSL -H "Cache-Control: no-cache, no-store" -H "Pragma: no-cache" "$SOURCE" -o published.zip; then break; fi
+            echo "Release asset not available yet (attempt $i); retrying in 5s..."
+            sleep 5
           done
 
           ACTUAL=$(md5sum published.zip | awk '{print $1}')
