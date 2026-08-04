@@ -1532,8 +1532,30 @@ namespace Jellyfin.Profiles.Controllers
 
             var currentUserIdVal = GetCurrentUserId();
             if (currentUserIdVal == null) return Unauthorized();
+            Guid currentUserId = currentUserIdVal.Value;
+
+            // Resolve to the master account (a sub-profile calling this should see
+            // its master's devices, not its own — sub-profiles don't have sessions).
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
+
+            // Collect all Jellyfin user IDs that belong to this master account
+            // (master + all sub-profiles) so we match sessions from any of them.
+            var householdUserIds = new HashSet<Guid> { masterUserId };
+            foreach (var m in config.Mappings.Where(m => m.MasterUserId == masterUserId))
+            {
+                householdUserIds.Add(m.ProfileUserId);
+            }
+
+            // Build a set of device IDs that this household has active/recent sessions on.
+            var householdDeviceIds = _sessionManager.Sessions
+                .Where(s => householdUserIds.Contains(s.UserId))
+                .Select(s => s.DeviceId)
+                .Where(id => !string.IsNullOrEmpty(id))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             var devices = config.KnownDevices
+                .Where(d => householdDeviceIds.Contains(d.DeviceId))
                 .GroupBy(d => d.DeviceId, StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.OrderByDescending(d => d.LastSeen).First())
                 .OrderByDescending(d => d.LastSeen)

@@ -141,7 +141,13 @@ namespace Jellyfin.Profiles
                 bool hasBody = html.Contains(BodyMarker, StringComparison.Ordinal);
                 bool hasHead = html.Contains(HeadMarker, StringComparison.Ordinal);
 
-                if (hasBody && hasHead)
+                // Check that the script tag matches the *current* version, not just that
+                // some version is present. After a plugin update the old ?v=1.1.x tag
+                // stays in index.html and the browser keeps serving the cached old JS,
+                // so new features (like tag filtering) silently never appear.
+                bool bodyVersionCurrent = html.Contains(BodyScriptTag, StringComparison.Ordinal);
+
+                if (hasBody && bodyVersionCurrent && hasHead)
                 {
                     _logger.LogDebug(
                         "ProfilesPlugin: Scripts already correctly present in {Path} — no changes made.",
