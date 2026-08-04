@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Common.Configuration;
@@ -191,36 +192,17 @@ namespace Jellyfin.Profiles
 
                 bool changed = false;
 
-                // ── 1. Clean up any existing early-hide script ──────────────────
-                int oldScriptIdx = html.IndexOf("<script id=\"jpf-eh\">", StringComparison.OrdinalIgnoreCase);
-                if (oldScriptIdx != -1)
+                // ── 1. Update or inject head early-hide script ───────────────────
+                var headRegex = new Regex(@"<script id=""jpf-eh"">[\s\S]*?</script>", RegexOptions.IgnoreCase);
+                if (headRegex.IsMatch(html))
                 {
-                    int endScriptIdx = html.IndexOf("</script>", oldScriptIdx, StringComparison.OrdinalIgnoreCase);
-                    if (endScriptIdx != -1)
+                    if (!html.Contains(HeadScript, StringComparison.Ordinal))
                     {
-                        html = html.Remove(oldScriptIdx, endScriptIdx + "</script>".Length - oldScriptIdx);
+                        html = headRegex.Replace(html, HeadScript);
                         changed = true;
                     }
                 }
-
-                // ── 2. Clean up any existing body script ────────────────────────
-                int oldBodyIdx = html.IndexOf(BodyMarker, StringComparison.OrdinalIgnoreCase);
-                if (oldBodyIdx != -1)
-                {
-                    int tagStart = html.LastIndexOf("<script", oldBodyIdx, StringComparison.OrdinalIgnoreCase);
-                    if (tagStart != -1)
-                    {
-                        int tagEnd = html.IndexOf("</script>", oldBodyIdx, StringComparison.OrdinalIgnoreCase);
-                        if (tagEnd != -1)
-                        {
-                            html = html.Remove(tagStart, tagEnd + "</script>".Length - tagStart);
-                            changed = true;
-                        }
-                    }
-                }
-
-                // ── 3. Inject new early-hide script right after <head> ──────────
-                if (!html.Contains(HeadMarker, StringComparison.Ordinal))
+                else
                 {
                     int headIdx = html.IndexOf("<head>", StringComparison.OrdinalIgnoreCase);
                     if (headIdx != -1)
@@ -230,8 +212,17 @@ namespace Jellyfin.Profiles
                     }
                 }
 
-                // ── 4. Inject new deferred client script before </body> ──────────
-                if (!html.Contains(BodyMarker, StringComparison.Ordinal))
+                // ── 2. Update or inject body script ──────────────────────────────
+                var bodyRegex = new Regex(@"<script[^>]*src=[""'][^""']*/plugins/profiles/profiles\.js[^""']*[""'][^>]*>\s*(</script>)?", RegexOptions.IgnoreCase);
+                if (bodyRegex.IsMatch(html))
+                {
+                    if (!html.Contains(BodyScriptTag, StringComparison.Ordinal))
+                    {
+                        html = bodyRegex.Replace(html, BodyScriptTag);
+                        changed = true;
+                    }
+                }
+                else
                 {
                     int bodyIdx = html.IndexOf("</body>", StringComparison.OrdinalIgnoreCase);
                     if (bodyIdx != -1)
