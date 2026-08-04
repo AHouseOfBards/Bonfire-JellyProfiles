@@ -13,7 +13,7 @@
         "changelog": "Fix: Plugin update no longer leaves the old client script cached in the browser — the injection now detects when the script tag's version cache-buster is stale and re-injects with the current version, so new UI features (like tag filtering) appear immediately after update without a manual cache clear. Fix: the 'Allowed Devices' dropdown when creating or editing a sub-profile now shows only devices the calling master account has sessions on, instead of every device that ever connected to the server. Fix: the 'injection failed' dashboard banner no longer appears as a false positive after a successful injection on a plugin update.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.2.1/Jellyfin.Profiles.zip",
-        "checksum": "00000000000000000000000000000000",
+        "checksum": "398e5140f4c4281952b3d68bfb103421",
         "timestamp": "2026-08-04T04:10:00Z"
       },
       {
