@@ -926,13 +926,18 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
+            var version = Plugin.Instance?.Version?.ToString()
+                          ?? typeof(ProfilesBootstrapTask).Assembly.GetName().Version?.ToString()
+                          ?? "1.2.5";
+
             return Ok(new
             {
                 MasterUsers = masterUsersList,
                 SubProfiles = subProfilesList,
                 InjectionSucceeded = ProfilesBootstrapTask.InjectionSucceeded,
                 IsVersionStale = ProfilesBootstrapTask.IsVersionStale,
-                IndexPath = ProfilesBootstrapTask.IndexPath
+                IndexPath = ProfilesBootstrapTask.IndexPath,
+                PluginVersion = version
             });
         }
 

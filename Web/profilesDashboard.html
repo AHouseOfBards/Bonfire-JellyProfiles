@@ -47,8 +47,9 @@
                 </ul>
             </div>
             <form id="profilesConfigurationForm">
-                <div class="sectionTitleContainer">
+                <div class="sectionTitleContainer" style="display:flex; align-items:center; justify-content:space-between;">
                     <h2 class="sectionTitle">Bonfire Settings</h2>
+                    <span id="pluginVersionBadge" style="font-size:0.85em; font-weight:600; opacity:0.8; background:rgba(255,255,255,0.08); padding:3px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12);">v1.2.5</span>
                 </div>
 
                 <div style="background:rgba(0,164,220,0.12);border:1px solid rgba(0,164,220,0.35);border-radius:6px;padding:14px 18px;margin-bottom:2em;font-size:0.95rem;line-height:1.6;">
@@ -156,6 +157,12 @@
                         : result.IsVersionStale;
 
                     const failed = (succeeded === false);
+
+                    const ver = result.pluginVersion || result.PluginVersion;
+                    if (ver) {
+                        const badge = page.querySelector('#pluginVersionBadge');
+                        if (badge) badge.textContent = 'v' + ver;
+                    }
 
                     if (warningContainer) {
                         warningContainer.style.display = failed ? 'block' : 'none';

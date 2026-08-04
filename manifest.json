@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.2.5.0",
+        "changelog": "UI: Added running plugin version badge to admin settings page header (e.g. v1.2.5). Fix: Atomic Regex tag replacement and seamless script tag updates on server startup.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.2.5/Jellyfin.Profiles.zip",
+        "checksum": "00000000000000000000000000000000",
+        "timestamp": "2026-08-04T04:56:00Z"
+      },
+      {
         "version": "1.2.4.0",
         "changelog": "Fix: Replaced manual index.html string slicing with atomic Regex tag replacements. Existing script tags (e.g. from older releases) are now updated in-place to current version cache-busters without leaving stale version tags behind.",
         "targetAbi": "10.11.0.0",
