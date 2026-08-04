@@ -10,6 +10,10 @@ namespace Jellyfin.Profiles.Models
         public string AvatarColor { get; set; } = "#1F77B4";
         public string? MaxParentalRating { get; set; }
         public List<Guid>? EnabledFolders { get; set; }
+        /// <summary>Tags this profile is blocked from seeing. Null = block nothing.</summary>
+        public List<string>? BlockedTags { get; set; }
+        /// <summary>When non-empty, restricts this profile to items carrying one of these tags.</summary>
+        public List<string>? AllowedTags { get; set; }
         public string? MasterPin { get; set; }
         /// <summary>Minutes of inactivity before auto-lock. 0 = never. Null = use default (5).</summary>
         public int? LockoutMinutes { get; set; }

@@ -37,23 +37,69 @@ jobs:
           echo "md5=$(md5sum dist/Jellyfin.Profiles.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
           echo "Checksum: $(md5sum dist/Jellyfin.Profiles.zip | awk '{print $1}')"
 
-      - name: Extract version from csproj
+      - name: Extract version from csproj and cross-check the tag
         id: version
         run: |
+          set -euo pipefail
           VERSION=$(grep '<Version>' Jellyfin.Profiles.csproj | sed 's/.*<Version>\(.*\)<\/Version>/\1/' | tr -d '[:space:]')
           FULL="${VERSION}.0"
+          TAG="${GITHUB_REF_NAME#v}"
+
+          # The tag drives the release URL; the csproj version drives which manifest entry
+          # gets the checksum. If they drift, the workflow would happily stamp the checksum
+          # onto the WRONG entry and publish a release whose manifest entry is never updated.
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "::error::Tag v${TAG} does not match <Version>${VERSION}</Version> in Jellyfin.Profiles.csproj."
+            echo "::error::Bump the csproj version and re-tag so the manifest entry and release URL agree."
+            exit 1
+          fi
+
           echo "version=${FULL}" >> $GITHUB_OUTPUT
-          echo "Detected version: ${FULL}"
+          echo "Detected version: ${FULL} (tag v${TAG})"
 
       - name: Update manifest.json with correct checksum
         run: |
-          jq --arg v "${{ steps.version.outputs.version }}" \
-             --arg c "${{ steps.checksum.outputs.md5 }}" \
+          set -euo pipefail
+          V="${{ steps.version.outputs.version }}"
+          C="${{ steps.checksum.outputs.md5 }}"
+
+          # Fail loudly when the entry is missing. jq's map() silently matches nothing and
+          # exits 0, which is how releases shipped with an all-zeros placeholder checksum
+          # and could not be installed.
+          COUNT=$(jq --arg v "$V" '[.[0].versions[] | select(.version == $v)] | length' manifest.json)
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::manifest.json has no versions[] entry for ${V}."
+            echo "::error::Add the entry (changelog, targetAbi, sourceUrl, timestamp) before tagging."
+            echo "::error::Existing versions: $(jq -r '[.[0].versions[].version] | join(", ")' manifest.json)"
+            exit 1
+          fi
+          if [ "$COUNT" -gt 1 ]; then
+            echo "::error::manifest.json has ${COUNT} entries for ${V}. Remove the duplicates."
+            exit 1
+          fi
+          if [ -z "$C" ]; then
+            echo "::error::Checksum step produced an empty value."
+            exit 1
+          fi
+
+          jq --arg v "$V" --arg c "$C" \
              '.[0].versions |= map(if .version == $v then .checksum = $c else . end)' \
              manifest.json > manifest.tmp.json
           mv manifest.tmp.json manifest.json
-          echo "Manifest entry for ${{ steps.version.outputs.version }}:"
-          jq --arg v "${{ steps.version.outputs.version }}" '.[0].versions[] | select(.version == $v)' manifest.json
+
+          # Confirm the value actually landed, rather than trusting the edit.
+          WRITTEN=$(jq -r --arg v "$V" '.[0].versions[] | select(.version == $v) | .checksum' manifest.json)
+          if [ "$WRITTEN" != "$C" ]; then
+            echo "::error::Checksum write failed: manifest has '${WRITTEN}', expected '${C}'."
+            exit 1
+          fi
+          case "$WRITTEN" in
+            *[!0]*) : ;;
+            *) echo "::error::Checksum is all zeros — refusing to publish an uninstallable release."; exit 1 ;;
+          esac
+
+          echo "Manifest entry for ${V}:"
+          jq --arg v "$V" '.[0].versions[] | select(.version == $v)' manifest.json
 
       - name: Commit and push updated manifest
         run: |
@@ -84,3 +130,45 @@ jobs:
           files: dist/Jellyfin.Profiles.zip
           body: ${{ steps.notes.outputs.notes }}
           make_latest: true
+
+      # End-to-end check against what users actually install: re-download the published
+      # asset from the release URL in the manifest and confirm its MD5 matches the
+      # published checksum. Catches a stale/failed manifest push or a re-zipped asset.
+      - name: Verify published asset matches manifest checksum
+        run: |
+          set -euo pipefail
+          V="${{ steps.version.outputs.version }}"
+
+          # Read from the pushed manifest on main, not the local copy.
+          MANIFEST_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/manifest.json"
+          for i in 1 2 3 4 5; do
+            if curl -fsSL "$MANIFEST_URL" -o published-manifest.json; then break; fi
+            echo "Manifest not available yet (attempt $i); retrying in 10s..."
+            sleep 10
+          done
+
+          EXPECTED=$(jq -r --arg v "$V" '.[0].versions[] | select(.version == $v) | .checksum' published-manifest.json)
+          SOURCE=$(jq -r --arg v "$V" '.[0].versions[] | select(.version == $v) | .sourceUrl' published-manifest.json)
+          echo "Published manifest checksum: ${EXPECTED}"
+          echo "Published sourceUrl:         ${SOURCE}"
+
+          if [ -z "$EXPECTED" ] || [ "$EXPECTED" = "null" ]; then
+            echo "::error::Published manifest has no checksum for ${V} — the manifest push did not land."
+            exit 1
+          fi
+
+          for i in 1 2 3 4 5; do
+            if curl -fsSL "$SOURCE" -o published.zip; then break; fi
+            echo "Release asset not available yet (attempt $i); retrying in 10s..."
+            sleep 10
+          done
+
+          ACTUAL=$(md5sum published.zip | awk '{print $1}')
+          echo "Downloaded asset MD5:        ${ACTUAL}"
+
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::Checksum mismatch — users will get 'checksum mismatch' on install."
+            echo "::error::manifest=${EXPECTED} asset=${ACTUAL}"
+            exit 1
+          fi
+          echo "✅ Published asset matches the manifest checksum. Install will succeed."

@@ -81,7 +81,12 @@ namespace Jellyfin.Profiles.Controllers
 
                 var linkedMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == linkedId);
                 bool masterRequiresPin = linkedMapping != null && !string.IsNullOrEmpty(linkedMapping.PinHash);
-                if (isLocal && linkedMapping != null && linkedMapping.BypassPinOnLocalNetwork)
+
+                // Mirror the switch endpoint: the LAN bypass applies to your own account only,
+                // never to another account reached through a Bonfire link. Reporting otherwise
+                // here would send the client into a PIN-less switch the server then rejects.
+                if (isLocal && linkedId == masterUserId
+                    && linkedMapping != null && linkedMapping.BypassPinOnLocalNetwork)
                 {
                     masterRequiresPin = false;
                 }
@@ -134,6 +139,8 @@ namespace Jellyfin.Profiles.Controllers
                                 IsMaster = false,
                                 m.LockoutMinutes,
                                 EnabledFolders = m.EnabledFolders ?? new List<Guid>(),
+                                BlockedTags = m.BlockedTags ?? new List<string>(),
+                                AllowedTags = m.AllowedTags ?? new List<string>(),
                                 BypassPinOnLocalNetwork = m.BypassPinOnLocalNetwork,
                                 AllowedDeviceIds = m.AllowedDeviceIds ?? new List<string>(),
                                 IsBonfire = (linkedId != masterUserId),
@@ -215,7 +222,7 @@ namespace Jellyfin.Profiles.Controllers
                 var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
                 if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
                 {
-                    if (string.IsNullOrEmpty(request.MasterPin) || HashPin(request.MasterPin) != masterMapping.PinHash)
+                    if (!VerifyPinAndUpgrade(request.MasterPin, masterMapping, config))
                     {
                         return BadRequest("Invalid Master PIN code.");
                     }
@@ -240,6 +247,16 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     return BadRequest("PIN code must be a numeric value between 4 and 8 digits.");
                 }
+            }
+
+            // Reject an allow-list that shares no tags with the master's, which would leave the
+            // profile with an empty library. Checked before the user is created so we don't
+            // leave a half-built account behind.
+            var allowedTagsError = ValidateAllowedTags(
+                _userManager.GetUserDto(masterUser, string.Empty).Policy, request.AllowedTags);
+            if (allowedTagsError != null)
+            {
+                return BadRequest(allowedTagsError);
             }
 
             // Standardize username to avoid global collisions
@@ -287,6 +304,15 @@ namespace Jellyfin.Profiles.Controllers
                     targetPolicy.MaxParentalRating = masterPolicy.MaxParentalRating.Value;
                 }
             }
+
+            // Tag-based filtering. Stored on the mapping as the profile's own lists; the master's
+            // tags are merged in here and re-merged on every switch.
+            var profileBlockedTags = NormalizeTags(request.BlockedTags);
+            var profileAllowedTags = NormalizeTags(request.AllowedTags);
+            var (resolvedBlockedTags, resolvedAllowedTags) =
+                ResolveTagPolicy(masterPolicy, profileBlockedTags, profileAllowedTags);
+            targetPolicy.BlockedTags = resolvedBlockedTags;
+            targetPolicy.AllowedTags = resolvedAllowedTags;
 
             // Library folder filtering (propagate master blocks)
             List<Guid> validatedFolders = new List<Guid>();
@@ -340,11 +366,13 @@ namespace Jellyfin.Profiles.Controllers
                     MasterUserId = masterUserId,
                     ProfileName = request.ProfileName,
                     PinHash = HashPin(request.Pin),
-                    AvatarColor = request.AvatarColor,
+                    AvatarColor = SanitizeAvatarColor(request.AvatarColor),
                     IsHidden = true,
                     LockoutMinutes = request.LockoutMinutes ?? 5,
                     // Store the selected libraries as the plugin's own ground truth
                     EnabledFolders = validatedFolders,
+                    BlockedTags = profileBlockedTags,
+                    AllowedTags = profileAllowedTags,
                     BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork ?? false,
                     AllowedDeviceIds = request.AllowedDeviceIds ?? new List<string>(),
                     ProfileImage = SaveProfileImage(targetUser.Id, request.ProfileImage)
@@ -393,7 +421,7 @@ namespace Jellyfin.Profiles.Controllers
             var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
             if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
             {
-                if (string.IsNullOrEmpty(request.MasterPin) || HashPin(request.MasterPin) != masterMapping.PinHash)
+                if (!VerifyPinAndUpgrade(request.MasterPin, masterMapping, config))
                 {
                     return BadRequest("Invalid Master PIN code.");
                 }
@@ -531,6 +559,10 @@ namespace Jellyfin.Profiles.Controllers
 
             var linkedMasterIds = GetLinkedMasterUserIds(callerMasterUserId, config);
 
+            // True when the target is someone else's master account reached through a Bonfire
+            // link, rather than the caller's own account or one of its sub-profiles.
+            bool isCrossAccountMasterSwitch = false;
+
             // Validate switch permissions: must belong to the same master user group or a linked Bonfire group.
             if (request.ProfileId == callerMasterUserId)
             {
@@ -538,7 +570,25 @@ namespace Jellyfin.Profiles.Controllers
             }
             else if (linkedMasterIds.Contains(request.ProfileId))
             {
-                // Switching to a linked master profile is allowed
+                isCrossAccountMasterSwitch = true;
+
+                // Switching to a *different* master account via a Bonfire link hands the
+                // caller a real session token for that account — including its admin rights
+                // if it has any. The owner's PIN is the only thing standing between a shared
+                // Bonfire code and full account access, so an unprotected master account is
+                // not reachable this way at all.
+                var linkedMasterMapping = config.Mappings
+                    .FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
+
+                if (string.IsNullOrEmpty(linkedMasterMapping?.PinHash))
+                {
+                    _logger.LogWarning(
+                        "ProfilesPlugin: Blocked Bonfire switch from {Caller} into unprotected master account {Target}.",
+                        callerMasterUserId, request.ProfileId);
+                    return BadRequest(
+                        "This account has no PIN set, so it cannot be opened from a shared Bonfire. " +
+                        "Its owner must set a profile PIN before it can be switched into.");
+                }
             }
             else
             {
@@ -567,7 +617,13 @@ namespace Jellyfin.Profiles.Controllers
             var pinHashToCheck = mapping?.PinHash;
             if (!string.IsNullOrEmpty(pinHashToCheck))
             {
-                bool bypass = mapping != null && mapping.BypassPinOnLocalNetwork && isLocal;
+                // The LAN bypass is a convenience for your own household. It deliberately does
+                // NOT apply when stepping into another account through a Bonfire — sharing a
+                // network is not consent to skip that account's PIN.
+                bool bypass = mapping != null
+                              && mapping.BypassPinOnLocalNetwork
+                              && isLocal
+                              && !isCrossAccountMasterSwitch;
                 if (!bypass)
                 {
                     if (RateLimiter.Pin.IsRateLimited(rateLimitKey))
@@ -575,8 +631,8 @@ namespace Jellyfin.Profiles.Controllers
                         return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
                     }
 
-                    var inputHash = HashPin(request.Pin);
-                    if (pinHashToCheck != inputHash)
+                    // mapping is non-null here — pinHashToCheck came from it.
+                    if (!VerifyPinAndUpgrade(request.Pin, mapping!, config))
                     {
                         RateLimiter.Pin.RecordFailure(rateLimitKey);
                         return BadRequest("Invalid PIN code.");
@@ -613,6 +669,15 @@ namespace Jellyfin.Profiles.Controllers
                 targetPolicy.IsHidden = true;
                 targetPolicy.IsDisabled = false;
                 targetPolicy.MaxParentalRating = childMaxParentalRating;
+
+                // Re-apply the profile's tag filters. CopyUserPolicy above just overwrote them with
+                // the master's, so without this every profile switch would silently drop them.
+                // Resolving from the mapping (rather than the current policy) also heals tags reset
+                // by a Jellyfin restart and picks up changes to the master's own tag policy.
+                var (reapplyBlockedTags, reapplyAllowedTags) =
+                    ResolveTagPolicy(masterPolicy, mapping?.BlockedTags, mapping?.AllowedTags);
+                targetPolicy.BlockedTags = reapplyBlockedTags;
+                targetPolicy.AllowedTags = reapplyAllowedTags;
 
                 // Determine the authoritative enabled-folder list:
                 //  - If the plugin mapping has a stored list (EnabledFolders != null), use it as ground truth.
@@ -763,7 +828,8 @@ namespace Jellyfin.Profiles.Controllers
                             return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
                         }
 
-                        if (string.IsNullOrEmpty(request.Pin) || HashPin(request.Pin) != pinHash)
+                        // masterMapping is non-null here — pinHash came from it.
+                        if (!VerifyPinAndUpgrade(request.Pin, masterMapping!, config))
                         {
                             RateLimiter.Pin.RecordFailure(rateLimitKey);
                             return BadRequest("Invalid PIN.");
@@ -790,7 +856,7 @@ namespace Jellyfin.Profiles.Controllers
                             return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
                         }
 
-                        if (string.IsNullOrEmpty(request.Pin) || HashPin(request.Pin) != pinHash)
+                        if (!VerifyPinAndUpgrade(request.Pin, mapping, config))
                         {
                             RateLimiter.Pin.RecordFailure(rateLimitKey);
                             return BadRequest("Invalid PIN.");
@@ -933,7 +999,7 @@ namespace Jellyfin.Profiles.Controllers
             var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
             if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
             {
-                if (string.IsNullOrEmpty(request.MasterPin) || HashPin(request.MasterPin) != masterMapping.PinHash)
+                if (!VerifyPinAndUpgrade(request.MasterPin, masterMapping, config))
                 {
                     return BadRequest("Invalid Master PIN code.");
                 }
@@ -966,6 +1032,21 @@ namespace Jellyfin.Profiles.Controllers
             
             var masterUserDto = _userManager.GetUserDto(masterUser, string.Empty);
             var masterPolicy = masterUserDto.Policy;
+
+            var allowedTagsError = ValidateAllowedTags(masterPolicy, request.AllowedTags);
+            if (allowedTagsError != null)
+            {
+                return BadRequest(allowedTagsError);
+            }
+
+            // Tag filters: a null list means "leave unchanged", so fall back to what's stored.
+            var existingMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
+            List<string>? profileBlockedTags = request.BlockedTags != null
+                ? NormalizeTags(request.BlockedTags)
+                : existingMapping?.BlockedTags;
+            List<string>? profileAllowedTags = request.AllowedTags != null
+                ? NormalizeTags(request.AllowedTags)
+                : existingMapping?.AllowedTags;
 
             // Renaming logic
             if (request.ProfileId != masterUserId)
@@ -1007,6 +1088,12 @@ namespace Jellyfin.Profiles.Controllers
                         targetPolicy.MaxParentalRating = masterPolicy.MaxParentalRating.Value;
                     }
                 }
+
+                // Tag-based filtering (clamped so it can never exceed the master's)
+                var (resolvedBlockedTags, resolvedAllowedTags) =
+                    ResolveTagPolicy(masterPolicy, profileBlockedTags, profileAllowedTags);
+                targetPolicy.BlockedTags = resolvedBlockedTags;
+                targetPolicy.AllowedTags = resolvedAllowedTags;
 
                 // Library access propagation
                 if (request.EnabledFolders != null)
@@ -1063,7 +1150,7 @@ namespace Jellyfin.Profiles.Controllers
                         mappingEntry.ProfileName = request.ProfileName;
                     }
 
-                    mappingEntry.AvatarColor = request.AvatarColor;
+                    mappingEntry.AvatarColor = SanitizeAvatarColor(request.AvatarColor);
 
                     if (request.ProfileImage != null)
                     {
@@ -1090,6 +1177,22 @@ namespace Jellyfin.Profiles.Controllers
                     if (validatedFolders != null)
                     {
                         mappingEntry.EnabledFolders = validatedFolders;
+                    }
+
+                    // Store the profile's own tag lists, not the master-merged result, so later
+                    // changes to the master's tags flow through instead of staying baked in.
+                    // Sub-profiles only: the master's tag policy is managed in Jellyfin itself,
+                    // and the block above never applies these to the master's user account.
+                    if (request.ProfileId != masterUserId)
+                    {
+                        if (request.BlockedTags != null)
+                        {
+                            mappingEntry.BlockedTags = NormalizeTags(request.BlockedTags);
+                        }
+                        if (request.AllowedTags != null)
+                        {
+                            mappingEntry.AllowedTags = NormalizeTags(request.AllowedTags);
+                        }
                     }
 
                     if (request.BypassPinOnLocalNetwork.HasValue)
@@ -1478,6 +1581,14 @@ namespace Jellyfin.Profiles.Controllers
 
         // ── Profile Image (unauthenticated) ────────────────────────────────────────
 
+        /// <summary>
+        /// Serves a profile's stored avatar image.
+        ///
+        /// Intentionally unauthenticated: the URL is used directly as an &lt;img src&gt;, and
+        /// browsers do not attach the Authorization header to image requests. This mirrors
+        /// how Jellyfin serves its own user images (/Users/{id}/Images/Primary) — the GUID
+        /// is the capability, and the content is a low-sensitivity avatar.
+        /// </summary>
         [HttpGet("image/{profileId}")]
         public ActionResult GetProfileImage(Guid profileId)
         {
@@ -1504,9 +1615,9 @@ namespace Jellyfin.Profiles.Controllers
                     return File(System.IO.File.ReadAllBytes(filePath), contentType);
             }
 
-            if (mapping.ProfileImage.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                return Redirect(mapping.ProfileImage);
-
+            // No redirect for externally hosted images: this endpoint is anonymous, so
+            // forwarding to a stored URL would turn it into an open redirect. Clients render
+            // http(s) avatars straight from the URL in the profile list instead.
             return NotFound();
         }
 

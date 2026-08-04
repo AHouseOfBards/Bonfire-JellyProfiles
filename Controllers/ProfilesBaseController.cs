@@ -111,23 +111,129 @@ namespace Jellyfin.Profiles.Controllers
             return null;
         }
 
+        // ── PIN hashing ─────────────────────────────────────────────────────────────
+        // PINs are 4-8 digits, so the entire keyspace (10^4 - 10^8) is trivially
+        // enumerable against a fast unsalted digest. Hashes are therefore PBKDF2-SHA256
+        // with a per-PIN random salt, stored as:
+        //     pbkdf2.sha256$<iterations>$<base64 salt>$<base64 hash>
+        //
+        // Hashes written before this change are bare 64-char SHA-256 hex. Those are still
+        // accepted on verification and transparently re-hashed to the new format on the
+        // next successful entry, so no existing PIN is invalidated.
+
+        private const int PinIterations = 150_000;
+        private const int PinSaltBytes = 16;
+        private const int PinHashBytes = 32;
+        private const string PinHashPrefix = "pbkdf2.sha256$";
+
         protected string HashPin(string? pin)
         {
             if (string.IsNullOrEmpty(pin)) return string.Empty;
-            using var sha = SHA256.Create();
-            var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(pin));
-            return Convert.ToHexString(hash).ToLowerInvariant();
+
+            var salt = RandomNumberGenerator.GetBytes(PinSaltBytes);
+            var hash = Rfc2898DeriveBytes.Pbkdf2(
+                Encoding.UTF8.GetBytes(pin), salt, PinIterations, HashAlgorithmName.SHA256, PinHashBytes);
+
+            return $"{PinHashPrefix}{PinIterations}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
+        }
+
+        /// <summary>Legacy (pre-PBKDF2) unsalted SHA-256 hex digest. Verification only.</summary>
+        private static string LegacyHashPin(string pin)
+            => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(pin))).ToLowerInvariant();
+
+        /// <summary>True when the stored hash still uses the legacy format and should be upgraded.</summary>
+        protected static bool IsLegacyPinHash(string? storedHash)
+            => !string.IsNullOrEmpty(storedHash) && !storedHash.StartsWith(PinHashPrefix, StringComparison.Ordinal);
+
+        /// <summary>
+        /// Constant-time comparison of a candidate PIN against a stored hash of either format.
+        /// Returns false for an empty stored hash — "no PIN set" is handled by the callers.
+        /// </summary>
+        protected bool VerifyPinHash(string? pin, string? storedHash)
+        {
+            if (string.IsNullOrEmpty(pin) || string.IsNullOrEmpty(storedHash)) return false;
+
+            if (IsLegacyPinHash(storedHash))
+            {
+                return CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(LegacyHashPin(pin)),
+                    Encoding.UTF8.GetBytes(storedHash));
+            }
+
+            // pbkdf2.sha256$<iterations>$<salt>$<hash>
+            var parts = storedHash.Substring(PinHashPrefix.Length).Split('$');
+            if (parts.Length != 3
+                || !int.TryParse(parts[0], out var iterations)
+                || iterations <= 0)
+            {
+                _logger.LogWarning("ProfilesPlugin: Stored PIN hash is malformed; refusing to verify.");
+                return false;
+            }
+
+            try
+            {
+                var salt = Convert.FromBase64String(parts[1]);
+                var expected = Convert.FromBase64String(parts[2]);
+                var actual = Rfc2898DeriveBytes.Pbkdf2(
+                    Encoding.UTF8.GetBytes(pin), salt, iterations, HashAlgorithmName.SHA256, expected.Length);
+                return CryptographicOperations.FixedTimeEquals(actual, expected);
+            }
+            catch (FormatException ex)
+            {
+                _logger.LogWarning(ex, "ProfilesPlugin: Stored PIN hash has invalid base64; refusing to verify.");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Verifies a PIN against a mapping and, when it matches a legacy hash, upgrades the
+        /// stored hash to PBKDF2 in place. Call this instead of <see cref="VerifyPinHash"/>
+        /// wherever the mapping is available so old hashes drain away over time.
+        /// </summary>
+        protected bool VerifyPinAndUpgrade(string? pin, ProfileMapping mapping, PluginConfiguration config)
+        {
+            if (!VerifyPinHash(pin, mapping.PinHash)) return false;
+
+            if (IsLegacyPinHash(mapping.PinHash))
+            {
+                lock (config)
+                {
+                    // Re-check inside the lock — a concurrent request may have upgraded it.
+                    if (IsLegacyPinHash(mapping.PinHash))
+                    {
+                        mapping.PinHash = HashPin(pin);
+                        Plugin.Instance?.SaveConfiguration();
+                        _logger.LogInformation(
+                            "ProfilesPlugin: Upgraded legacy PIN hash for profile {Id} to PBKDF2.",
+                            mapping.ProfileUserId);
+                    }
+                }
+            }
+
+            return true;
         }
 
         // ── Cross-version compatibility helpers ─────────────────────────────────────
         // IUserManager.Users was renamed to GetUsers() in Jellyfin 10.11.7.
-        // We compile against 10.11.6 and use reflection to call whichever is present.
+        // We compile against 10.11.5 (see Jellyfin.Profiles.csproj — the target was lowered
+        // in v1.1.13 to fix a loader crash on 10.11.5) and use reflection to call whichever
+        // member is present at runtime. The resolved member is cached in a static after the
+        // first call, since these run on request paths.
+
+        private const System.Reflection.BindingFlags PublicInstance =
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
+
+        // Resolved once per user-manager implementation type. IUserManager is a singleton in
+        // Jellyfin, so in practice these each resolve exactly once for the process lifetime.
+        private static readonly ConcurrentDictionary<Type, System.Reflection.MethodInfo?> GetUsersMethodCache = new();
+        private static readonly ConcurrentDictionary<Type, System.Reflection.PropertyInfo?> UsersPropertyCache = new();
+        private static readonly ConcurrentDictionary<Type, System.Reflection.MethodInfo?> ChangePasswordCache = new();
 
         protected IEnumerable<Jellyfin.Database.Implementations.Entities.User> GetAllUsers()
         {
             var type = _userManager.GetType();
-            var method = type.GetMethod("GetUsers",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+
+            var method = GetUsersMethodCache.GetOrAdd(type, t => t.GetMethod("GetUsers", PublicInstance));
             if (method != null)
             {
                 try
@@ -139,8 +245,8 @@ namespace Jellyfin.Profiles.Controllers
                     _logger.LogWarning(ex, "ProfilesPlugin: GetUsers() reflection failed, falling back.");
                 }
             }
-            var prop = type.GetProperty("Users",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+
+            var prop = UsersPropertyCache.GetOrAdd(type, t => t.GetProperty("Users", PublicInstance));
             if (prop != null)
                 return (IEnumerable<Jellyfin.Database.Implementations.Entities.User>)prop.GetValue(_userManager)!;
 
@@ -152,17 +258,20 @@ namespace Jellyfin.Profiles.Controllers
             Jellyfin.Database.Implementations.Entities.User user, string newPassword)
         {
             var type = _userManager.GetType();
-            var byGuid = type.GetMethod("ChangePassword",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance,
-                null, new[] { typeof(Guid), typeof(string) }, null);
-            if (byGuid != null)
-                return (Task)byGuid.Invoke(_userManager, new object[] { user.Id, newPassword })!;
+            var userType = user.GetType();
 
-            var byUser = type.GetMethod("ChangePassword",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance,
-                null, new[] { user.GetType(), typeof(string) }, null);
-            if (byUser != null)
-                return (Task)byUser.Invoke(_userManager, new object[] { user, newPassword })!;
+            var resolved = ChangePasswordCache.GetOrAdd(type, t =>
+                t.GetMethod("ChangePassword", PublicInstance, null, new[] { typeof(Guid), typeof(string) }, null)
+                ?? t.GetMethod("ChangePassword", PublicInstance, null, new[] { userType, typeof(string) }, null));
+
+            if (resolved != null)
+            {
+                // The Guid overload takes the user's id; the entity overload takes the user.
+                var firstArg = resolved.GetParameters()[0].ParameterType == typeof(Guid)
+                    ? (object)user.Id
+                    : user;
+                return (Task)resolved.Invoke(_userManager, new[] { firstArg, newPassword })!;
+            }
 
             _logger.LogError("ProfilesPlugin: Could not resolve ChangePassword on IUserManager.");
             return Task.CompletedTask;
@@ -242,8 +351,14 @@ namespace Jellyfin.Profiles.Controllers
                     Client = client,
                     IpAddress = ip
                 });
+                // Keep the newest 1000 but preserve oldest-first order on disk. Sorting
+                // descending here (as this once did) flipped the file every time it was
+                // trimmed, so later appends landed at the wrong end of the timeline.
                 if (logs.Count > 1000)
-                    logs = logs.OrderByDescending(l => l.Timestamp).Take(1000).ToList();
+                    logs = logs.OrderByDescending(l => l.Timestamp)
+                               .Take(1000)
+                               .OrderBy(l => l.Timestamp)
+                               .ToList();
                 WriteAuditLogs(logs);
             }
         }
@@ -258,6 +373,7 @@ namespace Jellyfin.Profiles.Controllers
             destination.EnableAllFolders = source.EnableAllFolders;
             destination.MaxParentalRating = source.MaxParentalRating;
             destination.BlockedTags = source.BlockedTags;
+            destination.AllowedTags = source.AllowedTags;
             destination.EnablePlaybackRemuxing = source.EnablePlaybackRemuxing;
             destination.EnableVideoPlaybackTranscoding = source.EnableVideoPlaybackTranscoding;
             destination.EnableAudioPlaybackTranscoding = source.EnableAudioPlaybackTranscoding;
@@ -328,6 +444,37 @@ namespace Jellyfin.Profiles.Controllers
 
         protected const int MaxProfileImageBytes = 2 * 1024 * 1024;
 
+        // ── Presentation-value validation ───────────────────────────────────────────
+        // Avatar colours and image URLs are stored server-side and rendered on other
+        // accounts' switcher screens via Bonfire groups. They are validated here so a
+        // hostile value can never reach the client in the first place; profiles.js
+        // re-validates on render as defence in depth.
+
+        private static readonly System.Text.RegularExpressions.Regex HexColorRegex =
+            new("^#[0-9a-fA-F]{6}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        internal const string DefaultAvatarColor = "#00A4DC";
+
+        /// <summary>
+        /// Returns the colour if it is a plain 6-digit hex triplet, otherwise the default.
+        /// Anything else could break out of the <c>style="..."</c> attribute it lands in.
+        /// </summary>
+        protected static string SanitizeAvatarColor(string? color)
+            => !string.IsNullOrWhiteSpace(color) && HexColorRegex.IsMatch(color.Trim())
+                ? color.Trim()
+                : DefaultAvatarColor;
+
+        /// <summary>
+        /// Validates an externally supplied image URL. Only absolute http(s) URLs are
+        /// accepted — a bare "starts with http" check would happily pass a value like
+        /// <c>http" onerror="...</c> straight through to an img tag.
+        /// </summary>
+        protected static bool IsValidImageUrl(string? value)
+            => !string.IsNullOrWhiteSpace(value)
+               && Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri)
+               && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+               && value.IndexOfAny(new[] { '"', '\'', '<', '>' }) < 0;
+
         protected string? SaveProfileImage(Guid profileId, string? profileImageInput)
         {
             var pluginDataFolder = Path.Combine(
@@ -344,8 +491,10 @@ namespace Jellyfin.Profiles.Controllers
                 return null;
             }
 
-            if (profileImageInput.StartsWith("http", StringComparison.OrdinalIgnoreCase)) return profileImageInput;
-            if (profileImageInput.StartsWith("/plugins/profiles/image/", StringComparison.OrdinalIgnoreCase)) return profileImageInput;
+            if (profileImageInput.StartsWith("/plugins/profiles/image/", StringComparison.OrdinalIgnoreCase))
+                return profileImageInput;
+
+            if (IsValidImageUrl(profileImageInput)) return profileImageInput.Trim();
 
             if (profileImageInput.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
             {
@@ -382,16 +531,23 @@ namespace Jellyfin.Profiles.Controllers
                     _logger.LogError(ex, "ProfilesPlugin: Failed to save image for {Id}.", profileId);
                 }
             }
-            return profileImageInput;
+
+            // Unrecognised shape — reject rather than storing an arbitrary string that
+            // would later be rendered into an img src.
+            _logger.LogWarning(
+                "ProfilesPlugin: Rejected profile image for {Id} — not a data:image payload or a valid http(s) URL.",
+                profileId);
+            return null;
         }
 
         protected string GenerateSecureCode()
         {
             const string chars = "ABCDEFGHJKLMNOPQRSTUVWXYZ23456789";
-            var bytes = new byte[6];
-            using var rng = RandomNumberGenerator.Create();
-            rng.GetBytes(bytes);
-            return new string(bytes.Select(b => chars[b % chars.Length]).ToArray());
+            // RandomNumberGenerator.GetInt32 is rejection-sampled, so unlike (byte % 33)
+            // every character is uniformly distributed over the alphabet.
+            return new string(Enumerable.Range(0, 6)
+                .Select(_ => chars[RandomNumberGenerator.GetInt32(chars.Length)])
+                .ToArray());
         }
 
         protected HashSet<Guid> GetMasterAccessibleFolders(UserPolicy masterPolicy)
@@ -411,6 +567,83 @@ namespace Jellyfin.Profiles.Controllers
             var masterBlocked = masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>();
             masterAccessibleFolders.ExceptWith(masterBlocked);
             return masterAccessibleFolders;
+        }
+
+        // ── Tag-based filtering ─────────────────────────────────────────────────────
+        // Jellyfin enforces BlockedTags/AllowedTags in BaseItem.IsVisibleViaTags, matching
+        // against an item's *inherited* tags (its own, plus every parent, plus the collection
+        // folder). Tagging a series or a whole library therefore cascades to everything inside.
+
+        /// <summary>
+        /// Trims, drops blanks, and de-duplicates a tag list case-insensitively.
+        /// Never returns null, so callers can treat "unset" and "empty" alike.
+        /// </summary>
+        protected static List<string> NormalizeTags(IEnumerable<string>? tags)
+        {
+            if (tags == null) return new List<string>();
+            return tags
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Resolves the tag policy actually written to a sub-profile's Jellyfin user, clamped so
+        /// the profile can never see more than its master.
+        /// Blocked tags are additive (a sub-profile cannot unblock what the master blocks); the
+        /// allow-list is intersected with the master's when the master has one, so a sub-profile
+        /// can narrow it but never widen it.
+        /// </summary>
+        protected (string[] Blocked, string[] Allowed) ResolveTagPolicy(
+            UserPolicy masterPolicy,
+            IEnumerable<string>? profileBlocked,
+            IEnumerable<string>? profileAllowed)
+        {
+            var masterBlockedTags = NormalizeTags(masterPolicy.BlockedTags);
+            var masterAllowedTags = NormalizeTags(masterPolicy.AllowedTags);
+
+            var blocked = NormalizeTags(profileBlocked)
+                .Concat(masterBlockedTags)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var allowed = NormalizeTags(profileAllowed);
+            if (masterAllowedTags.Count > 0)
+            {
+                allowed = allowed.Count == 0
+                    ? masterAllowedTags
+                    : allowed.Where(t => masterAllowedTags.Contains(t, StringComparer.OrdinalIgnoreCase)).ToList();
+
+                // An empty intersection would hide the profile's entire library. The create/update
+                // endpoints reject that up front; this is the defensive path for a master whose
+                // allow-list changed after the sub-profile was configured.
+                if (allowed.Count == 0) allowed = masterAllowedTags;
+            }
+
+            return (blocked.ToArray(), allowed.ToArray());
+        }
+
+        /// <summary>
+        /// Validates a requested allow-list against the master's. Returns an error message when the
+        /// request would leave the profile with nothing visible, otherwise null.
+        /// </summary>
+        protected string? ValidateAllowedTags(UserPolicy masterPolicy, IEnumerable<string>? profileAllowed)
+        {
+            var requested = NormalizeTags(profileAllowed);
+            if (requested.Count == 0) return null;
+
+            var masterAllowedTags = NormalizeTags(masterPolicy.AllowedTags);
+            if (masterAllowedTags.Count == 0) return null;
+
+            if (!requested.Any(t => masterAllowedTags.Contains(t, StringComparer.OrdinalIgnoreCase)))
+            {
+                return "None of the selected allowed tags are permitted by your account. "
+                     + "A sub-profile can only narrow the tags you are allowed to see, not add new ones. "
+                     + $"Your account allows: {string.Join(", ", masterAllowedTags)}.";
+            }
+
+            return null;
         }
 
         protected List<object> GetBonfireGroupMembers(BonfireGroup group, PluginConfiguration config)

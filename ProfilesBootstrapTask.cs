@@ -34,7 +34,11 @@ namespace Jellyfin.Profiles
         {
             get
             {
-                var version = Plugin.Instance?.Version?.ToString() ?? "1.1.12";
+                // The version is only a cache-buster. Fall back to the assembly's own version
+                // rather than a hardcoded literal, which silently went stale every release.
+                var version = Plugin.Instance?.Version?.ToString()
+                              ?? typeof(ProfilesBootstrapTask).Assembly.GetName().Version?.ToString()
+                              ?? "0";
                 return $"<script src=\"/plugins/profiles/profiles.js?v={version}\" defer></script>";
             }
         }
@@ -198,9 +202,26 @@ namespace Jellyfin.Profiles
                     }
                 }
 
+                // Only claim success if both markers are actually present in the final
+                // document. Previously this was set unconditionally, so an index.html
+                // without a <head> or </body> anchor reported success while the switcher
+                // silently never loaded — and the dashboard's "injection failed" banner,
+                // the only signal users get, could never appear.
+                bool injected = html.Contains(BodyMarker, StringComparison.Ordinal)
+                                && html.Contains(HeadMarker, StringComparison.Ordinal);
+
+                if (!injected)
+                {
+                    _logger.LogWarning(
+                        "ProfilesPlugin: Could not find the expected <head> and </body> anchors in {Path}. " +
+                        "The client script was NOT injected. Add the following line before </body> manually: {Tag}",
+                        indexPath, BodyScriptTag);
+                    return;
+                }
+
                 if (changed)
                 {
-                    File.WriteAllText(indexPath, html);
+                    WriteFileAtomic(indexPath, html);
                     _logger.LogInformation(
                         "ProfilesPlugin: Client scripts injected successfully into {Path}.",
                         indexPath);
@@ -224,6 +245,31 @@ namespace Jellyfin.Profiles
             {
                 _logger.LogError(ex,
                     "ProfilesPlugin: Unexpected error while patching {Path}.", indexPath);
+            }
+        }
+
+        /// <summary>
+        /// Writes via a temp file in the same directory then replaces the original, so a
+        /// crash or a full disk mid-write cannot leave Jellyfin with a truncated index.html
+        /// (which would break the entire web client, not just this plugin).
+        ///
+        /// Falls back to a direct write if the atomic replace isn't permitted — some
+        /// container mounts allow writing a file but not creating siblings.
+        /// </summary>
+        private void WriteFileAtomic(string path, string contents)
+        {
+            var tempPath = path + ".bonfire.tmp";
+            try
+            {
+                File.WriteAllText(tempPath, contents);
+                File.Move(tempPath, path, overwrite: true);
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+            {
+                _logger.LogDebug(ex,
+                    "ProfilesPlugin: Atomic replace unavailable for {Path}; writing in place.", path);
+                try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* best effort */ }
+                File.WriteAllText(path, contents);
             }
         }
 

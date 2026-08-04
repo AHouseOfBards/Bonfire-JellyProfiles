@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.2.0.0",
+        "changelog": "New: Tag-based content filtering for sub-profiles. Each profile can now block or allow content by Jellyfin tag (e.g. 'adults', 'teens', 'kids'), matching Jellyfin's own parental-control tag feature. Tags are inherited, so tagging a series or an entire library applies to everything inside it, and enforcement is server-side so it holds on every client. Blocked tags are additive with the master account's and an allow-list can only narrow the master's, so a sub-profile can never see more than its parent. Security: fixed a stored XSS in profile avatar images and colours — these are rendered on other households' switcher screens via Bonfire groups, so a crafted value could steal another user's session token; values are now validated server-side and escaped on render. Security: profile PINs are now stored as salted PBKDF2-SHA256 hashes instead of unsalted SHA-256 (a 4-8 digit PIN was trivially recoverable from the config file); existing PINs keep working and upgrade automatically on next entry. Security: an account with no PIN can no longer be switched into from a shared Bonfire, and the LAN PIN bypass no longer applies across accounts. Security: removed an open redirect on the profile image endpoint. Fix: the client-script injection now verifies the script is actually present before reporting success — previously an index.html without the expected anchors reported success while the switcher silently never loaded, and the dashboard's failure banner could never appear. Fix: index.html is now written atomically so an interrupted write cannot corrupt the Jellyfin web client. Fix: audit log entries no longer reverse order when trimmed.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.2.0/Jellyfin.Profiles.zip",
+        "checksum": "00000000000000000000000000000000",
+        "timestamp": "2026-08-04T00:00:00Z"
+      },
+      {
         "version": "1.1.13.0",
         "changelog": "Fix: Plugin now loads correctly on Jellyfin 10.11.5. The previous release was compiled against 10.11.6, which caused a loader-level assembly version mismatch (FileNotFoundException on MediaBrowser.Common/Controller/Model) on servers running 10.11.5. Compile target downgraded to 10.11.5 — the plugin remains fully compatible with 10.11.6 and later patch releases.",
         "targetAbi": "10.11.0.0",

@@ -3,12 +3,39 @@
 
     function escapeHtml(str) {
         if (!str) return '';
-        return str
+        return String(str)
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
+    }
+
+    // Avatar colours and profile images are stored server-side and — through Bonfire
+    // groups — rendered on *other* accounts' switcher screens. Both are validated on the
+    // server, but they are re-validated here so a value predating that validation (or
+    // written directly to PluginConfiguration.xml) can never break out of its attribute.
+
+    const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+    const DEFAULT_AVATAR_COLOR = '#00A4DC';
+
+    function safeColor(color) {
+        return HEX_COLOR_RE.test(color || '') ? color : DEFAULT_AVATAR_COLOR;
+    }
+
+    /// Allows only the three shapes the plugin actually produces: its own image
+    /// endpoint, a data:image payload, and an absolute http(s) URL. Anything else
+    /// resolves to an empty src rather than being trusted.
+    function safeImageSrc(src) {
+        if (!src) return '';
+        const value = String(src).trim();
+        if (value.startsWith('/plugins/profiles/image/')) return escapeHtml(value);
+        if (/^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/=]+$/i.test(value)) return escapeHtml(value);
+        try {
+            const parsed = new URL(value, window.location.origin);
+            if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return escapeHtml(parsed.href);
+        } catch (e) { /* not a parseable URL — fall through */ }
+        return '';
     }
 
     const ProfilesPlugin = {
@@ -214,6 +241,38 @@
             return guid.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
         },
 
+        /// Normalizes the /list response into the camelCase shape the UI uses.
+        /// ASP.NET may serialize either casing depending on server configuration, so every
+        /// field is read both ways. Single definition — adding a field here reaches every
+        /// caller, which two hand-maintained copies of this map did not.
+        normalizeProfiles: function (profiles) {
+            const pick = (p, name, fallback) => {
+                const upper = name.charAt(0).toUpperCase() + name.slice(1);
+                if (p[name] !== undefined && p[name] !== null) return p[name];
+                if (p[upper] !== undefined && p[upper] !== null) return p[upper];
+                return fallback;
+            };
+
+            return (profiles || []).map(p => ({
+                profileUserId: pick(p, 'profileUserId', null),
+                profileName: pick(p, 'profileName', ''),
+                avatarInitial: pick(p, 'avatarInitial', '?'),
+                avatarColor: pick(p, 'avatarColor', '#00A4DC'),
+                requiresPin: pick(p, 'requiresPin', false),
+                isMaster: pick(p, 'isMaster', false),
+                lockoutMinutes: pick(p, 'lockoutMinutes', 5),
+                maxSubProfiles: pick(p, 'maxSubProfiles', 5),
+                bypassPinOnLocalNetwork: pick(p, 'bypassPinOnLocalNetwork', false),
+                allowedDeviceIds: pick(p, 'allowedDeviceIds', []),
+                enabledFolders: pick(p, 'enabledFolders', []),
+                blockedTags: pick(p, 'blockedTags', []),
+                allowedTags: pick(p, 'allowedTags', []),
+                isBonfire: pick(p, 'isBonfire', false),
+                profileImage: pick(p, 'profileImage', null),
+                masterUserId: pick(p, 'masterUserId', null)
+            }));
+        },
+
         initTVCheckboxes: function (container) {
             container.querySelectorAll('.library-check-label').forEach(label => {
                 if (!label.hasAttribute('tabindex')) {
@@ -233,6 +292,114 @@
                     }
                 });
             });
+        },
+
+        // ── Tag filtering ───────────────────────────────────────────────────────────
+        // Jellyfin matches blocked/allowed tags against an item's inherited tags, so a tag
+        // on a series or a whole library applies to everything inside it.
+
+        /// Fetches the distinct tags present in the master's libraries, for the suggestion
+        /// list. Degrades to an empty list — the inputs stay usable as free text.
+        fetchLibraryTags: function (apiClient, token, userId) {
+            let url;
+            try {
+                url = apiClient.getUrl('Items/Filters2', { userId: userId, recursive: true });
+            } catch (e) {
+                return Promise.resolve([]);
+            }
+            return fetch(url, { headers: this.getAuthHeaders(token) })
+                .then(res => res.ok ? res.json() : null)
+                .then(data => {
+                    const tags = (data && (data.Tags || data.tags)) || [];
+                    return Array.from(new Set(tags.filter(t => t)))
+                        .sort((a, b) => a.localeCompare(b));
+                })
+                .catch(() => []);
+        },
+
+        renderTagSuggestions: function (id, tags) {
+            return `<datalist id="${id}">${(tags || []).map(t => `<option value="${escapeHtml(t)}"></option>`).join('')}</datalist>`;
+        },
+
+        renderTagChip: function (tag) {
+            const safe = escapeHtml(tag);
+            return `<span class="tag-chip" data-tag="${safe}"><span>${safe}</span><button type="button" class="tag-chip-remove" tabindex="0" aria-label="Remove tag ${safe}">×</button></span>`;
+        },
+
+        renderTagEditor: function (id, tags, placeholder, suggestionsId) {
+            const chips = (tags || []).map(t => this.renderTagChip(t)).join('');
+            return `
+                <div class="tag-editor" id="${id}">
+                    <div class="tag-chip-list" ${(tags || []).length ? '' : 'data-empty="true"'}>${chips}</div>
+                    <div class="tag-input-row">
+                        <input type="text" class="tag-input" placeholder="${escapeHtml(placeholder)}" list="${suggestionsId}" autocomplete="off" />
+                        <button type="button" class="profiles-btn btn-secondary tag-add-btn">Add</button>
+                    </div>
+                </div>
+            `;
+        },
+
+        initTagEditors: function (container) {
+            container.querySelectorAll('.tag-editor').forEach(editor => {
+                if (editor._tagInit) return;
+                editor._tagInit = true;
+
+                const chipList = editor.querySelector('.tag-chip-list');
+                const input = editor.querySelector('.tag-input');
+                const addBtn = editor.querySelector('.tag-add-btn');
+                if (!chipList || !input || !addBtn) return;
+
+                const syncEmpty = () => {
+                    if (chipList.querySelector('.tag-chip')) {
+                        chipList.removeAttribute('data-empty');
+                    } else {
+                        chipList.setAttribute('data-empty', 'true');
+                    }
+                };
+
+                const addTag = () => {
+                    const value = (input.value || '').trim();
+                    input.value = '';
+                    if (!value) return;
+                    const exists = Array.from(chipList.querySelectorAll('.tag-chip')).some(
+                        chip => (chip.getAttribute('data-tag') || '').toLowerCase() === value.toLowerCase());
+                    if (!exists) {
+                        chipList.insertAdjacentHTML('beforeend', this.renderTagChip(value));
+                        syncEmpty();
+                    }
+                };
+
+                addBtn.addEventListener('click', (e) => { e.preventDefault(); addTag(); input.focus(); });
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); addTag(); }
+                });
+                // Committing on blur means a typed-but-not-added tag isn't silently lost on save.
+                input.addEventListener('blur', () => addTag());
+
+                chipList.addEventListener('click', (e) => {
+                    const removeBtn = e.target.closest('.tag-chip-remove');
+                    if (!removeBtn) return;
+                    e.preventDefault();
+                    removeBtn.closest('.tag-chip').remove();
+                    syncEmpty();
+                });
+                chipList.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    const removeBtn = e.target.closest('.tag-chip-remove');
+                    if (!removeBtn) return;
+                    e.preventDefault();
+                    removeBtn.closest('.tag-chip').remove();
+                    syncEmpty();
+                });
+            });
+        },
+
+        getTagEditorValues: function (container, id) {
+            const editor = container.querySelector('#' + id);
+            if (!editor) return [];
+            return Array.from(editor.querySelectorAll('.tag-chip'))
+                .map(chip => chip.getAttribute('data-tag'))
+                .filter(t => t);
         },
 
         init: function () {
@@ -704,22 +871,7 @@
                 return res.json();
             })
             .then(profiles => {
-                const normalized = (profiles || []).map(p => ({
-                    profileUserId: p.profileUserId || p.ProfileUserId,
-                    profileName: p.profileName || p.ProfileName,
-                    avatarInitial: p.avatarInitial || p.AvatarInitial,
-                    avatarColor: p.avatarColor || p.AvatarColor,
-                    requiresPin: p.requiresPin !== undefined ? p.requiresPin : p.RequiresPin,
-                    isMaster: p.isMaster !== undefined ? p.isMaster : p.IsMaster,
-                    lockoutMinutes: p.lockoutMinutes !== undefined ? p.lockoutMinutes : (p.LockoutMinutes !== undefined ? p.LockoutMinutes : 5),
-                    maxSubProfiles: p.maxSubProfiles !== undefined ? p.maxSubProfiles : (p.MaxSubProfiles !== undefined ? p.MaxSubProfiles : 5),
-                    bypassPinOnLocalNetwork: p.bypassPinOnLocalNetwork !== undefined ? p.bypassPinOnLocalNetwork : (p.BypassPinOnLocalNetwork !== undefined ? p.BypassPinOnLocalNetwork : false),
-                    allowedDeviceIds: p.allowedDeviceIds || p.AllowedDeviceIds || [],
-                    enabledFolders: p.enabledFolders || p.EnabledFolders || [],
-                    isBonfire: p.isBonfire !== undefined ? p.isBonfire : (p.IsBonfire !== undefined ? p.IsBonfire : false),
-                    profileImage: p.profileImage || p.ProfileImage || null,
-                    masterUserId: p.masterUserId || p.MasterUserId || null
-                }));
+                const normalized = this.normalizeProfiles(profiles);
                 this.cachedProfiles = normalized;
                 localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
                 this.showProfileOverlay(normalized);
@@ -945,8 +1097,8 @@
                             </svg>
                         </div>
                         ` : ''}
-                        <div class="profile-avatar" style="background-color: ${p.avatarColor}; overflow: hidden; display: flex; align-items: center; justify-content: center;">
-                            ${p.profileImage ? `<img src="${p.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : p.avatarInitial}
+                        <div class="profile-avatar" style="background-color: ${safeColor(p.avatarColor)}; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                            ${p.profileImage ? `<img src="${safeImageSrc(p.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(p.avatarInitial)}
                             ${this.isManageMode ? `
                             <div class="profile-avatar-overlay-wrap">
                                 <svg class="profile-avatar-overlay-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 32px; height: 32px; color: #fff;">
@@ -1498,9 +1650,10 @@
 
             Promise.all([
                 fetch(libUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
-                fetch(devicesUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()).catch(() => [])
+                fetch(devicesUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()).catch(() => []),
+                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId)
             ])
-            .then(([libraries, devices]) => {
+            .then(([libraries, devices, libraryTags]) => {
                 const normalizedLibs = (libraries || []).map(lib => ({
                     id: lib.id || lib.Id,
                     name: lib.name || lib.Name,
@@ -1646,6 +1799,17 @@
                                 `).join('')}
                             </div>
                         </div>
+                        ${this.renderTagSuggestions('create-tag-suggestions', libraryTags)}
+                        <div class="form-group">
+                            <label>Blocked Tags (Optional)</label>
+                            ${this.renderTagEditor('create-blocked-tags', [], 'e.g. adults', 'create-tag-suggestions')}
+                            <div class="form-hint">Hides anything carrying these tags. Tags on a series or library apply to everything inside it.</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Allowed Tags (Optional)</label>
+                            ${this.renderTagEditor('create-allowed-tags', [], 'e.g. kids', 'create-tag-suggestions')}
+                            <div class="form-hint">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items — untagged content is hidden too. Leave empty unless that's what you want.</div>
+                        </div>
                         <div id="create-error-msg" style="display:none; color:#ff6b6b; font-size:0.88rem; font-weight:600; text-align:center; padding: 8px 12px; background: rgba(255,107,107,0.1); border-radius:8px; border: 1px solid rgba(255,107,107,0.25);"></div>
                         <div class="pin-actions">
                             <button id="create-submit-btn" class="profiles-btn btn-primary">Create</button>
@@ -1686,7 +1850,7 @@
 
                 const updatePreview = (src) => {
                     if (src) {
-                        previewDiv.innerHTML = `<img src="${src}" style="width: 100%; height: 100%; object-fit: cover;" />`;
+                        previewDiv.innerHTML = `<img src="${safeImageSrc(src)}" style="width: 100%; height: 100%; object-fit: cover;" />`;
                     } else {
                         const nameVal = document.getElementById('create-name-input')?.value?.trim();
                         previewDiv.innerHTML = nameVal ? nameVal.charAt(0).toUpperCase() : '+';
@@ -1878,6 +2042,8 @@
                             // An empty array tells the server "allow no libraries",
                             // while null means "inherit all accessible libraries from master".
                             enabledFolders: checkedLibs.length > 0 ? checkedLibs : null,
+                            blockedTags: this.getTagEditorValues(content, 'create-blocked-tags'),
+                            allowedTags: this.getTagEditorValues(content, 'create-allowed-tags'),
                             masterPin: this.masterPin,
                             lockoutMinutes: lockoutMinutes,
                             bypassPinOnLocalNetwork: bypassPin,
@@ -1902,6 +2068,7 @@
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
                 });
                 this.initTVCheckboxes(content);
+                this.initTagEditors(content);
             });
         },
 
@@ -1918,9 +2085,10 @@
             Promise.all([
                 fetch(libUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
                 fetch(userUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
-                fetch(devicesUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()).catch(() => [])
+                fetch(devicesUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()).catch(() => []),
+                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId)
             ])
-            .then(([libraries, userDetails, devices]) => {
+            .then(([libraries, userDetails, devices, libraryTags]) => {
                 const normalizedLibs = (libraries || []).map(lib => ({
                     id: lib.id || lib.Id,
                     name: lib.name || lib.Name,
@@ -1999,8 +2167,8 @@
                             <label>Profile Picture</label>
                             <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 10px;">
                                 <div style="display: flex; align-items: center; gap: 15px;">
-                                    <div id="edit-image-upload-preview" style="width: 64px; height: 64px; border-radius: 50%; background-color: ${profile.avatarColor || '#00A4DC'}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: bold; text-transform: uppercase; overflow: hidden; border: 2px solid rgba(255,255,255,0.2);">
-                                        ${profile.profileImage ? `<img src="${profile.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : profile.avatarInitial}
+                                    <div id="edit-image-upload-preview" style="width: 64px; height: 64px; border-radius: 50%; background-color: ${safeColor(profile.avatarColor)}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: bold; text-transform: uppercase; overflow: hidden; border: 2px solid rgba(255,255,255,0.2);">
+                                        ${profile.profileImage ? `<img src="${safeImageSrc(profile.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(profile.avatarInitial)}
                                     </div>
                                     <div style="display: flex; flex-direction: column; gap: 8px;">
                                         <label for="edit-profile-image-file" id="edit-profile-image-label" class="profiles-btn btn-secondary" style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; font-size: 0.95rem; align-self: flex-start;" tabindex="0">
@@ -2017,7 +2185,7 @@
                                     <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
                                 </div>
                                 <div class="form-group" style="margin: 0;">
-                                    <input type="text" id="edit-profile-image-url" placeholder="Paste image URL (fallback for TV platforms)" value="${profile.profileImage && !profile.profileImage.startsWith('data:') ? profile.profileImage : ''}" />
+                                    <input type="text" id="edit-profile-image-url" placeholder="Paste image URL (fallback for TV platforms)" value="${profile.profileImage && !profile.profileImage.startsWith('data:') ? escapeHtml(profile.profileImage) : ''}" />
                                 </div>
                                 ${profile.profileImage ? `
                                     <button type="button" id="edit-clear-profile-image-btn" class="profiles-btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; align-self: flex-start;">Remove Picture</button>
@@ -2100,6 +2268,17 @@
                                 }).join('')}
                             </div>
                         </div>
+                        ${this.renderTagSuggestions('edit-tag-suggestions', libraryTags)}
+                        <div class="form-group">
+                            <label>Blocked Tags (Optional)</label>
+                            ${this.renderTagEditor('edit-blocked-tags', profile.blockedTags || [], 'e.g. adults', 'edit-tag-suggestions')}
+                            <div class="form-hint">Hides anything carrying these tags. Tags on a series or library apply to everything inside it.</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Allowed Tags (Optional)</label>
+                            ${this.renderTagEditor('edit-allowed-tags', profile.allowedTags || [], 'e.g. kids', 'edit-tag-suggestions')}
+                            <div class="form-hint">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items — untagged content is hidden too. Leave empty unless that's what you want.</div>
+                        </div>
                         ` : ''}
 
                         <div class="profile-dialog-actions">
@@ -2151,7 +2330,7 @@
 
                 const updatePreview = (src) => {
                     if (src) {
-                        previewDiv.innerHTML = `<img src="${src}" style="width: 100%; height: 100%; object-fit: cover;" />`;
+                        previewDiv.innerHTML = `<img src="${safeImageSrc(src)}" style="width: 100%; height: 100%; object-fit: cover;" />`;
                     } else {
                         previewDiv.innerHTML = profile.avatarInitial;
                     }
@@ -2358,7 +2537,13 @@
                     let rating = null;
                     let checkedLibs = null;
                     let checkedDevices = null;
+                    // Null for the master profile, which has no tag editor — the server reads
+                    // null as "leave unchanged".
+                    let blockedTags = null;
+                    let allowedTags = null;
                     if (!profile.isMaster) {
+                        blockedTags = this.getTagEditorValues(content, 'edit-blocked-tags');
+                        allowedTags = this.getTagEditorValues(content, 'edit-allowed-tags');
                         rating = document.getElementById('edit-rating-select').value;
                         const rawLibs = [];
                         content.querySelectorAll('.library-checkbox:checked').forEach(cb => {
@@ -2406,6 +2591,8 @@
                             avatarColor: selectedColor,
                             maxParentalRating: rating || null,
                             enabledFolders: checkedLibs,
+                            blockedTags: blockedTags,
+                            allowedTags: allowedTags,
                             masterPin: this.masterPin,
                             lockoutMinutes: lockoutMinutes,
                             bypassPinOnLocalNetwork: bypassPin,
@@ -2434,6 +2621,7 @@
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
                 });
                 this.initTVCheckboxes(content);
+                this.initTagEditors(content);
             })
             .catch(err => {
                 this.showAlert("Error", "Failed to load profile details: " + err.message);
@@ -2741,6 +2929,20 @@
                         errDiv.style.display = 'block';
                         return;
                     }
+                    // The server allows membership in only one group, so joining silently
+                    // drops the current one. Confirm first rather than surprising the user.
+                    if (isMember) {
+                        this.showConfirmDialog(
+                            'Leave your current Bonfire?',
+                            'You can only be in one Bonfire at a time. Joining this one will remove you from the group you are currently in.',
+                            () => submitJoin(code));
+                        return;
+                    }
+                    submitJoin(code);
+                };
+
+                const submitJoin = (code) => {
+                    errDiv.style.display = 'none';
                     // Disable to prevent double-submit; re-enable on all error paths
                     joinBtn.disabled = true;
                     joinBtn.textContent = 'Joining…';
@@ -2844,7 +3046,7 @@
 
             link.innerHTML = `
                 <div class="sidebar-profile-avatar" style="width: 24px; height: 24px; border-radius: 50%; background-color: ${color}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; flex-shrink: 0; overflow: hidden;">
-                    ${activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : initial}
+                    ${activeInfo.profileImage ? `<img src="${safeImageSrc(activeInfo.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(initial)}
                 </div>
                 <span class="sidebarLinkText">${name} (Switch)</span>
             `;
@@ -3004,22 +3206,7 @@
                     return res.json();
                 })
                 .then(profiles => {
-                    const normalized = (profiles || []).map(p => ({
-                        profileUserId: p.profileUserId || p.ProfileUserId,
-                        profileName: p.profileName || p.ProfileName,
-                        avatarInitial: p.avatarInitial || p.AvatarInitial,
-                        avatarColor: p.avatarColor || p.AvatarColor,
-                        requiresPin: p.requiresPin !== undefined ? p.requiresPin : p.RequiresPin,
-                        isMaster: p.isMaster !== undefined ? p.isMaster : p.IsMaster,
-                        lockoutMinutes: p.lockoutMinutes !== undefined ? p.lockoutMinutes : (p.LockoutMinutes !== undefined ? p.LockoutMinutes : 5),
-                        maxSubProfiles: p.maxSubProfiles !== undefined ? p.maxSubProfiles : (p.MaxSubProfiles !== undefined ? p.MaxSubProfiles : 5),
-                        bypassPinOnLocalNetwork: p.bypassPinOnLocalNetwork !== undefined ? p.bypassPinOnLocalNetwork : (p.BypassPinOnLocalNetwork !== undefined ? p.BypassPinOnLocalNetwork : false),
-                        allowedDeviceIds: p.allowedDeviceIds || p.AllowedDeviceIds || [],
-                        enabledFolders: p.enabledFolders || p.EnabledFolders || [],
-                        isBonfire: p.isBonfire !== undefined ? p.isBonfire : (p.IsBonfire !== undefined ? p.IsBonfire : false),
-                        profileImage: p.profileImage || p.ProfileImage || null,
-                        masterUserId: p.masterUserId || p.MasterUserId || null
-                    }));
+                    const normalized = this.normalizeProfiles(profiles);
                     this.cachedProfiles = normalized;
                     localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
                     this._profilePrefetchPending = false;
@@ -3118,7 +3305,7 @@
             const activeInfo = this.getCachedActiveProfile();
             b.innerHTML = `
                 <div class="profiles-header-avatar" style="background-color: ${activeInfo.color}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden;">
-                    ${activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : activeInfo.initial}
+                    ${activeInfo.profileImage ? `<img src="${safeImageSrc(activeInfo.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(activeInfo.initial)}
                 </div>
             `;
             return b;
@@ -3142,7 +3329,7 @@
             const activeInfo = this.getCachedActiveProfile();
             b.innerHTML = `
                 <div class="profiles-header-avatar" style="background-color: ${activeInfo.color}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden;">
-                    ${activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : activeInfo.initial}
+                    ${activeInfo.profileImage ? `<img src="${safeImageSrc(activeInfo.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(activeInfo.initial)}
                 </div>
             `;
             return b;
@@ -3710,6 +3897,49 @@
                 }
                 .library-check-label:focus input, .library-check-label:hover input {
                     box-shadow: 0 0 8px rgba(0, 164, 220, 0.6);
+                }
+                .tag-editor {
+                    display: flex; flex-direction: column; gap: 8px;
+                }
+                .tag-chip-list {
+                    display: flex; flex-wrap: wrap; gap: 6px;
+                    background: rgba(255,255,255,0.04); border-radius: 8px;
+                    border: 1px solid rgba(255,255,255,0.1);
+                    padding: 8px; min-height: 40px;
+                    max-height: 120px; overflow-y: auto;
+                    align-content: flex-start;
+                }
+                .tag-chip-list[data-empty="true"]::before {
+                    content: "No tags — this filter is off";
+                    font-size: 0.8rem; color: rgba(255,255,255,0.35);
+                    align-self: center;
+                }
+                .tag-chip {
+                    display: inline-flex; align-items: center; gap: 6px;
+                    background: rgba(0,164,220,0.18);
+                    border: 1px solid rgba(0,164,220,0.45);
+                    color: #fff; border-radius: 999px;
+                    padding: 3px 6px 3px 12px; font-size: 0.85rem;
+                    max-width: 100%; word-break: break-word;
+                }
+                .tag-chip-remove {
+                    background: transparent; border: none; color: rgba(255,255,255,0.7);
+                    cursor: pointer; font-size: 1rem; line-height: 1;
+                    padding: 0; width: 18px; height: 18px; border-radius: 50%;
+                    display: flex; align-items: center; justify-content: center;
+                    transition: background 0.2s, color 0.2s;
+                }
+                .tag-chip-remove:hover, .tag-chip-remove:focus {
+                    background: rgba(255,255,255,0.18); color: #fff; outline: none;
+                }
+                .tag-input-row {
+                    display: flex; gap: 8px;
+                }
+                .tag-input-row .tag-input {
+                    flex: 1; min-width: 0;
+                }
+                .tag-input-row .tag-add-btn {
+                    padding: 8px 18px; font-size: 0.9rem; flex-shrink: 0;
                 }
                 .form-hint {
                     font-size: 0.78rem;
