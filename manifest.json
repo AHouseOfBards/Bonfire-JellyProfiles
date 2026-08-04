@@ -13,7 +13,7 @@
         "changelog": "Fix: Added dedicated dashboard warning banner for pending script tag version updates. When host write permissions prevent updating index.html script tag version cache-busters during a plugin update, a distinct warning now informs admins that the profile switcher remains active and recommends a browser hard refresh (Ctrl+Shift+R) if new features do not appear.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.2.2/Jellyfin.Profiles.zip",
-        "checksum": "00000000000000000000000000000000",
+        "checksum": "aaf403bf4e487113e351fb1da8828abb",
         "timestamp": "2026-08-04T04:20:00Z"
       },
       {
