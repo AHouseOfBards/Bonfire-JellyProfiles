@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.2.2.0",
+        "changelog": "Fix: Added dedicated dashboard warning banner for pending script tag version updates. When host write permissions prevent updating index.html script tag version cache-busters during a plugin update, a distinct warning now informs admins that the profile switcher remains active and recommends a browser hard refresh (Ctrl+Shift+R) if new features do not appear.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.2.2/Jellyfin.Profiles.zip",
+        "checksum": "00000000000000000000000000000000",
+        "timestamp": "2026-08-04T04:20:00Z"
+      },
+      {
         "version": "1.2.1.0",
         "changelog": "Fix: Plugin update no longer leaves the old client script cached in the browser — the injection now detects when the script tag's version cache-buster is stale and re-injects with the current version, so new UI features (like tag filtering) appear immediately after update without a manual cache clear. Fix: the 'Allowed Devices' dropdown when creating or editing a sub-profile now shows only devices the calling master account has sessions on, instead of every device that ever connected to the server. Fix: the 'injection failed' dashboard banner no longer appears as a false positive after a successful injection on a plugin update.",
         "targetAbi": "10.11.0.0",
