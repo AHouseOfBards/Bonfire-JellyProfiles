@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.2.3.0",
+        "changelog": "Fix: Streamlined plugin auto-injection and Windows plugin updates — eliminating false-positive 'injection failed' dashboard error banners whenever client script is active. Automatically strips read-only flags on index.html during server startup. Enhances Windows icacls permissions instructions for users running Jellyfin in Desktop/Tray mode.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.2.3/Jellyfin.Profiles.zip",
+        "checksum": "00000000000000000000000000000000",
+        "timestamp": "2026-08-04T04:37:00Z"
+      },
+      {
         "version": "1.2.2.0",
         "changelog": "Fix: Added dedicated dashboard warning banner for pending script tag version updates. When host write permissions prevent updating index.html script tag version cache-busters during a plugin update, a distinct warning now informs admins that the profile switcher remains active and recommends a browser hard refresh (Ctrl+Shift+R) if new features do not appear.",
         "targetAbi": "10.11.0.0",

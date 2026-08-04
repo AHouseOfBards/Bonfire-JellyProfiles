@@ -22,7 +22,7 @@
                     </li>
                     <li>
                         <strong>Windows (Admin Command Prompt):</strong>
-                        <br><code id="windowsFixCmd" class="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "NT AUTHORITY\NetworkService:(M)"</code>
+                        <br><code id="windowsFixCmd" class="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "Users:(M)" /grant "NT AUTHORITY\NetworkService:(M)"</code>
                     </li>
                 </ul>
             </div>
@@ -41,7 +41,7 @@
                         <ul style="margin: 6px 0 0 0; padding-left: 20px;">
                             <li style="margin-bottom:4px;"><strong>Linux (Native):</strong> <code class="linuxChownCmd">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code> | <code class="linuxChmodCmd">sudo chmod 664 /usr/share/jellyfin/web/index.html</code></li>
                             <li style="margin-bottom:4px;"><strong>Docker:</strong> <code class="dockerChownCmd">docker exec -u root &lt;container-name&gt; chown jellyfin:jellyfin /jellyfin/jellyfin-web/index.html</code> | <code class="dockerChmodCmd">docker exec -u root &lt;container-name&gt; chmod 664 /jellyfin/jellyfin-web/index.html</code></li>
-                            <li><strong>Windows:</strong> <code class="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "NT AUTHORITY\NetworkService:(M)"</code></li>
+                            <li><strong>Windows:</strong> <code class="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "Users:(M)" /grant "NT AUTHORITY\NetworkService:(M)"</code></li>
                         </ul>
                     </li>
                 </ul>
@@ -175,7 +175,7 @@
                         page.querySelectorAll('.linuxChmodCmd').forEach(function(el) { el.textContent = 'sudo chmod 664 ' + resolvedLinuxPath; });
                         page.querySelectorAll('.dockerChownCmd').forEach(function(el) { el.textContent = 'docker exec -u root <container-name> chown jellyfin:jellyfin ' + resolvedDockerPath; });
                         page.querySelectorAll('.dockerChmodCmd').forEach(function(el) { el.textContent = 'docker exec -u root <container-name> chmod 664 ' + resolvedDockerPath; });
-                        page.querySelectorAll('.windowsFixCmd').forEach(function(el) { el.textContent = 'icacls "' + resolvedWindowsPath + '" /grant "NT AUTHORITY\\NetworkService:(M)"'; });
+                        page.querySelectorAll('.windowsFixCmd').forEach(function(el) { el.textContent = 'icacls "' + resolvedWindowsPath + '" /grant "Users:(M)" /grant "NT AUTHORITY\\NetworkService:(M)"'; });
                     }
 
                     const masterContainer = page.querySelector('#masterUsersList');
