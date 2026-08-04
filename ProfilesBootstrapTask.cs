@@ -78,6 +78,21 @@ namespace Jellyfin.Profiles
         internal static bool IsVersionStale { get; private set; }
         internal static string? IndexPath { get; private set; }
 
+        /// <summary>
+        /// Human-readable reason the last injection attempt could not complete, or null when
+        /// everything is fine. Surfaced on the dashboard so the banner can say what is actually
+        /// wrong instead of listing every possible fix.
+        /// </summary>
+        internal static string? LastFailureReason { get; private set; }
+
+        // These flags used to be computed exactly once, during StartAsync. That made the
+        // dashboard banner a snapshot of server-boot state: a user could run the documented
+        // chmod/icacls command, reload the page, and still see the failure warning, because
+        // nothing re-read index.html until the next full Jellyfin restart. The static
+        // self-reference lets the admin endpoints re-evaluate (and retry) on demand.
+        private static ProfilesBootstrapTask? _current;
+        private static readonly object PatchLock = new();
+
         private readonly IApplicationPaths _appPaths;
         private readonly ILogger<ProfilesBootstrapTask> _logger;
 
@@ -87,34 +102,156 @@ namespace Jellyfin.Profiles
         {
             _appPaths = appPaths;
             _logger = logger;
+            _current = this;
         }
 
         /// <inheritdoc />
         public Task StartAsync(CancellationToken cancellationToken)
         {
             CleanupOldDlls();
-            TryPatchIndex();
+            lock (PatchLock)
+            {
+                TryPatchIndex();
+            }
             return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Re-reads index.html and recomputes the status flags without writing anything.
+        /// Called when the dashboard loads so the banner always reflects the file as it is
+        /// right now, not as it was when the server booted.
+        /// </summary>
+        internal static void RefreshInjectionStatus()
+        {
+            var self = _current;
+            if (self == null) return;
+
+            lock (PatchLock)
+            {
+                try
+                {
+                    var indexPath = IndexPath ?? self.FindIndexHtml();
+                    IndexPath = indexPath;
+
+                    if (indexPath == null || !File.Exists(indexPath))
+                    {
+                        InjectionSucceeded = false;
+                        IsVersionStale = false;
+                        LastFailureReason = "Jellyfin's index.html could not be located on this system.";
+                        return;
+                    }
+
+                    var html = File.ReadAllText(indexPath);
+                    var hasBody = html.Contains(BodyMarker, StringComparison.Ordinal);
+                    var hasHead = html.Contains(HeadMarker, StringComparison.Ordinal);
+                    var versionCurrent = html.Contains(BodyScriptTag, StringComparison.Ordinal);
+
+                    InjectionSucceeded = hasBody;
+                    IsVersionStale = hasBody && (!versionCurrent || !hasHead);
+
+                    if (!hasBody)
+                    {
+                        LastFailureReason =
+                            $"The plugin script tag is not present in {indexPath}.";
+                    }
+                    else if (!versionCurrent)
+                    {
+                        LastFailureReason =
+                            "index.html still references an older version of the client script, "
+                            + "so browsers may keep serving a cached copy.";
+                    }
+                    else if (!hasHead)
+                    {
+                        LastFailureReason =
+                            "The anti-flicker script is missing from <head>. The switcher works, "
+                            + "but you may see a brief flash of content when switching profiles.";
+                    }
+                    else
+                    {
+                        LastFailureReason = null;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    self._logger.LogDebug(ex, "ProfilesPlugin: Could not refresh injection status.");
+                    LastFailureReason = "Could not read index.html to check status: " + ex.Message;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Re-runs the full injection. Lets an administrator apply a permission fix and click
+        /// "Retry" on the dashboard instead of having to restart the whole Jellyfin server.
+        /// Returns true when the client script is present afterwards.
+        /// </summary>
+        internal static bool RunInjectionNow()
+        {
+            var self = _current;
+            if (self == null) return InjectionSucceeded;
+
+            lock (PatchLock)
+            {
+                // Re-resolve from scratch: the previous run may have cached a path from a
+                // location that has since changed (e.g. a Jellyfin web-client update).
+                IndexPath = null;
+                self.TryPatchIndex();
+            }
+
+            RefreshInjectionStatus();
+            return InjectionSucceeded;
         }
 
         /// <inheritdoc />
         public Task StopAsync(CancellationToken cancellationToken)
             => Task.CompletedTask;
 
+        /// <summary>
+        /// Removes the ".old" DLLs Jellyfin leaves behind when it cannot delete an in-use
+        /// assembly during a plugin update (common on Windows, where the file stays locked
+        /// until the process exits).
+        /// </summary>
         private void CleanupOldDlls()
         {
+            // Derive the directory from this assembly rather than guessing a name under
+            // PluginsPath: Jellyfin names plugin folders "{Name}_{Version}", so a hardcoded
+            // "Bonfire" never matches and the cleanup silently does nothing.
+            string? pluginDir;
             try
             {
-                var pluginDir = Path.Combine(_appPaths.PluginsPath, "Bonfire");
-                if (Directory.Exists(pluginDir))
+                pluginDir = Path.GetDirectoryName(typeof(ProfilesBootstrapTask).Assembly.Location);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "ProfilesPlugin: Could not resolve the plugin directory for cleanup.");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(pluginDir) || !Directory.Exists(pluginDir))
+            {
+                _logger.LogDebug("ProfilesPlugin: Plugin directory '{Dir}' unavailable; skipping .old cleanup.", pluginDir);
+                return;
+            }
+
+            try
+            {
+                foreach (var file in Directory.GetFiles(pluginDir, "*.old"))
                 {
-                    foreach (var file in Directory.GetFiles(pluginDir, "*.old"))
+                    try
                     {
-                        try { File.Delete(file); } catch { /* best effort */ }
+                        File.Delete(file);
+                        _logger.LogDebug("ProfilesPlugin: Removed stale plugin file {File}.", file);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Still locked by another process — it will be retried next startup.
+                        _logger.LogDebug(ex, "ProfilesPlugin: Could not delete stale file {File}.", file);
                     }
                 }
             }
-            catch { /* best effort */ }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "ProfilesPlugin: Failed to enumerate stale plugin files in {Dir}.", pluginDir);
+            }
         }
 
         private void TryPatchIndex()
@@ -198,7 +335,10 @@ namespace Jellyfin.Profiles
                 {
                     if (!html.Contains(HeadScript, StringComparison.Ordinal))
                     {
-                        html = headRegex.Replace(html, HeadScript);
+                        // MatchEvaluator, not a replacement string: "$" is a substitution token
+                        // in the string overload, so a "$" anywhere in the script would corrupt
+                        // index.html silently.
+                        html = headRegex.Replace(html, _ => HeadScript);
                         changed = true;
                     }
                 }
@@ -218,7 +358,9 @@ namespace Jellyfin.Profiles
                 {
                     if (!html.Contains(BodyScriptTag, StringComparison.Ordinal))
                     {
-                        html = bodyRegex.Replace(html, BodyScriptTag);
+                        // MatchEvaluator — see the note on the head script above.
+                        var tag = BodyScriptTag;
+                        html = bodyRegex.Replace(html, _ => tag);
                         changed = true;
                     }
                 }
@@ -232,22 +374,25 @@ namespace Jellyfin.Profiles
                     }
                 }
 
-                // Only claim success if both markers are actually present in the final
-                // document. Previously this was set unconditionally, so an index.html
-                // without a <head> or </body> anchor reported success while the switcher
-                // silently never loaded — and the dashboard's "injection failed" banner,
-                // the only signal users get, could never appear.
-                bool injected = html.Contains(BodyMarker, StringComparison.Ordinal);
+                // The body script is what makes the switcher work at all; the head script only
+                // prevents a flash of content. Track them separately so a missing <head> anchor
+                // downgrades to the "stale" banner rather than either claiming full success or
+                // firing the alarming "injection failed" one.
+                bool bodyPresent = html.Contains(BodyMarker, StringComparison.Ordinal);
+                bool headPresent = html.Contains(HeadMarker, StringComparison.Ordinal);
 
-                if (!injected)
+                if (!bodyPresent)
                 {
                     // Only clear InjectionSucceeded if there was genuinely nothing before.
                     // (If an old working injection existed, InjectionSucceeded was already
                     // set true above and should stay that way.)
                     if (!InjectionSucceeded)
                     {
+                        LastFailureReason =
+                            $"No </body> tag was found in {indexPath}, so the client script "
+                            + "could not be inserted.";
                         _logger.LogWarning(
-                            "ProfilesPlugin: Could not find the expected <head> and </body> anchors in {Path}. " +
+                            "ProfilesPlugin: Could not find a </body> anchor in {Path}. " +
                             "The client script was NOT injected. Add the following line before </body> manually: {Tag}",
                             indexPath, BodyScriptTag);
                     }
@@ -256,6 +401,8 @@ namespace Jellyfin.Profiles
 
                 if (changed)
                 {
+                    // Throws on failure; the catch blocks below preserve any previously
+                    // working state rather than reporting a hard failure.
                     WriteFileAtomic(indexPath, html);
                     _logger.LogInformation(
                         "ProfilesPlugin: Client scripts injected successfully into {Path}.",
@@ -263,7 +410,16 @@ namespace Jellyfin.Profiles
                 }
 
                 InjectionSucceeded = true;
-                IsVersionStale = false;
+
+                // Re-derive from the document we just wrote instead of assuming success.
+                // Previously this cleared IsVersionStale unconditionally, which hid the case
+                // where the body tag was inserted but the <head> anchor was missing entirely.
+                IsVersionStale = !headPresent;
+                LastFailureReason = headPresent
+                    ? null
+                    : "The anti-flicker script could not be added because index.html has no "
+                      + "<head> tag. The switcher works, but you may see a brief flash of "
+                      + "content when switching profiles.";
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -274,10 +430,18 @@ namespace Jellyfin.Profiles
                 // still false (i.e. there was no prior injection at all).
                 if (!InjectionSucceeded)
                 {
+                    LastFailureReason =
+                        $"Jellyfin does not have permission to write {indexPath}. "
+                        + "Run the command below for your platform, then click Re-check.";
                     LogPermissionError(indexPath, ex);
                 }
                 else
                 {
+                    IsVersionStale = true;
+                    LastFailureReason =
+                        $"The script tag in {indexPath} is out of date and could not be updated "
+                        + "(permission denied). The switcher still works — a browser hard-refresh "
+                        + "picks up the newest client script.";
                     _logger.LogDebug(ex,
                         "ProfilesPlugin: Could not update script version in {Path} (permission denied). " +
                         "The existing injection is still functional; users may need a browser hard-refresh " +
@@ -288,6 +452,8 @@ namespace Jellyfin.Profiles
             {
                 if (!InjectionSucceeded)
                 {
+                    LastFailureReason =
+                        $"Could not read or write {indexPath}: {ex.Message}";
                     _logger.LogWarning(
                         ex,
                         "ProfilesPlugin: IO error reading/writing {Path}. " +
@@ -296,6 +462,9 @@ namespace Jellyfin.Profiles
                 }
                 else
                 {
+                    IsVersionStale = true;
+                    LastFailureReason =
+                        $"The script tag in {indexPath} is out of date and could not be updated: {ex.Message}";
                     _logger.LogDebug(ex,
                         "ProfilesPlugin: IO error updating script version in {Path}. " +
                         "The existing injection is still functional.", indexPath);
@@ -303,6 +472,10 @@ namespace Jellyfin.Profiles
             }
             catch (Exception ex)
             {
+                if (!InjectionSucceeded)
+                {
+                    LastFailureReason = "Unexpected error while patching index.html: " + ex.Message;
+                }
                 _logger.LogError(ex,
                     "ProfilesPlugin: Unexpected error while patching {Path}.", indexPath);
             }
@@ -329,8 +502,17 @@ namespace Jellyfin.Profiles
                     }
                 }
             }
-            catch { /* best effort */ }
+            catch (Exception ex)
+            {
+                // Not fatal: the write below may still succeed, and if it doesn't the caller
+                // reports the real permission error.
+                _logger.LogDebug(ex, "ProfilesPlugin: Could not clear the read-only attribute on {Path}.", path);
+            }
 
+            // NOTE: the temp file is created alongside index.html, so this path needs write
+            // permission on the *directory*, not just the file. The documented fix commands
+            // only grant permission on index.html itself, so on most Linux/Docker installs the
+            // atomic path fails and the in-place fallback below is what actually runs.
             var tempPath = path + ".bonfire.tmp";
             try
             {

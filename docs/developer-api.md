@@ -517,6 +517,35 @@ Removes the PIN requirement from the specified profile.
   * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
   * `404 Not Found`: Profile mapping not found.
 
+### `POST /plugins/profiles/admin/retry-injection`
+Re-runs the client-script injection into Jellyfin's `index.html` and returns the resulting status. Lets an administrator apply a file-permission fix and confirm it worked without restarting the Jellyfin server.
+
+* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
+* **Request Body:** none.
+
+* **Response `200 OK`:**
+```json
+{
+  "injectionSucceeded": true,
+  "isVersionStale": false,
+  "indexPath": "/usr/share/jellyfin/web/index.html",
+  "failureReason": null,
+  "pluginVersion": "1.2.6.0"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `injectionSucceeded` | boolean | False only when the client script is absent from `index.html` — the switcher will not load. |
+| `isVersionStale` | boolean | True when the script is present but `index.html` is not fully current (old cache-buster, or the `<head>` anti-flicker script is missing). The switcher works. |
+| `failureReason` | string \| null | Human-readable description of the specific problem, or null when everything is correct. |
+| `pluginVersion` | string | Running plugin version. |
+
+`GET /plugins/profiles/admin/mappings` returns these same four fields and re-evaluates `index.html` on every call, so simply reloading the settings page reflects the current state.
+
+* **Error Responses:**
+  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
+
 ### `POST /plugins/profiles/admin/set-profile-limit`
 Overrides the maximum number of profiles a master user is allowed to create.
 

@@ -22,6 +22,18 @@ namespace Jellyfin.Profiles.Configuration
         public string DeviceName { get; set; } = string.Empty;
         public string Client { get; set; } = string.Empty;
         public DateTime LastSeen { get; set; }
+        /// <summary>
+        /// Master account this device was last seen on. Used to scope the device picker so one
+        /// household never sees another's hardware.
+        /// <para>
+        /// Ownership is recorded rather than inferred from live sessions: a device that is
+        /// simply switched off must still appear in the picker, otherwise editing a profile
+        /// would silently drop it from that profile's whitelist.
+        /// </para>
+        /// <para>Guid.Empty means "recorded before this field existed" — treated as unowned
+        /// and claimed by the next account that uses the device.</para>
+        /// </summary>
+        public Guid MasterUserId { get; set; }
     }
 
     public class BonfireGroup

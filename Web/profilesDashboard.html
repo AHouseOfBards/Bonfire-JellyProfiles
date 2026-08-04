@@ -3,11 +3,12 @@
         <div class="content-primary">
             <div id="injectionWarningContainer" style="display:none; background:rgba(230,73,128,0.12); border:1px solid rgba(230,73,128,0.35); border-radius:6px; padding:14px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#ff6b6b;">
                 <strong style="display:block; margin-bottom:6px; font-weight:700; color:#ff8787;">⚠️ Client Script Auto-Injection Failed</strong>
-                The plugin was unable to automatically modify Jellyfin's <code>index.html</code> due to folder/file write permissions on your host system.
+                The plugin was unable to automatically modify Jellyfin's <code>index.html</code>.
                 Without this script, the "Who's Watching?" profile gate and switcher will not load.
-                <br><br>
+                <div id="injectionFailureReason" style="display:none; margin-top:10px; padding:10px 12px; background:rgba(0,0,0,0.25); border-radius:4px; font-size:0.9rem;"></div>
+                <br>
                 <strong>How to fix:</strong>
-                Please run the appropriate commands for your system, then restart Jellyfin:
+                Run the command for your platform, then click <strong>Re-check Now</strong> below — no Jellyfin restart needed.
                 <ul style="margin: 6px 0 0 0; padding-left: 20px;">
                     <li style="margin-bottom:10px;">
                         <strong>Linux (Native):</strong>
@@ -25,12 +26,17 @@
                         <br><code id="windowsFixCmd" class="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "Users:(M)" /grant "NT AUTHORITY\NetworkService:(M)"</code>
                     </li>
                 </ul>
+                <div style="margin-top:14px;">
+                    <button type="button" is="emby-button" class="raised retryInjectionBtn" style="background:#d23f3f; color:#fff;">Re-check Now</button>
+                    <span class="retryInjectionStatus" style="margin-left:10px; font-size:0.9rem; opacity:0.85;"></span>
+                </div>
             </div>
 
             <div id="staleVersionWarningContainer" style="display:none; background:rgba(245,159,0,0.12); border:1px solid rgba(245,159,0,0.35); border-radius:6px; padding:14px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#f59f00;">
                 <strong style="display:block; margin-bottom:6px; font-weight:700; color:#ffc078;">⚡ Plugin Script Update Pending — Hard Refresh Recommended</strong>
-                The profile switcher is active, but an older script tag version remains in <code>index.html</code> because host write permissions prevented updating it automatically.
-                <br><br>
+                The profile switcher is active, but <code>index.html</code> is not fully up to date.
+                <div id="staleReason" style="display:none; margin-top:10px; padding:10px 12px; background:rgba(0,0,0,0.25); border-radius:4px; font-size:0.9rem;"></div>
+                <br>
                 <strong>What to do:</strong>
                 <ul style="margin: 6px 0 0 0; padding-left: 20px;">
                     <li style="margin-bottom:8px;">
@@ -45,11 +51,21 @@
                         </ul>
                     </li>
                 </ul>
+                <div style="margin-top:14px;">
+                    <button type="button" is="emby-button" class="raised retryInjectionBtn" style="background:#f59f00; color:#1a1a1a;">Re-check Now</button>
+                    <span class="retryInjectionStatus" style="margin-left:10px; font-size:0.9rem; opacity:0.85;"></span>
+                </div>
+            </div>
+
+            <div id="injectionOkContainer" style="display:none; background:rgba(81,207,102,0.12); border:1px solid rgba(81,207,102,0.35); border-radius:6px; padding:12px 18px; margin-bottom:2em; font-size:0.95rem; color:#51cf66;">
+                <strong>✅ Client script is installed and up to date.</strong>
+                <span style="opacity:0.85;">The profile switcher will load for all users.</span>
             </div>
             <form id="profilesConfigurationForm">
                 <div class="sectionTitleContainer" style="display:flex; align-items:center; justify-content:space-between;">
                     <h2 class="sectionTitle">Bonfire Settings</h2>
-                    <span id="pluginVersionBadge" style="font-size:0.85em; font-weight:600; opacity:0.8; background:rgba(255,255,255,0.08); padding:3px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12);">v1.2.5</span>
+                    <!-- Filled in from the server's own version; no hardcoded literal to go stale. -->
+                    <span id="pluginVersionBadge" style="font-size:0.85em; font-weight:600; opacity:0.8; background:rgba(255,255,255,0.08); padding:3px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12);">…</span>
                 </div>
 
                 <div style="background:rgba(0,164,220,0.12);border:1px solid rgba(0,164,220,0.35);border-radius:6px;padding:14px 18px;margin-bottom:2em;font-size:0.95rem;line-height:1.6;">
@@ -143,47 +159,105 @@
                 });
             }
 
+            // Reads a field regardless of whether ASP.NET serialized it camelCase or PascalCase.
+            function field(obj, name) {
+                const upper = name.charAt(0).toUpperCase() + name.slice(1);
+                return obj[name] !== undefined ? obj[name] : obj[upper];
+            }
+
+            // Single place that decides which of the three status banners is visible, so the
+            // page load and the Re-check button can never disagree about the current state.
+            function renderInjectionStatus(page, result) {
+                const warningContainer = page.querySelector('#injectionWarningContainer');
+                const staleContainer = page.querySelector('#staleVersionWarningContainer');
+                const okContainer = page.querySelector('#injectionOkContainer');
+
+                const succeeded = field(result, 'injectionSucceeded');
+                const isStale = field(result, 'isVersionStale');
+                const reason = field(result, 'failureReason');
+
+                // Only treat an explicit false as failure — a missing field must never
+                // produce a false-positive warning.
+                const failed = (succeeded === false);
+                const stale = (!failed && isStale === true);
+
+                const ver = field(result, 'pluginVersion');
+                if (ver) {
+                    const badge = page.querySelector('#pluginVersionBadge');
+                    if (badge) badge.textContent = 'v' + ver;
+                }
+
+                if (warningContainer) warningContainer.style.display = failed ? 'block' : 'none';
+                if (staleContainer) staleContainer.style.display = stale ? 'block' : 'none';
+                if (okContainer) okContainer.style.display = (!failed && !stale) ? 'block' : 'none';
+
+                const failReasonEl = page.querySelector('#injectionFailureReason');
+                if (failReasonEl) {
+                    failReasonEl.textContent = reason || '';
+                    failReasonEl.style.display = (failed && reason) ? 'block' : 'none';
+                }
+                const staleReasonEl = page.querySelector('#staleReason');
+                if (staleReasonEl) {
+                    staleReasonEl.textContent = reason || '';
+                    staleReasonEl.style.display = (stale && reason) ? 'block' : 'none';
+                }
+
+                if (failed || stale) {
+                    const path = field(result, 'indexPath') || '/usr/share/jellyfin/web/index.html';
+                    const isWindows = path.includes('\\') || path.includes(':');
+                    const resolvedLinuxPath = isWindows ? '/usr/share/jellyfin/web/index.html' : path;
+                    const resolvedDockerPath = isWindows ? '/jellyfin/jellyfin-web/index.html' : path;
+                    const resolvedWindowsPath = isWindows ? path : 'C:\\Program Files\\Jellyfin\\Server\\jellyfin-web\\index.html';
+
+                    page.querySelectorAll('.linuxChownCmd').forEach(function(el) { el.textContent = 'sudo chown jellyfin:jellyfin ' + resolvedLinuxPath; });
+                    page.querySelectorAll('.linuxChmodCmd').forEach(function(el) { el.textContent = 'sudo chmod 664 ' + resolvedLinuxPath; });
+                    page.querySelectorAll('.dockerChownCmd').forEach(function(el) { el.textContent = 'docker exec -u root <container-name> chown jellyfin:jellyfin ' + resolvedDockerPath; });
+                    page.querySelectorAll('.dockerChmodCmd').forEach(function(el) { el.textContent = 'docker exec -u root <container-name> chmod 664 ' + resolvedDockerPath; });
+                    page.querySelectorAll('.windowsFixCmd').forEach(function(el) { el.textContent = 'icacls "' + resolvedWindowsPath + '" /grant "Users:(M)" /grant "NT AUTHORITY\\NetworkService:(M)"'; });
+                }
+            }
+
+            // Re-runs injection server-side. Lets an admin apply a permission fix and confirm
+            // it worked without restarting Jellyfin — the old banner was a boot-time snapshot,
+            // so it stayed on screen no matter which fix command had just been run.
+            function retryInjection(page) {
+                const buttons = page.querySelectorAll('.retryInjectionBtn');
+                const statuses = page.querySelectorAll('.retryInjectionStatus');
+                buttons.forEach(function (b) { b.disabled = true; });
+                statuses.forEach(function (s) { s.textContent = 'Re-checking…'; });
+
+                const url = ApiClient.getUrl('plugins/profiles/admin/retry-injection');
+                ApiClient.ajax({ type: 'POST', url: url, contentType: 'application/json' })
+                    .then(function (res) {
+                        return (res && typeof res.json === 'function') ? res.json() : res;
+                    })
+                    .then(function (result) {
+                        renderInjectionStatus(page, result);
+                        const ok = field(result, 'injectionSucceeded') !== false
+                                   && field(result, 'isVersionStale') !== true;
+                        buttons.forEach(function (b) { b.disabled = false; });
+                        statuses.forEach(function (s) {
+                            s.textContent = ok ? '' : 'Still not resolved — see the reason above.';
+                        });
+                        if (ok) {
+                            Dashboard.alert({
+                                title: 'Success',
+                                message: 'The client script is now installed and up to date. '
+                                       + 'Users may need one hard refresh (Ctrl+Shift+R) to pick it up.'
+                            });
+                        }
+                    })
+                    .catch(function (err) {
+                        console.error('Retry injection failed:', err);
+                        buttons.forEach(function (b) { b.disabled = false; });
+                        statuses.forEach(function (s) { s.textContent = 'Re-check failed — see console.'; });
+                    });
+            }
+
             function loadMappings(page) {
                 const url = ApiClient.getUrl('plugins/profiles/admin/mappings');
                 ApiClient.getJSON(url).then(function (result) {
-                    const warningContainer = page.querySelector('#injectionWarningContainer');
-                    const staleContainer = page.querySelector('#staleVersionWarningContainer');
-
-                    const succeeded = result.injectionSucceeded !== undefined
-                        ? result.injectionSucceeded
-                        : result.InjectionSucceeded;
-                    const isStale = result.isVersionStale !== undefined
-                        ? result.isVersionStale
-                        : result.IsVersionStale;
-
-                    const failed = (succeeded === false);
-
-                    const ver = result.pluginVersion || result.PluginVersion;
-                    if (ver) {
-                        const badge = page.querySelector('#pluginVersionBadge');
-                        if (badge) badge.textContent = 'v' + ver;
-                    }
-
-                    if (warningContainer) {
-                        warningContainer.style.display = failed ? 'block' : 'none';
-                    }
-                    if (staleContainer) {
-                        staleContainer.style.display = (!failed && isStale) ? 'block' : 'none';
-                    }
-
-                    if (failed || isStale) {
-                        const path = result.indexPath || result.IndexPath || '/usr/share/jellyfin/web/index.html';
-                        const isWindows = path.includes('\\') || path.includes(':');
-                        const resolvedLinuxPath = isWindows ? '/usr/share/jellyfin/web/index.html' : path;
-                        const resolvedDockerPath = isWindows ? '/jellyfin/jellyfin-web/index.html' : path;
-                        const resolvedWindowsPath = isWindows ? path : 'C:\\Program Files\\Jellyfin\\Server\\jellyfin-web\\index.html';
-
-                        page.querySelectorAll('.linuxChownCmd').forEach(function(el) { el.textContent = 'sudo chown jellyfin:jellyfin ' + resolvedLinuxPath; });
-                        page.querySelectorAll('.linuxChmodCmd').forEach(function(el) { el.textContent = 'sudo chmod 664 ' + resolvedLinuxPath; });
-                        page.querySelectorAll('.dockerChownCmd').forEach(function(el) { el.textContent = 'docker exec -u root <container-name> chown jellyfin:jellyfin ' + resolvedDockerPath; });
-                        page.querySelectorAll('.dockerChmodCmd').forEach(function(el) { el.textContent = 'docker exec -u root <container-name> chmod 664 ' + resolvedDockerPath; });
-                        page.querySelectorAll('.windowsFixCmd').forEach(function(el) { el.textContent = 'icacls "' + resolvedWindowsPath + '" /grant "Users:(M)" /grant "NT AUTHORITY\\NetworkService:(M)"'; });
-                    }
+                    renderInjectionStatus(page, result);
 
                     const masterContainer = page.querySelector('#masterUsersList');
                     const subContainer = page.querySelector('#subProfilesList');
@@ -385,6 +459,13 @@
                     e.preventDefault();
                     saveConfiguration(page);
                     return false;
+                });
+                // pageshow can fire more than once for the same element, so guard against
+                // stacking duplicate handlers that would fire several retries per click.
+                page.querySelectorAll('.retryInjectionBtn').forEach(function (btn) {
+                    if (btn.dataset.retryBound) return;
+                    btn.dataset.retryBound = '1';
+                    btn.addEventListener('click', function () { retryInjection(page); });
                 });
             });
         })();

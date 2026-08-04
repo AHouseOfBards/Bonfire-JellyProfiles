@@ -389,6 +389,17 @@ namespace Jellyfin.Profiles.Controllers
             var client = GetAuthorizationParameter("Client");
             if (string.IsNullOrEmpty(deviceId)) return;
 
+            // Attribute the device to the caller's master account so the device picker can be
+            // scoped by ownership. KnownDevices is a single server-wide list, so without this
+            // every household would see every other household's hardware.
+            var callerId = GetCurrentUserId();
+            var ownerId = Guid.Empty;
+            if (callerId != null)
+            {
+                var callerMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == callerId.Value);
+                ownerId = callerMapping != null ? callerMapping.MasterUserId : callerId.Value;
+            }
+
             lock (config)
             {
                 var existing = config.KnownDevices.FirstOrDefault(d =>
@@ -401,6 +412,14 @@ namespace Jellyfin.Profiles.Controllers
                     existing.LastSeen = DateTime.UtcNow;
                     existing.DeviceName = deviceName ?? existing.DeviceName;
                     existing.Client = client ?? existing.Client;
+
+                    // Claim ownership for records written before MasterUserId existed. This is
+                    // the one case worth persisting, so the migration happens exactly once.
+                    if (existing.MasterUserId == Guid.Empty && ownerId != Guid.Empty)
+                    {
+                        existing.MasterUserId = ownerId;
+                        Plugin.Instance?.SaveConfiguration();
+                    }
                 }
                 else
                 {
@@ -410,7 +429,8 @@ namespace Jellyfin.Profiles.Controllers
                         DeviceId = deviceId,
                         DeviceName = deviceName ?? "Unknown Device",
                         Client = client ?? "Unknown Client",
-                        LastSeen = DateTime.UtcNow
+                        LastSeen = DateTime.UtcNow,
+                        MasterUserId = ownerId
                     });
                     Plugin.Instance?.SaveConfiguration();
                 }

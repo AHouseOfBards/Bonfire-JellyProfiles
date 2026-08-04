@@ -926,9 +926,11 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
-            var version = Plugin.Instance?.Version?.ToString()
-                          ?? typeof(ProfilesBootstrapTask).Assembly.GetName().Version?.ToString()
-                          ?? "1.2.5";
+            // Re-read index.html so the dashboard reflects the file as it is right now.
+            // These flags used to be a snapshot taken at server boot, which is why the
+            // warning banner persisted after users ran the documented fix commands —
+            // nothing re-checked until the next full Jellyfin restart.
+            ProfilesBootstrapTask.RefreshInjectionStatus();
 
             return Ok(new
             {
@@ -937,9 +939,51 @@ namespace Jellyfin.Profiles.Controllers
                 InjectionSucceeded = ProfilesBootstrapTask.InjectionSucceeded,
                 IsVersionStale = ProfilesBootstrapTask.IsVersionStale,
                 IndexPath = ProfilesBootstrapTask.IndexPath,
-                PluginVersion = version
+                FailureReason = ProfilesBootstrapTask.LastFailureReason,
+                PluginVersion = GetPluginVersion()
             });
         }
+
+        /// <summary>
+        /// Re-runs the client-script injection on demand. Lets an administrator apply a file
+        /// permission fix and click "Retry" instead of restarting the whole Jellyfin server.
+        /// </summary>
+        [HttpPost("admin/retry-injection")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> RetryInjection()
+        {
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+
+            var caller = _userManager.GetUserById(currentUserIdVal.Value);
+            if (caller == null) return Unauthorized();
+
+            var callerDto = _userManager.GetUserDto(caller, string.Empty);
+            if (!callerDto.Policy.IsAdministrator)
+            {
+                return Unauthorized("Only administrators can retry script injection.");
+            }
+
+            _logger.LogInformation("ProfilesPlugin: Manual injection retry requested by {User}.", caller.Username);
+            var succeeded = ProfilesBootstrapTask.RunInjectionNow();
+
+            return Ok(new
+            {
+                InjectionSucceeded = succeeded,
+                IsVersionStale = ProfilesBootstrapTask.IsVersionStale,
+                IndexPath = ProfilesBootstrapTask.IndexPath,
+                FailureReason = ProfilesBootstrapTask.LastFailureReason,
+                PluginVersion = GetPluginVersion()
+            });
+        }
+
+        /// <summary>Plugin version for display. Falls back to the assembly's own version so it
+        /// can never go stale the way a hardcoded literal does.</summary>
+        private static string GetPluginVersion()
+            => Plugin.Instance?.Version?.ToString()
+               ?? typeof(ProfilesBootstrapTask).Assembly.GetName().Version?.ToString()
+               ?? "unknown";
 
         [HttpPost("admin/reset-pin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -1240,7 +1284,23 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
-            Response.Headers["Cache-Control"] = "public, max-age=3600";
+            // The script URL normally carries a ?v={version} cache-buster, but when the plugin
+            // cannot rewrite index.html (read-only web root) that query string stays pinned to
+            // an older version. A long immutable cache would then serve stale client code
+            // indefinitely and new features would silently never appear.
+            //
+            // Tagging the response with the plugin version and asking for revalidation means a
+            // stale URL still picks up new code on its own within max-age, while unchanged
+            // content costs only a 304.
+            var etag = "\"" + GetPluginVersion() + "\"";
+            Response.Headers["ETag"] = etag;
+            Response.Headers["Cache-Control"] = "public, max-age=300, must-revalidate";
+
+            if (string.Equals(Request.Headers["If-None-Match"].ToString(), etag, StringComparison.Ordinal))
+            {
+                return StatusCode(StatusCodes.Status304NotModified);
+            }
+
             return Content(CachedProfilesJs, "application/javascript");
         }
 
@@ -1545,27 +1605,44 @@ namespace Jellyfin.Profiles.Controllers
             var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
 
-            // Collect all Jellyfin user IDs that belong to this master account
-            // (master + all sub-profiles) so we match sessions from any of them.
-            var householdUserIds = new HashSet<Guid> { masterUserId };
-            foreach (var m in config.Mappings.Where(m => m.MasterUserId == masterUserId))
-            {
-                householdUserIds.Add(m.ProfileUserId);
-            }
-
-            // Build a set of device IDs that this household has active/recent sessions on.
-            var householdDeviceIds = _sessionManager.Sessions
-                .Where(s => householdUserIds.Contains(s.UserId))
-                .Select(s => s.DeviceId)
+            // Every device already whitelisted on one of this account's profiles MUST appear in
+            // the picker, whether or not it is currently switched on. The edit form rebuilds
+            // AllowedDeviceIds from the checkboxes it rendered, so any whitelisted device that
+            // is missing from this response gets silently dropped on the next save — and a
+            // whitelist that empties out stops restricting anything at all.
+            var whitelistedDeviceIds = config.Mappings
+                .Where(m => m.MasterUserId == masterUserId && m.AllowedDeviceIds != null)
+                .SelectMany(m => m.AllowedDeviceIds!)
                 .Where(id => !string.IsNullOrEmpty(id))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+            // Scope by recorded ownership rather than by live sessions. Devices recorded before
+            // MasterUserId existed have Guid.Empty and stay visible to everyone until the next
+            // request from that device claims them (see RecordDeviceActivity).
             var devices = config.KnownDevices
-                .Where(d => householdDeviceIds.Contains(d.DeviceId))
+                .Where(d => d.MasterUserId == masterUserId
+                            || d.MasterUserId == Guid.Empty
+                            || whitelistedDeviceIds.Contains(d.DeviceId))
                 .GroupBy(d => d.DeviceId, StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.OrderByDescending(d => d.LastSeen).First())
                 .OrderByDescending(d => d.LastSeen)
                 .ToList();
+
+            // A whitelisted device that has aged out of KnownDevices entirely still needs a row,
+            // otherwise saving the profile would drop it.
+            var present = devices.Select(d => d.DeviceId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var orphanId in whitelistedDeviceIds.Where(id => !present.Contains(id)))
+            {
+                devices.Add(new KnownDevice
+                {
+                    DeviceId = orphanId,
+                    DeviceName = "Previously allowed device",
+                    Client = "Not seen recently",
+                    LastSeen = DateTime.MinValue,
+                    MasterUserId = masterUserId
+                });
+            }
+
             return Ok(devices);
         }
 
