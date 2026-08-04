@@ -13,7 +13,7 @@
         "changelog": "Fix: Streamlined plugin auto-injection and Windows plugin updates — eliminating false-positive 'injection failed' dashboard error banners whenever client script is active. Automatically strips read-only flags on index.html during server startup. Enhances Windows icacls permissions instructions for users running Jellyfin in Desktop/Tray mode.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.2.3/Jellyfin.Profiles.zip",
-        "checksum": "00000000000000000000000000000000",
+        "checksum": "c37174d69caa88ff9391cb635a63553d",
         "timestamp": "2026-08-04T04:37:00Z"
       },
       {
