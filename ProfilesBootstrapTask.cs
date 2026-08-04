@@ -74,6 +74,7 @@ namespace Jellyfin.Profiles
 
         // Exposed so the dashboard page JS can check whether setup is complete.
         internal static bool InjectionSucceeded { get; private set; }
+        internal static bool IsVersionStale { get; private set; }
         internal static string? IndexPath { get; private set; }
 
         private readonly IApplicationPaths _appPaths;
@@ -153,7 +154,24 @@ namespace Jellyfin.Profiles
                         "ProfilesPlugin: Scripts already correctly present in {Path} — no changes made.",
                         indexPath);
                     InjectionSucceeded = true;
+                    IsVersionStale = false;
                     return;
+                }
+
+                // If both markers are present the injection is functionally working — the
+                // profile gate and switcher load fine. The only issue is a stale cache-buster
+                // version in the script URL, which is cosmetic (a browser hard-refresh fixes
+                // it). Mark as succeeded NOW so the failure banner never fires, but set
+                // IsVersionStale so the dashboard can inform the admin if desired.
+                if (hasBody && hasHead)
+                {
+                    InjectionSucceeded = true;
+                    IsVersionStale = true;
+                }
+                else
+                {
+                    InjectionSucceeded = false;
+                    IsVersionStale = false;
                 }
 
                 bool changed = false;
@@ -218,10 +236,16 @@ namespace Jellyfin.Profiles
 
                 if (!injected)
                 {
-                    _logger.LogWarning(
-                        "ProfilesPlugin: Could not find the expected <head> and </body> anchors in {Path}. " +
-                        "The client script was NOT injected. Add the following line before </body> manually: {Tag}",
-                        indexPath, BodyScriptTag);
+                    // Only clear InjectionSucceeded if there was genuinely nothing before.
+                    // (If an old working injection existed, InjectionSucceeded was already
+                    // set true above and should stay that way.)
+                    if (!InjectionSucceeded)
+                    {
+                        _logger.LogWarning(
+                            "ProfilesPlugin: Could not find the expected <head> and </body> anchors in {Path}. " +
+                            "The client script was NOT injected. Add the following line before </body> manually: {Tag}",
+                            indexPath, BodyScriptTag);
+                    }
                     return;
                 }
 
@@ -234,18 +258,43 @@ namespace Jellyfin.Profiles
                 }
 
                 InjectionSucceeded = true;
+                IsVersionStale = false;
             }
             catch (UnauthorizedAccessException ex)
             {
-                LogPermissionError(indexPath, ex);
+                // If an older version of the injection is already working in index.html,
+                // InjectionSucceeded was set true above. A write failure here only means
+                // we couldn't update the cache-buster version — not that the switcher is
+                // broken. Only log the full permission error when InjectionSucceeded is
+                // still false (i.e. there was no prior injection at all).
+                if (!InjectionSucceeded)
+                {
+                    LogPermissionError(indexPath, ex);
+                }
+                else
+                {
+                    _logger.LogDebug(ex,
+                        "ProfilesPlugin: Could not update script version in {Path} (permission denied). " +
+                        "The existing injection is still functional; users may need a browser hard-refresh " +
+                        "to pick up the latest client script.", indexPath);
+                }
             }
             catch (IOException ex)
             {
-                _logger.LogWarning(
-                    ex,
-                    "ProfilesPlugin: IO error reading/writing {Path}. " +
-                    "Manually add the following line before </body>: {Tag}",
-                    indexPath, BodyScriptTag);
+                if (!InjectionSucceeded)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "ProfilesPlugin: IO error reading/writing {Path}. " +
+                        "Manually add the following line before </body>: {Tag}",
+                        indexPath, BodyScriptTag);
+                }
+                else
+                {
+                    _logger.LogDebug(ex,
+                        "ProfilesPlugin: IO error updating script version in {Path}. " +
+                        "The existing injection is still functional.", indexPath);
+                }
             }
             catch (Exception ex)
             {
