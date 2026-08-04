@@ -13,7 +13,7 @@
         "changelog": "UI: Added running plugin version badge to admin settings page header (e.g. v1.2.5). Fix: Atomic Regex tag replacement and seamless script tag updates on server startup.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.2.5/Jellyfin.Profiles.zip",
-        "checksum": "00000000000000000000000000000000",
+        "checksum": "9677f8e2979566ffb5cda6efd55cdb6b",
         "timestamp": "2026-08-04T04:56:00Z"
       },
       {
