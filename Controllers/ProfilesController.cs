@@ -99,6 +99,7 @@ namespace Jellyfin.Profiles.Controllers
                     AvatarInitial = string.IsNullOrEmpty(linkedUser.Username) ? "M" : linkedUser.Username.Substring(0, 1).ToUpper(),
                     AvatarColor = linkedMapping?.AvatarColor ?? "#00A4DC",
                     RequiresPin = masterRequiresPin,
+                    HasPin = !string.IsNullOrEmpty(linkedMapping?.PinHash),
                     IsMaster = true,
                     LockoutMinutes = linkedMapping?.LockoutMinutes ?? 5,
                     MaxSubProfiles = GetMaxProfilesForUser(linkedId, config),
@@ -137,6 +138,12 @@ namespace Jellyfin.Profiles.Controllers
                                 AvatarInitial = string.IsNullOrEmpty(m.ProfileName) ? "?" : m.ProfileName.Substring(0, 1).ToUpper(),
                                 m.AvatarColor,
                                 RequiresPin = requiresPin,
+                                // Whether a PIN EXISTS, independent of whether one will be
+                                // asked for right now. RequiresPin goes false on the LAN when
+                                // BypassPinOnLocalNetwork is set, so the edit form cannot use
+                                // it to decide if a PIN is configured — doing so made a saved
+                                // PIN look like it had never been stored.
+                                HasPin = !string.IsNullOrEmpty(m.PinHash),
                                 IsMaster = false,
                                 m.LockoutMinutes,
                                 EnabledFolders = m.EnabledFolders ?? new List<Guid>(),
@@ -540,6 +547,12 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<object>> SwitchProfile([FromBody] SwitchProfileRequest request)
         {
+            // Switching is the click users perceive as "loading the home screen", so the
+            // per-stage cost is logged at Debug. Enable debug logging for Jellyfin.Profiles to
+            // see which stage is responsible when a switch feels slow.
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            long tAuth = 0, tPolicy = 0, tSession = 0;
+
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
@@ -642,6 +655,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             RateLimiter.Pin.Reset(rateLimitKey);
+            tAuth = sw.ElapsedMilliseconds;
 
             var targetUser = _userManager.GetUserById(request.ProfileId);
             if (targetUser == null) return NotFound("Underlying system user missing.");
@@ -764,11 +778,31 @@ namespace Jellyfin.Profiles.Controllers
                 DeviceId = !string.IsNullOrEmpty(deviceId) ? deviceId : ("profiles-" + targetUser.Id.ToString("N")[..8]),
                 AppVersion = !string.IsNullOrEmpty(version) ? version : "1.0.0"
             };
+            tPolicy = sw.ElapsedMilliseconds;
+
             // Authenticate directly bypassing password check (securely validated caller + PIN validation)
             var session = await _sessionManager.AuthenticateDirect(authRequest).ConfigureAwait(false);
+            tSession = sw.ElapsedMilliseconds;
 
             // Record profile switch audit log
             RecordAuditLog(masterUser?.Username ?? "Unknown", targetUser.Username);
+
+            var total = sw.ElapsedMilliseconds;
+            // Warn on switches slow enough for a user to notice; otherwise keep it at Debug.
+            if (total >= 1000)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: Slow profile switch — {Total} ms total " +
+                    "(auth/PIN {Auth} ms, policy sync {Policy} ms, session {Session} ms, audit {Audit} ms).",
+                    total, tAuth, tPolicy - tAuth, tSession - tPolicy, total - tSession);
+            }
+            else
+            {
+                _logger.LogDebug(
+                    "ProfilesPlugin: Profile switch took {Total} ms " +
+                    "(auth/PIN {Auth} ms, policy sync {Policy} ms, session {Session} ms, audit {Audit} ms).",
+                    total, tAuth, tPolicy - tAuth, tSession - tPolicy, total - tSession);
+            }
 
             return Ok(new
             {
@@ -1822,7 +1856,9 @@ namespace Jellyfin.Profiles.Controllers
 
             lock (AuditLogLock)
             {
-                return Ok(ReadAuditLogs().OrderByDescending(l => l.Timestamp).ToList());
+                // Served from the in-memory cache so the dashboard reflects entries whose
+                // background write may not have landed yet.
+                return Ok(GetAuditLogSnapshot().OrderByDescending(l => l.Timestamp).ToList());
             }
         }
 

@@ -38,6 +38,13 @@
         return '';
     }
 
+    // The profile gate overlay sits at z-index 99999. Anything that has to appear *over*
+    // it — alerts, confirmations — must beat that number, or it renders behind a full-screen
+    // opaque background and is completely invisible. That produced dead-looking buttons:
+    // clicking Save with an invalid PIN fired a validation alert nobody could see.
+    const OVERLAY_Z = 99999;
+    const DIALOG_Z = OVERLAY_Z + 10;
+
     const ProfilesPlugin = {
         config: {
             masterStorageKey: 'jellyfin_profiles_master_state',
@@ -82,7 +89,7 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                z-index: 11000;
+                z-index: ${DIALOG_Z};
                 opacity: 0;
                 transition: opacity 0.15s ease-out;
             `;
@@ -163,7 +170,7 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                z-index: 11000;
+                z-index: ${DIALOG_Z};
                 opacity: 0;
                 transition: opacity 0.15s ease-out;
             `;
@@ -241,6 +248,31 @@
             return guid.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
         },
 
+        /// Registers a document-level listener that is torn down the next time a modal is
+        /// rendered.
+        ///
+        /// The create/edit forms attach a document click handler to close the device dropdown.
+        /// Those were added on every render and never removed, so each open/close cycle left
+        /// another live closure bound to `document`, each capturing a now-detached modal. After
+        /// a few passes every click on the page ran a growing pile of stale handlers — which
+        /// showed up as clicks taking seconds to register, getting worse the longer the tab
+        /// stayed open.
+        addManagedDocumentListener: function (type, handler, options) {
+            if (!this._managedDocListeners) this._managedDocListeners = [];
+            document.addEventListener(type, handler, options);
+            this._managedDocListeners.push({ type, handler, options });
+        },
+
+        /// Drops every listener registered via addManagedDocumentListener. Safe to call when
+        /// none are outstanding.
+        clearManagedDocumentListeners: function () {
+            if (!this._managedDocListeners) return;
+            this._managedDocListeners.forEach(({ type, handler, options }) => {
+                document.removeEventListener(type, handler, options);
+            });
+            this._managedDocListeners = [];
+        },
+
         /// Normalizes the /list response into the camelCase shape the UI uses.
         /// ASP.NET may serialize either casing depending on server configuration, so every
         /// field is read both ways. Single definition — adding a field here reaches every
@@ -259,6 +291,9 @@
                 avatarInitial: pick(p, 'avatarInitial', '?'),
                 avatarColor: pick(p, 'avatarColor', '#00A4DC'),
                 requiresPin: pick(p, 'requiresPin', false),
+                // "A PIN exists" — distinct from requiresPin, which is false on the LAN when
+                // the bypass is enabled. Forms must use this one.
+                hasPin: pick(p, 'hasPin', false),
                 isMaster: pick(p, 'isMaster', false),
                 lockoutMinutes: pick(p, 'lockoutMinutes', 5),
                 maxSubProfiles: pick(p, 'maxSubProfiles', 5),
@@ -928,6 +963,10 @@
             this.stopInactivityTimer();
             this._overlayMountTime = Date.now();
 
+            // Returning to the grid replaces the modal contents, so any document-level
+            // listeners the previous form registered are now bound to detached nodes.
+            this.clearManagedDocumentListeners();
+
             const skinHeader = document.querySelector('.skinHeader');
             if (skinHeader) skinHeader.style.display = 'none';
 
@@ -979,6 +1018,9 @@
         removeProfileOverlay: function () {
             const overlay = document.getElementById('profiles-gate-overlay');
             if (overlay) overlay.remove();
+
+            // Tearing down the overlay must also drop the form listeners it owned.
+            this.clearManagedDocumentListeners();
 
             // Re-enable scrolling
             document.body.classList.remove('profiles-no-scroll');
@@ -1704,6 +1746,8 @@
                     name: lib.name || lib.Name,
                     collectionType: lib.collectionType || lib.CollectionType
                 }));
+                // Re-rendering the modal orphans any listeners the previous form owned.
+                this.clearManagedDocumentListeners();
                 const content = document.querySelector('.profiles-modal-content');
                 // ── Section 1: who this profile is ──────────────────────────────
                 const createAppearance = `
@@ -2016,7 +2060,7 @@
                             setCreateOpen(false);
                         }
                     });
-                    document.addEventListener('click', () => setCreateOpen(false));
+                    this.addManagedDocumentListener('click', () => setCreateOpen(false));
                     createList.addEventListener('click', (e) => {
                         e.stopPropagation();
                     });
@@ -2153,6 +2197,8 @@
                 const maxRating = policy.MaxParentalRating !== undefined ? policy.MaxParentalRating : (policy.maxParentalRating !== undefined ? policy.maxParentalRating : null);
                 const currentLockout = profile.lockoutMinutes !== undefined ? profile.lockoutMinutes : 5;
 
+                // Re-rendering the modal orphans any listeners the previous form owned.
+                this.clearManagedDocumentListeners();
                 const content = document.querySelector('.profiles-modal-content');
 
                 const isSub = !profile.isMaster;
@@ -2201,8 +2247,14 @@
                     <div class="form-group">
                         <label for="edit-pin-input">PIN Code (Optional, 4-8 digits)</label>
                         <div class="pin-edit-group" style="display:flex; gap:10px; flex-wrap: wrap;">
-                            <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.requiresPin ? '••••' : 'Unprotected'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
-                            ${profile.requiresPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">Clear PIN</button>` : ''}
+                            <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? 'Enter a new PIN to replace the current one' : 'Leave empty for no PIN'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
+                            ${profile.hasPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">Clear PIN</button>` : ''}
+                        </div>
+                        <div id="edit-pin-error" class="form-error" style="display:none; margin-top:8px;"></div>
+                        <div class="form-hint">
+                            ${profile.hasPin
+                                ? '🔒 <strong>A PIN is currently set.</strong> Saved PINs are hashed and can never be shown again — leave this blank to keep it, type a new one to replace it, or use Clear PIN to remove it.'
+                                : 'No PIN set. This profile can be opened by anyone who can reach the switcher.'}
                         </div>
                     </div>
                     <div class="form-group">
@@ -2501,7 +2553,7 @@
                             setEditOpen(false);
                         }
                     });
-                    document.addEventListener('click', () => setEditOpen(false));
+                    this.addManagedDocumentListener('click', () => setEditOpen(false));
                     editList.addEventListener('click', (e) => {
                         e.stopPropagation();
                     });
@@ -2614,6 +2666,25 @@
                     const lockoutSel = document.getElementById('edit-lockout-select');
                     const lockoutMinutes = lockoutSel ? parseInt(lockoutSel.value, 10) : undefined;
 
+                    // Report validation failures inline next to the offending field as well as
+                    // in a dialog. A dialog alone is fragile — when it was rendering behind the
+                    // overlay this button looked completely dead on an invalid PIN.
+                    const pinError = document.getElementById('edit-pin-error');
+                    const showPinError = (msg) => {
+                        if (pinError) {
+                            pinError.textContent = msg;
+                            pinError.style.display = 'block';
+                        }
+                        const input = document.getElementById('edit-pin-input');
+                        if (input) {
+                            input.style.borderColor = '#ff6b6b';
+                            input.focus();
+                        }
+                    };
+                    if (pinError) pinError.style.display = 'none';
+                    const pinInputEl = document.getElementById('edit-pin-input');
+                    if (pinInputEl) pinInputEl.style.borderColor = '';
+
                     if (!name) {
                         this.showAlert("Validation Error", "Profile name is required.");
                         return;
@@ -2623,8 +2694,12 @@
                     if (isPinCleared) {
                         pin = ''; // Tells backend to clear the PIN
                     } else if (pinVal) {
-                        if (pinVal.length < 4 || pinVal.length > 8 || !/^\d+$/.test(pinVal)) {
-                            this.showAlert("Validation Error", "PIN code must be a numeric value between 4 and 8 digits.");
+                        if (!/^\d+$/.test(pinVal)) {
+                            showPinError('A PIN can only contain digits.');
+                            return;
+                        }
+                        if (pinVal.length < 4 || pinVal.length > 8) {
+                            showPinError(`A PIN must be 4-8 digits — you entered ${pinVal.length}.`);
                             return;
                         }
                         pin = pinVal;

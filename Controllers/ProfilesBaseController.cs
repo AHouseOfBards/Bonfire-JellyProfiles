@@ -303,6 +303,13 @@ namespace Jellyfin.Profiles.Controllers
             return AuditLogPath!;
         }
 
+        // In-memory mirror of audit_log.json. Without it, every profile switch re-read and
+        // re-deserialized the whole file (up to 1000 entries) before appending — synchronous
+        // disk I/O and JSON parsing on the switch request path, which is exactly the click
+        // that users perceive as a stall. Loaded once per process, then kept in step in memory.
+        private static List<AuditLogEntry>? _auditCache;
+
+        /// <summary>Reads the audit log from disk. Prefer <see cref="GetAuditLogs"/>, which caches.</summary>
         protected List<AuditLogEntry> ReadAuditLogs()
         {
             try
@@ -317,6 +324,19 @@ namespace Jellyfin.Profiles.Controllers
                 _logger.LogError(ex, "ProfilesPlugin: Failed to read audit log.");
             }
             return new List<AuditLogEntry>();
+        }
+
+        /// <summary>Audit entries, loading from disk only on the first call. Caller must hold AuditLogLock.</summary>
+        private List<AuditLogEntry> GetAuditLogsLocked()
+            => _auditCache ??= ReadAuditLogs();
+
+        /// <summary>Snapshot of the audit log for read-only callers (the admin dashboard).</summary>
+        protected List<AuditLogEntry> GetAuditLogSnapshot()
+        {
+            lock (AuditLogLock)
+            {
+                return new List<AuditLogEntry>(GetAuditLogsLocked());
+            }
         }
 
         protected void WriteAuditLogs(List<AuditLogEntry> logs)
@@ -339,9 +359,10 @@ namespace Jellyfin.Profiles.Controllers
             var client = GetAuthorizationParameter("Client") ?? "Unknown Client";
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
 
+            List<AuditLogEntry> snapshot;
             lock (AuditLogLock)
             {
-                var logs = ReadAuditLogs();
+                var logs = GetAuditLogsLocked();
                 logs.Add(new AuditLogEntry
                 {
                     Timestamp = DateTime.UtcNow,
@@ -355,12 +376,35 @@ namespace Jellyfin.Profiles.Controllers
                 // descending here (as this once did) flipped the file every time it was
                 // trimmed, so later appends landed at the wrong end of the timeline.
                 if (logs.Count > 1000)
-                    logs = logs.OrderByDescending(l => l.Timestamp)
-                               .Take(1000)
-                               .OrderBy(l => l.Timestamp)
-                               .ToList();
-                WriteAuditLogs(logs);
+                {
+                    _auditCache = logs.OrderByDescending(l => l.Timestamp)
+                                      .Take(1000)
+                                      .OrderBy(l => l.Timestamp)
+                                      .ToList();
+                    logs = _auditCache;
+                }
+                snapshot = new List<AuditLogEntry>(logs);
             }
+
+            // Persist off the request thread. Serialising and writing the whole file used to
+            // happen inline on every switch, adding disk I/O to the click that takes the user
+            // to the home screen. The trade-off is that a hard crash can lose the most recent
+            // entries — acceptable for an informational switch log, and the in-memory copy
+            // still serves the dashboard correctly in the meantime.
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    lock (AuditLogLock)
+                    {
+                        WriteAuditLogs(snapshot);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "ProfilesPlugin: Background audit log write failed.");
+                }
+            });
         }
 
         // ── Misc shared helpers ─────────────────────────────────────────────────────
