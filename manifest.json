@@ -13,7 +13,7 @@
         "changelog": "⚠️ BETA RELEASE — not a finished release; please report issues on GitHub. ▸ Fix: the 'Plugin Script Update Pending' warning could appear permanently even when index.html was perfectly up to date, and no amount of fixing permissions or re-checking would clear it. The cache-buster written into the script tag was taken from the plugin instance when available and the assembly otherwise — but this runs at server startup, possibly before the plugin instance exists, so the tag could be WRITTEN using one source and later COMPARED against the other. If those render differently (for example '1.2.8' against '1.2.8.0') the check could never succeed again. The version now comes from a single deterministic source, and the comparison extracts the version from index.html instead of matching the whole tag string character-for-character — so a tag with different attribute order, quoting or spacing is correctly recognised as current. ▸ The warning now names both versions ('index.html requests client script v1.2.8.0, but this build is v1.2.10.0') so it can be checked rather than guessed at, and explains that browsers pick up new client code on their own within about five minutes thanks to the revalidation added in 1.2.6 — granting write access only makes it immediate.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.2.10/Jellyfin.Profiles.zip",
-        "checksum": "00000000000000000000000000000000",
+        "checksum": "a2ea626eec814ee6f57c83551bbc039a",
         "timestamp": "2026-08-05T00:00:00Z"
       },
       {
