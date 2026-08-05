@@ -72,6 +72,37 @@ namespace Jellyfin.Profiles
             => string.Equals(GetInjectedScriptVersion(html), ScriptVersion, StringComparison.Ordinal);
 
         /// <summary>
+        /// The OS account the Jellyfin process is running under.
+        ///
+        /// Permission instructions otherwise have to guess: on Windows, Jellyfin may run as a
+        /// service (NT AUTHORITY\NetworkService) or as the logged-in user (tray/desktop mode),
+        /// and on Linux the service account is conventionally "jellyfin" but frequently is not.
+        /// Guessing forces a blunderbuss grant to every local user; knowing the account lets the
+        /// dashboard emit one exact command that grants access to precisely that account.
+        /// </summary>
+        internal static string? RunningAccount
+        {
+            get
+            {
+                try
+                {
+                    if (OperatingSystem.IsWindows())
+                    {
+                        var name = System.Security.Principal.WindowsIdentity.GetCurrent()?.Name;
+                        if (!string.IsNullOrWhiteSpace(name)) return name;
+                    }
+                    var user = Environment.UserName;
+                    return string.IsNullOrWhiteSpace(user) ? null : user;
+                }
+                catch
+                {
+                    // Identity lookup is best-effort — the UI falls back to generic guidance.
+                    return null;
+                }
+            }
+        }
+
+        /// <summary>
         /// Non-destructively probes whether Jellyfin can actually write index.html.
         ///
         /// Reporting "the version tag is old" is describing a symptom; the administrator needs

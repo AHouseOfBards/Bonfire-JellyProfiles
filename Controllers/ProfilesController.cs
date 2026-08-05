@@ -955,6 +955,9 @@ namespace Jellyfin.Profiles.Controllers
                         ProfileUserId = user.Id,
                         ProfileName = mapping?.ProfileName ?? user.Username,
                         MasterName = masterUser?.Username ?? "Unknown",
+                        // Grouping key for the dashboard. Name alone is not safe to group by —
+                        // it changes when an account is renamed and is not guaranteed unique.
+                        MasterUserId = mapping?.MasterUserId ?? Guid.Empty,
                         RequiresPin = mapping != null && !string.IsNullOrEmpty(mapping.PinHash)
                     });
                 }
@@ -987,6 +990,10 @@ namespace Jellyfin.Profiles.Controllers
                 IsVersionStale = ProfilesBootstrapTask.IsVersionStale,
                 IndexPath = ProfilesBootstrapTask.IndexPath,
                 FailureReason = ProfilesBootstrapTask.LastFailureReason,
+                // Lets the dashboard emit a permission command naming the exact account
+                // Jellyfin runs as, instead of guessing between service and desktop mode.
+                ServiceAccount = ProfilesBootstrapTask.RunningAccount,
+                IsWindows = OperatingSystem.IsWindows(),
                 PluginVersion = GetPluginVersion()
             });
         }
@@ -1021,6 +1028,10 @@ namespace Jellyfin.Profiles.Controllers
                 IsVersionStale = ProfilesBootstrapTask.IsVersionStale,
                 IndexPath = ProfilesBootstrapTask.IndexPath,
                 FailureReason = ProfilesBootstrapTask.LastFailureReason,
+                // Lets the dashboard emit a permission command naming the exact account
+                // Jellyfin runs as, instead of guessing between service and desktop mode.
+                ServiceAccount = ProfilesBootstrapTask.RunningAccount,
+                IsWindows = OperatingSystem.IsWindows(),
                 PluginVersion = GetPluginVersion()
             });
         }

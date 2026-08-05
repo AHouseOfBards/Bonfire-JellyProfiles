@@ -9,6 +9,9 @@
                 <br>
                 <strong>How to fix:</strong>
                 Run the command for your platform, then click <strong>Re-check Now</strong> below — no Jellyfin restart needed.
+                <div class="detectedAccountRow" style="display:none; margin-top:8px; font-size:0.9rem; opacity:0.85;">
+                    Jellyfin is running as <code class="detectedAccount"></code>, and the command below grants access to exactly that account.
+                </div>
                 <ul style="margin: 6px 0 0 0; padding-left: 20px;">
                     <li style="margin-bottom:10px;">
                         <strong>Linux (Native):</strong>
@@ -44,6 +47,9 @@
                     </li>
                     <li>
                         <strong>To allow automatic script tag updates on future releases:</strong> Grant write permissions on <code>index.html</code>:
+                        <div class="detectedAccountRow" style="display:none; margin:6px 0; font-size:0.9rem; opacity:0.85;">
+                            Jellyfin is running as <code class="detectedAccount"></code> — the command below grants access to exactly that account.
+                        </div>
                         <ul style="margin: 6px 0 0 0; padding-left: 20px;">
                             <li style="margin-bottom:4px;"><strong>Linux (Native):</strong> <code class="linuxChownCmd">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code> | <code class="linuxChmodCmd">sudo chmod 664 /usr/share/jellyfin/web/index.html</code></li>
                             <li style="margin-bottom:4px;"><strong>Docker:</strong> <code class="dockerChownCmd">docker exec -u root &lt;container-name&gt; chown jellyfin:jellyfin /jellyfin/jellyfin-web/index.html</code> | <code class="dockerChmodCmd">docker exec -u root &lt;container-name&gt; chmod 664 /jellyfin/jellyfin-web/index.html</code></li>
@@ -108,23 +114,14 @@
             </form>
 
             <div class="sectionTitleContainer" style="margin-top: 3em;">
-                <h2 class="sectionTitle">Master Accounts</h2>
+                <h2 class="sectionTitle">Accounts &amp; Profiles</h2>
             </div>
             <div class="fieldDescription" style="margin-bottom: 1em;">
-                Below is a list of all primary master users on the server. Administrators can reset the PIN of any master account.
+                Every master account on the server. Expand an account to see the sub-profiles belonging to it.
+                Administrators can reset the PIN of any account or profile.
             </div>
             <div class="paperList" id="masterUsersList" style="margin-bottom: 3em;">
-                <!-- Master Users dynamically loaded here -->
-            </div>
-
-            <div class="sectionTitleContainer" style="margin-top: 3em;">
-                <h2 class="sectionTitle">Sub-Profiles</h2>
-            </div>
-            <div class="fieldDescription" style="margin-bottom: 1em;">
-                Below is a list of all sub-profiles managed by the plugin. Administrators can reset the PIN of any sub-profile.
-            </div>
-            <div class="paperList" id="subProfilesList" style="margin-bottom: 3em;">
-                <!-- Sub-Profiles dynamically loaded here -->
+                <!-- Master accounts, each with its sub-profiles nested inside -->
             </div>
 
             <div class="sectionTitleContainer" style="margin-top: 3em;">
@@ -170,6 +167,14 @@
             function field(obj, name) {
                 const upper = name.charAt(0).toUpperCase() + name.slice(1);
                 return obj[name] !== undefined ? obj[name] : obj[upper];
+            }
+
+            // Canonical form of a GUID for use as a lookup key — GUIDs come back in mixed case
+            // and sometimes with or without hyphens depending on the serializer, so comparing
+            // the raw strings would fail to match a sub-profile to its master.
+            function normId(guid) {
+                if (!guid) return '';
+                return String(guid).toLowerCase().replace(/[^a-z0-9]/g, '');
             }
 
             // Single place that decides which of the three status banners is visible, so the
@@ -248,7 +253,39 @@
                     page.querySelectorAll('.linuxChmodCmd').forEach(function(el) { el.textContent = 'sudo chmod 664 ' + resolvedLinuxPath; });
                     page.querySelectorAll('.dockerChownCmd').forEach(function(el) { el.textContent = 'docker exec -u root <container-name> chown jellyfin:jellyfin ' + resolvedDockerPath; });
                     page.querySelectorAll('.dockerChmodCmd').forEach(function(el) { el.textContent = 'docker exec -u root <container-name> chmod 664 ' + resolvedDockerPath; });
-                    page.querySelectorAll('.windowsFixCmd').forEach(function(el) { el.textContent = 'icacls "' + resolvedWindowsPath + '" /grant "Users:(M)" /grant "NT AUTHORITY\\NetworkService:(M)"'; });
+                    // The server reports the account it actually runs as, so the command can name
+                    // it exactly. Windows Jellyfin runs either as a service (NT AUTHORITY\
+                    // NetworkService) or as the signed-in user (tray/desktop mode), and Linux
+                    // service accounts are not always "jellyfin" — without this the instructions
+                    // had to cover every case at once and grant Modify to all local users.
+                    const account = field(result, 'serviceAccount');
+                    const winGrant = account
+                        ? '/grant "' + account + ':(M)"'
+                        : '/grant "Users:(M)" /grant "NT AUTHORITY\\NetworkService:(M)"';
+                    page.querySelectorAll('.windowsFixCmd').forEach(function(el) {
+                        el.textContent = 'icacls "' + resolvedWindowsPath + '" ' + winGrant;
+                    });
+
+                    // Same idea for the POSIX commands: chown to the real service account.
+                    if (account) {
+                        const owner = account.indexOf('\\') === -1 ? account : null;
+                        if (owner) {
+                            page.querySelectorAll('.linuxChownCmd').forEach(function(el) {
+                                el.textContent = 'sudo chown ' + owner + ' ' + resolvedLinuxPath;
+                            });
+                            page.querySelectorAll('.dockerChownCmd').forEach(function(el) {
+                                el.textContent = 'docker exec -u root <container-name> chown ' + owner + ' ' + resolvedDockerPath;
+                            });
+                        }
+                    }
+
+                    // Name the account inline so it is obvious which mode this server is in.
+                    page.querySelectorAll('.detectedAccount').forEach(function(el) {
+                        el.textContent = account || 'could not be determined';
+                    });
+                    page.querySelectorAll('.detectedAccountRow').forEach(function(el) {
+                        el.style.display = account ? 'block' : 'none';
+                    });
                 }
             }
 
@@ -295,75 +332,139 @@
                     renderInjectionStatus(page, result);
 
                     const masterContainer = page.querySelector('#masterUsersList');
-                    const subContainer = page.querySelector('#subProfilesList');
 
                     const masterUsers = result.MasterUsers || result.masterUsers || [];
                     const subProfiles = result.SubProfiles || result.subProfiles || [];
 
-                    // Render Master Users
+                    // Group sub-profiles under the master account they belong to. Keyed by
+                    // MasterUserId rather than the display name: names change on rename and are
+                    // not guaranteed unique, which would silently file profiles under the wrong
+                    // account or drop them entirely.
+                    const subsByMaster = {};
+                    subProfiles.forEach(function (s) {
+                        const key = normId(field(s, 'masterUserId'));
+                        if (!subsByMaster[key]) subsByMaster[key] = [];
+                        subsByMaster[key].push(s);
+                    });
+
+                    function pinStatusHtml(reqPin) {
+                        return reqPin
+                            ? '<span style="color:#ff6b6b;font-weight:600;">PIN Protected</span>'
+                            : '<span style="color:#51cf66;font-weight:600;">No PIN</span>';
+                    }
+
+                    function resetPinBtnHtml(pId, reqPin) {
+                        if (!reqPin) return '';
+                        return '<button type="button" class="raised button-accent button-mini reset-pin-btn" data-id="' + pId +
+                               '" style="margin-left:auto; background:#d23f3f; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">Reset PIN</button>';
+                    }
+
+                    // One sub-profile row, rendered inside its master's collapsible panel.
+                    function subProfileRowHtml(s) {
+                        const pName = escapeHtml(field(s, 'profileName') || '');
+                        const pId = field(s, 'profileUserId') || '';
+                        const reqPin = field(s, 'requiresPin') === true;
+                        return '<div class="listItem" style="display:flex; align-items:center; padding:10px 15px 10px 28px; border-top:1px solid rgba(255,255,255,0.05);">' +
+                               '<span class="material-icons" style="font-size:1.1rem; opacity:0.35; margin-right:10px;">subdirectory_arrow_right</span>' +
+                               '<div class="listItemBody" style="flex:1; min-width:0;">' +
+                               '<div class="listItemBodyText" style="font-weight:600; color:#fff;">' + pName + '</div>' +
+                               '<div class="listItemBodyText secondary" style="font-size:0.85rem; opacity:0.75; margin-top:2px;">Status: ' + pinStatusHtml(reqPin) + '</div>' +
+                               '</div>' +
+                               resetPinBtnHtml(pId, reqPin) +
+                               '</div>';
+                    }
+
                     if (masterUsers.length === 0) {
                         masterContainer.innerHTML = '<div class="listItem" style="padding:15px;"><div class="listItemBody">No master accounts found.</div></div>';
                     } else {
                         masterContainer.innerHTML = masterUsers.map(function (m) {
-                            var pName = escapeHtml(m.profileName || m.ProfileName || '');
-                            var pId = m.profileUserId || m.ProfileUserId || '';
-                            var reqPin = m.requiresPin !== undefined ? m.requiresPin : (m.RequiresPin !== undefined ? m.RequiresPin : false);
-                            var maxProfiles = m.maxProfiles || m.MaxProfiles || 5;
-                            var limitOverride = m.limitOverride !== undefined ? m.limitOverride : (m.LimitOverride !== undefined ? m.LimitOverride : null);
-                            var pinStatus = reqPin 
-                                ? '<span style="color:#ff6b6b;font-weight:600;">PIN Protected</span>' 
-                                : '<span style="color:#51cf66;font-weight:600;">No PIN</span>';
-                            var resetBtn = reqPin 
-                                ? '<button type="button" class="raised button-accent button-mini reset-pin-btn" data-id="' + pId + '" style="margin-left:auto; background:#d23f3f; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">Reset PIN</button>' 
-                                : '';
+                            const pName = escapeHtml(field(m, 'profileName') || '');
+                            const pId = field(m, 'profileUserId') || '';
+                            const reqPin = field(m, 'requiresPin') === true;
+                            const maxProfiles = field(m, 'maxProfiles') || 5;
+                            const limitOverride = field(m, 'limitOverride');
+                            const subs = subsByMaster[normId(pId)] || [];
 
-                            var overrideControl = 
-                                '<div style="display:flex; align-items:center; gap:8px; margin-top:8px;">' +
+                            const overrideControl =
+                                '<div style="display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;">' +
                                 '<span style="font-size:0.85rem; opacity:0.6;">Profile Limit:</span>' +
                                 '<input is="emby-input" type="number" class="user-limit-input" data-id="' + pId + '" min="1" max="20" value="' + maxProfiles + '" style="width:60px !important; height:28px !important; padding:2px 6px !important; font-size:0.85rem !important; margin:0 !important; box-sizing:border-box !important;" />' +
                                 '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + pId + '" style="background:#00a4dc; color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">Set</button>' +
-                                (limitOverride !== null ? '<button type="button" class="raised button-mini clear-limit-btn" data-id="' + pId + '" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.15); padding:3px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer; margin-left:4px;">Reset</button>' : '') +
+                                (limitOverride !== null && limitOverride !== undefined
+                                    ? '<button type="button" class="raised button-mini clear-limit-btn" data-id="' + pId + '" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.15); padding:3px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer;">Reset</button>'
+                                    : '') +
                                 '</div>';
 
-                            return '<div class="listItem" style="display:flex; align-items:center; padding:15px; border-bottom:1px solid rgba(255,255,255,0.08);">' +
-                                   '<div class="listItemBody" style="flex:1;">' +
+                            // The toggle is a real <button> so it is keyboard reachable and
+                            // announces its expanded state; accounts with no sub-profiles get
+                            // static text instead of a control that would do nothing.
+                            const countLabel = subs.length === 1 ? '1 sub-profile' : subs.length + ' sub-profiles';
+                            const toggle = subs.length > 0
+                                ? '<button type="button" class="sub-profile-toggle" data-master="' + normId(pId) + '" aria-expanded="false" ' +
+                                  'style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#fff; ' +
+                                  'border-radius:6px; padding:5px 12px; font-size:0.85rem; font-weight:600; cursor:pointer; margin-top:10px;">' +
+                                  '<span class="material-icons toggle-chevron" style="font-size:1.1rem; transition:transform 0.15s ease;">expand_more</span>' +
+                                  '<span>' + countLabel + '</span>' +
+                                  '</button>'
+                                : '<div style="margin-top:10px; font-size:0.85rem; opacity:0.5;">No sub-profiles</div>';
+
+                            const subPanel = subs.length > 0
+                                ? '<div class="sub-profile-panel" data-master="' + normId(pId) + '" style="display:none; background:rgba(0,0,0,0.18);">' +
+                                  subs.map(subProfileRowHtml).join('') +
+                                  '</div>'
+                                : '';
+
+                            return '<div class="listItem-group" style="border-bottom:1px solid rgba(255,255,255,0.08);">' +
+                                   '<div class="listItem" style="display:flex; align-items:flex-start; padding:15px;">' +
+                                   '<div class="listItemBody" style="flex:1; min-width:0;">' +
                                    '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#fff;">' + pName + '</div>' +
-                                   '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">' +
-                                   'Status: ' + pinStatus +
-                                   '</div>' +
+                                   '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">Status: ' + pinStatusHtml(reqPin) + '</div>' +
                                    overrideControl +
+                                   toggle +
                                    '</div>' +
-                                   resetBtn +
+                                   resetPinBtnHtml(pId, reqPin) +
+                                   '</div>' +
+                                   subPanel +
                                    '</div>';
                         }).join('');
                     }
 
-                    // Render Sub Profiles
-                    if (subProfiles.length === 0) {
-                        subContainer.innerHTML = '<div class="listItem" style="padding:15px;"><div class="listItemBody">No sub-profiles configured yet.</div></div>';
-                    } else {
-                        subContainer.innerHTML = subProfiles.map(function (m) {
-                            var pName = escapeHtml(m.profileName || m.ProfileName || '');
-                            var pId = m.profileUserId || m.ProfileUserId || '';
-                            var reqPin = m.requiresPin !== undefined ? m.requiresPin : (m.RequiresPin !== undefined ? m.RequiresPin : false);
-                            var mName = escapeHtml(m.masterName || m.MasterName || '');
-                            var pinStatus = reqPin 
-                                ? '<span style="color:#ff6b6b;font-weight:600;">PIN Protected</span>' 
-                                : '<span style="color:#51cf66;font-weight:600;">No PIN</span>';
-                            var resetBtn = reqPin 
-                                ? '<button type="button" class="raised button-accent button-mini reset-pin-btn" data-id="' + pId + '" style="margin-left:auto; background:#d23f3f; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer;">Reset PIN</button>' 
-                                : '';
-                            return '<div class="listItem" style="display:flex; align-items:center; padding:15px; border-bottom:1px solid rgba(255,255,255,0.08);">' +
-                                   '<div class="listItemBody" style="flex:1;">' +
-                                   '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#fff;">' + pName + '</div>' +
-                                   '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">' +
-                                   'Master Account: <strong>' + mName + '</strong> | Status: ' + pinStatus +
-                                   '</div>' +
-                                   '</div>' +
-                                   resetBtn +
-                                   '</div>';
-                        }).join('');
+                    // Any sub-profile whose master is not in the list above would otherwise
+                    // vanish from the dashboard entirely — the old flat list showed every
+                    // profile unconditionally, and losing that would hide exactly the broken
+                    // records an administrator most needs to find (and still needs to be able
+                    // to reset a PIN on).
+                    const knownMasterKeys = masterUsers.map(function (m) { return normId(field(m, 'profileUserId')); });
+                    const orphans = subProfiles.filter(function (s) {
+                        return knownMasterKeys.indexOf(normId(field(s, 'masterUserId'))) === -1;
+                    });
+                    if (orphans.length > 0) {
+                        masterContainer.insertAdjacentHTML('beforeend',
+                            '<div class="listItem-group" style="border-bottom:1px solid rgba(255,255,255,0.08);">' +
+                            '<div class="listItem" style="display:flex; align-items:flex-start; padding:15px;">' +
+                            '<div class="listItemBody" style="flex:1; min-width:0;">' +
+                            '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#ffc078;">⚠️ Unlinked sub-profiles</div>' +
+                            '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">' +
+                            'These profiles reference a master account that no longer exists. They are usually left behind by a partially failed deletion.' +
+                            '</div>' +
+                            '</div></div>' +
+                            '<div style="background:rgba(0,0,0,0.18);">' + orphans.map(subProfileRowHtml).join('') + '</div>' +
+                            '</div>');
                     }
+
+                    // Expand / collapse handlers for each master's sub-profile panel.
+                    page.querySelectorAll('.sub-profile-toggle').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            const key = btn.getAttribute('data-master');
+                            const panel = page.querySelector('.sub-profile-panel[data-master="' + key + '"]');
+                            if (!panel) return;
+                            const open = panel.style.display !== 'none';
+                            panel.style.display = open ? 'none' : 'block';
+                            btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+                            const chevron = btn.querySelector('.toggle-chevron');
+                            if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
+                        });
+                    });
 
                     // Attach reset PIN event handlers
                     page.querySelectorAll('.reset-pin-btn').forEach(function (btn) {
