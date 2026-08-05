@@ -26,6 +26,13 @@ Adds multi-user profile switching to Jellyfin. A single account can have up to f
 
 Once the server restarts, the plugin is active and will automatically load on all compatible clients with no further setup.
 
+> [!TIP]
+> **Want pre-release builds?** The repository above lists milestone releases only. A second repository carries every published version, including all point releases:
+> ```
+> https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/beta/manifest.json
+> ```
+> Add it alongside the stable one — both describe the same plugin, so Jellyfin simply offers more versions to choose from. See [BETA-CHANNEL.md](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/beta/BETA-CHANNEL.md).
+
 > [!NOTE]
 > **Automatic Client Script Injection & Permissions:**
 > On startup, the plugin automatically patches Jellyfin's `index.html` to inject the client-side profile switcher. If the Jellyfin process lacks write permissions to its web client files (common on Docker, Linux, or restricted Windows directories), the injection will fail.
