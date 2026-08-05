@@ -13,7 +13,7 @@
         "changelog": "⚠️ BETA RELEASE — not a finished release; please report issues on GitHub. ▸ Fix: a newly saved PIN (or any other profile change) still showed the old state until the page was reloaded — a freshly set PIN kept reading as 'No PIN'. Opening the switcher from the home screen uses a background-prefetched copy of the profile list so the overlay appears without a flash, but that copy was also being served to the render that happens straight after a save, and was refilled on every fetch so it never expired. Saving, creating, deleting a profile, and leaving the Bonfire panel now always re-read from the server. ▸ Diagnostics: when the local-network PIN bypass skips a PIN, the client address and the fact that Jellyfin classified it as local are now logged. If you run Jellyfin behind a reverse proxy that is not listed under Networking → Known Proxies, every request arrives carrying the proxy's address and is therefore treated as local — which would apply the bypass to remote users. This log line is how to confirm that is not happening on your server.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.2.9/Jellyfin.Profiles.zip",
-        "checksum": "00000000000000000000000000000000",
+        "checksum": "92b0f92fe17102981b50b4ccae4da247",
         "timestamp": "2026-08-05T00:00:00Z"
       },
       {
