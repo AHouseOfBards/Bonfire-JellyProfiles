@@ -53,6 +53,8 @@ Retrieves a list of all profiles (master and sub-profiles) accessible to the aut
 | `lockoutMinutes` | integer | Inactivity timeout in minutes before auto-lock. `0` indicates disabled. |
 | `maxSubProfiles` | integer | Maximum sub-profiles allowed (present only when `isMaster` is true). |
 | `enabledFolders` | string[] (GUIDs) | Library GUIDs accessible to this sub-profile (present only when `isMaster` is false). |
+| `blockedTags` | string[] | Tags this sub-profile is blocked from seeing. This is the profile's own list; the master's blocked tags are merged in when the policy is applied, so it may be narrower than what the underlying Jellyfin user enforces. |
+| `allowedTags` | string[] | Tags this sub-profile is restricted to. Empty means no allow-list. Same "profile's own list" caveat as `blockedTags`. |
 | `bypassPinOnLocalNetwork` | boolean | If true, PIN entry is bypassed when the client is on a local network (LAN). |
 | `allowedDeviceIds` | string[] | Device IDs permitted to access this profile. Empty or null indicates no device restrictions. |
 | `isBonfire` | boolean | Indicates if the profile belongs to a linked Bonfire guest home. |
@@ -76,6 +78,12 @@ Authenticates a profile selection and returns a scoped session token. Rate limit
 | `profileId` | string (GUID) | Yes | The Jellyfin user ID of the target profile. |
 | `pin` | string | Conditional | Required if `requiresPin` is true for the target profile. |
 
+> **Cross-account switches (Bonfire).** Switching into *another master account* linked via a Bonfire group returns a fully privileged session for that account, so two extra rules apply:
+> * If the target master account has no PIN set, the switch is refused with `400` — an unprotected account is not reachable through a shared Bonfire at all.
+> * `bypassPinOnLocalNetwork` is ignored for these switches. The PIN is always required, even on the LAN. `requiresPin` in `/list` reflects this, so clients that trust that flag need no special handling.
+>
+> Neither rule affects switching to your own account or its sub-profiles.
+
 * **Response `200 OK`:**
 ```json
 {
@@ -90,7 +98,7 @@ Authenticates a profile selection and returns a scoped session token. Rate limit
 | `jellyfinUserId` | string (GUID) | Jellyfin user ID of the target profile. |
 
 * **Error Responses:**
-  * `400 Bad Request`: Incorrect PIN, device restrictions not met, or invalid parameters.
+  * `400 Bad Request`: Incorrect PIN, device restrictions not met, target is an unprotected master account reached via Bonfire, or invalid parameters.
   * `401 Unauthorized`: Caller is not authenticated, or unauthorized profile switch attempt.
   * `404 Not Found`: Target profile or underlying system user does not exist.
   * `429 Too Many Requests`: PIN authentication rate limit exceeded (5 failed attempts per 15 minutes).
@@ -130,6 +138,8 @@ Creates a new sub-profile.
   "avatarColor": "#EC4899",
   "maxParentalRating": "6",
   "enabledFolders": ["e67b2d5a39cb400ba45a7b0a70198de7"],
+  "blockedTags": ["adults"],
+  "allowedTags": [],
   "lockoutMinutes": 5,
   "masterPin": "1234",
   "bypassPinOnLocalNetwork": false,
@@ -145,6 +155,8 @@ Creates a new sub-profile.
 | `avatarColor` | string | No | Hex color code for the fallback avatar. Defaults to `#1F77B4`. |
 | `maxParentalRating` | string | No | Maximum parental rating allowed (e.g., "6", "10", "14", "17"). Omit for no restriction. |
 | `enabledFolders` | string[] (GUIDs) | No | Array of library GUIDs accessible to this profile. Empty array denies all library access. |
+| `blockedTags` | string[] | No | Tags this profile must never see. Merged with the master's blocked tags — a sub-profile can add blocks but never remove the master's. Null or empty blocks nothing. |
+| `allowedTags` | string[] | No | When non-empty, restricts the profile to items carrying at least one of these tags. Intersected with the master's allow-list when it has one; returns `400` if the two share no tags. **Untagged content is hidden by an allow-list.** |
 | `lockoutMinutes` | integer | No | Inactivity timeout in minutes before auto-lock. `0` to disable. Defaults to `5`. |
 | `masterPin` | string | Conditional | Required if the master account has a PIN set. |
 | `bypassPinOnLocalNetwork` | boolean | No | Bypasses PIN entry when the client is on a local network. Defaults to `false`. |
@@ -177,6 +189,8 @@ Updates settings for an existing sub-profile.
   "avatarColor": "#D946EF",
   "maxParentalRating": "10",
   "enabledFolders": ["e67b2d5a39cb400ba45a7b0a70198de7"],
+  "blockedTags": ["adults"],
+  "allowedTags": [],
   "lockoutMinutes": 30,
   "masterPin": "1234",
   "bypassPinOnLocalNetwork": false,
@@ -193,6 +207,8 @@ Updates settings for an existing sub-profile.
 | `avatarColor` | string | No | New hex color code. |
 | `maxParentalRating` | string | No | New maximum parental rating code. Pass `null` to leave unchanged. |
 | `enabledFolders` | string[] (GUIDs) | No | Updated library GUIDs. Pass `null` to leave unchanged. |
+| `blockedTags` | string[] | No | Updated blocked tags. Pass `[]` to clear, `null` to leave unchanged. Ignored for the master profile. |
+| `allowedTags` | string[] | No | Updated allow-list. Pass `[]` to clear, `null` to leave unchanged. Returns `400` if it shares no tags with the master's allow-list. Ignored for the master profile. |
 | `lockoutMinutes` | integer | No | New inactivity timeout in minutes. Pass `null` to leave unchanged. |
 | `masterPin` | string | Conditional | Required if the master account has a PIN set. |
 | `bypassPinOnLocalNetwork` | boolean | No | Updated local network PIN bypass setting. Pass `null` to leave unchanged. |
@@ -465,7 +481,8 @@ Retrieves all user profile mappings configured on the server.
       "requiresPin": false
     }
   ],
-  "injectionSucceeded": true
+  "injectionSucceeded": true,
+  "indexPath": "/usr/share/jellyfin/web/index.html"
 }
 ```
 
@@ -474,6 +491,7 @@ Retrieves all user profile mappings configured on the server.
 | `masterUsers` | array | List of master accounts. Each entry has `profileUserId`, `profileName`, `requiresPin`, `maxProfiles`, and `limitOverride`. |
 | `subProfiles` | array | List of sub-profiles. Each entry has `profileUserId`, `profileName`, `masterName`, and `requiresPin`. |
 | `injectionSucceeded` | boolean | Indicates if the client-side script auto-injection into `index.html` succeeded. |
+| `indexPath` | string | The resolved absolute file path to Jellyfin's `index.html` on the host system. |
 
 * **Error Responses:**
   * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
@@ -498,6 +516,35 @@ Removes the PIN requirement from the specified profile.
 * **Error Responses:**
   * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
   * `404 Not Found`: Profile mapping not found.
+
+### `POST /plugins/profiles/admin/retry-injection`
+Re-runs the client-script injection into Jellyfin's `index.html` and returns the resulting status. Lets an administrator apply a file-permission fix and confirm it worked without restarting the Jellyfin server.
+
+* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
+* **Request Body:** none.
+
+* **Response `200 OK`:**
+```json
+{
+  "injectionSucceeded": true,
+  "isVersionStale": false,
+  "indexPath": "/usr/share/jellyfin/web/index.html",
+  "failureReason": null,
+  "pluginVersion": "1.2.6.0"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `injectionSucceeded` | boolean | False only when the client script is absent from `index.html` — the switcher will not load. |
+| `isVersionStale` | boolean | True when the script is present but `index.html` is not fully current (old cache-buster, or the `<head>` anti-flicker script is missing). The switcher works. |
+| `failureReason` | string \| null | Human-readable description of the specific problem, or null when everything is correct. |
+| `pluginVersion` | string | Running plugin version. |
+
+`GET /plugins/profiles/admin/mappings` returns these same four fields and re-evaluates `index.html` on every call, so simply reloading the settings page reflects the current state.
+
+* **Error Responses:**
+  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
 
 ### `POST /plugins/profiles/admin/set-profile-limit`
 Overrides the maximum number of profiles a master user is allowed to create.

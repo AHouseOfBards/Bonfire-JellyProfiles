@@ -1,6 +1,50 @@
 (function () {
     'use strict';
 
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // Avatar colours and profile images are stored server-side and — through Bonfire
+    // groups — rendered on *other* accounts' switcher screens. Both are validated on the
+    // server, but they are re-validated here so a value predating that validation (or
+    // written directly to PluginConfiguration.xml) can never break out of its attribute.
+
+    const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+    const DEFAULT_AVATAR_COLOR = '#00A4DC';
+
+    function safeColor(color) {
+        return HEX_COLOR_RE.test(color || '') ? color : DEFAULT_AVATAR_COLOR;
+    }
+
+    /// Allows only the three shapes the plugin actually produces: its own image
+    /// endpoint, a data:image payload, and an absolute http(s) URL. Anything else
+    /// resolves to an empty src rather than being trusted.
+    function safeImageSrc(src) {
+        if (!src) return '';
+        const value = String(src).trim();
+        if (value.startsWith('/plugins/profiles/image/')) return escapeHtml(value);
+        if (/^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/=]+$/i.test(value)) return escapeHtml(value);
+        try {
+            const parsed = new URL(value, window.location.origin);
+            if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return escapeHtml(parsed.href);
+        } catch (e) { /* not a parseable URL — fall through */ }
+        return '';
+    }
+
+    // The profile gate overlay sits at z-index 99999. Anything that has to appear *over*
+    // it — alerts, confirmations — must beat that number, or it renders behind a full-screen
+    // opaque background and is completely invisible. That produced dead-looking buttons:
+    // clicking Save with an invalid PIN fired a validation alert nobody could see.
+    const OVERLAY_Z = 99999;
+    const DIALOG_Z = OVERLAY_Z + 10;
+
     const ProfilesPlugin = {
         config: {
             masterStorageKey: 'jellyfin_profiles_master_state',
@@ -45,7 +89,7 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                z-index: 11000;
+                z-index: ${DIALOG_Z};
                 opacity: 0;
                 transition: opacity 0.15s ease-out;
             `;
@@ -126,7 +170,7 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                z-index: 11000;
+                z-index: ${DIALOG_Z};
                 opacity: 0;
                 transition: opacity 0.15s ease-out;
             `;
@@ -204,6 +248,66 @@
             return guid.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
         },
 
+        /// Registers a document-level listener that is torn down the next time a modal is
+        /// rendered.
+        ///
+        /// The create/edit forms attach a document click handler to close the device dropdown.
+        /// Those were added on every render and never removed, so each open/close cycle left
+        /// another live closure bound to `document`, each capturing a now-detached modal. After
+        /// a few passes every click on the page ran a growing pile of stale handlers — which
+        /// showed up as clicks taking seconds to register, getting worse the longer the tab
+        /// stayed open.
+        addManagedDocumentListener: function (type, handler, options) {
+            if (!this._managedDocListeners) this._managedDocListeners = [];
+            document.addEventListener(type, handler, options);
+            this._managedDocListeners.push({ type, handler, options });
+        },
+
+        /// Drops every listener registered via addManagedDocumentListener. Safe to call when
+        /// none are outstanding.
+        clearManagedDocumentListeners: function () {
+            if (!this._managedDocListeners) return;
+            this._managedDocListeners.forEach(({ type, handler, options }) => {
+                document.removeEventListener(type, handler, options);
+            });
+            this._managedDocListeners = [];
+        },
+
+        /// Normalizes the /list response into the camelCase shape the UI uses.
+        /// ASP.NET may serialize either casing depending on server configuration, so every
+        /// field is read both ways. Single definition — adding a field here reaches every
+        /// caller, which two hand-maintained copies of this map did not.
+        normalizeProfiles: function (profiles) {
+            const pick = (p, name, fallback) => {
+                const upper = name.charAt(0).toUpperCase() + name.slice(1);
+                if (p[name] !== undefined && p[name] !== null) return p[name];
+                if (p[upper] !== undefined && p[upper] !== null) return p[upper];
+                return fallback;
+            };
+
+            return (profiles || []).map(p => ({
+                profileUserId: pick(p, 'profileUserId', null),
+                profileName: pick(p, 'profileName', ''),
+                avatarInitial: pick(p, 'avatarInitial', '?'),
+                avatarColor: pick(p, 'avatarColor', '#00A4DC'),
+                requiresPin: pick(p, 'requiresPin', false),
+                // "A PIN exists" — distinct from requiresPin, which is false on the LAN when
+                // the bypass is enabled. Forms must use this one.
+                hasPin: pick(p, 'hasPin', false),
+                isMaster: pick(p, 'isMaster', false),
+                lockoutMinutes: pick(p, 'lockoutMinutes', 5),
+                maxSubProfiles: pick(p, 'maxSubProfiles', 5),
+                bypassPinOnLocalNetwork: pick(p, 'bypassPinOnLocalNetwork', false),
+                allowedDeviceIds: pick(p, 'allowedDeviceIds', []),
+                enabledFolders: pick(p, 'enabledFolders', []),
+                blockedTags: pick(p, 'blockedTags', []),
+                allowedTags: pick(p, 'allowedTags', []),
+                isBonfire: pick(p, 'isBonfire', false),
+                profileImage: pick(p, 'profileImage', null),
+                masterUserId: pick(p, 'masterUserId', null)
+            }));
+        },
+
         initTVCheckboxes: function (container) {
             container.querySelectorAll('.library-check-label').forEach(label => {
                 if (!label.hasAttribute('tabindex')) {
@@ -223,6 +327,155 @@
                     }
                 });
             });
+        },
+
+        /// Wraps a group of form fields in a titled, self-contained section.
+        /// The create/edit forms grew field-by-field in the order features were added, which
+        /// left unrelated controls adjacent and gave no landmarks to scroll by — worst on
+        /// phones, where the form is several screens long. Sections give each group a heading
+        /// and one-line purpose, and are plain blocks (no collapsing) so D-pad focus order on
+        /// TV stays linear and predictable.
+        renderSection: function (icon, title, subtitle, bodyHtml) {
+            return `
+                <section class="profile-section">
+                    <div class="profile-section-header">
+                        <span class="material-icons profile-section-icon" aria-hidden="true">${icon}</span>
+                        <div class="profile-section-heading">
+                            <h2 class="profile-section-title">${escapeHtml(title)}</h2>
+                            <span class="profile-section-subtitle">${escapeHtml(subtitle)}</span>
+                        </div>
+                    </div>
+                    <div class="profile-section-body">${bodyHtml}</div>
+                </section>
+            `;
+        },
+
+        /// The avatar swatches are identical in both forms; keeping one copy means a palette
+        /// change lands in both places at once.
+        renderColorPicker: function (selectedColor) {
+            const palette = [
+                '#00A4DC', '#E50914', '#22C55E', '#EAB308', '#A855F7', '#EC4899',
+                '#F97316', '#06B6D4', '#3B82F6', '#10B981', '#6366F1', '#8B5CF6',
+                '#D946EF', '#F43F5E', '#14B8A6', '#F59E0B', '#84CC16', '#64748B'
+            ];
+            const active = (selectedColor || '').toLowerCase();
+            return `
+                <div class="avatar-color-picker">
+                    ${palette.map(c => `
+                        <div class="color-dot${c.toLowerCase() === active ? ' active' : ''}"
+                             style="background-color: ${c}" data-color="${c}"
+                             role="radio" aria-label="${c}" tabindex="0"></div>
+                    `).join('')}
+                </div>
+            `;
+        },
+
+        // ── Tag filtering ───────────────────────────────────────────────────────────
+        // Jellyfin matches blocked/allowed tags against an item's inherited tags, so a tag
+        // on a series or a whole library applies to everything inside it.
+
+        /// Fetches the distinct tags present in the master's libraries, for the suggestion
+        /// list. Degrades to an empty list — the inputs stay usable as free text.
+        fetchLibraryTags: function (apiClient, token, userId) {
+            let url;
+            try {
+                url = apiClient.getUrl('Items/Filters2', { userId: userId, recursive: true });
+            } catch (e) {
+                return Promise.resolve([]);
+            }
+            return fetch(url, { headers: this.getAuthHeaders(token) })
+                .then(res => res.ok ? res.json() : null)
+                .then(data => {
+                    const tags = (data && (data.Tags || data.tags)) || [];
+                    return Array.from(new Set(tags.filter(t => t)))
+                        .sort((a, b) => a.localeCompare(b));
+                })
+                .catch(() => []);
+        },
+
+        renderTagSuggestions: function (id, tags) {
+            return `<datalist id="${id}">${(tags || []).map(t => `<option value="${escapeHtml(t)}"></option>`).join('')}</datalist>`;
+        },
+
+        renderTagChip: function (tag) {
+            const safe = escapeHtml(tag);
+            return `<span class="tag-chip" data-tag="${safe}"><span>${safe}</span><button type="button" class="tag-chip-remove" tabindex="0" aria-label="Remove tag ${safe}">×</button></span>`;
+        },
+
+        renderTagEditor: function (id, tags, placeholder, suggestionsId) {
+            const chips = (tags || []).map(t => this.renderTagChip(t)).join('');
+            return `
+                <div class="tag-editor" id="${id}">
+                    <div class="tag-chip-list" ${(tags || []).length ? '' : 'data-empty="true"'}>${chips}</div>
+                    <div class="tag-input-row">
+                        <input type="text" class="tag-input" placeholder="${escapeHtml(placeholder)}" list="${suggestionsId}" autocomplete="off" />
+                        <button type="button" class="profiles-btn btn-secondary tag-add-btn">Add</button>
+                    </div>
+                </div>
+            `;
+        },
+
+        initTagEditors: function (container) {
+            container.querySelectorAll('.tag-editor').forEach(editor => {
+                if (editor._tagInit) return;
+                editor._tagInit = true;
+
+                const chipList = editor.querySelector('.tag-chip-list');
+                const input = editor.querySelector('.tag-input');
+                const addBtn = editor.querySelector('.tag-add-btn');
+                if (!chipList || !input || !addBtn) return;
+
+                const syncEmpty = () => {
+                    if (chipList.querySelector('.tag-chip')) {
+                        chipList.removeAttribute('data-empty');
+                    } else {
+                        chipList.setAttribute('data-empty', 'true');
+                    }
+                };
+
+                const addTag = () => {
+                    const value = (input.value || '').trim();
+                    input.value = '';
+                    if (!value) return;
+                    const exists = Array.from(chipList.querySelectorAll('.tag-chip')).some(
+                        chip => (chip.getAttribute('data-tag') || '').toLowerCase() === value.toLowerCase());
+                    if (!exists) {
+                        chipList.insertAdjacentHTML('beforeend', this.renderTagChip(value));
+                        syncEmpty();
+                    }
+                };
+
+                addBtn.addEventListener('click', (e) => { e.preventDefault(); addTag(); input.focus(); });
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); addTag(); }
+                });
+                // Committing on blur means a typed-but-not-added tag isn't silently lost on save.
+                input.addEventListener('blur', () => addTag());
+
+                chipList.addEventListener('click', (e) => {
+                    const removeBtn = e.target.closest('.tag-chip-remove');
+                    if (!removeBtn) return;
+                    e.preventDefault();
+                    removeBtn.closest('.tag-chip').remove();
+                    syncEmpty();
+                });
+                chipList.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    const removeBtn = e.target.closest('.tag-chip-remove');
+                    if (!removeBtn) return;
+                    e.preventDefault();
+                    removeBtn.closest('.tag-chip').remove();
+                    syncEmpty();
+                });
+            });
+        },
+
+        getTagEditorValues: function (container, id) {
+            const editor = container.querySelector('#' + id);
+            if (!editor) return [];
+            return Array.from(editor.querySelectorAll('.tag-chip'))
+                .map(chip => chip.getAttribute('data-tag'))
+                .filter(t => t);
         },
 
         init: function () {
@@ -668,22 +921,37 @@
             this.fetchAndRenderProfiles(apiClient, masterUserId, masterToken);
         },
 
-        fetchAndRenderProfiles: function (apiClient, masterUserId, masterToken) {
-            // Use the pre-fetched cache for an instant, flash-free overlay.
-            // The cache is populated in the background by _prefetchProfiles() while
-            // the user is on the home screen.  Clear it after use so the next call
-            // always gets fresh data (profile list may have changed server-side).
-            if (this.cachedProfiles && this.cachedProfiles.length) {
+        /// Drops the prefetch cache so the next render is guaranteed to hit the server.
+        /// Must be called after anything that changes profile state — otherwise the render
+        /// that follows a save shows the pre-save snapshot.
+        invalidateProfileCache: function () {
+            this.cachedProfiles = [];
+            this._profilePrefetchPending = false;
+        },
+
+        /// Renders the profile grid.
+        ///
+        /// `forceRefresh` bypasses the prefetch cache and is REQUIRED after any mutation
+        /// (create / edit / delete). The cache exists only to make opening the switcher from
+        /// the home screen flash-free; serving it after a save showed stale data — a freshly
+        /// saved PIN still read as "No PIN" until the page was reloaded.
+        fetchAndRenderProfiles: function (apiClient, masterUserId, masterToken, forceRefresh) {
+            if (forceRefresh) {
+                this.invalidateProfileCache();
+            } else if (this.cachedProfiles && this.cachedProfiles.length) {
+                // Consume the prefetch exactly once, then drop it.
                 const profiles = this.cachedProfiles;
-                this.cachedProfiles = [];
-                this._profilePrefetchPending = false;
+                this.invalidateProfileCache();
                 this.showProfileOverlay(profiles);
                 return;
             }
 
             const url = apiClient.getUrl(`plugins/profiles/list`);
-            
+
             fetch(url, {
+                // Never let a conditional/heuristic cache answer this — it drives the
+                // PIN and library state shown in the editor.
+                cache: 'no-store',
                 headers: this.getAuthHeaders(masterToken)
             })
             .then(res => {
@@ -694,23 +962,10 @@
                 return res.json();
             })
             .then(profiles => {
-                const normalized = (profiles || []).map(p => ({
-                    profileUserId: p.profileUserId || p.ProfileUserId,
-                    profileName: p.profileName || p.ProfileName,
-                    avatarInitial: p.avatarInitial || p.AvatarInitial,
-                    avatarColor: p.avatarColor || p.AvatarColor,
-                    requiresPin: p.requiresPin !== undefined ? p.requiresPin : p.RequiresPin,
-                    isMaster: p.isMaster !== undefined ? p.isMaster : p.IsMaster,
-                    lockoutMinutes: p.lockoutMinutes !== undefined ? p.lockoutMinutes : (p.LockoutMinutes !== undefined ? p.LockoutMinutes : 5),
-                    maxSubProfiles: p.maxSubProfiles !== undefined ? p.maxSubProfiles : (p.MaxSubProfiles !== undefined ? p.MaxSubProfiles : 5),
-                    bypassPinOnLocalNetwork: p.bypassPinOnLocalNetwork !== undefined ? p.bypassPinOnLocalNetwork : (p.BypassPinOnLocalNetwork !== undefined ? p.BypassPinOnLocalNetwork : false),
-                    allowedDeviceIds: p.allowedDeviceIds || p.AllowedDeviceIds || [],
-                    enabledFolders: p.enabledFolders || p.EnabledFolders || [],
-                    isBonfire: p.isBonfire !== undefined ? p.isBonfire : (p.IsBonfire !== undefined ? p.IsBonfire : false),
-                    profileImage: p.profileImage || p.ProfileImage || null,
-                    masterUserId: p.masterUserId || p.MasterUserId || null
-                }));
-                this.cachedProfiles = normalized;
+                const normalized = this.normalizeProfiles(profiles);
+                // Deliberately NOT stored in cachedProfiles: that field is the one-shot
+                // prefetch buffer, and repopulating it here made the *next* call short-circuit
+                // to data that was already stale.
                 localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
                 this.showProfileOverlay(normalized);
             })
@@ -724,6 +979,10 @@
             // Always stop the inactivity timer when showing the profile selector
             this.stopInactivityTimer();
             this._overlayMountTime = Date.now();
+
+            // Returning to the grid replaces the modal contents, so any document-level
+            // listeners the previous form registered are now bound to detached nodes.
+            this.clearManagedDocumentListeners();
 
             const skinHeader = document.querySelector('.skinHeader');
             if (skinHeader) skinHeader.style.display = 'none';
@@ -776,6 +1035,9 @@
         removeProfileOverlay: function () {
             const overlay = document.getElementById('profiles-gate-overlay');
             if (overlay) overlay.remove();
+
+            // Tearing down the overlay must also drop the form listeners it owned.
+            this.clearManagedDocumentListeners();
 
             // Re-enable scrolling
             document.body.classList.remove('profiles-no-scroll');
@@ -935,8 +1197,8 @@
                             </svg>
                         </div>
                         ` : ''}
-                        <div class="profile-avatar" style="background-color: ${p.avatarColor}; overflow: hidden; display: flex; align-items: center; justify-content: center;">
-                            ${p.profileImage ? `<img src="${p.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : p.avatarInitial}
+                        <div class="profile-avatar" style="background-color: ${safeColor(p.avatarColor)}; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                            ${p.profileImage ? `<img src="${safeImageSrc(p.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(p.avatarInitial)}
                             ${this.isManageMode ? `
                             <div class="profile-avatar-overlay-wrap">
                                 <svg class="profile-avatar-overlay-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 32px; height: 32px; color: #fff;">
@@ -961,7 +1223,7 @@
                         ` : ''}
                     </div>
                     <div class="profile-name">
-                        <span>${p.profileName}</span>
+                        <span>${escapeHtml(p.profileName)}</span>
                         ${this.isManageMode ? `
                             <span class="profile-pin-badge ${p.requiresPin ? 'locked' : 'unlocked'}">
                                 ${p.requiresPin ? 'PIN Protected' : 'No PIN'}
@@ -980,12 +1242,16 @@
                 let headerIcon = '';
                 let isBonfireIcon = false;
 
+                // Both headers use the campfire glyph — the section is called a Bonfire, so a
+                // house icon read as a different concept entirely. Your own Bonfire keeps the
+                // warm flame colour; linked ones are tinted by .bonfire-icon-color so the two
+                // remain distinguishable at a glance.
                 if (isLocalGroup) {
                     headerTitle = "Your Bonfire";
-                    headerIcon = "home";
+                    headerIcon = "local_fire_department";
                 } else {
                     const masterProfileForGroup = groupProfiles.find(p => p.isMaster);
-                    const groupName = masterProfileForGroup ? masterProfileForGroup.profileName : "Guest";
+                    const groupName = masterProfileForGroup ? escapeHtml(masterProfileForGroup.profileName) : "Guest";
                     headerTitle = `${groupName}'s Bonfire`;
                     headerIcon = "local_fire_department";
                     isBonfireIcon = true;
@@ -1488,155 +1754,171 @@
 
             Promise.all([
                 fetch(libUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
-                fetch(devicesUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()).catch(() => [])
+                fetch(devicesUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()).catch(() => []),
+                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId)
             ])
-            .then(([libraries, devices]) => {
+            .then(([libraries, devices, libraryTags]) => {
                 const normalizedLibs = (libraries || []).map(lib => ({
                     id: lib.id || lib.Id,
                     name: lib.name || lib.Name,
                     collectionType: lib.collectionType || lib.CollectionType
                 }));
+                // Re-rendering the modal orphans any listeners the previous form owned.
+                this.clearManagedDocumentListeners();
                 const content = document.querySelector('.profiles-modal-content');
+                // ── Section 1: who this profile is ──────────────────────────────
+                const createAppearance = `
+                    <div class="form-group">
+                        <label for="create-name-input">Profile Name</label>
+                        <input type="text" id="create-name-input" placeholder="e.g. Kids" required />
+                    </div>
+                    <div class="form-group">
+                        <label>Avatar Color</label>
+                        ${this.renderColorPicker('#00A4DC')}
+                        <div class="form-hint">Used as the avatar background when no picture is set.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Profile Picture</label>
+                        <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 10px;">
+                            <div class="image-upload-row">
+                                <div id="create-image-upload-preview" class="image-upload-preview" style="background-color: #00A4DC;">+</div>
+                                <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+                                    <label for="create-profile-image-file" id="create-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
+                                        <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
+                                        <span>Choose Image</span>
+                                    </label>
+                                    <input type="file" id="create-profile-image-file" accept="image/*" style="display: none;" />
+                                    <div class="form-hint" style="margin: 0;">Maximum size: 96x96 pixels (auto-resized)</div>
+                                </div>
+                            </div>
+                            <div class="form-divider"><span>OR</span></div>
+                            <div class="form-group" style="margin: 0;">
+                                <input type="text" id="create-profile-image-url" placeholder="Paste image URL (fallback for TV platforms)" />
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // ── Section 2: getting into this profile ────────────────────────
+                const createSecurity = `
+                    <div class="form-group">
+                        <label for="create-pin-input">PIN Code (Optional, 4-8 digits)</label>
+                        <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="Leave empty for no PIN" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    </div>
+                    <div class="form-group">
+                        <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="create-local-bypass-checkbox" style="cursor: pointer; accent-color: #00a4dc;" />
+                            <span>Bypass PIN on local network (LAN)</span>
+                        </label>
+                        <div class="form-hint">If enabled, users on the local home network won't be prompted for a PIN.</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="create-lockout-select">Auto-lock after inactivity</label>
+                        <select id="create-lockout-select">
+                            <option value="0">Never</option>
+                            <option value="1">1 minute</option>
+                            <option value="5" selected>5 minutes (default)</option>
+                            <option value="10">10 minutes</option>
+                            <option value="20">20 minutes</option>
+                            <option value="30">30 minutes</option>
+                            <option value="60">1 hour</option>
+                        </select>
+                        <div class="form-hint">Only applies when this profile has a PIN set.</div>
+                    </div>
+                `;
+
+                // ── Section 3: what this profile can browse ─────────────────────
+                const createLibraries = `
+                    <div class="form-group">
+                        <div class="section-inline-header">
+                            <label style="margin: 0;">Enabled Libraries</label>
+                            <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
+                                <input type="checkbox" id="create-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: #00a4dc;" />
+                                <span>Select all</span>
+                            </label>
+                        </div>
+                        <div class="library-checklist">
+                            ${normalizedLibs.map(lib => `
+                                <label class="library-check-label">
+                                    <input type="checkbox" class="library-checkbox" value="${lib.id}" />
+                                    <span>${escapeHtml(lib.name)}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                        <div class="form-hint">If nothing is selected, this profile inherits every library your account can see.</div>
+                    </div>
+                `;
+
+                // ── Section 4: limits applied on top of the libraries above ─────
+                const createRestrictions = `
+                    <div class="form-group">
+                        <label>Allowed Devices (Optional)</label>
+                        <div class="devices-dropdown-container" style="position: relative;">
+                            <div id="create-devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
+                                <span id="create-devices-dropdown-selected-text">All Devices Allowed</span>
+                                <span style="font-size: 0.8rem; opacity: 0.7;">▼</span>
+                            </div>
+                            <div id="create-devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
+                                ${devices && devices.length > 0 ? devices.map(dev => {
+                                    const deviceId = dev.deviceId || dev.DeviceId || '';
+                                    const deviceName = dev.deviceName || dev.DeviceName || 'Unknown Device';
+                                    const client = dev.client || dev.Client || 'Unknown Client';
+                                    const lastSeen = dev.lastSeen || dev.LastSeen;
+                                    const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
+                                    const lastSeenStr = (lastSeenDate && lastSeenDate.getFullYear() > 1)
+                                        ? lastSeenDate.toLocaleDateString() : 'Unknown';
+                                    return `
+                                        <div class="device-dropdown-item">
+                                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
+                                                <input type="checkbox" class="create-device-checkbox" value="${escapeHtml(deviceId)}" style="cursor: pointer; accent-color: #00a4dc; flex-shrink: 0;" />
+                                                <span style="display: flex; flex-direction: column; min-width: 0;">
+                                                    <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
+                                                    <span style="font-size: 0.75rem; opacity: 0.6;">${escapeHtml(client)} • Last seen ${lastSeenStr}</span>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    `;
+                                }).join('') : `
+                                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">No devices found for your account yet</div>
+                                `}
+                            </div>
+                        </div>
+                        <div class="form-hint">If no devices are selected, this profile can be accessed from any device.</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="create-rating-select">Max Parental Rating Limit (Optional)</label>
+                        <select id="create-rating-select">
+                            <option value="">No Restrictions</option>
+                            <option value="6">G / TV-G (6+)</option>
+                            <option value="10">PG / TV-PG (10+)</option>
+                            <option value="14">PG-13 / TV-14 (14+)</option>
+                            <option value="17">R / TV-MA (17+)</option>
+                        </select>
+                    </div>
+
+                    ${this.renderTagSuggestions('create-tag-suggestions', libraryTags)}
+                    <div class="form-group">
+                        <label>Blocked Tags (Optional)</label>
+                        ${this.renderTagEditor('create-blocked-tags', [], 'e.g. adults', 'create-tag-suggestions')}
+                        <div class="form-hint">Hides anything carrying these tags. Tags on a series or library apply to everything inside it.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Allowed Tags (Optional)</label>
+                        ${this.renderTagEditor('create-allowed-tags', [], 'e.g. kids', 'create-tag-suggestions')}
+                        <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items — untagged content is hidden too. Leave empty unless that's what you want.</div>
+                    </div>
+                `;
+
                 content.innerHTML = `
                     <h1 class="profiles-title">Create Profile</h1>
                     <div class="create-profile-container">
-                        <div class="form-group">
-                            <label>Profile Name</label>
-                            <input type="text" id="create-name-input" placeholder="e.g. Kids" required />
-                        </div>
-                        <div class="form-group">
-                            <label>PIN Code (Optional, 4-8 digits)</label>
-                            <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="Leave empty for no PIN" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
-                        </div>
-                        <div class="form-group">
-                            <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
-                                <input type="checkbox" id="create-local-bypass-checkbox" style="cursor: pointer; accent-color: #00a4dc;" />
-                                <span>Bypass PIN on local network (LAN)</span>
-                            </label>
-                            <div class="form-hint">If enabled, users on the local home network won't be prompted for a PIN.</div>
-                        </div>
-                        <div class="form-group">
-                            <label>Auto-lock after inactivity</label>
-                            <select id="create-lockout-select">
-                                <option value="0">Never</option>
-                                <option value="1">1 minute</option>
-                                <option value="5" selected>5 minutes (default)</option>
-                                <option value="10">10 minutes</option>
-                                <option value="20">20 minutes</option>
-                                <option value="30">30 minutes</option>
-                                <option value="60">1 hour</option>
-                            </select>
-                            <div class="form-hint">Only applies when this profile has a PIN set</div>
-                        </div>
-                        <div class="form-group">
-                            <label>Allowed Devices (Optional)</label>
-                            <div class="devices-dropdown-container" style="position: relative;">
-                                <div id="create-devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0">
-                                    <span id="create-devices-dropdown-selected-text">All Devices Allowed</span>
-                                    <span style="font-size: 0.8rem; opacity: 0.7;">▼</span>
-                                </div>
-                                <div id="create-devices-dropdown-list" class="devices-dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 10000; margin-top: 4px;">
-                                    ${devices && devices.length > 0 ? devices.map(dev => {
-                                        const deviceId = dev.deviceId || dev.DeviceId || '';
-                                        const deviceName = dev.deviceName || dev.DeviceName || 'Unknown Device';
-                                        const client = dev.client || dev.Client || 'Unknown Client';
-                                        const lastSeen = dev.lastSeen || dev.LastSeen;
-                                        const lastSeenStr = lastSeen ? new Date(lastSeen).toLocaleDateString() : 'Unknown';
-                                        return `
-                                            <div class="device-dropdown-item" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem;">
-                                                    <input type="checkbox" class="create-device-checkbox" value="${deviceId}" style="cursor: pointer; accent-color: #00a4dc;" />
-                                                    <span style="display: flex; flex-direction: column;">
-                                                        <span style="font-weight: 500;">${deviceName}</span>
-                                                        <span style="font-size: 0.75rem; opacity: 0.6;">${client} • Last seen ${lastSeenStr}</span>
-                                                    </span>
-                                                </label>
-                                            </div>
-                                        `;
-                                    }).join('') : `
-                                        <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">No connected devices found</div>
-                                    `}
-                                </div>
-                            </div>
-                            <div class="form-hint">If no devices are selected, this profile can be accessed from any device.</div>
-                        </div>
-                        <div class="form-group">
-                            <label>Avatar Color</label>
-                            <div class="avatar-color-picker">
-                                <div class="color-dot active" style="background-color: #00A4DC" data-color="#00A4DC" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #E50914" data-color="#E50914" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #22C55E" data-color="#22C55E" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #EAB308" data-color="#EAB308" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #A855F7" data-color="#A855F7" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #EC4899" data-color="#EC4899" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #F97316" data-color="#F97316" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #06B6D4" data-color="#06B6D4" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #3B82F6" data-color="#3B82F6" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #10B981" data-color="#10B981" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #6366F1" data-color="#6366F1" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #8B5CF6" data-color="#8B5CF6" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #D946EF" data-color="#D946EF" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #F43F5E" data-color="#F43F5E" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #14B8A6" data-color="#14B8A6" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #F59E0B" data-color="#F59E0B" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #84CC16" data-color="#84CC16" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #64748B" data-color="#64748B" tabindex="0"></div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Profile Picture</label>
-                            <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 10px;">
-                                <div style="display: flex; align-items: center; gap: 15px;">
-                                    <div id="create-image-upload-preview" style="width: 64px; height: 64px; border-radius: 50%; background-color: #00A4DC; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: bold; text-transform: uppercase; overflow: hidden; border: 2px solid rgba(255,255,255,0.2);">
-                                        +
-                                    </div>
-                                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                                        <label for="create-profile-image-file" id="create-profile-image-label" class="profiles-btn btn-secondary" style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; font-size: 0.95rem; align-self: flex-start;" tabindex="0">
-                                            <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
-                                            <span>Choose Image</span>
-                                        </label>
-                                        <input type="file" id="create-profile-image-file" accept="image/*" style="display: none;" />
-                                        <div style="font-size: 0.75rem; opacity: 0.6;">Maximum size: 96x96 pixels (auto-resized)</div>
-                                    </div>
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 10px; opacity: 0.5; font-size: 0.8rem; margin: 5px 0;">
-                                    <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
-                                    <span>OR</span>
-                                    <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
-                                </div>
-                                <div class="form-group" style="margin: 0;">
-                                    <input type="text" id="create-profile-image-url" placeholder="Paste image URL (fallback for TV platforms)" />
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Max Parental Rating Limit (Optional)</label>
-                            <select id="create-rating-select">
-                                <option value="">No Restrictions</option>
-                                <option value="6">G / TV-G (6+)</option>
-                                <option value="10">PG / TV-PG (10+)</option>
-                                <option value="14">PG-13 / TV-14 (14+)</option>
-                                <option value="17">R / TV-MA (17+)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem;">
-                                <label style="margin: 0;">Enabled Libraries</label>
-                                <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
-                                    <input type="checkbox" id="create-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: #00a4dc;" />
-                                    <span>Select all</span>
-                                </label>
-                            </div>
-                            <div class="library-checklist">
-                                ${normalizedLibs.map(lib => `
-                                    <label class="library-check-label">
-                                        <input type="checkbox" class="library-checkbox" value="${lib.id}" />
-                                        <span>${lib.name}</span>
-                                    </label>
-                                `).join('')}
-                            </div>
-                        </div>
-                        <div id="create-error-msg" style="display:none; color:#ff6b6b; font-size:0.88rem; font-weight:600; text-align:center; padding: 8px 12px; background: rgba(255,107,107,0.1); border-radius:8px; border: 1px solid rgba(255,107,107,0.25);"></div>
+                        ${this.renderSection('person', 'Profile', 'Name, colour, and picture', createAppearance)}
+                        ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', createSecurity)}
+                        ${this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', createLibraries)}
+                        ${this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', createRestrictions)}
+
+                        <div id="create-error-msg" class="form-error" style="display:none;"></div>
                         <div class="pin-actions">
                             <button id="create-submit-btn" class="profiles-btn btn-primary">Create</button>
                             <button id="create-cancel-btn" class="profiles-btn btn-secondary">Cancel</button>
@@ -1676,7 +1958,7 @@
 
                 const updatePreview = (src) => {
                     if (src) {
-                        previewDiv.innerHTML = `<img src="${src}" style="width: 100%; height: 100%; object-fit: cover;" />`;
+                        previewDiv.innerHTML = `<img src="${safeImageSrc(src)}" style="width: 100%; height: 100%; object-fit: cover;" />`;
                     } else {
                         const nameVal = document.getElementById('create-name-input')?.value?.trim();
                         previewDiv.innerHTML = nameVal ? nameVal.charAt(0).toUpperCase() : '+';
@@ -1777,19 +2059,25 @@
                 const createTrigger = document.getElementById('create-devices-dropdown-trigger');
                 const createList = document.getElementById('create-devices-dropdown-list');
                 if (createTrigger && createList) {
+                    // Keep aria-expanded in step with the visual state so screen readers and
+                    // TV remotes report the dropdown correctly.
+                    const setCreateOpen = (open) => {
+                        createList.style.display = open ? 'block' : 'none';
+                        createTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+                    };
                     createTrigger.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        createList.style.display = createList.style.display === 'none' ? 'block' : 'none';
+                        setCreateOpen(createList.style.display === 'none');
                     });
                     createTrigger.addEventListener('keydown', (e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
                             createTrigger.click();
+                        } else if (e.key === 'Escape') {
+                            setCreateOpen(false);
                         }
                     });
-                    document.addEventListener('click', () => {
-                        createList.style.display = 'none';
-                    });
+                    this.addManagedDocumentListener('click', () => setCreateOpen(false));
                     createList.addEventListener('click', (e) => {
                         e.stopPropagation();
                     });
@@ -1864,7 +2152,12 @@
                             pin: pin,
                             avatarColor: selectedColor,
                             maxParentalRating: rating || null,
-                            enabledFolders: checkedLibs,
+                            // Send null (not empty array) when no libraries are checked.
+                            // An empty array tells the server "allow no libraries",
+                            // while null means "inherit all accessible libraries from master".
+                            enabledFolders: checkedLibs.length > 0 ? checkedLibs : null,
+                            blockedTags: this.getTagEditorValues(content, 'create-blocked-tags'),
+                            allowedTags: this.getTagEditorValues(content, 'create-allowed-tags'),
                             masterPin: this.masterPin,
                             lockoutMinutes: lockoutMinutes,
                             bypassPinOnLocalNetwork: bypassPin,
@@ -1877,7 +2170,7 @@
                         return res.json();
                     })
                     .then(() => {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
+                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
                     })
                     .catch(err => {
                         const el = document.getElementById('create-error-msg');
@@ -1889,6 +2182,7 @@
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
                 });
                 this.initTVCheckboxes(content);
+                this.initTagEditors(content);
             });
         },
 
@@ -1905,9 +2199,10 @@
             Promise.all([
                 fetch(libUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
                 fetch(userUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
-                fetch(devicesUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()).catch(() => [])
+                fetch(devicesUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()).catch(() => []),
+                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId)
             ])
-            .then(([libraries, userDetails, devices]) => {
+            .then(([libraries, userDetails, devices, libraryTags]) => {
                 const normalizedLibs = (libraries || []).map(lib => ({
                     id: lib.id || lib.Id,
                     name: lib.name || lib.Name,
@@ -1919,182 +2214,196 @@
                 const maxRating = policy.MaxParentalRating !== undefined ? policy.MaxParentalRating : (policy.maxParentalRating !== undefined ? policy.maxParentalRating : null);
                 const currentLockout = profile.lockoutMinutes !== undefined ? profile.lockoutMinutes : 5;
 
+                // Re-rendering the modal orphans any listeners the previous form owned.
+                this.clearManagedDocumentListeners();
                 const content = document.querySelector('.profiles-modal-content');
+
+                const isSub = !profile.isMaster;
+
+                // ── Section 1: who this profile is ──────────────────────────────
+                const appearanceBody = `
+                    <div class="form-group">
+                        <label for="edit-name-input">Profile Name</label>
+                        <input type="text" id="edit-name-input" value="${escapeHtml(profile.profileName)}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
+                        ${profile.isMaster ? `<div class="form-hint">The master profile takes its name from your Jellyfin account.</div>` : ''}
+                    </div>
+                    <div class="form-group">
+                        <label>Avatar Color</label>
+                        ${this.renderColorPicker(profile.avatarColor)}
+                        <div class="form-hint">Used as the avatar background when no picture is set.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Profile Picture</label>
+                        <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 10px;">
+                            <div class="image-upload-row">
+                                <div id="edit-image-upload-preview" class="image-upload-preview" style="background-color: ${safeColor(profile.avatarColor)};">
+                                    ${profile.profileImage ? `<img src="${safeImageSrc(profile.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(profile.avatarInitial)}
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+                                    <label for="edit-profile-image-file" id="edit-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
+                                        <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
+                                        <span>Choose Image</span>
+                                    </label>
+                                    <input type="file" id="edit-profile-image-file" accept="image/*" style="display: none;" />
+                                    <div class="form-hint" style="margin: 0;">Maximum size: 96x96 pixels (auto-resized)</div>
+                                </div>
+                            </div>
+                            <div class="form-divider"><span>OR</span></div>
+                            <div class="form-group" style="margin: 0;">
+                                <input type="text" id="edit-profile-image-url" placeholder="Paste image URL (fallback for TV platforms)" value="${profile.profileImage && !profile.profileImage.startsWith('data:') ? escapeHtml(profile.profileImage) : ''}" />
+                            </div>
+                            ${profile.profileImage ? `
+                                <button type="button" id="edit-clear-profile-image-btn" class="profiles-btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; align-self: flex-start;">Remove Picture</button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+
+                // ── Section 2: getting into this profile ────────────────────────
+                const securityBody = `
+                    <div class="form-group">
+                        <label for="edit-pin-input">PIN Code (Optional, 4-8 digits)</label>
+                        <div class="pin-edit-group" style="display:flex; gap:10px; flex-wrap: wrap;">
+                            <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? 'Enter a new PIN to replace the current one' : 'Leave empty for no PIN'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
+                            ${profile.hasPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">Clear PIN</button>` : ''}
+                        </div>
+                        <div id="edit-pin-error" class="form-error" style="display:none; margin-top:8px;"></div>
+                        <div class="form-hint">
+                            ${profile.hasPin
+                                ? '🔒 <strong>A PIN is currently set.</strong> Saved PINs are hashed and can never be shown again — leave this blank to keep it, type a new one to replace it, or use Clear PIN to remove it.'
+                                : 'No PIN set. This profile can be opened by anyone who can reach the switcher.'}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc;" />
+                            <span>Bypass PIN on local network (LAN)</span>
+                        </label>
+                        <div class="form-hint">If enabled, users on the local home network won't be prompted for a PIN.</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-lockout-select">Auto-lock after inactivity</label>
+                        <select id="edit-lockout-select">
+                            <option value="0" ${currentLockout === 0 ? 'selected' : ''}>Never</option>
+                            <option value="1" ${currentLockout === 1 ? 'selected' : ''}>1 minute</option>
+                            <option value="5" ${currentLockout === 5 ? 'selected' : ''}>5 minutes</option>
+                            <option value="10" ${currentLockout === 10 ? 'selected' : ''}>10 minutes</option>
+                            <option value="20" ${currentLockout === 20 ? 'selected' : ''}>20 minutes</option>
+                            <option value="30" ${currentLockout === 30 ? 'selected' : ''}>30 minutes</option>
+                            <option value="60" ${currentLockout === 60 ? 'selected' : ''}>1 hour</option>
+                        </select>
+                        <div class="form-hint">Only applies when a PIN is set on this profile.</div>
+                    </div>
+                `;
+
+                // ── Section 3: what this profile can browse ─────────────────────
+                const librariesBody = `
+                    <div class="form-group">
+                        <div class="section-inline-header">
+                            <label style="margin: 0;">Enabled Libraries</label>
+                            <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
+                                <input type="checkbox" id="edit-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: #00a4dc;" />
+                                <span>Select all</span>
+                            </label>
+                        </div>
+                        <div class="library-checklist">
+                            ${normalizedLibs.map(lib => {
+                                const storedFolders = profile.enabledFolders;
+                                let isChecked;
+                                if (storedFolders !== null && storedFolders !== undefined) {
+                                    isChecked = storedFolders.some(id => this.normalizeGuid(id) === this.normalizeGuid(lib.id));
+                                } else {
+                                    isChecked = enableAll || !blockedFolders.some(bf => this.normalizeGuid(bf) === this.normalizeGuid(lib.id));
+                                }
+                                return `
+                                    <label class="library-check-label">
+                                        <input type="checkbox" class="library-checkbox" value="${lib.id}" ${isChecked ? 'checked' : ''} />
+                                        <span>${escapeHtml(lib.name)}</span>
+                                    </label>
+                                `;
+                            }).join('')}
+                        </div>
+                        <div class="form-hint">If nothing is selected, this profile inherits every library your account can see.</div>
+                    </div>
+                `;
+
+                // ── Section 4: limits applied on top of the libraries above ─────
+                const restrictionsBody = `
+                    <div class="form-group">
+                        <label>Allowed Devices (Optional)</label>
+                        <div class="devices-dropdown-container" style="position: relative;">
+                            <div id="devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
+                                <span id="devices-dropdown-selected-text">All Devices Allowed</span>
+                                <span style="font-size: 0.8rem; opacity: 0.7;">▼</span>
+                            </div>
+                            <div id="devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
+                                ${devices && devices.length > 0 ? devices.map(dev => {
+                                    const deviceId = dev.deviceId || dev.DeviceId || '';
+                                    const deviceName = dev.deviceName || dev.DeviceName || 'Unknown Device';
+                                    const client = dev.client || dev.Client || 'Unknown Client';
+                                    const lastSeen = dev.lastSeen || dev.LastSeen;
+                                    const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
+                                    const lastSeenStr = (lastSeenDate && lastSeenDate.getFullYear() > 1)
+                                        ? lastSeenDate.toLocaleDateString() : 'Unknown';
+                                    const isChecked = profile.allowedDeviceIds && (profile.allowedDeviceIds.includes(deviceId) || (dev.DeviceId && profile.allowedDeviceIds.includes(dev.DeviceId)));
+                                    return `
+                                        <div class="device-dropdown-item">
+                                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
+                                                <input type="checkbox" class="device-checkbox" value="${escapeHtml(deviceId)}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc; flex-shrink: 0;" />
+                                                <span style="display: flex; flex-direction: column; min-width: 0;">
+                                                    <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
+                                                    <span style="font-size: 0.75rem; opacity: 0.6;">${escapeHtml(client)} • Last seen ${lastSeenStr}</span>
+                                                </span>
+                                            </label>
+                                            <button type="button" class="device-delete-btn" data-id="${escapeHtml(deviceId)}" title="Forget this device" aria-label="Forget ${escapeHtml(deviceName)}">🗑️</button>
+                                        </div>
+                                    `;
+                                }).join('') : `
+                                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">No devices found for your account yet</div>
+                                `}
+                            </div>
+                        </div>
+                        <div class="form-hint">If no devices are selected, this profile can be accessed from any device.</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-rating-select">Max Parental Rating Limit (Optional)</label>
+                        <select id="edit-rating-select">
+                            <option value="" ${maxRating === null ? 'selected' : ''}>No Restrictions</option>
+                            <option value="6" ${maxRating === 6 ? 'selected' : ''}>G / TV-G (6+)</option>
+                            <option value="10" ${maxRating === 10 ? 'selected' : ''}>PG / TV-PG (10+)</option>
+                            <option value="14" ${maxRating === 14 ? 'selected' : ''}>PG-13 / TV-14 (14+)</option>
+                            <option value="17" ${maxRating === 17 ? 'selected' : ''}>R / TV-MA (17+)</option>
+                        </select>
+                    </div>
+
+                    ${this.renderTagSuggestions('edit-tag-suggestions', libraryTags)}
+                    <div class="form-group">
+                        <label>Blocked Tags (Optional)</label>
+                        ${this.renderTagEditor('edit-blocked-tags', profile.blockedTags || [], 'e.g. adults', 'edit-tag-suggestions')}
+                        <div class="form-hint">Hides anything carrying these tags. Tags on a series or library apply to everything inside it.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Allowed Tags (Optional)</label>
+                        ${this.renderTagEditor('edit-allowed-tags', profile.allowedTags || [], 'e.g. kids', 'edit-tag-suggestions')}
+                        <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items — untagged content is hidden too. Leave empty unless that's what you want.</div>
+                    </div>
+                `;
 
                 content.innerHTML = `
                     <h1 class="profiles-title">Edit Profile</h1>
                     <div class="create-profile-container">
-                        <div class="form-group">
-                            <label>Profile Name</label>
-                            <input type="text" id="edit-name-input" value="${profile.profileName}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>PIN Code (Optional, 4-8 digits)</label>
-                            <div class="pin-edit-group" style="display:flex; gap:10px;">
-                                <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.requiresPin ? '••••' : 'Unprotected'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1;" />
-                                ${profile.requiresPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">Clear PIN</button>` : ''}
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
-                                <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc;" />
-                                <span>Bypass PIN on local network (LAN)</span>
-                            </label>
-                            <div class="form-hint">If enabled, users on the local home network won't be prompted for a PIN.</div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Auto-lock after inactivity</label>
-                            <select id="edit-lockout-select">
-                                <option value="0" ${currentLockout === 0 ? 'selected' : ''}>Never</option>
-                                <option value="1" ${currentLockout === 1 ? 'selected' : ''}>1 minute</option>
-                                <option value="5" ${currentLockout === 5 ? 'selected' : ''}>5 minutes</option>
-                                <option value="10" ${currentLockout === 10 ? 'selected' : ''}>10 minutes</option>
-                                <option value="20" ${currentLockout === 20 ? 'selected' : ''}>20 minutes</option>
-                                <option value="30" ${currentLockout === 30 ? 'selected' : ''}>30 minutes</option>
-                                <option value="60" ${currentLockout === 60 ? 'selected' : ''}>1 hour</option>
-                            </select>
-                            <div class="form-hint">Only applies when a PIN is set on this profile</div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Avatar Color</label>
-                            <div class="avatar-color-picker">
-                                <div class="color-dot" style="background-color: #00A4DC" data-color="#00A4DC" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #E50914" data-color="#E50914" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #22C55E" data-color="#22C55E" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #EAB308" data-color="#EAB308" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #A855F7" data-color="#A855F7" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #EC4899" data-color="#EC4899" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #F97316" data-color="#F97316" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #06B6D4" data-color="#06B6D4" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #3B82F6" data-color="#3B82F6" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #10B981" data-color="#10B981" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #6366F1" data-color="#6366F1" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #8B5CF6" data-color="#8B5CF6" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #D946EF" data-color="#D946EF" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #F43F5E" data-color="#F43F5E" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #14B8A6" data-color="#14B8A6" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #F59E0B" data-color="#F59E0B" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #84CC16" data-color="#84CC16" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #64748B" data-color="#64748B" tabindex="0"></div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Profile Picture</label>
-                            <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 10px;">
-                                <div style="display: flex; align-items: center; gap: 15px;">
-                                    <div id="edit-image-upload-preview" style="width: 64px; height: 64px; border-radius: 50%; background-color: ${profile.avatarColor || '#00A4DC'}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: bold; text-transform: uppercase; overflow: hidden; border: 2px solid rgba(255,255,255,0.2);">
-                                        ${profile.profileImage ? `<img src="${profile.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : profile.avatarInitial}
-                                    </div>
-                                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                                        <label for="edit-profile-image-file" id="edit-profile-image-label" class="profiles-btn btn-secondary" style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; font-size: 0.95rem; align-self: flex-start;" tabindex="0">
-                                            <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
-                                            <span>Choose Image</span>
-                                        </label>
-                                        <input type="file" id="edit-profile-image-file" accept="image/*" style="display: none;" />
-                                        <div style="font-size: 0.75rem; opacity: 0.6;">Maximum size: 96x96 pixels (auto-resized)</div>
-                                    </div>
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 10px; opacity: 0.5; font-size: 0.8rem; margin: 5px 0;">
-                                    <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
-                                    <span>OR</span>
-                                    <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
-                                </div>
-                                <div class="form-group" style="margin: 0;">
-                                    <input type="text" id="edit-profile-image-url" placeholder="Paste image URL (fallback for TV platforms)" value="${profile.profileImage && !profile.profileImage.startsWith('data:') ? profile.profileImage : ''}" />
-                                </div>
-                                ${profile.profileImage ? `
-                                    <button type="button" id="edit-clear-profile-image-btn" class="profiles-btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; align-self: flex-start;">Remove Picture</button>
-                                ` : ''}
-                            </div>
-                        </div>
-
-                        ${!profile.isMaster ? `
-                        <div class="form-group">
-                            <label>Allowed Devices (Optional)</label>
-                            <div class="devices-dropdown-container" style="position: relative;">
-                                <div id="devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0">
-                                    <span id="devices-dropdown-selected-text">All Devices Allowed</span>
-                                    <span style="font-size: 0.8rem; opacity: 0.7;">▼</span>
-                                </div>
-                                <div id="devices-dropdown-list" class="devices-dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 10000; margin-top: 4px;">
-                                    ${devices && devices.length > 0 ? devices.map(dev => {
-                                        const deviceId = dev.deviceId || dev.DeviceId || '';
-                                        const deviceName = dev.deviceName || dev.DeviceName || 'Unknown Device';
-                                        const client = dev.client || dev.Client || 'Unknown Client';
-                                        const lastSeen = dev.lastSeen || dev.LastSeen;
-                                        const lastSeenStr = lastSeen ? new Date(lastSeen).toLocaleDateString() : 'Unknown';
-                                        const isChecked = profile.allowedDeviceIds && (profile.allowedDeviceIds.includes(deviceId) || (dev.DeviceId && profile.allowedDeviceIds.includes(dev.DeviceId)));
-                                        return `
-                                            <div class="device-dropdown-item" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem;">
-                                                    <input type="checkbox" class="device-checkbox" value="${deviceId}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc;" />
-                                                    <span style="display: flex; flex-direction: column;">
-                                                        <span style="font-weight: 500;">${deviceName}</span>
-                                                        <span style="font-size: 0.75rem; opacity: 0.6;">${client} • Last seen ${lastSeenStr}</span>
-                                                    </span>
-                                                </label>
-                                                <button type="button" class="device-delete-btn" data-id="${deviceId}" style="background: transparent; border: none; color: #ff6b6b; cursor: pointer; padding: 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,107,107,0.15)'" onmouseout="this.style.background='transparent'">
-                                                    🗑️
-                                                </button>
-                                            </div>
-                                        `;
-                                    }).join('') : `
-                                        <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">No connected devices found</div>
-                                    `}
-                                </div>
-                            </div>
-                            <div class="form-hint">If no devices are selected, this profile can be accessed from any device.</div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Max Parental Rating Limit (Optional)</label>
-                            <select id="edit-rating-select">
-                                <option value="" ${maxRating === null ? 'selected' : ''}>No Restrictions</option>
-                                <option value="6" ${maxRating === 6 ? 'selected' : ''}>G / TV-G (6+)</option>
-                                <option value="10" ${maxRating === 10 ? 'selected' : ''}>PG / TV-PG (10+)</option>
-                                <option value="14" ${maxRating === 14 ? 'selected' : ''}>PG-13 / TV-14 (14+)</option>
-                                <option value="17" ${maxRating === 17 ? 'selected' : ''}>R / TV-MA (17+)</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem;">
-                                <label style="margin: 0;">Enabled Libraries</label>
-                                <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
-                                    <input type="checkbox" id="edit-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: #00a4dc;" />
-                                    <span>Select all</span>
-                                </label>
-                            </div>
-                            <div class="library-checklist">
-                        ${normalizedLibs.map(lib => {
-                                    const storedFolders = profile.enabledFolders;
-                                    let isChecked;
-                                    if (storedFolders !== null && storedFolders !== undefined) {
-                                        isChecked = storedFolders.some(id => this.normalizeGuid(id) === this.normalizeGuid(lib.id));
-                                    } else {
-                                        isChecked = enableAll || !blockedFolders.some(bf => this.normalizeGuid(bf) === this.normalizeGuid(lib.id));
-                                    }
-                                    return `
-                                        <label class="library-check-label">
-                                            <input type="checkbox" class="library-checkbox" value="${lib.id}" ${isChecked ? 'checked' : ''} />
-                                            <span>${lib.name}</span>
-                                        </label>
-                                    `;
-                                }).join('')}
-                            </div>
-                        </div>
-                        ` : ''}
+                        ${this.renderSection('person', 'Profile', 'Name, colour, and picture', appearanceBody)}
+                        ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', securityBody)}
+                        ${isSub ? this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', librariesBody) : ''}
+                        ${isSub ? this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', restrictionsBody) : ''}
 
                         <div class="profile-dialog-actions">
                             <div class="dialog-action-buttons">
                                 <button id="edit-submit-btn" class="profiles-btn btn-primary">Save</button>
                                 <button id="edit-cancel-btn" class="profiles-btn btn-secondary">Cancel</button>
                             </div>
-                            ${!profile.isMaster ? `
+                            ${isSub ? `
                                 <button id="edit-delete-btn" class="profiles-btn btn-danger">Delete Profile</button>
                             ` : ''}
                         </div>
@@ -2138,7 +2447,7 @@
 
                 const updatePreview = (src) => {
                     if (src) {
-                        previewDiv.innerHTML = `<img src="${src}" style="width: 100%; height: 100%; object-fit: cover;" />`;
+                        previewDiv.innerHTML = `<img src="${safeImageSrc(src)}" style="width: 100%; height: 100%; object-fit: cover;" />`;
                     } else {
                         previewDiv.innerHTML = profile.avatarInitial;
                     }
@@ -2244,19 +2553,24 @@
                 const editTrigger = document.getElementById('devices-dropdown-trigger');
                 const editList = document.getElementById('devices-dropdown-list');
                 if (editTrigger && editList) {
+                    // Keep aria-expanded in step with the visual state — see the create form.
+                    const setEditOpen = (open) => {
+                        editList.style.display = open ? 'block' : 'none';
+                        editTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+                    };
                     editTrigger.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        editList.style.display = editList.style.display === 'none' ? 'block' : 'none';
+                        setEditOpen(editList.style.display === 'none');
                     });
                     editTrigger.addEventListener('keydown', (e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
                             editTrigger.click();
+                        } else if (e.key === 'Escape') {
+                            setEditOpen(false);
                         }
                     });
-                    document.addEventListener('click', () => {
-                        editList.style.display = 'none';
-                    });
+                    this.addManagedDocumentListener('click', () => setEditOpen(false));
                     editList.addEventListener('click', (e) => {
                         e.stopPropagation();
                     });
@@ -2345,12 +2659,22 @@
                     let rating = null;
                     let checkedLibs = null;
                     let checkedDevices = null;
+                    // Null for the master profile, which has no tag editor — the server reads
+                    // null as "leave unchanged".
+                    let blockedTags = null;
+                    let allowedTags = null;
                     if (!profile.isMaster) {
+                        blockedTags = this.getTagEditorValues(content, 'edit-blocked-tags');
+                        allowedTags = this.getTagEditorValues(content, 'edit-allowed-tags');
                         rating = document.getElementById('edit-rating-select').value;
-                        checkedLibs = [];
+                        const rawLibs = [];
                         content.querySelectorAll('.library-checkbox:checked').forEach(cb => {
-                            checkedLibs.push(cb.value);
+                            rawLibs.push(cb.value);
                         });
+                        // Send null (not empty array) when no libraries are checked.
+                        // An empty array tells the server "allow no libraries",
+                        // while null means "inherit all accessible libraries from master".
+                        checkedLibs = rawLibs.length > 0 ? rawLibs : null;
                         checkedDevices = [];
                         content.querySelectorAll('.device-checkbox:checked').forEach(cb => {
                             checkedDevices.push(cb.value);
@@ -2358,6 +2682,25 @@
                     }
                     const lockoutSel = document.getElementById('edit-lockout-select');
                     const lockoutMinutes = lockoutSel ? parseInt(lockoutSel.value, 10) : undefined;
+
+                    // Report validation failures inline next to the offending field as well as
+                    // in a dialog. A dialog alone is fragile — when it was rendering behind the
+                    // overlay this button looked completely dead on an invalid PIN.
+                    const pinError = document.getElementById('edit-pin-error');
+                    const showPinError = (msg) => {
+                        if (pinError) {
+                            pinError.textContent = msg;
+                            pinError.style.display = 'block';
+                        }
+                        const input = document.getElementById('edit-pin-input');
+                        if (input) {
+                            input.style.borderColor = '#ff6b6b';
+                            input.focus();
+                        }
+                    };
+                    if (pinError) pinError.style.display = 'none';
+                    const pinInputEl = document.getElementById('edit-pin-input');
+                    if (pinInputEl) pinInputEl.style.borderColor = '';
 
                     if (!name) {
                         this.showAlert("Validation Error", "Profile name is required.");
@@ -2368,8 +2711,12 @@
                     if (isPinCleared) {
                         pin = ''; // Tells backend to clear the PIN
                     } else if (pinVal) {
-                        if (pinVal.length < 4 || pinVal.length > 8 || !/^\d+$/.test(pinVal)) {
-                            this.showAlert("Validation Error", "PIN code must be a numeric value between 4 and 8 digits.");
+                        if (!/^\d+$/.test(pinVal)) {
+                            showPinError('A PIN can only contain digits.');
+                            return;
+                        }
+                        if (pinVal.length < 4 || pinVal.length > 8) {
+                            showPinError(`A PIN must be 4-8 digits — you entered ${pinVal.length}.`);
                             return;
                         }
                         pin = pinVal;
@@ -2389,6 +2736,8 @@
                             avatarColor: selectedColor,
                             maxParentalRating: rating || null,
                             enabledFolders: checkedLibs,
+                            blockedTags: blockedTags,
+                            allowedTags: allowedTags,
                             masterPin: this.masterPin,
                             lockoutMinutes: lockoutMinutes,
                             bypassPinOnLocalNetwork: bypassPin,
@@ -2398,7 +2747,7 @@
                     })
                     .then(res => {
                         if (!res.ok) return res.text().then(text => { throw new Error(text); });
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
+                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
                     })
                     .catch(err => this.showAlert("Error", "Error saving profile: " + err.message));
                 });
@@ -2407,7 +2756,7 @@
                 const delBtn = document.getElementById('edit-delete-btn');
                 if (delBtn) {
                     delBtn.addEventListener('click', () => {
-                        this.showConfirmDialog('Delete Profile', `Are you sure you want to delete profile "${profile.profileName}" and its underlying user account? This action is irreversible.`, () => {
+                        this.showConfirmDialog('Delete Profile', `Are you sure you want to delete profile "${escapeHtml(profile.profileName)}" and its underlying user account? This action is irreversible.`, () => {
                             this.executeProfileDeletion(profile.profileUserId);
                         });
                     });
@@ -2417,6 +2766,7 @@
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
                 });
                 this.initTVCheckboxes(content);
+                this.initTagEditors(content);
             })
             .catch(err => {
                 this.showAlert("Error", "Failed to load profile details: " + err.message);
@@ -2450,7 +2800,7 @@
                 const btn = content.querySelector('#bonfire-back-btn');
                 if (btn) {
                     btn.addEventListener('click', () => {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
+                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
                     });
                 }
             };
@@ -2486,7 +2836,7 @@
             })
             .then(res => {
                 if (!res.ok) throw new Error("Failed to delete profile");
-                this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
+                this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
             })
             .catch(err => this.showAlert("Error", "Error deleting profile: " + err.message));
         },
@@ -2628,7 +2978,7 @@
                 backBtn.addEventListener('click', () => {
                     const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
                     if (masterState) {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
+                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
                     }
                 });
             }
@@ -2692,6 +3042,9 @@
             const generateBtn = container.querySelector('#bonfire-generate-btn');
             if (generateBtn) {
                 generateBtn.addEventListener('click', () => {
+                    // Disable immediately to prevent double-fire on slow connections
+                    generateBtn.disabled = true;
+                    generateBtn.textContent = 'Generating…';
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/generate'), {
                         method: 'POST',
                         headers: masterToken ? this.getAuthHeaders(masterToken) : {}
@@ -2700,7 +3053,11 @@
                         if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
                         else return res.text().then(text => { throw new Error(text); });
                     })
-                    .catch(err => this.showAlert('Error', 'Failed to generate code: ' + err.message));
+                    .catch(err => {
+                        generateBtn.disabled = false;
+                        generateBtn.textContent = 'Generate Join Code';
+                        this.showAlert('Error', 'Failed to generate code: ' + err.message);
+                    });
                 });
             }
 
@@ -2717,6 +3074,23 @@
                         errDiv.style.display = 'block';
                         return;
                     }
+                    // The server allows membership in only one group, so joining silently
+                    // drops the current one. Confirm first rather than surprising the user.
+                    if (isMember) {
+                        this.showConfirmDialog(
+                            'Leave your current Bonfire?',
+                            'You can only be in one Bonfire at a time. Joining this one will remove you from the group you are currently in.',
+                            () => submitJoin(code));
+                        return;
+                    }
+                    submitJoin(code);
+                };
+
+                const submitJoin = (code) => {
+                    errDiv.style.display = 'none';
+                    // Disable to prevent double-submit; re-enable on all error paths
+                    joinBtn.disabled = true;
+                    joinBtn.textContent = 'Joining…';
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/join'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) },
@@ -2726,6 +3100,8 @@
                         if (res.status === 429) {
                             errDiv.textContent = 'Too many failed attempts. Try again in 15 minutes.';
                             errDiv.style.display = 'block';
+                            joinBtn.disabled = false;
+                            joinBtn.textContent = 'Join';
                             return;
                         }
                         if (!res.ok) return res.text().then(text => { throw new Error(text); });
@@ -2734,6 +3110,8 @@
                     .catch(err => {
                         errDiv.textContent = err.message || 'Failed to join group.';
                         errDiv.style.display = 'block';
+                        joinBtn.disabled = false;
+                        joinBtn.textContent = 'Join';
                     });
                 };
 
@@ -2743,29 +3121,33 @@
                 });
             }
 
-            // Settings checkbox listeners
+            // Settings checkbox listeners — debounced 300ms to prevent race conditions
+            // when the user toggles both checkboxes in quick succession.
             const hideMineCb = container.querySelector('#bonfire-hide-mine-checkbox');
             const hideOthersCb = container.querySelector('#bonfire-hide-others-checkbox');
-
+            let _settingsDebounceTimer = null;
             const saveSettings = () => {
-                const hideMineVal = hideMineCb ? hideMineCb.checked : false;
-                const hideOthersVal = hideOthersCb ? hideOthersCb.checked : false;
-                
-                fetch(apiClient.getUrl('plugins/profiles/bonfire/settings'), {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...this.getAuthHeaders(masterToken)
-                    },
-                    body: JSON.stringify({
-                        hideMySubProfilesFromOthers: hideMineVal,
-                        hideOthersSubProfilesFromMe: hideOthersVal
+                clearTimeout(_settingsDebounceTimer);
+                _settingsDebounceTimer = setTimeout(() => {
+                    const hideMineVal = hideMineCb ? hideMineCb.checked : false;
+                    const hideOthersVal = hideOthersCb ? hideOthersCb.checked : false;
+
+                    fetch(apiClient.getUrl('plugins/profiles/bonfire/settings'), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...this.getAuthHeaders(masterToken)
+                        },
+                        body: JSON.stringify({
+                            hideMySubProfilesFromOthers: hideMineVal,
+                            hideOthersSubProfilesFromMe: hideOthersVal
+                        })
                     })
-                })
-                .then(res => {
-                    if (!res.ok) console.error("Failed to save Bonfire settings.");
-                })
-                .catch(err => console.error("Error saving Bonfire settings:", err));
+                    .then(res => {
+                        if (!res.ok) console.error('Failed to save Bonfire settings.');
+                    })
+                    .catch(err => console.error('Error saving Bonfire settings:', err));
+                }, 300);
             };
 
             if (hideMineCb) hideMineCb.addEventListener('change', saveSettings);
@@ -2809,7 +3191,7 @@
 
             link.innerHTML = `
                 <div class="sidebar-profile-avatar" style="width: 24px; height: 24px; border-radius: 50%; background-color: ${color}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; flex-shrink: 0; overflow: hidden;">
-                    ${activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : initial}
+                    ${activeInfo.profileImage ? `<img src="${safeImageSrc(activeInfo.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(initial)}
                 </div>
                 <span class="sidebarLinkText">${name} (Switch)</span>
             `;
@@ -2969,22 +3351,7 @@
                     return res.json();
                 })
                 .then(profiles => {
-                    const normalized = (profiles || []).map(p => ({
-                        profileUserId: p.profileUserId || p.ProfileUserId,
-                        profileName: p.profileName || p.ProfileName,
-                        avatarInitial: p.avatarInitial || p.AvatarInitial,
-                        avatarColor: p.avatarColor || p.AvatarColor,
-                        requiresPin: p.requiresPin !== undefined ? p.requiresPin : p.RequiresPin,
-                        isMaster: p.isMaster !== undefined ? p.isMaster : p.IsMaster,
-                        lockoutMinutes: p.lockoutMinutes !== undefined ? p.lockoutMinutes : (p.LockoutMinutes !== undefined ? p.LockoutMinutes : 5),
-                        maxSubProfiles: p.maxSubProfiles !== undefined ? p.maxSubProfiles : (p.MaxSubProfiles !== undefined ? p.MaxSubProfiles : 5),
-                        bypassPinOnLocalNetwork: p.bypassPinOnLocalNetwork !== undefined ? p.bypassPinOnLocalNetwork : (p.BypassPinOnLocalNetwork !== undefined ? p.BypassPinOnLocalNetwork : false),
-                        allowedDeviceIds: p.allowedDeviceIds || p.AllowedDeviceIds || [],
-                        enabledFolders: p.enabledFolders || p.EnabledFolders || [],
-                        isBonfire: p.isBonfire !== undefined ? p.isBonfire : (p.IsBonfire !== undefined ? p.IsBonfire : false),
-                        profileImage: p.profileImage || p.ProfileImage || null,
-                        masterUserId: p.masterUserId || p.MasterUserId || null
-                    }));
+                    const normalized = this.normalizeProfiles(profiles);
                     this.cachedProfiles = normalized;
                     localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
                     this._profilePrefetchPending = false;
@@ -3083,7 +3450,7 @@
             const activeInfo = this.getCachedActiveProfile();
             b.innerHTML = `
                 <div class="profiles-header-avatar" style="background-color: ${activeInfo.color}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden;">
-                    ${activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : activeInfo.initial}
+                    ${activeInfo.profileImage ? `<img src="${safeImageSrc(activeInfo.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(activeInfo.initial)}
                 </div>
             `;
             return b;
@@ -3107,7 +3474,7 @@
             const activeInfo = this.getCachedActiveProfile();
             b.innerHTML = `
                 <div class="profiles-header-avatar" style="background-color: ${activeInfo.color}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden;">
-                    ${activeInfo.profileImage ? `<img src="${activeInfo.profileImage}" style="width: 100%; height: 100%; object-fit: cover;" />` : activeInfo.initial}
+                    ${activeInfo.profileImage ? `<img src="${safeImageSrc(activeInfo.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(activeInfo.initial)}
                 </div>
             `;
             return b;
@@ -3267,11 +3634,14 @@
                     padding-bottom: 0.75rem;
                     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
                 }
+                /* Your own Bonfire: a warm amber flame. */
                 .profiles-home-icon {
                     font-size: 1.8rem;
-                    color: #00a4dc;
-                    text-shadow: 0 2px 10px rgba(0, 164, 220, 0.3);
+                    color: #ff9900;
+                    text-shadow: 0 2px 10px rgba(255, 153, 0, 0.35);
                 }
+                /* A linked household's Bonfire: deeper ember, so the two read as different
+                   groups without needing a second glyph. */
                 .profiles-home-icon.bonfire-icon-color {
                     color: #ff5500;
                     text-shadow: 0 2px 10px rgba(255, 85, 0, 0.3);
@@ -3498,6 +3868,12 @@
                     font-weight: 600; font-size: 1rem; cursor: pointer;
                     transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
                 }
+                .profiles-btn:disabled {
+                    opacity: 0.55;
+                    cursor: not-allowed;
+                    transform: none !important;
+                    box-shadow: none !important;
+                }
                 .btn-primary {
                     background-color: #00a4dc; color: #fff;
                 }
@@ -3551,6 +3927,16 @@
                         left: 12px;
                         right: auto;
                         bottom: 12px;
+                    }
+                }
+                /* Wrap Bonfire join row on very small phones so the button
+                   doesn't overflow or clip its label on screens under 360px. */
+                @media (max-width: 360px) {
+                    #bonfire-join-input,
+                    #bonfire-join-btn {
+                        flex: 1 1 100% !important;
+                        width: 100% !important;
+                        box-sizing: border-box !important;
                     }
                 }
                 @media (max-width: 480px) {
@@ -3659,6 +4045,220 @@
                 }
                 .library-check-label:focus input, .library-check-label:hover input {
                     box-shadow: 0 0 8px rgba(0, 164, 220, 0.6);
+                }
+                /* ── Titled sections in the create/edit forms ───────────────────── */
+                .profile-section {
+                    background: rgba(255, 255, 255, 0.025);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    border-radius: 10px;
+                    padding: 1rem 1.15rem 1.15rem;
+                    margin-bottom: 1.25rem;
+                }
+                .profile-section-header {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 0.7rem;
+                    padding-bottom: 0.75rem;
+                    margin-bottom: 1rem;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                }
+                .profile-section-icon {
+                    font-size: 1.35rem;
+                    color: #00a4dc;
+                    flex-shrink: 0;
+                    line-height: 1.3;
+                }
+                .profile-section-heading {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 2px;
+                    min-width: 0;
+                }
+                .profile-section-title {
+                    font-size: 1.05rem;
+                    font-weight: 700;
+                    color: #fff;
+                    margin: 0;
+                    line-height: 1.3;
+                }
+                .profile-section-subtitle {
+                    font-size: 0.8rem;
+                    color: rgba(255, 255, 255, 0.5);
+                    line-height: 1.35;
+                }
+                .profile-section-body {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.1rem;
+                }
+                /* Sections already space their children, so the per-field margin that the
+                   flat layout relied on would double up here. */
+                .profile-section-body .form-group {
+                    margin-bottom: 0;
+                }
+
+                /* Header row that sits inside a section, e.g. "Enabled Libraries | Select all".
+                   Wraps rather than squashing the label on narrow phones. */
+                .section-inline-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 0.5rem;
+                    flex-wrap: wrap;
+                    margin-bottom: 0.35rem;
+                }
+
+                .form-divider {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    opacity: 0.5;
+                    font-size: 0.8rem;
+                    margin: 2px 0;
+                }
+                .form-divider::before, .form-divider::after {
+                    content: "";
+                    flex: 1;
+                    border-top: 1px solid rgba(255, 255, 255, 0.2);
+                }
+                .form-hint-warn {
+                    color: rgba(245, 159, 0, 0.85) !important;
+                }
+                .form-error {
+                    color: #ff6b6b;
+                    font-size: 0.88rem;
+                    font-weight: 600;
+                    text-align: center;
+                    padding: 8px 12px;
+                    background: rgba(255, 107, 107, 0.1);
+                    border-radius: 8px;
+                    border: 1px solid rgba(255, 107, 107, 0.25);
+                }
+
+                .image-upload-row {
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
+                    flex-wrap: wrap;
+                }
+                .image-upload-preview {
+                    width: 64px; height: 64px;
+                    border-radius: 50%;
+                    color: #fff;
+                    display: flex; align-items: center; justify-content: center;
+                    font-size: 1.8rem; font-weight: bold; text-transform: uppercase;
+                    overflow: hidden;
+                    border: 2px solid rgba(255, 255, 255, 0.2);
+                    flex-shrink: 0;
+                }
+                .image-upload-btn {
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    padding: 10px 20px;
+                    font-size: 0.95rem;
+                    align-self: flex-start;
+                }
+
+                .device-dropdown-item {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 8px;
+                    padding: 8px 12px;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+                }
+                .device-delete-btn {
+                    background: transparent; border: none; color: #ff6b6b;
+                    cursor: pointer; padding: 6px; border-radius: 4px;
+                    display: flex; align-items: center; justify-content: center;
+                    font-size: 1.1rem; flex-shrink: 0;
+                    transition: background 0.2s;
+                }
+                .device-delete-btn:hover, .device-delete-btn:focus {
+                    background: rgba(255, 107, 107, 0.15);
+                    outline: none;
+                }
+
+                /* The dropdown is absolutely positioned so it overlays following fields
+                   instead of pushing the form around when it opens. */
+                .devices-dropdown-list {
+                    position: absolute;
+                    top: 100%; left: 0; right: 0;
+                    z-index: 10000;
+                    margin-top: 4px;
+                    max-height: 240px;
+                    overflow-y: auto;
+                }
+
+                /* Phones: reclaim horizontal space and stop the section chrome from
+                   eating the width the form fields need. */
+                @media (max-width: 600px) {
+                    .profile-section {
+                        padding: 0.85rem 0.8rem 0.9rem;
+                        margin-bottom: 1rem;
+                        border-radius: 8px;
+                    }
+                    .profile-section-body { gap: 0.95rem; }
+                    .profile-section-title { font-size: 1rem; }
+                    .profile-section-subtitle { font-size: 0.75rem; }
+                    .image-upload-btn { width: 100%; }
+                }
+
+                /* TV / D-pad: the focus ring must be obvious from across a room, and a
+                   focused control inside a scrolling section has to scroll itself into
+                   view rather than sitting behind a section header. */
+                .profile-section :focus-visible {
+                    outline: 2px solid #00a4dc;
+                    outline-offset: 2px;
+                    scroll-margin-top: 4rem;
+                    scroll-margin-bottom: 4rem;
+                }
+
+                .tag-editor {
+                    display: flex; flex-direction: column; gap: 8px;
+                }
+                .tag-chip-list {
+                    display: flex; flex-wrap: wrap; gap: 6px;
+                    background: rgba(255,255,255,0.04); border-radius: 8px;
+                    border: 1px solid rgba(255,255,255,0.1);
+                    padding: 8px; min-height: 40px;
+                    max-height: 120px; overflow-y: auto;
+                    align-content: flex-start;
+                }
+                .tag-chip-list[data-empty="true"]::before {
+                    content: "No tags — this filter is off";
+                    font-size: 0.8rem; color: rgba(255,255,255,0.35);
+                    align-self: center;
+                }
+                .tag-chip {
+                    display: inline-flex; align-items: center; gap: 6px;
+                    background: rgba(0,164,220,0.18);
+                    border: 1px solid rgba(0,164,220,0.45);
+                    color: #fff; border-radius: 999px;
+                    padding: 3px 6px 3px 12px; font-size: 0.85rem;
+                    max-width: 100%; word-break: break-word;
+                }
+                .tag-chip-remove {
+                    background: transparent; border: none; color: rgba(255,255,255,0.7);
+                    cursor: pointer; font-size: 1rem; line-height: 1;
+                    padding: 0; width: 18px; height: 18px; border-radius: 50%;
+                    display: flex; align-items: center; justify-content: center;
+                    transition: background 0.2s, color 0.2s;
+                }
+                .tag-chip-remove:hover, .tag-chip-remove:focus {
+                    background: rgba(255,255,255,0.18); color: #fff; outline: none;
+                }
+                .tag-input-row {
+                    display: flex; gap: 8px;
+                }
+                .tag-input-row .tag-input {
+                    flex: 1; min-width: 0;
+                }
+                .tag-input-row .tag-add-btn {
+                    padding: 8px 18px; font-size: 0.9rem; flex-shrink: 0;
                 }
                 .form-hint {
                     font-size: 0.78rem;

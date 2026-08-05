@@ -41,9 +41,10 @@ Once the server restarts, the plugin is active and will automatically load on al
 ## Features
 
 - **Multi-User Profile Switching**: Up to 5 isolated sub-profiles per Jellyfin account, each with separate watch history, library access, and parental ratings.
+- **Tag-Based Content Filtering**: Block or allow content per profile using Jellyfin's own tags (e.g. `adults`, `teens`, `kids`). Tags are inherited, so tagging a series or an entire library applies to everything inside it — and because this is enforced by Jellyfin server-side, it holds on *every* client, including the ones that can't do profile switching.
 - **Resilient Deletion**: Automatically handles native Jellyfin database deletion bugs (like the playlist null reference error) by deactivating the underlying sub-profile user account and clearing plugin mappings.
 - **Bonfire Grouping**: Link different master accounts together using secure 6-character codes to share switcher screens.
-- **PIN Protection & LAN Bypass**: Secure profiles with PIN codes and bypass verification automatically when connected on your local network (LAN).
+- **PIN Protection & LAN Bypass**: Secure profiles with PIN codes and bypass verification automatically when connected on your local network (LAN). PINs are stored as salted PBKDF2-SHA256 hashes.
 - **Device Whitelists**: Limit specific profiles to designated devices.
 - **Premium UI**: Seamless native UI integration with custom profile pictures, custom avatar colors, and TV D-pad navigation support.
 
@@ -61,6 +62,18 @@ Once the server restarts, the plugin is active and will automatically load on al
 - Findroid (Android / Android TV)
 - Jellyfin for Roku
 - Infuse (iOS / tvOS / macOS)
+
+---
+
+## Bonfire Sharing & Security
+
+Sharing a Bonfire code lets another household see your switcher screen — and switching into an account gives the person a real, fully privileged session for it. Two rules protect that boundary:
+
+* **An account with no PIN cannot be opened from a shared Bonfire.** If you want other members to be able to switch into your main account, set a profile PIN on it first. Sub-profiles are unaffected — they work with or without a PIN.
+* **The LAN bypass never applies across accounts.** Being on the same network as someone in your Bonfire does not skip their PIN; it only skips your own.
+
+> [!TIP]
+> A Bonfire code is a credential. Anyone who has it can join, and you can only be in one Bonfire at a time — joining a new one removes you from your current one.
 
 ---
 

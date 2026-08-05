@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -25,36 +26,19 @@ using System.Net;
 namespace Jellyfin.Profiles.Controllers
 {
 
-    [ApiController]
     [Route("plugins/profiles")]
-    // NOTE: The controller is [AllowAnonymous] because two endpoints (GetProfilesJs,
-    // GetProfileImage) must be unauthenticated. All other endpoints validate the caller
-    // via GetCurrentUserId() and return 401 when no valid token is present.
-    [AllowAnonymous]
-    public class ProfilesController : ControllerBase
+    public class ProfilesController : ProfilesBaseController
     {
-        // ── Static JS content cache (loaded once per app lifetime) ─────────────
-        private static string? _cachedProfilesJs;
-        private static readonly object _jsCacheLock = new();
-
-        // ── Audit log file path (resolved lazily on first use) ───────────────────
-        private static string? _auditLogPath;
-        private static readonly object _auditLogLock = new();
-
-        private readonly IUserManager _userManager;
-        private readonly ISessionManager _sessionManager;
-        private readonly ILibraryManager _libraryManager;
-        private readonly INetworkManager _networkManager;
-        private readonly ILogger<ProfilesController> _logger;
-
-        public ProfilesController(IUserManager userManager, ISessionManager sessionManager, ILibraryManager libraryManager, INetworkManager networkManager, ILogger<ProfilesController> logger)
+        public ProfilesController(
+            IUserManager userManager,
+            ISessionManager sessionManager,
+            ILibraryManager libraryManager,
+            INetworkManager networkManager,
+            ILogger<ProfilesController> logger)
+            : base(userManager, sessionManager, libraryManager, networkManager, logger)
         {
-            _userManager = userManager;
-            _sessionManager = sessionManager;
-            _libraryManager = libraryManager;
-            _networkManager = networkManager;
-            _logger = logger;
         }
+
 
         [HttpGet("list")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -98,7 +82,12 @@ namespace Jellyfin.Profiles.Controllers
 
                 var linkedMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == linkedId);
                 bool masterRequiresPin = linkedMapping != null && !string.IsNullOrEmpty(linkedMapping.PinHash);
-                if (isLocal && linkedMapping != null && linkedMapping.BypassPinOnLocalNetwork)
+
+                // Mirror the switch endpoint: the LAN bypass applies to your own account only,
+                // never to another account reached through a Bonfire link. Reporting otherwise
+                // here would send the client into a PIN-less switch the server then rejects.
+                if (isLocal && linkedId == masterUserId
+                    && linkedMapping != null && linkedMapping.BypassPinOnLocalNetwork)
                 {
                     masterRequiresPin = false;
                 }
@@ -110,6 +99,7 @@ namespace Jellyfin.Profiles.Controllers
                     AvatarInitial = string.IsNullOrEmpty(linkedUser.Username) ? "M" : linkedUser.Username.Substring(0, 1).ToUpper(),
                     AvatarColor = linkedMapping?.AvatarColor ?? "#00A4DC",
                     RequiresPin = masterRequiresPin,
+                    HasPin = !string.IsNullOrEmpty(linkedMapping?.PinHash),
                     IsMaster = true,
                     LockoutMinutes = linkedMapping?.LockoutMinutes ?? 5,
                     MaxSubProfiles = GetMaxProfilesForUser(linkedId, config),
@@ -148,9 +138,17 @@ namespace Jellyfin.Profiles.Controllers
                                 AvatarInitial = string.IsNullOrEmpty(m.ProfileName) ? "?" : m.ProfileName.Substring(0, 1).ToUpper(),
                                 m.AvatarColor,
                                 RequiresPin = requiresPin,
+                                // Whether a PIN EXISTS, independent of whether one will be
+                                // asked for right now. RequiresPin goes false on the LAN when
+                                // BypassPinOnLocalNetwork is set, so the edit form cannot use
+                                // it to decide if a PIN is configured — doing so made a saved
+                                // PIN look like it had never been stored.
+                                HasPin = !string.IsNullOrEmpty(m.PinHash),
                                 IsMaster = false,
                                 m.LockoutMinutes,
                                 EnabledFolders = m.EnabledFolders ?? new List<Guid>(),
+                                BlockedTags = m.BlockedTags ?? new List<string>(),
+                                AllowedTags = m.AllowedTags ?? new List<string>(),
                                 BypassPinOnLocalNetwork = m.BypassPinOnLocalNetwork,
                                 AllowedDeviceIds = m.AllowedDeviceIds ?? new List<string>(),
                                 IsBonfire = (linkedId != masterUserId),
@@ -232,7 +230,7 @@ namespace Jellyfin.Profiles.Controllers
                 var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
                 if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
                 {
-                    if (string.IsNullOrEmpty(request.MasterPin) || HashPin(request.MasterPin) != masterMapping.PinHash)
+                    if (!VerifyPinAndUpgrade(request.MasterPin, masterMapping, config))
                     {
                         return BadRequest("Invalid Master PIN code.");
                     }
@@ -259,6 +257,16 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
+            // Reject an allow-list that shares no tags with the master's, which would leave the
+            // profile with an empty library. Checked before the user is created so we don't
+            // leave a half-built account behind.
+            var allowedTagsError = ValidateAllowedTags(
+                _userManager.GetUserDto(masterUser, string.Empty).Policy, request.AllowedTags);
+            if (allowedTagsError != null)
+            {
+                return BadRequest(allowedTagsError);
+            }
+
             // Standardize username to avoid global collisions
             string systemUsername = $"{masterUser.Username}_{request.ProfileName.Replace(" ", "")}";
 
@@ -281,8 +289,12 @@ namespace Jellyfin.Profiles.Controllers
             var masterPolicy = masterUserDto.Policy;
             var masterConfig = masterUserDto.Configuration;
 
-            // Build target policy
-            var targetPolicy = new UserPolicy();
+            // Build target policy from the newly created Jellyfin user so required provider
+            // fields (e.g. AuthenticationProviderId) are preserved. Jellyfin 10.11 enforces
+            // AuthenticationProviderId as NOT NULL, so using new UserPolicy() would leave it
+            // null and cause UpdatePolicyAsync to throw. (Fix by PepeTechs, PR #6)
+            var targetUserDto = _userManager.GetUserDto(targetUser, string.Empty);
+            var targetPolicy = targetUserDto.Policy;
             CopyUserPolicy(masterPolicy, targetPolicy);
             targetPolicy.IsAdministrator = false;
             targetPolicy.IsHidden = true;
@@ -301,16 +313,29 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
+            // Tag-based filtering. Stored on the mapping as the profile's own lists; the master's
+            // tags are merged in here and re-merged on every switch.
+            var profileBlockedTags = NormalizeTags(request.BlockedTags);
+            var profileAllowedTags = NormalizeTags(request.AllowedTags);
+            var (resolvedBlockedTags, resolvedAllowedTags) =
+                ResolveTagPolicy(masterPolicy, profileBlockedTags, profileAllowedTags);
+            targetPolicy.BlockedTags = resolvedBlockedTags;
+            targetPolicy.AllowedTags = resolvedAllowedTags;
+
             // Library folder filtering (propagate master blocks)
+            List<Guid> validatedFolders = new List<Guid>();
             if (request.EnabledFolders != null)
             {
+                var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
+                validatedFolders = request.EnabledFolders.Where(id => masterAccessible.Contains(id)).ToList();
+
                 targetPolicy.EnableAllFolders = false;
-                targetPolicy.EnabledFolders = request.EnabledFolders.ToArray();
+                targetPolicy.EnabledFolders = validatedFolders.ToArray();
 
                 var allFolders = _libraryManager.GetVirtualFolders();
                 var blockedMediaFolders = allFolders
                     .Select(f => Guid.TryParse(f.ItemId, out var id) ? id : Guid.Empty)
-                    .Where(id => id != Guid.Empty && !request.EnabledFolders.Contains(id))
+                    .Where(id => id != Guid.Empty && !validatedFolders.Contains(id))
                     .ToArray();
 
                 var masterBlocked = masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>();
@@ -322,6 +347,9 @@ namespace Jellyfin.Profiles.Controllers
                 targetPolicy.EnableAllFolders = masterPolicy.EnableAllFolders;
                 targetPolicy.EnabledFolders = masterPolicy.EnabledFolders;
                 targetPolicy.BlockedMediaFolders = masterPolicy.BlockedMediaFolders;
+
+                var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
+                validatedFolders = masterAccessible.ToList();
             }
 
             // Clone general non-admin user configurations
@@ -346,11 +374,13 @@ namespace Jellyfin.Profiles.Controllers
                     MasterUserId = masterUserId,
                     ProfileName = request.ProfileName,
                     PinHash = HashPin(request.Pin),
-                    AvatarColor = request.AvatarColor,
+                    AvatarColor = SanitizeAvatarColor(request.AvatarColor),
                     IsHidden = true,
                     LockoutMinutes = request.LockoutMinutes ?? 5,
                     // Store the selected libraries as the plugin's own ground truth
-                    EnabledFolders = request.EnabledFolders?.ToList() ?? new List<Guid>(),
+                    EnabledFolders = validatedFolders,
+                    BlockedTags = profileBlockedTags,
+                    AllowedTags = profileAllowedTags,
                     BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork ?? false,
                     AllowedDeviceIds = request.AllowedDeviceIds ?? new List<string>(),
                     ProfileImage = SaveProfileImage(targetUser.Id, request.ProfileImage)
@@ -399,7 +429,7 @@ namespace Jellyfin.Profiles.Controllers
             var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
             if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
             {
-                if (string.IsNullOrEmpty(request.MasterPin) || HashPin(request.MasterPin) != masterMapping.PinHash)
+                if (!VerifyPinAndUpgrade(request.MasterPin, masterMapping, config))
                 {
                     return BadRequest("Invalid Master PIN code.");
                 }
@@ -424,38 +454,38 @@ namespace Jellyfin.Profiles.Controllers
             {
                 try
                 {
-            // Terminate all active sessions for this profile user BEFORE calling
-            // DeleteUserAsync. Jellyfin throws an InvalidOperationException when you
-            // try to delete an account that still has a live session, which was the
-            // root cause of users seeing deletion always fail.
-            try
-            {
-                var activeSessions = _sessionManager.Sessions
-                    .Where(s => s.UserId == request.ProfileId)
-                    .ToList();
-                // Revoke each session's token so Jellyfin considers them dead.
-                // This prevents DeleteUserAsync from throwing due to an active session.
-                foreach (var session in activeSessions)
-                {
+                    // Terminate all active sessions for this profile user BEFORE calling
+                    // DeleteUserAsync. Jellyfin throws an InvalidOperationException when you
+                    // try to delete an account that still has a live session, which was the
+                    // root cause of users seeing deletion always fail.
                     try
                     {
-                        await _sessionManager.RevokeUserTokens(request.ProfileId, null).ConfigureAwait(false);
-                        break; // RevokeUserTokens revokes ALL tokens for the user; no need to loop
+                        var activeSessions = _sessionManager.Sessions
+                            .Where(s => s.UserId == request.ProfileId)
+                            .ToList();
+                        // Revoke each session's token so Jellyfin considers them dead.
+                        // This prevents DeleteUserAsync from throwing due to an active session.
+                        foreach (var session in activeSessions)
+                        {
+                            try
+                            {
+                                await _sessionManager.RevokeUserTokens(request.ProfileId, null).ConfigureAwait(false);
+                                break; // RevokeUserTokens revokes ALL tokens for the user; no need to loop
+                            }
+                            catch (Exception sessionEx)
+                            {
+                                _logger.LogDebug(sessionEx,
+                                    "ProfilesPlugin: Could not revoke tokens before deleting user {UserId}.",
+                                    request.ProfileId);
+                            }
+                        }
                     }
-                    catch (Exception sessionEx)
+                    catch (Exception ex)
                     {
-                        _logger.LogDebug(sessionEx,
-                            "ProfilesPlugin: Could not revoke tokens before deleting user {UserId}.",
+                        _logger.LogDebug(ex,
+                            "ProfilesPlugin: Session enumeration failed before deleting {UserId}; attempting deletion anyway.",
                             request.ProfileId);
                     }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex,
-                    "ProfilesPlugin: Session enumeration failed before deleting {UserId}; attempting deletion anyway.",
-                    request.ProfileId);
-            }
 
                     await _userManager.DeleteUserAsync(targetUser.Id).ConfigureAwait(false);
                     userFullyDeleted = true;
@@ -517,6 +547,12 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<object>> SwitchProfile([FromBody] SwitchProfileRequest request)
         {
+            // Switching is the click users perceive as "loading the home screen", so the
+            // per-stage cost is logged at Debug. Enable debug logging for Jellyfin.Profiles to
+            // see which stage is responsible when a switch feels slow.
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            long tAuth = 0, tPolicy = 0, tSession = 0;
+
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
@@ -537,6 +573,10 @@ namespace Jellyfin.Profiles.Controllers
 
             var linkedMasterIds = GetLinkedMasterUserIds(callerMasterUserId, config);
 
+            // True when the target is someone else's master account reached through a Bonfire
+            // link, rather than the caller's own account or one of its sub-profiles.
+            bool isCrossAccountMasterSwitch = false;
+
             // Validate switch permissions: must belong to the same master user group or a linked Bonfire group.
             if (request.ProfileId == callerMasterUserId)
             {
@@ -544,7 +584,25 @@ namespace Jellyfin.Profiles.Controllers
             }
             else if (linkedMasterIds.Contains(request.ProfileId))
             {
-                // Switching to a linked master profile is allowed
+                isCrossAccountMasterSwitch = true;
+
+                // Switching to a *different* master account via a Bonfire link hands the
+                // caller a real session token for that account — including its admin rights
+                // if it has any. The owner's PIN is the only thing standing between a shared
+                // Bonfire code and full account access, so an unprotected master account is
+                // not reachable this way at all.
+                var linkedMasterMapping = config.Mappings
+                    .FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
+
+                if (string.IsNullOrEmpty(linkedMasterMapping?.PinHash))
+                {
+                    _logger.LogWarning(
+                        "ProfilesPlugin: Blocked Bonfire switch from {Caller} into unprotected master account {Target}.",
+                        callerMasterUserId, request.ProfileId);
+                    return BadRequest(
+                        "This account has no PIN set, so it cannot be opened from a shared Bonfire. " +
+                        "Its owner must set a profile PIN before it can be switched into.");
+                }
             }
             else
             {
@@ -567,29 +625,49 @@ namespace Jellyfin.Profiles.Controllers
             var remoteIp = HttpContext.Connection.RemoteIpAddress;
             bool isLocal = remoteIp != null && _networkManager.IsInLocalNetwork(remoteIp);
             var ip = remoteIp?.ToString() ?? "127.0.0.1";
+            var rateLimitKey = $"{ip}_{request.ProfileId}";
 
             // Verify PIN if set
             var pinHashToCheck = mapping?.PinHash;
             if (!string.IsNullOrEmpty(pinHashToCheck))
             {
-                bool bypass = mapping != null && mapping.BypassPinOnLocalNetwork && isLocal;
-                if (!bypass)
+                // The LAN bypass is a convenience for your own household. It deliberately does
+                // NOT apply when stepping into another account through a Bonfire — sharing a
+                // network is not consent to skip that account's PIN.
+                bool bypass = mapping != null
+                              && mapping.BypassPinOnLocalNetwork
+                              && isLocal
+                              && !isCrossAccountMasterSwitch;
+
+                if (bypass)
                 {
-                    if (RateLimiter.Pin.IsRateLimited(ip))
+                    // Logged so an administrator can confirm the bypass only ever fires for
+                    // genuinely local clients. Behind a reverse proxy that is NOT listed in
+                    // Jellyfin's Known Proxies, every request arrives with the proxy's address
+                    // and would therefore look local — this line is how that shows up.
+                    _logger.LogInformation(
+                        "ProfilesPlugin: PIN skipped for profile {Profile} — client {Ip} was classified " +
+                        "as local by Jellyfin's network settings.",
+                        request.ProfileId, ip);
+                }
+                else
+                {
+                    if (RateLimiter.Pin.IsRateLimited(rateLimitKey))
                     {
                         return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
                     }
 
-                    var inputHash = HashPin(request.Pin);
-                    if (pinHashToCheck != inputHash)
+                    // mapping is non-null here — pinHashToCheck came from it.
+                    if (!VerifyPinAndUpgrade(request.Pin, mapping!, config))
                     {
-                        RateLimiter.Pin.RecordFailure(ip);
+                        RateLimiter.Pin.RecordFailure(rateLimitKey);
                         return BadRequest("Invalid PIN code.");
                     }
                 }
             }
 
-            RateLimiter.Pin.Reset(ip);
+            RateLimiter.Pin.Reset(rateLimitKey);
+            tAuth = sw.ElapsedMilliseconds;
 
             var targetUser = _userManager.GetUserById(request.ProfileId);
             if (targetUser == null) return NotFound("Underlying system user missing.");
@@ -618,6 +696,15 @@ namespace Jellyfin.Profiles.Controllers
                 targetPolicy.IsHidden = true;
                 targetPolicy.IsDisabled = false;
                 targetPolicy.MaxParentalRating = childMaxParentalRating;
+
+                // Re-apply the profile's tag filters. CopyUserPolicy above just overwrote them with
+                // the master's, so without this every profile switch would silently drop them.
+                // Resolving from the mapping (rather than the current policy) also heals tags reset
+                // by a Jellyfin restart and picks up changes to the master's own tag policy.
+                var (reapplyBlockedTags, reapplyAllowedTags) =
+                    ResolveTagPolicy(masterPolicy, mapping?.BlockedTags, mapping?.AllowedTags);
+                targetPolicy.BlockedTags = reapplyBlockedTags;
+                targetPolicy.AllowedTags = reapplyAllowedTags;
 
                 // Determine the authoritative enabled-folder list:
                 //  - If the plugin mapping has a stored list (EnabledFolders != null), use it as ground truth.
@@ -659,6 +746,10 @@ namespace Jellyfin.Profiles.Controllers
                     }
                 }
 
+                // Intersect authorityFolders with the master's current accessible folders
+                var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
+                authorityFolders = authorityFolders.Where(id => masterAccessible.Contains(id)).ToList();
+
                 // Re-apply the stored library policy (heals resets caused by Jellyfin restarts)
                 targetPolicy.EnableAllFolders = false;
                 targetPolicy.EnabledFolders = authorityFolders.ToArray();
@@ -683,27 +774,47 @@ namespace Jellyfin.Profiles.Controllers
                 await _userManager.UpdateConfigurationAsync(targetUser.Id, targetConfig).ConfigureAwait(false);
             }
 
-            var authRequest = new AuthenticationRequest
-            {
-                Username = targetUser.Username,
-                RemoteEndPoint = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1"
-            };
-
-            // Propagate client/device identifiers to SessionManager to avoid ArgumentNullException in LogSessionActivity
             var client = GetAuthorizationParameter("Client");
             var device = GetAuthorizationParameter("Device");
             var deviceId = GetAuthorizationParameter("DeviceId");
             var version = GetAuthorizationParameter("Version");
 
-            if (!string.IsNullOrEmpty(client)) authRequest.App = client;
-            if (!string.IsNullOrEmpty(device)) authRequest.DeviceName = device;
-            if (!string.IsNullOrEmpty(deviceId)) authRequest.DeviceId = deviceId;
-            if (!string.IsNullOrEmpty(version)) authRequest.AppVersion = version;
+            // Jellyfin 10.11+ requires App, DeviceName, DeviceId, AppVersion to be non-null/non-empty.
+            // Provide safe fallbacks in case the Authorization header couldn't be parsed.
+            var authRequest = new AuthenticationRequest
+            {
+                Username = targetUser.Username,
+                RemoteEndPoint = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1",
+                App = !string.IsNullOrEmpty(client) ? client : "JellyfinWeb",
+                DeviceName = !string.IsNullOrEmpty(device) ? device : "Profiles Plugin",
+                DeviceId = !string.IsNullOrEmpty(deviceId) ? deviceId : ("profiles-" + targetUser.Id.ToString("N")[..8]),
+                AppVersion = !string.IsNullOrEmpty(version) ? version : "1.0.0"
+            };
+            tPolicy = sw.ElapsedMilliseconds;
+
             // Authenticate directly bypassing password check (securely validated caller + PIN validation)
             var session = await _sessionManager.AuthenticateDirect(authRequest).ConfigureAwait(false);
+            tSession = sw.ElapsedMilliseconds;
 
             // Record profile switch audit log
             RecordAuditLog(masterUser?.Username ?? "Unknown", targetUser.Username);
+
+            var total = sw.ElapsedMilliseconds;
+            // Warn on switches slow enough for a user to notice; otherwise keep it at Debug.
+            if (total >= 1000)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: Slow profile switch — {Total} ms total " +
+                    "(auth/PIN {Auth} ms, policy sync {Policy} ms, session {Session} ms, audit {Audit} ms).",
+                    total, tAuth, tPolicy - tAuth, tSession - tPolicy, total - tSession);
+            }
+            else
+            {
+                _logger.LogDebug(
+                    "ProfilesPlugin: Profile switch took {Total} ms " +
+                    "(auth/PIN {Auth} ms, policy sync {Policy} ms, session {Session} ms, audit {Audit} ms).",
+                    total, tAuth, tPolicy - tAuth, tSession - tPolicy, total - tSession);
+            }
 
             return Ok(new
             {
@@ -747,6 +858,7 @@ namespace Jellyfin.Profiles.Controllers
             var remoteIp = HttpContext.Connection.RemoteIpAddress;
             bool isLocal = remoteIp != null && _networkManager.IsInLocalNetwork(remoteIp);
             var ip = remoteIp?.ToString() ?? "127.0.0.1";
+            var rateLimitKey = $"{ip}_{request.ProfileId}";
 
             if (linkedMasterIds.Contains(request.ProfileId))
             {
@@ -758,19 +870,20 @@ namespace Jellyfin.Profiles.Controllers
                     bool bypass = masterMapping != null && masterMapping.BypassPinOnLocalNetwork && isLocal;
                     if (!bypass)
                     {
-                        if (RateLimiter.Pin.IsRateLimited(ip))
+                        if (RateLimiter.Pin.IsRateLimited(rateLimitKey))
                         {
                             return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
                         }
 
-                        if (string.IsNullOrEmpty(request.Pin) || HashPin(request.Pin) != pinHash)
+                        // masterMapping is non-null here — pinHash came from it.
+                        if (!VerifyPinAndUpgrade(request.Pin, masterMapping!, config))
                         {
-                            RateLimiter.Pin.RecordFailure(ip);
+                            RateLimiter.Pin.RecordFailure(rateLimitKey);
                             return BadRequest("Invalid PIN.");
                         }
                     }
                 }
-                RateLimiter.Pin.Reset(ip);
+                RateLimiter.Pin.Reset(rateLimitKey);
                 return Ok();
             }
             else
@@ -785,19 +898,19 @@ namespace Jellyfin.Profiles.Controllers
                     bool bypass = mapping.BypassPinOnLocalNetwork && isLocal;
                     if (!bypass)
                     {
-                        if (RateLimiter.Pin.IsRateLimited(ip))
+                        if (RateLimiter.Pin.IsRateLimited(rateLimitKey))
                         {
                             return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
                         }
 
-                        if (string.IsNullOrEmpty(request.Pin) || HashPin(request.Pin) != pinHash)
+                        if (!VerifyPinAndUpgrade(request.Pin, mapping, config))
                         {
-                            RateLimiter.Pin.RecordFailure(ip);
+                            RateLimiter.Pin.RecordFailure(rateLimitKey);
                             return BadRequest("Invalid PIN.");
                         }
                     }
                 }
-                RateLimiter.Pin.Reset(ip);
+                RateLimiter.Pin.Reset(rateLimitKey);
                 return Ok();
             }
         }
@@ -842,6 +955,9 @@ namespace Jellyfin.Profiles.Controllers
                         ProfileUserId = user.Id,
                         ProfileName = mapping?.ProfileName ?? user.Username,
                         MasterName = masterUser?.Username ?? "Unknown",
+                        // Grouping key for the dashboard. Name alone is not safe to group by —
+                        // it changes when an account is renamed and is not guaranteed unique.
+                        MasterUserId = mapping?.MasterUserId ?? Guid.Empty,
                         RequiresPin = mapping != null && !string.IsNullOrEmpty(mapping.PinHash)
                     });
                 }
@@ -860,13 +976,89 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
+            // Re-read index.html so the dashboard reflects the file as it is right now.
+            // These flags used to be a snapshot taken at server boot, which is why the
+            // warning banner persisted after users ran the documented fix commands —
+            // nothing re-checked until the next full Jellyfin restart.
+            ProfilesBootstrapTask.RefreshInjectionStatus();
+
             return Ok(new
             {
                 MasterUsers = masterUsersList,
                 SubProfiles = subProfilesList,
                 InjectionSucceeded = ProfilesBootstrapTask.InjectionSucceeded,
-                IndexPath = ProfilesBootstrapTask.IndexPath
+                IsVersionStale = ProfilesBootstrapTask.IsVersionStale,
+                IndexPath = ProfilesBootstrapTask.IndexPath,
+                FailureReason = ProfilesBootstrapTask.LastFailureReason,
+                // Lets the dashboard emit a permission command naming the exact account
+                // Jellyfin runs as, instead of guessing between service and desktop mode.
+                ServiceAccount = ProfilesBootstrapTask.RunningAccount,
+                IsWindows = OperatingSystem.IsWindows(),
+                PluginVersion = GetPluginVersion()
             });
+        }
+
+        /// <summary>
+        /// Re-runs the client-script injection on demand. Lets an administrator apply a file
+        /// permission fix and click "Retry" instead of restarting the whole Jellyfin server.
+        /// </summary>
+        [HttpPost("admin/retry-injection")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> RetryInjection()
+        {
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+
+            var caller = _userManager.GetUserById(currentUserIdVal.Value);
+            if (caller == null) return Unauthorized();
+
+            var callerDto = _userManager.GetUserDto(caller, string.Empty);
+            if (!callerDto.Policy.IsAdministrator)
+            {
+                return Unauthorized("Only administrators can retry script injection.");
+            }
+
+            _logger.LogInformation("ProfilesPlugin: Manual injection retry requested by {User}.", caller.Username);
+            var succeeded = ProfilesBootstrapTask.RunInjectionNow();
+
+            return Ok(new
+            {
+                InjectionSucceeded = succeeded,
+                IsVersionStale = ProfilesBootstrapTask.IsVersionStale,
+                IndexPath = ProfilesBootstrapTask.IndexPath,
+                FailureReason = ProfilesBootstrapTask.LastFailureReason,
+                // Lets the dashboard emit a permission command naming the exact account
+                // Jellyfin runs as, instead of guessing between service and desktop mode.
+                ServiceAccount = ProfilesBootstrapTask.RunningAccount,
+                IsWindows = OperatingSystem.IsWindows(),
+                PluginVersion = GetPluginVersion()
+            });
+        }
+
+        /// <summary>
+        /// Plugin version for display and cache-busting. Prefers the informational version,
+        /// which carries any pre-release label (e.g. "1.2.7-beta") that the numeric assembly
+        /// version cannot represent — Jellyfin requires the latter to be purely numeric.
+        /// Falls back to the numeric version so this can never go stale the way a hardcoded
+        /// literal does.
+        /// </summary>
+        private static string GetPluginVersion()
+        {
+            var informational = typeof(ProfilesBootstrapTask).Assembly
+                .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()
+                ?.InformationalVersion;
+
+            if (!string.IsNullOrWhiteSpace(informational))
+            {
+                // Strip a "+<sha>" build-metadata suffix if one ever slips in.
+                var plus = informational.IndexOf('+');
+                return plus > 0 ? informational.Substring(0, plus) : informational;
+            }
+
+            return Plugin.Instance?.Version?.ToString()
+                   ?? typeof(ProfilesBootstrapTask).Assembly.GetName().Version?.ToString()
+                   ?? "unknown";
         }
 
         [HttpPost("admin/reset-pin")]
@@ -933,7 +1125,7 @@ namespace Jellyfin.Profiles.Controllers
             var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
             if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
             {
-                if (string.IsNullOrEmpty(request.MasterPin) || HashPin(request.MasterPin) != masterMapping.PinHash)
+                if (!VerifyPinAndUpgrade(request.MasterPin, masterMapping, config))
                 {
                     return BadRequest("Invalid Master PIN code.");
                 }
@@ -967,6 +1159,21 @@ namespace Jellyfin.Profiles.Controllers
             var masterUserDto = _userManager.GetUserDto(masterUser, string.Empty);
             var masterPolicy = masterUserDto.Policy;
 
+            var allowedTagsError = ValidateAllowedTags(masterPolicy, request.AllowedTags);
+            if (allowedTagsError != null)
+            {
+                return BadRequest(allowedTagsError);
+            }
+
+            // Tag filters: a null list means "leave unchanged", so fall back to what's stored.
+            var existingMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
+            List<string>? profileBlockedTags = request.BlockedTags != null
+                ? NormalizeTags(request.BlockedTags)
+                : existingMapping?.BlockedTags;
+            List<string>? profileAllowedTags = request.AllowedTags != null
+                ? NormalizeTags(request.AllowedTags)
+                : existingMapping?.AllowedTags;
+
             // Renaming logic
             if (request.ProfileId != masterUserId)
             {
@@ -984,6 +1191,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // Update policy for sub-profiles
+            List<Guid>? validatedFolders = null;
             if (request.ProfileId != masterUserId)
             {
                 var targetUserDto = _userManager.GetUserDto(targetUser, string.Empty);
@@ -1007,16 +1215,25 @@ namespace Jellyfin.Profiles.Controllers
                     }
                 }
 
+                // Tag-based filtering (clamped so it can never exceed the master's)
+                var (resolvedBlockedTags, resolvedAllowedTags) =
+                    ResolveTagPolicy(masterPolicy, profileBlockedTags, profileAllowedTags);
+                targetPolicy.BlockedTags = resolvedBlockedTags;
+                targetPolicy.AllowedTags = resolvedAllowedTags;
+
                 // Library access propagation
                 if (request.EnabledFolders != null)
                 {
+                    var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
+                    validatedFolders = request.EnabledFolders.Where(id => masterAccessible.Contains(id)).ToList();
+
                     targetPolicy.EnableAllFolders = false;
-                    targetPolicy.EnabledFolders = request.EnabledFolders.ToArray();
+                    targetPolicy.EnabledFolders = validatedFolders.ToArray();
 
                     var allFolders = _libraryManager.GetVirtualFolders();
                     var blockedMediaFolders = allFolders
                         .Select(f => Guid.TryParse(f.ItemId, out var id) ? id : Guid.Empty)
-                        .Where(id => id != Guid.Empty && !request.EnabledFolders.Contains(id))
+                        .Where(id => id != Guid.Empty && !validatedFolders.Contains(id))
                         .ToArray();
 
                     var masterBlocked = masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>();
@@ -1027,6 +1244,9 @@ namespace Jellyfin.Profiles.Controllers
                     targetPolicy.EnableAllFolders = masterPolicy.EnableAllFolders;
                     targetPolicy.EnabledFolders = masterPolicy.EnabledFolders;
                     targetPolicy.BlockedMediaFolders = masterPolicy.BlockedMediaFolders;
+
+                    var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
+                    validatedFolders = masterAccessible.ToList();
                 }
 
                 await _userManager.UpdatePolicyAsync(targetUser.Id, targetPolicy).ConfigureAwait(false);
@@ -1056,7 +1276,7 @@ namespace Jellyfin.Profiles.Controllers
                         mappingEntry.ProfileName = request.ProfileName;
                     }
 
-                    mappingEntry.AvatarColor = request.AvatarColor;
+                    mappingEntry.AvatarColor = SanitizeAvatarColor(request.AvatarColor);
 
                     if (request.ProfileImage != null)
                     {
@@ -1080,9 +1300,25 @@ namespace Jellyfin.Profiles.Controllers
                     }
 
                     // Update stored library list (plugin's ground truth)
-                    if (request.EnabledFolders != null)
+                    if (validatedFolders != null)
                     {
-                        mappingEntry.EnabledFolders = request.EnabledFolders.ToList();
+                        mappingEntry.EnabledFolders = validatedFolders;
+                    }
+
+                    // Store the profile's own tag lists, not the master-merged result, so later
+                    // changes to the master's tags flow through instead of staying baked in.
+                    // Sub-profiles only: the master's tag policy is managed in Jellyfin itself,
+                    // and the block above never applies these to the master's user account.
+                    if (request.ProfileId != masterUserId)
+                    {
+                        if (request.BlockedTags != null)
+                        {
+                            mappingEntry.BlockedTags = NormalizeTags(request.BlockedTags);
+                        }
+                        if (request.AllowedTags != null)
+                        {
+                            mappingEntry.AllowedTags = NormalizeTags(request.AllowedTags);
+                        }
                     }
 
                     if (request.BypassPinOnLocalNetwork.HasValue)
@@ -1103,332 +1339,48 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         [HttpGet("profiles.js")]
-        [AllowAnonymous]
         [Produces("application/javascript")]
         public ActionResult GetProfilesJs()
         {
-            // Cache the JS content statically — it only changes when the plugin DLL changes,
-            // so there is no reason to read the embedded resource on every browser page load.
-            if (_cachedProfilesJs == null)
+            // CachedProfilesJs lives on ProfilesBaseController as a static field.
+            // It is loaded once per app lifetime — no reason to read the embedded
+            // resource on every browser page load.
+            if (CachedProfilesJs == null)
             {
-                lock (_jsCacheLock)
+                lock (JsCacheLock)
                 {
-                    if (_cachedProfilesJs == null)
+                    if (CachedProfilesJs == null)
                     {
                         var assembly = typeof(Plugin).Assembly;
                         using var stream = assembly.GetManifestResourceStream("Jellyfin.Profiles.Web.profiles.js");
                         if (stream == null) return NotFound();
                         using var reader = new StreamReader(stream);
-                        _cachedProfilesJs = reader.ReadToEnd();
+                        CachedProfilesJs = reader.ReadToEnd();
                     }
                 }
             }
 
-            Response.Headers["Cache-Control"] = "public, max-age=3600";
-            return Content(_cachedProfilesJs, "application/javascript");
+            // The script URL normally carries a ?v={version} cache-buster, but when the plugin
+            // cannot rewrite index.html (read-only web root) that query string stays pinned to
+            // an older version. A long immutable cache would then serve stale client code
+            // indefinitely and new features would silently never appear.
+            //
+            // Tagging the response with the plugin version and asking for revalidation means a
+            // stale URL still picks up new code on its own within max-age, while unchanged
+            // content costs only a 304.
+            var etag = "\"" + GetPluginVersion() + "\"";
+            Response.Headers["ETag"] = etag;
+            Response.Headers["Cache-Control"] = "public, max-age=300, must-revalidate";
+
+            if (string.Equals(Request.Headers["If-None-Match"].ToString(), etag, StringComparison.Ordinal))
+            {
+                return StatusCode(StatusCodes.Status304NotModified);
+            }
+
+            return Content(CachedProfilesJs, "application/javascript");
         }
 
-        private Guid? GetCurrentUserId()
-        {
-            var claim = User?.FindFirst("Jellyfin-UserId") ?? User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
-            if (claim == null)
-            {
-                _logger.LogWarning("ProfilesPlugin: User ID claim not found in User principal.");
-                return null;
-            }
-
-            if (!Guid.TryParse(claim.Value, out var userId))
-            {
-                _logger.LogWarning("ProfilesPlugin: Failed to parse User ID claim value '{Value}' as Guid.", claim.Value);
-                return null;
-            }
-
-            return userId;
-        }
-
-        // ── Cross-version compatibility helpers ──────────────────────────────────
-        // IUserManager.Users (property) was renamed to GetUsers() (method) in 10.11.7.
-        // IUserManager.ChangePassword(User, string) became ChangePassword(Guid, string) in 10.11.7.
-        // We compile against 10.11.6 and use reflection to call the newer signature at runtime
-        // when the server is running 10.11.7+, so that a single DLL works across all 10.11.x.
-
-        private IEnumerable<Jellyfin.Database.Implementations.Entities.User> GetAllUsers()
-        {
-            var mgr = _userManager;
-            var type = mgr.GetType();
-
-            // 10.11.7+ exposes GetUsers() as a method.
-            var method = type.GetMethod("GetUsers", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-            if (method != null)
-            {
-                try
-                {
-                    return (IEnumerable<Jellyfin.Database.Implementations.Entities.User>)method.Invoke(mgr, null)!;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "ProfilesPlugin: GetUsers() reflection call failed, falling back to Users property.");
-                }
-            }
-
-            // 10.11.0–10.11.6 exposes Users as a property.
-            var prop = type.GetProperty("Users", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-            if (prop != null)
-            {
-                return (IEnumerable<Jellyfin.Database.Implementations.Entities.User>)prop.GetValue(mgr)!;
-            }
-
-            _logger.LogError("ProfilesPlugin: Could not resolve user list from IUserManager on this server version.");
-            return Enumerable.Empty<Jellyfin.Database.Implementations.Entities.User>();
-        }
-
-        private Task ChangePasswordCompat(Jellyfin.Database.Implementations.Entities.User user, string newPassword)
-        {
-            var mgr = _userManager;
-            var type = mgr.GetType();
-
-            // 10.11.7+: ChangePassword(Guid userId, string newPassword)
-            var methodByGuid = type.GetMethod("ChangePassword", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance,
-                null, new[] { typeof(Guid), typeof(string) }, null);
-            if (methodByGuid != null)
-            {
-                return (Task)methodByGuid.Invoke(mgr, new object[] { user.Id, newPassword })!;
-            }
-
-            // 10.11.0–10.11.6: ChangePassword(User user, string newPassword)
-            var methodByUser = type.GetMethod("ChangePassword", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance,
-                null, new[] { user.GetType(), typeof(string) }, null);
-            if (methodByUser != null)
-            {
-                return (Task)methodByUser.Invoke(mgr, new object[] { user, newPassword })!;
-            }
-
-            _logger.LogError("ProfilesPlugin: Could not resolve ChangePassword on IUserManager for this server version.");
-            return Task.CompletedTask;
-        }
-
-        private string HashPin(string? pin)
-        {
-            if (string.IsNullOrEmpty(pin)) return string.Empty;
-            using var sha256 = SHA256.Create();
-            var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(pin));
-            return Convert.ToHexString(bytes);
-        }
-
-        private string? GetAuthorizationParameter(string name)
-        {
-            var header = Request.Headers["Authorization"].FirstOrDefault() 
-                         ?? Request.Headers["X-Emby-Authorization"].FirstOrDefault();
-            
-            if (string.IsNullOrEmpty(header)) return null;
-
-            var pattern = $"{name}=\"([^\"]*)\"";
-            var match = System.Text.RegularExpressions.Regex.Match(header, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            if (match.Success)
-            {
-                return match.Groups[1].Value;
-            }
-            return null;
-        }
-
-        private void CopyUserPolicy(UserPolicy source, UserPolicy destination)
-        {
-            foreach (var prop in typeof(UserPolicy).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
-            {
-                if (prop.CanRead && prop.CanWrite)
-                {
-                    // Skip Administrator and Hidden/Disabled flags to prevent escalations or errors
-                    if (prop.Name == "IsAdministrator" || prop.Name == "IsHidden" || prop.Name == "IsDisabled")
-                    {
-                        continue;
-                    }
-                    var val = prop.GetValue(source);
-                    prop.SetValue(destination, val);
-                }
-            }
-        }
-
-        // ── Device Log & Restrictions Endpoints ──────────────────────────────────
-
-        private void RecordDeviceActivity()
-        {
-            var deviceId = GetAuthorizationParameter("DeviceId");
-            var deviceName = GetAuthorizationParameter("Device");
-            var client = GetAuthorizationParameter("Client");
-
-            if (string.IsNullOrEmpty(deviceId)) return;
-
-            var config = Plugin.Instance?.Configuration;
-            if (config == null) return;
-
-            lock (config)
-            {
-                var existing = config.KnownDevices.FirstOrDefault(d => string.Equals(d.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
-                bool shouldSave = false;
-                if (existing != null)
-                {
-                    if (deviceName != null && existing.DeviceName != deviceName)
-                    {
-                        existing.DeviceName = deviceName;
-                        shouldSave = true;
-                    }
-                    if (client != null && existing.Client != client)
-                    {
-                        existing.Client = client;
-                        shouldSave = true;
-                    }
-                    var now = DateTime.UtcNow;
-                    if ((now - existing.LastSeen).TotalMinutes >= 15)
-                    {
-                        existing.LastSeen = now;
-                        shouldSave = true;
-                    }
-                }
-                else
-                {
-                    config.KnownDevices.Add(new KnownDevice
-                    {
-                        DeviceId = deviceId,
-                        DeviceName = deviceName ?? "Unknown Device",
-                        Client = client ?? "Unknown Client",
-                        LastSeen = DateTime.UtcNow
-                    });
-                    shouldSave = true;
-                }
-
-                if (shouldSave)
-                {
-                    Plugin.Instance?.SaveConfiguration();
-                }
-            }
-        }
-
-        [HttpGet("devices")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult<IEnumerable<KnownDevice>> GetDevices()
-        {
-            var config = Plugin.Instance?.Configuration;
-            if (config == null) return BadRequest("Plugin configuration missing.");
-
-            var currentUserIdVal = GetCurrentUserId();
-            if (currentUserIdVal == null) return Unauthorized();
-
-            var devices = config.KnownDevices
-                .GroupBy(d => d.DeviceId, StringComparer.OrdinalIgnoreCase)
-                .Select(g => g.OrderByDescending(d => d.LastSeen).First())
-                .OrderByDescending(d => d.LastSeen)
-                .ToList();
-            return Ok(devices);
-        }
-
-        [HttpPost("devices/delete")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult DeleteDevice([FromBody] DeleteDeviceRequest request)
-        {
-            var config = Plugin.Instance?.Configuration;
-            if (config == null) return BadRequest("Plugin configuration missing.");
-
-            var currentUserIdVal = GetCurrentUserId();
-            if (currentUserIdVal == null) return Unauthorized();
-            Guid masterId = currentUserIdVal.Value;
-
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
-            if (currentMapping != null && currentMapping.MasterUserId != masterId)
-            {
-                return Unauthorized("Only the master profile can delete devices.");
-            }
-
-            if (string.IsNullOrEmpty(request.DeviceId))
-            {
-                return BadRequest("DeviceId is required.");
-            }
-
-            lock (config)
-            {
-                var matchingDevices = config.KnownDevices
-                    .Where(d => string.Equals(d.DeviceId, request.DeviceId, StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-                foreach (var d in matchingDevices)
-                {
-                    config.KnownDevices.Remove(d);
-                }
-
-                // Remove it from any profile's allowed list
-                foreach (var mapping in config.Mappings)
-                {
-                    if (mapping.AllowedDeviceIds != null)
-                    {
-                        mapping.AllowedDeviceIds.RemoveAll(id => string.Equals(id, request.DeviceId, StringComparison.OrdinalIgnoreCase));
-                    }
-                }
-
-                Plugin.Instance?.SaveConfiguration();
-            }
-
-            return Ok();
-        }
-
-        // ── Bonfire Codes (Plex Home Style Grouping) ──────────────────────────────
-
-        private HashSet<Guid> GetLinkedMasterUserIds(Guid masterUserId, PluginConfiguration config)
-        {
-            var linkedMasterIds = new HashSet<Guid> { masterUserId };
-
-            var ownedGroups = config.BonfireGroups.Where(g => g.OwnerUserId == masterUserId);
-            foreach (var g in ownedGroups)
-            {
-                foreach (var memberId in g.MemberUserIds)
-                {
-                    linkedMasterIds.Add(memberId);
-                }
-            }
-
-            var memberGroups = config.BonfireGroups.Where(g => g.MemberUserIds.Contains(masterUserId));
-            foreach (var g in memberGroups)
-            {
-                linkedMasterIds.Add(g.OwnerUserId);
-                foreach (var memberId in g.MemberUserIds)
-                {
-                    linkedMasterIds.Add(memberId);
-                }
-            }
-
-            return linkedMasterIds;
-        }
-
-        private string GenerateSecureCode()
-        {
-            const string chars = "ABCDEFGHJKLMNOPQRSTUVWXYZ23456789";
-            var bytes = new byte[6];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(bytes);
-            }
-            var result = new char[6];
-            for (int i = 0; i < 6; i++)
-            {
-                result[i] = chars[bytes[i] % chars.Length];
-            }
-            return new string(result);
-        }
-
-        private List<object> GetBonfireGroupMembers(BonfireGroup group, PluginConfiguration config)
-        {
-            var list = new List<object>();
-            foreach (var memberId in group.MemberUserIds)
-            {
-                var user = _userManager.GetUserById(memberId);
-                list.Add(new
-                {
-                    UserId = memberId,
-                    Username = user?.Username ?? "Unknown User"
-                });
-            }
-            return list;
-        }
+        // ── Bonfire Codes ──────────────────────────────────────────────────────────
 
         [HttpGet("bonfire/status")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -1477,9 +1429,7 @@ namespace Jellyfin.Profiles.Controllers
 
             var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
             if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
-            {
                 return Unauthorized("Only the master profile can manage Bonfire groups.");
-            }
 
             string groupId;
             string bonfireCode;
@@ -1492,8 +1442,6 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     group = new BonfireGroup
                     {
-                        // Assign GroupId explicitly here — not in the property initializer
-                        // to avoid re-randomization on every XML deserialization.
                         GroupId = Guid.NewGuid().ToString("N").Substring(0, 8),
                         OwnerUserId = masterUserId,
                         BonfireCode = GenerateSecureCode()
@@ -1502,7 +1450,6 @@ namespace Jellyfin.Profiles.Controllers
                 }
                 else
                 {
-                    // Repair any empty GroupId (from configs written before this fix)
                     if (string.IsNullOrEmpty(group.GroupId))
                         group.GroupId = Guid.NewGuid().ToString("N").Substring(0, 8);
                     if (string.IsNullOrEmpty(group.BonfireCode))
@@ -1510,24 +1457,19 @@ namespace Jellyfin.Profiles.Controllers
                 }
 
                 Plugin.Instance?.SaveConfiguration();
-
                 groupId = group.GroupId;
                 bonfireCode = group.BonfireCode;
                 members = GetBonfireGroupMembers(group, config);
             }
 
-            return Ok(new
-            {
-                GroupId = groupId,
-                BonfireCode = bonfireCode,
-                Members = members
-            });
+            return Ok(new { GroupId = groupId, BonfireCode = bonfireCode, Members = members });
         }
 
         [HttpPost("bonfire/join")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
         public ActionResult JoinBonfire([FromBody] JoinBonfireRequest request)
         {
             var config = Plugin.Instance?.Configuration;
@@ -1541,15 +1483,11 @@ namespace Jellyfin.Profiles.Controllers
             Guid masterId = currentMapping != null ? currentMapping.MasterUserId : masterUserId;
 
             if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
-            {
                 return Unauthorized("Only the master profile can join Bonfire groups.");
-            }
 
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
             if (RateLimiter.Bonfire.IsRateLimited(ip))
-            {
                 return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed attempts. Please try again in 15 minutes.");
-            }
 
             var code = request.Code?.Trim().ToUpperInvariant();
             if (string.IsNullOrEmpty(code) || code.Length != 6)
@@ -1563,8 +1501,6 @@ namespace Jellyfin.Profiles.Controllers
 
             lock (config)
             {
-                // Use OrdinalIgnoreCase so a future change to code generation
-                // cannot silently break matching.
                 var group = config.BonfireGroups.FirstOrDefault(g =>
                     string.Equals(g.BonfireCode, code, StringComparison.OrdinalIgnoreCase));
                 if (group == null)
@@ -1574,35 +1510,22 @@ namespace Jellyfin.Profiles.Controllers
                 }
 
                 if (group.OwnerUserId == masterId)
-                {
                     return BadRequest("You cannot join your own Bonfire group.");
-                }
 
                 if (group.MemberUserIds.Contains(masterId))
-                {
                     return Ok(new { Message = "Already a member of this group." });
-                }
 
-                // Remove user from any existing bonfire groups they joined
                 foreach (var g in config.BonfireGroups)
-                {
-                    if (g.MemberUserIds.Contains(masterId))
-                    {
-                        g.MemberUserIds.Remove(masterId);
-                    }
-                }
+                    g.MemberUserIds.Remove(masterId);
 
                 group.MemberUserIds.Add(masterId);
                 Plugin.Instance?.SaveConfiguration();
-
                 ownerUserId = group.OwnerUserId;
                 newlyJoined = true;
             }
 
             if (newlyJoined)
-            {
-            RateLimiter.Bonfire.Reset(ip);
-            }
+                RateLimiter.Bonfire.Reset(ip);
 
             return Ok(new
             {
@@ -1615,6 +1538,7 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public ActionResult KickBonfireMember([FromBody] KickBonfireRequest request)
         {
             var config = Plugin.Instance?.Configuration;
@@ -1626,17 +1550,12 @@ namespace Jellyfin.Profiles.Controllers
 
             var callerMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
             if (callerMapping != null && callerMapping.MasterUserId != masterId)
-            {
                 return Unauthorized("Only the master profile can manage Bonfire groups.");
-            }
 
             lock (config)
             {
                 var group = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterId);
-                if (group == null)
-                {
-                    return BadRequest("You do not own a Bonfire group.");
-                }
+                if (group == null) return BadRequest("You do not own a Bonfire group.");
 
                 if (group.MemberUserIds.Contains(request.MemberId))
                 {
@@ -1718,9 +1637,7 @@ namespace Jellyfin.Profiles.Controllers
 
             var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
             if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
-            {
                 return Unauthorized("Only the master profile can update Bonfire settings.");
-            }
 
             lock (config)
             {
@@ -1739,6 +1656,114 @@ namespace Jellyfin.Profiles.Controllers
 
                 masterMapping.HideMySubProfilesFromOthers = request.HideMySubProfilesFromOthers;
                 masterMapping.HideOthersSubProfilesFromMe = request.HideOthersSubProfilesFromMe;
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            return Ok();
+        }
+
+        // ── Device Management ──────────────────────────────────────────────────────
+
+        [HttpGet("devices")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<IEnumerable<KnownDevice>> GetDevices()
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid currentUserId = currentUserIdVal.Value;
+
+            // Resolve to the master account (a sub-profile calling this should see
+            // its master's devices, not its own — sub-profiles don't have sessions).
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
+
+            // Every device already whitelisted on one of this account's profiles MUST appear in
+            // the picker, whether or not it is currently switched on. The edit form rebuilds
+            // AllowedDeviceIds from the checkboxes it rendered, so any whitelisted device that
+            // is missing from this response gets silently dropped on the next save — and a
+            // whitelist that empties out stops restricting anything at all.
+            var whitelistedDeviceIds = config.Mappings
+                .Where(m => m.MasterUserId == masterUserId && m.AllowedDeviceIds != null)
+                .SelectMany(m => m.AllowedDeviceIds!)
+                .Where(id => !string.IsNullOrEmpty(id))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Claim ownership of records written before MasterUserId existed, using this
+            // household's live sessions. KnownDevices is a single server-wide list, so
+            // unowned records must be attributed here rather than shown to everyone —
+            // treating Guid.Empty as "visible to all" leaked every device on the server to
+            // every account, because on an existing install *every* record is Guid.Empty.
+            var householdUserIds = new HashSet<Guid> { masterUserId };
+            foreach (var m in config.Mappings.Where(m => m.MasterUserId == masterUserId))
+            {
+                householdUserIds.Add(m.ProfileUserId);
+            }
+
+            var sessionDeviceIds = _sessionManager.Sessions
+                .Where(s => householdUserIds.Contains(s.UserId))
+                .Select(s => s.DeviceId)
+                .Where(id => !string.IsNullOrEmpty(id))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            lock (config)
+            {
+                var claimed = false;
+                foreach (var d in config.KnownDevices)
+                {
+                    if (d.MasterUserId == Guid.Empty
+                        && (sessionDeviceIds.Contains(d.DeviceId) || whitelistedDeviceIds.Contains(d.DeviceId)))
+                    {
+                        d.MasterUserId = masterUserId;
+                        claimed = true;
+                    }
+                }
+                if (claimed) Plugin.Instance?.SaveConfiguration();
+            }
+
+            List<KnownDevice> devices;
+            lock (config)
+            {
+                devices = ScopeDevicesToHousehold(config.KnownDevices, masterUserId, whitelistedDeviceIds);
+            }
+
+            return Ok(devices);
+        }
+
+        [HttpPost("devices/delete")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult DeleteDevice([FromBody] DeleteDeviceRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterId = currentUserIdVal.Value;
+
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
+            if (currentMapping != null && currentMapping.MasterUserId != masterId)
+                return Unauthorized("Only the master profile can delete devices.");
+
+            if (string.IsNullOrEmpty(request.DeviceId))
+                return BadRequest("DeviceId is required.");
+
+            lock (config)
+            {
+                var toRemove = config.KnownDevices
+                    .Where(d => string.Equals(d.DeviceId, request.DeviceId, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                foreach (var d in toRemove)
+                    config.KnownDevices.Remove(d);
+
+                foreach (var mapping in config.Mappings)
+                    mapping.AllowedDeviceIds?.RemoveAll(id =>
+                        string.Equals(id, request.DeviceId, StringComparison.OrdinalIgnoreCase));
 
                 Plugin.Instance?.SaveConfiguration();
             }
@@ -1746,192 +1771,49 @@ namespace Jellyfin.Profiles.Controllers
             return Ok();
         }
 
-        private int GetMaxProfilesForUser(Guid userId, PluginConfiguration config)
-        {
-            var overrideEntry = config.UserProfileLimitOverrides?.FirstOrDefault(o => o.UserId == userId);
-            return overrideEntry?.MaxProfiles ?? config.MaxProfilesPerUser;
-        }
+        // ── Profile Image (unauthenticated) ────────────────────────────────────────
 
-        private const int MaxProfileImageBytes = 2 * 1024 * 1024; // 2 MB hard limit
-
-        private string? SaveProfileImage(Guid profileId, string? profileImageInput)
-        {
-            var pluginDataFolder = Path.Combine(Plugin.Instance!.AppPaths.DataPath, "plugins", "ProfilesManagement");
-
-            if (string.IsNullOrEmpty(profileImageInput))
-            {
-                // Wipe all supported formats so stale files never linger
-                foreach (var ext in new[] { ".jpg", ".png", ".gif" })
-                {
-                    var p = Path.Combine(pluginDataFolder, $"{profileId}{ext}");
-                    if (System.IO.File.Exists(p)) System.IO.File.Delete(p);
-                }
-                return null;
-            }
-
-            if (profileImageInput.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                return profileImageInput;
-
-            if (profileImageInput.StartsWith("/plugins/profiles/image/", StringComparison.OrdinalIgnoreCase))
-                return profileImageInput;
-
-            if (profileImageInput.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    var commaIndex = profileImageInput.IndexOf(',');
-                    if (commaIndex >= 0)
-                    {
-                        var mimePart = profileImageInput.Substring(0, commaIndex);
-                        var base64Part = profileImageInput.Substring(commaIndex + 1);
-                        var bytes = Convert.FromBase64String(base64Part);
-
-                        // ── Issue #10 fix: reject oversized uploads ──────────────
-                        if (bytes.Length > MaxProfileImageBytes)
-                        {
-                            _logger.LogWarning(
-                                "ProfilesPlugin: Profile image for {ProfileId} exceeds the 2 MB limit ({Size} bytes). Upload rejected.",
-                                profileId, bytes.Length);
-                            return null;
-                        }
-
-                        string ext = ".jpg";
-                        if (mimePart.Contains("image/png")) ext = ".png";
-                        else if (mimePart.Contains("image/gif")) ext = ".gif";
-
-                        Directory.CreateDirectory(pluginDataFolder);
-
-                        // Remove any stale files from previous uploads
-                        foreach (var oldExt in new[] { ".jpg", ".png", ".gif" })
-                        {
-                            var oldPath = Path.Combine(pluginDataFolder, $"{profileId}{oldExt}");
-                            if (System.IO.File.Exists(oldPath)) System.IO.File.Delete(oldPath);
-                        }
-
-                        var filePath = Path.Combine(pluginDataFolder, $"{profileId}{ext}");
-                        System.IO.File.WriteAllBytes(filePath, bytes);
-
-                        return $"/plugins/profiles/image/{profileId}?v={DateTime.UtcNow.Ticks}";
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "ProfilesPlugin: Failed to save base64 profile image for {ProfileId}", profileId);
-                }
-            }
-
-            return profileImageInput;
-        }
-
-        // ── Audit log helpers (separate JSON file, never bloats PluginConfiguration.xml) ──
-
-        private string GetAuditLogPath()
-        {
-            if (_auditLogPath != null) return _auditLogPath;
-            lock (_auditLogLock)
-            {
-                if (_auditLogPath != null) return _auditLogPath;
-                var folder = Path.Combine(Plugin.Instance!.AppPaths.DataPath, "plugins", "ProfilesManagement");
-                Directory.CreateDirectory(folder);
-                _auditLogPath = Path.Combine(folder, "audit_log.json");
-            }
-            return _auditLogPath!;
-        }
-
-        private List<AuditLogEntry> ReadAuditLogs()
-        {
-            try
-            {
-                var path = GetAuditLogPath();
-                if (System.IO.File.Exists(path))
-                {
-                    var json = System.IO.File.ReadAllText(path);
-                    return JsonSerializer.Deserialize<List<AuditLogEntry>>(json)
-                           ?? new List<AuditLogEntry>();
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "ProfilesPlugin: Failed to read audit log.");
-            }
-            return new List<AuditLogEntry>();
-        }
-
-        private void WriteAuditLogs(List<AuditLogEntry> logs)
-        {
-            try
-            {
-                var json = JsonSerializer.Serialize(logs, new JsonSerializerOptions { WriteIndented = false });
-                System.IO.File.WriteAllText(GetAuditLogPath(), json);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "ProfilesPlugin: Failed to write audit log.");
-            }
-        }
-
-        private void RecordAuditLog(string masterUsername, string targetUsername)
-        {
-            var device = GetAuthorizationParameter("Device") ?? "Unknown Device";
-            var client = GetAuthorizationParameter("Client") ?? "Unknown Client";
-            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
-
-            lock (_auditLogLock)
-            {
-                var logs = ReadAuditLogs();
-                logs.Add(new AuditLogEntry
-                {
-                    Timestamp = DateTime.UtcNow,
-                    MasterUsername = masterUsername,
-                    TargetUsername = targetUsername,
-                    DeviceName = device,
-                    Client = client,
-                    IpAddress = ip
-                });
-
-                // Keep most recent 1000 entries
-                if (logs.Count > 1000)
-                    logs = logs.OrderByDescending(l => l.Timestamp).Take(1000).ToList();
-
-                WriteAuditLogs(logs);
-            }
-        }
-
+        /// <summary>
+        /// Serves a profile's stored avatar image.
+        ///
+        /// Intentionally unauthenticated: the URL is used directly as an &lt;img src&gt;, and
+        /// browsers do not attach the Authorization header to image requests. This mirrors
+        /// how Jellyfin serves its own user images (/Users/{id}/Images/Primary) — the GUID
+        /// is the capability, and the content is a low-sensitivity avatar.
+        /// </summary>
         [HttpGet("image/{profileId}")]
-        [AllowAnonymous]
         public ActionResult GetProfileImage(Guid profileId)
         {
             var config = Plugin.Instance?.Configuration;
             if (config == null) return NotFound();
 
             var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
-            if (mapping == null || string.IsNullOrEmpty(mapping.ProfileImage))
-                return NotFound();
+            if (mapping == null || string.IsNullOrEmpty(mapping.ProfileImage)) return NotFound();
 
-            var pluginDataFolder = Path.Combine(Plugin.Instance!.AppPaths.DataPath, "plugins", "ProfilesManagement");
+            var instance = Plugin.Instance;
+            if (instance == null) return NotFound();
 
-            // ── Issue #1 fix: check all three supported formats ──────────────────
+            var folder = Path.Combine(instance.AppPaths.DataPath, "plugins", "ProfilesManagement");
             var candidates = new[]
             {
-                (Path.Combine(pluginDataFolder, $"{profileId}.jpg"), "image/jpeg"),
-                (Path.Combine(pluginDataFolder, $"{profileId}.png"), "image/png"),
-                (Path.Combine(pluginDataFolder, $"{profileId}.gif"), "image/gif"),
+                (Path.Combine(folder, $"{profileId}.jpg"), "image/jpeg"),
+                (Path.Combine(folder, $"{profileId}.png"), "image/png"),
+                (Path.Combine(folder, $"{profileId}.gif"), "image/gif"),
             };
 
             foreach (var (filePath, contentType) in candidates)
             {
                 if (System.IO.File.Exists(filePath))
-                {
-                    var bytes = System.IO.File.ReadAllBytes(filePath);
-                    return File(bytes, contentType);
-                }
+                    return File(System.IO.File.ReadAllBytes(filePath), contentType);
             }
 
-            if (mapping.ProfileImage.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                return Redirect(mapping.ProfileImage);
-
+            // No redirect for externally hosted images: this endpoint is anonymous, so
+            // forwarding to a stored URL would turn it into an open redirect. Clients render
+            // http(s) avatars straight from the URL in the profile list instead.
             return NotFound();
         }
+
+        // ── Admin Endpoints ────────────────────────────────────────────────────────
 
         [HttpPost("admin/set-profile-limit")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -1947,9 +1829,7 @@ namespace Jellyfin.Profiles.Controllers
 
             var callerDto = _userManager.GetUserDto(caller, string.Empty);
             if (!callerDto.Policy.IsAdministrator)
-            {
                 return Unauthorized("Only administrators can update profile limits.");
-            }
 
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
@@ -1959,22 +1839,17 @@ namespace Jellyfin.Profiles.Controllers
                 if (request.MaxProfiles.HasValue)
                 {
                     if (request.MaxProfiles.Value < 1)
-                    {
                         return BadRequest("Maximum profiles must be at least 1.");
-                    }
+
                     var existing = config.UserProfileLimitOverrides.FirstOrDefault(o => o.UserId == request.UserId);
                     if (existing != null)
-                    {
                         existing.MaxProfiles = request.MaxProfiles.Value;
-                    }
                     else
-                    {
                         config.UserProfileLimitOverrides.Add(new UserProfileLimitOverride
                         {
                             UserId = request.UserId,
                             MaxProfiles = request.MaxProfiles.Value
                         });
-                    }
                 }
                 else
                 {
@@ -2002,13 +1877,13 @@ namespace Jellyfin.Profiles.Controllers
             if (!callerDto.Policy.IsAdministrator)
                 return Unauthorized("Only administrators can view audit logs.");
 
-            // Audit logs are now stored in a separate JSON file rather than inside
-            // PluginConfiguration.xml, so reading them does not deserialize the whole config.
-            lock (_auditLogLock)
+            lock (AuditLogLock)
             {
-                var logs = ReadAuditLogs();
-                return Ok(logs.OrderByDescending(l => l.Timestamp).ToList());
+                // Served from the in-memory cache so the dashboard reflects entries whose
+                // background write may not have landed yet.
+                return Ok(GetAuditLogSnapshot().OrderByDescending(l => l.Timestamp).ToList());
             }
         }
+
     }
 }

@@ -3,20 +3,82 @@
         <div class="content-primary">
             <div id="injectionWarningContainer" style="display:none; background:rgba(230,73,128,0.12); border:1px solid rgba(230,73,128,0.35); border-radius:6px; padding:14px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#ff6b6b;">
                 <strong style="display:block; margin-bottom:6px; font-weight:700; color:#ff8787;">⚠️ Client Script Auto-Injection Failed</strong>
-                The plugin was unable to automatically modify Jellyfin's <code>index.html</code> due to folder/file write permissions on your host system.
+                The plugin was unable to automatically modify Jellyfin's <code>index.html</code>.
                 Without this script, the "Who's Watching?" profile gate and switcher will not load.
-                <br><br>
+                <div id="injectionFailureReason" style="display:none; margin-top:10px; padding:10px 12px; background:rgba(0,0,0,0.25); border-radius:4px; font-size:0.9rem;"></div>
+                <br>
                 <strong>How to fix:</strong>
-                Please run the appropriate command for your system:
+                Run the command for your platform, then click <strong>Re-check Now</strong> below — no Jellyfin restart needed.
+                <div class="detectedAccountRow" style="display:none; margin-top:8px; font-size:0.9rem; opacity:0.85;">
+                    Jellyfin is running as <code class="detectedAccount"></code>, and the command below grants access to exactly that account.
+                </div>
                 <ul style="margin: 6px 0 0 0; padding-left: 20px;">
-                    <li style="margin-bottom:8px;"><strong>Linux (Native):</strong> Run <code id="linuxFixCmd">sudo chmod 666 /usr/share/jellyfin/web/index.html</code> then restart Jellyfin.</li>
-                    <li style="margin-bottom:8px;"><strong>Docker (Run on host):</strong> Run <code id="dockerFixCmd">docker exec -u root &lt;container-name&gt; chmod 666 /jellyfin/jellyfin-web/index.html</code> then restart your container.</li>
-                    <li><strong>Windows (Admin Command Prompt):</strong> Run <code id="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "NT AUTHORITY\NetworkService:(M)"</code> then restart Jellyfin.</li>
+                    <li style="margin-bottom:10px;">
+                        <strong>Linux (Native):</strong>
+                        <br><code id="linuxChownCmd" class="linuxChownCmd">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code>
+                        <br><code id="linuxChmodCmd" class="linuxChmodCmd">sudo chmod 664 /usr/share/jellyfin/web/index.html</code>
+                        <br><span style="font-size:0.85em; opacity:0.8;">After Jellyfin restarts and injects the script, you can optionally restore the original permissions with <code>chmod 644</code>.</span>
+                    </li>
+                    <li style="margin-bottom:10px;">
+                        <strong>Docker (Run on host):</strong>
+                        <br><code id="dockerChownCmd" class="dockerChownCmd">docker exec -u root &lt;container-name&gt; chown jellyfin:jellyfin /jellyfin/jellyfin-web/index.html</code>
+                        <br><code id="dockerChmodCmd" class="dockerChmodCmd">docker exec -u root &lt;container-name&gt; chmod 664 /jellyfin/jellyfin-web/index.html</code>
+                    </li>
+                    <li>
+                        <strong>Windows (Admin Command Prompt):</strong>
+                        <br><code id="windowsFixCmd" class="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "Users:(M)" /grant "NT AUTHORITY\NetworkService:(M)"</code>
+                    </li>
                 </ul>
+                <div style="margin-top:14px;">
+                    <button type="button" is="emby-button" class="raised retryInjectionBtn" style="background:#d23f3f; color:#fff;">Re-check Now</button>
+                    <span class="retryInjectionStatus" style="margin-left:10px; font-size:0.9rem; opacity:0.85;"></span>
+                </div>
+            </div>
+
+            <div id="staleVersionWarningContainer" style="display:none; background:rgba(245,159,0,0.12); border:1px solid rgba(245,159,0,0.35); border-radius:6px; padding:14px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#f59f00;">
+                <strong style="display:block; margin-bottom:6px; font-weight:700; color:#ffc078;">⚡ Optional — Client Script Tag Not Up To Date</strong>
+                <strong>Nothing is broken.</strong> The profile switcher is running normally; this only affects how quickly browsers notice a new client script after a plugin update, and they work that out by themselves within about five minutes.
+                <div id="staleReason" style="display:none; margin-top:10px; padding:10px 12px; background:rgba(0,0,0,0.25); border-radius:4px; font-size:0.9rem;"></div>
+                <br>
+                <strong>What to do:</strong>
+                <ul style="margin: 6px 0 0 0; padding-left: 20px;">
+                    <li style="margin-bottom:8px;">
+                        <strong>If new features (like tag filtering) do not appear:</strong> Perform a hard refresh in your browser (<strong>Ctrl + Shift + R</strong> or <strong>Cmd + Shift + R</strong>) to clear cached scripts.
+                    </li>
+                    <li>
+                        <strong>To allow automatic script tag updates on future releases:</strong> Grant write permissions on <code>index.html</code>:
+                        <div class="detectedAccountRow" style="display:none; margin:6px 0; font-size:0.9rem; opacity:0.85;">
+                            Jellyfin is running as <code class="detectedAccount"></code> — the command below grants access to exactly that account.
+                        </div>
+                        <ul style="margin: 6px 0 0 0; padding-left: 20px;">
+                            <li style="margin-bottom:4px;"><strong>Linux (Native):</strong> <code class="linuxChownCmd">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code> | <code class="linuxChmodCmd">sudo chmod 664 /usr/share/jellyfin/web/index.html</code></li>
+                            <li style="margin-bottom:4px;"><strong>Docker:</strong> <code class="dockerChownCmd">docker exec -u root &lt;container-name&gt; chown jellyfin:jellyfin /jellyfin/jellyfin-web/index.html</code> | <code class="dockerChmodCmd">docker exec -u root &lt;container-name&gt; chmod 664 /jellyfin/jellyfin-web/index.html</code></li>
+                            <li><strong>Windows:</strong> <code class="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "Users:(M)" /grant "NT AUTHORITY\NetworkService:(M)"</code></li>
+                        </ul>
+                    </li>
+                </ul>
+                <div style="margin-top:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <button type="button" is="emby-button" class="raised retryInjectionBtn" style="background:#f59f00; color:#1a1a1a;">Re-check Now</button>
+                    <button type="button" is="emby-button" id="dismissStaleBtn" class="raised" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.75);">Dismiss until next update</button>
+                    <span class="retryInjectionStatus" style="font-size:0.9rem; opacity:0.85;"></span>
+                </div>
+            </div>
+
+            <div id="betaNoticeContainer" style="display:none; background:rgba(245,159,0,0.10); border:1px solid rgba(245,159,0,0.35); border-radius:6px; padding:12px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#ffc078;">
+                <strong>🧪 You are running a pre-release build.</strong>
+                <span style="opacity:0.9;">Features may change and bugs are more likely than in a stable release. If something looks wrong, please
+                <a href="https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues" target="_blank" rel="noopener noreferrer" style="color:#ffc078; text-decoration:underline;">open an issue on GitHub</a>.</span>
+            </div>
+
+            <div id="injectionOkContainer" style="display:none; background:rgba(81,207,102,0.12); border:1px solid rgba(81,207,102,0.35); border-radius:6px; padding:12px 18px; margin-bottom:2em; font-size:0.95rem; color:#51cf66;">
+                <strong>✅ Client script is installed and up to date.</strong>
+                <span style="opacity:0.85;">The profile switcher will load for all users.</span>
             </div>
             <form id="profilesConfigurationForm">
-                <div class="sectionTitleContainer">
-                    <h2 class="sectionTitle">Bonfire/JellyProfiles Settings</h2>
+                <div class="sectionTitleContainer" style="display:flex; align-items:center; justify-content:space-between;">
+                    <h2 class="sectionTitle">Bonfire Settings</h2>
+                    <!-- Filled in from the server's own version; no hardcoded literal to go stale. -->
+                    <span id="pluginVersionBadge" style="font-size:0.85em; font-weight:600; opacity:0.8; background:rgba(255,255,255,0.08); padding:3px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12);">…</span>
                 </div>
 
                 <div style="background:rgba(0,164,220,0.12);border:1px solid rgba(0,164,220,0.35);border-radius:6px;padding:14px 18px;margin-bottom:2em;font-size:0.95rem;line-height:1.6;">
@@ -52,23 +114,14 @@
             </form>
 
             <div class="sectionTitleContainer" style="margin-top: 3em;">
-                <h2 class="sectionTitle">Master Accounts</h2>
+                <h2 class="sectionTitle">Accounts &amp; Profiles</h2>
             </div>
             <div class="fieldDescription" style="margin-bottom: 1em;">
-                Below is a list of all primary master users on the server. Administrators can reset the PIN of any master account.
+                Every master account on the server. Expand an account to see the sub-profiles belonging to it.
+                Administrators can reset the PIN of any account or profile.
             </div>
             <div class="paperList" id="masterUsersList" style="margin-bottom: 3em;">
-                <!-- Master Users dynamically loaded here -->
-            </div>
-
-            <div class="sectionTitleContainer" style="margin-top: 3em;">
-                <h2 class="sectionTitle">Sub-Profiles</h2>
-            </div>
-            <div class="fieldDescription" style="margin-bottom: 1em;">
-                Below is a list of all sub-profiles managed by the plugin. Administrators can reset the PIN of any sub-profile.
-            </div>
-            <div class="paperList" id="subProfilesList" style="margin-bottom: 3em;">
-                <!-- Sub-Profiles dynamically loaded here -->
+                <!-- Master accounts, each with its sub-profiles nested inside -->
             </div>
 
             <div class="sectionTitleContainer" style="margin-top: 3em;">
@@ -87,6 +140,16 @@
         (function () {
             const pluginId = "b1462fca-774b-4b13-8d02-e2d4f2bc18b9";
 
+            function escapeHtml(str) {
+                if (!str) return '';
+                return str
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+
             function loadConfiguration(page) {
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
@@ -100,95 +163,308 @@
                 });
             }
 
-            function loadMappings(page) {
-                const url = ApiClient.getUrl('plugins/profiles/admin/mappings');
-                ApiClient.getJSON(url).then(function (result) {
-                    const warningContainer = page.querySelector('#injectionWarningContainer');
-                    if (warningContainer) {
-                        const failed = (result.InjectionSucceeded === false || result.injectionSucceeded === false || result.injectionSucceeded === undefined);
-                        warningContainer.style.display = failed ? 'block' : 'none';
-                        if (failed) {
-                            const path = result.IndexPath || result.indexPath || '/usr/share/jellyfin/web/index.html';
-                            const linuxEl = page.querySelector('#linuxFixCmd');
-                            const dockerEl = page.querySelector('#dockerFixCmd');
-                            const windowsEl = page.querySelector('#windowsFixCmd');
-                            
-                            if (linuxEl) linuxEl.textContent = 'sudo chmod 666 ' + path;
-                            if (dockerEl) dockerEl.textContent = 'docker exec -u root <container-name> chmod 666 ' + path;
-                            if (windowsEl) windowsEl.textContent = 'icacls "' + path + '" /grant "NT AUTHORITY\\NetworkService:(M)"';
+            // Reads a field regardless of whether ASP.NET serialized it camelCase or PascalCase.
+            function field(obj, name) {
+                const upper = name.charAt(0).toUpperCase() + name.slice(1);
+                return obj[name] !== undefined ? obj[name] : obj[upper];
+            }
+
+            // Canonical form of a GUID for use as a lookup key — GUIDs come back in mixed case
+            // and sometimes with or without hyphens depending on the serializer, so comparing
+            // the raw strings would fail to match a sub-profile to its master.
+            function normId(guid) {
+                if (!guid) return '';
+                return String(guid).toLowerCase().replace(/[^a-z0-9]/g, '');
+            }
+
+            // Single place that decides which of the three status banners is visible, so the
+            // page load and the Re-check button can never disagree about the current state.
+            function renderInjectionStatus(page, result) {
+                const warningContainer = page.querySelector('#injectionWarningContainer');
+                const staleContainer = page.querySelector('#staleVersionWarningContainer');
+                const okContainer = page.querySelector('#injectionOkContainer');
+
+                const succeeded = field(result, 'injectionSucceeded');
+                const isStale = field(result, 'isVersionStale');
+                const reason = field(result, 'failureReason');
+
+                // Only treat an explicit false as failure — a missing field must never
+                // produce a false-positive warning.
+                const failed = (succeeded === false);
+                let stale = (!failed && isStale === true);
+
+                const ver = field(result, 'pluginVersion');
+
+                // The stale-tag notice is advisory: the switcher works and browsers recover on
+                // their own. On hosts where index.html simply is not writable (a Program Files
+                // install, a read-only container layer) there is nothing the admin can do short
+                // of elevating, so an un-silenceable banner is just nagging. Dismissal is keyed
+                // to the running version, so a genuinely new release surfaces it again.
+                let dismissedFor = null;
+                try { dismissedFor = localStorage.getItem('bonfire-stale-dismissed'); } catch (e) { /* private mode */ }
+                if (stale && ver && dismissedFor === ver) {
+                    stale = false;
+                }
+
+                page.dataset.pluginVersion = ver || '';
+                if (ver) {
+                    const badge = page.querySelector('#pluginVersionBadge');
+                    if (badge) {
+                        badge.textContent = 'v' + ver;
+                        // A pre-release label in the version string is the signal — no separate
+                        // flag to forget to flip when promoting a build to stable.
+                        const isPrerelease = /-(beta|alpha|rc)/i.test(ver);
+                        badge.style.background = isPrerelease ? 'rgba(245,159,0,0.18)' : 'rgba(255,255,255,0.08)';
+                        badge.style.borderColor = isPrerelease ? 'rgba(245,159,0,0.5)' : 'rgba(255,255,255,0.12)';
+                        badge.style.color = isPrerelease ? '#ffc078' : '';
+                        badge.title = isPrerelease
+                            ? 'Pre-release build — please report any issues on GitHub.'
+                            : '';
+                    }
+                    const betaNotice = page.querySelector('#betaNoticeContainer');
+                    if (betaNotice) {
+                        betaNotice.style.display = /-(beta|alpha|rc)/i.test(ver) ? 'block' : 'none';
+                    }
+                }
+
+                if (warningContainer) warningContainer.style.display = failed ? 'block' : 'none';
+                if (staleContainer) staleContainer.style.display = stale ? 'block' : 'none';
+                if (okContainer) okContainer.style.display = (!failed && !stale) ? 'block' : 'none';
+
+                const failReasonEl = page.querySelector('#injectionFailureReason');
+                if (failReasonEl) {
+                    failReasonEl.textContent = reason || '';
+                    failReasonEl.style.display = (failed && reason) ? 'block' : 'none';
+                }
+                const staleReasonEl = page.querySelector('#staleReason');
+                if (staleReasonEl) {
+                    staleReasonEl.textContent = reason || '';
+                    staleReasonEl.style.display = (stale && reason) ? 'block' : 'none';
+                }
+
+                if (failed || stale) {
+                    const path = field(result, 'indexPath') || '/usr/share/jellyfin/web/index.html';
+                    const isWindows = path.includes('\\') || path.includes(':');
+                    const resolvedLinuxPath = isWindows ? '/usr/share/jellyfin/web/index.html' : path;
+                    const resolvedDockerPath = isWindows ? '/jellyfin/jellyfin-web/index.html' : path;
+                    const resolvedWindowsPath = isWindows ? path : 'C:\\Program Files\\Jellyfin\\Server\\jellyfin-web\\index.html';
+
+                    page.querySelectorAll('.linuxChownCmd').forEach(function(el) { el.textContent = 'sudo chown jellyfin:jellyfin ' + resolvedLinuxPath; });
+                    page.querySelectorAll('.linuxChmodCmd').forEach(function(el) { el.textContent = 'sudo chmod 664 ' + resolvedLinuxPath; });
+                    page.querySelectorAll('.dockerChownCmd').forEach(function(el) { el.textContent = 'docker exec -u root <container-name> chown jellyfin:jellyfin ' + resolvedDockerPath; });
+                    page.querySelectorAll('.dockerChmodCmd').forEach(function(el) { el.textContent = 'docker exec -u root <container-name> chmod 664 ' + resolvedDockerPath; });
+                    // The server reports the account it actually runs as, so the command can name
+                    // it exactly. Windows Jellyfin runs either as a service (NT AUTHORITY\
+                    // NetworkService) or as the signed-in user (tray/desktop mode), and Linux
+                    // service accounts are not always "jellyfin" — without this the instructions
+                    // had to cover every case at once and grant Modify to all local users.
+                    const account = field(result, 'serviceAccount');
+                    const winGrant = account
+                        ? '/grant "' + account + ':(M)"'
+                        : '/grant "Users:(M)" /grant "NT AUTHORITY\\NetworkService:(M)"';
+                    page.querySelectorAll('.windowsFixCmd').forEach(function(el) {
+                        el.textContent = 'icacls "' + resolvedWindowsPath + '" ' + winGrant;
+                    });
+
+                    // Same idea for the POSIX commands: chown to the real service account.
+                    if (account) {
+                        const owner = account.indexOf('\\') === -1 ? account : null;
+                        if (owner) {
+                            page.querySelectorAll('.linuxChownCmd').forEach(function(el) {
+                                el.textContent = 'sudo chown ' + owner + ' ' + resolvedLinuxPath;
+                            });
+                            page.querySelectorAll('.dockerChownCmd').forEach(function(el) {
+                                el.textContent = 'docker exec -u root <container-name> chown ' + owner + ' ' + resolvedDockerPath;
+                            });
                         }
                     }
 
+                    // Name the account inline so it is obvious which mode this server is in.
+                    page.querySelectorAll('.detectedAccount').forEach(function(el) {
+                        el.textContent = account || 'could not be determined';
+                    });
+                    page.querySelectorAll('.detectedAccountRow').forEach(function(el) {
+                        el.style.display = account ? 'block' : 'none';
+                    });
+                }
+            }
+
+            // Re-runs injection server-side. Lets an admin apply a permission fix and confirm
+            // it worked without restarting Jellyfin — the old banner was a boot-time snapshot,
+            // so it stayed on screen no matter which fix command had just been run.
+            function retryInjection(page) {
+                const buttons = page.querySelectorAll('.retryInjectionBtn');
+                const statuses = page.querySelectorAll('.retryInjectionStatus');
+                buttons.forEach(function (b) { b.disabled = true; });
+                statuses.forEach(function (s) { s.textContent = 'Re-checking…'; });
+
+                const url = ApiClient.getUrl('plugins/profiles/admin/retry-injection');
+                ApiClient.ajax({ type: 'POST', url: url, contentType: 'application/json' })
+                    .then(function (res) {
+                        return (res && typeof res.json === 'function') ? res.json() : res;
+                    })
+                    .then(function (result) {
+                        renderInjectionStatus(page, result);
+                        const ok = field(result, 'injectionSucceeded') !== false
+                                   && field(result, 'isVersionStale') !== true;
+                        buttons.forEach(function (b) { b.disabled = false; });
+                        statuses.forEach(function (s) {
+                            s.textContent = ok ? '' : 'Still not resolved — see the reason above.';
+                        });
+                        if (ok) {
+                            Dashboard.alert({
+                                title: 'Success',
+                                message: 'The client script is now installed and up to date. '
+                                       + 'Users may need one hard refresh (Ctrl+Shift+R) to pick it up.'
+                            });
+                        }
+                    })
+                    .catch(function (err) {
+                        console.error('Retry injection failed:', err);
+                        buttons.forEach(function (b) { b.disabled = false; });
+                        statuses.forEach(function (s) { s.textContent = 'Re-check failed — see console.'; });
+                    });
+            }
+
+            function loadMappings(page) {
+                const url = ApiClient.getUrl('plugins/profiles/admin/mappings');
+                ApiClient.getJSON(url).then(function (result) {
+                    renderInjectionStatus(page, result);
+
                     const masterContainer = page.querySelector('#masterUsersList');
-                    const subContainer = page.querySelector('#subProfilesList');
 
                     const masterUsers = result.MasterUsers || result.masterUsers || [];
                     const subProfiles = result.SubProfiles || result.subProfiles || [];
 
-                    // Render Master Users
+                    // Group sub-profiles under the master account they belong to. Keyed by
+                    // MasterUserId rather than the display name: names change on rename and are
+                    // not guaranteed unique, which would silently file profiles under the wrong
+                    // account or drop them entirely.
+                    const subsByMaster = {};
+                    subProfiles.forEach(function (s) {
+                        const key = normId(field(s, 'masterUserId'));
+                        if (!subsByMaster[key]) subsByMaster[key] = [];
+                        subsByMaster[key].push(s);
+                    });
+
+                    function pinStatusHtml(reqPin) {
+                        return reqPin
+                            ? '<span style="color:#ff6b6b;font-weight:600;">PIN Protected</span>'
+                            : '<span style="color:#51cf66;font-weight:600;">No PIN</span>';
+                    }
+
+                    function resetPinBtnHtml(pId, reqPin) {
+                        if (!reqPin) return '';
+                        return '<button type="button" class="raised button-accent button-mini reset-pin-btn" data-id="' + pId +
+                               '" style="margin-left:auto; background:#d23f3f; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">Reset PIN</button>';
+                    }
+
+                    // One sub-profile row, rendered inside its master's collapsible panel.
+                    function subProfileRowHtml(s) {
+                        const pName = escapeHtml(field(s, 'profileName') || '');
+                        const pId = field(s, 'profileUserId') || '';
+                        const reqPin = field(s, 'requiresPin') === true;
+                        return '<div class="listItem" style="display:flex; align-items:center; padding:10px 15px 10px 28px; border-top:1px solid rgba(255,255,255,0.05);">' +
+                               '<span class="material-icons" style="font-size:1.1rem; opacity:0.35; margin-right:10px;">subdirectory_arrow_right</span>' +
+                               '<div class="listItemBody" style="flex:1; min-width:0;">' +
+                               '<div class="listItemBodyText" style="font-weight:600; color:#fff;">' + pName + '</div>' +
+                               '<div class="listItemBodyText secondary" style="font-size:0.85rem; opacity:0.75; margin-top:2px;">Status: ' + pinStatusHtml(reqPin) + '</div>' +
+                               '</div>' +
+                               resetPinBtnHtml(pId, reqPin) +
+                               '</div>';
+                    }
+
                     if (masterUsers.length === 0) {
                         masterContainer.innerHTML = '<div class="listItem" style="padding:15px;"><div class="listItemBody">No master accounts found.</div></div>';
                     } else {
                         masterContainer.innerHTML = masterUsers.map(function (m) {
-                            var pName = m.profileName || m.ProfileName || '';
-                            var pId = m.profileUserId || m.ProfileUserId || '';
-                            var reqPin = m.requiresPin !== undefined ? m.requiresPin : (m.RequiresPin !== undefined ? m.RequiresPin : false);
-                            var maxProfiles = m.maxProfiles || m.MaxProfiles || 5;
-                            var limitOverride = m.limitOverride !== undefined ? m.limitOverride : (m.LimitOverride !== undefined ? m.LimitOverride : null);
-                            var pinStatus = reqPin 
-                                ? '<span style="color:#ff6b6b;font-weight:600;">PIN Protected</span>' 
-                                : '<span style="color:#51cf66;font-weight:600;">No PIN</span>';
-                            var resetBtn = reqPin 
-                                ? '<button type="button" class="raised button-accent button-mini reset-pin-btn" data-id="' + pId + '" style="margin-left:auto; background:#d23f3f; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">Reset PIN</button>' 
-                                : '';
+                            const pName = escapeHtml(field(m, 'profileName') || '');
+                            const pId = field(m, 'profileUserId') || '';
+                            const reqPin = field(m, 'requiresPin') === true;
+                            const maxProfiles = field(m, 'maxProfiles') || 5;
+                            const limitOverride = field(m, 'limitOverride');
+                            const subs = subsByMaster[normId(pId)] || [];
 
-                            var overrideControl = 
-                                '<div style="display:flex; align-items:center; gap:8px; margin-top:8px;">' +
+                            const overrideControl =
+                                '<div style="display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;">' +
                                 '<span style="font-size:0.85rem; opacity:0.6;">Profile Limit:</span>' +
                                 '<input is="emby-input" type="number" class="user-limit-input" data-id="' + pId + '" min="1" max="20" value="' + maxProfiles + '" style="width:60px !important; height:28px !important; padding:2px 6px !important; font-size:0.85rem !important; margin:0 !important; box-sizing:border-box !important;" />' +
                                 '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + pId + '" style="background:#00a4dc; color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">Set</button>' +
-                                (limitOverride !== null ? '<button type="button" class="raised button-mini clear-limit-btn" data-id="' + pId + '" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.15); padding:3px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer; margin-left:4px;">Reset</button>' : '') +
+                                (limitOverride !== null && limitOverride !== undefined
+                                    ? '<button type="button" class="raised button-mini clear-limit-btn" data-id="' + pId + '" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.15); padding:3px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer;">Reset</button>'
+                                    : '') +
                                 '</div>';
 
-                            return '<div class="listItem" style="display:flex; align-items:center; padding:15px; border-bottom:1px solid rgba(255,255,255,0.08);">' +
-                                   '<div class="listItemBody" style="flex:1;">' +
+                            // The toggle is a real <button> so it is keyboard reachable and
+                            // announces its expanded state; accounts with no sub-profiles get
+                            // static text instead of a control that would do nothing.
+                            const countLabel = subs.length === 1 ? '1 sub-profile' : subs.length + ' sub-profiles';
+                            const toggle = subs.length > 0
+                                ? '<button type="button" class="sub-profile-toggle" data-master="' + normId(pId) + '" aria-expanded="false" ' +
+                                  'style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#fff; ' +
+                                  'border-radius:6px; padding:5px 12px; font-size:0.85rem; font-weight:600; cursor:pointer; margin-top:10px;">' +
+                                  '<span class="material-icons toggle-chevron" style="font-size:1.1rem; transition:transform 0.15s ease;">expand_more</span>' +
+                                  '<span>' + countLabel + '</span>' +
+                                  '</button>'
+                                : '<div style="margin-top:10px; font-size:0.85rem; opacity:0.5;">No sub-profiles</div>';
+
+                            const subPanel = subs.length > 0
+                                ? '<div class="sub-profile-panel" data-master="' + normId(pId) + '" style="display:none; background:rgba(0,0,0,0.18);">' +
+                                  subs.map(subProfileRowHtml).join('') +
+                                  '</div>'
+                                : '';
+
+                            return '<div class="listItem-group" style="border-bottom:1px solid rgba(255,255,255,0.08);">' +
+                                   '<div class="listItem" style="display:flex; align-items:flex-start; padding:15px;">' +
+                                   '<div class="listItemBody" style="flex:1; min-width:0;">' +
                                    '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#fff;">' + pName + '</div>' +
-                                   '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">' +
-                                   'Status: ' + pinStatus +
-                                   '</div>' +
+                                   '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">Status: ' + pinStatusHtml(reqPin) + '</div>' +
                                    overrideControl +
+                                   toggle +
                                    '</div>' +
-                                   resetBtn +
+                                   resetPinBtnHtml(pId, reqPin) +
+                                   '</div>' +
+                                   subPanel +
                                    '</div>';
                         }).join('');
                     }
 
-                    // Render Sub Profiles
-                    if (subProfiles.length === 0) {
-                        subContainer.innerHTML = '<div class="listItem" style="padding:15px;"><div class="listItemBody">No sub-profiles configured yet.</div></div>';
-                    } else {
-                        subContainer.innerHTML = subProfiles.map(function (m) {
-                            var pName = m.profileName || m.ProfileName || '';
-                            var pId = m.profileUserId || m.ProfileUserId || '';
-                            var reqPin = m.requiresPin !== undefined ? m.requiresPin : (m.RequiresPin !== undefined ? m.RequiresPin : false);
-                            var mName = m.masterName || m.MasterName || '';
-                            var pinStatus = reqPin 
-                                ? '<span style="color:#ff6b6b;font-weight:600;">PIN Protected</span>' 
-                                : '<span style="color:#51cf66;font-weight:600;">No PIN</span>';
-                            var resetBtn = reqPin 
-                                ? '<button type="button" class="raised button-accent button-mini reset-pin-btn" data-id="' + pId + '" style="margin-left:auto; background:#d23f3f; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer;">Reset PIN</button>' 
-                                : '';
-                            return '<div class="listItem" style="display:flex; align-items:center; padding:15px; border-bottom:1px solid rgba(255,255,255,0.08);">' +
-                                   '<div class="listItemBody" style="flex:1;">' +
-                                   '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#fff;">' + pName + '</div>' +
-                                   '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">' +
-                                   'Master Account: <strong>' + mName + '</strong> | Status: ' + pinStatus +
-                                   '</div>' +
-                                   '</div>' +
-                                   resetBtn +
-                                   '</div>';
-                        }).join('');
+                    // Any sub-profile whose master is not in the list above would otherwise
+                    // vanish from the dashboard entirely — the old flat list showed every
+                    // profile unconditionally, and losing that would hide exactly the broken
+                    // records an administrator most needs to find (and still needs to be able
+                    // to reset a PIN on).
+                    const knownMasterKeys = masterUsers.map(function (m) { return normId(field(m, 'profileUserId')); });
+                    const orphans = subProfiles.filter(function (s) {
+                        return knownMasterKeys.indexOf(normId(field(s, 'masterUserId'))) === -1;
+                    });
+                    if (orphans.length > 0) {
+                        masterContainer.insertAdjacentHTML('beforeend',
+                            '<div class="listItem-group" style="border-bottom:1px solid rgba(255,255,255,0.08);">' +
+                            '<div class="listItem" style="display:flex; align-items:flex-start; padding:15px;">' +
+                            '<div class="listItemBody" style="flex:1; min-width:0;">' +
+                            '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#ffc078;">⚠️ Unlinked sub-profiles</div>' +
+                            '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">' +
+                            'These profiles reference a master account that no longer exists. They are usually left behind by a partially failed deletion.' +
+                            '</div>' +
+                            '</div></div>' +
+                            '<div style="background:rgba(0,0,0,0.18);">' + orphans.map(subProfileRowHtml).join('') + '</div>' +
+                            '</div>');
                     }
+
+                    // Expand / collapse handlers for each master's sub-profile panel.
+                    page.querySelectorAll('.sub-profile-toggle').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            const key = btn.getAttribute('data-master');
+                            const panel = page.querySelector('.sub-profile-panel[data-master="' + key + '"]');
+                            if (!panel) return;
+                            const open = panel.style.display !== 'none';
+                            panel.style.display = open ? 'none' : 'block';
+                            btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+                            const chevron = btn.querySelector('.toggle-chevron');
+                            if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
+                        });
+                    });
 
                     // Attach reset PIN event handlers
                     page.querySelectorAll('.reset-pin-btn').forEach(function (btn) {
@@ -320,6 +596,28 @@
                     saveConfiguration(page);
                     return false;
                 });
+                // pageshow can fire more than once for the same element, so guard against
+                // stacking duplicate handlers that would fire several retries per click.
+                page.querySelectorAll('.retryInjectionBtn').forEach(function (btn) {
+                    if (btn.dataset.retryBound) return;
+                    btn.dataset.retryBound = '1';
+                    btn.addEventListener('click', function () { retryInjection(page); });
+                });
+
+                const dismissBtn = page.querySelector('#dismissStaleBtn');
+                if (dismissBtn && !dismissBtn.dataset.bound) {
+                    dismissBtn.dataset.bound = '1';
+                    dismissBtn.addEventListener('click', function () {
+                        try {
+                            localStorage.setItem('bonfire-stale-dismissed', page.dataset.pluginVersion || '');
+                        } catch (e) { /* private mode — the notice simply returns next load */ }
+                        // Hide the notice only — do not swap in the green "up to date" banner,
+                        // which would be untrue. Dismissing silences an advisory, it does not
+                        // change what is in index.html.
+                        const staleContainer = page.querySelector('#staleVersionWarningContainer');
+                        if (staleContainer) staleContainer.style.display = 'none';
+                    });
+                }
             });
         })();
     </script>

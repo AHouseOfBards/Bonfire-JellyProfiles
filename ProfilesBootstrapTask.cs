@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Common.Configuration;
@@ -30,8 +31,98 @@ namespace Jellyfin.Profiles
         // The exact script tag to inject before </body>.
         // The URL /plugins/profiles/profiles.js is the path
         // Jellyfin uses to serve embedded resources from plugin assemblies.
-        private const string BodyScriptTag =
-            "<script src=\"/plugins/profiles/profiles.js\" defer></script>";
+        /// <summary>
+        /// Cache-buster written into the script URL.
+        ///
+        /// Deliberately the assembly version and nothing else. This used to prefer
+        /// Plugin.Instance?.Version with the assembly version as a fallback, which made the
+        /// value depend on WHEN it was read: this hosted service can run before the Plugin
+        /// constructor has assigned Plugin.Instance, so the tag could be written using one
+        /// source and later compared against the other. If those two render differently
+        /// (e.g. "1.2.8" vs "1.2.8.0") the comparison never matches again and the dashboard
+        /// shows "script update pending" forever, no matter how many times the file is
+        /// rewritten or what permissions are granted.
+        /// </summary>
+        internal static string ScriptVersion =>
+            typeof(ProfilesBootstrapTask).Assembly.GetName().Version?.ToString() ?? "0";
+
+        // The exact script tag to inject before </body>.
+        // The URL /plugins/profiles/profiles.js is the path
+        // Jellyfin uses to serve embedded resources from plugin assemblies.
+        private static string BodyScriptTag =>
+            $"<script src=\"/plugins/profiles/profiles.js?v={ScriptVersion}\" defer></script>";
+
+        // Pulls the ?v= value out of whatever plugin script tag is currently in index.html.
+        // Comparing the extracted version beats comparing the whole tag string: a hand-edited
+        // file with different attribute order, quoting or spacing is still recognised as
+        // current instead of being reported as stale forever.
+        private static readonly Regex InjectedVersionRegex = new(
+            @"/plugins/profiles/profiles\.js\?v=([^""'&\s>]+)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>Version recorded in index.html's script tag, or null if absent/unparseable.</summary>
+        private static string? GetInjectedScriptVersion(string html)
+        {
+            var m = InjectedVersionRegex.Match(html);
+            return m.Success ? m.Groups[1].Value : null;
+        }
+
+        /// <summary>True when index.html's script tag already points at this build.</summary>
+        private static bool IsScriptVersionCurrent(string html)
+            => string.Equals(GetInjectedScriptVersion(html), ScriptVersion, StringComparison.Ordinal);
+
+        /// <summary>
+        /// The OS account the Jellyfin process is running under.
+        ///
+        /// Permission instructions otherwise have to guess: on Windows, Jellyfin may run as a
+        /// service (NT AUTHORITY\NetworkService) or as the logged-in user (tray/desktop mode),
+        /// and on Linux the service account is conventionally "jellyfin" but frequently is not.
+        /// Guessing forces a blunderbuss grant to every local user; knowing the account lets the
+        /// dashboard emit one exact command that grants access to precisely that account.
+        /// </summary>
+        internal static string? RunningAccount
+        {
+            get
+            {
+                try
+                {
+                    if (OperatingSystem.IsWindows())
+                    {
+                        var name = System.Security.Principal.WindowsIdentity.GetCurrent()?.Name;
+                        if (!string.IsNullOrWhiteSpace(name)) return name;
+                    }
+                    var user = Environment.UserName;
+                    return string.IsNullOrWhiteSpace(user) ? null : user;
+                }
+                catch
+                {
+                    // Identity lookup is best-effort — the UI falls back to generic guidance.
+                    return null;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Non-destructively probes whether Jellyfin can actually write index.html.
+        ///
+        /// Reporting "the version tag is old" is describing a symptom; the administrator needs
+        /// to know the cause, and the cause is almost always that the file is not writable by
+        /// the Jellyfin process. Opening for write and closing immediately answers that
+        /// definitively instead of inferring it from a failed patch.
+        /// </summary>
+        internal static bool CanWriteIndexHtml(string? path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return false;
+            try
+            {
+                using var fs = File.Open(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         // Unique substring to detect whether the body tag is already present.
         private const string BodyMarker = "/plugins/profiles/profiles.js";
@@ -64,7 +155,23 @@ namespace Jellyfin.Profiles
 
         // Exposed so the dashboard page JS can check whether setup is complete.
         internal static bool InjectionSucceeded { get; private set; }
+        internal static bool IsVersionStale { get; private set; }
         internal static string? IndexPath { get; private set; }
+
+        /// <summary>
+        /// Human-readable reason the last injection attempt could not complete, or null when
+        /// everything is fine. Surfaced on the dashboard so the banner can say what is actually
+        /// wrong instead of listing every possible fix.
+        /// </summary>
+        internal static string? LastFailureReason { get; private set; }
+
+        // These flags used to be computed exactly once, during StartAsync. That made the
+        // dashboard banner a snapshot of server-boot state: a user could run the documented
+        // chmod/icacls command, reload the page, and still see the failure warning, because
+        // nothing re-read index.html until the next full Jellyfin restart. The static
+        // self-reference lets the admin endpoints re-evaluate (and retry) on demand.
+        private static ProfilesBootstrapTask? _current;
+        private static readonly object PatchLock = new();
 
         private readonly IApplicationPaths _appPaths;
         private readonly ILogger<ProfilesBootstrapTask> _logger;
@@ -75,20 +182,172 @@ namespace Jellyfin.Profiles
         {
             _appPaths = appPaths;
             _logger = logger;
+            _current = this;
         }
 
         /// <inheritdoc />
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            TryPatchIndex();
+            CleanupOldDlls();
+            lock (PatchLock)
+            {
+                TryPatchIndex();
+            }
             return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Re-reads index.html and recomputes the status flags without writing anything.
+        /// Called when the dashboard loads so the banner always reflects the file as it is
+        /// right now, not as it was when the server booted.
+        /// </summary>
+        internal static void RefreshInjectionStatus()
+        {
+            var self = _current;
+            if (self == null) return;
+
+            lock (PatchLock)
+            {
+                try
+                {
+                    var indexPath = IndexPath ?? self.FindIndexHtml();
+                    IndexPath = indexPath;
+
+                    if (indexPath == null || !File.Exists(indexPath))
+                    {
+                        InjectionSucceeded = false;
+                        IsVersionStale = false;
+                        LastFailureReason = "Jellyfin's index.html could not be located on this system.";
+                        return;
+                    }
+
+                    var html = File.ReadAllText(indexPath);
+                    var hasBody = html.Contains(BodyMarker, StringComparison.Ordinal);
+                    var hasHead = html.Contains(HeadMarker, StringComparison.Ordinal);
+                    var versionCurrent = IsScriptVersionCurrent(html);
+
+                    InjectionSucceeded = hasBody;
+                    IsVersionStale = hasBody && (!versionCurrent || !hasHead);
+
+                    if (!hasBody)
+                    {
+                        LastFailureReason =
+                            $"The plugin script tag is not present in {indexPath}.";
+                    }
+                    else if (!versionCurrent)
+                    {
+                        // Lead with the CAUSE, not the symptom. Saying only "the tag is old"
+                        // gave the administrator nothing to act on — and looked like a
+                        // contradiction next to a correct version badge, which reports the
+                        // plugin's version and says nothing about index.html's contents.
+                        var found = GetInjectedScriptVersion(html);
+                        var describeFound = found == null
+                            ? "no version marker at all (it predates the cache-buster)"
+                            : $"version {found}";
+
+                        LastFailureReason = CanWriteIndexHtml(indexPath)
+                            ? $"index.html's script tag carries {describeFound}, but this build is "
+                              + $"v{ScriptVersion}. The file is writable, so clicking Re-check "
+                              + "should update it."
+                            : $"Jellyfin cannot write {indexPath}, so its script tag still carries "
+                              + $"{describeFound} instead of v{ScriptVersion}. "
+                              + "This does not break anything: the switcher is running, and browsers "
+                              + "pick up new client code by themselves within about five minutes. "
+                              + "Granting write access below only makes updates instant.";
+                    }
+                    else if (!hasHead)
+                    {
+                        LastFailureReason =
+                            "The anti-flicker script is missing from <head>. The switcher works, "
+                            + "but you may see a brief flash of content when switching profiles.";
+                    }
+                    else
+                    {
+                        LastFailureReason = null;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    self._logger.LogDebug(ex, "ProfilesPlugin: Could not refresh injection status.");
+                    LastFailureReason = "Could not read index.html to check status: " + ex.Message;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Re-runs the full injection. Lets an administrator apply a permission fix and click
+        /// "Retry" on the dashboard instead of having to restart the whole Jellyfin server.
+        /// Returns true when the client script is present afterwards.
+        /// </summary>
+        internal static bool RunInjectionNow()
+        {
+            var self = _current;
+            if (self == null) return InjectionSucceeded;
+
+            lock (PatchLock)
+            {
+                // Re-resolve from scratch: the previous run may have cached a path from a
+                // location that has since changed (e.g. a Jellyfin web-client update).
+                IndexPath = null;
+                self.TryPatchIndex();
+            }
+
+            RefreshInjectionStatus();
+            return InjectionSucceeded;
         }
 
         /// <inheritdoc />
         public Task StopAsync(CancellationToken cancellationToken)
             => Task.CompletedTask;
 
-        // ── Main logic ──────────────────────────────────────────────────────────
+        /// <summary>
+        /// Removes the ".old" DLLs Jellyfin leaves behind when it cannot delete an in-use
+        /// assembly during a plugin update (common on Windows, where the file stays locked
+        /// until the process exits).
+        /// </summary>
+        private void CleanupOldDlls()
+        {
+            // Derive the directory from this assembly rather than guessing a name under
+            // PluginsPath: Jellyfin names plugin folders "{Name}_{Version}", so a hardcoded
+            // "Bonfire" never matches and the cleanup silently does nothing.
+            string? pluginDir;
+            try
+            {
+                pluginDir = Path.GetDirectoryName(typeof(ProfilesBootstrapTask).Assembly.Location);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "ProfilesPlugin: Could not resolve the plugin directory for cleanup.");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(pluginDir) || !Directory.Exists(pluginDir))
+            {
+                _logger.LogDebug("ProfilesPlugin: Plugin directory '{Dir}' unavailable; skipping .old cleanup.", pluginDir);
+                return;
+            }
+
+            try
+            {
+                foreach (var file in Directory.GetFiles(pluginDir, "*.old"))
+                {
+                    try
+                    {
+                        File.Delete(file);
+                        _logger.LogDebug("ProfilesPlugin: Removed stale plugin file {File}.", file);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Still locked by another process — it will be retried next startup.
+                        _logger.LogDebug(ex, "ProfilesPlugin: Could not delete stale file {File}.", file);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "ProfilesPlugin: Failed to enumerate stale plugin files in {Dir}.", pluginDir);
+            }
+        }
 
         private void TryPatchIndex()
         {
@@ -107,89 +366,261 @@ namespace Jellyfin.Profiles
 
             try
             {
+                // Create backup in the plugin data directory (always writable), NOT next to index.html.
+                // Storing the backup beside index.html requires directory write permission on the web
+                // root (e.g. /usr/share/jellyfin/web/) which the jellyfin service user typically does
+                // not have — even after a `chmod 666 index.html` on the file itself.
+                try
+                {
+                    var backupDir = Path.Combine(_appPaths.DataPath, "plugins", "ProfilesManagement");
+                    Directory.CreateDirectory(backupDir);
+                    var backupPath = Path.Combine(backupDir, "index.html.bonfire.bak");
+                    if (!File.Exists(backupPath))
+                    {
+                        File.Copy(indexPath, backupPath, false);
+                        _logger.LogInformation("ProfilesPlugin: Created backup of index.html at {Path}.", backupPath);
+                    }
+                }
+                catch (Exception backupEx)
+                {
+                    // A backup failure is non-fatal — log a warning and continue with the patch.
+                    _logger.LogWarning(backupEx, "ProfilesPlugin: Could not create backup of index.html. Proceeding with injection anyway.");
+                }
+
                 var html = File.ReadAllText(indexPath);
 
                 bool hasBody = html.Contains(BodyMarker, StringComparison.Ordinal);
                 bool hasHead = html.Contains(HeadMarker, StringComparison.Ordinal);
 
-                if (hasBody && hasHead)
+                // Check that the script tag matches the *current* version, not just that
+                // some version is present. After a plugin update the old ?v=1.1.x tag
+                // stays in index.html and the browser keeps serving the cached old JS,
+                // so new features (like tag filtering) silently never appear.
+                bool bodyVersionCurrent = IsScriptVersionCurrent(html);
+
+                if (hasBody && bodyVersionCurrent && hasHead)
                 {
                     _logger.LogDebug(
                         "ProfilesPlugin: Scripts already correctly present in {Path} — no changes made.",
                         indexPath);
                     InjectionSucceeded = true;
+                    IsVersionStale = false;
                     return;
+                }
+
+                // If body marker is present, the plugin script is injected and functional — the
+                // profile gate and switcher load fine. Mark as succeeded NOW so the failure banner
+                // never fires. Set IsVersionStale if the cache-buster version or head tag is missing.
+                if (hasBody)
+                {
+                    InjectionSucceeded = true;
+                    IsVersionStale = !bodyVersionCurrent || !hasHead;
+                }
+                else
+                {
+                    InjectionSucceeded = false;
+                    IsVersionStale = false;
                 }
 
                 bool changed = false;
 
-                // ── 1. Clean up any existing early-hide script ──────────────────
-                int oldScriptIdx = html.IndexOf("<script id=\"jpf-eh\">", StringComparison.OrdinalIgnoreCase);
-                if (oldScriptIdx != -1)
+                // ── 1. Update or inject head early-hide script ───────────────────
+                var headRegex = new Regex(@"<script id=""jpf-eh"">[\s\S]*?</script>", RegexOptions.IgnoreCase);
+                if (headRegex.IsMatch(html))
                 {
-                    int endScriptIdx = html.IndexOf("</script>", oldScriptIdx, StringComparison.OrdinalIgnoreCase);
-                    if (endScriptIdx != -1)
+                    if (!html.Contains(HeadScript, StringComparison.Ordinal))
                     {
-                        html = html.Remove(oldScriptIdx, endScriptIdx + "</script>".Length - oldScriptIdx);
+                        // MatchEvaluator, not a replacement string: "$" is a substitution token
+                        // in the string overload, so a "$" anywhere in the script would corrupt
+                        // index.html silently.
+                        html = headRegex.Replace(html, _ => HeadScript);
+                        changed = true;
+                    }
+                }
+                else
+                {
+                    int headIdx = html.IndexOf("<head>", StringComparison.OrdinalIgnoreCase);
+                    if (headIdx != -1)
+                    {
+                        html = html.Insert(headIdx + "<head>".Length, Environment.NewLine + HeadScript);
                         changed = true;
                     }
                 }
 
-                // ── 2. Clean up any existing body script ────────────────────────
-                int oldBodyIdx = html.IndexOf(BodyMarker, StringComparison.OrdinalIgnoreCase);
-                if (oldBodyIdx != -1)
+                // ── 2. Update or inject body script ──────────────────────────────
+                var bodyRegex = new Regex(@"<script[^>]*src=[""'][^""']*/plugins/profiles/profiles\.js[^""']*[""'][^>]*>\s*(</script>)?", RegexOptions.IgnoreCase);
+                if (bodyRegex.IsMatch(html))
                 {
-                    int tagStart = html.LastIndexOf("<script", oldBodyIdx, StringComparison.OrdinalIgnoreCase);
-                    if (tagStart != -1)
+                    if (!IsScriptVersionCurrent(html))
                     {
-                        int tagEnd = html.IndexOf("</script>", oldBodyIdx, StringComparison.OrdinalIgnoreCase);
-                        if (tagEnd != -1)
-                        {
-                            html = html.Remove(tagStart, tagEnd + "</script>".Length - tagStart);
-                            changed = true;
-                        }
+                        // MatchEvaluator — see the note on the head script above.
+                        var tag = BodyScriptTag;
+                        html = bodyRegex.Replace(html, _ => tag);
+                        changed = true;
+                    }
+                }
+                else
+                {
+                    int bodyIdx = html.IndexOf("</body>", StringComparison.OrdinalIgnoreCase);
+                    if (bodyIdx != -1)
+                    {
+                        html = html.Insert(bodyIdx, BodyScriptTag + Environment.NewLine);
+                        changed = true;
                     }
                 }
 
-                // ── 3. Inject new early-hide script right after <head> ──────────
-                html = html.Replace(
-                    "<head>",
-                    "<head>" + Environment.NewLine + HeadScript,
-                    StringComparison.OrdinalIgnoreCase);
-                changed = true;
+                // The body script is what makes the switcher work at all; the head script only
+                // prevents a flash of content. Track them separately so a missing <head> anchor
+                // downgrades to the "stale" banner rather than either claiming full success or
+                // firing the alarming "injection failed" one.
+                bool bodyPresent = html.Contains(BodyMarker, StringComparison.Ordinal);
+                bool headPresent = html.Contains(HeadMarker, StringComparison.Ordinal);
 
-                // ── 4. Inject new deferred client script before </body> ──────────
-                html = html.Replace(
-                    "</body>",
-                    BodyScriptTag + Environment.NewLine + "</body>",
-                    StringComparison.OrdinalIgnoreCase);
-                changed = true;
+                if (!bodyPresent)
+                {
+                    // Only clear InjectionSucceeded if there was genuinely nothing before.
+                    // (If an old working injection existed, InjectionSucceeded was already
+                    // set true above and should stay that way.)
+                    if (!InjectionSucceeded)
+                    {
+                        LastFailureReason =
+                            $"No </body> tag was found in {indexPath}, so the client script "
+                            + "could not be inserted.";
+                        _logger.LogWarning(
+                            "ProfilesPlugin: Could not find a </body> anchor in {Path}. " +
+                            "The client script was NOT injected. Add the following line before </body> manually: {Tag}",
+                            indexPath, BodyScriptTag);
+                    }
+                    return;
+                }
 
                 if (changed)
                 {
-                    File.WriteAllText(indexPath, html);
-                    InjectionSucceeded = true;
+                    // Throws on failure; the catch blocks below preserve any previously
+                    // working state rather than reporting a hard failure.
+                    WriteFileAtomic(indexPath, html);
                     _logger.LogInformation(
                         "ProfilesPlugin: Client scripts injected successfully into {Path}.",
                         indexPath);
                 }
+
+                InjectionSucceeded = true;
+
+                // Re-derive from the document we just wrote instead of assuming success.
+                // Previously this cleared IsVersionStale unconditionally, which hid the case
+                // where the body tag was inserted but the <head> anchor was missing entirely.
+                IsVersionStale = !headPresent;
+                LastFailureReason = headPresent
+                    ? null
+                    : "The anti-flicker script could not be added because index.html has no "
+                      + "<head> tag. The switcher works, but you may see a brief flash of "
+                      + "content when switching profiles.";
             }
             catch (UnauthorizedAccessException ex)
             {
-                LogPermissionError(indexPath, ex);
+                // If an older version of the injection is already working in index.html,
+                // InjectionSucceeded was set true above. A write failure here only means
+                // we couldn't update the cache-buster version — not that the switcher is
+                // broken. Only log the full permission error when InjectionSucceeded is
+                // still false (i.e. there was no prior injection at all).
+                if (!InjectionSucceeded)
+                {
+                    LastFailureReason =
+                        $"Jellyfin does not have permission to write {indexPath}. "
+                        + "Run the command below for your platform, then click Re-check.";
+                    LogPermissionError(indexPath, ex);
+                }
+                else
+                {
+                    IsVersionStale = true;
+                    LastFailureReason =
+                        $"Jellyfin cannot write {indexPath}, so its script tag still requests an "
+                        + $"older client script than this build (v{ScriptVersion}). The switcher "
+                        + "still works and browsers pick up new code on their next revalidation "
+                        + "(within ~5 minutes) — granting write access just makes it immediate.";
+                    _logger.LogDebug(ex,
+                        "ProfilesPlugin: Could not update script version in {Path} (permission denied). " +
+                        "The existing injection is still functional; users may need a browser hard-refresh " +
+                        "to pick up the latest client script.", indexPath);
+                }
             }
             catch (IOException ex)
             {
-                _logger.LogWarning(
-                    ex,
-                    "ProfilesPlugin: IO error reading/writing {Path}. " +
-                    "Manually add the following line before </body>: {Tag}",
-                    indexPath, BodyScriptTag);
+                if (!InjectionSucceeded)
+                {
+                    LastFailureReason =
+                        $"Could not read or write {indexPath}: {ex.Message}";
+                    _logger.LogWarning(
+                        ex,
+                        "ProfilesPlugin: IO error reading/writing {Path}. " +
+                        "Manually add the following line before </body>: {Tag}",
+                        indexPath, BodyScriptTag);
+                }
+                else
+                {
+                    IsVersionStale = true;
+                    LastFailureReason =
+                        $"The script tag in {indexPath} is out of date and could not be updated: {ex.Message}";
+                    _logger.LogDebug(ex,
+                        "ProfilesPlugin: IO error updating script version in {Path}. " +
+                        "The existing injection is still functional.", indexPath);
+                }
             }
             catch (Exception ex)
             {
+                if (!InjectionSucceeded)
+                {
+                    LastFailureReason = "Unexpected error while patching index.html: " + ex.Message;
+                }
                 _logger.LogError(ex,
                     "ProfilesPlugin: Unexpected error while patching {Path}.", indexPath);
+            }
+        }
+
+        /// <summary>
+        /// Writes via a temp file in the same directory then replaces the original, so a
+        /// crash or a full disk mid-write cannot leave Jellyfin with a truncated index.html
+        /// (which would break the entire web client, not just this plugin).
+        ///
+        /// Falls back to a direct write if the atomic replace isn't permitted — some
+        /// container mounts allow writing a file but not creating siblings.
+        /// </summary>
+        private void WriteFileAtomic(string path, string contents)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    var attr = File.GetAttributes(path);
+                    if (attr.HasFlag(FileAttributes.ReadOnly))
+                    {
+                        File.SetAttributes(path, attr & ~FileAttributes.ReadOnly);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Not fatal: the write below may still succeed, and if it doesn't the caller
+                // reports the real permission error.
+                _logger.LogDebug(ex, "ProfilesPlugin: Could not clear the read-only attribute on {Path}.", path);
+            }
+
+            // NOTE: the temp file is created alongside index.html, so this path needs write
+            // permission on the *directory*, not just the file. The documented fix commands
+            // only grant permission on index.html itself, so on most Linux/Docker installs the
+            // atomic path fails and the in-place fallback below is what actually runs.
+            var tempPath = path + ".bonfire.tmp";
+            try
+            {
+                File.WriteAllText(tempPath, contents);
+                File.Move(tempPath, path, overwrite: true);
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+            {
+                _logger.LogDebug(ex,
+                    "ProfilesPlugin: Atomic replace unavailable for {Path}; writing in place.", path);
+                try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* best effort */ }
+                File.WriteAllText(path, contents);
             }
         }
 
@@ -253,9 +684,10 @@ namespace Jellyfin.Profiles
                         return candidate;
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
                     // Path may be syntactically invalid on this OS — skip it.
+                    _logger.LogDebug(ex, "ProfilesPlugin: Candidate path '{Dir}' is invalid or inaccessible.", dir);
                 }
             }
 
@@ -282,20 +714,24 @@ namespace Jellyfin.Profiles
                 _logger.LogWarning(
                     ex,
                     "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "DOCKER FIX — Make the file writable and restart the container:\n" +
-                    "  docker exec -u root <container-name> chmod 666 {IndexPath}\n\n" +
-                    "Once run, restart your Jellyfin container to apply the auto-injection.",
-                    indexPath, indexPath);
+                    "DOCKER FIX — Set ownership to the Jellyfin service user, then restart:\n" +
+                    "  docker exec -u root <container-name> chown jellyfin:jellyfin {IndexPath}\n" +
+                    "  docker exec -u root <container-name> chmod 664 {IndexPath}\n\n" +
+                    "After Jellyfin restarts and injects the script you can optionally restore\n" +
+                    "read-only permissions: docker exec -u root <container-name> chmod 644 {IndexPath2}",
+                    indexPath, indexPath, indexPath, indexPath);
             }
             else
             {
                 _logger.LogWarning(
                     ex,
                     "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "LINUX FIX — Grant write access and restart Jellyfin:\n" +
-                    "  sudo chmod 666 {IndexPath}\n\n" +
-                    "Once run, restart Jellyfin to apply the auto-injection.",
-                    indexPath, indexPath);
+                    "LINUX FIX — Set ownership to the Jellyfin service user and grant write access, then restart Jellyfin:\n" +
+                    "  sudo chown jellyfin:jellyfin {IndexPath}\n" +
+                    "  sudo chmod 664 {IndexPath2}\n\n" +
+                    "After Jellyfin restarts and injects the script you can optionally restore\n" +
+                    "read-only permissions: sudo chmod 644 {IndexPath3}",
+                    indexPath, indexPath, indexPath, indexPath);
             }
         }
 
