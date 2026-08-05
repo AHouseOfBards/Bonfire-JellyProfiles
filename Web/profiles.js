@@ -921,22 +921,37 @@
             this.fetchAndRenderProfiles(apiClient, masterUserId, masterToken);
         },
 
-        fetchAndRenderProfiles: function (apiClient, masterUserId, masterToken) {
-            // Use the pre-fetched cache for an instant, flash-free overlay.
-            // The cache is populated in the background by _prefetchProfiles() while
-            // the user is on the home screen.  Clear it after use so the next call
-            // always gets fresh data (profile list may have changed server-side).
-            if (this.cachedProfiles && this.cachedProfiles.length) {
+        /// Drops the prefetch cache so the next render is guaranteed to hit the server.
+        /// Must be called after anything that changes profile state — otherwise the render
+        /// that follows a save shows the pre-save snapshot.
+        invalidateProfileCache: function () {
+            this.cachedProfiles = [];
+            this._profilePrefetchPending = false;
+        },
+
+        /// Renders the profile grid.
+        ///
+        /// `forceRefresh` bypasses the prefetch cache and is REQUIRED after any mutation
+        /// (create / edit / delete). The cache exists only to make opening the switcher from
+        /// the home screen flash-free; serving it after a save showed stale data — a freshly
+        /// saved PIN still read as "No PIN" until the page was reloaded.
+        fetchAndRenderProfiles: function (apiClient, masterUserId, masterToken, forceRefresh) {
+            if (forceRefresh) {
+                this.invalidateProfileCache();
+            } else if (this.cachedProfiles && this.cachedProfiles.length) {
+                // Consume the prefetch exactly once, then drop it.
                 const profiles = this.cachedProfiles;
-                this.cachedProfiles = [];
-                this._profilePrefetchPending = false;
+                this.invalidateProfileCache();
                 this.showProfileOverlay(profiles);
                 return;
             }
 
             const url = apiClient.getUrl(`plugins/profiles/list`);
-            
+
             fetch(url, {
+                // Never let a conditional/heuristic cache answer this — it drives the
+                // PIN and library state shown in the editor.
+                cache: 'no-store',
                 headers: this.getAuthHeaders(masterToken)
             })
             .then(res => {
@@ -948,7 +963,9 @@
             })
             .then(profiles => {
                 const normalized = this.normalizeProfiles(profiles);
-                this.cachedProfiles = normalized;
+                // Deliberately NOT stored in cachedProfiles: that field is the one-shot
+                // prefetch buffer, and repopulating it here made the *next* call short-circuit
+                // to data that was already stale.
                 localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
                 this.showProfileOverlay(normalized);
             })
@@ -2153,7 +2170,7 @@
                         return res.json();
                     })
                     .then(() => {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
+                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
                     })
                     .catch(err => {
                         const el = document.getElementById('create-error-msg');
@@ -2730,7 +2747,7 @@
                     })
                     .then(res => {
                         if (!res.ok) return res.text().then(text => { throw new Error(text); });
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
+                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
                     })
                     .catch(err => this.showAlert("Error", "Error saving profile: " + err.message));
                 });
@@ -2783,7 +2800,7 @@
                 const btn = content.querySelector('#bonfire-back-btn');
                 if (btn) {
                     btn.addEventListener('click', () => {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
+                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
                     });
                 }
             };
@@ -2819,7 +2836,7 @@
             })
             .then(res => {
                 if (!res.ok) throw new Error("Failed to delete profile");
-                this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
+                this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
             })
             .catch(err => this.showAlert("Error", "Error deleting profile: " + err.message));
         },
@@ -2961,7 +2978,7 @@
                 backBtn.addEventListener('click', () => {
                     const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
                     if (masterState) {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
+                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
                     }
                 });
             }

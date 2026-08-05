@@ -638,7 +638,19 @@ namespace Jellyfin.Profiles.Controllers
                               && mapping.BypassPinOnLocalNetwork
                               && isLocal
                               && !isCrossAccountMasterSwitch;
-                if (!bypass)
+
+                if (bypass)
+                {
+                    // Logged so an administrator can confirm the bypass only ever fires for
+                    // genuinely local clients. Behind a reverse proxy that is NOT listed in
+                    // Jellyfin's Known Proxies, every request arrives with the proxy's address
+                    // and would therefore look local — this line is how that shows up.
+                    _logger.LogInformation(
+                        "ProfilesPlugin: PIN skipped for profile {Profile} — client {Ip} was classified " +
+                        "as local by Jellyfin's network settings.",
+                        request.ProfileId, ip);
+                }
+                else
                 {
                     if (RateLimiter.Pin.IsRateLimited(rateLimitKey))
                     {

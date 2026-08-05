@@ -6,12 +6,12 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Jellyfin.Profiles</AssemblyName>
     <RootNamespace>Jellyfin.Profiles</RootNamespace>
-    <Version>1.2.8</Version>
+    <Version>1.2.9</Version>
     <!-- Jellyfin requires a purely numeric assembly version, so the pre-release label
          lives here. The plugin reports this string in the API and the dashboard badge,
          which is how users can tell a beta build from a finished one at a glance.
          Drop the "-beta" suffix when promoting a release to stable. -->
-    <InformationalVersion>1.2.8-beta</InformationalVersion>
+    <InformationalVersion>1.2.9-beta</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
