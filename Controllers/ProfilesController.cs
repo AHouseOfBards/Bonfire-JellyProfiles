@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -978,12 +979,30 @@ namespace Jellyfin.Profiles.Controllers
             });
         }
 
-        /// <summary>Plugin version for display. Falls back to the assembly's own version so it
-        /// can never go stale the way a hardcoded literal does.</summary>
+        /// <summary>
+        /// Plugin version for display and cache-busting. Prefers the informational version,
+        /// which carries any pre-release label (e.g. "1.2.7-beta") that the numeric assembly
+        /// version cannot represent — Jellyfin requires the latter to be purely numeric.
+        /// Falls back to the numeric version so this can never go stale the way a hardcoded
+        /// literal does.
+        /// </summary>
         private static string GetPluginVersion()
-            => Plugin.Instance?.Version?.ToString()
-               ?? typeof(ProfilesBootstrapTask).Assembly.GetName().Version?.ToString()
-               ?? "unknown";
+        {
+            var informational = typeof(ProfilesBootstrapTask).Assembly
+                .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()
+                ?.InformationalVersion;
+
+            if (!string.IsNullOrWhiteSpace(informational))
+            {
+                // Strip a "+<sha>" build-metadata suffix if one ever slips in.
+                var plus = informational.IndexOf('+');
+                return plus > 0 ? informational.Substring(0, plus) : informational;
+            }
+
+            return Plugin.Instance?.Version?.ToString()
+                   ?? typeof(ProfilesBootstrapTask).Assembly.GetName().Version?.ToString()
+                   ?? "unknown";
+        }
 
         [HttpPost("admin/reset-pin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -1616,31 +1635,42 @@ namespace Jellyfin.Profiles.Controllers
                 .Where(id => !string.IsNullOrEmpty(id))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            // Scope by recorded ownership rather than by live sessions. Devices recorded before
-            // MasterUserId existed have Guid.Empty and stay visible to everyone until the next
-            // request from that device claims them (see RecordDeviceActivity).
-            var devices = config.KnownDevices
-                .Where(d => d.MasterUserId == masterUserId
-                            || d.MasterUserId == Guid.Empty
-                            || whitelistedDeviceIds.Contains(d.DeviceId))
-                .GroupBy(d => d.DeviceId, StringComparer.OrdinalIgnoreCase)
-                .Select(g => g.OrderByDescending(d => d.LastSeen).First())
-                .OrderByDescending(d => d.LastSeen)
-                .ToList();
-
-            // A whitelisted device that has aged out of KnownDevices entirely still needs a row,
-            // otherwise saving the profile would drop it.
-            var present = devices.Select(d => d.DeviceId).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            foreach (var orphanId in whitelistedDeviceIds.Where(id => !present.Contains(id)))
+            // Claim ownership of records written before MasterUserId existed, using this
+            // household's live sessions. KnownDevices is a single server-wide list, so
+            // unowned records must be attributed here rather than shown to everyone —
+            // treating Guid.Empty as "visible to all" leaked every device on the server to
+            // every account, because on an existing install *every* record is Guid.Empty.
+            var householdUserIds = new HashSet<Guid> { masterUserId };
+            foreach (var m in config.Mappings.Where(m => m.MasterUserId == masterUserId))
             {
-                devices.Add(new KnownDevice
+                householdUserIds.Add(m.ProfileUserId);
+            }
+
+            var sessionDeviceIds = _sessionManager.Sessions
+                .Where(s => householdUserIds.Contains(s.UserId))
+                .Select(s => s.DeviceId)
+                .Where(id => !string.IsNullOrEmpty(id))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            lock (config)
+            {
+                var claimed = false;
+                foreach (var d in config.KnownDevices)
                 {
-                    DeviceId = orphanId,
-                    DeviceName = "Previously allowed device",
-                    Client = "Not seen recently",
-                    LastSeen = DateTime.MinValue,
-                    MasterUserId = masterUserId
-                });
+                    if (d.MasterUserId == Guid.Empty
+                        && (sessionDeviceIds.Contains(d.DeviceId) || whitelistedDeviceIds.Contains(d.DeviceId)))
+                    {
+                        d.MasterUserId = masterUserId;
+                        claimed = true;
+                    }
+                }
+                if (claimed) Plugin.Instance?.SaveConfiguration();
+            }
+
+            List<KnownDevice> devices;
+            lock (config)
+            {
+                devices = ScopeDevicesToHousehold(config.KnownDevices, masterUserId, whitelistedDeviceIds);
             }
 
             return Ok(devices);

@@ -294,6 +294,47 @@
             });
         },
 
+        /// Wraps a group of form fields in a titled, self-contained section.
+        /// The create/edit forms grew field-by-field in the order features were added, which
+        /// left unrelated controls adjacent and gave no landmarks to scroll by — worst on
+        /// phones, where the form is several screens long. Sections give each group a heading
+        /// and one-line purpose, and are plain blocks (no collapsing) so D-pad focus order on
+        /// TV stays linear and predictable.
+        renderSection: function (icon, title, subtitle, bodyHtml) {
+            return `
+                <section class="profile-section">
+                    <div class="profile-section-header">
+                        <span class="material-icons profile-section-icon" aria-hidden="true">${icon}</span>
+                        <div class="profile-section-heading">
+                            <h2 class="profile-section-title">${escapeHtml(title)}</h2>
+                            <span class="profile-section-subtitle">${escapeHtml(subtitle)}</span>
+                        </div>
+                    </div>
+                    <div class="profile-section-body">${bodyHtml}</div>
+                </section>
+            `;
+        },
+
+        /// The avatar swatches are identical in both forms; keeping one copy means a palette
+        /// change lands in both places at once.
+        renderColorPicker: function (selectedColor) {
+            const palette = [
+                '#00A4DC', '#E50914', '#22C55E', '#EAB308', '#A855F7', '#EC4899',
+                '#F97316', '#06B6D4', '#3B82F6', '#10B981', '#6366F1', '#8B5CF6',
+                '#D946EF', '#F43F5E', '#14B8A6', '#F59E0B', '#84CC16', '#64748B'
+            ];
+            const active = (selectedColor || '').toLowerCase();
+            return `
+                <div class="avatar-color-picker">
+                    ${palette.map(c => `
+                        <div class="color-dot${c.toLowerCase() === active ? ' active' : ''}"
+                             style="background-color: ${c}" data-color="${c}"
+                             role="radio" aria-label="${c}" tabindex="0"></div>
+                    `).join('')}
+                </div>
+            `;
+        },
+
         // ── Tag filtering ───────────────────────────────────────────────────────────
         // Jellyfin matches blocked/allowed tags against an item's inherited tags, so a tag
         // on a series or a whole library applies to everything inside it.
@@ -1142,9 +1183,13 @@
                 let headerIcon = '';
                 let isBonfireIcon = false;
 
+                // Both headers use the campfire glyph — the section is called a Bonfire, so a
+                // house icon read as a different concept entirely. Your own Bonfire keeps the
+                // warm flame colour; linked ones are tinted by .bonfire-icon-color so the two
+                // remain distinguishable at a glance.
                 if (isLocalGroup) {
                     headerTitle = "Your Bonfire";
-                    headerIcon = "home";
+                    headerIcon = "local_fire_department";
                 } else {
                     const masterProfileForGroup = groupProfiles.find(p => p.isMaster);
                     const groupName = masterProfileForGroup ? escapeHtml(masterProfileForGroup.profileName) : "Guest";
@@ -1660,157 +1705,159 @@
                     collectionType: lib.collectionType || lib.CollectionType
                 }));
                 const content = document.querySelector('.profiles-modal-content');
+                // ── Section 1: who this profile is ──────────────────────────────
+                const createAppearance = `
+                    <div class="form-group">
+                        <label for="create-name-input">Profile Name</label>
+                        <input type="text" id="create-name-input" placeholder="e.g. Kids" required />
+                    </div>
+                    <div class="form-group">
+                        <label>Avatar Color</label>
+                        ${this.renderColorPicker('#00A4DC')}
+                        <div class="form-hint">Used as the avatar background when no picture is set.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Profile Picture</label>
+                        <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 10px;">
+                            <div class="image-upload-row">
+                                <div id="create-image-upload-preview" class="image-upload-preview" style="background-color: #00A4DC;">+</div>
+                                <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+                                    <label for="create-profile-image-file" id="create-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
+                                        <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
+                                        <span>Choose Image</span>
+                                    </label>
+                                    <input type="file" id="create-profile-image-file" accept="image/*" style="display: none;" />
+                                    <div class="form-hint" style="margin: 0;">Maximum size: 96x96 pixels (auto-resized)</div>
+                                </div>
+                            </div>
+                            <div class="form-divider"><span>OR</span></div>
+                            <div class="form-group" style="margin: 0;">
+                                <input type="text" id="create-profile-image-url" placeholder="Paste image URL (fallback for TV platforms)" />
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // ── Section 2: getting into this profile ────────────────────────
+                const createSecurity = `
+                    <div class="form-group">
+                        <label for="create-pin-input">PIN Code (Optional, 4-8 digits)</label>
+                        <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="Leave empty for no PIN" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    </div>
+                    <div class="form-group">
+                        <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="create-local-bypass-checkbox" style="cursor: pointer; accent-color: #00a4dc;" />
+                            <span>Bypass PIN on local network (LAN)</span>
+                        </label>
+                        <div class="form-hint">If enabled, users on the local home network won't be prompted for a PIN.</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="create-lockout-select">Auto-lock after inactivity</label>
+                        <select id="create-lockout-select">
+                            <option value="0">Never</option>
+                            <option value="1">1 minute</option>
+                            <option value="5" selected>5 minutes (default)</option>
+                            <option value="10">10 minutes</option>
+                            <option value="20">20 minutes</option>
+                            <option value="30">30 minutes</option>
+                            <option value="60">1 hour</option>
+                        </select>
+                        <div class="form-hint">Only applies when this profile has a PIN set.</div>
+                    </div>
+                `;
+
+                // ── Section 3: what this profile can browse ─────────────────────
+                const createLibraries = `
+                    <div class="form-group">
+                        <div class="section-inline-header">
+                            <label style="margin: 0;">Enabled Libraries</label>
+                            <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
+                                <input type="checkbox" id="create-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: #00a4dc;" />
+                                <span>Select all</span>
+                            </label>
+                        </div>
+                        <div class="library-checklist">
+                            ${normalizedLibs.map(lib => `
+                                <label class="library-check-label">
+                                    <input type="checkbox" class="library-checkbox" value="${lib.id}" />
+                                    <span>${escapeHtml(lib.name)}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                        <div class="form-hint">If nothing is selected, this profile inherits every library your account can see.</div>
+                    </div>
+                `;
+
+                // ── Section 4: limits applied on top of the libraries above ─────
+                const createRestrictions = `
+                    <div class="form-group">
+                        <label>Allowed Devices (Optional)</label>
+                        <div class="devices-dropdown-container" style="position: relative;">
+                            <div id="create-devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
+                                <span id="create-devices-dropdown-selected-text">All Devices Allowed</span>
+                                <span style="font-size: 0.8rem; opacity: 0.7;">▼</span>
+                            </div>
+                            <div id="create-devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
+                                ${devices && devices.length > 0 ? devices.map(dev => {
+                                    const deviceId = dev.deviceId || dev.DeviceId || '';
+                                    const deviceName = dev.deviceName || dev.DeviceName || 'Unknown Device';
+                                    const client = dev.client || dev.Client || 'Unknown Client';
+                                    const lastSeen = dev.lastSeen || dev.LastSeen;
+                                    const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
+                                    const lastSeenStr = (lastSeenDate && lastSeenDate.getFullYear() > 1)
+                                        ? lastSeenDate.toLocaleDateString() : 'Unknown';
+                                    return `
+                                        <div class="device-dropdown-item">
+                                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
+                                                <input type="checkbox" class="create-device-checkbox" value="${escapeHtml(deviceId)}" style="cursor: pointer; accent-color: #00a4dc; flex-shrink: 0;" />
+                                                <span style="display: flex; flex-direction: column; min-width: 0;">
+                                                    <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
+                                                    <span style="font-size: 0.75rem; opacity: 0.6;">${escapeHtml(client)} • Last seen ${lastSeenStr}</span>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    `;
+                                }).join('') : `
+                                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">No devices found for your account yet</div>
+                                `}
+                            </div>
+                        </div>
+                        <div class="form-hint">If no devices are selected, this profile can be accessed from any device.</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="create-rating-select">Max Parental Rating Limit (Optional)</label>
+                        <select id="create-rating-select">
+                            <option value="">No Restrictions</option>
+                            <option value="6">G / TV-G (6+)</option>
+                            <option value="10">PG / TV-PG (10+)</option>
+                            <option value="14">PG-13 / TV-14 (14+)</option>
+                            <option value="17">R / TV-MA (17+)</option>
+                        </select>
+                    </div>
+
+                    ${this.renderTagSuggestions('create-tag-suggestions', libraryTags)}
+                    <div class="form-group">
+                        <label>Blocked Tags (Optional)</label>
+                        ${this.renderTagEditor('create-blocked-tags', [], 'e.g. adults', 'create-tag-suggestions')}
+                        <div class="form-hint">Hides anything carrying these tags. Tags on a series or library apply to everything inside it.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Allowed Tags (Optional)</label>
+                        ${this.renderTagEditor('create-allowed-tags', [], 'e.g. kids', 'create-tag-suggestions')}
+                        <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items — untagged content is hidden too. Leave empty unless that's what you want.</div>
+                    </div>
+                `;
+
                 content.innerHTML = `
                     <h1 class="profiles-title">Create Profile</h1>
                     <div class="create-profile-container">
-                        <div class="form-group">
-                            <label>Profile Name</label>
-                            <input type="text" id="create-name-input" placeholder="e.g. Kids" required />
-                        </div>
-                        <div class="form-group">
-                            <label>PIN Code (Optional, 4-8 digits)</label>
-                            <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="Leave empty for no PIN" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
-                        </div>
-                        <div class="form-group">
-                            <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
-                                <input type="checkbox" id="create-local-bypass-checkbox" style="cursor: pointer; accent-color: #00a4dc;" />
-                                <span>Bypass PIN on local network (LAN)</span>
-                            </label>
-                            <div class="form-hint">If enabled, users on the local home network won't be prompted for a PIN.</div>
-                        </div>
-                        <div class="form-group">
-                            <label>Auto-lock after inactivity</label>
-                            <select id="create-lockout-select">
-                                <option value="0">Never</option>
-                                <option value="1">1 minute</option>
-                                <option value="5" selected>5 minutes (default)</option>
-                                <option value="10">10 minutes</option>
-                                <option value="20">20 minutes</option>
-                                <option value="30">30 minutes</option>
-                                <option value="60">1 hour</option>
-                            </select>
-                            <div class="form-hint">Only applies when this profile has a PIN set</div>
-                        </div>
-                        <div class="form-group">
-                            <label>Allowed Devices (Optional)</label>
-                            <div class="devices-dropdown-container" style="position: relative;">
-                                <div id="create-devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0">
-                                    <span id="create-devices-dropdown-selected-text">All Devices Allowed</span>
-                                    <span style="font-size: 0.8rem; opacity: 0.7;">▼</span>
-                                </div>
-                                <div id="create-devices-dropdown-list" class="devices-dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 10000; margin-top: 4px;">
-                                    ${devices && devices.length > 0 ? devices.map(dev => {
-                                        const deviceId = dev.deviceId || dev.DeviceId || '';
-                                        const deviceName = dev.deviceName || dev.DeviceName || 'Unknown Device';
-                                        const client = dev.client || dev.Client || 'Unknown Client';
-                                        const lastSeen = dev.lastSeen || dev.LastSeen;
-                                        const lastSeenStr = lastSeen ? new Date(lastSeen).toLocaleDateString() : 'Unknown';
-                                        return `
-                                            <div class="device-dropdown-item" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem;">
-                                                    <input type="checkbox" class="create-device-checkbox" value="${deviceId}" style="cursor: pointer; accent-color: #00a4dc;" />
-                                                    <span style="display: flex; flex-direction: column;">
-                                                        <span style="font-weight: 500;">${deviceName}</span>
-                                                        <span style="font-size: 0.75rem; opacity: 0.6;">${client} • Last seen ${lastSeenStr}</span>
-                                                    </span>
-                                                </label>
-                                            </div>
-                                        `;
-                                    }).join('') : `
-                                        <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">No connected devices found</div>
-                                    `}
-                                </div>
-                            </div>
-                            <div class="form-hint">If no devices are selected, this profile can be accessed from any device.</div>
-                        </div>
-                        <div class="form-group">
-                            <label>Avatar Color</label>
-                            <div class="avatar-color-picker">
-                                <div class="color-dot active" style="background-color: #00A4DC" data-color="#00A4DC" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #E50914" data-color="#E50914" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #22C55E" data-color="#22C55E" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #EAB308" data-color="#EAB308" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #A855F7" data-color="#A855F7" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #EC4899" data-color="#EC4899" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #F97316" data-color="#F97316" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #06B6D4" data-color="#06B6D4" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #3B82F6" data-color="#3B82F6" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #10B981" data-color="#10B981" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #6366F1" data-color="#6366F1" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #8B5CF6" data-color="#8B5CF6" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #D946EF" data-color="#D946EF" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #F43F5E" data-color="#F43F5E" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #14B8A6" data-color="#14B8A6" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #F59E0B" data-color="#F59E0B" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #84CC16" data-color="#84CC16" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #64748B" data-color="#64748B" tabindex="0"></div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Profile Picture</label>
-                            <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 10px;">
-                                <div style="display: flex; align-items: center; gap: 15px;">
-                                    <div id="create-image-upload-preview" style="width: 64px; height: 64px; border-radius: 50%; background-color: #00A4DC; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: bold; text-transform: uppercase; overflow: hidden; border: 2px solid rgba(255,255,255,0.2);">
-                                        +
-                                    </div>
-                                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                                        <label for="create-profile-image-file" id="create-profile-image-label" class="profiles-btn btn-secondary" style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; font-size: 0.95rem; align-self: flex-start;" tabindex="0">
-                                            <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
-                                            <span>Choose Image</span>
-                                        </label>
-                                        <input type="file" id="create-profile-image-file" accept="image/*" style="display: none;" />
-                                        <div style="font-size: 0.75rem; opacity: 0.6;">Maximum size: 96x96 pixels (auto-resized)</div>
-                                    </div>
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 10px; opacity: 0.5; font-size: 0.8rem; margin: 5px 0;">
-                                    <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
-                                    <span>OR</span>
-                                    <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
-                                </div>
-                                <div class="form-group" style="margin: 0;">
-                                    <input type="text" id="create-profile-image-url" placeholder="Paste image URL (fallback for TV platforms)" />
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Max Parental Rating Limit (Optional)</label>
-                            <select id="create-rating-select">
-                                <option value="">No Restrictions</option>
-                                <option value="6">G / TV-G (6+)</option>
-                                <option value="10">PG / TV-PG (10+)</option>
-                                <option value="14">PG-13 / TV-14 (14+)</option>
-                                <option value="17">R / TV-MA (17+)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem;">
-                                <label style="margin: 0;">Enabled Libraries</label>
-                                <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
-                                    <input type="checkbox" id="create-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: #00a4dc;" />
-                                    <span>Select all</span>
-                                </label>
-                            </div>
-                            <div class="library-checklist">
-                                ${normalizedLibs.map(lib => `
-                                    <label class="library-check-label">
-                                        <input type="checkbox" class="library-checkbox" value="${lib.id}" />
-                                        <span>${lib.name}</span>
-                                    </label>
-                                `).join('')}
-                            </div>
-                        </div>
-                        ${this.renderTagSuggestions('create-tag-suggestions', libraryTags)}
-                        <div class="form-group">
-                            <label>Blocked Tags (Optional)</label>
-                            ${this.renderTagEditor('create-blocked-tags', [], 'e.g. adults', 'create-tag-suggestions')}
-                            <div class="form-hint">Hides anything carrying these tags. Tags on a series or library apply to everything inside it.</div>
-                        </div>
-                        <div class="form-group">
-                            <label>Allowed Tags (Optional)</label>
-                            ${this.renderTagEditor('create-allowed-tags', [], 'e.g. kids', 'create-tag-suggestions')}
-                            <div class="form-hint">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items — untagged content is hidden too. Leave empty unless that's what you want.</div>
-                        </div>
-                        <div id="create-error-msg" style="display:none; color:#ff6b6b; font-size:0.88rem; font-weight:600; text-align:center; padding: 8px 12px; background: rgba(255,107,107,0.1); border-radius:8px; border: 1px solid rgba(255,107,107,0.25);"></div>
+                        ${this.renderSection('person', 'Profile', 'Name, colour, and picture', createAppearance)}
+                        ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', createSecurity)}
+                        ${this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', createLibraries)}
+                        ${this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', createRestrictions)}
+
+                        <div id="create-error-msg" class="form-error" style="display:none;"></div>
                         <div class="pin-actions">
                             <button id="create-submit-btn" class="profiles-btn btn-primary">Create</button>
                             <button id="create-cancel-btn" class="profiles-btn btn-secondary">Cancel</button>
@@ -1951,19 +1998,25 @@
                 const createTrigger = document.getElementById('create-devices-dropdown-trigger');
                 const createList = document.getElementById('create-devices-dropdown-list');
                 if (createTrigger && createList) {
+                    // Keep aria-expanded in step with the visual state so screen readers and
+                    // TV remotes report the dropdown correctly.
+                    const setCreateOpen = (open) => {
+                        createList.style.display = open ? 'block' : 'none';
+                        createTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+                    };
                     createTrigger.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        createList.style.display = createList.style.display === 'none' ? 'block' : 'none';
+                        setCreateOpen(createList.style.display === 'none');
                     });
                     createTrigger.addEventListener('keydown', (e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
                             createTrigger.click();
+                        } else if (e.key === 'Escape') {
+                            setCreateOpen(false);
                         }
                     });
-                    document.addEventListener('click', () => {
-                        createList.style.display = 'none';
-                    });
+                    document.addEventListener('click', () => setCreateOpen(false));
                     createList.addEventListener('click', (e) => {
                         e.stopPropagation();
                     });
@@ -2102,191 +2155,186 @@
 
                 const content = document.querySelector('.profiles-modal-content');
 
+                const isSub = !profile.isMaster;
+
+                // ── Section 1: who this profile is ──────────────────────────────
+                const appearanceBody = `
+                    <div class="form-group">
+                        <label for="edit-name-input">Profile Name</label>
+                        <input type="text" id="edit-name-input" value="${escapeHtml(profile.profileName)}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
+                        ${profile.isMaster ? `<div class="form-hint">The master profile takes its name from your Jellyfin account.</div>` : ''}
+                    </div>
+                    <div class="form-group">
+                        <label>Avatar Color</label>
+                        ${this.renderColorPicker(profile.avatarColor)}
+                        <div class="form-hint">Used as the avatar background when no picture is set.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Profile Picture</label>
+                        <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 10px;">
+                            <div class="image-upload-row">
+                                <div id="edit-image-upload-preview" class="image-upload-preview" style="background-color: ${safeColor(profile.avatarColor)};">
+                                    ${profile.profileImage ? `<img src="${safeImageSrc(profile.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(profile.avatarInitial)}
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+                                    <label for="edit-profile-image-file" id="edit-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
+                                        <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
+                                        <span>Choose Image</span>
+                                    </label>
+                                    <input type="file" id="edit-profile-image-file" accept="image/*" style="display: none;" />
+                                    <div class="form-hint" style="margin: 0;">Maximum size: 96x96 pixels (auto-resized)</div>
+                                </div>
+                            </div>
+                            <div class="form-divider"><span>OR</span></div>
+                            <div class="form-group" style="margin: 0;">
+                                <input type="text" id="edit-profile-image-url" placeholder="Paste image URL (fallback for TV platforms)" value="${profile.profileImage && !profile.profileImage.startsWith('data:') ? escapeHtml(profile.profileImage) : ''}" />
+                            </div>
+                            ${profile.profileImage ? `
+                                <button type="button" id="edit-clear-profile-image-btn" class="profiles-btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; align-self: flex-start;">Remove Picture</button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+
+                // ── Section 2: getting into this profile ────────────────────────
+                const securityBody = `
+                    <div class="form-group">
+                        <label for="edit-pin-input">PIN Code (Optional, 4-8 digits)</label>
+                        <div class="pin-edit-group" style="display:flex; gap:10px; flex-wrap: wrap;">
+                            <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.requiresPin ? '••••' : 'Unprotected'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
+                            ${profile.requiresPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">Clear PIN</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc;" />
+                            <span>Bypass PIN on local network (LAN)</span>
+                        </label>
+                        <div class="form-hint">If enabled, users on the local home network won't be prompted for a PIN.</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-lockout-select">Auto-lock after inactivity</label>
+                        <select id="edit-lockout-select">
+                            <option value="0" ${currentLockout === 0 ? 'selected' : ''}>Never</option>
+                            <option value="1" ${currentLockout === 1 ? 'selected' : ''}>1 minute</option>
+                            <option value="5" ${currentLockout === 5 ? 'selected' : ''}>5 minutes</option>
+                            <option value="10" ${currentLockout === 10 ? 'selected' : ''}>10 minutes</option>
+                            <option value="20" ${currentLockout === 20 ? 'selected' : ''}>20 minutes</option>
+                            <option value="30" ${currentLockout === 30 ? 'selected' : ''}>30 minutes</option>
+                            <option value="60" ${currentLockout === 60 ? 'selected' : ''}>1 hour</option>
+                        </select>
+                        <div class="form-hint">Only applies when a PIN is set on this profile.</div>
+                    </div>
+                `;
+
+                // ── Section 3: what this profile can browse ─────────────────────
+                const librariesBody = `
+                    <div class="form-group">
+                        <div class="section-inline-header">
+                            <label style="margin: 0;">Enabled Libraries</label>
+                            <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
+                                <input type="checkbox" id="edit-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: #00a4dc;" />
+                                <span>Select all</span>
+                            </label>
+                        </div>
+                        <div class="library-checklist">
+                            ${normalizedLibs.map(lib => {
+                                const storedFolders = profile.enabledFolders;
+                                let isChecked;
+                                if (storedFolders !== null && storedFolders !== undefined) {
+                                    isChecked = storedFolders.some(id => this.normalizeGuid(id) === this.normalizeGuid(lib.id));
+                                } else {
+                                    isChecked = enableAll || !blockedFolders.some(bf => this.normalizeGuid(bf) === this.normalizeGuid(lib.id));
+                                }
+                                return `
+                                    <label class="library-check-label">
+                                        <input type="checkbox" class="library-checkbox" value="${lib.id}" ${isChecked ? 'checked' : ''} />
+                                        <span>${escapeHtml(lib.name)}</span>
+                                    </label>
+                                `;
+                            }).join('')}
+                        </div>
+                        <div class="form-hint">If nothing is selected, this profile inherits every library your account can see.</div>
+                    </div>
+                `;
+
+                // ── Section 4: limits applied on top of the libraries above ─────
+                const restrictionsBody = `
+                    <div class="form-group">
+                        <label>Allowed Devices (Optional)</label>
+                        <div class="devices-dropdown-container" style="position: relative;">
+                            <div id="devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
+                                <span id="devices-dropdown-selected-text">All Devices Allowed</span>
+                                <span style="font-size: 0.8rem; opacity: 0.7;">▼</span>
+                            </div>
+                            <div id="devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
+                                ${devices && devices.length > 0 ? devices.map(dev => {
+                                    const deviceId = dev.deviceId || dev.DeviceId || '';
+                                    const deviceName = dev.deviceName || dev.DeviceName || 'Unknown Device';
+                                    const client = dev.client || dev.Client || 'Unknown Client';
+                                    const lastSeen = dev.lastSeen || dev.LastSeen;
+                                    const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
+                                    const lastSeenStr = (lastSeenDate && lastSeenDate.getFullYear() > 1)
+                                        ? lastSeenDate.toLocaleDateString() : 'Unknown';
+                                    const isChecked = profile.allowedDeviceIds && (profile.allowedDeviceIds.includes(deviceId) || (dev.DeviceId && profile.allowedDeviceIds.includes(dev.DeviceId)));
+                                    return `
+                                        <div class="device-dropdown-item">
+                                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
+                                                <input type="checkbox" class="device-checkbox" value="${escapeHtml(deviceId)}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc; flex-shrink: 0;" />
+                                                <span style="display: flex; flex-direction: column; min-width: 0;">
+                                                    <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
+                                                    <span style="font-size: 0.75rem; opacity: 0.6;">${escapeHtml(client)} • Last seen ${lastSeenStr}</span>
+                                                </span>
+                                            </label>
+                                            <button type="button" class="device-delete-btn" data-id="${escapeHtml(deviceId)}" title="Forget this device" aria-label="Forget ${escapeHtml(deviceName)}">🗑️</button>
+                                        </div>
+                                    `;
+                                }).join('') : `
+                                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">No devices found for your account yet</div>
+                                `}
+                            </div>
+                        </div>
+                        <div class="form-hint">If no devices are selected, this profile can be accessed from any device.</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-rating-select">Max Parental Rating Limit (Optional)</label>
+                        <select id="edit-rating-select">
+                            <option value="" ${maxRating === null ? 'selected' : ''}>No Restrictions</option>
+                            <option value="6" ${maxRating === 6 ? 'selected' : ''}>G / TV-G (6+)</option>
+                            <option value="10" ${maxRating === 10 ? 'selected' : ''}>PG / TV-PG (10+)</option>
+                            <option value="14" ${maxRating === 14 ? 'selected' : ''}>PG-13 / TV-14 (14+)</option>
+                            <option value="17" ${maxRating === 17 ? 'selected' : ''}>R / TV-MA (17+)</option>
+                        </select>
+                    </div>
+
+                    ${this.renderTagSuggestions('edit-tag-suggestions', libraryTags)}
+                    <div class="form-group">
+                        <label>Blocked Tags (Optional)</label>
+                        ${this.renderTagEditor('edit-blocked-tags', profile.blockedTags || [], 'e.g. adults', 'edit-tag-suggestions')}
+                        <div class="form-hint">Hides anything carrying these tags. Tags on a series or library apply to everything inside it.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Allowed Tags (Optional)</label>
+                        ${this.renderTagEditor('edit-allowed-tags', profile.allowedTags || [], 'e.g. kids', 'edit-tag-suggestions')}
+                        <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items — untagged content is hidden too. Leave empty unless that's what you want.</div>
+                    </div>
+                `;
+
                 content.innerHTML = `
                     <h1 class="profiles-title">Edit Profile</h1>
                     <div class="create-profile-container">
-                        <div class="form-group">
-                            <label>Profile Name</label>
-                            <input type="text" id="edit-name-input" value="${escapeHtml(profile.profileName)}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>PIN Code (Optional, 4-8 digits)</label>
-                            <div class="pin-edit-group" style="display:flex; gap:10px;">
-                                <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.requiresPin ? '••••' : 'Unprotected'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1;" />
-                                ${profile.requiresPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">Clear PIN</button>` : ''}
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
-                                <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc;" />
-                                <span>Bypass PIN on local network (LAN)</span>
-                            </label>
-                            <div class="form-hint">If enabled, users on the local home network won't be prompted for a PIN.</div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Auto-lock after inactivity</label>
-                            <select id="edit-lockout-select">
-                                <option value="0" ${currentLockout === 0 ? 'selected' : ''}>Never</option>
-                                <option value="1" ${currentLockout === 1 ? 'selected' : ''}>1 minute</option>
-                                <option value="5" ${currentLockout === 5 ? 'selected' : ''}>5 minutes</option>
-                                <option value="10" ${currentLockout === 10 ? 'selected' : ''}>10 minutes</option>
-                                <option value="20" ${currentLockout === 20 ? 'selected' : ''}>20 minutes</option>
-                                <option value="30" ${currentLockout === 30 ? 'selected' : ''}>30 minutes</option>
-                                <option value="60" ${currentLockout === 60 ? 'selected' : ''}>1 hour</option>
-                            </select>
-                            <div class="form-hint">Only applies when a PIN is set on this profile</div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Avatar Color</label>
-                            <div class="avatar-color-picker">
-                                <div class="color-dot" style="background-color: #00A4DC" data-color="#00A4DC" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #E50914" data-color="#E50914" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #22C55E" data-color="#22C55E" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #EAB308" data-color="#EAB308" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #A855F7" data-color="#A855F7" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #EC4899" data-color="#EC4899" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #F97316" data-color="#F97316" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #06B6D4" data-color="#06B6D4" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #3B82F6" data-color="#3B82F6" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #10B981" data-color="#10B981" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #6366F1" data-color="#6366F1" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #8B5CF6" data-color="#8B5CF6" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #D946EF" data-color="#D946EF" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #F43F5E" data-color="#F43F5E" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #14B8A6" data-color="#14B8A6" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #F59E0B" data-color="#F59E0B" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #84CC16" data-color="#84CC16" tabindex="0"></div>
-                                <div class="color-dot" style="background-color: #64748B" data-color="#64748B" tabindex="0"></div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Profile Picture</label>
-                            <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 10px;">
-                                <div style="display: flex; align-items: center; gap: 15px;">
-                                    <div id="edit-image-upload-preview" style="width: 64px; height: 64px; border-radius: 50%; background-color: ${safeColor(profile.avatarColor)}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: bold; text-transform: uppercase; overflow: hidden; border: 2px solid rgba(255,255,255,0.2);">
-                                        ${profile.profileImage ? `<img src="${safeImageSrc(profile.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(profile.avatarInitial)}
-                                    </div>
-                                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                                        <label for="edit-profile-image-file" id="edit-profile-image-label" class="profiles-btn btn-secondary" style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; font-size: 0.95rem; align-self: flex-start;" tabindex="0">
-                                            <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
-                                            <span>Choose Image</span>
-                                        </label>
-                                        <input type="file" id="edit-profile-image-file" accept="image/*" style="display: none;" />
-                                        <div style="font-size: 0.75rem; opacity: 0.6;">Maximum size: 96x96 pixels (auto-resized)</div>
-                                    </div>
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 10px; opacity: 0.5; font-size: 0.8rem; margin: 5px 0;">
-                                    <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
-                                    <span>OR</span>
-                                    <hr style="flex: 1; border: none; border-top: 1px solid rgba(255,255,255,0.2);" />
-                                </div>
-                                <div class="form-group" style="margin: 0;">
-                                    <input type="text" id="edit-profile-image-url" placeholder="Paste image URL (fallback for TV platforms)" value="${profile.profileImage && !profile.profileImage.startsWith('data:') ? escapeHtml(profile.profileImage) : ''}" />
-                                </div>
-                                ${profile.profileImage ? `
-                                    <button type="button" id="edit-clear-profile-image-btn" class="profiles-btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; align-self: flex-start;">Remove Picture</button>
-                                ` : ''}
-                            </div>
-                        </div>
-
-                        ${!profile.isMaster ? `
-                        <div class="form-group">
-                            <label>Allowed Devices (Optional)</label>
-                            <div class="devices-dropdown-container" style="position: relative;">
-                                <div id="devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0">
-                                    <span id="devices-dropdown-selected-text">All Devices Allowed</span>
-                                    <span style="font-size: 0.8rem; opacity: 0.7;">▼</span>
-                                </div>
-                                <div id="devices-dropdown-list" class="devices-dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 10000; margin-top: 4px;">
-                                    ${devices && devices.length > 0 ? devices.map(dev => {
-                                        const deviceId = dev.deviceId || dev.DeviceId || '';
-                                        const deviceName = dev.deviceName || dev.DeviceName || 'Unknown Device';
-                                        const client = dev.client || dev.Client || 'Unknown Client';
-                                        const lastSeen = dev.lastSeen || dev.LastSeen;
-                                        const lastSeenStr = lastSeen ? new Date(lastSeen).toLocaleDateString() : 'Unknown';
-                                        const isChecked = profile.allowedDeviceIds && (profile.allowedDeviceIds.includes(deviceId) || (dev.DeviceId && profile.allowedDeviceIds.includes(dev.DeviceId)));
-                                        return `
-                                            <div class="device-dropdown-item" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem;">
-                                                    <input type="checkbox" class="device-checkbox" value="${deviceId}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc;" />
-                                                    <span style="display: flex; flex-direction: column;">
-                                                        <span style="font-weight: 500;">${deviceName}</span>
-                                                        <span style="font-size: 0.75rem; opacity: 0.6;">${client} • Last seen ${lastSeenStr}</span>
-                                                    </span>
-                                                </label>
-                                                <button type="button" class="device-delete-btn" data-id="${deviceId}" style="background: transparent; border: none; color: #ff6b6b; cursor: pointer; padding: 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,107,107,0.15)'" onmouseout="this.style.background='transparent'">
-                                                    🗑️
-                                                </button>
-                                            </div>
-                                        `;
-                                    }).join('') : `
-                                        <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">No connected devices found</div>
-                                    `}
-                                </div>
-                            </div>
-                            <div class="form-hint">If no devices are selected, this profile can be accessed from any device.</div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Max Parental Rating Limit (Optional)</label>
-                            <select id="edit-rating-select">
-                                <option value="" ${maxRating === null ? 'selected' : ''}>No Restrictions</option>
-                                <option value="6" ${maxRating === 6 ? 'selected' : ''}>G / TV-G (6+)</option>
-                                <option value="10" ${maxRating === 10 ? 'selected' : ''}>PG / TV-PG (10+)</option>
-                                <option value="14" ${maxRating === 14 ? 'selected' : ''}>PG-13 / TV-14 (14+)</option>
-                                <option value="17" ${maxRating === 17 ? 'selected' : ''}>R / TV-MA (17+)</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem;">
-                                <label style="margin: 0;">Enabled Libraries</label>
-                                <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
-                                    <input type="checkbox" id="edit-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: #00a4dc;" />
-                                    <span>Select all</span>
-                                </label>
-                            </div>
-                            <div class="library-checklist">
-                        ${normalizedLibs.map(lib => {
-                                    const storedFolders = profile.enabledFolders;
-                                    let isChecked;
-                                    if (storedFolders !== null && storedFolders !== undefined) {
-                                        isChecked = storedFolders.some(id => this.normalizeGuid(id) === this.normalizeGuid(lib.id));
-                                    } else {
-                                        isChecked = enableAll || !blockedFolders.some(bf => this.normalizeGuid(bf) === this.normalizeGuid(lib.id));
-                                    }
-                                    return `
-                                        <label class="library-check-label">
-                                            <input type="checkbox" class="library-checkbox" value="${lib.id}" ${isChecked ? 'checked' : ''} />
-                                            <span>${lib.name}</span>
-                                        </label>
-                                    `;
-                                }).join('')}
-                            </div>
-                        </div>
-                        ${this.renderTagSuggestions('edit-tag-suggestions', libraryTags)}
-                        <div class="form-group">
-                            <label>Blocked Tags (Optional)</label>
-                            ${this.renderTagEditor('edit-blocked-tags', profile.blockedTags || [], 'e.g. adults', 'edit-tag-suggestions')}
-                            <div class="form-hint">Hides anything carrying these tags. Tags on a series or library apply to everything inside it.</div>
-                        </div>
-                        <div class="form-group">
-                            <label>Allowed Tags (Optional)</label>
-                            ${this.renderTagEditor('edit-allowed-tags', profile.allowedTags || [], 'e.g. kids', 'edit-tag-suggestions')}
-                            <div class="form-hint">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items — untagged content is hidden too. Leave empty unless that's what you want.</div>
-                        </div>
-                        ` : ''}
+                        ${this.renderSection('person', 'Profile', 'Name, colour, and picture', appearanceBody)}
+                        ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', securityBody)}
+                        ${isSub ? this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', librariesBody) : ''}
+                        ${isSub ? this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', restrictionsBody) : ''}
 
                         <div class="profile-dialog-actions">
                             <div class="dialog-action-buttons">
                                 <button id="edit-submit-btn" class="profiles-btn btn-primary">Save</button>
                                 <button id="edit-cancel-btn" class="profiles-btn btn-secondary">Cancel</button>
                             </div>
-                            ${!profile.isMaster ? `
+                            ${isSub ? `
                                 <button id="edit-delete-btn" class="profiles-btn btn-danger">Delete Profile</button>
                             ` : ''}
                         </div>
@@ -2436,19 +2484,24 @@
                 const editTrigger = document.getElementById('devices-dropdown-trigger');
                 const editList = document.getElementById('devices-dropdown-list');
                 if (editTrigger && editList) {
+                    // Keep aria-expanded in step with the visual state — see the create form.
+                    const setEditOpen = (open) => {
+                        editList.style.display = open ? 'block' : 'none';
+                        editTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+                    };
                     editTrigger.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        editList.style.display = editList.style.display === 'none' ? 'block' : 'none';
+                        setEditOpen(editList.style.display === 'none');
                     });
                     editTrigger.addEventListener('keydown', (e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
                             editTrigger.click();
+                        } else if (e.key === 'Escape') {
+                            setEditOpen(false);
                         }
                     });
-                    document.addEventListener('click', () => {
-                        editList.style.display = 'none';
-                    });
+                    document.addEventListener('click', () => setEditOpen(false));
                     editList.addEventListener('click', (e) => {
                         e.stopPropagation();
                     });
@@ -3489,11 +3542,14 @@
                     padding-bottom: 0.75rem;
                     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
                 }
+                /* Your own Bonfire: a warm amber flame. */
                 .profiles-home-icon {
                     font-size: 1.8rem;
-                    color: #00a4dc;
-                    text-shadow: 0 2px 10px rgba(0, 164, 220, 0.3);
+                    color: #ff9900;
+                    text-shadow: 0 2px 10px rgba(255, 153, 0, 0.35);
                 }
+                /* A linked household's Bonfire: deeper ember, so the two read as different
+                   groups without needing a second glyph. */
                 .profiles-home-icon.bonfire-icon-color {
                     color: #ff5500;
                     text-shadow: 0 2px 10px rgba(255, 85, 0, 0.3);
@@ -3898,6 +3954,177 @@
                 .library-check-label:focus input, .library-check-label:hover input {
                     box-shadow: 0 0 8px rgba(0, 164, 220, 0.6);
                 }
+                /* ── Titled sections in the create/edit forms ───────────────────── */
+                .profile-section {
+                    background: rgba(255, 255, 255, 0.025);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    border-radius: 10px;
+                    padding: 1rem 1.15rem 1.15rem;
+                    margin-bottom: 1.25rem;
+                }
+                .profile-section-header {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 0.7rem;
+                    padding-bottom: 0.75rem;
+                    margin-bottom: 1rem;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                }
+                .profile-section-icon {
+                    font-size: 1.35rem;
+                    color: #00a4dc;
+                    flex-shrink: 0;
+                    line-height: 1.3;
+                }
+                .profile-section-heading {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 2px;
+                    min-width: 0;
+                }
+                .profile-section-title {
+                    font-size: 1.05rem;
+                    font-weight: 700;
+                    color: #fff;
+                    margin: 0;
+                    line-height: 1.3;
+                }
+                .profile-section-subtitle {
+                    font-size: 0.8rem;
+                    color: rgba(255, 255, 255, 0.5);
+                    line-height: 1.35;
+                }
+                .profile-section-body {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.1rem;
+                }
+                /* Sections already space their children, so the per-field margin that the
+                   flat layout relied on would double up here. */
+                .profile-section-body .form-group {
+                    margin-bottom: 0;
+                }
+
+                /* Header row that sits inside a section, e.g. "Enabled Libraries | Select all".
+                   Wraps rather than squashing the label on narrow phones. */
+                .section-inline-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 0.5rem;
+                    flex-wrap: wrap;
+                    margin-bottom: 0.35rem;
+                }
+
+                .form-divider {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    opacity: 0.5;
+                    font-size: 0.8rem;
+                    margin: 2px 0;
+                }
+                .form-divider::before, .form-divider::after {
+                    content: "";
+                    flex: 1;
+                    border-top: 1px solid rgba(255, 255, 255, 0.2);
+                }
+                .form-hint-warn {
+                    color: rgba(245, 159, 0, 0.85) !important;
+                }
+                .form-error {
+                    color: #ff6b6b;
+                    font-size: 0.88rem;
+                    font-weight: 600;
+                    text-align: center;
+                    padding: 8px 12px;
+                    background: rgba(255, 107, 107, 0.1);
+                    border-radius: 8px;
+                    border: 1px solid rgba(255, 107, 107, 0.25);
+                }
+
+                .image-upload-row {
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
+                    flex-wrap: wrap;
+                }
+                .image-upload-preview {
+                    width: 64px; height: 64px;
+                    border-radius: 50%;
+                    color: #fff;
+                    display: flex; align-items: center; justify-content: center;
+                    font-size: 1.8rem; font-weight: bold; text-transform: uppercase;
+                    overflow: hidden;
+                    border: 2px solid rgba(255, 255, 255, 0.2);
+                    flex-shrink: 0;
+                }
+                .image-upload-btn {
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    padding: 10px 20px;
+                    font-size: 0.95rem;
+                    align-self: flex-start;
+                }
+
+                .device-dropdown-item {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 8px;
+                    padding: 8px 12px;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+                }
+                .device-delete-btn {
+                    background: transparent; border: none; color: #ff6b6b;
+                    cursor: pointer; padding: 6px; border-radius: 4px;
+                    display: flex; align-items: center; justify-content: center;
+                    font-size: 1.1rem; flex-shrink: 0;
+                    transition: background 0.2s;
+                }
+                .device-delete-btn:hover, .device-delete-btn:focus {
+                    background: rgba(255, 107, 107, 0.15);
+                    outline: none;
+                }
+
+                /* The dropdown is absolutely positioned so it overlays following fields
+                   instead of pushing the form around when it opens. */
+                .devices-dropdown-list {
+                    position: absolute;
+                    top: 100%; left: 0; right: 0;
+                    z-index: 10000;
+                    margin-top: 4px;
+                    max-height: 240px;
+                    overflow-y: auto;
+                }
+
+                /* Phones: reclaim horizontal space and stop the section chrome from
+                   eating the width the form fields need. */
+                @media (max-width: 600px) {
+                    .profile-section {
+                        padding: 0.85rem 0.8rem 0.9rem;
+                        margin-bottom: 1rem;
+                        border-radius: 8px;
+                    }
+                    .profile-section-body { gap: 0.95rem; }
+                    .profile-section-title { font-size: 1rem; }
+                    .profile-section-subtitle { font-size: 0.75rem; }
+                    .image-upload-btn { width: 100%; }
+                }
+
+                /* TV / D-pad: the focus ring must be obvious from across a room, and a
+                   focused control inside a scrolling section has to scroll itself into
+                   view rather than sitting behind a section header. */
+                .profile-section :focus-visible {
+                    outline: 2px solid #00a4dc;
+                    outline-offset: 2px;
+                    scroll-margin-top: 4rem;
+                    scroll-margin-bottom: 4rem;
+                }
+
                 .tag-editor {
                     display: flex; flex-direction: column; gap: 8px;
                 }

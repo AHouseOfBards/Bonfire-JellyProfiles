@@ -30,8 +30,13 @@ namespace Jellyfin.Profiles.Configuration
         /// simply switched off must still appear in the picker, otherwise editing a profile
         /// would silently drop it from that profile's whitelist.
         /// </para>
-        /// <para>Guid.Empty means "recorded before this field existed" — treated as unowned
-        /// and claimed by the next account that uses the device.</para>
+        /// <para>
+        /// Guid.Empty means "recorded before this field existed". Unowned records are never
+        /// listed for anyone — they are claimed first, either by a live session for the
+        /// household or by already appearing on one of its whitelists. Treating Guid.Empty as
+        /// visible would expose every device on the server to every account, since on an
+        /// existing install every record starts out unowned.
+        /// </para>
         /// </summary>
         public Guid MasterUserId { get; set; }
     }

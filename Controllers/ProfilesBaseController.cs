@@ -437,6 +437,51 @@ namespace Jellyfin.Profiles.Controllers
             }
         }
 
+        /// <summary>
+        /// Selects the devices a given master account may see in the "Allowed Devices" picker.
+        /// <para>
+        /// Two rules, and both matter:
+        /// (1) Only devices recorded as owned by this master are listed. KnownDevices is a
+        ///     single server-wide list, so anything looser leaks other households' hardware —
+        ///     in particular, unowned (Guid.Empty) records must NOT be treated as visible,
+        ///     because on an install predating device ownership every record is unowned.
+        /// (2) A device already on one of this account's whitelists is always listed even if it
+        ///     is switched off or has aged out of KnownDevices. The edit form rebuilds
+        ///     AllowedDeviceIds from the checkboxes it rendered, so an omitted device is
+        ///     silently dropped on save — and a whitelist that empties out restricts nothing.
+        /// </para>
+        /// Pure and static so the scoping rules can be tested directly.
+        /// </summary>
+        protected static List<KnownDevice> ScopeDevicesToHousehold(
+            IEnumerable<KnownDevice> knownDevices,
+            Guid masterUserId,
+            ISet<string> whitelistedDeviceIds)
+        {
+            var devices = knownDevices
+                .Where(d => d.MasterUserId == masterUserId
+                            || whitelistedDeviceIds.Contains(d.DeviceId))
+                .GroupBy(d => d.DeviceId, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.OrderByDescending(d => d.LastSeen).First())
+                .OrderByDescending(d => d.LastSeen)
+                .ToList();
+
+            // Rule (2) for a whitelisted device with no KnownDevices record left at all.
+            var present = devices.Select(d => d.DeviceId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var orphanId in whitelistedDeviceIds.Where(id => !present.Contains(id)))
+            {
+                devices.Add(new KnownDevice
+                {
+                    DeviceId = orphanId,
+                    DeviceName = "Previously allowed device",
+                    Client = "Not seen recently",
+                    LastSeen = DateTime.MinValue,
+                    MasterUserId = masterUserId
+                });
+            }
+
+            return devices;
+        }
+
         protected HashSet<Guid> GetLinkedMasterUserIds(Guid masterUserId, PluginConfiguration config)
         {
             var linked = new HashSet<Guid> { masterUserId };

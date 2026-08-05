@@ -57,6 +57,12 @@
                 </div>
             </div>
 
+            <div id="betaNoticeContainer" style="display:none; background:rgba(245,159,0,0.10); border:1px solid rgba(245,159,0,0.35); border-radius:6px; padding:12px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#ffc078;">
+                <strong>🧪 You are running a pre-release build.</strong>
+                <span style="opacity:0.9;">Features may change and bugs are more likely than in a stable release. If something looks wrong, please
+                <a href="https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues" target="_blank" rel="noopener noreferrer" style="color:#ffc078; text-decoration:underline;">open an issue on GitHub</a>.</span>
+            </div>
+
             <div id="injectionOkContainer" style="display:none; background:rgba(81,207,102,0.12); border:1px solid rgba(81,207,102,0.35); border-radius:6px; padding:12px 18px; margin-bottom:2em; font-size:0.95rem; color:#51cf66;">
                 <strong>✅ Client script is installed and up to date.</strong>
                 <span style="opacity:0.85;">The profile switcher will load for all users.</span>
@@ -184,7 +190,22 @@
                 const ver = field(result, 'pluginVersion');
                 if (ver) {
                     const badge = page.querySelector('#pluginVersionBadge');
-                    if (badge) badge.textContent = 'v' + ver;
+                    if (badge) {
+                        badge.textContent = 'v' + ver;
+                        // A pre-release label in the version string is the signal — no separate
+                        // flag to forget to flip when promoting a build to stable.
+                        const isPrerelease = /-(beta|alpha|rc)/i.test(ver);
+                        badge.style.background = isPrerelease ? 'rgba(245,159,0,0.18)' : 'rgba(255,255,255,0.08)';
+                        badge.style.borderColor = isPrerelease ? 'rgba(245,159,0,0.5)' : 'rgba(255,255,255,0.12)';
+                        badge.style.color = isPrerelease ? '#ffc078' : '';
+                        badge.title = isPrerelease
+                            ? 'Pre-release build — please report any issues on GitHub.'
+                            : '';
+                    }
+                    const betaNotice = page.querySelector('#betaNoticeContainer');
+                    if (betaNotice) {
+                        betaNotice.style.display = /-(beta|alpha|rc)/i.test(ver) ? 'block' : 'none';
+                    }
                 }
 
                 if (warningContainer) warningContainer.style.display = failed ? 'block' : 'none';
