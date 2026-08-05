@@ -33,8 +33,8 @@
             </div>
 
             <div id="staleVersionWarningContainer" style="display:none; background:rgba(245,159,0,0.12); border:1px solid rgba(245,159,0,0.35); border-radius:6px; padding:14px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#f59f00;">
-                <strong style="display:block; margin-bottom:6px; font-weight:700; color:#ffc078;">⚡ Plugin Script Update Pending — Hard Refresh Recommended</strong>
-                The profile switcher is active, but <code>index.html</code> is not fully up to date.
+                <strong style="display:block; margin-bottom:6px; font-weight:700; color:#ffc078;">⚡ Optional — Client Script Tag Not Up To Date</strong>
+                <strong>Nothing is broken.</strong> The profile switcher is running normally; this only affects how quickly browsers notice a new client script after a plugin update, and they work that out by themselves within about five minutes.
                 <div id="staleReason" style="display:none; margin-top:10px; padding:10px 12px; background:rgba(0,0,0,0.25); border-radius:4px; font-size:0.9rem;"></div>
                 <br>
                 <strong>What to do:</strong>
@@ -51,9 +51,10 @@
                         </ul>
                     </li>
                 </ul>
-                <div style="margin-top:14px;">
+                <div style="margin-top:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                     <button type="button" is="emby-button" class="raised retryInjectionBtn" style="background:#f59f00; color:#1a1a1a;">Re-check Now</button>
-                    <span class="retryInjectionStatus" style="margin-left:10px; font-size:0.9rem; opacity:0.85;"></span>
+                    <button type="button" is="emby-button" id="dismissStaleBtn" class="raised" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.75);">Dismiss until next update</button>
+                    <span class="retryInjectionStatus" style="font-size:0.9rem; opacity:0.85;"></span>
                 </div>
             </div>
 
@@ -185,9 +186,22 @@
                 // Only treat an explicit false as failure — a missing field must never
                 // produce a false-positive warning.
                 const failed = (succeeded === false);
-                const stale = (!failed && isStale === true);
+                let stale = (!failed && isStale === true);
 
                 const ver = field(result, 'pluginVersion');
+
+                // The stale-tag notice is advisory: the switcher works and browsers recover on
+                // their own. On hosts where index.html simply is not writable (a Program Files
+                // install, a read-only container layer) there is nothing the admin can do short
+                // of elevating, so an un-silenceable banner is just nagging. Dismissal is keyed
+                // to the running version, so a genuinely new release surfaces it again.
+                let dismissedFor = null;
+                try { dismissedFor = localStorage.getItem('bonfire-stale-dismissed'); } catch (e) { /* private mode */ }
+                if (stale && ver && dismissedFor === ver) {
+                    stale = false;
+                }
+
+                page.dataset.pluginVersion = ver || '';
                 if (ver) {
                     const badge = page.querySelector('#pluginVersionBadge');
                     if (badge) {
@@ -488,6 +502,21 @@
                     btn.dataset.retryBound = '1';
                     btn.addEventListener('click', function () { retryInjection(page); });
                 });
+
+                const dismissBtn = page.querySelector('#dismissStaleBtn');
+                if (dismissBtn && !dismissBtn.dataset.bound) {
+                    dismissBtn.dataset.bound = '1';
+                    dismissBtn.addEventListener('click', function () {
+                        try {
+                            localStorage.setItem('bonfire-stale-dismissed', page.dataset.pluginVersion || '');
+                        } catch (e) { /* private mode — the notice simply returns next load */ }
+                        // Hide the notice only — do not swap in the green "up to date" banner,
+                        // which would be untrue. Dismissing silences an advisory, it does not
+                        // change what is in index.html.
+                        const staleContainer = page.querySelector('#staleVersionWarningContainer');
+                        if (staleContainer) staleContainer.style.display = 'none';
+                    });
+                }
             });
         })();
     </script>

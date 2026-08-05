@@ -71,6 +71,28 @@ namespace Jellyfin.Profiles
         private static bool IsScriptVersionCurrent(string html)
             => string.Equals(GetInjectedScriptVersion(html), ScriptVersion, StringComparison.Ordinal);
 
+        /// <summary>
+        /// Non-destructively probes whether Jellyfin can actually write index.html.
+        ///
+        /// Reporting "the version tag is old" is describing a symptom; the administrator needs
+        /// to know the cause, and the cause is almost always that the file is not writable by
+        /// the Jellyfin process. Opening for write and closing immediately answers that
+        /// definitively instead of inferring it from a failed patch.
+        /// </summary>
+        internal static bool CanWriteIndexHtml(string? path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return false;
+            try
+            {
+                using var fs = File.Open(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         // Unique substring to detect whether the body tag is already present.
         private const string BodyMarker = "/plugins/profiles/profiles.js";
 
@@ -183,15 +205,24 @@ namespace Jellyfin.Profiles
                     }
                     else if (!versionCurrent)
                     {
-                        // Name both versions: without them this warning is unfalsifiable from
-                        // the dashboard, since the version badge shows the plugin's version
-                        // and says nothing about what is actually inside index.html.
-                        var found = GetInjectedScriptVersion(html) ?? "none";
-                        LastFailureReason =
-                            $"index.html requests client script v{found}, but this build is "
-                            + $"v{ScriptVersion}. Browsers may keep serving the older cached copy "
-                            + "until they revalidate (within ~5 minutes), or immediately after a "
-                            + "hard refresh.";
+                        // Lead with the CAUSE, not the symptom. Saying only "the tag is old"
+                        // gave the administrator nothing to act on — and looked like a
+                        // contradiction next to a correct version badge, which reports the
+                        // plugin's version and says nothing about index.html's contents.
+                        var found = GetInjectedScriptVersion(html);
+                        var describeFound = found == null
+                            ? "no version marker at all (it predates the cache-buster)"
+                            : $"version {found}";
+
+                        LastFailureReason = CanWriteIndexHtml(indexPath)
+                            ? $"index.html's script tag carries {describeFound}, but this build is "
+                              + $"v{ScriptVersion}. The file is writable, so clicking Re-check "
+                              + "should update it."
+                            : $"Jellyfin cannot write {indexPath}, so its script tag still carries "
+                              + $"{describeFound} instead of v{ScriptVersion}. "
+                              + "This does not break anything: the switcher is running, and browsers "
+                              + "pick up new client code by themselves within about five minutes. "
+                              + "Granting write access below only makes updates instant.";
                     }
                     else if (!hasHead)
                     {
