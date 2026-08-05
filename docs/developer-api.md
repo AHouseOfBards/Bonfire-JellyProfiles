@@ -30,6 +30,7 @@ Retrieves a list of all profiles (master and sub-profiles) accessible to the aut
     "avatarInitial": "J",
     "avatarColor": "#00A4DC",
     "requiresPin": true,
+    "hasPin": true,
     "isMaster": true,
     "lockoutMinutes": 10,
     "maxSubProfiles": 5,
@@ -48,7 +49,8 @@ Retrieves a list of all profiles (master and sub-profiles) accessible to the aut
 | `profileName` | string | Display name of the profile. |
 | `avatarInitial` | string | Single character representing the profile avatar. |
 | `avatarColor` | string | Hex color code for the fallback avatar display. |
-| `requiresPin` | boolean | Indicates if a PIN entry is required to switch to this profile. |
+| `requiresPin` | boolean | Whether a PIN must be entered to switch to this profile **right now**. This is false when `bypassPinOnLocalNetwork` is set and the caller is on the local network, even though a PIN exists. Use this to decide whether to prompt. |
+| `hasPin` | boolean | Whether a PIN is configured on this profile at all, regardless of whether one will be prompted for. Use this — never `requiresPin` — to display PIN state in a settings or edit screen. See the note below. |
 | `isMaster` | boolean | Indicates if this is the master user account. |
 | `lockoutMinutes` | integer | Inactivity timeout in minutes before auto-lock. `0` indicates disabled. |
 | `maxSubProfiles` | integer | Maximum sub-profiles allowed (present only when `isMaster` is true). |
@@ -60,6 +62,17 @@ Retrieves a list of all profiles (master and sub-profiles) accessible to the aut
 | `isBonfire` | boolean | Indicates if the profile belongs to a linked Bonfire guest home. |
 | `profileImage` | string | Base64 data-URL or image URL representing the profile picture. Null if none. |
 | `masterUserId` | string (GUID) | Jellyfin user ID of the master user account this profile belongs to. |
+
+> **`requiresPin` vs `hasPin`.** These answer different questions and are not interchangeable.
+> `requiresPin` means *"prompt for a PIN before switching"*; it is deliberately false on the LAN
+> when the bypass is enabled. `hasPin` means *"a PIN is stored"*.
+>
+> A client that uses `requiresPin` to render PIN state in an edit screen will show a correctly
+> saved PIN as "not set" for every user on their own network — which looks exactly like the save
+> having failed. Prompt on `requiresPin`; display on `hasPin`.
+>
+> PINs are stored as salted PBKDF2-SHA256 hashes and are never returned by any endpoint, so a
+> client can show *that* a PIN exists but never the PIN itself.
 
 ### `POST /plugins/profiles/switch`
 Authenticates a profile selection and returns a scoped session token. Rate limited to 5 failed attempts in 15 minutes.
@@ -259,6 +272,28 @@ Retrieves media library folders visible to the master user.
 
 ---
 
+## Client Script
+
+### `GET /plugins/profiles/profiles.js`
+Serves the web client script. Unauthenticated — it is loaded by a `<script>` tag in Jellyfin's `index.html`.
+
+Native clients do not need this endpoint; it exists for the browser client. It is documented because its caching behaviour interacts with the injection status reported by the admin endpoints.
+
+* **Response:**
+  * `200 OK`: `application/javascript`
+  * `304 Not Modified`: when the request's `If-None-Match` matches the current `ETag`.
+
+| Header | Value |
+|---|---|
+| `ETag` | The running plugin version, quoted. |
+| `Cache-Control` | `public, max-age=300, must-revalidate` |
+
+The script tag written into `index.html` normally carries a `?v={version}` cache-buster. On servers where the plugin cannot rewrite `index.html` — a read-only web root, or a Windows install under `Program Files` — that query string stays pinned to an older version, so a long immutable cache would serve stale client code indefinitely.
+
+Tagging the response with the plugin version and requiring revalidation means a stale URL still picks up new code within `max-age`, while unchanged content costs only a `304`. This is why `isVersionStale` is advisory rather than an error.
+
+---
+
 ## Images API
 
 ### `GET /plugins/profiles/image/{profileId}`
@@ -267,16 +302,19 @@ Serves the custom profile picture file for the specified profile.
 * **Parameters:**
   * `profileId`: string (GUID) in path.
 * **Response:**
-  * `200 OK`: Binary image file (JPEG or PNG).
-  * `302 Found`: Redirect to the external image URL if not stored locally.
-  * `404 Not Found`: Profile or image not found.
+  * `200 OK`: Binary image file (JPEG, PNG, or GIF).
+  * `404 Not Found`: Profile or image not found, or the profile's picture is an externally hosted URL.
+
+This endpoint is intentionally unauthenticated: the URL is consumed directly as an image source and browsers do not send the `Authorization` header on image requests. This matches how Jellyfin serves its own user images, and the content is a low-sensitivity avatar.
+
+It serves **locally stored images only**. When a profile's picture is an external `http(s)` URL, that URL is returned in the `profileImage` field of `GET /plugins/profiles/list` and clients should load it directly — this endpoint returns `404` rather than redirecting to it. (It previously issued a `302`, which made an anonymous endpoint into an open redirect.)
 
 ---
 
 ## Devices API
 
 ### `GET /plugins/profiles/devices`
-Retrieves all logged devices that have interacted with the plugin (server-wide).
+Retrieves the devices belonging to the caller's household, for populating an allowed-devices picker.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
 * **Response `200 OK`:**
@@ -286,7 +324,8 @@ Retrieves all logged devices that have interacted with the plugin (server-wide).
     "deviceId": "57bfa7e8d35f492b950bf93c9d747a11",
     "deviceName": "Chrome",
     "client": "Jellyfin Web",
-    "lastSeen": "2026-06-12T09:41:46.806Z"
+    "lastSeen": "2026-06-12T09:41:46.806Z",
+    "masterUserId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a"
   }
 ]
 ```
@@ -296,7 +335,22 @@ Retrieves all logged devices that have interacted with the plugin (server-wide).
 | `deviceId` | string | Recorded device identifier. |
 | `deviceName` | string | Display name of the device. |
 | `client` | string | Client application name. |
-| `lastSeen` | string (ISO-8601) | Timestamp of the last interaction. |
+| `lastSeen` | string (ISO-8601) | Timestamp of the last interaction. `0001-01-01T00:00:00Z` for a placeholder entry (see below) — treat that as "unknown", not as a real date. |
+| `masterUserId` | string (GUID) | Master account this device is recorded against. |
+
+**Scoping.** Results are limited to devices recorded against the caller's master account. Devices are attributed on first use, so a device that has never contacted this household does not appear. A sub-profile calling this endpoint sees its master's devices.
+
+> **Writing an editor: do not drop devices you were not shown.**
+>
+> The response always includes every device already present in one of this account's
+> `allowedDeviceIds` lists, **even if that device is switched off, has not been seen in months,
+> or is no longer in the device log at all**. Entries synthesised for that last case carry
+> `deviceName: "Previously allowed device"` and a zero `lastSeen`.
+>
+> This exists because an edit form that rebuilds `allowedDeviceIds` purely from the checkboxes it
+> rendered will silently delete any whitelisted device missing from this list — and a whitelist
+> that empties out stops restricting anything at all, quietly turning the restriction off. Either
+> render every returned entry, or preserve unknown IDs when submitting.
 
 ### `POST /plugins/profiles/devices/delete`
 Deletes a device from the known devices log.
@@ -478,20 +532,33 @@ Retrieves all user profile mappings configured on the server.
       "profileUserId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
       "profileName": "Kids",
       "masterName": "john",
+      "masterUserId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a",
       "requiresPin": false
     }
   ],
   "injectionSucceeded": true,
-  "indexPath": "/usr/share/jellyfin/web/index.html"
+  "isVersionStale": false,
+  "indexPath": "/usr/share/jellyfin/web/index.html",
+  "failureReason": null,
+  "serviceAccount": "NT AUTHORITY\\NETWORK SERVICE",
+  "isWindows": true,
+  "pluginVersion": "1.3.0"
 }
 ```
 
 | Field | Type | Description |
 |---|---|---|
-| `masterUsers` | array | List of master accounts. Each entry has `profileUserId`, `profileName`, `requiresPin`, `maxProfiles`, and `limitOverride`. |
-| `subProfiles` | array | List of sub-profiles. Each entry has `profileUserId`, `profileName`, `masterName`, and `requiresPin`. |
-| `injectionSucceeded` | boolean | Indicates if the client-side script auto-injection into `index.html` succeeded. |
-| `indexPath` | string | The resolved absolute file path to Jellyfin's `index.html` on the host system. |
+| `masterUsers` | array | Master accounts. Each entry has `profileUserId`, `profileName`, `requiresPin`, `maxProfiles`, and `limitOverride`. |
+| `subProfiles` | array | Sub-profiles. Each entry has `profileUserId`, `profileName`, `masterName`, `masterUserId`, and `requiresPin`. Group by `masterUserId`, not `masterName` — names change on rename and are not guaranteed unique. |
+| `injectionSucceeded` | boolean | False only when the client script is absent from `index.html`, meaning the switcher will not load. |
+| `isVersionStale` | boolean | True when the script is present but `index.html` is not fully current. The switcher works; this is advisory. |
+| `indexPath` | string | Resolved absolute path to Jellyfin's `index.html` on the host. |
+| `failureReason` | string \| null | Human-readable description of the specific problem, or null when everything is correct. |
+| `serviceAccount` | string \| null | OS account the Jellyfin process is running under (e.g. `NT AUTHORITY\NETWORK SERVICE`, `DESKTOP-PC\alice`, `jellyfin`). Null if it could not be determined. Use it to generate an exact permission command instead of guessing between service and desktop installs. |
+| `isWindows` | boolean | Whether the server is running on Windows, for choosing between `icacls` and `chown`/`chmod` guidance. |
+| `pluginVersion` | string | Running plugin version. Carries a pre-release suffix (e.g. `1.3.1-beta`) on pre-release builds; a stable build has no suffix. |
+
+This endpoint re-reads `index.html` on every call, so the injection fields always reflect the file as it is now rather than as it was at server startup.
 
 * **Error Responses:**
   * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
@@ -530,18 +597,17 @@ Re-runs the client-script injection into Jellyfin's `index.html` and returns the
   "isVersionStale": false,
   "indexPath": "/usr/share/jellyfin/web/index.html",
   "failureReason": null,
-  "pluginVersion": "1.2.6.0"
+  "serviceAccount": "NT AUTHORITY\\NETWORK SERVICE",
+  "isWindows": true,
+  "pluginVersion": "1.3.0"
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `injectionSucceeded` | boolean | False only when the client script is absent from `index.html` — the switcher will not load. |
-| `isVersionStale` | boolean | True when the script is present but `index.html` is not fully current (old cache-buster, or the `<head>` anti-flicker script is missing). The switcher works. |
-| `failureReason` | string \| null | Human-readable description of the specific problem, or null when everything is correct. |
-| `pluginVersion` | string | Running plugin version. |
+Returns the same injection-status fields as `GET /plugins/profiles/admin/mappings` (see that endpoint for the full table), reflecting the state *after* the retry.
 
-`GET /plugins/profiles/admin/mappings` returns these same four fields and re-evaluates `index.html` on every call, so simply reloading the settings page reflects the current state.
+Both `injectionSucceeded: true` and `isVersionStale: false` means the script is installed and current. `isVersionStale: true` on its own is advisory — the switcher is running, and clients pick up new script versions on their own within `max-age` (see `GET /plugins/profiles/profiles.js`), so write access to `index.html` only makes updates immediate rather than being required.
+
+`failureReason` names the actual cause, including whether Jellyfin can write `index.html` at all, which is tested directly rather than inferred. Combine it with `serviceAccount` to present an exact permission command.
 
 * **Error Responses:**
   * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
