@@ -31,18 +31,45 @@ namespace Jellyfin.Profiles
         // The exact script tag to inject before </body>.
         // The URL /plugins/profiles/profiles.js is the path
         // Jellyfin uses to serve embedded resources from plugin assemblies.
-        private static string BodyScriptTag
+        /// <summary>
+        /// Cache-buster written into the script URL.
+        ///
+        /// Deliberately the assembly version and nothing else. This used to prefer
+        /// Plugin.Instance?.Version with the assembly version as a fallback, which made the
+        /// value depend on WHEN it was read: this hosted service can run before the Plugin
+        /// constructor has assigned Plugin.Instance, so the tag could be written using one
+        /// source and later compared against the other. If those two render differently
+        /// (e.g. "1.2.8" vs "1.2.8.0") the comparison never matches again and the dashboard
+        /// shows "script update pending" forever, no matter how many times the file is
+        /// rewritten or what permissions are granted.
+        /// </summary>
+        internal static string ScriptVersion =>
+            typeof(ProfilesBootstrapTask).Assembly.GetName().Version?.ToString() ?? "0";
+
+        // The exact script tag to inject before </body>.
+        // The URL /plugins/profiles/profiles.js is the path
+        // Jellyfin uses to serve embedded resources from plugin assemblies.
+        private static string BodyScriptTag =>
+            $"<script src=\"/plugins/profiles/profiles.js?v={ScriptVersion}\" defer></script>";
+
+        // Pulls the ?v= value out of whatever plugin script tag is currently in index.html.
+        // Comparing the extracted version beats comparing the whole tag string: a hand-edited
+        // file with different attribute order, quoting or spacing is still recognised as
+        // current instead of being reported as stale forever.
+        private static readonly Regex InjectedVersionRegex = new(
+            @"/plugins/profiles/profiles\.js\?v=([^""'&\s>]+)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>Version recorded in index.html's script tag, or null if absent/unparseable.</summary>
+        private static string? GetInjectedScriptVersion(string html)
         {
-            get
-            {
-                // The version is only a cache-buster. Fall back to the assembly's own version
-                // rather than a hardcoded literal, which silently went stale every release.
-                var version = Plugin.Instance?.Version?.ToString()
-                              ?? typeof(ProfilesBootstrapTask).Assembly.GetName().Version?.ToString()
-                              ?? "0";
-                return $"<script src=\"/plugins/profiles/profiles.js?v={version}\" defer></script>";
-            }
+            var m = InjectedVersionRegex.Match(html);
+            return m.Success ? m.Groups[1].Value : null;
         }
+
+        /// <summary>True when index.html's script tag already points at this build.</summary>
+        private static bool IsScriptVersionCurrent(string html)
+            => string.Equals(GetInjectedScriptVersion(html), ScriptVersion, StringComparison.Ordinal);
 
         // Unique substring to detect whether the body tag is already present.
         private const string BodyMarker = "/plugins/profiles/profiles.js";
@@ -144,7 +171,7 @@ namespace Jellyfin.Profiles
                     var html = File.ReadAllText(indexPath);
                     var hasBody = html.Contains(BodyMarker, StringComparison.Ordinal);
                     var hasHead = html.Contains(HeadMarker, StringComparison.Ordinal);
-                    var versionCurrent = html.Contains(BodyScriptTag, StringComparison.Ordinal);
+                    var versionCurrent = IsScriptVersionCurrent(html);
 
                     InjectionSucceeded = hasBody;
                     IsVersionStale = hasBody && (!versionCurrent || !hasHead);
@@ -156,9 +183,15 @@ namespace Jellyfin.Profiles
                     }
                     else if (!versionCurrent)
                     {
+                        // Name both versions: without them this warning is unfalsifiable from
+                        // the dashboard, since the version badge shows the plugin's version
+                        // and says nothing about what is actually inside index.html.
+                        var found = GetInjectedScriptVersion(html) ?? "none";
                         LastFailureReason =
-                            "index.html still references an older version of the client script, "
-                            + "so browsers may keep serving a cached copy.";
+                            $"index.html requests client script v{found}, but this build is "
+                            + $"v{ScriptVersion}. Browsers may keep serving the older cached copy "
+                            + "until they revalidate (within ~5 minutes), or immediately after a "
+                            + "hard refresh.";
                     }
                     else if (!hasHead)
                     {
@@ -301,7 +334,7 @@ namespace Jellyfin.Profiles
                 // some version is present. After a plugin update the old ?v=1.1.x tag
                 // stays in index.html and the browser keeps serving the cached old JS,
                 // so new features (like tag filtering) silently never appear.
-                bool bodyVersionCurrent = html.Contains(BodyScriptTag, StringComparison.Ordinal);
+                bool bodyVersionCurrent = IsScriptVersionCurrent(html);
 
                 if (hasBody && bodyVersionCurrent && hasHead)
                 {
@@ -356,7 +389,7 @@ namespace Jellyfin.Profiles
                 var bodyRegex = new Regex(@"<script[^>]*src=[""'][^""']*/plugins/profiles/profiles\.js[^""']*[""'][^>]*>\s*(</script>)?", RegexOptions.IgnoreCase);
                 if (bodyRegex.IsMatch(html))
                 {
-                    if (!html.Contains(BodyScriptTag, StringComparison.Ordinal))
+                    if (!IsScriptVersionCurrent(html))
                     {
                         // MatchEvaluator — see the note on the head script above.
                         var tag = BodyScriptTag;
@@ -439,9 +472,10 @@ namespace Jellyfin.Profiles
                 {
                     IsVersionStale = true;
                     LastFailureReason =
-                        $"The script tag in {indexPath} is out of date and could not be updated "
-                        + "(permission denied). The switcher still works — a browser hard-refresh "
-                        + "picks up the newest client script.";
+                        $"Jellyfin cannot write {indexPath}, so its script tag still requests an "
+                        + $"older client script than this build (v{ScriptVersion}). The switcher "
+                        + "still works and browsers pick up new code on their next revalidation "
+                        + "(within ~5 minutes) — granting write access just makes it immediate.";
                     _logger.LogDebug(ex,
                         "ProfilesPlugin: Could not update script version in {Path} (permission denied). " +
                         "The existing injection is still functional; users may need a browser hard-refresh " +
