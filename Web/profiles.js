@@ -51,7 +51,10 @@
             activeSessionKey: 'jellyfin_profiles_active_token',
             // Key set before window.location.reload() so the early-hide
             // inline head script can suppress the page flash on the next load.
-            switchingKey: 'jpf-sw'
+            switchingKey: 'jpf-sw',
+            // Local mirror of the account's gate/native preference, so checkRoute can decide
+            // whether to raise the gate without waiting on a request.
+            switcherModeKey: 'jellyfin_profiles_switcher_mode'
         },
         pluginId: 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9',
         isManageMode: false,
@@ -62,6 +65,8 @@
         inactivityEventHandlers: null,
         _pageRevealed: false,
         _switchLock: false,
+        _switcherMode: null,
+        _switcherModeLoading: false,
 
         getAuthHeaders: function (token) {
             const apiClient = ApiClient;
@@ -490,6 +495,10 @@
             this._pendingReveal = false;
             this.bindEvents();
             this.injectStyles();
+            // Kicked off before the first route check so the gate decision is usually made
+            // with the real answer in hand rather than the cached one.
+            this.loadSwitcherMode();
+            this.startUserMenuWatcher();
             this.validateSessionState();
             // If the user refreshes while a profile is active, restart the inactivity timer
             setTimeout(() => this.initLockoutTimer(), 800);
@@ -528,6 +537,8 @@
                 try {
                     localStorage.removeItem(this.config.masterStorageKey);
                     localStorage.removeItem(this.config.activeSessionKey);
+                    localStorage.removeItem(this.config.switcherModeKey);
+                    this._switcherMode = null;
                     sessionStorage.removeItem(this.config.activeSessionKey);
                     sessionStorage.removeItem('jellyfin_profiles_active_info');
                 } catch (e) { /* ignore storage errors */ }
@@ -574,7 +585,23 @@
             let skipReveal = false;
 
             if (isHome) {
-                if (!this.isProfileSessionActive() && !document.getElementById('profiles-gate-overlay')) {
+                // getSwitcherMode() returns null until the account's preference is known.
+                // Waiting is the safe direction: loadSwitcherMode() re-runs this check the
+                // moment it resolves, so at worst the gate arrives a beat late — whereas
+                // guessing 'gate' would flash a full-screen overlay at somebody who turned
+                // it off, on every single page load.
+                const mode = this.getSwitcherMode();
+
+                // Still unknown — usually because init() ran before the user had signed in,
+                // so there was no token to ask with. Retrying here is what gets the gate
+                // working on the first home screen after a fresh login. loadSwitcherMode
+                // guards itself, and settles on 'gate' if the request fails, so this cannot
+                // spin on the 500 ms route poll.
+                if (mode === null) this.loadSwitcherMode();
+
+                if (mode === 'gate'
+                    && !this.isProfileSessionActive()
+                    && !document.getElementById('profiles-gate-overlay')) {
                     skipReveal = true;
                     this.interceptHomeAndShowProfiles();
                 }
@@ -641,6 +668,13 @@
                                                           : 'other';
             this._lastRouteType = viewType;
             this.evaluateFloatingBubbleVisibility(viewType);
+
+            // Native mode's entry points. The profile page is re-checked on every route
+            // change because React discards and rebuilds the view.
+            if (this.isNativeMode()) {
+                const isUserProfilePage = hash.includes('userprofile') || path.includes('userprofile');
+                if (isUserProfilePage) this.injectProfilePageSection();
+            }
 
             // Reveal the page now that the gate decision has been made.
             // Skip when skipReveal is set — the overlay isn't in the DOM yet and
@@ -764,6 +798,87 @@
 
         isProfileSessionActive: function () {
             return !!sessionStorage.getItem(this.config.activeSessionKey);
+        },
+
+        // ── Switcher mode ──────────────────────────────────────────────────────────
+        // 'gate'   — the forced "Who's Watching?" screen on the home page (the default).
+        // 'native' — no forced screen; the switcher is reached from Jellyfin's own user
+        //            menu and profile page instead.
+        //
+        // The mode lives on the account, but checkRoute has to decide whether to raise the
+        // gate long before a network round trip could answer. So it is mirrored into
+        // localStorage and read from there synchronously, with the server refreshing the
+        // copy in the background on every load.
+
+        /// The cached mode, or null when we have not learned it for this account yet.
+        /// Null means "do not raise the gate yet" — a wrong guess in that direction costs a
+        /// moment of home screen, whereas guessing 'gate' wrongly throws a full-screen
+        /// overlay at somebody who deliberately turned it off.
+        getSwitcherMode: function () {
+            if (this._switcherMode) return this._switcherMode;
+
+            try {
+                const cached = JSON.parse(localStorage.getItem(this.config.switcherModeKey) || 'null');
+                if (!cached || !cached.mode) return null;
+
+                // The cache belongs to one account. On a shared browser the next person to
+                // sign in must not inherit it, so it only counts when it matches either the
+                // signed-in user or the master profile behind the active sub-profile.
+                const cachedMaster = this.normalizeGuid(cached.masterUserId);
+                const currentUserId = (typeof ApiClient !== 'undefined' && ApiClient)
+                    ? this.normalizeGuid(ApiClient.getCurrentUserId()) : '';
+                const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
+                const knownMaster = masterState ? this.normalizeGuid(masterState.masterUserId) : '';
+
+                if (cachedMaster && (cachedMaster === currentUserId || cachedMaster === knownMaster)) {
+                    this._switcherMode = cached.mode;
+                    return cached.mode;
+                }
+            } catch (e) { /* unreadable cache — fall through and refetch */ }
+
+            return null;
+        },
+
+        isNativeMode: function () {
+            return this.getSwitcherMode() === 'native';
+        },
+
+        _cacheSwitcherMode: function (mode, masterUserId) {
+            this._switcherMode = mode;
+            try {
+                localStorage.setItem(this.config.switcherModeKey, JSON.stringify({ mode: mode, masterUserId: masterUserId }));
+            } catch (e) { /* storage full or blocked — the in-memory copy still works */ }
+        },
+
+        /// Refreshes the cached mode from the server. Called once per page load; re-runs the
+        /// route check afterwards so a first-ever load on a new device settles into the right
+        /// behaviour without the user having to navigate.
+        loadSwitcherMode: function () {
+            if (this._switcherModeLoading) return;
+            if (typeof ApiClient === 'undefined' || !ApiClient || !ApiClient.accessToken()) return;
+
+            this._switcherModeLoading = true;
+            fetch(ApiClient.getUrl('plugins/profiles/preferences'), {
+                cache: 'no-store',
+                headers: this.getAuthHeaders(ApiClient.accessToken())
+            })
+            .then(res => res.ok ? res.json() : Promise.reject(new Error('preferences unavailable')))
+            .then(prefs => {
+                const mode = (prefs.switcherMode || prefs.SwitcherMode) === 'native' ? 'native' : 'gate';
+                const master = prefs.masterUserId || prefs.MasterUserId;
+                const changed = this._switcherMode !== mode;
+                this._cacheSwitcherMode(mode, master);
+                this._switcherModeLoading = false;
+                // Only re-check when the answer actually moved; checkRoute runs on a timer
+                // anyway and this avoids a redundant pass on every load.
+                if (changed) this.checkRoute();
+            })
+            .catch(() => {
+                this._switcherModeLoading = false;
+                // Server unreachable or an older plugin build: fall back to the historical
+                // behaviour rather than leaving the gate permanently suppressed.
+                if (!this._switcherMode) this._switcherMode = 'gate';
+            });
         },
 
         getCachedActiveProfile: function () {
@@ -1272,6 +1387,16 @@
                                     <span>Bonfire Grouping</span>
                                 </div>
                             </div>
+                            <div class="profile-card action-switcher-mode" tabindex="0">
+                                <div class="profile-avatar-container">
+                                    <div class="profile-avatar" style="background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); display: flex; align-items: center; justify-content: center;">
+                                        <span class="material-icons" style="font-size: 3.5rem; color: #fff;">switch_account</span>
+                                    </div>
+                                </div>
+                                <div class="profile-name">
+                                    <span>Switcher Style</span>
+                                </div>
+                            </div>
                         `;
                     }
 
@@ -1384,6 +1509,15 @@
                 bonfireCard.addEventListener('click', () => {
                     if (this._switchLock) return;
                     this.showBonfireModal();
+                });
+            }
+
+            // "Switcher Style" action
+            const switcherModeCard = overlay.querySelector('.action-switcher-mode');
+            if (switcherModeCard) {
+                switcherModeCard.addEventListener('click', () => {
+                    if (this._switchLock) return;
+                    this.showSwitcherModeModal();
                 });
             }
 
@@ -2816,6 +2950,112 @@
             }, 250);
         },
 
+        /// Lets the account holder choose between the forced gate and native-menu access.
+        /// A per-account preference rather than a server setting — some households want the
+        /// Netflix-style "Who's Watching?" screen, others find it intrusive, and neither
+        /// answer should be imposed on the other by whoever runs the server.
+        showSwitcherModeModal: function () {
+            const apiClient = ApiClient;
+            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
+            if (!masterState) return;
+
+            const content = document.querySelector('.profiles-modal-content');
+            if (!content) return;
+
+            const current = this.getSwitcherMode() || 'gate';
+
+            const option = (mode, icon, title, body) => `
+                <div class="switcher-mode-option" data-mode="${mode}" tabindex="0" style="
+                    display: flex; gap: 14px; text-align: left; padding: 16px;
+                    border-radius: 12px; cursor: pointer; box-sizing: border-box;
+                    border: 2px solid ${current === mode ? '#00a4dc' : 'rgba(255,255,255,0.08)'};
+                    background: ${current === mode ? 'rgba(0,164,220,0.08)' : 'rgba(255,255,255,0.02)'};
+                ">
+                    <span class="material-icons" style="font-size: 2rem; color: ${current === mode ? '#00a4dc' : 'rgba(255,255,255,0.5)'}; flex-shrink: 0;">${icon}</span>
+                    <div style="flex: 1 1 auto; min-width: 0;">
+                        <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+                            ${title}
+                            ${current === mode ? '<span style="font-size: 0.7rem; font-weight: 600; color: #00a4dc; border: 1px solid #00a4dc; border-radius: 999px; padding: 1px 8px;">CURRENT</span>' : ''}
+                        </div>
+                        <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
+                    </div>
+                </div>
+            `;
+
+            content.innerHTML = `
+                <h1 class="profiles-title">Switcher Style</h1>
+                <div class="create-profile-container" style="max-width: 560px; width: 100%;">
+                    <p style="opacity: 0.75; font-size: 0.9rem; line-height: 1.5; margin: 0 0 1.25rem 0; text-align: left;">
+                        How you get to this screen. This is your household's choice and only affects your own account.
+                    </p>
+                    <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+                        ${option('gate', 'groups', 'Profile gate',
+                            'Ask who is watching every time the home screen opens, the way it works today. Best for a shared TV where the wrong profile is easy to end up in.')}
+                        ${option('native', 'switch_account', 'Jellyfin menu',
+                            'Go straight to the home screen. Switch profiles from Jellyfin\'s own user menu or your profile page instead. Best when one person uses the account most of the time.')}
+                    </div>
+                    <div id="switcher-mode-error" style="display: none; color: #ff6b6b; font-size: 0.85rem; font-weight: 600; margin-top: 12px;"></div>
+                    <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
+                        <button id="switcher-mode-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">Back</button>
+                    </div>
+                </div>
+            `;
+
+            const goBack = () => this.fetchAndRenderProfiles(
+                apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
+
+            const backBtn = content.querySelector('#switcher-mode-back-btn');
+            if (backBtn) backBtn.addEventListener('click', goBack);
+
+            const errDiv = content.querySelector('#switcher-mode-error');
+
+            content.querySelectorAll('.switcher-mode-option').forEach(el => {
+                const choose = () => {
+                    const mode = el.getAttribute('data-mode');
+                    if (mode === current) { goBack(); return; }
+
+                    errDiv.style.display = 'none';
+                    fetch(apiClient.getUrl('plugins/profiles/preferences'), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...this.getAuthHeaders(masterState.masterToken)
+                        },
+                        body: JSON.stringify({ switcherMode: mode })
+                    })
+                    .then(res => res.ok ? res.json() : Promise.reject(new Error('Could not save that.')))
+                    .then(saved => {
+                        const applied = (saved.switcherMode || saved.SwitcherMode) === 'native' ? 'native' : 'gate';
+                        this._cacheSwitcherMode(applied, masterState.masterUserId);
+
+                        if (applied === 'native') {
+                            // Nothing else would take the overlay down: in native mode there
+                            // is no gate to fall back to, so dismissing it here is what puts
+                            // the user on the home screen they just asked for.
+                            this.removeProfileOverlay();
+                            this.checkRoute();
+                        } else {
+                            goBack();
+                        }
+                    })
+                    .catch(err => {
+                        errDiv.textContent = err.message || 'Could not save that.';
+                        errDiv.style.display = 'block';
+                    });
+                };
+
+                el.addEventListener('click', choose);
+                el.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); }
+                });
+            });
+
+            setTimeout(() => {
+                const first = content.querySelector('.switcher-mode-option');
+                if (first) first.focus();
+            }, 250);
+        },
+
         executeProfileDeletion: function (profileId) {
             const apiClient = ApiClient;
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
@@ -2940,6 +3180,30 @@
 
             const hideMine = status.hideMySubProfilesFromOthers || status.HideMySubProfilesFromOthers || false;
             const hideOthers = status.hideOthersSubProfilesFromMe || status.HideOthersSubProfilesFromMe || false;
+            const lanBypass = status.allowHouseholdLanBypass || status.AllowHouseholdLanBypass || false;
+            const isAdmin = status.isAdministrator || status.IsAdministrator || false;
+            const hasPinSet = status.hasPin || status.HasPin || false;
+
+            // Only worth showing once there is somebody to share with — on a standalone
+            // account the setting has nothing to act on and just reads as a scary toggle.
+            const lanBypassSectionHtml = (isOwner || isMember) ? `
+                <div class="bonfire-form-group" style="gap: 4px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+                    <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
+                        <input type="checkbox" id="bonfire-lan-bypass-checkbox" ${lanBypass ? 'checked' : ''} style="cursor: pointer !important; accent-color: #ff9900 !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
+                        <span>Let my Bonfire switch into my account on this network</span>
+                    </label>
+                    <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">
+                        People in your Bonfire can enter your account without typing your PIN, but only from your home network — handy for sharing a TV. Away from home your PIN is still required${hasPinSet ? '' : ', and until you set one your account cannot be opened remotely at all'}.
+                    </div>
+                    ${isAdmin ? `
+                    <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid #ff9900; border-radius: 4px; font-size: 0.75rem; line-height: 1.5; color: rgba(255,255,255,0.8);">
+                        <strong style="color: #ff9900;">This is an administrator account.</strong> Anyone who enters it gets your admin rights — server settings, libraries and every user account. Only turn this on if you would hand them the password.
+                    </div>` : ''}
+                    <div style="margin-left: 1.6rem; margin-top: 8px; font-size: 0.72rem; line-height: 1.5; opacity: 0.45;">
+                        "This network" is whatever your server counts as local. If it sits behind a reverse proxy that is not listed under Networking → Known Proxies, every visitor looks local — check that before enabling. Each switch is written to the profile activity log.
+                    </div>
+                </div>
+            ` : '';
 
             const settingsSectionHtml = `
                 <div class="bonfire-form-group" style="margin-top: 5px; display: flex; flex-direction: column; gap: 16px;">
@@ -2958,6 +3222,8 @@
                         </label>
                         <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">If enabled, you will only see the master profiles of connected guest homes.</div>
                     </div>
+
+                    ${lanBypassSectionHtml}
                 </div>
             `;
 
@@ -3125,6 +3391,7 @@
             // when the user toggles both checkboxes in quick succession.
             const hideMineCb = container.querySelector('#bonfire-hide-mine-checkbox');
             const hideOthersCb = container.querySelector('#bonfire-hide-others-checkbox');
+            const lanBypassCb = container.querySelector('#bonfire-lan-bypass-checkbox');
             let _settingsDebounceTimer = null;
             const saveSettings = () => {
                 clearTimeout(_settingsDebounceTimer);
@@ -3132,16 +3399,22 @@
                     const hideMineVal = hideMineCb ? hideMineCb.checked : false;
                     const hideOthersVal = hideOthersCb ? hideOthersCb.checked : false;
 
+                    const body = {
+                        hideMySubProfilesFromOthers: hideMineVal,
+                        hideOthersSubProfilesFromMe: hideOthersVal
+                    };
+                    // Omitted rather than sent as false when the toggle is not on screen, so a
+                    // standalone account saving the hide flags cannot clear a setting it never
+                    // rendered. The server treats a missing value as "leave alone".
+                    if (lanBypassCb) body.allowHouseholdLanBypass = lanBypassCb.checked;
+
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/settings'), {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             ...this.getAuthHeaders(masterToken)
                         },
-                        body: JSON.stringify({
-                            hideMySubProfilesFromOthers: hideMineVal,
-                            hideOthersSubProfilesFromMe: hideOthersVal
-                        })
+                        body: JSON.stringify(body)
                     })
                     .then(res => {
                         if (!res.ok) console.error('Failed to save Bonfire settings.');
@@ -3152,6 +3425,30 @@
 
             if (hideMineCb) hideMineCb.addEventListener('change', saveSettings);
             if (hideOthersCb) hideOthersCb.addEventListener('change', saveSettings);
+
+            if (lanBypassCb) {
+                lanBypassCb.addEventListener('change', () => {
+                    // Turning it off is always safe and saves straight away. Turning it on
+                    // widens who can reach the account, so it is confirmed first — the checkbox
+                    // reverts if the user backs out, otherwise it would look enabled while the
+                    // server still had it off.
+                    if (!lanBypassCb.checked) {
+                        saveSettings();
+                        return;
+                    }
+
+                    const adminLine = isAdmin
+                        ? '<br><br><strong style="color:#ff9900;">This account is an administrator.</strong> Whoever switches into it can change server settings and manage every user.'
+                        : '';
+
+                    this.showConfirmDialog(
+                        'Allow household switching?',
+                        'Anyone in your Bonfire will be able to open your account from your home network without your PIN. Away from home, the PIN is still required.' + adminLine,
+                        () => saveSettings(),
+                        () => { lanBypassCb.checked = false; }
+                    );
+                });
+            }
 
             this.initTVCheckboxes(container);
 
@@ -3217,6 +3514,158 @@
             container.appendChild(link);
         },
 
+        // ── Native-mode entry points ───────────────────────────────────────────────
+        // Native mode drops the forced gate, so the switcher has to be reachable from
+        // Jellyfin's own interface instead. Two places, deliberately:
+        //
+        //   1. The user menu, which is what issue #8 actually asks for.
+        //   2. The profile page, as the fallback — the menu is built dynamically by React
+        //      and every selector below is a guess about markup we do not control. When a
+        //      theme defeats the menu injection, the profile page still works.
+        //
+        // Both are additive: nothing is removed from Jellyfin's own UI, so a failed match
+        // costs a missing entry rather than a broken menu.
+
+        /// Watches for Jellyfin's user action sheet opening and adds a "Switch Profile" row.
+        /// Started once; the observer is cheap and the sheet is created fresh each time it
+        /// opens, so there is nothing to hook up front.
+        startUserMenuWatcher: function () {
+            if (this._userMenuObserver) return;
+            if (!document.body) return;
+
+            this._userMenuObserver = new MutationObserver((records) => {
+                if (!this.isNativeMode()) return;
+                for (const record of records) {
+                    for (const node of record.addedNodes) {
+                        if (node.nodeType !== 1) continue;
+                        // The sheet itself, or a wrapper that contains it.
+                        const sheets = node.matches && node.matches('.actionSheet')
+                            ? [node]
+                            : (node.querySelectorAll ? node.querySelectorAll('.actionSheet') : []);
+                        for (const sheet of sheets) this.injectUserMenuEntry(sheet);
+                    }
+                }
+            });
+
+            this._userMenuObserver.observe(document.body, { childList: true, subtree: true });
+        },
+
+        /// Adds the switcher row to an action sheet, if that sheet is the user menu.
+        injectUserMenuEntry: function (sheet) {
+            if (!sheet || sheet.querySelector('#profiles-user-menu-item')) return;
+
+            const items = Array.from(sheet.querySelectorAll('.listItem, .actionSheetMenuItem, button, a'));
+            if (!items.length) return;
+
+            // Identify the user menu by its sign-out row. Every other action sheet in
+            // Jellyfin — sort, play menus, context menus — lacks one, so this is a far more
+            // stable signal than matching the sheet's own class names.
+            const signOut = items.find(el => {
+                const id = (el.getAttribute('data-id') || '').toLowerCase();
+                if (id === 'logout' || id === 'signout') return true;
+                const text = (el.textContent || '').trim().toLowerCase();
+                return text === 'sign out' || text === 'log out' || text === 'logout';
+            });
+            if (!signOut) return;
+
+            // Clone a real row so the entry inherits whatever theme is in play instead of
+            // carrying hardcoded styling that will not match. Listeners are not cloned.
+            const entry = signOut.cloneNode(true);
+            entry.id = 'profiles-user-menu-item';
+            entry.removeAttribute('data-id');
+
+            const icon = entry.querySelector('.material-icons, [class*="listItemIcon"]');
+            if (icon && icon.classList.contains('material-icons')) {
+                // Material icon glyphs come from the element's text content.
+                icon.textContent = 'switch_account';
+                icon.className = icon.className.replace(/\b(logout|exit_to_app)\b/g, 'switch_account');
+            }
+
+            const label = entry.querySelector('.listItemBodyText, .actionSheetItemText');
+            if (label) {
+                label.textContent = 'Switch Profile';
+            } else {
+                entry.textContent = 'Switch Profile';
+            }
+
+            entry.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.closeActionSheet(sheet);
+                // Let the sheet finish tearing down before the overlay mounts, so its
+                // closing animation does not run on top of the switcher.
+                setTimeout(() => this.handleBubbleClick(), 60);
+            });
+
+            signOut.parentNode.insertBefore(entry, signOut);
+        },
+
+        /// Dismisses an action sheet we did not open. Jellyfin closes its own rows from
+        /// their handlers, and our cloned row has none, so the sheet has to be closed here.
+        closeActionSheet: function (sheet) {
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+
+            // Escape is handled by the dialog helper, which may not be listening on every
+            // Jellyfin build. Tear the sheet down directly if it is still standing.
+            setTimeout(() => {
+                if (!document.contains(sheet)) return;
+                const backdrop = document.querySelector('.dialogBackdrop, .dialogBackdropOpened');
+                if (backdrop) backdrop.click();
+                if (document.contains(sheet)) {
+                    const container = sheet.closest('.dialogContainer') || sheet;
+                    container.remove();
+                    if (backdrop && document.contains(backdrop)) backdrop.remove();
+                }
+            }, 120);
+        },
+
+        /// Adds a Profiles section to Jellyfin's own profile page (#/userprofile).
+        /// Re-checked on every route change because React replaces the view wholesale.
+        injectProfilePageSection: function () {
+            if (document.getElementById('profiles-userprofile-section')) return;
+
+            // The visible page, not a cached off-screen view: Jellyfin keeps previous views
+            // in the DOM, and appending to a hidden one puts the section nowhere.
+            const page = Array.from(document.querySelectorAll('#userProfilePage, .userProfilePage, .page'))
+                .find(el => el.offsetParent !== null || el.classList.contains('is-active'));
+            if (!page) return;
+
+            const host = page.querySelector('.readOnlyContent, .padded-left, form') || page;
+
+            const activeInfo = this.getCachedActiveProfile();
+            const section = document.createElement('div');
+            section.id = 'profiles-userprofile-section';
+            section.className = 'verticalSection';
+            section.style.cssText = 'margin: 2em 0; max-width: 44em;';
+            section.innerHTML = `
+                <h2 class="sectionTitle" style="display:flex; align-items:center; gap:0.4em;">
+                    <span class="material-icons" style="color:#ff9900;">local_fire_department</span>
+                    Bonfire Profiles
+                </h2>
+                <p style="opacity:0.7; margin:0 0 1em 0; line-height:1.5;">
+                    Currently watching as <strong>${escapeHtml(activeInfo.name || 'this account')}</strong>.
+                    Switch to another profile in your household without signing out.
+                </p>
+                <button is="emby-button" type="button" id="profiles-userprofile-switch-btn" class="raised button-submit block">
+                    <span>Switch Profile</span>
+                </button>
+            `;
+
+            host.appendChild(section);
+
+            const btn = section.querySelector('#profiles-userprofile-switch-btn');
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.handleBubbleClick();
+            });
+            btn.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    btn.click();
+                }
+            });
+        },
+
         // ── Bubble visibility helpers ──────────────────────────────────────────
         _bubbleHide: function (bubble) {
             if (!bubble || bubble.dataset.profilesHiding === '1') return;
@@ -3242,6 +3691,15 @@
 
         evaluateFloatingBubbleVisibility: function (viewType) {
             let bubble = document.getElementById('profiles-floating-bubble');
+
+            // In native mode the switcher is reached from Jellyfin's own user menu and
+            // profile page. Keeping the floating button as well would be two controls doing
+            // one job — and the button is exactly what people who choose native mode are
+            // asking to be rid of.
+            if (this.isNativeMode()) {
+                if (bubble) bubble.remove();
+                return;
+            }
 
             // Hide during active playback/OSD or on any server-management page.
             if (viewType === 'videoosd' || viewType === 'dashboard') {
@@ -3521,6 +3979,30 @@
         },
 
 
+        /// Opens the profile selector over whatever page the user is on.
+        ///
+        /// Every entry point routes through here — the header bubble, the sidebar link, the
+        /// user-menu item and the profile page — so they cannot drift apart. There is no
+        /// page reload: the overlay is drawn on top of the current view, which is what
+        /// removed the white flash the old reload-based button caused.
+        handleBubbleClick: function () {
+            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
+
+            if (masterState && masterState.masterToken) {
+                // Put the master's credentials back in memory before listing profiles — the
+                // active sub-profile's token cannot see its siblings.
+                sessionStorage.removeItem(this.config.activeSessionKey);
+                sessionStorage.removeItem('jellyfin_profiles_active_info');
+                this.updateStoredCredentials(masterState.masterToken, masterState.masterUserId);
+                ApiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
+            }
+
+            // With no stored master state we are still signed in as the master — that is the
+            // normal case in native mode, where the user never passes through the gate.
+            // interceptHomeAndShowProfiles() records the state and takes it from there.
+            this.interceptHomeAndShowProfiles();
+        },
+
         attachBubbleClickHandler: function (bubble) {
             const activate = (e) => {
                 e.preventDefault();
@@ -3530,35 +4012,15 @@
                 bubble.style.opacity = '0.45';
                 bubble.style.cursor = 'wait';
 
-                const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
-                if (masterState && masterState.masterToken) {
-                    // Switch back to master credentials in memory.
-                    // No page reload — we show the profile selector directly on top of
-                    // the current page.  This eliminates the entire reload-based white
-                    // flash that clicking this button previously caused.
-                    sessionStorage.removeItem(this.config.activeSessionKey);
-                    sessionStorage.removeItem('jellyfin_profiles_active_info');
-                    this.updateStoredCredentials(masterState.masterToken, masterState.masterUserId);
-                    ApiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
+                this.handleBubbleClick();
 
-                    // Show the overlay.  If _prefetchProfiles() already ran in the
-                    // background the cached data is used and the overlay is instant.
-                    this.interceptHomeAndShowProfiles();
-
-                    // Re-enable the button after the overlay has appeared so it is
-                    // ready if the user dismisses and re-opens the overlay.
-                    setTimeout(() => {
-                        bubble.disabled = false;
-                        bubble.style.opacity = '';
-                        bubble.style.cursor = '';
-                    }, 400);
-                } else {
-                    // No master state found — restore button so the user can try again
+                // Re-enable after the overlay has appeared so the button is ready again if
+                // the user dismisses it.
+                setTimeout(() => {
                     bubble.disabled = false;
                     bubble.style.opacity = '';
                     bubble.style.cursor = '';
-                    console.warn('ProfilesPlugin: Master state missing from localStorage — cannot switch profiles.');
-                }
+                }, 400);
             };
 
             bubble.addEventListener('click', activate);

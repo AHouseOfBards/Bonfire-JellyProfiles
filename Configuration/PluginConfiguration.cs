@@ -51,6 +51,24 @@ namespace Jellyfin.Profiles.Configuration
         public List<Guid> MemberUserIds { get; set; } = new List<Guid>();
     }
 
+    /// <summary>
+    /// Valid values for <see cref="ProfileMapping.SwitcherMode"/>. Kept as constants rather
+    /// than an enum so the stored configuration stays readable and an unrecognised value
+    /// degrades to the default instead of failing to deserialise.
+    /// </summary>
+    public static class SwitcherModes
+    {
+        /// <summary>Forced "Who's Watching?" screen on the home page. The original behaviour.</summary>
+        public const string Gate = "gate";
+
+        /// <summary>No forced screen; the switcher lives in Jellyfin's user menu and profile page.</summary>
+        public const string Native = "native";
+
+        /// <summary>Maps arbitrary input to a known mode, falling back to <see cref="Gate"/>.</summary>
+        public static string Normalize(string? mode) =>
+            string.Equals(mode, Native, System.StringComparison.OrdinalIgnoreCase) ? Native : Gate;
+    }
+
     public class ProfileMapping
     {
         public Guid ProfileUserId { get; set; }
@@ -84,10 +102,38 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public List<string>? AllowedTags { get; set; }
         public bool BypassPinOnLocalNetwork { get; set; } = false;
+        /// <summary>
+        /// Set on a master account by its own owner: allows other members of a shared Bonfire
+        /// to switch into this account from the local network without entering its PIN, and —
+        /// if no PIN is set at all — to enter it from the local network at all.
+        /// <para>
+        /// Default false, so upgrading never widens access on an existing install. Consent has
+        /// to come from the account being entered: <see cref="BypassPinOnLocalNetwork"/> is the
+        /// owner's convenience for their own household and deliberately does not carry across a
+        /// Bonfire link.
+        /// </para>
+        /// <para>
+        /// "Local" is decided by Jellyfin's own network settings and is relative to the
+        /// <em>server</em>. Behind a reverse proxy missing from Known Proxies, every request
+        /// looks local — the UI warns about this.
+        /// </para>
+        /// </summary>
+        public bool AllowHouseholdLanBypass { get; set; } = false;
         public List<string> AllowedDeviceIds { get; set; } = new List<string>();
         public string? ProfileImage { get; set; }
         public bool HideMySubProfilesFromOthers { get; set; } = false;
         public bool HideOthersSubProfilesFromMe { get; set; } = false;
+        /// <summary>
+        /// How this account reaches the profile switcher. <c>"gate"</c> (the default) shows the
+        /// forced "Who's Watching?" screen on the home page; <c>"native"</c> drops the gate and
+        /// puts the switcher in Jellyfin's own user menu and profile page instead.
+        /// <para>
+        /// Deliberately a per-account preference rather than a server setting: it is a matter
+        /// of taste, and one household's answer should not be imposed on everyone on the server.
+        /// Only ever read from the master account's mapping — sub-profiles inherit it.
+        /// </para>
+        /// </summary>
+        public string SwitcherMode { get; set; } = SwitcherModes.Gate;
     }
 
     public class UserProfileLimitOverride

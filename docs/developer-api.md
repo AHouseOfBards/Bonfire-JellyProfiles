@@ -92,10 +92,18 @@ Authenticates a profile selection and returns a scoped session token. Rate limit
 | `pin` | string | Conditional | Required if `requiresPin` is true for the target profile. |
 
 > **Cross-account switches (Bonfire).** Switching into *another master account* linked via a Bonfire group returns a fully privileged session for that account, so two extra rules apply:
-> * If the target master account has no PIN set, the switch is refused with `400` — an unprotected account is not reachable through a shared Bonfire at all.
-> * `bypassPinOnLocalNetwork` is ignored for these switches. The PIN is always required, even on the LAN. `requiresPin` in `/list` reflects this, so clients that trust that flag need no special handling.
+> * If the target master account has no PIN set, the switch is refused with `400` — an unprotected account is not reachable through a shared Bonfire.
+> * `bypassPinOnLocalNetwork` is ignored for these switches. It is the caller's own convenience setting and does not carry across a link, so the PIN is required even on the LAN.
 >
-> Neither rule affects switching to your own account or its sub-profiles.
+> Both rules are lifted for a target account whose **owner** has set `allowHouseholdLanBypass`
+> (see `POST /bonfire/settings`) *and* whose request Jellyfin classifies as local. Consent comes
+> from the account being entered, never from the caller. Remote requests are unaffected in every
+> case, and each bypass is written to the audit log.
+>
+> None of this affects switching to your own account or its sub-profiles.
+>
+> `requiresPin` in `/list` mirrors all of the above, so clients that trust that flag need no
+> special handling.
 
 * **Response `200 OK`:**
 ```json
@@ -392,7 +400,10 @@ Retrieves the bonfire group status and visibility settings for the caller.
   "joinedOwnerName": null,
   "joinedOwnerId": null,
   "hideMySubProfilesFromOthers": false,
-  "hideOthersSubProfilesFromMe": false
+  "hideOthersSubProfilesFromMe": false,
+  "allowHouseholdLanBypass": false,
+  "isAdministrator": true,
+  "hasPin": true
 }
 ```
 
@@ -406,6 +417,9 @@ Retrieves the bonfire group status and visibility settings for the caller.
 | `joinedOwnerId` | string (GUID) | User ID of the owner of the joined group. Null if none. |
 | `hideMySubProfilesFromOthers` | boolean | If true, local sub-profiles are hidden from Bonfire group members. |
 | `hideOthersSubProfilesFromMe` | boolean | If true, remote sub-profiles are hidden locally. |
+| `allowHouseholdLanBypass` | boolean | If true, Bonfire members may switch into this account from the local network without its PIN. See `POST /bonfire/settings`. |
+| `isAdministrator` | boolean | Whether the caller's account has Jellyfin administrator rights. Provided so a client can warn about what `allowHouseholdLanBypass` gives away; it is not an authorisation signal. |
+| `hasPin` | boolean | Whether the caller's master account has a PIN configured. |
 
 ### `POST /plugins/profiles/bonfire/settings`
 Updates the visibility preferences for sharing profiles in Bonfire crossover homes.
@@ -415,7 +429,8 @@ Updates the visibility preferences for sharing profiles in Bonfire crossover hom
 ```json
 {
   "hideMySubProfilesFromOthers": false,
-  "hideOthersSubProfilesFromMe": false
+  "hideOthersSubProfilesFromMe": false,
+  "allowHouseholdLanBypass": false
 }
 ```
 
@@ -423,8 +438,28 @@ Updates the visibility preferences for sharing profiles in Bonfire crossover hom
 |---|---|---|---|
 | `hideMySubProfilesFromOthers` | boolean | Yes | Hide local sub-profiles from Bonfire group members. |
 | `hideOthersSubProfilesFromMe` | boolean | Yes | Hide remote sub-profiles locally. |
+| `allowHouseholdLanBypass` | boolean | No | Let Bonfire members switch into **this** account from the local network without entering its PIN. Omit the field to leave the current value alone — sending `false` turns it off. |
 
 * **Response:** `200 OK` on success.
+
+> **`allowHouseholdLanBypass` is a grant, not a convenience setting.** It is the only Bonfire
+> setting that widens access rather than narrowing visibility, and it is deliberately written by
+> the account's own owner: `bypassPinOnLocalNetwork` belongs to the caller and never reaches
+> across a link.
+>
+> When set, both cross-account rules described under `POST /switch` are lifted for this account —
+> including the refusal to enter an account with no PIN at all. Requests Jellyfin does not
+> classify as local are unaffected, so remote access still needs the PIN.
+>
+> Two things a client should surface before writing `true`:
+> * If the account is an administrator (`isAdministrator` in `/bonfire/status`), anyone who
+>   switches into it gets server and user management.
+> * "Local" is decided by Jellyfin's network settings and is relative to the *server*. If the
+>   server sits behind a reverse proxy that is not in **Networking → Known Proxies**, every
+>   request arrives with the proxy's address and is classified as local.
+>
+> The field is nullable so a client that predates it — or a cached older script — cannot clear
+> the setting by posting the two hide flags alone.
 
 ### `POST /plugins/profiles/bonfire/generate`
 Generates a new 6-character alphanumeric bonfire join code.
@@ -506,6 +541,71 @@ Dissolves the owned bonfire group. All member associations are removed.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
 * **Response:** `200 OK` on success.
+
+---
+
+## Preferences API
+
+Settings the account holder chooses for themselves. These are not server policy: an
+administrator cannot set them on someone else's behalf, and each household's answer applies
+only to its own accounts.
+
+### `GET /plugins/profiles/preferences`
+Returns the calling account's switcher preferences.
+
+* **Headers:** `Authorization: MediaBrowser Token="<token>"`
+* **Response `200 OK`:**
+
+```json
+{
+  "switcherMode": "gate",
+  "masterUserId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `switcherMode` | string | `"gate"` or `"native"`. See below. |
+| `masterUserId` | string (GUID) | The master account these preferences belong to. |
+
+A sub-profile token may call this and receives its **master's** preferences, so the switcher
+behaves the same way throughout a household rather than changing as profiles are switched.
+Unrecognised stored values normalise to `"gate"`, so a client never has to handle a third value.
+
+| `switcherMode` | Behaviour |
+|---|---|
+| `gate` | The default. A full-screen "Who's Watching?" gate is raised over the home screen until a profile is chosen, and a switcher button is injected into the client header. |
+| `native` | No gate and no injected button. The switcher is opened from a "Switch Profile" entry added to Jellyfin's own user menu, and from a Bonfire section added to the user profile page. |
+
+`masterUserId` is returned so a client can cache the mode against the account it belongs to.
+The bundled `profiles.js` mirrors it into `localStorage`, because the decision of whether to
+raise the gate has to be made on page load, long before a request could answer it — a cache
+keyed by account is what stops the next person to sign in on a shared browser from inheriting
+the previous one's choice.
+
+### `POST /plugins/profiles/preferences`
+Updates the calling account's switcher preferences.
+
+* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
+* **Request Body:**
+
+```json
+{
+  "switcherMode": "native"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `switcherMode` | string | No | `"gate"` or `"native"`. Anything else normalises to `"gate"`. Omit to leave unchanged. |
+
+* **Response `200 OK`:** the stored value after normalisation, in the same shape as the `GET`
+  response's `switcherMode` field. Clients should cache what comes back rather than what they
+  sent.
+* **Error Responses:**
+  * `401 Unauthorized`: Caller is not authenticated, or is a sub-profile. Unlike the `GET`, only
+    the master account may write — a sub-profile changing this would silently rewrite the whole
+    household's experience.
 
 ---
 
