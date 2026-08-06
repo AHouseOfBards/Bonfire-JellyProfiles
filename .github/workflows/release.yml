@@ -37,11 +37,12 @@ jobs:
           echo "md5=$(md5sum dist/Jellyfin.Profiles.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
           echo "Checksum: $(md5sum dist/Jellyfin.Profiles.zip | awk '{print $1}')"
 
-      - name: Extract version from csproj and cross-check the tag
+      - name: Extract version from csproj, cross-check the tag, pick the channel
         id: version
         run: |
           set -euo pipefail
           VERSION=$(grep '<Version>' Jellyfin.Profiles.csproj | sed 's/.*<Version>\(.*\)<\/Version>/\1/' | tr -d '[:space:]')
+          INFO=$(grep '<InformationalVersion>' Jellyfin.Profiles.csproj | sed 's/.*<InformationalVersion>\(.*\)<\/InformationalVersion>/\1/' | tr -d '[:space:]')
           FULL="${VERSION}.0"
           TAG="${GITHUB_REF_NAME#v}"
 
@@ -54,31 +55,62 @@ jobs:
             exit 1
           fi
 
-          echo "version=${FULL}" >> $GITHUB_OUTPUT
-          echo "Detected version: ${FULL} (tag v${TAG})"
+          # InformationalVersion is the only place a pre-release label can live, because
+          # Jellyfin requires a purely numeric assembly version. It decides which manifest
+          # a build lands in: the stable manifest on main is a curated list of milestones
+          # that everybody's Jellyfin polls, so a beta pushed there would be offered to
+          # every install as an upgrade.
+          case "$INFO" in
+            *-beta*|*-alpha*|*-rc*)
+              CHANNEL="beta"; BRANCH="beta"; PRERELEASE="true"; LATEST="false" ;;
+            *)
+              CHANNEL="stable"; BRANCH="main"; PRERELEASE="false"; LATEST="true" ;;
+          esac
 
-      - name: Update manifest.json with correct checksum
+          echo "version=${FULL}" >> $GITHUB_OUTPUT
+          echo "channel=${CHANNEL}" >> $GITHUB_OUTPUT
+          echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
+          echo "prerelease=${PRERELEASE}" >> $GITHUB_OUTPUT
+          echo "make_latest=${LATEST}" >> $GITHUB_OUTPUT
+          echo "Detected version: ${FULL} (tag v${TAG}, informational ${INFO})"
+          echo "Channel: ${CHANNEL} — manifest lives on the '${BRANCH}' branch"
+
+      - name: Update the channel manifest with the correct checksum
         run: |
           set -euo pipefail
           V="${{ steps.version.outputs.version }}"
           C="${{ steps.checksum.outputs.md5 }}"
+          BRANCH="${{ steps.version.outputs.branch }}"
+
+          if [ -z "$C" ]; then
+            echo "::error::Checksum step produced an empty value."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Work against the channel branch's manifest rather than the tag's. The tag was
+          # cut from main, so on a beta release the manifest checked out here is the wrong
+          # file entirely. dist/ is untracked and survives the switch.
+          # Explicit refspec: actions/checkout configures remote.origin.fetch for the ref it
+          # checked out, which on a tag push does not include branch heads. Without this the
+          # remote-tracking ref below would not exist.
+          git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
+          git checkout -B ci-manifest "origin/${BRANCH}"
 
           # Fail loudly when the entry is missing. jq's map() silently matches nothing and
           # exits 0, which is how releases shipped with an all-zeros placeholder checksum
           # and could not be installed.
           COUNT=$(jq --arg v "$V" '[.[0].versions[] | select(.version == $v)] | length' manifest.json)
           if [ "$COUNT" -eq 0 ]; then
-            echo "::error::manifest.json has no versions[] entry for ${V}."
-            echo "::error::Add the entry (changelog, targetAbi, sourceUrl, timestamp) before tagging."
+            echo "::error::manifest.json on '${BRANCH}' has no versions[] entry for ${V}."
+            echo "::error::Add the entry (changelog, targetAbi, sourceUrl, timestamp) to that branch before tagging."
             echo "::error::Existing versions: $(jq -r '[.[0].versions[].version] | join(", ")' manifest.json)"
             exit 1
           fi
           if [ "$COUNT" -gt 1 ]; then
-            echo "::error::manifest.json has ${COUNT} entries for ${V}. Remove the duplicates."
-            exit 1
-          fi
-          if [ -z "$C" ]; then
-            echo "::error::Checksum step produced an empty value."
+            echo "::error::manifest.json on '${BRANCH}' has ${COUNT} entries for ${V}. Remove the duplicates."
             exit 1
           fi
 
@@ -98,22 +130,27 @@ jobs:
             *) echo "::error::Checksum is all zeros — refusing to publish an uninstallable release."; exit 1 ;;
           esac
 
-          echo "Manifest entry for ${V}:"
+          echo "Manifest entry for ${V} on '${BRANCH}':"
           jq --arg v "$V" '.[0].versions[] | select(.version == $v)' manifest.json
 
-      - name: Commit and push updated manifest
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- manifest.json; then
+            echo "Checksum already correct on ${BRANCH}; nothing to push."
+            exit 0
+          fi
+
           git add manifest.json
-          git diff --staged --quiet && echo "No changes to commit" && exit 0
           git commit -m "ci: update manifest checksum for ${{ github.ref_name }} [skip ci]"
-          # Fetch latest main and rebase our manifest commit on top of it.
-          # This handles the case where main has advanced since the tag was created
-          # (e.g. a rebase was needed after pushing the tag due to a concurrent CI commit).
-          git fetch origin main
-          git rebase origin/main
-          git push origin HEAD:main
+
+          # The branch may have advanced since the tag was cut. Rebase and retry rather
+          # than failing the release over a race with another push.
+          for i in 1 2 3; do
+            if git push origin HEAD:"$BRANCH"; then exit 0; fi
+            echo "Push rejected (attempt $i) — refreshing ${BRANCH} and retrying."
+            git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
+            git rebase "origin/${BRANCH}"
+          done
+          echo "::error::Could not push the manifest update to ${BRANCH}."
+          exit 1
 
       - name: Get release notes from manifest changelog
         id: notes
@@ -129,7 +166,10 @@ jobs:
         with:
           files: dist/Jellyfin.Profiles.zip
           body: ${{ steps.notes.outputs.notes }}
-          make_latest: true
+          # A pre-release must not become the repo's "Latest" — that badge is what people
+          # land on from the releases page, and the stable manifest does not offer it.
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          make_latest: ${{ steps.version.outputs.make_latest }}
 
       # End-to-end check against what users actually install: re-download the published
       # asset from the release URL in the manifest and confirm its MD5 matches the
@@ -138,10 +178,12 @@ jobs:
         run: |
           set -euo pipefail
           V="${{ steps.version.outputs.version }}"
+          BRANCH="${{ steps.version.outputs.branch }}"
 
-          # Read from the pushed manifest on main using cache-busting headers & query string.
+          # Read from the pushed manifest on the channel branch, using cache-busting
+          # headers and a query string.
           for i in 1 2 3 4 5 6 7 8 9 10; do
-            MANIFEST_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/manifest.json?cb=$(date +%s)"
+            MANIFEST_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${BRANCH}/manifest.json?cb=$(date +%s)"
             if curl -fsSL -H "Cache-Control: no-cache, no-store" -H "Pragma: no-cache" "$MANIFEST_URL" -o published-manifest.json; then
               EXPECTED=$(jq -r --arg v "$V" '.[0].versions[] | select(.version == $v) | .checksum' published-manifest.json || echo "")
               if [ -n "$EXPECTED" ] && [ "$EXPECTED" != "null" ] && [ "$EXPECTED" != "00000000000000000000000000000000" ]; then

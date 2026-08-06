@@ -213,6 +213,77 @@ namespace Jellyfin.Profiles.Controllers
             return true;
         }
 
+        // ── Cross-account (Bonfire) switch rules ────────────────────────────────────
+        // Pulled out as pure functions so the full matrix — opted in or out, local or
+        // remote, PIN set or not — can be exercised directly. /switch and /verify-pin must
+        // agree exactly: if they drift, the client is told a switch will work and then the
+        // server refuses it.
+
+        /// <summary>
+        /// Decides whether a switch into <paramref name="targetMapping"/>'s account from a
+        /// linked Bonfire may skip its PIN, and whether the switch must be refused outright.
+        /// </summary>
+        /// <param name="targetMapping">The mapping of the account being entered, or null if it has none.</param>
+        /// <param name="isLocal">Whether Jellyfin classified the request's source address as local.</param>
+        /// <returns>
+        /// HouseholdLanBypass — the owner opted in and the client really is local, so no PIN
+        /// is asked for. BlockedUnprotected — the account has no PIN and no opt-in, so it is
+        /// not reachable through a shared Bonfire at all.
+        /// </returns>
+        protected internal static (bool HouseholdLanBypass, bool BlockedUnprotected) EvaluateCrossAccountSwitch(
+            ProfileMapping? targetMapping, bool isLocal)
+        {
+            // Consent has to come from the account being entered. Remote requests never
+            // qualify, so a leaked Bonfire code is worth nothing outside the house.
+            bool householdLanBypass = isLocal && (targetMapping?.AllowHouseholdLanBypass ?? false);
+
+            // An account with no PIN has nothing to prove ownership with; the opt-in is the
+            // only thing that can stand in for one, and only on the local network.
+            bool blocked = string.IsNullOrEmpty(targetMapping?.PinHash) && !householdLanBypass;
+
+            return (householdLanBypass, blocked);
+        }
+
+        /// <summary>
+        /// Whether a PIN prompt can be skipped for this switch.
+        /// <para>
+        /// Within your own household that is <see cref="ProfileMapping.BypassPinOnLocalNetwork"/>,
+        /// your own convenience setting. Across a Bonfire link it is only ever
+        /// <paramref name="householdLanBypass"/> — your setting does not reach into
+        /// somebody else's account.
+        /// </para>
+        /// </summary>
+        protected internal static bool CanSkipPin(
+            ProfileMapping? mapping, bool isLocal, bool isCrossAccountMasterSwitch, bool householdLanBypass)
+        {
+            return isCrossAccountMasterSwitch
+                ? householdLanBypass
+                : mapping != null && mapping.BypassPinOnLocalNetwork && isLocal;
+        }
+
+        /// <summary>
+        /// True when the given user account carries administrator rights. Used where a warning
+        /// or a log line needs to reflect how much a session for that account is worth, rather
+        /// than to authorise the caller — for that, check the caller's own policy directly.
+        /// </summary>
+        protected bool IsUserAdministrator(Guid userId)
+        {
+            var user = _userManager.GetUserById(userId);
+            if (user == null) return false;
+
+            try
+            {
+                return _userManager.GetUserDto(user, string.Empty).Policy?.IsAdministrator ?? false;
+            }
+            catch (Exception ex)
+            {
+                // Never let a policy lookup failure read as "not an administrator" without a
+                // trace: the callers use this to decide how loudly to warn.
+                _logger.LogWarning(ex, "ProfilesPlugin: Could not read policy for user {Id}.", userId);
+                return false;
+            }
+        }
+
         // ── Cross-version compatibility helpers ─────────────────────────────────────
         // IUserManager.Users was renamed to GetUsers() in Jellyfin 10.11.7.
         // We compile against 10.11.5 (see Jellyfin.Profiles.csproj — the target was lowered

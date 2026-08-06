@@ -83,13 +83,19 @@ namespace Jellyfin.Profiles.Controllers
                 var linkedMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == linkedId);
                 bool masterRequiresPin = linkedMapping != null && !string.IsNullOrEmpty(linkedMapping.PinHash);
 
-                // Mirror the switch endpoint: the LAN bypass applies to your own account only,
-                // never to another account reached through a Bonfire link. Reporting otherwise
-                // here would send the client into a PIN-less switch the server then rejects.
-                if (isLocal && linkedId == masterUserId
-                    && linkedMapping != null && linkedMapping.BypassPinOnLocalNetwork)
+                // Mirror the switch endpoint exactly — reporting a PIN-less switch the server
+                // then rejects strands the user on a screen with nothing to do.
+                //
+                //  - Your own account: BypassPinOnLocalNetwork, your own convenience setting.
+                //  - A linked account: only AllowHouseholdLanBypass, which belongs to that
+                //    account's owner. Your own bypass setting never reaches across a link.
+                if (isLocal && linkedMapping != null)
                 {
-                    masterRequiresPin = false;
+                    bool lanUnlocked = linkedId == masterUserId
+                        ? linkedMapping.BypassPinOnLocalNetwork
+                        : linkedMapping.AllowHouseholdLanBypass;
+
+                    if (lanUnlocked) masterRequiresPin = false;
                 }
 
                 profileList.Add(new
@@ -573,9 +579,18 @@ namespace Jellyfin.Profiles.Controllers
 
             var linkedMasterIds = GetLinkedMasterUserIds(callerMasterUserId, config);
 
+            var remoteIp = HttpContext.Connection.RemoteIpAddress;
+            bool isLocal = remoteIp != null && _networkManager.IsInLocalNetwork(remoteIp);
+            var ip = remoteIp?.ToString() ?? "127.0.0.1";
+
             // True when the target is someone else's master account reached through a Bonfire
             // link, rather than the caller's own account or one of its sub-profiles.
             bool isCrossAccountMasterSwitch = false;
+
+            // Set when the target account's owner has opted into household LAN switching and
+            // the request genuinely came from the local network. Relaxes both of the
+            // cross-account restrictions below, for that one account.
+            bool householdLanBypass = false;
 
             // Validate switch permissions: must belong to the same master user group or a linked Bonfire group.
             if (request.ProfileId == callerMasterUserId)
@@ -588,20 +603,42 @@ namespace Jellyfin.Profiles.Controllers
 
                 // Switching to a *different* master account via a Bonfire link hands the
                 // caller a real session token for that account — including its admin rights
-                // if it has any. The owner's PIN is the only thing standing between a shared
-                // Bonfire code and full account access, so an unprotected master account is
-                // not reachable this way at all.
+                // if it has any. The owner's PIN is normally the only thing standing between a
+                // shared Bonfire code and full account access.
+                //
+                // The exception is consent from the account being entered: its owner can turn
+                // on AllowHouseholdLanBypass, which is what two adults sharing one TV actually
+                // want (issue #13). It is deliberately theirs to grant and nobody else's — the
+                // caller's own BypassPinOnLocalNetwork still does not carry across a link — and
+                // it only applies on the local network, so a leaked code is worth nothing to
+                // someone outside the house.
                 var linkedMasterMapping = config.Mappings
                     .FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
 
-                if (string.IsNullOrEmpty(linkedMasterMapping?.PinHash))
+                bool blockedUnprotected;
+                (householdLanBypass, blockedUnprotected) =
+                    EvaluateCrossAccountSwitch(linkedMasterMapping, isLocal);
+
+                if (blockedUnprotected)
                 {
                     _logger.LogWarning(
                         "ProfilesPlugin: Blocked Bonfire switch from {Caller} into unprotected master account {Target}.",
                         callerMasterUserId, request.ProfileId);
                     return BadRequest(
                         "This account has no PIN set, so it cannot be opened from a shared Bonfire. " +
-                        "Its owner must set a profile PIN before it can be switched into.");
+                        "Its owner must either set a profile PIN, or turn on \"Allow household " +
+                        "switching on this network\" in their Bonfire settings.");
+                }
+
+                if (householdLanBypass)
+                {
+                    // Recorded at Information alongside the audit entry: this is the path where
+                    // one account is entered without proving anything but network location, so
+                    // it needs to be visible in the log when an owner reviews access.
+                    _logger.LogInformation(
+                        "ProfilesPlugin: Household LAN bypass — {Caller} entered linked account {Target} " +
+                        "from {Ip} without a PIN (the target's owner enabled this).",
+                        callerMasterUserId, request.ProfileId, ip);
                 }
             }
             else
@@ -622,22 +659,13 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
-            var remoteIp = HttpContext.Connection.RemoteIpAddress;
-            bool isLocal = remoteIp != null && _networkManager.IsInLocalNetwork(remoteIp);
-            var ip = remoteIp?.ToString() ?? "127.0.0.1";
             var rateLimitKey = $"{ip}_{request.ProfileId}";
 
             // Verify PIN if set
             var pinHashToCheck = mapping?.PinHash;
             if (!string.IsNullOrEmpty(pinHashToCheck))
             {
-                // The LAN bypass is a convenience for your own household. It deliberately does
-                // NOT apply when stepping into another account through a Bonfire — sharing a
-                // network is not consent to skip that account's PIN.
-                bool bypass = mapping != null
-                              && mapping.BypassPinOnLocalNetwork
-                              && isLocal
-                              && !isCrossAccountMasterSwitch;
+                bool bypass = CanSkipPin(mapping, isLocal, isCrossAccountMasterSwitch, householdLanBypass);
 
                 if (bypass)
                 {
@@ -645,10 +673,14 @@ namespace Jellyfin.Profiles.Controllers
                     // genuinely local clients. Behind a reverse proxy that is NOT listed in
                     // Jellyfin's Known Proxies, every request arrives with the proxy's address
                     // and would therefore look local — this line is how that shows up.
-                    _logger.LogInformation(
-                        "ProfilesPlugin: PIN skipped for profile {Profile} — client {Ip} was classified " +
-                        "as local by Jellyfin's network settings.",
-                        request.ProfileId, ip);
+                    // The cross-account case has already logged its own, more specific line.
+                    if (!isCrossAccountMasterSwitch)
+                    {
+                        _logger.LogInformation(
+                            "ProfilesPlugin: PIN skipped for profile {Profile} — client {Ip} was classified " +
+                            "as local by Jellyfin's network settings.",
+                            request.ProfileId, ip);
+                    }
                 }
                 else
                 {
@@ -867,7 +899,11 @@ namespace Jellyfin.Profiles.Controllers
                 var pinHash = masterMapping?.PinHash;
                 if (!string.IsNullOrEmpty(pinHash))
                 {
-                    bool bypass = masterMapping != null && masterMapping.BypassPinOnLocalNetwork && isLocal;
+                    // Same rules as /switch, through the same helpers, so this endpoint can
+                    // never green-light a switch /switch would then refuse.
+                    bool isCrossAccount = request.ProfileId != callerMasterUserId;
+                    var (householdLanBypass, _) = EvaluateCrossAccountSwitch(masterMapping, isLocal);
+                    bool bypass = CanSkipPin(masterMapping, isLocal, isCrossAccount, householdLanBypass);
                     if (!bypass)
                     {
                         if (RateLimiter.Pin.IsRateLimited(rateLimitKey))
@@ -1410,7 +1446,13 @@ namespace Jellyfin.Profiles.Controllers
                 JoinedOwnerName = joinedGroup != null ? (_userManager.GetUserById(joinedGroup.OwnerUserId)?.Username ?? "Unknown") : null,
                 JoinedOwnerId = joinedGroup?.OwnerUserId,
                 HideMySubProfilesFromOthers = masterMapping?.HideMySubProfilesFromOthers ?? false,
-                HideOthersSubProfilesFromMe = masterMapping?.HideOthersSubProfilesFromMe ?? false
+                HideOthersSubProfilesFromMe = masterMapping?.HideOthersSubProfilesFromMe ?? false,
+                AllowHouseholdLanBypass = masterMapping?.AllowHouseholdLanBypass ?? false,
+                // Both drive the wording of the warning next to the LAN-bypass toggle: entering
+                // an administrator account hands over server management, and an account with no
+                // PIN has nothing else protecting it once the bypass is on.
+                IsAdministrator = IsUserAdministrator(masterId),
+                HasPin = !string.IsNullOrEmpty(masterMapping?.PinHash)
             });
         }
 
@@ -1656,10 +1698,105 @@ namespace Jellyfin.Profiles.Controllers
 
                 masterMapping.HideMySubProfilesFromOthers = request.HideMySubProfilesFromOthers;
                 masterMapping.HideOthersSubProfilesFromMe = request.HideOthersSubProfilesFromMe;
+
+                if (request.AllowHouseholdLanBypass.HasValue
+                    && request.AllowHouseholdLanBypass.Value != masterMapping.AllowHouseholdLanBypass)
+                {
+                    masterMapping.AllowHouseholdLanBypass = request.AllowHouseholdLanBypass.Value;
+
+                    // Logged at Information because this is the one Bonfire setting that widens
+                    // access to the account rather than narrowing what others can see.
+                    _logger.LogInformation(
+                        "ProfilesPlugin: Household LAN bypass {State} for account {Account} by its owner.",
+                        masterMapping.AllowHouseholdLanBypass ? "enabled" : "disabled",
+                        masterUserId);
+                }
+
                 Plugin.Instance?.SaveConfiguration();
             }
 
             return Ok();
+        }
+
+        // ── Per-account preferences ────────────────────────────────────────────────
+        // Settings that are a matter of taste rather than policy, chosen by the account
+        // holder and not by the server administrator. Stored on the master's own mapping so
+        // they follow the user to every device they sign in on.
+
+        [HttpGet("preferences")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> GetPreferences()
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid currentUserId = currentUserIdVal.Value;
+
+            // A sub-profile reads its master's preference: the switcher behaves the same way
+            // everywhere in the household rather than changing as you move between profiles.
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
+
+            var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+
+            return Ok(new
+            {
+                SwitcherMode = SwitcherModes.Normalize(masterMapping?.SwitcherMode),
+                // The client caches the mode in localStorage to decide whether to raise the
+                // gate before this call returns. Echoing the account it belongs to lets it
+                // throw the cache away when a different user signs in on the same browser.
+                MasterUserId = masterUserId
+            });
+        }
+
+        [HttpPost("preferences")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> UpdatePreferences([FromBody] UpdatePreferencesRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid currentUserId = currentUserIdVal.Value;
+
+            // Unlike reads, only the account holder may write — a sub-profile changing this
+            // would silently rewrite the whole household's experience.
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            if (currentMapping != null && currentMapping.MasterUserId != currentUserId)
+                return Unauthorized("Only the master profile can change switcher preferences.");
+
+            string mode;
+            lock (config)
+            {
+                var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+                if (masterMapping == null)
+                {
+                    masterMapping = new ProfileMapping
+                    {
+                        ProfileUserId = currentUserId,
+                        MasterUserId = currentUserId,
+                        ProfileName = _userManager.GetUserById(currentUserId)?.Username ?? "Master",
+                        IsHidden = false
+                    };
+                    config.Mappings.Add(masterMapping);
+                }
+
+                if (request.SwitcherMode != null)
+                {
+                    masterMapping.SwitcherMode = SwitcherModes.Normalize(request.SwitcherMode);
+                }
+
+                mode = SwitcherModes.Normalize(masterMapping.SwitcherMode);
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            return Ok(new { SwitcherMode = mode });
         }
 
         // ── Device Management ──────────────────────────────────────────────────────

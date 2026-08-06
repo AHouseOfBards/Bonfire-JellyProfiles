@@ -53,6 +53,7 @@ Once the server restarts, the plugin is active and will automatically load on al
 - **Bonfire Grouping**: Link different master accounts together using secure 6-character codes to share switcher screens.
 - **PIN Protection & LAN Bypass**: Secure profiles with PIN codes and bypass verification automatically when connected on your local network (LAN). PINs are stored as salted PBKDF2-SHA256 hashes.
 - **Device Whitelists**: Limit specific profiles to designated devices.
+- **Choose Your Switcher**: Each account decides how it reaches the switcher — the full-screen "Who's Watching?" gate on the home screen, or nothing at all in the way, with a **Switch Profile** entry added to Jellyfin's own user menu and profile page instead. Set it under **Manage Profiles → Switcher Style**; it is a per-household choice, not a server setting.
 - **Premium UI**: Seamless native UI integration with custom profile pictures, custom avatar colors, and TV D-pad navigation support.
 
 ---
@@ -82,12 +83,23 @@ Sharing a Bonfire code lets another household see your switcher screen — and s
 > [!TIP]
 > A Bonfire code is a credential. Anyone who has it can join, and you can only be in one Bonfire at a time — joining a new one removes you from your current one.
 
+### Sharing a TV with another adult
+
+Both rules are strict by design, and for two adults who share a living room they are strict in the wrong direction: typing a PIN with a TV remote every time you swap accounts is miserable.
+
+So each account can lift them **for itself**. In **Manage Profiles → Bonfire Grouping**, tick *"Let my Bonfire switch into my account on this network"*. People in your Bonfire can then enter your account from your home network without your PIN — including when you have no PIN at all. Away from home nothing changes: the PIN is still required, and an account with no PIN still cannot be opened remotely.
+
+It is off by default, only you can turn it on for your own account, and every switch that uses it is written to the profile activity log.
+
+> [!WARNING]
+> Two things to check first. If your account is a **Jellyfin administrator**, anyone who switches into it can change server settings and manage every user on it — only enable this if you would hand them the password. And "your home network" is whatever your *server* counts as local: if it sits behind a reverse proxy that is not listed under **Dashboard → Networking → Known Proxies**, every visitor looks local, and this setting would apply to all of them.
+
 ---
 
 ## Known Limitations
 
 **Skin Manager / custom themes**  
-The Switch Profile button is designed to align with standard Jellyfin layouts. If you use custom themes or a skin manager, the button might occasionally appear misaligned or out of place. If you run into visual conflicts, please open an issue with the name of the theme you are using.
+The Switch Profile button is designed to align with standard Jellyfin layouts. If you use custom themes or a skin manager, the button might occasionally appear misaligned or out of place. Switching to the **Jellyfin menu** style under *Manage Profiles → Switcher Style* removes the injected button entirely and puts the switcher on your profile page instead, which sidesteps theme conflicts. Either way, please open an issue with the name of the theme you are using.
 
 **Profile creation is on the home screen, not the admin dashboard**  
 Profiles are created and managed via the Switch Profile button on the Jellyfin home screen. The admin dashboard page (**Dashboard → Plugins → Profiles**) is only for server-wide settings (maximum profile count, require-PIN policy) and administrator PIN resets.
