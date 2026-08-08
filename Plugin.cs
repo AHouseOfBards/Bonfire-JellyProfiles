@@ -17,6 +17,24 @@ namespace Jellyfin.Profiles
 
         public IApplicationPaths AppPaths { get; }
 
+        private static volatile bool _panicDisabled;
+
+        /// <summary>
+        /// True once the emergency disable code has been entered. While set, the plugin
+        /// serves an inert client script, so the profile gate and switcher disappear on the
+        /// next page load.
+        /// <para>
+        /// Deliberately in memory only, never written to the configuration: the escape hatch
+        /// exists because the plugin has made the web interface hard to use, and a flag that
+        /// survived a restart could leave a server stuck in a state whose own settings page
+        /// is the thing you need it to reach. Restarting Jellyfin always restores the plugin.
+        /// </para>
+        /// </summary>
+        public static bool IsPanicDisabled => _panicDisabled;
+
+        /// <summary>Trips the emergency disable. There is no code path that clears it.</summary>
+        internal static void TripPanicDisable() => _panicDisabled = true;
+
         public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
             : base(applicationPaths, xmlSerializer)
         {

@@ -114,6 +114,84 @@
             </form>
 
             <div class="sectionTitleContainer" style="margin-top: 3em;">
+                <h2 class="sectionTitle">Avatar Library</h2>
+            </div>
+            <div class="fieldDescription" style="margin-bottom: 1em;">
+                Pictures you upload here can be chosen by anyone on this server as their profile picture.
+                Useful for a consistent set across a household — and the only practical way to set a profile
+                picture on a TV, where there is no file browser to upload from.
+            </div>
+
+            <div id="avatarMissingWarning" style="display:none; background:rgba(255,153,0,0.10); border:1px solid rgba(255,153,0,0.35); border-radius:6px; padding:12px 18px; margin-bottom:1.5em; font-size:0.92rem; line-height:1.6;">
+                <!-- Filled in when a profile or library entry points at a file that is gone -->
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+                <label>
+                    <input is="emby-checkbox" type="checkbox" id="disallowCustomAvatars" />
+                    <span>Only allow avatars from this library</span>
+                </label>
+                <div class="fieldDescription">
+                    If checked, users cannot upload their own picture or paste an image URL — they must pick
+                    from the set above. Pictures already set stay as they are.
+                </div>
+            </div>
+
+            <div style="margin: 1em 0;">
+                <label for="avatarUploadInput" id="avatarUploadLabel" is="emby-button" class="raised block" style="display:inline-block; cursor:pointer; max-width:280px;">
+                    <span>Upload an avatar</span>
+                </label>
+                <input type="file" id="avatarUploadInput" accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" style="display:none;" />
+                <div class="fieldDescription">JPEG, PNG, WebP or GIF. Images are squared and resized automatically.</div>
+                <div id="avatarUploadError" style="display:none; color:#ff6b6b; font-size:0.88rem; font-weight:600; margin-top:8px;"></div>
+            </div>
+
+            <div id="avatarLibraryGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:14px; margin-bottom:3em;">
+                <!-- Library avatars rendered here -->
+            </div>
+
+            <div class="sectionTitleContainer" style="margin-top: 3em;">
+                <h2 class="sectionTitle">Emergency Disable Code</h2>
+            </div>
+            <div style="background:rgba(255,153,0,0.10);border:1px solid rgba(255,153,0,0.35);border-radius:6px;padding:14px 18px;margin-bottom:1.5em;font-size:0.94rem;line-height:1.65;">
+                <strong style="display:block;margin-bottom:6px;">&#9888;&nbsp; Read this before turning it on</strong>
+                This is a way out if Bonfire itself breaks and makes the Jellyfin interface unusable — including
+                the settings page you would need to uninstall it. Entering the code on any screen shuts the
+                plugin's client script down <strong>until you restart Jellyfin</strong>.
+                <br><br>
+                <strong>What it costs you.</strong> The profile gate is what stands between "signed in to the
+                master account" and "must pick a profile". Anyone who knows this code can skip that prompt on a
+                device already signed in — so on a TV left on the master account, they would get that account's
+                full library.
+                <br><br>
+                <strong>What it does not do.</strong> It cannot unlock another profile — switching still requires
+                that profile's PIN — and it does not widen library access, parental ratings or tag filters, which
+                Jellyfin enforces on the server regardless of this plugin.
+                <br><br>
+                It is submitted without any password, so <strong>make it long</strong>. Attempts are limited to
+                five per hour per address and every use is written to the Jellyfin log at error level.
+                <br><br>
+                <strong>It cannot rescue every failure.</strong> If the plugin's script fails to load at all,
+                this code has nothing to run in. Restarting Jellyfin, or deleting the plugin folder, is the
+                fallback for that.
+            </div>
+
+            <div id="panicStatusLine" class="fieldDescription" style="margin-bottom:1em;">…</div>
+
+            <div class="inputContainer">
+                <label class="inputLabel" for="panicCodeInput">Emergency disable code</label>
+                <input is="emby-input" type="text" id="panicCodeInput" autocomplete="off" placeholder="At least 10 characters" />
+                <div class="fieldDescription">
+                    Leave blank and save to turn the feature off. The code is stored hashed and can never be
+                    shown again, so write it down somewhere outside this server.
+                </div>
+            </div>
+            <div style="margin-bottom:3em;">
+                <button is="emby-button" type="button" id="savePanicCode" class="raised block" style="max-width:280px;">Save code</button>
+                <div id="panicCodeResult" style="display:none; font-size:0.88rem; font-weight:600; margin-top:8px;"></div>
+            </div>
+
+            <div class="sectionTitleContainer" style="margin-top: 3em;">
                 <h2 class="sectionTitle">Accounts &amp; Profiles</h2>
             </div>
             <div class="fieldDescription" style="margin-bottom: 1em;">
@@ -155,8 +233,12 @@
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
                     page.querySelector('#requireMasterPin').checked = config.RequireMasterPinForCreation;
+                    page.querySelector('#disallowCustomAvatars').checked = !!config.DisallowCustomAvatarUploads;
                     loadMappings(page);
                     loadAuditLogs(page);
+                    loadAvatarLibrary(page);
+                    loadAvatarHealth(page);
+                    loadPanicStatus(page);
                 }).catch(function (err) {
                     console.error("Failed to load plugin configuration:", err);
                     Dashboard.hideLoadingMsg();
@@ -572,11 +654,269 @@
                 });
             }
 
+            // ── Avatar library ────────────────────────────────────────────────────
+            // Images are squared and resized here, in the browser, before upload — the
+            // plugin has no server-side image library, and doing it this way keeps it that
+            // way. Two renderings are sent: a master, and a thumbnail for the pickers.
+
+            const AVATAR_MASTER = 512;
+            const AVATAR_THUMB = 128;
+
+            // Centre-cropped square. The admin is uploading a set of avatars rather than
+            // positioning one picture, so this stays automatic — end users get the crop
+            // editor when they choose one.
+            function squareToDataUrl(img, size, preferPng) {
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                const side = Math.min(img.width, img.height);
+                const sx = (img.width - side) / 2;
+                const sy = (img.height - side) / 2;
+                ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+                return preferPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.85);
+            }
+
+            function hasTransparency(img) {
+                try {
+                    const s = 32;
+                    const c = document.createElement('canvas');
+                    c.width = s; c.height = s;
+                    const ctx = c.getContext('2d');
+                    ctx.drawImage(img, 0, 0, s, s);
+                    const data = ctx.getImageData(0, 0, s, s).data;
+                    for (let i = 3; i < data.length; i += 4) if (data[i] < 250) return true;
+                } catch (e) { /* assume opaque */ }
+                return false;
+            }
+
+            function rejectAvatarFile(file) {
+                const name = (file.name || '').toLowerCase();
+                const type = (file.type || '').toLowerCase();
+                // iPhones shoot HEIC by default and only Safari decodes it, so without this
+                // the upload just fails silently on most machines.
+                if (type.includes('heic') || type.includes('heif') || /\.hei[cf]$/.test(name)) {
+                    return 'iPhone photos (HEIC) cannot be read by most browsers. Export the photo as JPEG first.';
+                }
+                if (type.includes('svg') || /\.svgz?$/.test(name)) {
+                    return 'SVG images are not supported — they can carry scripts. Use a JPEG, PNG, WebP or GIF.';
+                }
+                if (file.size > 25 * 1024 * 1024) return 'That image is too large. Use one under 25 MB.';
+                return null;
+            }
+
+            function loadAvatarLibrary(page) {
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('plugins/profiles/avatars'),
+                    dataType: 'json'
+                }).then(function (data) {
+                    const avatars = field(data, 'avatars') || [];
+                    const grid = page.querySelector('#avatarLibraryGrid');
+
+                    if (!avatars.length) {
+                        grid.innerHTML = '<div class="fieldDescription">No avatars yet. Upload one above.</div>';
+                        return;
+                    }
+
+                    grid.innerHTML = avatars.map(function (a) {
+                        const id = field(a, 'id');
+                        const name = field(a, 'displayName') || '';
+                        const thumb = field(a, 'thumbUrl');
+                        return '<div style="text-align:center;">' +
+                            '<div style="position:relative; width:100%; aspect-ratio:1/1; border-radius:50%; overflow:hidden; background:rgba(255,255,255,0.06);">' +
+                            // If the file has gone missing the tile shows a marker rather
+                            // than a broken-image icon, and the count above says why.
+                            '<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0.35;font-size:0.75rem;">missing</span>' +
+                            '<img src="' + escapeHtml(thumb) + '" alt="" onerror="this.remove()" ' +
+                            'style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;" />' +
+                            '</div>' +
+                            '<div style="font-size:0.8rem; margin-top:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(name) + '</div>' +
+                            '<button is="emby-button" type="button" class="raised avatarDeleteBtn" data-id="' + escapeHtml(id) + '" ' +
+                            'style="margin-top:4px; padding:2px 10px; font-size:0.75rem;">Remove</button>' +
+                            '</div>';
+                    }).join('');
+
+                    grid.querySelectorAll('.avatarDeleteBtn').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            deleteAvatar(page, btn.getAttribute('data-id'));
+                        });
+                    });
+                }).catch(function (err) {
+                    console.error('Failed to load avatar library:', err);
+                });
+            }
+
+            function deleteAvatar(page, id) {
+                // Profiles created from this avatar keep their own copy, so nothing anyone
+                // is using breaks — only the picker loses the option.
+                ApiClient.ajax({
+                    type: 'DELETE',
+                    url: ApiClient.getUrl('plugins/profiles/admin/avatars/' + encodeURIComponent(id))
+                }).then(function () {
+                    loadAvatarLibrary(page);
+                }).catch(function (err) {
+                    console.error('Failed to delete avatar:', err);
+                    Dashboard.alert({ message: 'Could not remove that avatar.', title: 'Error' });
+                });
+            }
+
+            function uploadAvatar(page, file) {
+                const errEl = page.querySelector('#avatarUploadError');
+                const show = function (msg) {
+                    errEl.textContent = msg || '';
+                    errEl.style.display = msg ? 'block' : 'none';
+                };
+                show('');
+
+                const reason = rejectAvatarFile(file);
+                if (reason) { show(reason); return; }
+
+                const reader = new FileReader();
+                reader.onerror = function () { show('That file could not be read.'); };
+                reader.onload = function (event) {
+                    const img = new Image();
+                    img.onerror = function () {
+                        show('This browser cannot read that image format. Try saving it as a JPEG or PNG first.');
+                    };
+                    img.onload = function () {
+                        const preferPng = hasTransparency(img);
+                        Dashboard.showLoadingMsg();
+                        ApiClient.ajax({
+                            type: 'POST',
+                            url: ApiClient.getUrl('plugins/profiles/admin/avatars'),
+                            contentType: 'application/json',
+                            data: JSON.stringify({
+                                image: squareToDataUrl(img, AVATAR_MASTER, preferPng),
+                                thumb: squareToDataUrl(img, AVATAR_THUMB, preferPng),
+                                // Filename without its extension is a reasonable default
+                                // label, and the admin can rename the file to change it.
+                                displayName: (file.name || 'Avatar').replace(/\.[^.]+$/, '')
+                            })
+                        }).then(function () {
+                            Dashboard.hideLoadingMsg();
+                            loadAvatarLibrary(page);
+                            loadAvatarHealth(page);
+                        }).catch(function (err) {
+                            Dashboard.hideLoadingMsg();
+                            console.error('Avatar upload failed:', err);
+                            show('The server rejected that image. It may be over the 2 MB limit after resizing.');
+                        });
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            // Counts profiles whose stored picture no longer resolves. The images are
+            // fetched by the browser anyway when the picker renders, so this is a cheap
+            // HEAD-style check rather than new server work.
+            function loadAvatarHealth(page) {
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('plugins/profiles/admin/mappings'),
+                    dataType: 'json'
+                }).then(function (data) {
+                    const masters = field(data, 'masterUsers') || [];
+                    const subs = field(data, 'subProfiles') || [];
+                    const all = masters.concat(subs).filter(function (p) {
+                        const img = field(p, 'profileImage');
+                        // Only our own stored images can go missing; a remote URL failing is
+                        // the remote host's problem and not something to report here.
+                        return img && String(img).indexOf('/plugins/profiles/image/') === 0;
+                    });
+
+                    if (!all.length) { page.querySelector('#avatarMissingWarning').style.display = 'none'; return; }
+
+                    let pending = all.length;
+                    const missing = [];
+                    all.forEach(function (p) {
+                        const probe = new Image();
+                        const done = function (ok) {
+                            if (!ok) missing.push(field(p, 'profileName') || 'Unnamed profile');
+                            if (--pending === 0) renderAvatarHealth(page, missing);
+                        };
+                        probe.onload = function () { done(true); };
+                        probe.onerror = function () { done(false); };
+                        probe.src = field(p, 'profileImage') + (String(field(p, 'profileImage')).indexOf('?') >= 0 ? '&' : '?') + 'size=thumb';
+                    });
+                }).catch(function () { /* the mappings list has its own error path */ });
+            }
+
+            function renderAvatarHealth(page, missing) {
+                const el = page.querySelector('#avatarMissingWarning');
+                if (!missing.length) { el.style.display = 'none'; return; }
+                el.style.display = 'block';
+                el.innerHTML = '<strong>&#9888;&nbsp; ' + missing.length +
+                    (missing.length === 1 ? ' profile has' : ' profiles have') +
+                    ' a picture that is no longer on disk.</strong><br>' +
+                    escapeHtml(missing.join(', ')) +
+                    '<br><span style="opacity:0.8;">They fall back to the initial and colour, so nothing is broken. ' +
+                    'Set a new picture on each to clear this.</span>';
+            }
+
+            // ── Emergency disable code ────────────────────────────────────────────
+
+            function loadPanicStatus(page) {
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('plugins/profiles/admin/panic-status'),
+                    dataType: 'json'
+                }).then(function (data) {
+                    const configured = field(data, 'isConfigured');
+                    const disabled = field(data, 'isCurrentlyDisabled');
+                    const line = page.querySelector('#panicStatusLine');
+                    if (disabled) {
+                        line.innerHTML = '<span style="color:#ff9900; font-weight:600;">Bonfire is currently disabled.</span> ' +
+                            'Restart Jellyfin to bring the switcher back.';
+                    } else if (configured) {
+                        line.innerHTML = '<span style="color:#51cf66; font-weight:600;">A code is set.</span> ' +
+                            'Enter it on any Bonfire screen, or press Ctrl+Shift+B, to disable the plugin.';
+                    } else {
+                        line.textContent = 'No code is set. The feature is off.';
+                    }
+                }).catch(function () {
+                    page.querySelector('#panicStatusLine').textContent = 'Could not read the current status.';
+                });
+            }
+
+            function savePanicCode(page) {
+                const input = page.querySelector('#panicCodeInput');
+                const result = page.querySelector('#panicCodeResult');
+                const code = (input.value || '').trim();
+
+                const show = function (msg, ok) {
+                    result.textContent = msg;
+                    result.style.color = ok ? '#51cf66' : '#ff6b6b';
+                    result.style.display = 'block';
+                };
+
+                if (code && code.length < 10) {
+                    show('The code must be at least 10 characters.', false);
+                    return;
+                }
+
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('plugins/profiles/admin/panic-code'),
+                    contentType: 'application/json',
+                    data: JSON.stringify({ code: code })
+                }).then(function () {
+                    input.value = '';
+                    show(code ? 'Code saved. Write it down — it cannot be shown again.' : 'Code cleared. The feature is off.', true);
+                    loadPanicStatus(page);
+                }).catch(function (err) {
+                    console.error('Failed to save the emergency code:', err);
+                    show('The server rejected that code.', false);
+                });
+            }
+
             function saveConfiguration(page) {
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     config.MaxProfilesPerUser = parseInt(page.querySelector('#maxProfiles').value, 10) || 5;
                     config.RequireMasterPinForCreation = page.querySelector('#requireMasterPin').checked;
+                    config.DisallowCustomAvatarUploads = page.querySelector('#disallowCustomAvatars').checked;
 
                     ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
@@ -603,6 +943,25 @@
                     btn.dataset.retryBound = '1';
                     btn.addEventListener('click', function () { retryInjection(page); });
                 });
+
+                // pageshow can fire repeatedly for the same element, so every handler below
+                // is guarded — otherwise one click would upload the same avatar twice.
+                const avatarInput = page.querySelector('#avatarUploadInput');
+                if (avatarInput && !avatarInput.dataset.bound) {
+                    avatarInput.dataset.bound = '1';
+                    avatarInput.addEventListener('change', function (e) {
+                        const file = e.target.files && e.target.files[0];
+                        if (!file) return;
+                        uploadAvatar(page, file);
+                        avatarInput.value = '';
+                    });
+                }
+
+                const panicBtn = page.querySelector('#savePanicCode');
+                if (panicBtn && !panicBtn.dataset.bound) {
+                    panicBtn.dataset.bound = '1';
+                    panicBtn.addEventListener('click', function () { savePanicCode(page); });
+                }
 
                 const dismissBtn = page.querySelector('#dismissStaleBtn');
                 if (dismissBtn && !dismissBtn.dataset.bound) {

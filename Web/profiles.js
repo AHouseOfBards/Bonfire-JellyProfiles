@@ -30,12 +30,42 @@
         if (!src) return '';
         const value = String(src).trim();
         if (value.startsWith('/plugins/profiles/image/')) return escapeHtml(value);
+        if (value.startsWith('/plugins/profiles/avatars/')) return escapeHtml(value);
         if (/^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/=]+$/i.test(value)) return escapeHtml(value);
         try {
             const parsed = new URL(value, window.location.origin);
             if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return escapeHtml(parsed.href);
         } catch (e) { /* not a parseable URL — fall through */ }
         return '';
+    }
+
+    /// Appends ?size=thumb to one of our own image URLs. Grids and switcher cards ask for
+    /// the small rendering; showing twenty full-size avatars would decode tens of megabytes
+    /// of bitmap, which is enough to stall the TV browsers this plugin supports.
+    /// Remote URLs and data payloads are returned untouched — there is no variant of those.
+    function thumbSrc(src) {
+        if (!src) return '';
+        const value = String(src).trim();
+        if (!value.startsWith('/plugins/profiles/image/') && !value.startsWith('/plugins/profiles/avatars/')) return value;
+        return value + (value.includes('?') ? '&' : '?') + 'size=thumb';
+    }
+
+    /// Markup for the inside of an avatar circle.
+    ///
+    /// The initial is always rendered, with the picture layered over it. If the image fails
+    /// — the file was deleted, the disk is unreadable, a remote host is down — onerror
+    /// removes the img and the initial is simply revealed underneath. That is the whole
+    /// fallback: no state, no second request, and nothing for a caller to remember to do.
+    ///
+    /// The containing element must be position:relative (all of ours already are, or are
+    /// given it inline at the call site).
+    function avatarInner(src, initial, useThumb) {
+        const safeInitial = escapeHtml(initial || '?');
+        const resolved = safeImageSrc(useThumb ? thumbSrc(src) : src);
+        if (!resolved) return safeInitial;
+        return safeInitial +
+            `<img src="${resolved}" alt="" onerror="this.remove()" ` +
+            `style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;" />`;
     }
 
     // The profile gate overlay sits at z-index 99999. Anything that has to appear *over*
@@ -52,6 +82,10 @@
             // Key set before window.location.reload() so the early-hide
             // inline head script can suppress the page flash on the next load.
             switchingKey: 'jpf-sw',
+            // Set when the emergency disable succeeds. profiles.js is served with a
+            // five-minute cache, so a reload inside that window can re-run this very script
+            // from cache — the marker is what stops it coming back to life.
+            panicKey: 'jellyfin_profiles_disabled',
             // Local mirror of the account's gate/native preference, so checkRoute can decide
             // whether to raise the gate without waiting on a request.
             switcherModeKey: 'jellyfin_profiles_switcher_mode'
@@ -65,8 +99,9 @@
         inactivityEventHandlers: null,
         _pageRevealed: false,
         _switchLock: false,
-        _switcherMode: null,
-        _switcherModeLoading: false,
+        _switcherPrefs: null,
+        _switcherPrefsLoading: false,
+        _panicDisabled: false,
 
         getAuthHeaders: function (token) {
             const apiClient = ApiClient;
@@ -497,8 +532,11 @@
             this.injectStyles();
             // Kicked off before the first route check so the gate decision is usually made
             // with the real answer in hand rather than the cached one.
-            this.loadSwitcherMode();
-            this.startUserMenuWatcher();
+            this.loadSwitcherPrefs();
+            this.bindPanicShortcut();
+            // Before validateSessionState, which can trigger a reload of its own.
+            this.checkPersistedPanic();
+            if (this._panicDisabled) return;
             this.validateSessionState();
             // If the user refreshes while a profile is active, restart the inactivity timer
             setTimeout(() => this.initLockoutTimer(), 800);
@@ -538,7 +576,7 @@
                     localStorage.removeItem(this.config.masterStorageKey);
                     localStorage.removeItem(this.config.activeSessionKey);
                     localStorage.removeItem(this.config.switcherModeKey);
-                    this._switcherMode = null;
+                    this._switcherPrefs = null;
                     sessionStorage.removeItem(this.config.activeSessionKey);
                     sessionStorage.removeItem('jellyfin_profiles_active_info');
                 } catch (e) { /* ignore storage errors */ }
@@ -554,6 +592,10 @@
         },
 
         checkRoute: function () {
+            // Emergency disable: do nothing at all. This runs on a 500 ms timer, so without
+            // this guard it would rebuild the gate immediately after the teardown.
+            if (this._panicDisabled) return;
+
             const hash = window.location.hash || '';
             const path = window.location.pathname || '';
             
@@ -585,21 +627,19 @@
             let skipReveal = false;
 
             if (isHome) {
-                // getSwitcherMode() returns null until the account's preference is known.
-                // Waiting is the safe direction: loadSwitcherMode() re-runs this check the
-                // moment it resolves, so at worst the gate arrives a beat late — whereas
-                // guessing 'gate' would flash a full-screen overlay at somebody who turned
-                // it off, on every single page load.
-                const mode = this.getSwitcherMode();
+                // Preferences are null until we have learned them for this account. Waiting
+                // is the safe direction: loadSwitcherPrefs() re-runs this check the moment it
+                // resolves, so at worst the gate arrives a beat late — whereas guessing would
+                // flash a full-screen overlay at somebody who turned it off, on every load.
+                //
+                // Usually unknown because init() ran before the user had signed in, so there
+                // was no token to ask with. Retrying here is what gets the gate working on the
+                // first home screen after a fresh login. loadSwitcherPrefs guards itself and
+                // settles on the historical default if the request fails, so this cannot spin
+                // on the 500 ms route poll.
+                if (this.getSwitcherPrefs() === null) this.loadSwitcherPrefs();
 
-                // Still unknown — usually because init() ran before the user had signed in,
-                // so there was no token to ask with. Retrying here is what gets the gate
-                // working on the first home screen after a fresh login. loadSwitcherMode
-                // guards itself, and settles on 'gate' if the request fails, so this cannot
-                // spin on the 500 ms route poll.
-                if (mode === null) this.loadSwitcherMode();
-
-                if (mode === 'gate'
+                if (this.shouldAskOnStartup()
                     && !this.isProfileSessionActive()
                     && !document.getElementById('profiles-gate-overlay')) {
                     skipReveal = true;
@@ -669,9 +709,11 @@
             this._lastRouteType = viewType;
             this.evaluateFloatingBubbleVisibility(viewType);
 
-            // Native mode's entry points. The profile page is re-checked on every route
-            // change because React discards and rebuilds the view.
-            if (this.isNativeMode()) {
+            // Menu-location entry points. Both are re-asserted on every route change
+            // because React discards and rebuilds these views freely; the calls are cheap
+            // and no-op when the element is already in place.
+            this.syncUserMenuEntry();
+            if (this.isMenuLocation()) {
                 const isUserProfilePage = hash.includes('userprofile') || path.includes('userprofile');
                 if (isUserProfilePage) this.injectProfilePageSection();
             }
@@ -800,26 +842,198 @@
             return !!sessionStorage.getItem(this.config.activeSessionKey);
         },
 
-        // ── Switcher mode ──────────────────────────────────────────────────────────
-        // 'gate'   — the forced "Who's Watching?" screen on the home page (the default).
-        // 'native' — no forced screen; the switcher is reached from Jellyfin's own user
-        //            menu and profile page instead.
+        // ── Emergency disable ──────────────────────────────────────────────────────
+        // An escape hatch for when the switcher itself is what is blocking the interface.
+        // The administrator sets a long code in the plugin settings; entering it here shuts
+        // the plugin down until the server restarts.
         //
-        // The mode lives on the account, but checkRoute has to decide whether to raise the
-        // gate long before a network round trip could answer. So it is mirrored into
-        // localStorage and read from there synchronously, with the server refreshing the
-        // copy in the background on every load.
+        // Note the honest limit: this is script running inside the plugin, so it only helps
+        // when the plugin is misbehaving, not when profiles.js fails to load or throws on
+        // startup. In that case the answer is restarting Jellyfin or removing the plugin
+        // folder, which is what the documentation says.
+        //
+        // Entry is a deliberate action rather than a keystroke sniffer. Watching everything
+        // typed anywhere would burn the server's five-per-hour attempt budget on ordinary
+        // typing — a search box would lock the real administrator out of their own escape
+        // hatch.
 
-        /// The cached mode, or null when we have not learned it for this account yet.
-        /// Null means "do not raise the gate yet" — a wrong guess in that direction costs a
-        /// moment of home screen, whereas guessing 'gate' wrongly throws a full-screen
-        /// overlay at somebody who deliberately turned it off.
-        getSwitcherMode: function () {
-            if (this._switcherMode) return this._switcherMode;
+        /// Tears the switcher down and stops every code path that could rebuild it.
+        /// Setting the flag matters as much as the teardown: checkRoute runs on a 500 ms
+        /// timer, so removing the overlay without it would have the gate back within half a
+        /// second — failing in exactly the situation this feature exists for.
+        applyPanicDisable: function (persist) {
+            this._panicDisabled = true;
+
+            if (persist) {
+                try {
+                    localStorage.setItem(this.config.panicKey, String(Date.now()));
+                } catch (e) { /* private mode — the in-memory flag still holds for this page */ }
+            }
+
+            this.removeProfileOverlay();
+            const bubble = document.getElementById('profiles-floating-bubble');
+            if (bubble) bubble.remove();
+            const sidebarLink = document.getElementById('profiles-sidebar-link');
+            if (sidebarLink) sidebarLink.remove();
+            const menuItem = document.getElementById('profiles-user-menu-item');
+            if (menuItem) menuItem.remove();
+
+            this.stopInactivityTimer();
+            document.body.classList.remove('profiles-no-scroll');
+            document.documentElement.classList.remove('profiles-no-scroll');
+            document.documentElement.style.removeProperty('opacity');
+            try { localStorage.removeItem(this.config.switchingKey); } catch (e) { /* ignore */ }
+        },
+
+        /// On startup, honour a disable from a previous page load, then confirm it with the
+        /// server. The flag is cleared once Jellyfin has restarted and the plugin is live
+        /// again — the disable is meant to last until a restart, not forever.
+        checkPersistedPanic: function () {
+            let marked = false;
+            try {
+                marked = !!localStorage.getItem(this.config.panicKey);
+            } catch (e) { /* storage unavailable — nothing to honour */ }
+            if (!marked) return;
+
+            // Apply first and ask afterwards: the request may be slow, and a gate that
+            // appears for two seconds before vanishing is the behaviour being escaped.
+            this.applyPanicDisable(/* persist */ false);
+
+            fetch(ApiClient.getUrl('plugins/profiles/panic-state'), { cache: 'no-store' })
+                .then(res => res.ok ? res.json() : Promise.reject(new Error('unavailable')))
+                .then(state => {
+                    const disabled = (state.disabled !== undefined ? state.disabled : state.Disabled) === true;
+                    if (disabled) return;
+                    try { localStorage.removeItem(this.config.panicKey); } catch (e) { /* ignore */ }
+                    this._panicDisabled = false;
+                    this.checkRoute();
+                })
+                .catch(() => {
+                    // Server unreachable: stay disabled. Erring towards "off" leaves the
+                    // interface usable, which is the whole point.
+                });
+        },
+
+        bindPanicShortcut: function () {
+            document.addEventListener('keydown', (e) => {
+                // Ctrl+Shift+B. Chosen to be unreachable by accident and not to collide
+                // with Jellyfin's own shortcuts.
+                if (e.ctrlKey && e.shiftKey && (e.key === 'B' || e.key === 'b')) {
+                    e.preventDefault();
+                    this.showPanicPrompt();
+                }
+            });
+        },
+
+        showPanicPrompt: function () {
+            if (document.getElementById('profiles-panic-dialog')) return;
+
+            const dialog = document.createElement('div');
+            dialog.id = 'profiles-panic-dialog';
+            dialog.style.cssText = `
+                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+                display: flex; align-items: center; justify-content: center;
+                z-index: ${DIALOG_Z};
+            `;
+
+            dialog.innerHTML = `
+                <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius:12px;
+                            padding:24px; max-width:460px; width:90%; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+                    <h2 style="margin:0 0 12px 0; color:#fff; font-size:1.2rem; font-weight:700;">Emergency disable</h2>
+                    <p style="color:rgba(255,255,255,0.7); font-size:0.9rem; line-height:1.5; margin:0 0 16px 0;">
+                        Enter the code your server administrator set. This shuts the Bonfire switcher off
+                        until Jellyfin is restarted — the profile gate disappears and this account is used
+                        as-is. It does not unlock anyone else's profile.
+                    </p>
+                    <input type="password" id="profiles-panic-input" autocomplete="off" placeholder="Emergency code"
+                           style="width:100%; box-sizing:border-box; padding:10px; font-size:1rem; margin-bottom:8px;" />
+                    <div id="profiles-panic-error" style="display:none; color:#ff6b6b; font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
+                    <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:12px;">
+                        <button id="profiles-panic-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>
+                        <button id="profiles-panic-submit" class="profiles-btn btn-danger" style="padding:10px 20px; font-weight:600;">Disable</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(dialog);
+
+            const input = dialog.querySelector('#profiles-panic-input');
+            const errDiv = dialog.querySelector('#profiles-panic-error');
+            const submitBtn = dialog.querySelector('#profiles-panic-submit');
+            const close = () => dialog.remove();
+
+            dialog.querySelector('#profiles-panic-cancel').addEventListener('click', close);
+
+            const submit = () => {
+                const code = (input.value || '').trim();
+                if (!code) return;
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Checking…';
+                errDiv.style.display = 'none';
+
+                fetch(ApiClient.getUrl('plugins/profiles/panic'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code })
+                })
+                .then(res => {
+                    if (res.ok) {
+                        // Tear the switcher down here and now rather than waiting for a
+                        // reload: the person doing this is stuck, and telling them to
+                        // reload a page they cannot use would not help.
+                        close();
+                        this.applyPanicDisable(/* persist */ true);
+                        this.showAlert('Bonfire disabled',
+                            'The switcher is off until Jellyfin restarts. Reload the page if anything still looks wrong.');
+                        return;
+                    }
+                    if (res.status === 429) throw new Error('Too many attempts. Try again in an hour, or restart Jellyfin.');
+                    throw new Error('Incorrect code.');
+                })
+                .catch(err => {
+                    errDiv.textContent = err.message || 'Incorrect code.';
+                    errDiv.style.display = 'block';
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Disable';
+                });
+            };
+
+            submitBtn.addEventListener('click', submit);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); submit(); }
+                if (e.key === 'Escape') { e.preventDefault(); close(); }
+            });
+
+            setTimeout(() => input.focus(), 50);
+        },
+
+        // ── Switcher preferences ───────────────────────────────────────────────────
+        // Two independent settings, because they answer different questions:
+        //
+        //   askOnStartup     — does the "Who's Watching?" screen appear when the client
+        //                      loads? (Once per browser session, not per home visit.)
+        //   switcherLocation — 'button' (Bonfire's floating header button) or 'menu'
+        //                      (a row in Jellyfin's own user menu, no floating button).
+        //
+        // These were one setting in 1.3.1-beta, which could not express "ask me on startup
+        // but put the switcher in Jellyfin's menu" — the combination issue #14 asked for.
+        //
+        // checkRoute has to decide about the gate long before a network round trip could
+        // answer, so both are mirrored into localStorage and read synchronously, with the
+        // server refreshing the copy in the background on every load.
+
+        /// The cached preferences, or null when we have not learned them for this account.
+        /// Null means "do not raise the gate yet" — a wrong guess that way costs a moment of
+        /// home screen, whereas wrongly assuming a gate throws a full-screen overlay at
+        /// somebody who deliberately turned it off, on every single load.
+        getSwitcherPrefs: function () {
+            if (this._switcherPrefs) return this._switcherPrefs;
 
             try {
                 const cached = JSON.parse(localStorage.getItem(this.config.switcherModeKey) || 'null');
-                if (!cached || !cached.mode) return null;
+                if (!cached) return null;
 
                 // The cache belongs to one account. On a shared browser the next person to
                 // sign in must not inherit it, so it only counts when it matches either the
@@ -829,55 +1043,91 @@
                     ? this.normalizeGuid(ApiClient.getCurrentUserId()) : '';
                 const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
                 const knownMaster = masterState ? this.normalizeGuid(masterState.masterUserId) : '';
+                if (!cachedMaster || (cachedMaster !== currentUserId && cachedMaster !== knownMaster)) return null;
 
-                if (cachedMaster && (cachedMaster === currentUserId || cachedMaster === knownMaster)) {
-                    this._switcherMode = cached.mode;
-                    return cached.mode;
+                let prefs;
+                if (typeof cached.askOnStartup === 'boolean' && cached.location) {
+                    prefs = { askOnStartup: cached.askOnStartup, location: cached.location };
+                } else if (cached.mode) {
+                    // A cache written by 1.3.1-beta. Expand it rather than discarding it,
+                    // so upgrading does not flash a gate at someone who turned it off.
+                    prefs = cached.mode === 'native'
+                        ? { askOnStartup: false, location: 'menu' }
+                        : { askOnStartup: true, location: 'button' };
+                } else {
+                    return null;
                 }
+
+                this._switcherPrefs = prefs;
+                return prefs;
             } catch (e) { /* unreadable cache — fall through and refetch */ }
 
             return null;
         },
 
-        isNativeMode: function () {
-            return this.getSwitcherMode() === 'native';
+        /// True only when we know the account wants the startup prompt. Unknown reads as
+        /// false so the gate is never raised on a guess.
+        shouldAskOnStartup: function () {
+            const p = this.getSwitcherPrefs();
+            return !!p && p.askOnStartup === true;
         },
 
-        _cacheSwitcherMode: function (mode, masterUserId) {
-            this._switcherMode = mode;
+        /// True when the switcher belongs in Jellyfin's user menu rather than the floating
+        /// button. Unknown reads as false, which keeps the historical button behaviour.
+        isMenuLocation: function () {
+            const p = this.getSwitcherPrefs();
+            return !!p && p.location === 'menu';
+        },
+
+        _cacheSwitcherPrefs: function (askOnStartup, location, masterUserId) {
+            this._switcherPrefs = { askOnStartup: askOnStartup, location: location };
             try {
-                localStorage.setItem(this.config.switcherModeKey, JSON.stringify({ mode: mode, masterUserId: masterUserId }));
+                localStorage.setItem(this.config.switcherModeKey, JSON.stringify({
+                    askOnStartup: askOnStartup,
+                    location: location,
+                    masterUserId: masterUserId
+                }));
             } catch (e) { /* storage full or blocked — the in-memory copy still works */ }
         },
 
-        /// Refreshes the cached mode from the server. Called once per page load; re-runs the
-        /// route check afterwards so a first-ever load on a new device settles into the right
-        /// behaviour without the user having to navigate.
-        loadSwitcherMode: function () {
-            if (this._switcherModeLoading) return;
+        /// Refreshes the cached preferences from the server. Called once per page load;
+        /// re-runs the route check afterwards so a first-ever load on a new device settles
+        /// into the right behaviour without the user having to navigate.
+        loadSwitcherPrefs: function () {
+            if (this._switcherPrefsLoading) return;
             if (typeof ApiClient === 'undefined' || !ApiClient || !ApiClient.accessToken()) return;
 
-            this._switcherModeLoading = true;
+            this._switcherPrefsLoading = true;
             fetch(ApiClient.getUrl('plugins/profiles/preferences'), {
                 cache: 'no-store',
                 headers: this.getAuthHeaders(ApiClient.accessToken())
             })
             .then(res => res.ok ? res.json() : Promise.reject(new Error('preferences unavailable')))
             .then(prefs => {
-                const mode = (prefs.switcherMode || prefs.SwitcherMode) === 'native' ? 'native' : 'gate';
+                const askRaw = prefs.askOnStartup !== undefined ? prefs.askOnStartup : prefs.AskOnStartup;
+                const locRaw = prefs.switcherLocation || prefs.SwitcherLocation;
                 const master = prefs.masterUserId || prefs.MasterUserId;
-                const changed = this._switcherMode !== mode;
-                this._cacheSwitcherMode(mode, master);
-                this._switcherModeLoading = false;
+
+                // A server older than this build answers with switcherMode only.
+                const legacyNative = (prefs.switcherMode || prefs.SwitcherMode) === 'native';
+                const ask = typeof askRaw === 'boolean' ? askRaw : !legacyNative;
+                const location = locRaw === 'menu' || locRaw === 'button'
+                    ? locRaw
+                    : (legacyNative ? 'menu' : 'button');
+
+                const before = this._switcherPrefs;
+                const changed = !before || before.askOnStartup !== ask || before.location !== location;
+                this._cacheSwitcherPrefs(ask, location, master);
+                this._switcherPrefsLoading = false;
                 // Only re-check when the answer actually moved; checkRoute runs on a timer
                 // anyway and this avoids a redundant pass on every load.
                 if (changed) this.checkRoute();
             })
             .catch(() => {
-                this._switcherModeLoading = false;
+                this._switcherPrefsLoading = false;
                 // Server unreachable or an older plugin build: fall back to the historical
                 // behaviour rather than leaving the gate permanently suppressed.
-                if (!this._switcherMode) this._switcherMode = 'gate';
+                if (!this._switcherPrefs) this._switcherPrefs = { askOnStartup: true, location: 'button' };
             });
         },
 
@@ -1312,8 +1562,8 @@
                             </svg>
                         </div>
                         ` : ''}
-                        <div class="profile-avatar" style="background-color: ${safeColor(p.avatarColor)}; overflow: hidden; display: flex; align-items: center; justify-content: center;">
-                            ${p.profileImage ? `<img src="${safeImageSrc(p.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(p.avatarInitial)}
+                        <div class="profile-avatar" style="background-color: ${safeColor(p.avatarColor)}; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative;">
+                            ${avatarInner(p.profileImage, p.avatarInitial, /* useThumb */ true)}
                             ${this.isManageMode ? `
                             <div class="profile-avatar-overlay-wrap">
                                 <svg class="profile-avatar-overlay-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 32px; height: 32px; color: #fff;">
@@ -1436,6 +1686,13 @@
                     <div class="profiles-footer">
                         <button id="profiles-toggle-manage-btn" class="profiles-btn btn-secondary">${manageBtnText}</button>
                     </div>
+                    <!-- Deliberately plain and dim. It has to be reachable by D-pad, because
+                         a TV has no Ctrl+Shift+B, and this screen is exactly where someone
+                         locked out by a broken switcher would be standing. -->
+                    <button id="profiles-panic-link" tabindex="0" style="
+                        background: none; border: none; color: rgba(255,255,255,0.28);
+                        font-size: 0.72rem; margin-top: 1.5rem; cursor: pointer;
+                        text-decoration: underline; padding: 6px 10px;">Can't get past this screen?</button>
                 </div>
             `;
 
@@ -1509,6 +1766,18 @@
                 bonfireCard.addEventListener('click', () => {
                     if (this._switchLock) return;
                     this.showBonfireModal();
+                });
+            }
+
+            // Emergency disable entry point for clients with no keyboard shortcut.
+            const panicLink = overlay.querySelector('#profiles-panic-link');
+            if (panicLink) {
+                panicLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.showPanicPrompt();
+                });
+                panicLink.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); panicLink.click(); }
                 });
             }
 
@@ -1877,6 +2146,483 @@
             });
         },
 
+        // ── Avatar images ──────────────────────────────────────────────────────────
+        // Two renderings are produced for every picture: a master used where the avatar is
+        // shown large, and a thumbnail used by grids and switcher cards. Twenty full-size
+        // avatars in a picker would otherwise decode about twenty megabytes of bitmap,
+        // which is enough to stall the TV browsers this plugin supports.
+        //
+        // Both are produced here, in the browser, so the plugin needs no server-side image
+        // library. It also means the accepted input set is "whatever this browser can
+        // decode" while the stored output stays deliberately narrow.
+
+        IMAGE_MASTER_SIZE: 512,
+        IMAGE_THUMB_SIZE: 128,
+
+        /// Formats refused before we even try to decode, each with a reason worth showing.
+        /// Everything else is handed to the browser: if it decodes, we can store it.
+        _rejectImageFile: function (file) {
+            const name = (file.name || '').toLowerCase();
+            const type = (file.type || '').toLowerCase();
+
+            // The common case by a distance: iPhones shoot HEIC by default, and only Safari
+            // can decode it. Elsewhere the canvas load simply fails, so without this the
+            // user gets silence and no idea why.
+            if (type.includes('heic') || type.includes('heif') || /\.hei[cf]$/.test(name)) {
+                return 'iPhone photos (HEIC) can\'t be read by most browsers. Save or export the photo as JPEG first, then upload it.';
+            }
+
+            // SVG can carry script, and these files are served back from the server's own
+            // origin. Not worth it for an avatar.
+            if (type.includes('svg') || /\.svgz?$/.test(name)) {
+                return 'SVG images aren\'t supported. Use a JPEG, PNG, WebP or GIF.';
+            }
+
+            if (file.size > 25 * 1024 * 1024) {
+                return 'That image is very large. Please use one under 25 MB.';
+            }
+
+            return null;
+        },
+
+        /// Reads a File into a decoded <img>. Rejects with a message fit to show the user.
+        loadImageFromFile: function (file) {
+            return new Promise((resolve, reject) => {
+                const reason = this._rejectImageFile(file);
+                if (reason) { reject(new Error(reason)); return; }
+
+                const reader = new FileReader();
+                reader.onerror = () => reject(new Error('That file could not be read.'));
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        if (!img.width || !img.height) {
+                            reject(new Error('That image appears to be empty.'));
+                            return;
+                        }
+                        resolve(img);
+                    };
+                    // Reached for any format this browser cannot decode — including a HEIC
+                    // that slipped past the check above with an empty MIME type.
+                    img.onerror = () => reject(new Error(
+                        'This browser can\'t read that image format. Try saving it as a JPEG or PNG first.'));
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        },
+
+        /// Loads a same-origin URL into an <img> for cropping. Used when someone picks an
+        /// avatar from the administrator's library — same-origin keeps the canvas untainted,
+        /// so it can still be re-encoded.
+        loadImageFromUrl: function (url) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error('That image could not be loaded.'));
+                img.src = url;
+            });
+        },
+
+        /// Smallest zoom at which the image still covers a square of `size`.
+        _coverZoom: function (img, size) {
+            return Math.max(size / img.width, size / img.height);
+        },
+
+        /// Keeps the image covering the viewport, so a crop can never include blank edges.
+        _clampCrop: function (img, viewport, crop) {
+            const w = img.width * crop.zoom;
+            const h = img.height * crop.zoom;
+            return {
+                zoom: crop.zoom,
+                x: Math.min(0, Math.max(viewport - w, crop.x)),
+                y: Math.min(0, Math.max(viewport - h, crop.y))
+            };
+        },
+
+        /// Renders the cropped square at `outSize` and returns it as a data URL.
+        /// PNG is used when the source has transparency — re-encoding a cut-out avatar as
+        /// JPEG would fill the transparent area with black.
+        renderCrop: function (img, viewport, crop, outSize, preferPng) {
+            const canvas = document.createElement('canvas');
+            canvas.width = outSize;
+            canvas.height = outSize;
+            const ctx = canvas.getContext('2d');
+            const k = outSize / viewport;
+            ctx.drawImage(img, crop.x * k, crop.y * k, img.width * crop.zoom * k, img.height * crop.zoom * k);
+            return preferPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.85);
+        },
+
+        /// True when any pixel is not fully opaque. Sampled at low resolution — this only
+        /// decides an output format, so an exact answer is not worth the work.
+        _hasTransparency: function (img) {
+            try {
+                const s = 32;
+                const canvas = document.createElement('canvas');
+                canvas.width = s; canvas.height = s;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, s, s);
+                const data = ctx.getImageData(0, 0, s, s).data;
+                for (let i = 3; i < data.length; i += 4) {
+                    if (data[i] < 250) return true;
+                }
+            } catch (e) { /* tainted canvas or no context — assume opaque */ }
+            return false;
+        },
+
+        /// Opens the crop editor. Calls back with { image, thumb } data URLs, or does
+        /// nothing if the user cancels.
+        ///
+        /// Supports all three input modes the supported clients need: mouse drag, touch
+        /// drag, and D-pad (arrows pan, +/- zoom, and the zoom slider is focusable).
+        showCropDialog: function (img, onDone) {
+            const VIEW = 260;
+            const preferPng = this._hasTransparency(img);
+
+            const minZoom = this._coverZoom(img, VIEW);
+            let crop = this._clampCrop(img, VIEW, {
+                zoom: minZoom,
+                // Start centred — the subject of a photo is far more often in the middle
+                // than in a corner.
+                x: (VIEW - img.width * minZoom) / 2,
+                y: (VIEW - img.height * minZoom) / 2
+            });
+
+            const dialog = document.createElement('div');
+            dialog.id = 'profiles-crop-dialog';
+            dialog.style.cssText = `
+                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+                display: flex; align-items: center; justify-content: center;
+                z-index: ${DIALOG_Z};
+            `;
+            dialog.innerHTML = `
+                <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius:12px;
+                            padding:22px; max-width:340px; width:92%; box-shadow:0 10px 30px rgba(0,0,0,0.5); text-align:center;">
+                    <h2 style="margin:0 0 4px 0; color:#fff; font-size:1.15rem; font-weight:700;">Position your picture</h2>
+                    <p style="color:rgba(255,255,255,0.55); font-size:0.78rem; margin:0 0 14px 0;">
+                        Drag to move, or use the arrow keys. Pinch or use the slider to zoom.
+                    </p>
+                    <div id="profiles-crop-view" tabindex="0" style="
+                        width:${VIEW}px; height:${VIEW}px; margin:0 auto; border-radius:50%;
+                        overflow:hidden; position:relative; cursor:grab; touch-action:none;
+                        background:#0d0d12; outline-offset:3px;">
+                        <canvas id="profiles-crop-canvas" width="${VIEW}" height="${VIEW}"
+                                style="display:block; width:${VIEW}px; height:${VIEW}px;"></canvas>
+                    </div>
+                    <input type="range" id="profiles-crop-zoom" min="1" max="4" step="0.01" value="1"
+                           style="width:100%; margin:16px 0 4px 0;" aria-label="Zoom" />
+                    <div style="display:flex; gap:12px; justify-content:center; margin-top:12px;">
+                        <button id="profiles-crop-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>
+                        <button id="profiles-crop-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">Use picture</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(dialog);
+
+            const view = dialog.querySelector('#profiles-crop-view');
+            const canvas = dialog.querySelector('#profiles-crop-canvas');
+            const ctx = canvas.getContext('2d');
+            const zoomInput = dialog.querySelector('#profiles-crop-zoom');
+
+            const draw = () => {
+                ctx.clearRect(0, 0, VIEW, VIEW);
+                ctx.drawImage(img, crop.x, crop.y, img.width * crop.zoom, img.height * crop.zoom);
+            };
+            draw();
+
+            const setZoom = (multiplier, anchorX, anchorY) => {
+                const next = Math.max(1, Math.min(4, multiplier));
+                const newZoom = minZoom * next;
+                // Zoom about a point so the image does not lurch sideways: keep whatever
+                // was under the anchor in the same place.
+                const ax = anchorX === undefined ? VIEW / 2 : anchorX;
+                const ay = anchorY === undefined ? VIEW / 2 : anchorY;
+                const ratio = newZoom / crop.zoom;
+                crop = this._clampCrop(img, VIEW, {
+                    zoom: newZoom,
+                    x: ax - (ax - crop.x) * ratio,
+                    y: ay - (ay - crop.y) * ratio
+                });
+                zoomInput.value = String(next);
+                draw();
+            };
+
+            zoomInput.addEventListener('input', () => setZoom(parseFloat(zoomInput.value)));
+
+            // Pointer events cover mouse, touch and pen in one path.
+            let dragging = false, lastX = 0, lastY = 0, activePointers = new Map(), pinchStart = 0, pinchZoomStart = 1;
+
+            view.addEventListener('pointerdown', (e) => {
+                view.setPointerCapture(e.pointerId);
+                activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                if (activePointers.size === 1) {
+                    dragging = true; lastX = e.clientX; lastY = e.clientY;
+                    view.style.cursor = 'grabbing';
+                } else if (activePointers.size === 2) {
+                    const pts = Array.from(activePointers.values());
+                    pinchStart = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+                    pinchZoomStart = parseFloat(zoomInput.value);
+                }
+            });
+
+            view.addEventListener('pointermove', (e) => {
+                if (!activePointers.has(e.pointerId)) return;
+                activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+                if (activePointers.size === 2 && pinchStart > 0) {
+                    const pts = Array.from(activePointers.values());
+                    const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+                    setZoom(pinchZoomStart * (dist / pinchStart));
+                    return;
+                }
+                if (!dragging) return;
+                crop = this._clampCrop(img, VIEW, {
+                    zoom: crop.zoom,
+                    x: crop.x + (e.clientX - lastX),
+                    y: crop.y + (e.clientY - lastY)
+                });
+                lastX = e.clientX; lastY = e.clientY;
+                draw();
+            });
+
+            const endPointer = (e) => {
+                activePointers.delete(e.pointerId);
+                if (activePointers.size < 2) pinchStart = 0;
+                if (activePointers.size === 0) { dragging = false; view.style.cursor = 'grab'; }
+            };
+            view.addEventListener('pointerup', endPointer);
+            view.addEventListener('pointercancel', endPointer);
+
+            // D-pad / keyboard. A television has no pointer at all, so this is the only way
+            // in on the clients that need the avatar library most.
+            view.addEventListener('keydown', (e) => {
+                const step = 12;
+                let handled = true;
+                switch (e.key) {
+                    case 'ArrowLeft':  crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x + step, y: crop.y }); break;
+                    case 'ArrowRight': crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x - step, y: crop.y }); break;
+                    case 'ArrowUp':    crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x, y: crop.y + step }); break;
+                    case 'ArrowDown':  crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x, y: crop.y - step }); break;
+                    case '+': case '=': setZoom(parseFloat(zoomInput.value) + 0.2); break;
+                    case '-': case '_': setZoom(parseFloat(zoomInput.value) - 0.2); break;
+                    default: handled = false;
+                }
+                if (handled) { e.preventDefault(); draw(); }
+            });
+
+            const close = () => dialog.remove();
+            dialog.querySelector('#profiles-crop-cancel').addEventListener('click', close);
+            dialog.querySelector('#profiles-crop-save').addEventListener('click', () => {
+                const image = this.renderCrop(img, VIEW, crop, this.IMAGE_MASTER_SIZE, preferPng);
+                const thumb = this.renderCrop(img, VIEW, crop, this.IMAGE_THUMB_SIZE, preferPng);
+                close();
+                onDone({ image: image, thumb: thumb });
+            });
+
+            setTimeout(() => view.focus(), 50);
+        },
+
+        /// Fetches the administrator's avatar library. Resolves to a safe empty shape on
+        /// failure so a picker can always render.
+        fetchAvatarLibrary: function (apiClient, token) {
+            return fetch(apiClient.getUrl('plugins/profiles/avatars'), {
+                cache: 'no-store',
+                headers: this.getAuthHeaders(token)
+            })
+            .then(res => res.ok ? res.json() : Promise.reject(new Error('unavailable')))
+            .then(data => ({
+                allowCustomUploads: (data.allowCustomUploads !== undefined ? data.allowCustomUploads : data.AllowCustomUploads) !== false,
+                avatars: (data.avatars || data.Avatars || []).map(a => ({
+                    id: a.id || a.Id,
+                    displayName: a.displayName || a.DisplayName || '',
+                    url: a.url || a.Url,
+                    thumbUrl: a.thumbUrl || a.ThumbUrl
+                }))
+            }))
+            .catch(() => ({ allowCustomUploads: true, avatars: [] }));
+        },
+
+        /// Renders the profile-picture block. Shared by the create and edit forms so the two
+        /// cannot drift — they already carried near-identical copies of the old upload UI.
+        ///
+        /// `prefix` namespaces the element ids ('create' or 'edit').
+        renderAvatarPicker: function (prefix, library, currentImage, currentColor) {
+            const hasLibrary = library.avatars.length > 0;
+            const preview = currentImage ? avatarInner(currentImage, '+', /* useThumb */ true) : '+';
+
+            const libraryHtml = hasLibrary ? `
+                <div class="form-group" style="margin: 0;">
+                    <div class="form-hint" style="margin: 0 0 6px 0;">Choose one of your server's avatars</div>
+                    <div id="${prefix}-avatar-library" class="avatar-library-grid">
+                        ${library.avatars.map(a => `
+                            <button type="button" class="avatar-library-item" tabindex="0"
+                                    data-id="${escapeHtml(a.id)}" data-url="${escapeHtml(a.url)}"
+                                    title="${escapeHtml(a.displayName)}"
+                                    aria-label="${escapeHtml(a.displayName || 'Avatar')}">
+                                <img src="${safeImageSrc(a.thumbUrl)}" alt="" loading="lazy" />
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : '';
+
+            // The upload control disappears entirely when the administrator has locked
+            // avatars to the library — a disabled button people cannot use is just noise.
+            const uploadHtml = library.allowCustomUploads ? `
+                <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+                    <label for="${prefix}-profile-image-file" id="${prefix}-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
+                        <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
+                        <span>Upload a picture</span>
+                    </label>
+                    <input type="file" id="${prefix}-profile-image-file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" style="display: none;" />
+                    <div class="form-hint" style="margin: 0;">JPEG, PNG, WebP or GIF. You can position and zoom it after choosing.</div>
+                </div>
+            ` : `
+                <div class="form-hint" style="margin: 0; min-width: 0;">
+                    Your server administrator has limited profile pictures to the set above.
+                </div>
+            `;
+
+            const urlHtml = library.allowCustomUploads ? `
+                <div class="form-divider"><span>OR</span></div>
+                <div class="form-group" style="margin: 0;">
+                    <input type="text" id="${prefix}-profile-image-url" placeholder="Paste image URL" />
+                    <div class="form-hint" style="margin: 4px 0 0 0;">Linked directly, not stored on your server — and not croppable.</div>
+                </div>
+            ` : '';
+
+            return `
+                <div class="form-group">
+                    <label>Profile Picture</label>
+                    <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 12px;">
+                        ${libraryHtml}
+                        <div class="image-upload-row">
+                            <div id="${prefix}-image-upload-preview" class="image-upload-preview" style="background-color: ${safeColor(currentColor)};">${preview}</div>
+                            ${uploadHtml}
+                        </div>
+                        ${urlHtml}
+                        <div id="${prefix}-image-error" style="display:none; color:#ff6b6b; font-size:0.82rem; font-weight:600; line-height:1.45;"></div>
+                    </div>
+                </div>
+            `;
+        },
+
+        /// Wires the picker up. Returns an accessor for the chosen image so the caller can
+        /// read it at save time without tracking the state itself.
+        initAvatarPicker: function (container, prefix, library, initialImage, onPreviewChange) {
+            // libraryId is set instead of image/thumb when the picture comes from the
+            // library on a locked-down server: the server copies the file itself, which is
+            // the only form of the choice it can actually verify.
+            const state = { image: initialImage || null, thumb: null, libraryId: null };
+
+            const previewEl = container.querySelector(`#${prefix}-image-upload-preview`);
+            const errEl = container.querySelector(`#${prefix}-image-error`);
+            const fileInput = container.querySelector(`#${prefix}-profile-image-file`);
+            const fileLabel = container.querySelector(`#${prefix}-profile-image-label`);
+            const urlInput = container.querySelector(`#${prefix}-profile-image-url`);
+
+            const showError = (message) => {
+                if (!errEl) return;
+                errEl.textContent = message;
+                errEl.style.display = message ? 'block' : 'none';
+            };
+
+            const setPreview = (src) => {
+                if (!previewEl) return;
+                previewEl.style.position = 'relative';
+                previewEl.innerHTML = src ? avatarInner(src, '+', /* useThumb */ true) : '+';
+                if (typeof onPreviewChange === 'function') onPreviewChange(src);
+            };
+            setPreview(state.image);
+
+            const applyCropped = (result) => {
+                state.image = result.image;
+                state.thumb = result.thumb;
+                state.libraryId = null;
+                setPreview(result.image);
+                showError('');
+                if (urlInput) urlInput.value = '';
+                if (fileInput) fileInput.value = '';
+            };
+
+            // Label doubles as the file trigger so it can be focused by D-pad.
+            if (fileLabel && fileInput) {
+                fileLabel.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+                });
+            }
+
+            if (fileInput) {
+                fileInput.addEventListener('change', (e) => {
+                    const file = e.target.files && e.target.files[0];
+                    if (!file) return;
+                    showError('');
+                    this.loadImageFromFile(file)
+                        .then(img => this.showCropDialog(img, applyCropped))
+                        .catch(err => {
+                            showError(err.message);
+                            fileInput.value = '';
+                        });
+                });
+            }
+
+            container.querySelectorAll(`#${prefix}-avatar-library .avatar-library-item`).forEach(btn => {
+                const pick = () => {
+                    showError('');
+
+                    // On a locked-down server the crop step is skipped and the id is sent
+                    // instead. Cropping would produce a data payload indistinguishable from
+                    // an upload, which is exactly what that server has chosen to refuse.
+                    if (!library.allowCustomUploads) {
+                        state.image = btn.getAttribute('data-url');
+                        state.thumb = null;
+                        state.libraryId = btn.getAttribute('data-id');
+                        setPreview(state.image);
+                        return;
+                    }
+
+                    // Full size, not the thumbnail — this is about to be re-cropped, and
+                    // cropping a 128px source would produce a soft avatar.
+                    this.loadImageFromUrl(btn.getAttribute('data-url'))
+                        .then(img => this.showCropDialog(img, applyCropped))
+                        .catch(err => showError(err.message));
+                };
+                btn.addEventListener('click', (e) => { e.preventDefault(); pick(); });
+                btn.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
+                });
+            });
+
+            if (urlInput) {
+                urlInput.addEventListener('input', () => {
+                    const url = urlInput.value.trim();
+                    // A remote URL is stored as a link, so there is nothing to crop and no
+                    // thumbnail to generate — the browser scales it on render instead.
+                    state.image = url || null;
+                    state.thumb = null;
+                    state.libraryId = null;
+                    setPreview(url || null);
+                    if (fileInput) fileInput.value = '';
+                });
+            }
+
+            return {
+                get: () => ({ image: state.image, thumb: state.thumb, libraryId: state.libraryId }),
+                clear: () => {
+                    // Empty string, not null: the server reads that as "delete the picture",
+                    // whereas null means "leave it alone".
+                    state.image = '';
+                    state.thumb = null;
+                    state.libraryId = null;
+                    setPreview(null);
+                    if (urlInput) urlInput.value = '';
+                    if (fileInput) fileInput.value = '';
+                },
+                setError: showError
+            };
+        },
+
         showAddProfileModal: function () {
             const apiClient = ApiClient;
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
@@ -1889,9 +2635,10 @@
             Promise.all([
                 fetch(libUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
                 fetch(devicesUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()).catch(() => []),
-                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId)
+                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId),
+                this.fetchAvatarLibrary(apiClient, masterState.masterToken)
             ])
-            .then(([libraries, devices, libraryTags]) => {
+            .then(([libraries, devices, libraryTags, avatarLibrary]) => {
                 const normalizedLibs = (libraries || []).map(lib => ({
                     id: lib.id || lib.Id,
                     name: lib.name || lib.Name,
@@ -1911,26 +2658,7 @@
                         ${this.renderColorPicker('#00A4DC')}
                         <div class="form-hint">Used as the avatar background when no picture is set.</div>
                     </div>
-                    <div class="form-group">
-                        <label>Profile Picture</label>
-                        <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 10px;">
-                            <div class="image-upload-row">
-                                <div id="create-image-upload-preview" class="image-upload-preview" style="background-color: #00A4DC;">+</div>
-                                <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
-                                    <label for="create-profile-image-file" id="create-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
-                                        <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
-                                        <span>Choose Image</span>
-                                    </label>
-                                    <input type="file" id="create-profile-image-file" accept="image/*" style="display: none;" />
-                                    <div class="form-hint" style="margin: 0;">Maximum size: 96x96 pixels (auto-resized)</div>
-                                </div>
-                            </div>
-                            <div class="form-divider"><span>OR</span></div>
-                            <div class="form-group" style="margin: 0;">
-                                <input type="text" id="create-profile-image-url" placeholder="Paste image URL (fallback for TV platforms)" />
-                            </div>
-                        </div>
-                    </div>
+                    ${this.renderAvatarPicker('create', avatarLibrary, null, '#00A4DC')}
                 `;
 
                 // ── Section 2: getting into this profile ────────────────────────
@@ -2075,90 +2803,17 @@
                     });
                 });
 
-                // Profile Image Upload / URL Handlers for Create
-                let uploadedImageBase64 = null;
-                const fileInput = document.getElementById('create-profile-image-file');
-                const fileLabel = document.getElementById('create-profile-image-label');
-                if (fileLabel) {
-                    fileLabel.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            fileInput.click();
-                        }
-                    });
-                }
-                const urlInput = document.getElementById('create-profile-image-url');
+                const avatarPicker = this.initAvatarPicker(content, 'create', avatarLibrary, null);
+
+                // With no picture chosen, the preview shows the profile's initial — so it
+                // has to follow what is being typed into the name field.
                 const previewDiv = document.getElementById('create-image-upload-preview');
-
-                const updatePreview = (src) => {
-                    if (src) {
-                        previewDiv.innerHTML = `<img src="${safeImageSrc(src)}" style="width: 100%; height: 100%; object-fit: cover;" />`;
-                    } else {
-                        const nameVal = document.getElementById('create-name-input')?.value?.trim();
-                        previewDiv.innerHTML = nameVal ? nameVal.charAt(0).toUpperCase() : '+';
-                    }
-                };
-
                 const nameInput = document.getElementById('create-name-input');
-                if (nameInput) {
+                if (nameInput && previewDiv) {
                     nameInput.addEventListener('input', () => {
-                        if (!uploadedImageBase64) {
-                            updatePreview(null);
-                        }
-                    });
-                }
-
-                if (fileInput) {
-                    fileInput.addEventListener('change', (e) => {
-                        const file = e.target.files[0];
-                        if (!file) return;
-
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                            const img = new Image();
-                            img.onload = () => {
-                                const canvas = document.createElement('canvas');
-                                let width = img.width;
-                                let height = img.height;
-                                const max_size = 96;
-
-                                if (width > height) {
-                                    if (width > max_size) {
-                                        height *= max_size / width;
-                                        width = max_size;
-                                    }
-                                } else {
-                                    if (height > max_size) {
-                                        width *= max_size / height;
-                                        height = max_size;
-                                    }
-                                }
-                                canvas.width = width;
-                                canvas.height = height;
-                                const ctx = canvas.getContext('2d');
-                                ctx.drawImage(img, 0, 0, width, height);
-
-                                uploadedImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
-                                updatePreview(uploadedImageBase64);
-                                if (urlInput) urlInput.value = '';
-                            };
-                            img.src = event.target.result;
-                        };
-                        reader.readAsDataURL(file);
-                    });
-                }
-
-                if (urlInput) {
-                    urlInput.addEventListener('input', () => {
-                        const url = urlInput.value.trim();
-                        if (url) {
-                            uploadedImageBase64 = url;
-                            updatePreview(url);
-                            if (fileInput) fileInput.value = '';
-                        } else {
-                            uploadedImageBase64 = null;
-                            updatePreview(null);
-                        }
+                        if (avatarPicker.get().image) return;
+                        const nameVal = nameInput.value.trim();
+                        previewDiv.innerHTML = nameVal ? escapeHtml(nameVal.charAt(0).toUpperCase()) : '+';
                     });
                 }
 
@@ -2296,7 +2951,9 @@
                             lockoutMinutes: lockoutMinutes,
                             bypassPinOnLocalNetwork: bypassPin,
                             allowedDeviceIds: checkedDevices,
-                            profileImage: uploadedImageBase64
+                            profileImage: avatarPicker.get().image,
+                            profileImageThumb: avatarPicker.get().thumb,
+                            avatarLibraryId: avatarPicker.get().libraryId
                         })
                     })
                     .then(res => {
@@ -2334,9 +2991,10 @@
                 fetch(libUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
                 fetch(userUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
                 fetch(devicesUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()).catch(() => []),
-                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId)
+                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId),
+                this.fetchAvatarLibrary(apiClient, masterState.masterToken)
             ])
-            .then(([libraries, userDetails, devices, libraryTags]) => {
+            .then(([libraries, userDetails, devices, libraryTags, avatarLibrary]) => {
                 const normalizedLibs = (libraries || []).map(lib => ({
                     id: lib.id || lib.Id,
                     name: lib.name || lib.Name,
@@ -2366,31 +3024,10 @@
                         ${this.renderColorPicker(profile.avatarColor)}
                         <div class="form-hint">Used as the avatar background when no picture is set.</div>
                     </div>
-                    <div class="form-group">
-                        <label>Profile Picture</label>
-                        <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 10px;">
-                            <div class="image-upload-row">
-                                <div id="edit-image-upload-preview" class="image-upload-preview" style="background-color: ${safeColor(profile.avatarColor)};">
-                                    ${profile.profileImage ? `<img src="${safeImageSrc(profile.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(profile.avatarInitial)}
-                                </div>
-                                <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
-                                    <label for="edit-profile-image-file" id="edit-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
-                                        <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
-                                        <span>Choose Image</span>
-                                    </label>
-                                    <input type="file" id="edit-profile-image-file" accept="image/*" style="display: none;" />
-                                    <div class="form-hint" style="margin: 0;">Maximum size: 96x96 pixels (auto-resized)</div>
-                                </div>
-                            </div>
-                            <div class="form-divider"><span>OR</span></div>
-                            <div class="form-group" style="margin: 0;">
-                                <input type="text" id="edit-profile-image-url" placeholder="Paste image URL (fallback for TV platforms)" value="${profile.profileImage && !profile.profileImage.startsWith('data:') ? escapeHtml(profile.profileImage) : ''}" />
-                            </div>
-                            ${profile.profileImage ? `
-                                <button type="button" id="edit-clear-profile-image-btn" class="profiles-btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; align-self: flex-start;">Remove Picture</button>
-                            ` : ''}
-                        </div>
-                    </div>
+                    ${this.renderAvatarPicker('edit', avatarLibrary, profile.profileImage, profile.avatarColor)}
+                    ${profile.profileImage ? `
+                        <button type="button" id="edit-clear-profile-image-btn" class="profiles-btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; align-self: flex-start; margin-top: -6px;">Remove Picture</button>
+                    ` : ''}
                 `;
 
                 // ── Section 2: getting into this profile ────────────────────────
@@ -2563,92 +3200,19 @@
                     });
                 });
 
-                // Profile Image Upload / URL Handlers for Edit
-                let uploadedImageBase64 = profile.profileImage || null;
-                const fileInput = document.getElementById('edit-profile-image-file');
-                const editFileLabel = document.getElementById('edit-profile-image-label');
-                if (editFileLabel) {
-                    editFileLabel.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            fileInput.click();
-                        }
-                    });
-                }
-                const urlInput = document.getElementById('edit-profile-image-url');
-                const previewDiv = document.getElementById('edit-image-upload-preview');
                 const clearImgBtn = document.getElementById('edit-clear-profile-image-btn');
-
-                const updatePreview = (src) => {
-                    if (src) {
-                        previewDiv.innerHTML = `<img src="${safeImageSrc(src)}" style="width: 100%; height: 100%; object-fit: cover;" />`;
-                    } else {
-                        previewDiv.innerHTML = profile.avatarInitial;
-                    }
-                };
-
-                if (fileInput) {
-                    fileInput.addEventListener('change', (e) => {
-                        const file = e.target.files[0];
-                        if (!file) return;
-
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                            const img = new Image();
-                            img.onload = () => {
-                                const canvas = document.createElement('canvas');
-                                let width = img.width;
-                                let height = img.height;
-                                const max_size = 96;
-
-                                if (width > height) {
-                                    if (width > max_size) {
-                                        height *= max_size / width;
-                                        width = max_size;
-                                    }
-                                } else {
-                                    if (height > max_size) {
-                                        width *= max_size / height;
-                                        height = max_size;
-                                    }
-                                }
-                                canvas.width = width;
-                                canvas.height = height;
-                                const ctx = canvas.getContext('2d');
-                                ctx.drawImage(img, 0, 0, width, height);
-
-                                uploadedImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
-                                updatePreview(uploadedImageBase64);
-                                if (urlInput) urlInput.value = '';
-                                if (clearImgBtn) clearImgBtn.style.display = 'block';
-                            };
-                            img.src = event.target.result;
-                        };
-                        reader.readAsDataURL(file);
+                const avatarPicker = this.initAvatarPicker(
+                    content, 'edit', avatarLibrary, profile.profileImage,
+                    (src) => {
+                        // The Remove button only makes sense while there is a picture.
+                        if (clearImgBtn) clearImgBtn.style.display = src ? 'block' : 'none';
+                        const preview = document.getElementById('edit-image-upload-preview');
+                        if (preview && !src) preview.innerHTML = escapeHtml(profile.avatarInitial);
                     });
-                }
-
-                if (urlInput) {
-                    urlInput.addEventListener('input', () => {
-                        const url = urlInput.value.trim();
-                        if (url) {
-                            uploadedImageBase64 = url;
-                            updatePreview(url);
-                            if (fileInput) fileInput.value = '';
-                            if (clearImgBtn) clearImgBtn.style.display = 'block';
-                        } else {
-                            uploadedImageBase64 = null;
-                            updatePreview(null);
-                        }
-                    });
-                }
 
                 if (clearImgBtn) {
                     clearImgBtn.addEventListener('click', () => {
-                        uploadedImageBase64 = ''; // Empty string instructs backend to clear
-                        updatePreview(null);
-                        if (fileInput) fileInput.value = '';
-                        if (urlInput) urlInput.value = '';
+                        avatarPicker.clear();
                         clearImgBtn.style.display = 'none';
                     });
                 }
@@ -2876,7 +3440,9 @@
                             lockoutMinutes: lockoutMinutes,
                             bypassPinOnLocalNetwork: bypassPin,
                             allowedDeviceIds: checkedDevices,
-                            profileImage: uploadedImageBase64
+                            profileImage: avatarPicker.get().image,
+                            profileImageThumb: avatarPicker.get().thumb,
+                            avatarLibraryId: avatarPicker.get().libraryId
                         })
                     })
                     .then(res => {
@@ -2962,21 +3528,22 @@
             const content = document.querySelector('.profiles-modal-content');
             if (!content) return;
 
-            const current = this.getSwitcherMode() || 'gate';
+            const prefs = this.getSwitcherPrefs() || { askOnStartup: true, location: 'button' };
 
-            const option = (mode, icon, title, body) => `
-                <div class="switcher-mode-option" data-mode="${mode}" tabindex="0" style="
+            // Two separate questions, deliberately not folded into one list of modes: the
+            // combination people asked for in issue #14 — ask on startup, but switch from
+            // Jellyfin's menu — is unreachable when it is a single choice.
+            const locationOption = (value, icon, title, body) => `
+                <div class="switcher-location-option" data-location="${value}" tabindex="0" role="radio"
+                     aria-checked="${prefs.location === value}" style="
                     display: flex; gap: 14px; text-align: left; padding: 16px;
                     border-radius: 12px; cursor: pointer; box-sizing: border-box;
-                    border: 2px solid ${current === mode ? '#00a4dc' : 'rgba(255,255,255,0.08)'};
-                    background: ${current === mode ? 'rgba(0,164,220,0.08)' : 'rgba(255,255,255,0.02)'};
+                    border: 2px solid ${prefs.location === value ? '#00a4dc' : 'rgba(255,255,255,0.08)'};
+                    background: ${prefs.location === value ? 'rgba(0,164,220,0.08)' : 'rgba(255,255,255,0.02)'};
                 ">
-                    <span class="material-icons" style="font-size: 2rem; color: ${current === mode ? '#00a4dc' : 'rgba(255,255,255,0.5)'}; flex-shrink: 0;">${icon}</span>
+                    <span class="material-icons" style="font-size: 2rem; color: ${prefs.location === value ? '#00a4dc' : 'rgba(255,255,255,0.5)'}; flex-shrink: 0;">${icon}</span>
                     <div style="flex: 1 1 auto; min-width: 0;">
-                        <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
-                            ${title}
-                            ${current === mode ? '<span style="font-size: 0.7rem; font-weight: 600; color: #00a4dc; border: 1px solid #00a4dc; border-radius: 999px; padding: 1px 8px;">CURRENT</span>' : ''}
-                        </div>
+                        <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
                         <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
                     </div>
                 </div>
@@ -2985,18 +3552,31 @@
             content.innerHTML = `
                 <h1 class="profiles-title">Switcher Style</h1>
                 <div class="create-profile-container" style="max-width: 560px; width: 100%;">
-                    <p style="opacity: 0.75; font-size: 0.9rem; line-height: 1.5; margin: 0 0 1.25rem 0; text-align: left;">
-                        How you get to this screen. This is your household's choice and only affects your own account.
+                    <p style="opacity: 0.75; font-size: 0.9rem; line-height: 1.5; margin: 0 0 1.5rem 0; text-align: left;">
+                        How you reach this screen. Your household's choice — it only affects your own account, and follows you to every device you sign in on.
                     </p>
-                    <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
-                        ${option('gate', 'groups', 'Profile gate',
-                            'Ask who is watching every time the home screen opens, the way it works today. Best for a shared TV where the wrong profile is easy to end up in.')}
-                        ${option('native', 'switch_account', 'Jellyfin menu',
-                            'Go straight to the home screen. Switch profiles from Jellyfin\'s own user menu or your profile page instead. Best when one person uses the account most of the time.')}
+
+                    <div class="bonfire-form-group" style="gap: 4px; text-align: left; margin-bottom: 1.5rem;">
+                        <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.95rem !important; font-weight: 600 !important; position: relative !important;">
+                            <input type="checkbox" id="switcher-ask-startup" ${prefs.askOnStartup ? 'checked' : ''} style="cursor: pointer !important; accent-color: #00a4dc !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
+                            <span>Ask "Who's watching?" on startup</span>
+                        </label>
+                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.78rem !important; position: relative !important; display: block !important;">
+                            Shown once when the app opens — not every time you return to the home screen.
+                        </div>
                     </div>
+
+                    <div style="text-align: left; font-size: 0.95rem; font-weight: 600; margin-bottom: 10px;">Where to switch from</div>
+                    <div role="radiogroup" style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+                        ${locationOption('button', 'account_circle', 'Bonfire button',
+                            'A separate switcher button in the header, next to Jellyfin\'s own profile icon.')}
+                        ${locationOption('menu', 'switch_account', 'Jellyfin\'s user menu',
+                            'Adds "Switch Profile" above Sign out in Jellyfin\'s own menu, and to your profile page. Removes the second header icon.')}
+                    </div>
+
                     <div id="switcher-mode-error" style="display: none; color: #ff6b6b; font-size: 0.85rem; font-weight: 600; margin-top: 12px;"></div>
                     <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
-                        <button id="switcher-mode-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">Back</button>
+                        <button id="switcher-mode-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">Done</button>
                     </div>
                 </div>
             `;
@@ -3008,39 +3588,59 @@
             if (backBtn) backBtn.addEventListener('click', goBack);
 
             const errDiv = content.querySelector('#switcher-mode-error');
+            const askCb = content.querySelector('#switcher-ask-startup');
 
-            content.querySelectorAll('.switcher-mode-option').forEach(el => {
+            const save = (askOnStartup, location) => {
+                errDiv.style.display = 'none';
+                return fetch(apiClient.getUrl('plugins/profiles/preferences'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...this.getAuthHeaders(masterState.masterToken)
+                    },
+                    body: JSON.stringify({ askOnStartup: askOnStartup, switcherLocation: location })
+                })
+                .then(res => res.ok ? res.json() : Promise.reject(new Error('Could not save that.')))
+                .then(saved => {
+                    const ask = (saved.askOnStartup !== undefined ? saved.askOnStartup : saved.AskOnStartup) === true;
+                    const loc = (saved.switcherLocation || saved.SwitcherLocation) === 'menu' ? 'menu' : 'button';
+                    this._cacheSwitcherPrefs(ask, loc, masterState.masterUserId);
+                    return { askOnStartup: ask, location: loc };
+                })
+                .catch(err => {
+                    errDiv.textContent = err.message || 'Could not save that.';
+                    errDiv.style.display = 'block';
+                    return null;
+                });
+            };
+
+            // getSwitcherPrefs() returns null until the account's preferences have loaded,
+            // which is reachable here — init() runs before sign-in on a fresh browser, and
+            // only the home route retries. Fall back to what the form was rendered with
+            // rather than throwing and leaving the controls looking dead.
+            const currentPrefs = () => this.getSwitcherPrefs() || prefs;
+
+            if (askCb) {
+                askCb.addEventListener('change', () => {
+                    save(askCb.checked, currentPrefs().location).then(applied => {
+                        // Revert the box if the server refused, so it cannot sit there
+                        // showing a state that was never stored.
+                        if (!applied) askCb.checked = !askCb.checked;
+                    });
+                });
+            }
+
+            content.querySelectorAll('.switcher-location-option').forEach(el => {
                 const choose = () => {
-                    const mode = el.getAttribute('data-mode');
-                    if (mode === current) { goBack(); return; }
+                    const location = el.getAttribute('data-location');
+                    if (location === currentPrefs().location) return;
 
-                    errDiv.style.display = 'none';
-                    fetch(apiClient.getUrl('plugins/profiles/preferences'), {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...this.getAuthHeaders(masterState.masterToken)
-                        },
-                        body: JSON.stringify({ switcherMode: mode })
-                    })
-                    .then(res => res.ok ? res.json() : Promise.reject(new Error('Could not save that.')))
-                    .then(saved => {
-                        const applied = (saved.switcherMode || saved.SwitcherMode) === 'native' ? 'native' : 'gate';
-                        this._cacheSwitcherMode(applied, masterState.masterUserId);
-
-                        if (applied === 'native') {
-                            // Nothing else would take the overlay down: in native mode there
-                            // is no gate to fall back to, so dismissing it here is what puts
-                            // the user on the home screen they just asked for.
-                            this.removeProfileOverlay();
-                            this.checkRoute();
-                        } else {
-                            goBack();
-                        }
-                    })
-                    .catch(err => {
-                        errDiv.textContent = err.message || 'Could not save that.';
-                        errDiv.style.display = 'block';
+                    save(askCb ? askCb.checked : prefs.askOnStartup, location).then(applied => {
+                        if (!applied) return;
+                        // Re-render so the selected card updates, and so the floating button
+                        // appears or disappears immediately rather than on the next poll.
+                        this.showSwitcherModeModal();
+                        this.checkRoute();
                     });
                 };
 
@@ -3050,8 +3650,10 @@
                 });
             });
 
+            this.initTVCheckboxes(content);
+
             setTimeout(() => {
-                const first = content.querySelector('.switcher-mode-option');
+                const first = content.querySelector('#switcher-ask-startup');
                 if (first) first.focus();
             }, 250);
         },
@@ -3487,8 +4089,8 @@
             link.style.cursor = 'pointer';
 
             link.innerHTML = `
-                <div class="sidebar-profile-avatar" style="width: 24px; height: 24px; border-radius: 50%; background-color: ${color}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; flex-shrink: 0; overflow: hidden;">
-                    ${activeInfo.profileImage ? `<img src="${safeImageSrc(activeInfo.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(initial)}
+                <div class="sidebar-profile-avatar" style="width: 24px; height: 24px; border-radius: 50%; background-color: ${color}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; flex-shrink: 0; overflow: hidden; position: relative;">
+                    ${avatarInner(activeInfo.profileImage, initial, /* useThumb */ true)}
                 </div>
                 <span class="sidebarLinkText">${name} (Switch)</span>
             `;
@@ -3526,97 +4128,99 @@
         // Both are additive: nothing is removed from Jellyfin's own UI, so a failed match
         // costs a missing entry rather than a broken menu.
 
-        /// Watches for Jellyfin's user action sheet opening and adds a "Switch Profile" row.
-        /// Started once; the observer is cheap and the sheet is created fresh each time it
-        /// opens, so there is nothing to hook up front.
-        startUserMenuWatcher: function () {
-            if (this._userMenuObserver) return;
-            if (!document.body) return;
+        // Jellyfin 10.11's user menu is AppUserMenu.tsx — a MUI <Menu id="app-user-menu">
+        // of <MenuItem> rows, NOT the .actionSheet component older builds used. It also
+        // sets keepMounted, so the menu lives in the DOM from first render even while
+        // closed, which is why this can be a plain periodic check rather than an observer
+        // racing the menu open.
+        //
+        // Everything below degrades to "no entry appears" if the markup moves. The
+        // #/userprofile section is the deliberate fallback for that case.
+        USER_MENU_SELECTOR: '#app-user-menu',
 
-            this._userMenuObserver = new MutationObserver((records) => {
-                if (!this.isNativeMode()) return;
-                for (const record of records) {
-                    for (const node of record.addedNodes) {
-                        if (node.nodeType !== 1) continue;
-                        // The sheet itself, or a wrapper that contains it.
-                        const sheets = node.matches && node.matches('.actionSheet')
-                            ? [node]
-                            : (node.querySelectorAll ? node.querySelectorAll('.actionSheet') : []);
-                        for (const sheet of sheets) this.injectUserMenuEntry(sheet);
-                    }
-                }
-            });
+        /// Re-asserts the "Switch Profile" row in Jellyfin's user menu. Cheap and
+        /// idempotent — React re-renders the menu freely, so this runs from checkRoute
+        /// rather than trying to catch every rebuild.
+        syncUserMenuEntry: function () {
+            const menu = document.querySelector(this.USER_MENU_SELECTOR);
+            if (!menu) return;
 
-            this._userMenuObserver.observe(document.body, { childList: true, subtree: true });
-        },
+            const existing = menu.querySelector('#profiles-user-menu-item');
 
-        /// Adds the switcher row to an action sheet, if that sheet is the user menu.
-        injectUserMenuEntry: function (sheet) {
-            if (!sheet || sheet.querySelector('#profiles-user-menu-item')) return;
+            if (!this.isMenuLocation()) {
+                // Location switched back to the floating button — take the row out again.
+                if (existing) existing.remove();
+                return;
+            }
+            if (existing && menu.contains(existing)) return;
 
-            const items = Array.from(sheet.querySelectorAll('.listItem, .actionSheetMenuItem, button, a'));
+            const items = Array.from(menu.querySelectorAll('li.MuiMenuItem-root, [role="menuitem"]'));
             if (!items.length) return;
 
-            // Identify the user menu by its sign-out row. Every other action sheet in
-            // Jellyfin — sort, play menus, context menus — lacks one, so this is a far more
-            // stable signal than matching the sheet's own class names.
-            const signOut = items.find(el => {
-                const id = (el.getAttribute('data-id') || '').toLowerCase();
-                if (id === 'logout' || id === 'signout') return true;
-                const text = (el.textContent || '').trim().toLowerCase();
-                return text === 'sign out' || text === 'log out' || text === 'logout';
-            });
+            // Anchor on the Sign out row. It is the only item in this menu with no
+            // navigation target, and matching it by position instead would break the
+            // moment an optional row (Quick Connect, Select Server, Exit) appears.
+            // Translated UIs are the normal case — issue #14 came with a Polish
+            // screenshot — so text matching alone is not enough; the MUI Logout icon
+            // is language-independent and checked first.
+            const signOut = items.find(el => el.querySelector('[data-testid="LogoutIcon"]'))
+                || items.find(el => {
+                    if (el.getAttribute('href') || el.querySelector('a[href]')) return false;
+                    const text = (el.textContent || '').trim().toLowerCase();
+                    return text === 'sign out' || text === 'log out' || text === 'logout';
+                });
             if (!signOut) return;
 
-            // Clone a real row so the entry inherits whatever theme is in play instead of
-            // carrying hardcoded styling that will not match. Listeners are not cloned.
+            // Clone a real row so the entry inherits the active theme's MUI classes
+            // instead of carrying styling of our own that would not match. Cloning does
+            // not copy listeners, so React's logout handler does not come with it.
             const entry = signOut.cloneNode(true);
             entry.id = 'profiles-user-menu-item';
-            entry.removeAttribute('data-id');
+            entry.removeAttribute('aria-controls');
+            entry.removeAttribute('data-testid');
 
-            const icon = entry.querySelector('.material-icons, [class*="listItemIcon"]');
-            if (icon && icon.classList.contains('material-icons')) {
-                // Material icon glyphs come from the element's text content.
-                icon.textContent = 'switch_account';
-                icon.className = icon.className.replace(/\b(logout|exit_to_app)\b/g, 'switch_account');
+            const iconSlot = entry.querySelector('.MuiListItemIcon-root');
+            if (iconSlot) {
+                // Replace the MUI SVG with a Material Icons glyph — Jellyfin already
+                // loads that font, and we cannot construct a MUI icon component here.
+                iconSlot.innerHTML = '';
+                const glyph = document.createElement('span');
+                glyph.className = 'material-icons';
+                glyph.setAttribute('aria-hidden', 'true');
+                glyph.style.fontSize = '1.5rem';
+                glyph.textContent = 'switch_account';
+                iconSlot.appendChild(glyph);
             }
 
-            const label = entry.querySelector('.listItemBodyText, .actionSheetItemText');
-            if (label) {
-                label.textContent = 'Switch Profile';
-            } else {
-                entry.textContent = 'Switch Profile';
-            }
+            const label = entry.querySelector('.MuiListItemText-primary') || entry.querySelector('.MuiListItemText-root');
+            if (label) label.textContent = 'Switch Profile';
+            else entry.textContent = 'Switch Profile';
 
             entry.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                this.closeActionSheet(sheet);
-                // Let the sheet finish tearing down before the overlay mounts, so its
-                // closing animation does not run on top of the switcher.
-                setTimeout(() => this.handleBubbleClick(), 60);
+                this.closeUserMenu();
+                // Let MUI finish its close transition before the overlay mounts, so the
+                // menu is not still fading out on top of the switcher.
+                setTimeout(() => this.handleBubbleClick(), 80);
+            });
+            entry.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); entry.click(); }
             });
 
             signOut.parentNode.insertBefore(entry, signOut);
         },
 
-        /// Dismisses an action sheet we did not open. Jellyfin closes its own rows from
-        /// their handlers, and our cloned row has none, so the sheet has to be closed here.
-        closeActionSheet: function (sheet) {
+        /// Closes the MUI menu. Our cloned row has no React handler, so nothing would
+        /// dismiss it otherwise. Escape is what MUI itself listens for; clicking the
+        /// backdrop is the fallback for builds where that listener is not attached.
+        closeUserMenu: function () {
             document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 
-            // Escape is handled by the dialog helper, which may not be listening on every
-            // Jellyfin build. Tear the sheet down directly if it is still standing.
             setTimeout(() => {
-                if (!document.contains(sheet)) return;
-                const backdrop = document.querySelector('.dialogBackdrop, .dialogBackdropOpened');
+                const backdrop = document.querySelector('#app-user-menu .MuiBackdrop-root, .MuiModal-root .MuiBackdrop-root');
                 if (backdrop) backdrop.click();
-                if (document.contains(sheet)) {
-                    const container = sheet.closest('.dialogContainer') || sheet;
-                    container.remove();
-                    if (backdrop && document.contains(backdrop)) backdrop.remove();
-                }
-            }, 120);
+            }, 60);
         },
 
         /// Adds a Profiles section to Jellyfin's own profile page (#/userprofile).
@@ -3692,11 +4296,10 @@
         evaluateFloatingBubbleVisibility: function (viewType) {
             let bubble = document.getElementById('profiles-floating-bubble');
 
-            // In native mode the switcher is reached from Jellyfin's own user menu and
-            // profile page. Keeping the floating button as well would be two controls doing
-            // one job — and the button is exactly what people who choose native mode are
-            // asking to be rid of.
-            if (this.isNativeMode()) {
+            // With the switcher in Jellyfin's menu, keeping the floating button as well
+            // would be two controls doing one job — and the second portrait beside the
+            // native user icon is precisely what issue #14 reported as confusing.
+            if (this.isMenuLocation()) {
                 if (bubble) bubble.remove();
                 return;
             }
@@ -3907,8 +4510,8 @@
 
             const activeInfo = this.getCachedActiveProfile();
             b.innerHTML = `
-                <div class="profiles-header-avatar" style="background-color: ${activeInfo.color}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden;">
-                    ${activeInfo.profileImage ? `<img src="${safeImageSrc(activeInfo.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(activeInfo.initial)}
+                <div class="profiles-header-avatar" style="background-color: ${safeColor(activeInfo.color)}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
+                    ${avatarInner(activeInfo.profileImage, activeInfo.initial, /* useThumb */ true)}
                 </div>
             `;
             return b;
@@ -3931,8 +4534,8 @@
 
             const activeInfo = this.getCachedActiveProfile();
             b.innerHTML = `
-                <div class="profiles-header-avatar" style="background-color: ${activeInfo.color}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden;">
-                    ${activeInfo.profileImage ? `<img src="${safeImageSrc(activeInfo.profileImage)}" style="width: 100%; height: 100%; object-fit: cover;" />` : escapeHtml(activeInfo.initial)}
+                <div class="profiles-header-avatar" style="background-color: ${safeColor(activeInfo.color)}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
+                    ${avatarInner(activeInfo.profileImage, activeInfo.initial, /* useThumb */ true)}
                 </div>
             `;
             return b;
@@ -4036,6 +4639,41 @@
         injectStyles: function () {
             const style = document.createElement('style');
             style.innerHTML = `
+                /* Administrator-supplied avatar picker.
+                   auto-fill rather than a fixed count so it reflows from a phone to a TV
+                   without a media query, and scrolls internally instead of pushing the
+                   form's buttons off screen when the library is large. */
+                .avatar-library-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+                    gap: 10px;
+                    max-height: 200px;
+                    overflow-y: auto;
+                    padding: 4px;
+                    background: rgba(0,0,0,0.15);
+                    border-radius: 10px;
+                    border: 1px solid rgba(255,255,255,0.05);
+                }
+                .avatar-library-item {
+                    aspect-ratio: 1 / 1;
+                    padding: 0;
+                    border: 2px solid transparent;
+                    border-radius: 50%;
+                    overflow: hidden;
+                    background: rgba(255,255,255,0.04);
+                    cursor: pointer;
+                    transition: border-color 0.15s ease, transform 0.15s ease;
+                }
+                .avatar-library-item img {
+                    width: 100%; height: 100%; object-fit: cover; display: block;
+                }
+                .avatar-library-item:hover,
+                .avatar-library-item:focus {
+                    border-color: #00a4dc;
+                    transform: scale(1.06);
+                    outline: none;
+                }
+
                 /* Scroll Block */
                 body.profiles-no-scroll, html.profiles-no-scroll {
                     overflow: hidden !important;

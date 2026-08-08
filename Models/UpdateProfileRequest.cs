@@ -21,5 +21,16 @@ namespace Jellyfin.Profiles.Models
         public bool? BypassPinOnLocalNetwork { get; set; }
         public List<string>? AllowedDeviceIds { get; set; }
         public string? ProfileImage { get; set; }
+        /// <summary>
+        /// Small rendering of <see cref="ProfileImage"/>, produced by the client. Optional —
+        /// the full-size image is served in its place when absent.
+        /// </summary>
+        public string? ProfileImageThumb { get; set; }
+        /// <summary>
+        /// Id of an avatar from the server's library. When set it wins over
+        /// <see cref="ProfileImage"/> and the file is copied server-side, which is the only
+        /// way to set a picture on a server that has disabled custom avatars.
+        /// </summary>
+        public string? AvatarLibraryId { get; set; }
     }
 }

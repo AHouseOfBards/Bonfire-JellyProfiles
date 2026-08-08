@@ -19,6 +19,15 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>5 attempts per 15 minutes — used for profile PIN entry.</summary>
         internal static readonly RateLimiter Pin = new(maxAttempts: 5, windowMinutes: 15);
 
+        /// <summary>
+        /// 5 attempts per hour — the emergency disable code. Far tighter than the others
+        /// because the code is submitted without any accompanying authentication, so this
+        /// limiter is the only thing standing between it and an offline-speed guess. A real
+        /// administrator needs one attempt, and the code is long enough to be worth typing
+        /// carefully; an attacker gets 120 guesses a day against it.
+        /// </summary>
+        internal static readonly RateLimiter Panic = new(maxAttempts: 5, windowMinutes: 60);
+
         // ── State ──────────────────────────────────────────────────────────────────
         private readonly int _maxAttempts;
         private readonly int _windowMinutes;

@@ -389,7 +389,9 @@ namespace Jellyfin.Profiles.Controllers
                     AllowedTags = profileAllowedTags,
                     BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork ?? false,
                     AllowedDeviceIds = request.AllowedDeviceIds ?? new List<string>(),
-                    ProfileImage = SaveProfileImage(targetUser.Id, request.ProfileImage)
+                    ProfileImage = !string.IsNullOrEmpty(request.AvatarLibraryId)
+                        ? CopyLibraryAvatarToProfile(targetUser.Id, request.AvatarLibraryId)
+                        : SaveProfileImage(targetUser.Id, request.ProfileImage, request.ProfileImageThumb)
                 });
 
                 Plugin.Instance?.SaveConfiguration();
@@ -994,7 +996,9 @@ namespace Jellyfin.Profiles.Controllers
                         // Grouping key for the dashboard. Name alone is not safe to group by —
                         // it changes when an account is renamed and is not guaranteed unique.
                         MasterUserId = mapping?.MasterUserId ?? Guid.Empty,
-                        RequiresPin = mapping != null && !string.IsNullOrEmpty(mapping.PinHash)
+                        RequiresPin = mapping != null && !string.IsNullOrEmpty(mapping.PinHash),
+                        // Lets the settings page report pictures whose file has gone missing.
+                        ProfileImage = mapping?.ProfileImage
                     });
                 }
                 else
@@ -1007,7 +1011,8 @@ namespace Jellyfin.Profiles.Controllers
                         ProfileName = user.Username,
                         RequiresPin = mapping != null && !string.IsNullOrEmpty(mapping.PinHash),
                         MaxProfiles = GetMaxProfilesForUser(user.Id, config),
-                        LimitOverride = limitOverride
+                        LimitOverride = limitOverride,
+                        ProfileImage = mapping?.ProfileImage
                     });
                 }
             }
@@ -1314,9 +1319,13 @@ namespace Jellyfin.Profiles.Controllers
 
                     mappingEntry.AvatarColor = SanitizeAvatarColor(request.AvatarColor);
 
-                    if (request.ProfileImage != null)
+                    if (!string.IsNullOrEmpty(request.AvatarLibraryId))
                     {
-                        mappingEntry.ProfileImage = SaveProfileImage(request.ProfileId, request.ProfileImage);
+                        mappingEntry.ProfileImage = CopyLibraryAvatarToProfile(request.ProfileId, request.AvatarLibraryId);
+                    }
+                    else if (request.ProfileImage != null)
+                    {
+                        mappingEntry.ProfileImage = SaveProfileImage(request.ProfileId, request.ProfileImage, request.ProfileImageThumb);
                     }
 
                     // Handle PIN updates
@@ -1374,10 +1383,38 @@ namespace Jellyfin.Profiles.Controllers
             return Ok();
         }
 
+        /// <summary>
+        /// Script served when the emergency disable is active. It only undoes what a
+        /// previously loaded copy may have left behind — the overlay, the scroll lock, the
+        /// injected button — and then does nothing at all.
+        /// </summary>
+        private const string InertProfilesJs =
+            "/* Bonfire: emergency disable active. Restart Jellyfin to restore the plugin. */\n" +
+            "(function(){try{\n" +
+            "  var o=document.getElementById('profiles-gate-overlay'); if(o)o.remove();\n" +
+            "  var b=document.getElementById('profiles-floating-bubble'); if(b)b.remove();\n" +
+            "  var s=document.getElementById('profiles-sidebar-link'); if(s)s.remove();\n" +
+            "  document.body.classList.remove('profiles-no-scroll');\n" +
+            "  document.documentElement.classList.remove('profiles-no-scroll');\n" +
+            "  document.documentElement.style.removeProperty('opacity');\n" +
+            "  localStorage.removeItem('jpf-sw');\n" +
+            "  console.warn('Bonfire is disabled until the server restarts.');\n" +
+            "}catch(e){}})();\n";
+
         [HttpGet("profiles.js")]
         [Produces("application/javascript")]
         public ActionResult GetProfilesJs()
         {
+            // Emergency disable: serve an inert script instead of the switcher. Answered
+            // before the cache and the ETag so a browser holding a 304-able copy of the real
+            // script still gets this one — the whole point is to recover a client that the
+            // plugin has made unusable, and a conditional request must not defeat that.
+            if (Plugin.IsPanicDisabled)
+            {
+                Response.Headers["Cache-Control"] = "no-store";
+                return Content(InertProfilesJs, "application/javascript");
+            }
+
             // CachedProfilesJs lives on ProfilesBaseController as a static field.
             // It is loaded once per app lifetime — no reason to read the embedded
             // resource on every browser page load.
@@ -1741,13 +1778,19 @@ namespace Jellyfin.Profiles.Controllers
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
 
             var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            var (askOnStartup, location) = SwitcherLocations.Resolve(masterMapping);
 
             return Ok(new
             {
-                SwitcherMode = SwitcherModes.Normalize(masterMapping?.SwitcherMode),
-                // The client caches the mode in localStorage to decide whether to raise the
-                // gate before this call returns. Echoing the account it belongs to lets it
-                // throw the cache away when a different user signs in on the same browser.
+                AskOnStartup = askOnStartup,
+                SwitcherLocation = location,
+                // Derived, for any client still reading the 1.3.1-beta field. It cannot
+                // express "ask on startup + menu", which is the whole point of the split, so
+                // such a client sees the nearest equivalent rather than something incoherent.
+                SwitcherMode = askOnStartup ? SwitcherModes.Gate : SwitcherModes.Native,
+                // The client caches these in localStorage to decide whether to raise the gate
+                // before this call returns. Echoing the account they belong to lets it throw
+                // the cache away when a different user signs in on the same browser.
                 MasterUserId = masterUserId
             });
         }
@@ -1771,7 +1814,8 @@ namespace Jellyfin.Profiles.Controllers
             if (currentMapping != null && currentMapping.MasterUserId != currentUserId)
                 return Unauthorized("Only the master profile can change switcher preferences.");
 
-            string mode;
+            bool askOnStartup;
+            string location;
             lock (config)
             {
                 var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
@@ -1787,16 +1831,32 @@ namespace Jellyfin.Profiles.Controllers
                     config.Mappings.Add(masterMapping);
                 }
 
+                // A cached 1.3.1-beta script posts only switcherMode. Expand it, but let the
+                // newer fields win when both arrive, so a client that knows about the split
+                // is never overruled by a legacy value it sent for compatibility.
                 if (request.SwitcherMode != null)
                 {
-                    masterMapping.SwitcherMode = SwitcherModes.Normalize(request.SwitcherMode);
+                    bool native = SwitcherModes.Normalize(request.SwitcherMode) == SwitcherModes.Native;
+                    masterMapping.AskOnStartup = !native;
+                    masterMapping.SwitcherLocation = native ? SwitcherLocations.Menu : SwitcherLocations.Button;
                 }
 
-                mode = SwitcherModes.Normalize(masterMapping.SwitcherMode);
+                if (request.AskOnStartup.HasValue)
+                    masterMapping.AskOnStartup = request.AskOnStartup.Value;
+
+                if (request.SwitcherLocation != null)
+                    masterMapping.SwitcherLocation = SwitcherLocations.Normalize(request.SwitcherLocation);
+
+                (askOnStartup, location) = SwitcherLocations.Resolve(masterMapping);
                 Plugin.Instance?.SaveConfiguration();
             }
 
-            return Ok(new { SwitcherMode = mode });
+            return Ok(new
+            {
+                AskOnStartup = askOnStartup,
+                SwitcherLocation = location,
+                SwitcherMode = askOnStartup ? SwitcherModes.Gate : SwitcherModes.Native
+            });
         }
 
         // ── Device Management ──────────────────────────────────────────────────────
@@ -1918,8 +1978,9 @@ namespace Jellyfin.Profiles.Controllers
         /// how Jellyfin serves its own user images (/Users/{id}/Images/Primary) — the GUID
         /// is the capability, and the content is a low-sensitivity avatar.
         /// </summary>
+        /// <param name="size">Pass <c>thumb</c> for the small variant used by grids.</param>
         [HttpGet("image/{profileId}")]
-        public ActionResult GetProfileImage(Guid profileId)
+        public ActionResult GetProfileImage(Guid profileId, [FromQuery] string? size = null)
         {
             var config = Plugin.Instance?.Configuration;
             if (config == null) return NotFound();
@@ -1927,30 +1988,378 @@ namespace Jellyfin.Profiles.Controllers
             var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
             if (mapping == null || string.IsNullOrEmpty(mapping.ProfileImage)) return NotFound();
 
-            var instance = Plugin.Instance;
-            if (instance == null) return NotFound();
+            if (Plugin.Instance == null) return NotFound();
 
-            var folder = Path.Combine(instance.AppPaths.DataPath, "plugins", "ProfilesManagement");
-            var candidates = new[]
-            {
-                (Path.Combine(folder, $"{profileId}.jpg"), "image/jpeg"),
-                (Path.Combine(folder, $"{profileId}.png"), "image/png"),
-                (Path.Combine(folder, $"{profileId}.gif"), "image/gif"),
-            };
+            bool wantThumb = string.Equals(size, "thumb", StringComparison.OrdinalIgnoreCase);
+            var found = FindImageFile(ProfileImageFolder, profileId.ToString(), wantThumb);
 
-            foreach (var (filePath, contentType) in candidates)
+            if (found == null)
             {
-                if (System.IO.File.Exists(filePath))
-                    return File(System.IO.File.ReadAllBytes(filePath), contentType);
+                // The mapping says there is a picture but the file is gone — a manual
+                // deletion, a failed restore, or a half-migrated data directory. Logged so
+                // the cause is discoverable; the dashboard surfaces a count separately, and
+                // the client falls back to the initial-and-colour tile.
+                _logger.LogWarning(
+                    "ProfilesPlugin: Profile {Id} references an image that is missing from {Folder}.",
+                    profileId, ProfileImageFolder);
+                return NotFound();
             }
 
             // No redirect for externally hosted images: this endpoint is anonymous, so
             // forwarding to a stored URL would turn it into an open redirect. Clients render
             // http(s) avatars straight from the URL in the profile list instead.
-            return NotFound();
+            return File(System.IO.File.ReadAllBytes(found.Value.Path), found.Value.ContentType);
+        }
+
+        // ── Emergency disable ──────────────────────────────────────────────────────
+        // If the switcher breaks badly it can make the Jellyfin web interface hard to use —
+        // including the settings page needed to uninstall the plugin. This is an escape
+        // hatch for that: an administrator sets a long code in advance, and entering it
+        // anywhere in the client shuts the plugin's script down until Jellyfin restarts.
+        //
+        // What it does NOT do is widen anyone's access to content. Library access, parental
+        // ratings and tag filters are all enforced in Jellyfin's own user policy server-side,
+        // and /switch still demands the target profile's PIN. The real exposure is narrower
+        // and worth stating plainly: the gate is what stands between "signed in as the master
+        // account" and "must pick a profile", so anyone who knows the code can skip that
+        // prompt on a device already signed in to the master account.
+        //
+        // Hence: off by default, hashed like a PIN, validated only here, rate limited hard,
+        // and logged loudly.
+
+        /// <summary>
+        /// Validates an emergency disable code and, if it matches, disables the plugin's
+        /// client script until the server restarts.
+        /// <para>
+        /// Deliberately unauthenticated. The whole point is to work when the interface is
+        /// broken — an administrator locked behind a failed switcher may be holding a
+        /// sub-profile's token, or none at all, so requiring admin rights here would make the
+        /// feature useless exactly when it is needed.
+        /// </para>
+        /// </summary>
+        [HttpPost("panic")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+        public ActionResult<object> Panic([FromBody] PanicRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+
+            // Rate limiting comes first, before the configured/not-configured branch below.
+            // Checking it afterwards would make an armed server answer 429 on the sixth
+            // attempt while an unarmed one kept answering 400 — the very oracle the matching
+            // error messages exist to close.
+            if (RateLimiter.Panic.IsRateLimited(ip))
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: Emergency disable code rate limit hit from {Ip}. Someone is guessing.", ip);
+                return StatusCode(StatusCodes.Status429TooManyRequests,
+                    "Too many attempts. Try again in an hour, or restart Jellyfin.");
+            }
+
+            // Nothing to match against. Answer exactly as a wrong code does, so the response
+            // cannot be used to discover whether a server has the feature armed.
+            if (string.IsNullOrEmpty(config.PanicCodeHash) || !VerifyPinHash(request.Code, config.PanicCodeHash))
+            {
+                RateLimiter.Panic.RecordFailure(ip);
+                return BadRequest("Incorrect code.");
+            }
+
+            RateLimiter.Panic.Reset(ip);
+            Plugin.TripPanicDisable();
+
+            // Error level so it stands out in the log without anyone having to know what to
+            // look for: this is a deliberate, unauthenticated shutdown of a security feature.
+            _logger.LogError(
+                "ProfilesPlugin: EMERGENCY DISABLE activated from {Ip} (device '{Device}', client '{Client}'). " +
+                "The profile switcher is now inert and will stay that way until Jellyfin is restarted.",
+                ip,
+                GetAuthorizationParameter("Device") ?? "unknown",
+                GetAuthorizationParameter("Client") ?? "unknown");
+
+            return Ok(new { Disabled = true });
+        }
+
+        /// <summary>
+        /// Whether the plugin is currently disabled. Unauthenticated and deliberately
+        /// minimal: it reveals only what is already obvious from the client's behaviour, and
+        /// nothing about whether a code is configured.
+        /// <para>
+        /// Exists because profiles.js is served with a five-minute cache. A browser reloading
+        /// inside that window can re-run the real script from cache after a disable, so the
+        /// script asks this on startup whenever it finds its own local disable marker — and
+        /// clears the marker when the server says the plugin is back.
+        /// </para>
+        /// </summary>
+        [HttpGet("panic-state")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public ActionResult<object> GetPanicState()
+        {
+            Response.Headers["Cache-Control"] = "no-store";
+            return Ok(new { Disabled = Plugin.IsPanicDisabled });
+        }
+
+        /// <summary>Whether a code is configured, and whether it has been used this run.</summary>
+        [HttpGet("admin/panic-status")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> GetPanicStatus()
+        {
+            var adminError = RequireAdministrator("view the emergency disable settings");
+            if (adminError != null) return adminError;
+
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            // The code itself is never returned — it is stored as a PBKDF2 hash and cannot be
+            // read back even here.
+            return Ok(new
+            {
+                IsConfigured = !string.IsNullOrEmpty(config.PanicCodeHash),
+                IsCurrentlyDisabled = Plugin.IsPanicDisabled
+            });
+        }
+
+        [HttpPost("admin/panic-code")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult SetPanicCode([FromBody] PanicRequest request)
+        {
+            var adminError = RequireAdministrator("change the emergency disable code");
+            if (adminError != null) return adminError;
+
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            // Empty clears it, which is how the feature is turned back off.
+            if (string.IsNullOrWhiteSpace(request.Code))
+            {
+                lock (config)
+                {
+                    config.PanicCodeHash = null;
+                    Plugin.Instance?.SaveConfiguration();
+                }
+                _logger.LogInformation("ProfilesPlugin: Emergency disable code cleared.");
+                return Ok();
+            }
+
+            var code = request.Code.Trim();
+
+            // Long, because this is submitted without authentication. The rate limiter caps
+            // guessing at five an hour, but a four-digit code would still be reachable.
+            if (code.Length < MinPanicCodeLength)
+                return BadRequest($"The code must be at least {MinPanicCodeLength} characters.");
+
+            if (code.Length > 128)
+                return BadRequest("The code is too long.");
+
+            lock (config)
+            {
+                config.PanicCodeHash = HashPin(code);
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            _logger.LogInformation("ProfilesPlugin: Emergency disable code set by an administrator.");
+            return Ok();
+        }
+
+        // ── Avatar library ─────────────────────────────────────────────────────────
+        // A set of pictures the administrator uploads once for everyone on the server to
+        // choose from. The motivating case is TV: <input type="file"> is unusable on a
+        // television, so before this the only ways to set a picture there were pasting a
+        // URL with an on-screen keyboard, or giving up.
+
+        /// <summary>
+        /// The avatars anyone may choose from, plus whether custom uploads are still allowed.
+        /// Metadata only — the images themselves come from <c>avatars/{id}</c>.
+        /// </summary>
+        [HttpGet("avatars")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> GetAvatarLibrary()
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+            if (GetCurrentUserId() == null) return Unauthorized();
+
+            return Ok(new
+            {
+                AllowCustomUploads = !config.DisallowCustomAvatarUploads,
+                Avatars = config.AvatarLibrary.Select(a => new
+                {
+                    a.Id,
+                    a.DisplayName,
+                    Url = $"/plugins/profiles/avatars/{a.Id}",
+                    ThumbUrl = $"/plugins/profiles/avatars/{a.Id}?size=thumb"
+                }).ToList()
+            });
+        }
+
+        /// <summary>
+        /// Serves a library avatar. Unauthenticated for the same reason as
+        /// <see cref="GetProfileImage"/>: it is rendered as an &lt;img src&gt;, and browsers
+        /// do not attach Authorization headers to image requests. These are pictures the
+        /// administrator published to every user on the server, so there is nothing here
+        /// that an authenticated user could not already fetch.
+        /// </summary>
+        [HttpGet("avatars/{id}")]
+        public ActionResult GetLibraryAvatar(string id, [FromQuery] string? size = null)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return NotFound();
+
+            // Look the id up rather than trusting it as a filename — it arrives from the
+            // URL, and joining unvalidated input to a path is how directory traversal works.
+            var item = config.AvatarLibrary.FirstOrDefault(a =>
+                string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
+            if (item == null) return NotFound();
+
+            bool wantThumb = string.Equals(size, "thumb", StringComparison.OrdinalIgnoreCase);
+            var found = FindImageFile(AvatarLibraryFolder, item.Id, wantThumb);
+            if (found == null)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: Library avatar {Id} ({Name}) is listed but its file is missing from {Folder}.",
+                    item.Id, item.DisplayName, AvatarLibraryFolder);
+                return NotFound();
+            }
+
+            return File(System.IO.File.ReadAllBytes(found.Value.Path), found.Value.ContentType);
         }
 
         // ── Admin Endpoints ────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Adds an image to the shared avatar library. The client supplies both a full-size
+        /// and a thumbnail rendering; nothing is resized server-side.
+        /// </summary>
+        [HttpPost("admin/avatars")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> AddLibraryAvatar([FromBody] AddAvatarRequest request)
+        {
+            var adminError = RequireAdministrator("manage the avatar library");
+            if (adminError != null) return adminError;
+
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            if (string.IsNullOrWhiteSpace(request.Image))
+                return BadRequest("No image supplied.");
+
+            // Hex rather than a raw GUID so the id reads cleanly in a URL and on disk.
+            var id = Guid.NewGuid().ToString("N").Substring(0, 12);
+
+            string? extension;
+            try
+            {
+                extension = WriteImageFiles(AvatarLibraryFolder, id, request.Image, request.Thumb, $"library avatar {id}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ProfilesPlugin: Failed to write library avatar {Id}.", id);
+                return BadRequest("Could not save that image. Check the Jellyfin log for details.");
+            }
+
+            if (extension == null)
+                return BadRequest("That image could not be read, or it is larger than the 2 MB limit.");
+
+            var name = string.IsNullOrWhiteSpace(request.DisplayName)
+                ? "Avatar"
+                : request.DisplayName.Trim();
+            if (name.Length > 60) name = name.Substring(0, 60);
+
+            var item = new AvatarLibraryItem
+            {
+                Id = id,
+                DisplayName = name,
+                Extension = extension,
+                UploadedUtc = DateTime.UtcNow
+            };
+
+            lock (config)
+            {
+                config.AvatarLibrary.Add(item);
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            _logger.LogInformation("ProfilesPlugin: Added library avatar {Id} ({Name}).", id, name);
+
+            return Ok(new
+            {
+                item.Id,
+                item.DisplayName,
+                Url = $"/plugins/profiles/avatars/{item.Id}",
+                ThumbUrl = $"/plugins/profiles/avatars/{item.Id}?size=thumb"
+            });
+        }
+
+        [HttpDelete("admin/avatars/{id}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public ActionResult DeleteLibraryAvatar(string id)
+        {
+            var adminError = RequireAdministrator("manage the avatar library");
+            if (adminError != null) return adminError;
+
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            lock (config)
+            {
+                var item = config.AvatarLibrary.FirstOrDefault(a =>
+                    string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
+                if (item == null) return NotFound("No such avatar.");
+
+                try
+                {
+                    DeleteImageFiles(AvatarLibraryFolder, item.Id);
+                }
+                catch (Exception ex)
+                {
+                    // Losing the file but keeping the entry would leave a permanently broken
+                    // tile in the picker, so drop the entry either way and log the orphan.
+                    _logger.LogWarning(ex,
+                        "ProfilesPlugin: Could not delete files for library avatar {Id}; removing the entry anyway.",
+                        item.Id);
+                }
+
+                config.AvatarLibrary.Remove(item);
+                Plugin.Instance?.SaveConfiguration();
+                _logger.LogInformation("ProfilesPlugin: Removed library avatar {Id} ({Name}).", item.Id, item.DisplayName);
+            }
+
+            // Profiles that chose this avatar keep their own copy of the image, so nothing
+            // they see changes — only the picker loses the option.
+            return Ok();
+        }
+
+        [HttpPost("admin/avatars/settings")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult UpdateAvatarSettings([FromBody] AvatarSettingsRequest request)
+        {
+            var adminError = RequireAdministrator("change avatar settings");
+            if (adminError != null) return adminError;
+
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            lock (config)
+            {
+                if (request.DisallowCustomAvatarUploads.HasValue)
+                    config.DisallowCustomAvatarUploads = request.DisallowCustomAvatarUploads.Value;
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            return Ok();
+        }
 
         [HttpPost("admin/set-profile-limit")]
         [ProducesResponseType(StatusCodes.Status200OK)]
