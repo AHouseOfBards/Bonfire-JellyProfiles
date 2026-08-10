@@ -672,6 +672,37 @@ namespace Jellyfin.Profiles
         /// supported platform (Windows installer, Linux packages, Docker images,
         /// portable/Scoop). Returns the full path to index.html or <c>null</c>.
         /// </summary>
+        /// <summary>
+        /// A key that is the same for two paths pointing at the same file.
+        ///
+        /// The Linux packages ship several of the candidate directories as symlinks to one
+        /// another, so comparing normalised path strings would report a duplicate copy of
+        /// jellyfin-web on a perfectly ordinary install and send the administrator looking
+        /// for a bind mount that does not exist.
+        /// </summary>
+        private static string FileIdentity(string path)
+        {
+            try
+            {
+                // The link is usually on the directory (/usr/lib/jellyfin/web →
+                // /usr/share/jellyfin/web), not on index.html, so resolve both.
+                var dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir))
+                {
+                    var dirTarget = Directory.ResolveLinkTarget(dir, returnFinalTarget: true);
+                    if (dirTarget != null) path = Path.Combine(dirTarget.FullName, Path.GetFileName(path));
+                }
+
+                var fileTarget = File.ResolveLinkTarget(path, returnFinalTarget: true);
+                if (fileTarget != null) return fileTarget.FullName;
+            }
+            catch
+            {
+                // Not a link, or the target cannot be read — the path itself will do.
+            }
+            return path;
+        }
+
         private string? FindIndexHtml()
         {
             var candidates = new List<string?>();
@@ -715,6 +746,7 @@ namespace Jellyfin.Profiles
             // there when the browser loads the page (issue #17), and the administrator
             // cannot check for one they were never told about.
             var found = new List<string>();
+            var identities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var dir in candidates)
             {
                 if (string.IsNullOrWhiteSpace(dir)) continue;
@@ -723,7 +755,7 @@ namespace Jellyfin.Profiles
                 {
                     var fullDir = Path.GetFullPath(dir);
                     var candidate = Path.Combine(fullDir, "index.html");
-                    if (File.Exists(candidate) && !found.Contains(candidate, StringComparer.OrdinalIgnoreCase))
+                    if (File.Exists(candidate) && identities.Add(FileIdentity(candidate)))
                     {
                         found.Add(candidate);
                     }

@@ -660,7 +660,12 @@
                 // first home screen after a fresh login. loadSwitcherPrefs guards itself and
                 // settles on the historical default if the request fails, so this cannot spin
                 // on the 500 ms route poll.
-                if (this.getSwitcherPrefs() === null) this.loadSwitcherPrefs();
+                // _panicLinkAvailable rides on the same response and is never cached, so a
+                // browser holding a valid preferences cache would otherwise never learn it
+                // and would hide the emergency link for the whole session.
+                if (this.getSwitcherPrefs() === null || this._panicLinkAvailable === null) {
+                    this.loadSwitcherPrefs();
+                }
 
                 if (this.shouldAskOnStartup()
                     && !this.isProfileSessionActive()
@@ -902,6 +907,8 @@
             if (sidebarLink) sidebarLink.remove();
             const menuItem = document.getElementById('profiles-user-menu-item');
             if (menuItem) menuItem.remove();
+            const prefsItem = document.getElementById('profiles-preferences-menu-item');
+            if (prefsItem) prefsItem.remove();
 
             this.stopInactivityTimer();
             document.body.classList.remove('profiles-no-scroll');
@@ -931,6 +938,9 @@
                     if (disabled) return;
                     try { localStorage.removeItem(this.config.panicKey); } catch (e) { /* ignore */ }
                     this._panicDisabled = false;
+                    // The teardown above released the focus trap. Coming back to life has to
+                    // put it back, or issue #16 returns for the rest of this page load.
+                    this._bindOverlayFocusTrap();
                     this.checkRoute();
                 })
                 .catch(() => {
@@ -1171,6 +1181,9 @@
                 // Server unreachable or an older plugin build: fall back to the historical
                 // behaviour rather than leaving the gate permanently suppressed.
                 if (!this._switcherPrefs) this._switcherPrefs = { askOnStartup: true, location: 'button' };
+                // Settle this too. Leaving it unknown would have the route check re-request
+                // on every poll, and an emergency link we cannot vouch for stays hidden.
+                if (this._panicLinkAvailable === null) this._panicLinkAvailable = false;
             });
         },
 
@@ -1480,11 +1493,25 @@
             );
         },
 
-        /// True for a surface that binds the arrow keys to something other than moving
-        /// between controls — the crop editor pans the picture with them. Those keys are
-        /// left alone there; the trap still keeps focus from escaping.
-        _ownsArrowKeys: function (surface) {
-            return surface.getAttribute('data-profiles-own-keys') === '1';
+        /// True for a control that binds the arrow keys to something other than moving
+        /// between controls — the crop view pans the picture with them. Those keys are left
+        /// alone there; the trap still keeps focus from escaping the surface.
+        _ownsArrowKeys: function (node) {
+            if (!node) return false;
+            if (node.closest) return !!node.closest('[data-profiles-own-keys="1"]');
+            return node.getAttribute && node.getAttribute('data-profiles-own-keys') === '1';
+        },
+
+        /// Moves focus one step through the surface in document order, wrapping at both
+        /// ends. This is what Tab means; geometry is for the direction keys.
+        _stepOverlayFocus: function (root, delta) {
+            const items = this._overlayFocusables(root);
+            if (!items.length) return;
+            const at = items.indexOf(document.activeElement);
+            const next = at < 0
+                ? (delta > 0 ? 0 : items.length - 1)
+                : (at + delta + items.length) % items.length;
+            items[next].focus();
         },
 
         /// Nearest focusable in a direction. Movement across the axis is penalised so a
@@ -1552,12 +1579,19 @@
                 const dir = dirOf(e);
 
                 if (dir) {
-                    // The crop editor pans with the arrows. Leave them to it, as long as
-                    // the press actually came from inside it.
-                    if (inside && this._ownsArrowKeys(surface)) return;
-                    // Left/right belong to the caret while typing a PIN or a name.
+                    // The crop view pans with the arrows. Ownership is declared on that
+                    // element rather than the whole dialog, so the buttons beside it stay
+                    // reachable — a remote has no Tab key to escape with otherwise.
+                    if (inside && this._ownsArrowKeys(e.target)) return;
+
                     const tag = (e.target.tagName || '').toLowerCase();
-                    if (inside && (tag === 'input' || tag === 'textarea') && (dir === 'left' || dir === 'right')) return;
+                    if (inside) {
+                        // Left/right belong to the caret while typing a PIN or a name.
+                        if ((tag === 'input' || tag === 'textarea') && (dir === 'left' || dir === 'right')) return;
+                        // Up/down change the value of a dropdown, which is what a remote
+                        // expects. Left/right stay ours, so there is still a way off it.
+                        if (tag === 'select' && (dir === 'up' || dir === 'down')) return;
+                    }
                     e.preventDefault();
                     e.stopPropagation();
                     this._moveOverlayFocus(surface, dir);
@@ -1565,9 +1599,12 @@
                 }
 
                 if (e.key === 'Tab' || e.keyCode === 9) {
+                    // Tab follows document order, not geometry. Routing it through the
+                    // spatial search meant it did nothing at all in a stacked form, where
+                    // every candidate is directly above or below rather than beside.
                     e.preventDefault();
                     e.stopPropagation();
-                    this._moveOverlayFocus(surface, e.shiftKey ? 'left' : 'right');
+                    this._stepOverlayFocus(surface, e.shiftKey ? -1 : 1);
                     return;
                 }
 
@@ -2512,9 +2549,6 @@
 
             const dialog = document.createElement('div');
             dialog.id = 'profiles-crop-dialog';
-            // The arrows pan the picture here, so the focus trap must not spend them on
-            // moving between controls.
-            dialog.setAttribute('data-profiles-own-keys', '1');
             dialog.style.cssText = `
                 position: fixed; top: 0; left: 0; right: 0; bottom: 0;
                 background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
@@ -2527,9 +2561,12 @@
                             user-select:none; -webkit-user-select:none;">
                     <h2 style="margin:0 0 4px 0; color:#fff; font-size:1.15rem; font-weight:700;">Position your picture</h2>
                     <p style="color:rgba(255,255,255,0.55); font-size:0.78rem; margin:0 0 14px 0;">
-                        Drag or arrow keys to move. Slider or pinch to zoom.
+                        Drag or arrows to move, slider to zoom. Press OK when it looks right.
                     </p>
-                    <div id="profiles-crop-view" tabindex="0" style="
+                    <!-- data-profiles-own-keys marks the arrows as this element's own, so
+                         the focus trap leaves them for panning. It is on the view and not
+                         the dialog so the buttons below stay reachable by remote. -->
+                    <div id="profiles-crop-view" tabindex="0" data-profiles-own-keys="1" style="
                         width:${VIEW}px; height:${VIEW}px; margin:0 auto; border-radius:50%;
                         overflow:hidden; position:relative; cursor:grab; touch-action:none;
                         background:#0d0d12; outline-offset:3px;">
@@ -2677,6 +2714,12 @@
                     case 'ArrowDown':  crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x, y: crop.y - step }); break;
                     case '+': case '=': setZoom(parseFloat(zoomInput.value) + 0.2); break;
                     case '-': case '_': setZoom(parseFloat(zoomInput.value) - 0.2); break;
+                    // The arrows are spent on panning here, so OK is the way onward. A
+                    // remote has nothing else to leave the picture with.
+                    case 'Enter': case ' ':
+                        e.preventDefault();
+                        dialog.querySelector('#profiles-crop-save').focus();
+                        return;
                     default: handled = false;
                 }
                 if (handled) { e.preventDefault(); draw(); }
@@ -4518,6 +4561,11 @@
             entry.id = 'profiles-preferences-menu-item';
             entry.classList.remove('btnLogout');
             entry.removeAttribute('href');
+            // An <a> with no href is not focusable, and this row has none — Jellyfin's own
+            // Sign out is a click handler rather than a link. Without this the keyboard and
+            // D-pad can never reach the entry and its Enter handler is dead code.
+            entry.setAttribute('tabindex', '0');
+            entry.setAttribute('role', 'button');
 
             const icon = entry.querySelector('.listItemIcon');
             if (icon) {
@@ -4920,6 +4968,11 @@
         /// page reload: the overlay is drawn on top of the current view, which is what
         /// removed the white flash the old reload-based button caused.
         handleBubbleClick: function () {
+            // Every entry point into the switcher funnels through here, so this is where the
+            // emergency disable has to hold. An entry that survived the teardown — a menu row
+            // a theme rebuilt, say — must not be able to raise the gate again.
+            if (this._panicDisabled) return;
+
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
 
             if (masterState && masterState.masterToken) {
