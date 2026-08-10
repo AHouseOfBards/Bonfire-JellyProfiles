@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- Switching a profile failed with \"Invalid username or password\" on Jellyfin 10.11.11, and signed the master account out. (#15)\n- On a TV, the remote could steer the Jellyfin page hidden behind the Bonfire screen. (#16)\n- \"Switch Profile\" now appears on the Settings page, not only in the header dropdown.\n- Profile pictures could be zoomed but not dragged.\n- Pictures now load in clients that bundle their own web client, such as Samsung Tizen.\n- A missing script tag in index.html now says which of the three causes it is. (#17)\n\n**Changed**\n\n- The emergency disable link appears only once an administrator has set a code.\n- Error messages, hints and warnings cut down throughout.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.3.3/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "7616cf45d908619206697e3e722a5dc2",
         "timestamp": "2026-08-09T00:00:00Z"
       },
       {
