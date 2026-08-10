@@ -159,6 +159,23 @@ namespace Jellyfin.Profiles
         internal static string? IndexPath { get; private set; }
 
         /// <summary>
+        /// True once a write of the script tag has completed without throwing.
+        ///
+        /// Distinguishes the two ways the tag can be missing, which need opposite fixes:
+        /// the write never happened (permissions), or it happened and the tag is still gone
+        /// when the file is read back — which means the file being served is not the file
+        /// being patched. Issue #17 was reported as the first and behaves like the second.
+        /// </summary>
+        private static bool _tagWriteReportedSuccess;
+
+        /// <summary>
+        /// Other jellyfin-web index.html files found on this system, beyond the one being
+        /// patched. Normally empty; anything here is a candidate for what is really being
+        /// served.
+        /// </summary>
+        internal static List<string> OtherIndexPaths { get; private set; } = new();
+
+        /// <summary>
         /// Human-readable reason the last injection attempt could not complete, or null when
         /// everything is fine. Surfaced on the dashboard so the banner can say what is actually
         /// wrong instead of listing every possible fix.
@@ -231,8 +248,31 @@ namespace Jellyfin.Profiles
 
                     if (!hasBody)
                     {
-                        LastFailureReason =
-                            $"The plugin script tag is not present in {indexPath}.";
+                        // Same symptom, three different fixes. Reporting only "the tag is not
+                        // present" sent issue #17 chasing file permissions that were already
+                        // correct.
+                        if (!CanWriteIndexHtml(indexPath))
+                        {
+                            LastFailureReason =
+                                $"Jellyfin cannot write {indexPath}. Grant write access with the "
+                                + "command below, then click Re-check.";
+                        }
+                        else if (_tagWriteReportedSuccess)
+                        {
+                            LastFailureReason =
+                                $"The tag was written to {indexPath} but is no longer there. "
+                                + "Jellyfin is serving a different copy of jellyfin-web — look for "
+                                + "a bind mount, a second install, or a proxy serving its own files."
+                                + (OtherIndexPaths.Count > 0
+                                    ? " Also found: " + string.Join(", ", OtherIndexPaths) + "."
+                                    : string.Empty);
+                        }
+                        else
+                        {
+                            LastFailureReason =
+                                $"{indexPath} is writable but has no plugin script tag yet. "
+                                + "Click Re-check to add it.";
+                        }
                     }
                     else if (!versionCurrent)
                     {
@@ -499,6 +539,7 @@ namespace Jellyfin.Profiles
                     // Throws on failure; the catch blocks below preserve any previously
                     // working state rather than reporting a hard failure.
                     WriteFileAtomic(indexPath, html);
+                    _tagWriteReportedSuccess = true;
                     _logger.LogInformation(
                         "ProfilesPlugin: Client scripts injected successfully into {Path}.",
                         indexPath);
@@ -669,6 +710,11 @@ namespace Jellyfin.Profiles
             candidates.Add("/config/jellyfin-web");
             candidates.Add("/data/jellyfin-web");
 
+            // Every match is collected, not just the first. A second copy of jellyfin-web
+            // is the likeliest explanation for a tag that writes cleanly and then is not
+            // there when the browser loads the page (issue #17), and the administrator
+            // cannot check for one they were never told about.
+            var found = new List<string>();
             foreach (var dir in candidates)
             {
                 if (string.IsNullOrWhiteSpace(dir)) continue;
@@ -677,11 +723,9 @@ namespace Jellyfin.Profiles
                 {
                     var fullDir = Path.GetFullPath(dir);
                     var candidate = Path.Combine(fullDir, "index.html");
-                    if (File.Exists(candidate))
+                    if (File.Exists(candidate) && !found.Contains(candidate, StringComparer.OrdinalIgnoreCase))
                     {
-                        _logger.LogDebug(
-                            "ProfilesPlugin: Found index.html at {Path}.", candidate);
-                        return candidate;
+                        found.Add(candidate);
                     }
                 }
                 catch (Exception ex)
@@ -691,7 +735,23 @@ namespace Jellyfin.Profiles
                 }
             }
 
-            return null;
+            if (found.Count == 0) return null;
+
+            OtherIndexPaths = found.Skip(1).ToList();
+            if (OtherIndexPaths.Count > 0)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: More than one jellyfin-web index.html exists on this system. " +
+                    "Patching {Path}; also found {Others}. If the switcher does not appear, Jellyfin " +
+                    "is serving one of the others.",
+                    found[0], string.Join(", ", OtherIndexPaths));
+            }
+            else
+            {
+                _logger.LogDebug("ProfilesPlugin: Found index.html at {Path}.", found[0]);
+            }
+
+            return found[0];
         }
 
         // ── Error reporting ──────────────────────────────────────────────────────

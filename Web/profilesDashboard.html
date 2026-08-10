@@ -117,9 +117,8 @@
                 <h2 class="sectionTitle">Avatar Library</h2>
             </div>
             <div class="fieldDescription" style="margin-bottom: 1em;">
-                Pictures you upload here can be chosen by anyone on this server as their profile picture.
-                Useful for a consistent set across a household — and the only practical way to set a profile
-                picture on a TV, where there is no file browser to upload from.
+                Pictures anyone on this server can pick as their profile picture. On a TV this is the only
+                way to set one — there is no file browser to upload from.
             </div>
 
             <div id="avatarMissingWarning" style="display:none; background:rgba(255,153,0,0.10); border:1px solid rgba(255,153,0,0.35); border-radius:6px; padding:12px 18px; margin-bottom:1.5em; font-size:0.92rem; line-height:1.6;">
@@ -132,8 +131,7 @@
                     <span>Only allow avatars from this library</span>
                 </label>
                 <div class="fieldDescription">
-                    If checked, users cannot upload their own picture or paste an image URL — they must pick
-                    from the set above. Pictures already set stay as they are.
+                    Users pick from this set instead of uploading. Pictures already set stay as they are.
                 </div>
             </div>
 
@@ -155,25 +153,17 @@
             </div>
             <div style="background:rgba(255,153,0,0.10);border:1px solid rgba(255,153,0,0.35);border-radius:6px;padding:14px 18px;margin-bottom:1.5em;font-size:0.94rem;line-height:1.65;">
                 <strong style="display:block;margin-bottom:6px;">&#9888;&nbsp; Read this before turning it on</strong>
-                This is a way out if Bonfire itself breaks and makes the Jellyfin interface unusable — including
-                the settings page you would need to uninstall it. Entering the code on any screen shuts the
-                plugin's client script down <strong>until you restart Jellyfin</strong>.
+                Entering this code shuts Bonfire down until you restart Jellyfin. It exists for when the plugin
+                breaks badly enough to block the settings page you would use to remove it.
                 <br><br>
-                <strong>What it costs you.</strong> The profile gate is what stands between "signed in to the
-                master account" and "must pick a profile". Anyone who knows this code can skip that prompt on a
-                device already signed in — so on a TV left on the master account, they would get that account's
-                full library.
+                <strong>The cost:</strong> anyone with the code can skip the profile prompt on a device that is
+                already signed in. On a TV left on the master account, that means the master's library.
                 <br><br>
-                <strong>What it does not do.</strong> It cannot unlock another profile — switching still requires
-                that profile's PIN — and it does not widen library access, parental ratings or tag filters, which
-                Jellyfin enforces on the server regardless of this plugin.
+                It does not unlock other profiles — switching still needs their PIN — and it does not change
+                library access or parental ratings, which Jellyfin enforces on its own.
                 <br><br>
-                It is submitted without any password, so <strong>make it long</strong>. Attempts are limited to
-                five per hour per address and every use is written to the Jellyfin log at error level.
-                <br><br>
-                <strong>It cannot rescue every failure.</strong> If the plugin's script fails to load at all,
-                this code has nothing to run in. Restarting Jellyfin, or deleting the plugin folder, is the
-                fallback for that.
+                No password is asked for, so make it long. Five attempts per hour per address, and every use is
+                logged as an error.
             </div>
 
             <div id="panicStatusLine" class="fieldDescription" style="margin-bottom:1em;">…</div>
@@ -182,8 +172,8 @@
                 <label class="inputLabel" for="panicCodeInput">Emergency disable code</label>
                 <input is="emby-input" type="text" id="panicCodeInput" autocomplete="off" placeholder="At least 10 characters" />
                 <div class="fieldDescription">
-                    Leave blank and save to turn the feature off. The code is stored hashed and can never be
-                    shown again, so write it down somewhere outside this server.
+                    Save blank to turn it off. The code is hashed and cannot be shown again — write it down
+                    somewhere off this server.
                 </div>
             </div>
             <div style="margin-bottom:3em;">
@@ -527,7 +517,7 @@
                             '<div class="listItemBody" style="flex:1; min-width:0;">' +
                             '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#ffc078;">⚠️ Unlinked sub-profiles</div>' +
                             '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">' +
-                            'These profiles reference a master account that no longer exists. They are usually left behind by a partially failed deletion.' +
+                            'These profiles point at a master account that no longer exists.' +
                             '</div>' +
                             '</div></div>' +
                             '<div style="background:rgba(0,0,0,0.18);">' + orphans.map(subProfileRowHtml).join('') + '</div>' +
@@ -696,12 +686,12 @@
                 // iPhones shoot HEIC by default and only Safari decodes it, so without this
                 // the upload just fails silently on most machines.
                 if (type.includes('heic') || type.includes('heif') || /\.hei[cf]$/.test(name)) {
-                    return 'iPhone photos (HEIC) cannot be read by most browsers. Export the photo as JPEG first.';
+                    return 'HEIC photos aren’t supported. Export the photo as JPEG first.';
                 }
                 if (type.includes('svg') || /\.svgz?$/.test(name)) {
-                    return 'SVG images are not supported — they can carry scripts. Use a JPEG, PNG, WebP or GIF.';
+                    return 'SVG isn’t supported. Use a JPEG, PNG, WebP or GIF.';
                 }
-                if (file.size > 25 * 1024 * 1024) return 'That image is too large. Use one under 25 MB.';
+                if (file.size > 25 * 1024 * 1024) return 'That image is over 25 MB. Use a smaller one.';
                 return null;
             }
 
@@ -777,7 +767,7 @@
                 reader.onload = function (event) {
                     const img = new Image();
                     img.onerror = function () {
-                        show('This browser cannot read that image format. Try saving it as a JPEG or PNG first.');
+                        show('That image format isn’t supported. Save it as a JPEG or PNG first.');
                     };
                     img.onload = function () {
                         const preferPng = hasTransparency(img);
@@ -871,7 +861,7 @@
                             'Restart Jellyfin to bring the switcher back.';
                     } else if (configured) {
                         line.innerHTML = '<span style="color:#51cf66; font-weight:600;">A code is set.</span> ' +
-                            'Enter it on any Bonfire screen, or press Ctrl+Shift+B, to disable the plugin.';
+                            'Enter it from the link on the profile screen, or press Ctrl+Shift+B on a keyboard.';
                     } else {
                         line.textContent = 'No code is set. The feature is off.';
                     }

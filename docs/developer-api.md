@@ -119,10 +119,16 @@ Authenticates a profile selection and returns a scoped session token. Rate limit
 | `jellyfinUserId` | string (GUID) | Jellyfin user ID of the target profile. |
 
 * **Error Responses:**
-  * `400 Bad Request`: Incorrect PIN, device restrictions not met, target is an unprotected master account reached via Bonfire, or invalid parameters.
+  * `400 Bad Request`: Incorrect PIN, device restrictions not met, target is an unprotected master account reached via Bonfire, invalid parameters, or the session for the target profile could not be created (device not permitted for that user, or its maximum active sessions reached). The body carries the reason.
   * `401 Unauthorized`: Caller is not authenticated, or unauthorized profile switch attempt.
   * `404 Not Found`: Target profile or underlying system user does not exist.
   * `429 Too Many Requests`: PIN authentication rate limit exceeded (5 failed attempts per 15 minutes).
+
+> **A `401` from this endpoint is about the caller, never the target.** Every way the target
+> profile can fail to authenticate is returned as a `400` with a reason in the body, so a client
+> can safely treat `401` as "my own token is no longer valid" and nothing else. Before 1.3.3 a
+> failure to create the target's session surfaced as a `401`, and clients that read it as session
+> expiry signed the user out of an account that was working fine (issue #15).
 
 ### `POST /plugins/profiles/verify-pin`
 Validates a profile PIN without switching the active session. Rate limited to 5 failed attempts in 15 minutes.
@@ -582,7 +588,8 @@ Returns the calling account's switcher preferences.
   "askOnStartup": true,
   "switcherLocation": "button",
   "switcherMode": "gate",
-  "masterUserId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a"
+  "masterUserId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a",
+  "emergencyCodeConfigured": false
 }
 ```
 
@@ -592,6 +599,7 @@ Returns the calling account's switcher preferences.
 | `switcherLocation` | string | `"button"` or `"menu"`. See below. |
 | `switcherMode` | string | **Deprecated.** Derived from `askOnStartup` for clients written against the 1.3.1 API. |
 | `masterUserId` | string (GUID) | The master account these preferences belong to. |
+| `emergencyCodeConfigured` | boolean | Whether an administrator has set an emergency disable code. A client should offer the emergency entry point only when this is true. Server-wide, not per-account, and it says nothing about the code itself. Added in 1.3.3. |
 
 | `switcherLocation` | Behaviour |
 |---|---|

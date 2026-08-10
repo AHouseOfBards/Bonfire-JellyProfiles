@@ -23,14 +23,28 @@
         return HEX_COLOR_RE.test(color || '') ? color : DEFAULT_AVATAR_COLOR;
     }
 
+    /// Our image endpoints are stored root-relative, which only resolves when the page was
+    /// served by the Jellyfin server. Inside a packaged client — Samsung Tizen bundles the
+    /// web client into the app — the origin is the app itself and those requests 404.
+    /// ApiClient knows the real server address, so route through it whenever we can.
+    function pluginUrl(value) {
+        try {
+            if (typeof ApiClient !== 'undefined' && ApiClient && typeof ApiClient.getUrl === 'function') {
+                const resolved = ApiClient.getUrl(value.replace(/^\//, ''));
+                if (resolved) return resolved;
+            }
+        } catch (e) { /* no ApiClient yet — the relative path is still right in a browser */ }
+        return value;
+    }
+
     /// Allows only the three shapes the plugin actually produces: its own image
     /// endpoint, a data:image payload, and an absolute http(s) URL. Anything else
     /// resolves to an empty src rather than being trusted.
     function safeImageSrc(src) {
         if (!src) return '';
         const value = String(src).trim();
-        if (value.startsWith('/plugins/profiles/image/')) return escapeHtml(value);
-        if (value.startsWith('/plugins/profiles/avatars/')) return escapeHtml(value);
+        if (value.startsWith('/plugins/profiles/image/')) return escapeHtml(pluginUrl(value));
+        if (value.startsWith('/plugins/profiles/avatars/')) return escapeHtml(pluginUrl(value));
         if (/^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/=]+$/i.test(value)) return escapeHtml(value);
         try {
             const parsed = new URL(value, window.location.origin);
@@ -102,6 +116,9 @@
         _switcherPrefs: null,
         _switcherPrefsLoading: false,
         _panicDisabled: false,
+        // Null until the server answers. Only true reveals the emergency link.
+        _panicLinkAvailable: null,
+        _overlayTrap: null,
 
         getAuthHeaders: function (token) {
             const apiClient = ApiClient;
@@ -534,6 +551,10 @@
             // with the real answer in hand rather than the cached one.
             this.loadSwitcherPrefs();
             this.bindPanicShortcut();
+            // Bound once for the life of the page. It resolves the active Bonfire screen on
+            // every event and does nothing when there is none, so it covers the gate, the
+            // PIN prompt, the profile forms and every dialog without per-screen wiring.
+            this._bindOverlayFocusTrap();
             // Before validateSessionState, which can trigger a reload of its own.
             this.checkPersistedPanic();
             if (this._panicDisabled) return;
@@ -577,6 +598,8 @@
                     localStorage.removeItem(this.config.activeSessionKey);
                     localStorage.removeItem(this.config.switcherModeKey);
                     this._switcherPrefs = null;
+                    // Learned from the same response as the preferences, so it goes with them.
+                    this._panicLinkAvailable = null;
                     sessionStorage.removeItem(this.config.activeSessionKey);
                     sessionStorage.removeItem('jellyfin_profiles_active_info');
                 } catch (e) { /* ignore storage errors */ }
@@ -713,6 +736,7 @@
             // because React discards and rebuilds these views freely; the calls are cheap
             // and no-op when the element is already in place.
             this.syncUserMenuEntry();
+            this.syncPreferencesMenuEntry();
             if (this.isMenuLocation()) {
                 const isUserProfilePage = hash.includes('userprofile') || path.includes('userprofile');
                 if (isUserProfilePage) this.injectProfilePageSection();
@@ -863,6 +887,7 @@
         /// second — failing in exactly the situation this feature exists for.
         applyPanicDisable: function (persist) {
             this._panicDisabled = true;
+            this._releaseOverlayFocusTrap();
 
             if (persist) {
                 try {
@@ -914,10 +939,20 @@
                 });
         },
 
+        /// Shows the emergency link only once the server has said a code exists. Unknown
+        /// counts as no — the feature is off by default, and advertising an escape hatch
+        /// that cannot work is worse than not offering one.
+        applyPanicLinkVisibility: function () {
+            const link = document.getElementById('profiles-panic-link');
+            if (!link) return;
+            link.style.display = this._panicLinkAvailable === true ? '' : 'none';
+        },
+
         bindPanicShortcut: function () {
             document.addEventListener('keydown', (e) => {
                 // Ctrl+Shift+B. Chosen to be unreachable by accident and not to collide
-                // with Jellyfin's own shortcuts.
+                // with Jellyfin's own shortcuts. It is the way in when the switcher has
+                // failed badly enough that no overlay renders at all.
                 if (e.ctrlKey && e.shiftKey && (e.key === 'B' || e.key === 'b')) {
                     e.preventDefault();
                     this.showPanicPrompt();
@@ -1115,9 +1150,17 @@
                     ? locRaw
                     : (legacyNative ? 'menu' : 'button');
 
+                const emergency = (prefs.emergencyCodeConfigured !== undefined
+                    ? prefs.emergencyCodeConfigured
+                    : prefs.EmergencyCodeConfigured) === true;
+
                 const before = this._switcherPrefs;
                 const changed = !before || before.askOnStartup !== ask || before.location !== location;
                 this._cacheSwitcherPrefs(ask, location, master);
+                this._panicLinkAvailable = emergency;
+                // The gate may already be on screen — reveal or hide the link in place
+                // rather than waiting for the next load.
+                this.applyPanicLinkVisibility();
                 this._switcherPrefsLoading = false;
                 // Only re-check when the answer actually moved; checkRoute runs on a timer
                 // anyway and this avoids a redundant pass on every load.
@@ -1395,6 +1438,172 @@
                 const first = overlay.querySelector('[tabindex="0"], button, input');
                 if (first) first.focus();
             }, 100);
+        },
+
+        // ─── D-pad focus trap ─────────────────────────────────────────────────────
+        // Issue #16: on a television our screens cover the page, but Jellyfin's own
+        // navigation is still listening on document and still sees every element behind
+        // them. Pressing a direction moved focus into the home screen underneath, leaving
+        // the remote controlling a page nobody could see.
+        //
+        // `inert` would be the tidy answer and is not an option — the TV browsers this
+        // has to work on predate it. So directions are taken at the capture phase, before
+        // Jellyfin's handlers run, and resolved against our own elements.
+        //
+        // The listeners are bound once and stay bound. They resolve the active surface on
+        // every event and return immediately when there is none, so the trap covers every
+        // Bonfire screen without anyone having to remember to arm it, and stops applying
+        // the instant the last one leaves the DOM. Lifecycle bookkeeping is what leaks.
+
+        /// Selector for the surfaces we trap focus inside: the gate overlay and any of our
+        /// own dialogs (confirm, alert, crop, panic), all of which sit above the page.
+        TRAP_SURFACE_SELECTOR: '#profiles-gate-overlay, [id^="profiles-"][id$="-dialog"]',
+
+        /// The surface the remote should currently be confined to, or null when Bonfire
+        /// has nothing on screen. Dialogs render above the gate, and the last one in the
+        /// DOM is the topmost, so document order picks the right one.
+        _activeTrapSurface: function () {
+            const surfaces = document.querySelectorAll(this.TRAP_SURFACE_SELECTOR);
+            if (!surfaces.length) return null;
+
+            const last = surfaces[surfaces.length - 1];
+            // A dialog mid-fade still counts; one already detached does not.
+            return last.isConnected === false ? null : last;
+        },
+
+        /// Everything inside a surface a remote can land on. Hidden elements are left out:
+        /// the overlay swaps between a grid and a form, and the old one lingers.
+        _overlayFocusables: function (root) {
+            return Array.prototype.filter.call(
+                root.querySelectorAll('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])'),
+                el => !el.disabled && el.offsetParent !== null
+            );
+        },
+
+        /// True for a surface that binds the arrow keys to something other than moving
+        /// between controls — the crop editor pans the picture with them. Those keys are
+        /// left alone there; the trap still keeps focus from escaping.
+        _ownsArrowKeys: function (surface) {
+            return surface.getAttribute('data-profiles-own-keys') === '1';
+        },
+
+        /// Nearest focusable in a direction. Movement across the axis is penalised so a
+        /// grid walks along its row instead of cutting diagonally to a closer card.
+        _moveOverlayFocus: function (root, dir) {
+            const items = this._overlayFocusables(root);
+            if (!items.length) return;
+
+            const current = (document.activeElement && root.contains(document.activeElement))
+                ? document.activeElement : null;
+            if (!current) { items[0].focus(); return; }
+
+            const from = current.getBoundingClientRect();
+            const fx = from.left + from.width / 2;
+            const fy = from.top + from.height / 2;
+            const horizontal = (dir === 'left' || dir === 'right');
+
+            let best = null, bestScore = Infinity;
+            items.forEach(el => {
+                if (el === current) return;
+                const r = el.getBoundingClientRect();
+                const dx = (r.left + r.width / 2) - fx;
+                const dy = (r.top + r.height / 2) - fy;
+                if (dir === 'left'  && dx > -1) return;
+                if (dir === 'right' && dx <  1) return;
+                if (dir === 'up'    && dy > -1) return;
+                if (dir === 'down'  && dy <  1) return;
+
+                const along  = horizontal ? Math.abs(dx) : Math.abs(dy);
+                const across = horizontal ? Math.abs(dy) : Math.abs(dx);
+                const score = along + across * 3;
+                if (score < bestScore) { bestScore = score; best = el; }
+            });
+
+            if (best) best.focus();
+        },
+
+        _bindOverlayFocusTrap: function () {
+            if (this._overlayTrap) return;
+
+            // e.key is missing on some older TV browsers, so keyCode is the fallback.
+            const dirOf = (e) => {
+                switch (e.key) {
+                    case 'ArrowLeft':  case 'Left':  return 'left';
+                    case 'ArrowRight': case 'Right': return 'right';
+                    case 'ArrowUp':    case 'Up':    return 'up';
+                    case 'ArrowDown':  case 'Down':  return 'down';
+                }
+                switch (e.keyCode) {
+                    case 37: return 'left';
+                    case 38: return 'up';
+                    case 39: return 'right';
+                    case 40: return 'down';
+                }
+                return null;
+            };
+
+            const onKeyDown = (e) => {
+                const surface = this._activeTrapSurface();
+                if (!surface) return;
+                // Never swallow a shortcut — Ctrl+Shift+B has to keep working from here.
+                if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+                const inside = surface.contains(e.target);
+                const dir = dirOf(e);
+
+                if (dir) {
+                    // The crop editor pans with the arrows. Leave them to it, as long as
+                    // the press actually came from inside it.
+                    if (inside && this._ownsArrowKeys(surface)) return;
+                    // Left/right belong to the caret while typing a PIN or a name.
+                    const tag = (e.target.tagName || '').toLowerCase();
+                    if (inside && (tag === 'input' || tag === 'textarea') && (dir === 'left' || dir === 'right')) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this._moveOverlayFocus(surface, dir);
+                    return;
+                }
+
+                if (e.key === 'Tab' || e.keyCode === 9) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this._moveOverlayFocus(surface, e.shiftKey ? 'left' : 'right');
+                    return;
+                }
+
+                // A select landing on the page behind would act on something invisible.
+                // Inside the surface it is left alone: that is how our own buttons fire.
+                const isSelect = e.key === 'Enter' || e.key === ' ' || e.keyCode === 13;
+                if (isSelect && !inside) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const items = this._overlayFocusables(surface);
+                    if (items.length) items[0].focus();
+                }
+            };
+
+            // Second line of defence: whatever moved focus out, take it back. Membership is
+            // tested against any surface rather than the topmost one, so focus returning to
+            // the gate under a dialog that is still fading out is left where it belongs.
+            const onFocusIn = (e) => {
+                const surface = this._activeTrapSurface();
+                if (!surface) return;
+                if (e.target && e.target.closest && e.target.closest(this.TRAP_SURFACE_SELECTOR)) return;
+                if (e.target === document.body || e.target === document.documentElement) return;
+                const items = this._overlayFocusables(surface);
+                if (items.length) items[0].focus();
+            };
+
+            document.addEventListener('keydown', onKeyDown, true);
+            document.addEventListener('focusin', onFocusIn, true);
+            this._overlayTrap = { onKeyDown: onKeyDown, onFocusIn: onFocusIn };
+        },
+
+        _releaseOverlayFocusTrap: function () {
+            if (!this._overlayTrap) return;
+            document.removeEventListener('keydown', this._overlayTrap.onKeyDown, true);
+            document.removeEventListener('focusin', this._overlayTrap.onFocusIn, true);
+            this._overlayTrap = null;
         },
 
         removeProfileOverlay: function () {
@@ -1687,10 +1896,11 @@
                         <button id="profiles-toggle-manage-btn" class="profiles-btn btn-secondary">${manageBtnText}</button>
                     </div>
                     <!-- Deliberately plain and dim. It has to be reachable by D-pad, because
-                         a TV has no Ctrl+Shift+B, and this screen is exactly where someone
-                         locked out by a broken switcher would be standing. -->
+                         a TV has no keyboard shortcut, and this screen is exactly where
+                         someone locked out by a broken switcher would be standing.
+                         Hidden until the server confirms a code is configured. -->
                     <button id="profiles-panic-link" tabindex="0" style="
-                        background: none; border: none; color: rgba(255,255,255,0.28);
+                        display: none; background: none; border: none; color: rgba(255,255,255,0.28);
                         font-size: 0.72rem; margin-top: 1.5rem; cursor: pointer;
                         text-decoration: underline; padding: 6px 10px;">Can't get past this screen?</button>
                 </div>
@@ -1779,6 +1989,7 @@
                 panicLink.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); panicLink.click(); }
                 });
+                this.applyPanicLinkVisibility();
             }
 
             // "Switcher Style" action
@@ -2082,14 +2293,18 @@
                 body: JSON.stringify({ profileId: profileId, pin: pin })
             })
             .then(res => {
-                if (res.status === 401) {
-                    this._switchLock = false;
-                    this.handleSessionExpired();
-                    throw new Error('Session expired');
-                }
                 if (!res.ok) {
                     return res.text().then(text => {
-                        throw new Error(text || 'Incorrect PIN. Please try again.');
+                        const body = (text || '').trim();
+                        // Our own 401 (caller's token rejected) has an empty body. A 401 with a
+                        // message came from something failing further in — the target profile,
+                        // not the caller — so signing the master out would be wrong (issue #15).
+                        if (res.status === 401 && !body) {
+                            this._switchLock = false;
+                            this.handleSessionExpired();
+                            throw new Error('Session expired');
+                        }
+                        throw new Error(body || 'Incorrect PIN. Please try again.');
                     });
                 }
                 return res.json();
@@ -2169,7 +2384,7 @@
             // can decode it. Elsewhere the canvas load simply fails, so without this the
             // user gets silence and no idea why.
             if (type.includes('heic') || type.includes('heif') || /\.hei[cf]$/.test(name)) {
-                return 'iPhone photos (HEIC) can\'t be read by most browsers. Save or export the photo as JPEG first, then upload it.';
+                return 'HEIC photos aren\'t supported. Export the photo as JPEG first.';
             }
 
             // SVG can carry script, and these files are served back from the server's own
@@ -2179,7 +2394,7 @@
             }
 
             if (file.size > 25 * 1024 * 1024) {
-                return 'That image is very large. Please use one under 25 MB.';
+                return 'That image is over 25 MB. Use a smaller one.';
             }
 
             return null;
@@ -2205,22 +2420,29 @@
                     // Reached for any format this browser cannot decode — including a HEIC
                     // that slipped past the check above with an empty MIME type.
                     img.onerror = () => reject(new Error(
-                        'This browser can\'t read that image format. Try saving it as a JPEG or PNG first.'));
+                        'That image format isn\'t supported. Save it as a JPEG or PNG first.'));
                     img.src = event.target.result;
                 };
                 reader.readAsDataURL(file);
             });
         },
 
-        /// Loads a same-origin URL into an <img> for cropping. Used when someone picks an
-        /// avatar from the administrator's library — same-origin keeps the canvas untainted,
-        /// so it can still be re-encoded.
+        /// Loads a URL into an <img> for cropping. Used when someone picks an avatar from the
+        /// administrator's library. The canvas has to stay untainted or the crop cannot be
+        /// re-encoded, so anything off-origin is requested with CORS — that is the packaged
+        /// clients, where the page origin is the app rather than the server.
         loadImageFromUrl: function (url) {
+            const resolved = pluginUrl(url);
             return new Promise((resolve, reject) => {
                 const img = new Image();
                 img.onload = () => resolve(img);
                 img.onerror = () => reject(new Error('That image could not be loaded.'));
-                img.src = url;
+                try {
+                    if (new URL(resolved, window.location.href).origin !== window.location.origin) {
+                        img.crossOrigin = 'anonymous';
+                    }
+                } catch (e) { /* unparseable — treat as same-origin */ }
+                img.src = resolved;
             });
         },
 
@@ -2290,6 +2512,9 @@
 
             const dialog = document.createElement('div');
             dialog.id = 'profiles-crop-dialog';
+            // The arrows pan the picture here, so the focus trap must not spend them on
+            // moving between controls.
+            dialog.setAttribute('data-profiles-own-keys', '1');
             dialog.style.cssText = `
                 position: fixed; top: 0; left: 0; right: 0; bottom: 0;
                 background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
@@ -2298,10 +2523,11 @@
             `;
             dialog.innerHTML = `
                 <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius:12px;
-                            padding:22px; max-width:340px; width:92%; box-shadow:0 10px 30px rgba(0,0,0,0.5); text-align:center;">
+                            padding:22px; max-width:340px; width:92%; box-shadow:0 10px 30px rgba(0,0,0,0.5); text-align:center;
+                            user-select:none; -webkit-user-select:none;">
                     <h2 style="margin:0 0 4px 0; color:#fff; font-size:1.15rem; font-weight:700;">Position your picture</h2>
                     <p style="color:rgba(255,255,255,0.55); font-size:0.78rem; margin:0 0 14px 0;">
-                        Drag to move, or use the arrow keys. Pinch or use the slider to zoom.
+                        Drag or arrow keys to move. Slider or pinch to zoom.
                     </p>
                     <div id="profiles-crop-view" tabindex="0" style="
                         width:${VIEW}px; height:${VIEW}px; margin:0 auto; border-radius:50%;
@@ -2350,25 +2576,30 @@
 
             zoomInput.addEventListener('input', () => setZoom(parseFloat(zoomInput.value)));
 
-            // Pointer events cover mouse, touch and pen in one path.
-            let dragging = false, lastX = 0, lastY = 0, activePointers = new Map(), pinchStart = 0, pinchZoomStart = 1;
+            // ── Dragging ──────────────────────────────────────────────────────────
+            // Movement and release are tracked on window, not on the circle. Pointer
+            // capture used to be what kept a gesture alive, and it is not dependable
+            // across the clients this runs on — a throw from setPointerCapture aborted
+            // the handler before dragging was ever set, which is why panning did nothing
+            // while the zoom slider still worked. Capture is now best-effort only.
+            let dragging = false, lastX = 0, lastY = 0, pinchStart = 0, pinchZoomStart = 1;
+            const activePointers = new Map();
 
-            view.addEventListener('pointerdown', (e) => {
-                view.setPointerCapture(e.pointerId);
-                activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            const beginPointer = (id, x, y) => {
+                activePointers.set(id, { x: x, y: y });
                 if (activePointers.size === 1) {
-                    dragging = true; lastX = e.clientX; lastY = e.clientY;
+                    dragging = true; lastX = x; lastY = y;
                     view.style.cursor = 'grabbing';
                 } else if (activePointers.size === 2) {
                     const pts = Array.from(activePointers.values());
                     pinchStart = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
                     pinchZoomStart = parseFloat(zoomInput.value);
                 }
-            });
+            };
 
-            view.addEventListener('pointermove', (e) => {
-                if (!activePointers.has(e.pointerId)) return;
-                activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            const movePointer = (id, x, y) => {
+                if (!activePointers.has(id)) return;
+                activePointers.set(id, { x: x, y: y });
 
                 if (activePointers.size === 2 && pinchStart > 0) {
                     const pts = Array.from(activePointers.values());
@@ -2379,20 +2610,60 @@
                 if (!dragging) return;
                 crop = this._clampCrop(img, VIEW, {
                     zoom: crop.zoom,
-                    x: crop.x + (e.clientX - lastX),
-                    y: crop.y + (e.clientY - lastY)
+                    x: crop.x + (x - lastX),
+                    y: crop.y + (y - lastY)
                 });
-                lastX = e.clientX; lastY = e.clientY;
+                lastX = x; lastY = y;
                 draw();
-            });
+            };
 
-            const endPointer = (e) => {
-                activePointers.delete(e.pointerId);
+            const endPointer = (id) => {
+                activePointers.delete(id);
                 if (activePointers.size < 2) pinchStart = 0;
                 if (activePointers.size === 0) { dragging = false; view.style.cursor = 'grab'; }
             };
-            view.addEventListener('pointerup', endPointer);
-            view.addEventListener('pointercancel', endPointer);
+
+            // Tracked so the window-level listeners come off again when the dialog closes.
+            const bound = [];
+            const on = (target, type, fn, opts) => {
+                target.addEventListener(type, fn, opts);
+                bound.push([target, type, fn, opts]);
+            };
+
+            if (window.PointerEvent) {
+                on(view, 'pointerdown', (e) => {
+                    // Stops the browser starting a text selection or image drag instead,
+                    // which on desktop swallows the rest of the gesture.
+                    e.preventDefault();
+                    // preventDefault also suppresses the focus that a click would give,
+                    // and focus is what the arrow-key panning below needs.
+                    view.focus();
+                    try { view.setPointerCapture(e.pointerId); } catch (err) { /* best effort */ }
+                    beginPointer(e.pointerId, e.clientX, e.clientY);
+                });
+                on(window, 'pointermove', (e) => movePointer(e.pointerId, e.clientX, e.clientY));
+                on(window, 'pointerup', (e) => endPointer(e.pointerId));
+                on(window, 'pointercancel', (e) => endPointer(e.pointerId));
+            } else {
+                // Older TV browsers have no Pointer Events at all.
+                on(view, 'mousedown', (e) => { e.preventDefault(); beginPointer('mouse', e.clientX, e.clientY); });
+                on(window, 'mousemove', (e) => movePointer('mouse', e.clientX, e.clientY));
+                on(window, 'mouseup', () => endPointer('mouse'));
+
+                on(view, 'touchstart', (e) => {
+                    e.preventDefault();
+                    Array.prototype.forEach.call(e.changedTouches, t => beginPointer(t.identifier, t.clientX, t.clientY));
+                }, { passive: false });
+                on(window, 'touchmove', (e) => {
+                    if (!activePointers.size) return;
+                    // Without this the page scrolls under the finger instead of panning.
+                    e.preventDefault();
+                    Array.prototype.forEach.call(e.changedTouches, t => movePointer(t.identifier, t.clientX, t.clientY));
+                }, { passive: false });
+                const endTouch = (e) => Array.prototype.forEach.call(e.changedTouches, t => endPointer(t.identifier));
+                on(window, 'touchend', endTouch);
+                on(window, 'touchcancel', endTouch);
+            }
 
             // D-pad / keyboard. A television has no pointer at all, so this is the only way
             // in on the clients that need the avatar library most.
@@ -2411,7 +2682,11 @@
                 if (handled) { e.preventDefault(); draw(); }
             });
 
-            const close = () => dialog.remove();
+            const close = () => {
+                bound.forEach(([target, type, fn, opts]) => target.removeEventListener(type, fn, opts));
+                bound.length = 0;
+                dialog.remove();
+            };
             dialog.querySelector('#profiles-crop-cancel').addEventListener('click', close);
             dialog.querySelector('#profiles-crop-save').addEventListener('click', () => {
                 const image = this.renderCrop(img, VIEW, crop, this.IMAGE_MASTER_SIZE, preferPng);
@@ -2672,7 +2947,7 @@
                             <input type="checkbox" id="create-local-bypass-checkbox" style="cursor: pointer; accent-color: #00a4dc;" />
                             <span>Bypass PIN on local network (LAN)</span>
                         </label>
-                        <div class="form-hint">If enabled, users on the local home network won't be prompted for a PIN.</div>
+                        <div class="form-hint">No PIN prompt on your home network.</div>
                     </div>
                     <div class="form-group">
                         <label for="create-lockout-select">Auto-lock after inactivity</label>
@@ -2763,12 +3038,12 @@
                     <div class="form-group">
                         <label>Blocked Tags (Optional)</label>
                         ${this.renderTagEditor('create-blocked-tags', [], 'e.g. adults', 'create-tag-suggestions')}
-                        <div class="form-hint">Hides anything carrying these tags. Tags on a series or library apply to everything inside it.</div>
+                        <div class="form-hint">Hides anything with these tags. A tag on a series or library covers everything inside it.</div>
                     </div>
                     <div class="form-group">
                         <label>Allowed Tags (Optional)</label>
                         ${this.renderTagEditor('create-allowed-tags', [], 'e.g. kids', 'create-tag-suggestions')}
-                        <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items — untagged content is hidden too. Leave empty unless that's what you want.</div>
+                        <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items. Untagged content is hidden too.</div>
                     </div>
                 `;
 
@@ -3041,7 +3316,7 @@
                         <div id="edit-pin-error" class="form-error" style="display:none; margin-top:8px;"></div>
                         <div class="form-hint">
                             ${profile.hasPin
-                                ? '🔒 <strong>A PIN is currently set.</strong> Saved PINs are hashed and can never be shown again — leave this blank to keep it, type a new one to replace it, or use Clear PIN to remove it.'
+                                ? '🔒 <strong>A PIN is set.</strong> Leave blank to keep it, type a new one to replace it, or use Clear PIN.'
                                 : 'No PIN set. This profile can be opened by anyone who can reach the switcher.'}
                         </div>
                     </div>
@@ -3050,7 +3325,7 @@
                             <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc;" />
                             <span>Bypass PIN on local network (LAN)</span>
                         </label>
-                        <div class="form-hint">If enabled, users on the local home network won't be prompted for a PIN.</div>
+                        <div class="form-hint">No PIN prompt on your home network.</div>
                     </div>
                     <div class="form-group">
                         <label for="edit-lockout-select">Auto-lock after inactivity</label>
@@ -3152,12 +3427,12 @@
                     <div class="form-group">
                         <label>Blocked Tags (Optional)</label>
                         ${this.renderTagEditor('edit-blocked-tags', profile.blockedTags || [], 'e.g. adults', 'edit-tag-suggestions')}
-                        <div class="form-hint">Hides anything carrying these tags. Tags on a series or library apply to everything inside it.</div>
+                        <div class="form-hint">Hides anything with these tags. A tag on a series or library covers everything inside it.</div>
                     </div>
                     <div class="form-group">
                         <label>Allowed Tags (Optional)</label>
                         ${this.renderTagEditor('edit-allowed-tags', profile.allowedTags || [], 'e.g. kids', 'edit-tag-suggestions')}
-                        <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items — untagged content is hidden too. Leave empty unless that's what you want.</div>
+                        <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items. Untagged content is hidden too.</div>
                     </div>
                 `;
 
@@ -3305,7 +3580,7 @@
                         e.preventDefault();
                         e.stopPropagation();
                         const devId = btn.getAttribute('data-id');
-                        this.showConfirmDialog('Delete Device History', 'Are you sure you want to delete this device from the connected history? This will also remove any access restrictions associated with it.', () => {
+                        this.showConfirmDialog('Delete Device History', 'Remove this device? Any access restrictions for it go too.', () => {
                             const delDevUrl = apiClient.getUrl('plugins/profiles/devices/delete');
                             fetch(delDevUrl, {
                                 method: 'POST',
@@ -3553,7 +3828,7 @@
                 <h1 class="profiles-title">Switcher Style</h1>
                 <div class="create-profile-container" style="max-width: 560px; width: 100%;">
                     <p style="opacity: 0.75; font-size: 0.9rem; line-height: 1.5; margin: 0 0 1.5rem 0; text-align: left;">
-                        How you reach this screen. Your household's choice — it only affects your own account, and follows you to every device you sign in on.
+                        How you reach this screen. Applies to your account on every device.
                     </p>
 
                     <div class="bonfire-form-group" style="gap: 4px; text-align: left; margin-bottom: 1.5rem;">
@@ -3717,7 +3992,7 @@
                     <div style="display: flex; flex-direction: column; gap: 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; color: #ff9900; display: block; margin-bottom: 4px;">Your Hosted Bonfire</label>
-                            <span style="font-size: 0.88rem; opacity: 0.75; display: block;">Share this 6-character code with other users on the server to invite them to your bonfire:</span>
+                            <span style="font-size: 0.88rem; opacity: 0.75; display: block;">Share this code to invite someone to your Bonfire:</span>
                             <div style="font-size: 2rem; font-weight: 700; color: #22c55e; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px dashed rgba(34,197,94,0.3);">${ownedCode}</div>
                         </div>
                         
@@ -3795,14 +4070,14 @@
                         <span>Let my Bonfire switch into my account on this network</span>
                     </label>
                     <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">
-                        People in your Bonfire can enter your account without typing your PIN, but only from your home network — handy for sharing a TV. Away from home your PIN is still required${hasPinSet ? '' : ', and until you set one your account cannot be opened remotely at all'}.
+                        No PIN needed on your home network. Away from home it still is${hasPinSet ? '' : ', and until you set one your account cannot be opened remotely at all'}.
                     </div>
                     ${isAdmin ? `
                     <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid #ff9900; border-radius: 4px; font-size: 0.75rem; line-height: 1.5; color: rgba(255,255,255,0.8);">
-                        <strong style="color: #ff9900;">This is an administrator account.</strong> Anyone who enters it gets your admin rights — server settings, libraries and every user account. Only turn this on if you would hand them the password.
+                        <strong style="color: #ff9900;">This is an admin account.</strong> Whoever switches into it gets your admin rights.
                     </div>` : ''}
                     <div style="margin-left: 1.6rem; margin-top: 8px; font-size: 0.72rem; line-height: 1.5; opacity: 0.45;">
-                        "This network" is whatever your server counts as local. If it sits behind a reverse proxy that is not listed under Networking → Known Proxies, every visitor looks local — check that before enabling. Each switch is written to the profile activity log.
+                        Behind a reverse proxy, check Networking → Known Proxies first, or everyone looks local.
                     </div>
                 </div>
             ` : '';
@@ -3814,7 +4089,7 @@
                             <input type="checkbox" id="bonfire-hide-mine-checkbox" ${hideMine ? 'checked' : ''} style="cursor: pointer !important; accent-color: #00a4dc !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                             <span>Hide my sub-profiles from others</span>
                         </label>
-                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">If enabled, guest homes you connect with won't see your sub-profiles (only your master profile).</div>
+                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">Connected homes see only your master profile.</div>
                     </div>
 
                     <div class="bonfire-form-group" style="gap: 4px;">
@@ -3822,7 +4097,7 @@
                             <input type="checkbox" id="bonfire-hide-others-checkbox" ${hideOthers ? 'checked' : ''} style="cursor: pointer !important; accent-color: #00a4dc !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                             <span>Hide other people's sub-profiles from me</span>
                         </label>
-                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">If enabled, you will only see the master profiles of connected guest homes.</div>
+                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">You see only the master profiles of connected homes.</div>
                     </div>
 
                     ${lanBypassSectionHtml}
@@ -3874,7 +4149,7 @@
             const deleteBtn = container.querySelector('#bonfire-delete-btn');
             if (deleteBtn) {
                 deleteBtn.addEventListener('click', () => {
-                    this.showConfirmDialog('Delete Group', 'Are you sure you want to delete your Bonfire group? All members will be disconnected and will no longer appear in your switcher.', () => {
+                    this.showConfirmDialog('Delete Group', 'Delete your Bonfire? Members are disconnected and drop out of your switcher.', () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/delete-group'), {
                             method: 'POST',
                             headers: this.getAuthHeaders(masterToken)
@@ -3892,7 +4167,7 @@
             const leaveBtn = container.querySelector('#bonfire-leave-btn');
             if (leaveBtn) {
                 leaveBtn.addEventListener('click', () => {
-                    this.showConfirmDialog('Leave Group', 'Are you sure you want to leave this Bonfire group? You will no longer share profile switchers.', () => {
+                    this.showConfirmDialog('Leave Group', 'Leave this Bonfire? You will stop sharing switchers.', () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/leave'), {
                             method: 'POST',
                             headers: this.getAuthHeaders(masterToken)
@@ -3947,7 +4222,7 @@
                     if (isMember) {
                         this.showConfirmDialog(
                             'Leave your current Bonfire?',
-                            'You can only be in one Bonfire at a time. Joining this one will remove you from the group you are currently in.',
+                            'Joining this Bonfire removes you from your current one.',
                             () => submitJoin(code));
                         return;
                     }
@@ -4040,12 +4315,12 @@
                     }
 
                     const adminLine = isAdmin
-                        ? '<br><br><strong style="color:#ff9900;">This account is an administrator.</strong> Whoever switches into it can change server settings and manage every user.'
+                        ? '<br><br><strong style="color:#ff9900;">This is an admin account.</strong> Whoever switches into it gets your admin rights.'
                         : '';
 
                     this.showConfirmDialog(
                         'Allow household switching?',
-                        'Anyone in your Bonfire will be able to open your account from your home network without your PIN. Away from home, the PIN is still required.' + adminLine,
+                        'Anyone in your Bonfire can open your account on your home network without your PIN.' + adminLine,
                         () => saveSettings(),
                         () => { lanBypassCb.checked = false; }
                     );
@@ -4183,12 +4458,13 @@
             if (iconSlot) {
                 // Replace the MUI SVG with a Material Icons glyph — Jellyfin already
                 // loads that font, and we cannot construct a MUI icon component here.
+                // The glyph comes from the class, not the text: jellyfin-web bundles
+                // material-design-icons-iconfont, whose CSS sets :before content per name.
                 iconSlot.innerHTML = '';
                 const glyph = document.createElement('span');
-                glyph.className = 'material-icons';
+                glyph.className = 'material-icons switch_account';
                 glyph.setAttribute('aria-hidden', 'true');
                 glyph.style.fontSize = '1.5rem';
-                glyph.textContent = 'switch_account';
                 iconSlot.appendChild(glyph);
             }
 
@@ -4203,6 +4479,61 @@
                 // Let MUI finish its close transition before the overlay mounts, so the
                 // menu is not still fading out on top of the switcher.
                 setTimeout(() => this.handleBubbleClick(), 80);
+            });
+            entry.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); entry.click(); }
+            });
+
+            signOut.parentNode.insertBefore(entry, signOut);
+        },
+
+        /// Re-asserts the "Switch Profile" row on the Settings page (#/mypreferencesmenu),
+        /// which is the list users actually mean by "the menu" — the header dropdown above
+        /// is a different component and only some layouts show it.
+        ///
+        /// Source of truth: src/apps/legacy/routes/user/settings/index.tsx, page id
+        /// myPreferencesMenuPage. The row goes in the "User" section above Sign out.
+        syncPreferencesMenuEntry: function () {
+            // Jellyfin keeps previous views in the DOM, so match the visible one or the
+            // row lands on a page nobody is looking at.
+            const page = Array.from(document.querySelectorAll('#myPreferencesMenuPage'))
+                .find(el => el.offsetParent !== null || el.classList.contains('is-active'));
+            if (!page) return;
+
+            const existing = page.querySelector('#profiles-preferences-menu-item');
+
+            if (!this.isMenuLocation()) {
+                if (existing) existing.remove();
+                return;
+            }
+            if (existing) return;
+
+            const signOut = page.querySelector('.userSection .btnLogout') || page.querySelector('.btnLogout');
+            if (!signOut) return;
+
+            // Clone a real row so it inherits the active theme's classes. React dispatches
+            // through fiber props stored on the node, which cloneNode does not copy, so the
+            // logout handler does not come along.
+            const entry = signOut.cloneNode(true);
+            entry.id = 'profiles-preferences-menu-item';
+            entry.classList.remove('btnLogout');
+            entry.removeAttribute('href');
+
+            const icon = entry.querySelector('.listItemIcon');
+            if (icon) {
+                icon.classList.remove('exit_to_app');
+                icon.classList.add('switch_account');
+                icon.textContent = '';
+            }
+
+            const label = entry.querySelector('.listItemBodyText');
+            if (label) label.textContent = 'Switch Profile';
+            else entry.textContent = 'Switch Profile';
+
+            entry.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.handleBubbleClick();
             });
             entry.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); entry.click(); }
@@ -4243,7 +4574,7 @@
             section.style.cssText = 'margin: 2em 0; max-width: 44em;';
             section.innerHTML = `
                 <h2 class="sectionTitle" style="display:flex; align-items:center; gap:0.4em;">
-                    <span class="material-icons" style="color:#ff9900;">local_fire_department</span>
+                    <span class="material-icons local_fire_department" aria-hidden="true" style="color:#ff9900;"></span>
                     Bonfire Profiles
                 </h2>
                 <p style="opacity:0.7; margin:0 0 1em 0; line-height:1.5;">

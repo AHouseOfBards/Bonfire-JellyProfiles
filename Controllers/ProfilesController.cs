@@ -817,6 +817,10 @@ namespace Jellyfin.Profiles.Controllers
             // Provide safe fallbacks in case the Authorization header couldn't be parsed.
             var authRequest = new AuthenticationRequest
             {
+                // UserId must be set. Without it SessionManager falls back to a username
+                // lookup, and any miss surfaces as "Invalid username or password entered."
+                // even though AuthenticateDirect never checks a password (issue #15).
+                UserId = targetUser.Id,
                 Username = targetUser.Username,
                 RemoteEndPoint = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1",
                 App = !string.IsNullOrEmpty(client) ? client : "JellyfinWeb",
@@ -827,7 +831,27 @@ namespace Jellyfin.Profiles.Controllers
             tPolicy = sw.ElapsedMilliseconds;
 
             // Authenticate directly bypassing password check (securely validated caller + PIN validation)
-            var session = await _sessionManager.AuthenticateDirect(authRequest).ConfigureAwait(false);
+            // Never let this throw past us: Jellyfin's exception middleware turns these into a 401,
+            // and the client reads a 401 as "the caller's session expired" and signs the master out.
+            MediaBrowser.Controller.Authentication.AuthenticationResult session;
+            try
+            {
+                session = await _sessionManager.AuthenticateDirect(authRequest).ConfigureAwait(false);
+            }
+            catch (System.Security.SecurityException ex)
+            {
+                _logger.LogWarning(ex, "ProfilesPlugin: Session creation refused for {User}.", targetUser.Username);
+                var reason = ex.Message.Contains("device", StringComparison.OrdinalIgnoreCase)
+                    ? "This profile isn't allowed on this device."
+                    : "This profile has too many active sessions.";
+                return BadRequest(reason);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ProfilesPlugin: Could not create a session for {User}.", targetUser.Username);
+                return BadRequest("Couldn't sign in to that profile. Check the server log.");
+            }
+
             tSession = sw.ElapsedMilliseconds;
 
             // Record profile switch audit log
@@ -1791,7 +1815,10 @@ namespace Jellyfin.Profiles.Controllers
                 // The client caches these in localStorage to decide whether to raise the gate
                 // before this call returns. Echoing the account they belong to lets it throw
                 // the cache away when a different user signs in on the same browser.
-                MasterUserId = masterUserId
+                MasterUserId = masterUserId,
+                // Whether the switcher should offer the emergency disable link at all. Told
+                // to signed-in users only, and it says nothing about what the code is.
+                EmergencyCodeConfigured = !string.IsNullOrEmpty(config.PanicCodeHash)
             });
         }
 

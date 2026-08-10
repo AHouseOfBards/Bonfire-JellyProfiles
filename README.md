@@ -81,13 +81,15 @@ Bonfire works by injecting a script into the web client your server hands out. S
 - Jellyfin Media Player (Windows, macOS, Linux)
 - **LG webOS** — the app loads your server's web client into a frame, so the switcher comes with it
 
+**Works, with a caveat:**
+- **Samsung Tizen** — the Tizen app builds its own copy of the web client into the `.wgt` package rather than fetching yours, so the plugin cannot inject itself at runtime. Users have reported the switcher working anyway, with Bonfire bundled into the package at build time. It works, but the package has to be rebuilt to pick up plugin updates — nothing reaches it automatically.
+
 **Cannot work:**
-- **Samsung Tizen** — the app packages its own copy of the web client at build time and never fetches your server's, so there is nothing for the plugin to inject into
 - Jellyfin for Android TV / Google TV — a native app, not a web client
 - Swiftfin (iOS / tvOS), Findroid, Jellyfin for Roku, Infuse — likewise native
 
 > [!IMPORTANT]
-> **Parental controls still apply on every client, including the ones above.** Library access, maximum parental rating and tag filters are stored on the Jellyfin user account and enforced by the *server*. A sub-profile signed in on Android TV or Tizen sees exactly what it is allowed to see. What those clients cannot show is the switcher itself — you sign in as the sub-profile directly instead.
+> **Parental controls still apply on every client, including the ones above.** Library access, maximum parental rating and tag filters are stored on the Jellyfin user account and enforced by the *server*. A sub-profile signed in on Android TV sees exactly what it is allowed to see. What those clients cannot show is the switcher itself — you sign in as the sub-profile directly instead.
 
 ---
 
