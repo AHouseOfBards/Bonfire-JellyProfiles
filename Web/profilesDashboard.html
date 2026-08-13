@@ -794,18 +794,30 @@
                             reject(new Error('That image format isn’t supported. Save it as a JPEG or PNG first.'));
                         };
                         img.onload = function () {
-                            const preferPng = hasTransparency(img);
-                            ApiClient.ajax({
-                                type: 'POST',
-                                url: ApiClient.getUrl('plugins/profiles/admin/avatars'),
-                                contentType: 'application/json',
-                                data: JSON.stringify({
+                            // Canvas work can throw — a zero-dimension decode, or no 2d
+                            // context under memory pressure. An escaping exception here
+                            // would leave this promise unsettled and stall the whole batch.
+                            let payload;
+                            try {
+                                const preferPng = hasTransparency(img);
+                                payload = JSON.stringify({
                                     image: squareToDataUrl(img, AVATAR_MASTER, preferPng),
                                     thumb: squareToDataUrl(img, AVATAR_THUMB, preferPng),
                                     // Filename without its extension is a reasonable default
                                     // label, and the admin can rename the file to change it.
                                     displayName: (file.name || 'Avatar').replace(/\.[^.]+$/, '')
-                                })
+                                });
+                            } catch (e) {
+                                console.error('Avatar resize failed:', e);
+                                reject(new Error('That image could not be resized.'));
+                                return;
+                            }
+
+                            ApiClient.ajax({
+                                type: 'POST',
+                                url: ApiClient.getUrl('plugins/profiles/admin/avatars'),
+                                contentType: 'application/json',
+                                data: payload
                             }).then(resolve).catch(function (err) {
                                 console.error('Avatar upload failed:', err);
                                 reject(new Error('The server rejected it. It may be over the 2 MB limit after resizing.'));

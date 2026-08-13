@@ -1571,7 +1571,7 @@
             const back = surface.querySelector(
                 '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
                 '#pin-cancel-btn, #master-pin-cancel-btn, #create-cancel-btn, #edit-cancel-btn, ' +
-                '#bonfire-back-btn, #switcher-mode-back-btn'
+                '#bonfire-back-btn, #switcher-mode-back-btn, #profiles-resume-btn'
             );
             if (back) back.click();
         },
@@ -2034,6 +2034,9 @@
                     ${sectionsHtml}
                     <div class="profiles-footer">
                         <button id="profiles-toggle-manage-btn" class="profiles-btn btn-secondary">${manageBtnText}</button>
+                        ${this._resumeState && !this.isManageMode
+                            ? '<button id="profiles-resume-btn" class="profiles-btn btn-secondary">Cancel</button>'
+                            : ''}
                     </div>
                     <!-- Deliberately plain and dim. It has to be reachable by D-pad, because
                          a TV has no keyboard shortcut, and this screen is exactly where
@@ -2138,6 +2141,17 @@
                 switcherModeCard.addEventListener('click', () => {
                     if (this._switchLock) return;
                     this.showSwitcherModeModal();
+                });
+            }
+
+            // Back out of a switcher the user opened on purpose, returning to the profile
+            // they were already using. Only present when there is something to return to —
+            // the startup gate is a required choice and has no Cancel.
+            const resumeBtn = overlay.querySelector('#profiles-resume-btn');
+            if (resumeBtn) {
+                resumeBtn.addEventListener('click', () => {
+                    if (this._switchLock) return;
+                    this.resumePreviousProfile();
                 });
             }
 
@@ -2459,7 +2473,9 @@
                 }
 
                 this._sessionSet(this.config.activeSessionKey, activeProfileToken);
-                
+                // A switch has happened; there is no longer an earlier profile to go back to.
+                this._resumeState = null;
+
                 const profile = this.currentProfiles.find(p => this.normalizeGuid(p.profileUserId) === this.normalizeGuid(profileId));
                 if (profile) {
                     this._sessionSet('jellyfin_profiles_active_info', JSON.stringify({
@@ -5083,17 +5099,56 @@
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
 
             if (masterState && masterState.masterToken) {
+                // Opening the switcher deliberately is a reversible act, so remember enough to
+                // undo it. The profile's token is still valid — nothing has been signed out —
+                // so backing out costs no PIN and no reload. Without this there is no way off
+                // the picker at all once it is open, which on a TV means the Back button lands
+                // on a dead end.
+                const priorUserId = ApiClient.getCurrentUserId();
+                const priorToken = this._sessionGet(this.config.activeSessionKey);
+                this._resumeState = (priorToken && priorUserId)
+                    ? {
+                        token: priorToken,
+                        userId: priorUserId,
+                        info: this._sessionGet('jellyfin_profiles_active_info')
+                    }
+                    : null;
+
                 // Put the master's credentials back in memory before listing profiles — the
                 // active sub-profile's token cannot see its siblings.
                 this.clearProfileSession();
                 this.updateStoredCredentials(masterState.masterToken, masterState.masterUserId);
                 ApiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
+            } else {
+                this._resumeState = null;
             }
 
             // With no stored master state we are still signed in as the master — that is the
             // normal case in native mode, where the user never passes through the gate.
             // interceptHomeAndShowProfiles() records the state and takes it from there.
             this.interceptHomeAndShowProfiles();
+        },
+
+        /// Puts back the profile that was active before the switcher was opened.
+        ///
+        /// Nothing was signed out to get here — handleBubbleClick only swapped the master's
+        /// credentials into memory so the profile list could be fetched — so the profile's
+        /// own token is still good and this needs neither a PIN nor a reload.
+        resumePreviousProfile: function () {
+            const prior = this._resumeState;
+            if (!prior) return;
+            this._resumeState = null;
+
+            this._sessionSet(this.config.activeSessionKey, prior.token);
+            if (prior.info) this._sessionSet('jellyfin_profiles_active_info', prior.info);
+
+            this.updateStoredCredentials(prior.token, prior.userId);
+            ApiClient.setAuthenticationInfo(prior.token, prior.userId);
+
+            this.isManageMode = false;
+            this.masterPin = null;
+            this.removeProfileOverlay();
+            this.checkRoute();
         },
 
         attachBubbleClickHandler: function (bubble) {

@@ -239,9 +239,11 @@ namespace Jellyfin.Profiles.Configuration
         /// Whether the "Who's Watching?" screen appears when the client first loads. It is
         /// shown once per browser session, not on every trip to the home screen.
         /// <para>
-        /// Null means never explicitly set, in which case <see cref="SwitcherMode"/> decides —
-        /// see <see cref="SwitcherLocations.Resolve"/>. That distinction is the whole reason
-        /// this is nullable rather than defaulting to true.
+        /// Null means never explicitly set, in which case the server-wide
+        /// <see cref="PluginConfiguration.DefaultAskOnStartup"/> applies — unless
+        /// <see cref="SwitcherMode"/> carries a real 1.3.1-beta choice. See
+        /// <see cref="SwitcherLocations.Resolve"/>. That distinction is the whole reason this
+        /// is nullable rather than defaulting to true.
         /// </para>
         /// </summary>
         public bool? AskOnStartup { get; set; }
