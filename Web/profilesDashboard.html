@@ -108,6 +108,28 @@
                     <div class="fieldDescription">If checked, users must enter their PIN code to add new sub-profiles.</div>
                 </div>
 
+                <h3 class="checkboxListLabel" style="margin-top:1.5em;">Switcher defaults</h3>
+                <div class="fieldDescription" style="margin-bottom:1em;">
+                    What new accounts get. Anyone who picks their own setting keeps it.
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="defaultAskOnStartup" />
+                        <span>Ask "Who's watching?" on startup</span>
+                    </label>
+                    <div class="fieldDescription">Shown once when the app opens.</div>
+                </div>
+
+                <div class="selectContainer">
+                    <label class="selectLabel" for="defaultSwitcherLocation">Where to switch from</label>
+                    <select is="emby-select" id="defaultSwitcherLocation">
+                        <option value="button">Bonfire button in the header</option>
+                        <option value="menu">Jellyfin's own menu</option>
+                    </select>
+                    <div class="fieldDescription">The menu option adds a row to Settings instead of a second portrait.</div>
+                </div>
+
                 <div class="buttonContainer">
                     <button is="emby-button" type="submit" class="raised button-submit block">Save Settings</button>
                 </div>
@@ -137,11 +159,12 @@
 
             <div style="margin: 1em 0;">
                 <label for="avatarUploadInput" id="avatarUploadLabel" is="emby-button" class="raised block" style="display:inline-block; cursor:pointer; max-width:280px;">
-                    <span>Upload an avatar</span>
+                    <span>Upload avatars</span>
                 </label>
-                <input type="file" id="avatarUploadInput" accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" style="display:none;" />
-                <div class="fieldDescription">JPEG, PNG, WebP or GIF. Images are squared and resized automatically.</div>
-                <div id="avatarUploadError" style="display:none; color:#ff6b6b; font-size:0.88rem; font-weight:600; margin-top:8px;"></div>
+                <input type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" style="display:none;" />
+                <div class="fieldDescription">JPEG, PNG, WebP or GIF. Pick several at once; they are squared and resized automatically.</div>
+                <div id="avatarUploadStatus" style="display:none; font-size:0.88rem; opacity:0.75; margin-top:8px;"></div>
+                <div id="avatarUploadError" style="display:none; color:#ff6b6b; font-size:0.88rem; font-weight:600; margin-top:8px; line-height:1.6;"></div>
             </div>
 
             <div id="avatarLibraryGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:14px; margin-bottom:3em;">
@@ -224,6 +247,10 @@
                     page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
                     page.querySelector('#requireMasterPin').checked = config.RequireMasterPinForCreation;
                     page.querySelector('#disallowCustomAvatars').checked = !!config.DisallowCustomAvatarUploads;
+                    // Absent on a configuration written before 1.3.4 — keep the shipped defaults.
+                    page.querySelector('#defaultAskOnStartup').checked = config.DefaultAskOnStartup !== false;
+                    page.querySelector('#defaultSwitcherLocation').value =
+                        config.DefaultSwitcherLocation === 'menu' ? 'menu' : 'button';
                     loadMappings(page);
                     loadAuditLogs(page);
                     loadAvatarLibrary(page);
@@ -751,51 +778,94 @@
                 });
             }
 
-            function uploadAvatar(page, file) {
+            // Resolves when the file has been stored, rejects with a message fit to show.
+            // Separated from the batching below so one bad file in a selection of twenty
+            // reports itself and the rest still upload.
+            function uploadOneAvatar(file) {
+                const reason = rejectAvatarFile(file);
+                if (reason) return Promise.reject(new Error(reason));
+
+                return new Promise(function (resolve, reject) {
+                    const reader = new FileReader();
+                    reader.onerror = function () { reject(new Error('That file could not be read.')); };
+                    reader.onload = function (event) {
+                        const img = new Image();
+                        img.onerror = function () {
+                            reject(new Error('That image format isn’t supported. Save it as a JPEG or PNG first.'));
+                        };
+                        img.onload = function () {
+                            const preferPng = hasTransparency(img);
+                            ApiClient.ajax({
+                                type: 'POST',
+                                url: ApiClient.getUrl('plugins/profiles/admin/avatars'),
+                                contentType: 'application/json',
+                                data: JSON.stringify({
+                                    image: squareToDataUrl(img, AVATAR_MASTER, preferPng),
+                                    thumb: squareToDataUrl(img, AVATAR_THUMB, preferPng),
+                                    // Filename without its extension is a reasonable default
+                                    // label, and the admin can rename the file to change it.
+                                    displayName: (file.name || 'Avatar').replace(/\.[^.]+$/, '')
+                                })
+                            }).then(resolve).catch(function (err) {
+                                console.error('Avatar upload failed:', err);
+                                reject(new Error('The server rejected it. It may be over the 2 MB limit after resizing.'));
+                            });
+                        };
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            // One at a time, not Promise.all: each upload carries two base64 images, and
+            // firing twenty at once is how you get a queue of rejected requests instead of
+            // twenty avatars.
+            function uploadAvatars(page, files) {
+                const list = Array.prototype.slice.call(files || []);
+                if (!list.length) return;
+
                 const errEl = page.querySelector('#avatarUploadError');
-                const show = function (msg) {
-                    errEl.textContent = msg || '';
+                const statusEl = page.querySelector('#avatarUploadStatus');
+                const failures = [];
+
+                const setStatus = function (msg) {
+                    statusEl.textContent = msg || '';
+                    statusEl.style.display = msg ? 'block' : 'none';
+                };
+                const setError = function (msg) {
+                    errEl.innerHTML = msg || '';
                     errEl.style.display = msg ? 'block' : 'none';
                 };
-                show('');
 
-                const reason = rejectAvatarFile(file);
-                if (reason) { show(reason); return; }
+                setError('');
+                Dashboard.showLoadingMsg();
 
-                const reader = new FileReader();
-                reader.onerror = function () { show('That file could not be read.'); };
-                reader.onload = function (event) {
-                    const img = new Image();
-                    img.onerror = function () {
-                        show('That image format isn’t supported. Save it as a JPEG or PNG first.');
-                    };
-                    img.onload = function () {
-                        const preferPng = hasTransparency(img);
-                        Dashboard.showLoadingMsg();
-                        ApiClient.ajax({
-                            type: 'POST',
-                            url: ApiClient.getUrl('plugins/profiles/admin/avatars'),
-                            contentType: 'application/json',
-                            data: JSON.stringify({
-                                image: squareToDataUrl(img, AVATAR_MASTER, preferPng),
-                                thumb: squareToDataUrl(img, AVATAR_THUMB, preferPng),
-                                // Filename without its extension is a reasonable default
-                                // label, and the admin can rename the file to change it.
-                                displayName: (file.name || 'Avatar').replace(/\.[^.]+$/, '')
-                            })
-                        }).then(function () {
-                            Dashboard.hideLoadingMsg();
-                            loadAvatarLibrary(page);
-                            loadAvatarHealth(page);
-                        }).catch(function (err) {
-                            Dashboard.hideLoadingMsg();
-                            console.error('Avatar upload failed:', err);
-                            show('The server rejected that image. It may be over the 2 MB limit after resizing.');
-                        });
-                    };
-                    img.src = event.target.result;
+                const step = function (i) {
+                    if (i >= list.length) {
+                        Dashboard.hideLoadingMsg();
+                        setStatus(list.length > 1
+                            ? (list.length - failures.length) + ' of ' + list.length + ' uploaded.'
+                            : '');
+                        if (failures.length) {
+                            setError(failures.map(function (f) {
+                                return escapeHtml(f.name) + ' — ' + escapeHtml(f.reason);
+                            }).join('<br>'));
+                        }
+                        loadAvatarLibrary(page);
+                        loadAvatarHealth(page);
+                        return;
+                    }
+
+                    if (list.length > 1) setStatus('Uploading ' + (i + 1) + ' of ' + list.length + '…');
+
+                    uploadOneAvatar(list[i])
+                        .catch(function (err) {
+                            failures.push({ name: list[i].name || 'That image', reason: err.message });
+                        })
+                        .then(function () { step(i + 1); });
                 };
-                reader.readAsDataURL(file);
+
+                step(0);
             }
 
             // Counts profiles whose stored picture no longer resolves. The images are
@@ -907,6 +977,8 @@
                     config.MaxProfilesPerUser = parseInt(page.querySelector('#maxProfiles').value, 10) || 5;
                     config.RequireMasterPinForCreation = page.querySelector('#requireMasterPin').checked;
                     config.DisallowCustomAvatarUploads = page.querySelector('#disallowCustomAvatars').checked;
+                    config.DefaultAskOnStartup = page.querySelector('#defaultAskOnStartup').checked;
+                    config.DefaultSwitcherLocation = page.querySelector('#defaultSwitcherLocation').value === 'menu' ? 'menu' : 'button';
 
                     ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
@@ -940,9 +1012,9 @@
                 if (avatarInput && !avatarInput.dataset.bound) {
                     avatarInput.dataset.bound = '1';
                     avatarInput.addEventListener('change', function (e) {
-                        const file = e.target.files && e.target.files[0];
-                        if (!file) return;
-                        uploadAvatar(page, file);
+                        const files = e.target.files;
+                        if (!files || !files.length) return;
+                        uploadAvatars(page, files);
                         avatarInput.value = '';
                     });
                 }

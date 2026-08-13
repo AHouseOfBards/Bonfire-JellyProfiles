@@ -600,8 +600,7 @@
                     this._switcherPrefs = null;
                     // Learned from the same response as the preferences, so it goes with them.
                     this._panicLinkAvailable = null;
-                    sessionStorage.removeItem(this.config.activeSessionKey);
-                    sessionStorage.removeItem('jellyfin_profiles_active_info');
+                    this.clearProfileSession();
                 } catch (e) { /* ignore storage errors */ }
             });
 
@@ -867,8 +866,71 @@
             });
         },
 
+        // ── Active-profile session storage ────────────────────────────────────────
+        // The active profile lives in sessionStorage deliberately: closing the app should
+        // drop back to the picker rather than leave a child profile signed in.
+        //
+        // Samsung's Tizen runtime clears sessionStorage on a full reload, and a full reload
+        // is exactly how a profile switch finishes. The marker was therefore gone by the
+        // time the page came back, validateSessionState() concluded the app had been closed
+        // and reverted to the master token — the avatar changed and nothing else did
+        // (issues #15 and #16, reported independently by two people).
+        //
+        // On Tizen only, the marker is mirrored into localStorage. The cost is that closing
+        // the app there leaves the profile active instead of returning to the picker. That
+        // is the safer of the two failures: the account it would otherwise revert to is the
+        // master, which is the less restricted one.
+        TIZEN_MIRROR_PREFIX: 'jpf-persist-',
+
+        /// True on Samsung's TV runtime, where sessionStorage does not survive a reload.
+        _isTizenRuntime: function () {
+            if (this._tizenRuntime === undefined) {
+                let detected = false;
+                try {
+                    const ua = (navigator && navigator.userAgent) || '';
+                    detected = typeof window.tizen !== 'undefined' || /tizen/i.test(ua);
+                } catch (e) { /* no navigator — assume not */ }
+                this._tizenRuntime = detected;
+            }
+            return this._tizenRuntime;
+        },
+
+        _sessionSet: function (key, value) {
+            try { sessionStorage.setItem(key, value); } catch (e) { /* storage blocked */ }
+            if (!this._isTizenRuntime()) return;
+            try { localStorage.setItem(this.TIZEN_MIRROR_PREFIX + key, value); } catch (e) { /* full */ }
+        },
+
+        _sessionGet: function (key) {
+            let value = null;
+            try { value = sessionStorage.getItem(key); } catch (e) { /* storage blocked */ }
+            if (value !== null || !this._isTizenRuntime()) return value;
+
+            try {
+                value = localStorage.getItem(this.TIZEN_MIRROR_PREFIX + key);
+                // Put it back where the rest of the code expects to find it, so this
+                // fallback costs one read per page load rather than one per call.
+                if (value !== null) sessionStorage.setItem(key, value);
+            } catch (e) { /* unreadable — treat as absent */ }
+            return value;
+        },
+
+        _sessionRemove: function (key) {
+            try { sessionStorage.removeItem(key); } catch (e) { /* storage blocked */ }
+            // Always clear the mirror, whatever the runtime says now: a stale copy left by
+            // an earlier detection would outlive every sign-out.
+            try { localStorage.removeItem(this.TIZEN_MIRROR_PREFIX + key); } catch (e) { /* ignore */ }
+        },
+
+        /// Drops every trace of an active profile session. Used by sign-out, the login
+        /// route and the revert-to-master path, which must all clear both copies.
+        clearProfileSession: function () {
+            this._sessionRemove(this.config.activeSessionKey);
+            this._sessionRemove('jellyfin_profiles_active_info');
+        },
+
         isProfileSessionActive: function () {
-            return !!sessionStorage.getItem(this.config.activeSessionKey);
+            return !!this._sessionGet(this.config.activeSessionKey);
         },
 
         // ── Emergency disable ──────────────────────────────────────────────────────
@@ -1188,7 +1250,7 @@
         },
 
         getCachedActiveProfile: function () {
-            const activeInfoStr = sessionStorage.getItem('jellyfin_profiles_active_info');
+            const activeInfoStr = this._sessionGet('jellyfin_profiles_active_info');
             if (activeInfoStr) {
                 try {
                     const info = JSON.parse(activeInfoStr);
@@ -1213,7 +1275,7 @@
                                     profileImage: profile.profileImage || null
                                 };
                                 // Store it in sessionStorage for future fast access
-                                sessionStorage.setItem('jellyfin_profiles_active_info', JSON.stringify(info));
+                                this._sessionSet('jellyfin_profiles_active_info', JSON.stringify(info));
                                 return info;
                             }
                         }
@@ -1250,8 +1312,7 @@
             const path = window.location.pathname || '';
             if (hash.includes('login') || hash.includes('selectserver') || path.includes('login') || path.includes('selectserver')) {
                 localStorage.removeItem(this.config.masterStorageKey);
-                sessionStorage.removeItem(this.config.activeSessionKey);
-                sessionStorage.removeItem('jellyfin_profiles_active_info');
+                this.clearProfileSession();
                 return;
             }
 
@@ -1274,8 +1335,7 @@
 
                 if (isLoggedOut) {
                     localStorage.removeItem(this.config.masterStorageKey);
-                    sessionStorage.removeItem(this.config.activeSessionKey);
-                    sessionStorage.removeItem('jellyfin_profiles_active_info');
+                    this.clearProfileSession();
                 }
                 return;
             }
@@ -1307,8 +1367,7 @@
         handleSessionExpired: function () {
             console.warn("ProfilesPlugin: Master session expired or invalid. Redirecting to login.");
             localStorage.removeItem(this.config.masterStorageKey);
-            sessionStorage.removeItem(this.config.activeSessionKey);
-            sessionStorage.removeItem('jellyfin_profiles_active_info');
+            this.clearProfileSession();
             
             const apiClient = ApiClient;
             if (apiClient) {
@@ -1502,6 +1561,21 @@
             return node.getAttribute && node.getAttribute('data-profiles-own-keys') === '1';
         },
 
+        /// Steps one screen back from `surface`, or absorbs the press when there is nowhere
+        /// to go. Every sub-screen carries a Back or Cancel control already, so this clicks
+        /// the one it finds rather than duplicating each screen's teardown.
+        ///
+        /// Doing nothing is the right answer on the picker itself: it is a required choice,
+        /// and on a TV the alternative is closing the whole app mid-selection.
+        _dismissSurface: function (surface) {
+            const back = surface.querySelector(
+                '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
+                '#pin-cancel-btn, #master-pin-cancel-btn, #create-cancel-btn, #edit-cancel-btn, ' +
+                '#bonfire-back-btn, #switcher-mode-back-btn'
+            );
+            if (back) back.click();
+        },
+
         /// Moves focus one step through the surface in document order, wrapping at both
         /// ends. This is what Tab means; geometry is for the direction keys.
         _stepOverlayFocus: function (root, delta) {
@@ -1511,7 +1585,26 @@
             const next = at < 0
                 ? (delta > 0 ? 0 : items.length - 1)
                 : (at + delta + items.length) % items.length;
-            items[next].focus();
+            this._focusVisibly(items[next]);
+        },
+
+        /// Focuses a control and brings it into view.
+        ///
+        /// The profile forms are taller than a television screen, so Save and Cancel sit
+        /// below the fold. Focus alone moved to them without scrolling on the TV clients,
+        /// which reads as the remote having stopped responding.
+        _focusVisibly: function (el) {
+            if (!el) return;
+            el.focus();
+            try {
+                const r = el.getBoundingClientRect();
+                const h = window.innerHeight || document.documentElement.clientHeight;
+                // Only scroll when it is actually out of the viewport — an unconditional
+                // scrollIntoView jerks the picker around on every arrow press.
+                if (r.top < 0 || r.bottom > h) {
+                    el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                }
+            } catch (e) { /* no layout information — focus alone will do */ }
         },
 
         /// Nearest focusable in a direction. Movement across the axis is penalised so a
@@ -1522,7 +1615,7 @@
 
             const current = (document.activeElement && root.contains(document.activeElement))
                 ? document.activeElement : null;
-            if (!current) { items[0].focus(); return; }
+            if (!current) { this._focusVisibly(items[0]); return; }
 
             const from = current.getBoundingClientRect();
             const fx = from.left + from.width / 2;
@@ -1546,7 +1639,7 @@
                 if (score < bestScore) { bestScore = score; best = el; }
             });
 
-            if (best) best.focus();
+            if (best) this._focusVisibly(best);
         },
 
         _bindOverlayFocusTrap: function () {
@@ -1574,6 +1667,17 @@
                 if (!surface) return;
                 // Never swallow a shortcut — Ctrl+Shift+B has to keep working from here.
                 if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+                // The TV Back/Return key. Samsung sends 10009, LG sends 461, and neither is
+                // a key the page gets a second chance at: unhandled, Tizen puts up its
+                // "exit application?" prompt behind our overlay, where it cannot be read or
+                // dismissed. While a Bonfire screen is up, Back belongs to that screen.
+                if (e.keyCode === 10009 || e.keyCode === 461 || e.key === 'XF86Back') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this._dismissSurface(surface);
+                    return;
+                }
 
                 const inside = surface.contains(e.target);
                 const dir = dirOf(e);
@@ -1752,8 +1856,7 @@
         // restores master credentials, then shows the profile selector.
         lockActiveProfile: function () {
             this.stopInactivityTimer();
-            sessionStorage.removeItem(this.config.activeSessionKey);
-            sessionStorage.removeItem('jellyfin_profiles_active_info');
+            this.clearProfileSession();
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
             if (masterState) {
                 this.updateStoredCredentials(masterState.masterToken, masterState.masterUserId);
@@ -2355,11 +2458,11 @@
                     localStorage.setItem(this.config.masterStorageKey, JSON.stringify(masterState));
                 }
 
-                sessionStorage.setItem(this.config.activeSessionKey, activeProfileToken);
+                this._sessionSet(this.config.activeSessionKey, activeProfileToken);
                 
                 const profile = this.currentProfiles.find(p => this.normalizeGuid(p.profileUserId) === this.normalizeGuid(profileId));
                 if (profile) {
-                    sessionStorage.setItem('jellyfin_profiles_active_info', JSON.stringify({
+                    this._sessionSet('jellyfin_profiles_active_info', JSON.stringify({
                         name: profile.profileName,
                         color: profile.avatarColor,
                         initial: profile.avatarInitial,
@@ -4807,7 +4910,7 @@
                                 initial: currentProfile.avatarInitial || (currentProfile.profileName ? currentProfile.profileName.charAt(0).toUpperCase() : 'P'),
                                 profileImage: currentProfile.profileImage || null
                             };
-                            sessionStorage.setItem('jellyfin_profiles_active_info', JSON.stringify(info));
+                            this._sessionSet('jellyfin_profiles_active_info', JSON.stringify(info));
                         }
                     }
 
@@ -4883,7 +4986,11 @@
         _buildHeaderBubble: function () {
             const b = document.createElement('button');
             b.id = 'profiles-floating-bubble';
-            b.className = 'paper-icon-button-light headerButton';
+            // `focusable` is what Jellyfin's own focusManager looks for on TV layouts
+            // (focusableQuery in src/components/focusManager.js is the standard tags plus
+            // `.focusable`). A bare <button> qualifies on paper; carrying the class as well
+            // costs nothing and is what every other header control does.
+            b.className = 'paper-icon-button-light headerButton focusable';
             b.title = 'Switch Profile';
             b.setAttribute('aria-label', 'Switch Profile');
 
@@ -4900,7 +5007,7 @@
         _buildFallbackBubble: function () {
             const b = document.createElement('button');
             b.id = 'profiles-floating-bubble';
-            b.className = 'profiles-floating-fallback';
+            b.className = 'profiles-floating-fallback focusable';
             b.title = 'Switch Profile';
             b.setAttribute('aria-label', 'Switch Profile');
 
@@ -4978,8 +5085,7 @@
             if (masterState && masterState.masterToken) {
                 // Put the master's credentials back in memory before listing profiles — the
                 // active sub-profile's token cannot see its siblings.
-                sessionStorage.removeItem(this.config.activeSessionKey);
-                sessionStorage.removeItem('jellyfin_profiles_active_info');
+                this.clearProfileSession();
                 this.updateStoredCredentials(masterState.masterToken, masterState.masterUserId);
                 ApiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
             }

@@ -611,6 +611,12 @@ behaves the same way throughout a household rather than changing as profiles are
 Unrecognised stored values normalise to the defaults, so a client never has to handle a third
 value for either field.
 
+An account that has never set either field inherits the server-wide defaults an administrator
+configures under Dashboard → Plugins → Bonfire (`DefaultAskOnStartup` and
+`DefaultSwitcherLocation` in the plugin configuration, added in 1.3.4). Choosing for the
+account writes the fields and pins them; the default only ever fills a blank. Both endpoints
+return the resolved values, so a client never has to know which of the two it is looking at.
+
 `masterUserId` is returned so a client can cache the preferences against the account they
 belong to. The bundled `profiles.js` mirrors them into `localStorage`, because the decision of
 whether to raise the gate has to be made on page load, long before a request could answer it —

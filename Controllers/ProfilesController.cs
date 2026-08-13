@@ -1802,7 +1802,7 @@ namespace Jellyfin.Profiles.Controllers
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
 
             var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
-            var (askOnStartup, location) = SwitcherLocations.Resolve(masterMapping);
+            var (askOnStartup, location) = SwitcherLocations.Resolve(masterMapping, config.DefaultAskOnStartup, config.DefaultSwitcherLocation);
 
             return Ok(new
             {
@@ -1874,7 +1874,7 @@ namespace Jellyfin.Profiles.Controllers
                 if (request.SwitcherLocation != null)
                     masterMapping.SwitcherLocation = SwitcherLocations.Normalize(request.SwitcherLocation);
 
-                (askOnStartup, location) = SwitcherLocations.Resolve(masterMapping);
+                (askOnStartup, location) = SwitcherLocations.Resolve(masterMapping, config.DefaultAskOnStartup, config.DefaultSwitcherLocation);
                 Plugin.Instance?.SaveConfiguration();
             }
 

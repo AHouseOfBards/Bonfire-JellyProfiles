@@ -30,6 +30,21 @@ namespace Jellyfin.Profiles.Configuration
         public bool DisallowCustomAvatarUploads { get; set; } = false;
 
         /// <summary>
+        /// What an account gets before it chooses for itself: whether the "Who's Watching?"
+        /// screen appears on startup, and where the switcher is reached from.
+        /// <para>
+        /// Requested in GitHub issue #14 — on a household server the administrator is usually
+        /// the only person who will ever open these settings, and setting every account by
+        /// hand does not scale. An account that has made its own choice keeps it; these only
+        /// fill in the blank. See <see cref="SwitcherLocations.Resolve"/>.
+        /// </para>
+        /// </summary>
+        public bool DefaultAskOnStartup { get; set; } = true;
+
+        /// <summary>Default for <see cref="ProfileMapping.SwitcherLocation"/>. See <see cref="DefaultAskOnStartup"/>.</summary>
+        public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;
+
+        /// <summary>
         /// PBKDF2 hash of the emergency disable code, or null when the feature is off (the
         /// default). Entering the code shuts the plugin's client script down until the
         /// server restarts — see <see cref="Plugin.IsPanicDisabled"/>.
@@ -130,20 +145,31 @@ namespace Jellyfin.Profiles.Configuration
             string.Equals(location, Menu, System.StringComparison.OrdinalIgnoreCase) ? Menu : Button;
 
         /// <summary>
-        /// Resolves an account's effective preference, falling back to the legacy
-        /// <see cref="ProfileMapping.SwitcherMode"/> when the newer fields were never written.
-        /// Null is what distinguishes "never set" from "deliberately set to the default",
-        /// which is why both new fields are nullable.
+        /// Resolves an account's effective preference. Null is what distinguishes "never set"
+        /// from "deliberately set to the default", which is why both new fields are nullable:
+        /// an account that has chosen keeps its choice, and one that has not inherits the
+        /// server-wide default the administrator set.
+        /// <para>
+        /// The legacy <see cref="ProfileMapping.SwitcherMode"/> still wins over the default,
+        /// but only when it says <c>native</c>. It is a non-nullable field that has always
+        /// defaulted to <c>gate</c>, so every mapping carries that value whether or not
+        /// anybody chose it — reading it as an explicit choice would mean the administrator's
+        /// default could never apply to anyone.
+        /// </para>
         /// </summary>
-        public static (bool AskOnStartup, string Location) Resolve(ProfileMapping? mapping)
+        public static (bool AskOnStartup, string Location) Resolve(
+            ProfileMapping? mapping,
+            bool defaultAskOnStartup = true,
+            string? defaultLocation = null)
         {
-            if (mapping == null) return (true, Button);
+            string fallbackLocation = Normalize(defaultLocation ?? Button);
+            if (mapping == null) return (defaultAskOnStartup, fallbackLocation);
 
             bool legacyNative = SwitcherModes.Normalize(mapping.SwitcherMode) == SwitcherModes.Native;
 
             return (
-                mapping.AskOnStartup ?? !legacyNative,
-                Normalize(mapping.SwitcherLocation ?? (legacyNative ? Menu : Button))
+                mapping.AskOnStartup ?? (legacyNative ? false : defaultAskOnStartup),
+                Normalize(mapping.SwitcherLocation ?? (legacyNative ? Menu : fallbackLocation))
             );
         }
     }
@@ -224,9 +250,11 @@ namespace Jellyfin.Profiles.Configuration
         /// Where the switcher is reached from once past the startup prompt — see
         /// <see cref="SwitcherLocations"/>. Null means never explicitly set.
         /// <para>
-        /// Deliberately a per-account preference rather than a server setting: it is a matter
-        /// of taste, and one household's answer should not be imposed on everyone on the
-        /// server. Only ever read from the master account's mapping — sub-profiles inherit it.
+        /// A per-account preference — it is a matter of taste, and one household's answer
+        /// should not be imposed on everyone on the server. The administrator sets only the
+        /// starting point, via <see cref="PluginConfiguration.DefaultSwitcherLocation"/>,
+        /// which an account overrides the moment it chooses for itself. Only ever read from
+        /// the master account's mapping — sub-profiles inherit it.
         /// </para>
         /// </summary>
         public string? SwitcherLocation { get; set; }
