@@ -5,7 +5,6 @@ using Jellyfin.Profiles.Configuration;
 using Jellyfin.Profiles.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json.Linq;
 
 namespace Jellyfin.Profiles
 {
@@ -27,7 +26,7 @@ namespace Jellyfin.Profiles
         {
             if (request?.Contents == null)
             {
-                return string.Empty;
+                return request?.Contents ?? string.Empty;
             }
 
             return ProfilesHtmlTransformation.Transform(request.Contents);
@@ -67,16 +66,26 @@ namespace Jellyfin.Profiles
                     return;
                 }
 
-                var payload = new JObject
+                Type? jsonObjectType = assembly.GetType("Newtonsoft.Json.Linq.JObject");
+                MethodInfo? parseMethod = jsonObjectType?.GetMethod("Parse", new[] { typeof(string) });
+                if (parseMethod == null)
                 {
-                    ["id"] = TransformationId,
-                    ["fileNamePattern"] = "index.html",
-                    ["callbackAssembly"] = typeof(FileTransformationIntegration).Assembly.FullName,
-                    ["callbackClass"] = typeof(FileTransformationIntegration).FullName,
-                    ["callbackMethod"] = nameof(Transform)
-                };
+                    FailureReason = "The loaded File Transformation plugin does not expose JObject.Parse.";
+                    logger.LogWarning("ProfilesPlugin: Could not create the File Transformation registration payload.");
+                    return;
+                }
 
-                registerMethod.Invoke(null, new object?[] { payload });
+                string payloadJson = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    id = TransformationId,
+                    fileNamePattern = "index.html",
+                    callbackAssembly = typeof(FileTransformationIntegration).Assembly.FullName,
+                    callbackClass = typeof(FileTransformationIntegration).FullName,
+                    callbackMethod = nameof(Transform)
+                });
+                object payload = parseMethod.Invoke(null, new object?[] { payloadJson })!;
+
+                registerMethod.Invoke(null, new[] { payload });
                 RegistrationSucceeded = true;
                 logger.LogInformation("ProfilesPlugin: Registered index.html transformation with File Transformation.");
             }
