@@ -4,8 +4,20 @@ using MediaBrowser.Model.Plugins;
 
 namespace Jellyfin.Profiles.Configuration
 {
+    public static class ClientInjectionModes
+    {
+        public const string Direct = "direct";
+        public const string FileTransformation = "fileTransformation";
+
+        public static string Normalize(string? mode) =>
+            string.Equals(mode, FileTransformation, StringComparison.OrdinalIgnoreCase)
+                ? FileTransformation
+                : Direct;
+    }
+
     public class PluginConfiguration : BasePluginConfiguration
     {
+        public string ClientInjectionMode { get; set; } = ClientInjectionModes.Direct;
         public int MaxProfilesPerUser { get; set; } = 5;
         public bool RequireMasterPinForCreation { get; set; } = true;
         public List<ProfileMapping> Mappings { get; set; } = new List<ProfileMapping>();

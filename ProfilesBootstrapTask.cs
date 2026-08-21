@@ -189,6 +189,15 @@ namespace Jellyfin.Profiles
         public Task StartAsync(CancellationToken cancellationToken)
         {
             CleanupOldDlls();
+            if (Plugin.Instance != null &&
+                ClientInjectionModes.Normalize(Plugin.Instance.Configuration.ClientInjectionMode) == ClientInjectionModes.FileTransformation)
+            {
+                InjectionSucceeded = false;
+                IsVersionStale = false;
+                LastFailureReason = null;
+                return Task.CompletedTask;
+            }
+
             lock (PatchLock)
             {
                 TryPatchIndex();
@@ -205,6 +214,18 @@ namespace Jellyfin.Profiles
         {
             var self = _current;
             if (self == null) return;
+
+            if (Plugin.Instance != null &&
+                ClientInjectionModes.Normalize(Plugin.Instance.Configuration.ClientInjectionMode) == ClientInjectionModes.FileTransformation)
+            {
+                InjectionSucceeded = FileTransformationIntegration.RegistrationSucceeded;
+                IsVersionStale = false;
+                IndexPath = null;
+                LastFailureReason = FileTransformationIntegration.RegistrationSucceeded
+                    ? null
+                    : FileTransformationIntegration.FailureReason;
+                return;
+            }
 
             lock (PatchLock)
             {
@@ -283,6 +304,14 @@ namespace Jellyfin.Profiles
         {
             var self = _current;
             if (self == null) return InjectionSucceeded;
+
+            if (Plugin.Instance != null &&
+                ClientInjectionModes.Normalize(Plugin.Instance.Configuration.ClientInjectionMode) == ClientInjectionModes.FileTransformation)
+            {
+                FileTransformationIntegration.Register(self._logger);
+                RefreshInjectionStatus();
+                return InjectionSucceeded;
+            }
 
             lock (PatchLock)
             {

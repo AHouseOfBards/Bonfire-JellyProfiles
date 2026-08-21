@@ -93,6 +93,16 @@
                     maximum number of profiles allowed per account and whether a master PIN is required
                     before creating new sub-profiles.
                 </div>
+
+                <div class="inputContainer">
+                    <label class="inputLabel" for="clientInjectionMode">Client Script Installation</label>
+                    <select is="emby-select" id="clientInjectionMode">
+                        <option value="direct">Direct index.html modification</option>
+                        <option value="fileTransformation">File Transformation plugin</option>
+                    </select>
+                    <div class="fieldDescription">Choose whether Bonfire modifies index.html directly or is injected at request time by File Transformation.</div>
+                    <div id="fileTransformationStatus" class="fieldDescription" style="display:none;"></div>
+                </div>
                 
                 <div class="inputContainer">
                     <label class="inputLabel" for="maxProfiles">Maximum Profiles Per User</label>
@@ -155,6 +165,7 @@
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
                     page.querySelector('#requireMasterPin').checked = config.RequireMasterPinForCreation;
+                    page.querySelector('#clientInjectionMode').value = config.ClientInjectionMode || 'direct';
                     loadMappings(page);
                     loadAuditLogs(page);
                 }).catch(function (err) {
@@ -187,11 +198,27 @@
                 const succeeded = field(result, 'injectionSucceeded');
                 const isStale = field(result, 'isVersionStale');
                 const reason = field(result, 'failureReason');
+                const mode = field(result, 'clientInjectionMode') || 'direct';
+                const transformationStatus = page.querySelector('#fileTransformationStatus');
+                if (transformationStatus) {
+                    const detected = field(result, 'fileTransformationDetected');
+                    const registered = field(result, 'fileTransformationRegistered');
+                    transformationStatus.style.display = mode === 'fileTransformation' ? '' : 'none';
+                    transformationStatus.textContent = mode !== 'fileTransformation'
+                        ? ''
+                        : (registered ? 'File Transformation is registered and serving Bonfire.'
+                            : (detected ? (field(result, 'fileTransformationFailureReason') || 'Registration has not completed.')
+                                : 'File Transformation is not installed or loaded.'));
+                }
 
                 // Only treat an explicit false as failure — a missing field must never
                 // produce a false-positive warning.
-                const failed = (succeeded === false);
+                const failed = mode !== 'fileTransformation' && (succeeded === false);
                 let stale = (!failed && isStale === true);
+                const transformationRegistered = field(result, 'fileTransformationRegistered') === true;
+                const healthy = mode === 'fileTransformation'
+                    ? transformationRegistered
+                    : (!failed && !stale);
 
                 const ver = field(result, 'pluginVersion');
 
@@ -229,7 +256,7 @@
 
                 if (warningContainer) warningContainer.style.display = failed ? 'block' : 'none';
                 if (staleContainer) staleContainer.style.display = stale ? 'block' : 'none';
-                if (okContainer) okContainer.style.display = (!failed && !stale) ? 'block' : 'none';
+                if (okContainer) okContainer.style.display = healthy ? 'block' : 'none';
 
                 const failReasonEl = page.querySelector('#injectionFailureReason');
                 if (failReasonEl) {
@@ -305,8 +332,11 @@
                     })
                     .then(function (result) {
                         renderInjectionStatus(page, result);
-                        const ok = field(result, 'injectionSucceeded') !== false
-                                   && field(result, 'isVersionStale') !== true;
+                                                const mode = field(result, 'clientInjectionMode') || 'direct';
+                                                const ok = mode === 'fileTransformation'
+                                                        ? field(result, 'fileTransformationRegistered') === true
+                                                        : field(result, 'injectionSucceeded') !== false
+                                                            && field(result, 'isVersionStale') !== true;
                         buttons.forEach(function (b) { b.disabled = false; });
                         statuses.forEach(function (s) {
                             s.textContent = ok ? '' : 'Still not resolved — see the reason above.';
@@ -577,6 +607,7 @@
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     config.MaxProfilesPerUser = parseInt(page.querySelector('#maxProfiles').value, 10) || 5;
                     config.RequireMasterPinForCreation = page.querySelector('#requireMasterPin').checked;
+                    config.ClientInjectionMode = page.querySelector('#clientInjectionMode').value;
 
                     ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);

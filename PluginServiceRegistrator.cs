@@ -21,6 +21,7 @@ namespace Jellyfin.Profiles
             // ProfilesBootstrapTask runs at every server startup.
             // It patches index.html so the client script loads automatically.
             serviceCollection.AddHostedService<ProfilesBootstrapTask>();
+            serviceCollection.AddHostedService<FileTransformationRegistrationTask>();
         }
     }
 }

@@ -1018,6 +1018,8 @@ namespace Jellyfin.Profiles.Controllers
             // nothing re-checked until the next full Jellyfin restart.
             ProfilesBootstrapTask.RefreshInjectionStatus();
 
+            var injectionMode = ClientInjectionModes.Normalize(config.ClientInjectionMode);
+
             return Ok(new
             {
                 MasterUsers = masterUsersList,
@@ -1030,6 +1032,10 @@ namespace Jellyfin.Profiles.Controllers
                 // Jellyfin runs as, instead of guessing between service and desktop mode.
                 ServiceAccount = ProfilesBootstrapTask.RunningAccount,
                 IsWindows = OperatingSystem.IsWindows(),
+                ClientInjectionMode = injectionMode,
+                FileTransformationDetected = FileTransformationIntegration.DependencyDetected,
+                FileTransformationRegistered = FileTransformationIntegration.RegistrationSucceeded,
+                FileTransformationFailureReason = FileTransformationIntegration.FailureReason,
                 PluginVersion = GetPluginVersion()
             });
         }
@@ -1056,6 +1062,11 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             _logger.LogInformation("ProfilesPlugin: Manual injection retry requested by {User}.", caller.Username);
+            if (Plugin.Instance != null &&
+                ClientInjectionModes.Normalize(Plugin.Instance.Configuration.ClientInjectionMode) == ClientInjectionModes.FileTransformation)
+            {
+                FileTransformationIntegration.Register(_logger);
+            }
             var succeeded = ProfilesBootstrapTask.RunInjectionNow();
 
             return Ok(new
@@ -1068,6 +1079,12 @@ namespace Jellyfin.Profiles.Controllers
                 // Jellyfin runs as, instead of guessing between service and desktop mode.
                 ServiceAccount = ProfilesBootstrapTask.RunningAccount,
                 IsWindows = OperatingSystem.IsWindows(),
+                ClientInjectionMode = Plugin.Instance == null
+                    ? ClientInjectionModes.Direct
+                    : ClientInjectionModes.Normalize(Plugin.Instance.Configuration.ClientInjectionMode),
+                FileTransformationDetected = FileTransformationIntegration.DependencyDetected,
+                FileTransformationRegistered = FileTransformationIntegration.RegistrationSucceeded,
+                FileTransformationFailureReason = FileTransformationIntegration.FailureReason,
                 PluginVersion = GetPluginVersion()
             });
         }
