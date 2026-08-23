@@ -3359,7 +3359,7 @@
             // The upload control disappears entirely when the administrator has locked
             // avatars to the library — a disabled button people cannot use is just noise.
             const uploadHtml = library.allowCustomUploads ? `
-                <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+                <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; width: 100%;">
                     <label for="${prefix}-profile-image-file" id="${prefix}-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
                         <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
                         <span>Upload a picture</span>
@@ -3381,16 +3381,31 @@
                 </div>
             ` : '';
 
+            // Setting one picture used to mean six controls on screen at once: the
+            // library grid, the preview, an Upload button, an OR divider, a URL field and
+            // Remove. The preview and one action stay; the ways of choosing collapse
+            // behind them. Open by default when there is no picture yet, because on a new
+            // profile choosing one IS the task — it is on an existing profile that the
+            // whole apparatus was sitting there for nothing.
+            const sourcesOpen = !currentImage;
+
             return `
                 <div class="form-group">
                     <label>Profile Picture</label>
                     <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: var(--jpf-gap);">
-                        ${libraryHtml}
                         <div class="image-upload-row">
                             <div id="${prefix}-image-upload-preview" class="image-upload-preview" style="background-color: ${safeColor(currentColor)};">${preview}</div>
-                            ${uploadHtml}
+                            <button type="button" id="${prefix}-change-picture" class="profiles-btn btn-secondary image-upload-btn"
+                                    aria-expanded="${sourcesOpen}" aria-controls="${prefix}-picture-sources">
+                                <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
+                                <span>${currentImage ? 'Change picture' : 'Choose a picture'}</span>
+                            </button>
                         </div>
-                        ${urlHtml}
+                        <div id="${prefix}-picture-sources" class="picture-sources${sourcesOpen ? ' is-open' : ''}">
+                            ${libraryHtml}
+                            ${uploadHtml}
+                            ${urlHtml}
+                        </div>
                         <div id="${prefix}-image-error" style="display:none; color:#ff6b6b; font-size:0.82rem; font-weight:600; line-height:1.45;"></div>
                     </div>
                 </div>
@@ -3423,8 +3438,20 @@
                 previewEl.innerHTML = src ? avatarInner(src, '+', /* useThumb */ true) : '+';
                 if (typeof onPreviewChange === 'function') onPreviewChange(src);
             };
-            setPreview(state.image);
-
+            setPreview(state.image);
+
+            // The ways of choosing a picture are collapsed behind one button. Every id
+            // the handlers below bind to still exists — they have only moved inside the
+            // panel — so nothing else in this function changes.
+            const sourcesEl = container.querySelector(`#${prefix}-picture-sources`);
+            const changeBtn = container.querySelector(`#${prefix}-change-picture`);
+            if (sourcesEl && changeBtn) {
+                changeBtn.addEventListener('click', () => {
+                    const open = sourcesEl.classList.toggle('is-open');
+                    changeBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                });
+            }
+
             const applyCropped = (result) => {
                 state.image = result.image;
                 state.thumb = result.thumb;
@@ -3604,7 +3631,6 @@
                         <div class="devices-dropdown-container" style="position: relative;">
                             <div id="create-devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
                                 <span id="create-devices-dropdown-selected-text">All Devices Allowed</span>
-                                <span style="font-size: 0.8rem; opacity: 0.7;">▼</span>
                             </div>
                             <div id="create-devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
                                 ${devices && devices.length > 0 ? devices.map(dev => {
@@ -4005,7 +4031,6 @@
                         <div class="devices-dropdown-container" style="position: relative;">
                             <div id="devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
                                 <span id="devices-dropdown-selected-text">All Devices Allowed</span>
-                                <span style="font-size: 0.8rem; opacity: 0.7;">▼</span>
                             </div>
                             <div id="devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
                                 ${devices && devices.length > 0 ? devices.map(dev => {
@@ -5811,6 +5836,17 @@
                 .avatar-color-group.is-inert {
                     opacity: 0.45;
                 }
+                /* Collapsed by default on a profile that already has a picture. */
+                .picture-sources {
+                    display: none;
+                    flex-direction: column;
+                    gap: var(--jpf-gap);
+                    width: 100%;
+                    min-width: 0;
+                }
+                .picture-sources.is-open {
+                    display: flex;
+                }
                 .avatar-library-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
@@ -6698,17 +6734,24 @@
                 }
 
                 /* Devices Dropdown Styles */
+                /* Allowed Devices is the one hand-built control among native selects, and
+                   it sat directly above two of them. It cannot become a <select> — it is
+                   multi-select with checkboxes — so it borrows their exact appearance
+                   instead, chevron included, rather than carrying a text arrow. */
                 .devices-dropdown-trigger {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    padding: 10px 14px;
-                    background: rgba(0,0,0,0.2);
-                    border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: var(--jpf-r-sm);
+                    background: rgba(255, 255, 255, 0.06) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
+                    background-size: 20px;
+                    border: 1px solid rgba(255,255,255,0.15);
+                    border-radius: var(--jpf-r-md);
+                    padding: 10px;
+                    padding-right: 36px;
+                    color: #fff;
+                    font-size: 1rem;
                     cursor: pointer;
                     user-select: none;
-                    font-size: 0.95rem;
                     transition: border-color 0.2s, box-shadow 0.2s;
                 }
                 .devices-dropdown-trigger:focus {
