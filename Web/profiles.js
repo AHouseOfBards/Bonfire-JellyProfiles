@@ -414,6 +414,27 @@
 
         /// The avatar swatches are identical in both forms; keeping one copy means a palette
         /// change lands in both places at once.
+        /// Dims the avatar colour once a picture is set.
+        ///
+        /// The colour is the background behind the initial, so with a picture it does
+        /// nothing at all — and it was twenty-one swatches over three rows, the largest
+        /// thing on the form, sitting there inert. Dimmed rather than hidden: it starts
+        /// mattering again the moment the picture is removed, and a control that
+        /// vanishes and reappears is worse than one that fades.
+        setColorGroupInert: function (prefix, hasPicture) {
+            const group = document.getElementById(prefix + '-color-group');
+            if (!group) return;
+
+            group.classList.toggle('is-inert', !!hasPicture);
+
+            const hint = group.querySelector('[data-role="color-hint"]');
+            if (hint) {
+                hint.textContent = hasPicture
+                    ? 'Not used while a picture is set.'
+                    : 'Used as the avatar background when no picture is set.';
+            }
+        },
+
         renderColorPicker: function (selectedColor) {
             const palette = [
                 '#00A4DC', '#E50914', '#22C55E', '#EAB308', '#A855F7', '#EC4899',
@@ -2310,8 +2331,19 @@
                 return nameA.localeCompare(nameB);
             });
 
+            // The signed-in Jellyfin user IS the active profile — switching signs in as
+            // that profile's own account. The gate never said which one that was, and the
+            // avatar-colour rings made it look as though it did.
+            const signedInId = (typeof ApiClient.getCurrentUserId === 'function')
+                ? this.normalizeGuid(ApiClient.getCurrentUserId())
+                : '';
+
             const renderCard = (p) => `
-                <div class="profile-card ${this.isManageMode ? 'manage-mode' : ''}" data-id="${p.profileUserId}" data-pin="${p.requiresPin}" tabindex="0">
+                <div class="profile-card ${this.isManageMode ? 'manage-mode' : ''}${
+                    signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' is-current' : ''
+                }" data-id="${p.profileUserId}" data-pin="${p.requiresPin}" tabindex="0"${
+                    signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' aria-current="true"' : ''
+                }>
                     <div class="profile-avatar-container">
                         ${p.isMaster ? `
                         <div class="profile-crown">
@@ -2348,6 +2380,8 @@
                     </div>
                     <div class="profile-name">
                         <span>${escapeHtml(p.profileName)}</span>
+                        ${signedInId && this.normalizeGuid(p.profileUserId) === signedInId
+                            ? '<span class="profile-current-badge">Watching now</span>' : ''}
                         ${this.isManageMode ? `
                             <span class="profile-pin-badge ${p.requiresPin ? 'locked' : 'unlocked'}">
                                 ${p.requiresPin ? 'PIN Protected' : 'No PIN'}
@@ -3483,10 +3517,10 @@
                         <label for="create-name-input">Profile Name</label>
                         <input type="text" id="create-name-input" placeholder="e.g. Kids" required />
                     </div>
-                    <div class="form-group">
+                    <div class="form-group avatar-color-group" id="create-color-group">
                         <label>Avatar Color</label>
                         ${this.renderColorPicker('#00A4DC')}
-                        <div class="form-hint">Used as the avatar background when no picture is set.</div>
+                        <div class="form-hint" data-role="color-hint">Used as the avatar background when no picture is set.</div>
                     </div>
                     ${this.renderAvatarPicker('create', avatarLibrary, null, '#00A4DC')}
                 `;
@@ -3633,7 +3667,9 @@
                     });
                 });
 
-                const avatarPicker = this.initAvatarPicker(content, 'create', avatarLibrary, null);
+                const avatarPicker = this.initAvatarPicker(
+                    content, 'create', avatarLibrary, null,
+                    (src) => this.setColorGroupInert('create', !!src));
 
                 // With no picture chosen, the preview shows the profile's initial — so it
                 // has to follow what is being typed into the name field.
@@ -3849,10 +3885,10 @@
                         <input type="text" id="edit-name-input" value="${escapeHtml(profile.profileName)}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
                         ${profile.isMaster ? `<div class="form-hint">The master profile takes its name from your Jellyfin account.</div>` : ''}
                     </div>
-                    <div class="form-group">
+                    <div class="form-group avatar-color-group" id="edit-color-group">
                         <label>Avatar Color</label>
                         ${this.renderColorPicker(profile.avatarColor)}
-                        <div class="form-hint">Used as the avatar background when no picture is set.</div>
+                        <div class="form-hint" data-role="color-hint">Used as the avatar background when no picture is set.</div>
                     </div>
                     ${this.renderAvatarPicker('edit', avatarLibrary, profile.profileImage, profile.avatarColor)}
                     ${profile.profileImage ? `
@@ -4054,6 +4090,7 @@
                     (src) => {
                         // The Remove button only makes sense while there is a picture.
                         if (clearImgBtn) clearImgBtn.style.display = src ? 'block' : 'none';
+                        this.setColorGroupInert('edit', !!src);
                         const preview = document.getElementById('edit-image-upload-preview');
                         if (preview && !src) preview.innerHTML = escapeHtml(profile.avatarInitial);
                     });
@@ -5742,6 +5779,12 @@
                    auto-fill rather than a fixed count so it reflows from a phone to a TV
                    without a media query, and scrolls internally instead of pushing the
                    form's buttons off screen when the library is large. */
+                .avatar-color-group {
+                    transition: opacity 0.2s ease;
+                }
+                .avatar-color-group.is-inert {
+                    opacity: 0.45;
+                }
                 .avatar-library-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
@@ -5887,6 +5930,20 @@
                     transition: transform 0.3s cubic-bezier(0.165, 0.84, 0.44, 1), box-shadow 0.3s ease, border-color 0.3s ease;
                     border: 3px solid transparent;
                 }
+                /* The one you are already in. Now that the avatar colour no longer
+                   paints the border, an accent ring means exactly one thing. */
+                .profile-card.is-current .profile-avatar {
+                    border-color: var(--jpf-accent);
+                }
+                .profile-current-badge {
+                    display: block;
+                    font-size: 0.7rem;
+                    font-weight: 600;
+                    letter-spacing: 0.04em;
+                    text-transform: uppercase;
+                    color: var(--jpf-accent);
+                    margin-top: 2px;
+                }
                 .profile-card:hover .profile-avatar,
                 .profile-card:focus .profile-avatar,
                 .profile-card:focus-within .profile-avatar {
