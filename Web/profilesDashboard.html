@@ -167,6 +167,13 @@
                 </label>
                 <input type="file" id="avatarFolderInput" webkitdirectory directory multiple style="display:none;" />
                 <div class="fieldDescription">JPEG, PNG, WebP or GIF. Pick several files or a whole folder; they are squared and resized automatically.</div>
+                <div class="inputContainer" style="margin-top:1em; max-width:520px;">
+                    <label class="inputLabel" for="avatarScanPath">Or import a folder from the server</label>
+                    <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" />
+                    <div class="fieldDescription">A path on the machine running Jellyfin, not on this computer. Pictures are copied into the library; the folder is left alone.</div>
+                </div>
+                <button is="emby-button" type="button" id="avatarScanBtn" class="raised" style="max-width:280px;">Import from folder</button>
+
                 <div id="avatarUploadStatus" style="display:none; font-size:0.88rem; opacity:0.75; margin-top:8px;"></div>
                 <div id="avatarUploadError" style="display:none; color:#ff6b6b; font-size:0.88rem; font-weight:600; margin-top:8px; line-height:1.6;"></div>
             </div>
@@ -884,6 +891,85 @@
                 step(0);
             }
 
+            // Imports a folder of pictures that already live on the server.
+            //
+            // The server lists the folder and hands over one file at a time; the resizing
+            // happens here, on a canvas, exactly as it does for an upload. That is what
+            // keeps the plugin free of a server-side image library, and it means every
+            // stored avatar comes out of one code path rather than two.
+            function importAvatarFolder(page) {
+                const pathInput = page.querySelector('#avatarScanPath');
+                const statusEl = page.querySelector('#avatarUploadStatus');
+                const errEl = page.querySelector('#avatarUploadError');
+                const folder = (pathInput.value || '').trim();
+
+                const setStatus = function (msg) {
+                    statusEl.textContent = msg || '';
+                    statusEl.style.display = msg ? 'block' : 'none';
+                };
+                const setError = function (msg) {
+                    errEl.innerHTML = msg || '';
+                    errEl.style.display = msg ? 'block' : 'none';
+                };
+
+                setError('');
+                setStatus('');
+                if (!folder) { setError('Enter a folder path first.'); return; }
+
+                Dashboard.showLoadingMsg();
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('plugins/profiles/admin/avatars/scan', { path: folder }),
+                    dataType: 'json'
+                }).then(function (data) {
+                    const files = field(data, 'files') || [];
+                    if (!files.length) {
+                        Dashboard.hideLoadingMsg();
+                        setError('No pictures in that folder.');
+                        return;
+                    }
+
+                    const failures = [];
+                    const step = function (i) {
+                        if (i >= files.length) {
+                            Dashboard.hideLoadingMsg();
+                            setStatus((files.length - failures.length) + ' of ' + files.length + ' imported.'
+                                + (field(data, 'truncated') ? ' The folder holds more than can be listed at once.' : ''));
+                            if (failures.length) {
+                                setError(failures.map(function (f) {
+                                    return escapeHtml(f.name) + ' — ' + escapeHtml(f.reason);
+                                }).join('<br>'));
+                            }
+                            loadAvatarLibrary(page);
+                            loadAvatarHealth(page);
+                            return;
+                        }
+
+                        const name = field(files[i], 'name');
+                        setStatus('Importing ' + (i + 1) + ' of ' + files.length + '…');
+
+                        fetch(ApiClient.getUrl('plugins/profiles/admin/avatars/scan/file', { path: folder, name: name }), {
+                            headers: { 'X-Emby-Token': ApiClient.accessToken() }
+                        })
+                        .then(function (res) {
+                            if (!res.ok) return res.text().then(function (t) { throw new Error(t || 'could not be read'); });
+                            return res.blob();
+                        })
+                        // A Blob is what the upload path already expects, so the file goes
+                        // through the same checks, resize and encode as a picked one.
+                        .then(function (blob) { return uploadOneAvatar(new File([blob], name, { type: blob.type })); })
+                        .catch(function (err) { failures.push({ name: name, reason: err.message }); })
+                        .then(function () { step(i + 1); });
+                    };
+
+                    step(0);
+                }).catch(function (err) {
+                    Dashboard.hideLoadingMsg();
+                    console.error('Avatar folder scan failed:', err);
+                    setError('That folder could not be read. Check the path as the server sees it.');
+                });
+            }
+
             // Counts profiles whose stored picture no longer resolves. The images are
             // fetched by the browser anyway when the picker renders, so this is a cheap
             // HEAD-style check rather than new server work.
@@ -1033,6 +1119,12 @@
                         uploadAvatars(page, files);
                         avatarInput.value = '';
                     });
+                }
+
+                const scanBtn = page.querySelector('#avatarScanBtn');
+                if (scanBtn && !scanBtn.dataset.bound) {
+                    scanBtn.dataset.bound = '1';
+                    scanBtn.addEventListener('click', function () { importAvatarFolder(page); });
                 }
 
                 const folderInput = page.querySelector('#avatarFolderInput');

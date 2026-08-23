@@ -711,6 +711,12 @@ namespace Jellyfin.Profiles.Controllers
         };
 
         /// <summary>All extensions this plugin may have written, newest scheme first.</summary>
+        /// <summary>Most files one folder import will list. A guard against a folder of thousands.</summary>
+        protected const int MaxScanFiles = 200;
+
+        /// <summary>Largest file the folder import will hand to the browser to resize.</summary>
+        protected const long MaxScanFileBytes = 25L * 1024 * 1024;
+
         protected static readonly string[] StorableImageExtensions = { ".jpg", ".png", ".webp", ".gif" };
 
         /// <summary>Maps a stored file extension back to a MIME type for the response.</summary>

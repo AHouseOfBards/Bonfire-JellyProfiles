@@ -131,6 +131,27 @@ Authenticates a profile selection and returns a scoped session token. Rate limit
 > failure to create the target's session surfaced as a `401`, and clients that read it as session
 > expiry signed the user out of an account that was working fine (issue #15).
 
+### `GET /plugins/profiles/admin/avatars/scan`
+Lists the pictures in a folder on the server, for importing a prepared set into the avatar
+library. Administrator only. Added in 1.4.0.
+
+* **Query:** `path` — a folder path as the *server* sees it.
+* **Response `200 OK`:** `{ "folder": "/config/avatars", "truncated": false, "files": [{ "name": "kid.png", "size": 20481 }] }`
+
+Only extensions the plugin can store are listed, and at most 200 files; `truncated` says when
+there were more.
+
+### `GET /plugins/profiles/admin/avatars/scan/file`
+Returns one file from a scanned folder. Administrator only.
+
+* **Query:** `path` — the folder; `name` — the file, a bare name with no separators.
+
+> **Why the client reads the bytes.** The plugin has no server-side image library and keeps
+> it that way — every resize in Bonfire happens on a canvas in the browser. A folder import
+> therefore lists on the server, reads each file through this endpoint, resizes it in the
+> page, and posts the result to `POST /admin/avatars` like any other upload. The server never
+> decodes an image, and one code path produces every stored avatar.
+
 ### `GET /plugins/profiles/library-artwork`
 Returns the calling profile’s library tile artwork choices. Added in 1.4.0.
 

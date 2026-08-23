@@ -1890,6 +1890,126 @@ namespace Jellyfin.Profiles.Controllers
             });
         }
 
+        /// <summary>
+        /// Lists the pictures in a folder on the server, so an administrator with a prepared
+        /// set can import it instead of uploading file by file (GitHub issue #14).
+        /// <para>
+        /// Listing and reading are split from importing on purpose. The plugin has no
+        /// server-side image library and deliberately keeps it that way — every resize in
+        /// Bonfire happens on a canvas in the browser. So the browser reads each file through
+        /// <c>admin/avatars/scan/file</c>, runs it through the same pipeline an upload uses,
+        /// and posts the result back to <c>admin/avatars</c>. The server never decodes an
+        /// image, and one code path produces every stored avatar.
+        /// </para>
+        /// </summary>
+        [HttpGet("admin/avatars/scan")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> ScanAvatarFolder([FromQuery] string? path)
+        {
+            var adminError = RequireAdministrator("import avatars from a folder");
+            if (adminError != null) return adminError;
+
+            if (string.IsNullOrWhiteSpace(path)) return BadRequest("Enter a folder path.");
+
+            string full;
+            try
+            {
+                full = Path.GetFullPath(path);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "ProfilesPlugin: Avatar scan path could not be resolved.");
+                return BadRequest("That path is not valid.");
+            }
+
+            if (!Directory.Exists(full)) return BadRequest("No folder there. Check the path as the server sees it.");
+
+            List<string> files;
+            try
+            {
+                files = Directory.EnumerateFiles(full)
+                    .Where(f => StorableImageExtensions.Contains(
+                        Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
+                    .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+                    .Take(MaxScanFiles + 1)
+                    .ToList();
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return BadRequest("Jellyfin cannot read that folder.");
+            }
+            catch (IOException ex)
+            {
+                return BadRequest("That folder could not be read: " + ex.Message);
+            }
+
+            bool truncated = files.Count > MaxScanFiles;
+            if (truncated) files = files.Take(MaxScanFiles).ToList();
+
+            return Ok(new
+            {
+                Folder = full,
+                Truncated = truncated,
+                Files = files.Select(f => new
+                {
+                    Name = Path.GetFileName(f),
+                    Size = new FileInfo(f).Length
+                }).ToList()
+            });
+        }
+
+        /// <summary>
+        /// Returns one file from a scanned folder so the browser can resize it. Administrator
+        /// only, and the name is treated as a name rather than a path.
+        /// </summary>
+        [HttpGet("admin/avatars/scan/file")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult ReadAvatarFolderFile([FromQuery] string? path, [FromQuery] string? name)
+        {
+            var adminError = RequireAdministrator("import avatars from a folder");
+            if (adminError != null) return adminError;
+
+            if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(name)) return BadRequest("Missing file.");
+
+            // A name, not a path. Rejecting separators outright is clearer than normalising
+            // them away, and the containment check below is the belt to this pair of braces.
+            if (name.IndexOfAny(new[] { '/', '\\' }) >= 0 || name.Contains("..", StringComparison.Ordinal))
+            {
+                return BadRequest("Invalid file name.");
+            }
+
+            var extension = Path.GetExtension(name);
+            if (!StorableImageExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+            {
+                return BadRequest("Not a supported image.");
+            }
+
+            string folder, file;
+            try
+            {
+                folder = Path.GetFullPath(path);
+                file = Path.GetFullPath(Path.Combine(folder, name));
+            }
+            catch
+            {
+                return BadRequest("That path is not valid.");
+            }
+
+            // The resolved file must still be inside the resolved folder.
+            var prefix = folder.EndsWith(Path.DirectorySeparatorChar) ? folder : folder + Path.DirectorySeparatorChar;
+            if (!file.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return BadRequest("Invalid file name.");
+            if (!System.IO.File.Exists(file)) return NotFound();
+
+            var info = new FileInfo(file);
+            if (info.Length > MaxScanFileBytes) return BadRequest("That image is too large to import.");
+
+            return File(System.IO.File.ReadAllBytes(file), ContentTypeForExtension(extension));
+        }
+
         // ── Library tile artwork (GitHub issue #19) ────────────────────────────────
         //
         // Jellyfin builds one image per library and caches it on the folder, from a query
