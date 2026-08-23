@@ -901,6 +901,16 @@ namespace Jellyfin.Profiles.Controllers
                 return false;
             }
 
+            // Confirmed before anything is removed: a listed avatar whose file has gone
+            // would otherwise clear the destination and leave the caller pointing at a
+            // picture that no longer exists.
+            if (FindImageFile(AvatarLibraryFolder, item.Id, false) == null)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: Library avatar {Avatar} is listed but has no file on disk.", item.Id);
+                return false;
+            }
+
             Directory.CreateDirectory(destFolder);
             DeleteImageFiles(destFolder, baseName);
 

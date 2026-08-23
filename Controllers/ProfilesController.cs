@@ -1952,10 +1952,13 @@ namespace Jellyfin.Profiles.Controllers
             {
                 Folder = full,
                 Truncated = truncated,
+                // Length is read defensively: the folder is on a live filesystem and a
+                // file removed between the listing and here would otherwise throw out of
+                // the handler as a 500, past the error messages above.
                 Files = files.Select(f => new
                 {
                     Name = Path.GetFileName(f),
-                    Size = new FileInfo(f).Length
+                    Size = FileLengthOrZero(f)
                 }).ToList()
             });
         }
@@ -2136,7 +2139,24 @@ namespace Jellyfin.Profiles.Controllers
             lock (config)
             {
                 var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
-                if (mapping == null) return NotFound("Profile not found.");
+                if (mapping == null)
+                {
+                    // A master account has no mapping row until one of its settings is
+                    // changed for the first time. Refusing here meant a master could never
+                    // set artwork for its own libraries, and every attempt left the image
+                    // files behind. Sub-profiles always have a row, so this only ever
+                    // creates the master one.
+                    var owner = _userManager.GetUserById(profileId);
+                    if (owner == null) return NotFound("Profile not found.");
+
+                    mapping = new ProfileMapping
+                    {
+                        ProfileUserId = profileId,
+                        MasterUserId = profileId,
+                        ProfileName = owner.Username
+                    };
+                    config.Mappings.Add(mapping);
+                }
 
                 if (mapping.LibraryArtwork == null) mapping.LibraryArtwork = new List<LibraryArtwork>();
                 var entry = mapping.LibraryArtwork.FirstOrDefault(a => a.LibraryId == libraryId);
@@ -2218,6 +2238,12 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             return null;
+        }
+
+        private static long FileLengthOrZero(string path)
+        {
+            try { return new FileInfo(path).Length; }
+            catch { return 0; }
         }
 
         private static string? LibraryArtUrl(Guid profileId, Guid libraryId, string mode)

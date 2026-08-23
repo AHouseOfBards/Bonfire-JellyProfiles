@@ -122,6 +122,8 @@
         // Null until the server answers. Only true reveals the emergency link.
         _panicLinkAvailable: null,
         _overlayTrap: null,
+        // Set once the artwork rules have been fetched for this page load.
+        _libraryArtLoaded: false,
 
         getAuthHeaders: function (token) {
             const apiClient = ApiClient;
@@ -674,6 +676,10 @@
                 if (this.getSwitcherPrefs() === null || this._panicLinkAvailable === null) {
                     this.loadSwitcherPrefs();
                 }
+
+                // Same reason: init runs before sign-in on a fresh load, and there was no
+                // token to ask with. Without a retry the artwork rules never arrive.
+                if (!this._libraryArtLoaded) this.loadLibraryArtwork();
 
                 if (this.shouldAskOnStartup()
                     && !this.isProfileSessionActive()
@@ -1737,9 +1743,11 @@
             let css = '';
 
             (entries || []).forEach(entry => {
-                const id = String(entry.libraryId || entry.LibraryId || '');
-                // Library ids are GUIDs. Anything else does not go into a selector.
-                if (!/^[0-9a-f-]{36}$/i.test(id)) return;
+                // Jellyfin serialises GUIDs without dashes, and that is the form it puts
+                // in data-id, so the selector has to use the same one. Both spellings are
+                // accepted coming in; only hex goes out.
+                const id = String(entry.libraryId || entry.LibraryId || '').replace(/-/g, '').toLowerCase();
+                if (!/^[0-9a-f]{32}$/.test(id)) return;
 
                 const mode = String(entry.mode || entry.Mode || '').toLowerCase();
                 const selector = '.card[data-id="' + id + '"] .cardImageContainer';
@@ -1810,6 +1818,7 @@
             .then(res => res.ok ? res.json() : Promise.reject(new Error('unavailable')))
             .then(entries => {
                 const list = Array.isArray(entries) ? entries : [];
+                this._libraryArtLoaded = true;
                 this.cacheLibraryArtwork(userId, list);
                 this.applyLibraryArtwork(list);
             })
@@ -3709,11 +3718,7 @@
                         return res.json();
                     })
                     .then(() => {
-                        // Artwork is stored per library, so it is saved after the profile
-                        // itself rather than folded into that one request.
-                        return artworkEditor.save(profile.profileUserId).then(() => {
-                            this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
-                        });
+                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
                     })
                     .catch(err => {
                         const el = document.getElementById('create-error-msg');
@@ -3724,7 +3729,6 @@
                 document.getElementById('create-cancel-btn').addEventListener('click', () => {
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
                 });
-                const artworkEditor = this.initLibraryArtworkEditor(content, profile.profileUserId);
                 this.initTVCheckboxes(content);
                 this.initTagEditors(content);
             });
@@ -4218,7 +4222,11 @@
                     })
                     .then(res => {
                         if (!res.ok) return res.text().then(text => { throw new Error(text); });
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
+                        // Artwork is stored per library, so it is saved after the profile
+                        // itself rather than folded into that one request.
+                        return artworkEditor.save(profile.profileUserId).then(() => {
+                            this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
+                        });
                     })
                     .catch(err => this.showAlert("Error", "Error saving profile: " + err.message));
                 });
@@ -4236,6 +4244,7 @@
                 document.getElementById('edit-cancel-btn').addEventListener('click', () => {
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
                 });
+                const artworkEditor = this.initLibraryArtworkEditor(content, profile.profileUserId);
                 this.initTVCheckboxes(content);
                 this.initTagEditors(content);
             })
@@ -5446,7 +5455,10 @@
                         userId: priorUserId,
                         info: this._sessionGet('jellyfin_profiles_active_info')
                     }
-                    : null;
+                    // No profile session to restore, which is the normal case in menu mode:
+                    // the master never passed through the gate. Closing is still a valid
+                    // answer, and without it there is no way off the picker at all.
+                    : { closeOnly: true };
 
                 // Put the master's credentials back in memory before listing profiles — the
                 // active sub-profile's token cannot see its siblings.
@@ -5454,7 +5466,9 @@
                 this.updateStoredCredentials(masterState.masterToken, masterState.masterUserId);
                 ApiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
             } else {
-                this._resumeState = null;
+                // Signed in as the master with nothing stored: closing is all that is
+                // needed to get back to where they were.
+                this._resumeState = { closeOnly: true };
             }
 
             // With no stored master state we are still signed in as the master — that is the
@@ -5473,11 +5487,15 @@
             if (!prior) return;
             this._resumeState = null;
 
-            this._sessionSet(this.config.activeSessionKey, prior.token);
-            if (prior.info) this._sessionSet('jellyfin_profiles_active_info', prior.info);
+            // closeOnly means there was no profile session to put back — the credentials
+            // in play are already the right ones.
+            if (!prior.closeOnly) {
+                this._sessionSet(this.config.activeSessionKey, prior.token);
+                if (prior.info) this._sessionSet('jellyfin_profiles_active_info', prior.info);
 
-            this.updateStoredCredentials(prior.token, prior.userId);
-            ApiClient.setAuthenticationInfo(prior.token, prior.userId);
+                this.updateStoredCredentials(prior.token, prior.userId);
+                ApiClient.setAuthenticationInfo(prior.token, prior.userId);
+            }
 
             this.isManageMode = false;
             this.masterPin = null;
