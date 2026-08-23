@@ -26,12 +26,24 @@ Adds multi-user profile switching to Jellyfin. A single account can have up to f
 
 Once the server restarts, the plugin is active and will automatically load on all compatible clients with no further setup.
 
-> [!TIP]
-> **Want pre-release builds?** The repository above lists milestone releases only. A second repository carries every published version, including all point releases:
-> ```
-> https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/beta/manifest.json
-> ```
-> Add it alongside the stable one — both describe the same plugin, so Jellyfin simply offers more versions to choose from. See [BETA-CHANNEL.md](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/beta/BETA-CHANNEL.md).
+### Beta channel
+
+The repository above lists **milestone releases only** — the builds meant for everyday use. Pre-release builds live in a separate repository, along with every published point release:
+
+```
+https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/beta/manifest.json
+```
+
+Add it alongside the stable one — both describe the same plugin, so Jellyfin merges them and simply offers more versions to choose from. Remove it to go back to milestones only. See [BETA-CHANNEL.md](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/beta/BETA-CHANNEL.md).
+
+> [!WARNING]
+> **Beta builds are unfinished and features in them may be broken.** They exist so new work can be tested before it reaches everyone, which means:
+>
+> * A feature may not work at all, may work differently from its description, or may disappear in the next build.
+> * Settings introduced in a beta can change shape before release. Reverting to a stable build afterwards may leave those settings behind or reset them.
+> * The profile switcher itself can break. If that happens the plugin can make the Jellyfin web interface hard to use — see the **Emergency disable code** under *Known Limitations* before you rely on a beta on a machine you need working.
+>
+> Please do report what you find on [GitHub Issues](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues) — that is what the channel is for. Just don't put a beta on a server your household depends on that evening.
 
 > [!NOTE]
 > **Automatic Client Script Injection & Permissions:**
@@ -53,23 +65,47 @@ Once the server restarts, the plugin is active and will automatically load on al
 - **Bonfire Grouping**: Link different master accounts together using secure 6-character codes to share switcher screens.
 - **PIN Protection & LAN Bypass**: Secure profiles with PIN codes and bypass verification automatically when connected on your local network (LAN). PINs are stored as salted PBKDF2-SHA256 hashes.
 - **Device Whitelists**: Limit specific profiles to designated devices.
+- **Avatar Library**: Administrators can upload a set of profile pictures in the plugin settings that anyone on the server can choose from — with an option to require them, for a consistent household look. This is also the only practical way to set a profile picture on a TV, where there is no file browser. Pictures can be positioned and zoomed before saving.
 - **Choose Your Switcher**: Each account decides how it reaches the switcher — the full-screen "Who's Watching?" gate on the home screen, or nothing at all in the way, with a **Switch Profile** entry added to Jellyfin's own user menu and profile page instead. Set it under **Manage Profiles → Switcher Style**; it is a per-household choice, not a server setting.
 - **Premium UI**: Seamless native UI integration with custom profile pictures, custom avatar colors, and TV D-pad navigation support.
 
 ---
 
+## Library Artwork
+
+Jellyfin builds a library tile from the items inside it, and that query does not know who
+is looking. So a Kids profile can end up with a Movies tile showing a poster from a film it
+cannot open.
+
+Give a profile its own picture for a library, or no artwork at all, under **Edit profile
+→ Library Artwork**. With no artwork the tile falls back to its icon and name. Libraries
+left alone keep Jellyfin's own.
+
+Two limits. The swap happens in the browser, so the picture is never shown but jellyfin-web
+still downloads the original. And it only applies where Bonfire runs — a client that cannot
+load the plugin script shows Jellyfin's artwork as usual.
+
+---
+
 ## Client Compatibility
 
-**Compatible Clients:**
-- Jellyfin Web (desktop & mobile browsers)
-- Official Jellyfin Android App
-- Jellyfin Media Player (Windows, macOS, Linux)
+Bonfire works by injecting a script into the web client your server hands out. So the dividing line is not the operating system — it is whether the app loads Jellyfin's web client **from your server** or ships its own copy.
 
-**Unsupported Clients (Requires native app updates):**
-- Swiftfin (iOS / tvOS)
-- Findroid (Android / Android TV)
-- Jellyfin for Roku
-- Infuse (iOS / tvOS / macOS)
+**Works:**
+- Jellyfin Web (desktop & mobile browsers)
+- Official Jellyfin Android app — a wrapper around your server's web client
+- Jellyfin Media Player (Windows, macOS, Linux)
+- **LG webOS** — the app loads your server's web client into a frame, so the switcher comes with it
+
+**Works, with a caveat:**
+- **Samsung Tizen** — the Tizen app builds its own copy of the web client into the `.wgt` package rather than fetching yours, so the plugin cannot inject itself at runtime. Users have reported the switcher working anyway, with Bonfire bundled into the package at build time. It works, but the package has to be rebuilt to pick up plugin updates — nothing reaches it automatically.
+
+**Cannot work:**
+- Jellyfin for Android TV / Google TV — a native app, not a web client
+- Swiftfin (iOS / tvOS), Findroid, Jellyfin for Roku, Infuse — likewise native
+
+> [!IMPORTANT]
+> **Parental controls still apply on every client, including the ones above.** Library access, maximum parental rating and tag filters are stored on the Jellyfin user account and enforced by the *server*. A sub-profile signed in on Android TV sees exactly what it is allowed to see. What those clients cannot show is the switcher itself — you sign in as the sub-profile directly instead.
 
 ---
 
@@ -102,7 +138,17 @@ It is off by default, only you can turn it on for your own account, and every sw
 The Switch Profile button is designed to align with standard Jellyfin layouts. If you use custom themes or a skin manager, the button might occasionally appear misaligned or out of place. Switching to the **Jellyfin menu** style under *Manage Profiles → Switcher Style* removes the injected button entirely and puts the switcher on your profile page instead, which sidesteps theme conflicts. Either way, please open an issue with the name of the theme you are using.
 
 **Profile creation is on the home screen, not the admin dashboard**  
-Profiles are created and managed via the Switch Profile button on the Jellyfin home screen. The admin dashboard page (**Dashboard → Plugins → Profiles**) is only for server-wide settings (maximum profile count, require-PIN policy) and administrator PIN resets.
+Profiles are created and managed via the Switch Profile button on the Jellyfin home screen. The admin dashboard page (**Dashboard → Plugins → Profiles**) is for server-wide settings (maximum profile count, require-PIN policy), the avatar library, administrator PIN resets, and the emergency disable code.
+
+**Emergency disable code**  
+If Bonfire breaks badly it can make the Jellyfin web interface hard to use — including the settings page you would need to uninstall it. Administrators can set a code under **Dashboard → Plugins → Profiles → Emergency Disable Code**. Entering it on any Bonfire screen, or pressing `Ctrl+Shift+B`, shuts the plugin's client script off **until Jellyfin restarts**.
+
+It is off by default, and worth understanding before you turn it on:
+
+* It does **not** unlock other profiles — switching still requires that profile's PIN — and it does not widen library access, parental ratings or tag filters, which Jellyfin enforces server-side regardless of this plugin.
+* It **does** skip the profile gate. On a device already signed in to the master account, anyone who knows the code gets that account's full library without being asked to choose a profile.
+* It is submitted without a password, so make it long. Attempts are capped at five per hour per address, and every use is logged.
+* It cannot rescue every failure. If the plugin's script fails to load at all, the code has nothing to run in — restart Jellyfin, or delete the plugin folder, for that case.
 
 ---
 

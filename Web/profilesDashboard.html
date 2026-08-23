@@ -108,10 +108,112 @@
                     <div class="fieldDescription">If checked, users must enter their PIN code to add new sub-profiles.</div>
                 </div>
 
+                <h3 class="checkboxListLabel" style="margin-top:1.5em;">Switcher defaults</h3>
+                <div class="fieldDescription" style="margin-bottom:1em;">
+                    What new accounts get. Anyone who picks their own setting keeps it.
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="defaultAskOnStartup" />
+                        <span>Ask "Who's watching?" on startup</span>
+                    </label>
+                    <div class="fieldDescription">Shown once when the app opens.</div>
+                </div>
+
+                <div class="selectContainer">
+                    <label class="selectLabel" for="defaultSwitcherLocation">Where to switch from</label>
+                    <select is="emby-select" id="defaultSwitcherLocation">
+                        <option value="button">Bonfire button in the header</option>
+                        <option value="menu">Jellyfin's own menu</option>
+                    </select>
+                    <div class="fieldDescription">The menu option adds a row to Settings instead of a second portrait.</div>
+                </div>
+
                 <div class="buttonContainer">
                     <button is="emby-button" type="submit" class="raised button-submit block">Save Settings</button>
                 </div>
             </form>
+
+            <div class="sectionTitleContainer" style="margin-top: 3em;">
+                <h2 class="sectionTitle">Avatar Library</h2>
+            </div>
+            <div class="fieldDescription" style="margin-bottom: 1em;">
+                Pictures anyone on this server can pick as their profile picture. On a TV this is the only
+                way to set one — there is no file browser to upload from.
+            </div>
+
+            <div id="avatarMissingWarning" style="display:none; background:rgba(255,153,0,0.10); border:1px solid rgba(255,153,0,0.35); border-radius:6px; padding:12px 18px; margin-bottom:1.5em; font-size:0.92rem; line-height:1.6;">
+                <!-- Filled in when a profile or library entry points at a file that is gone -->
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+                <label>
+                    <input is="emby-checkbox" type="checkbox" id="disallowCustomAvatars" />
+                    <span>Only allow avatars from this library</span>
+                </label>
+                <div class="fieldDescription">
+                    Users pick from this set instead of uploading. Pictures already set stay as they are.
+                </div>
+            </div>
+
+            <div style="margin: 1em 0;">
+                <label for="avatarUploadInput" id="avatarUploadLabel" is="emby-button" class="raised block" style="display:inline-block; cursor:pointer; max-width:280px;">
+                    <span>Upload avatars</span>
+                </label>
+                <input type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" style="display:none;" />
+                <label for="avatarFolderInput" id="avatarFolderLabel" is="emby-button" class="raised block" style="display:inline-block; cursor:pointer; max-width:280px; margin-left:8px;">
+                    <span>Upload a folder</span>
+                </label>
+                <input type="file" id="avatarFolderInput" webkitdirectory directory multiple style="display:none;" />
+                <div class="fieldDescription">JPEG, PNG, WebP or GIF. Pick several files or a whole folder; they are squared and resized automatically.</div>
+                <div class="inputContainer" style="margin-top:1em; max-width:520px;">
+                    <label class="inputLabel" for="avatarScanPath">Or import a folder from the server</label>
+                    <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" />
+                    <div class="fieldDescription">A path on the server, not on this computer. Pictures are copied in; the folder is left alone.</div>
+                </div>
+                <button is="emby-button" type="button" id="avatarScanBtn" class="raised" style="max-width:280px;">Import from folder</button>
+
+                <div id="avatarUploadStatus" style="display:none; font-size:0.88rem; opacity:0.75; margin-top:8px;"></div>
+                <div id="avatarUploadError" style="display:none; color:#ff6b6b; font-size:0.88rem; font-weight:600; margin-top:8px; line-height:1.6;"></div>
+            </div>
+
+            <div id="avatarLibraryGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:14px; margin-bottom:3em;">
+                <!-- Library avatars rendered here -->
+            </div>
+
+            <div class="sectionTitleContainer" style="margin-top: 3em;">
+                <h2 class="sectionTitle">Emergency Disable Code</h2>
+            </div>
+            <div style="background:rgba(255,153,0,0.10);border:1px solid rgba(255,153,0,0.35);border-radius:6px;padding:14px 18px;margin-bottom:1.5em;font-size:0.94rem;line-height:1.65;">
+                <strong style="display:block;margin-bottom:6px;">&#9888;&nbsp; Read this before turning it on</strong>
+                Entering this code shuts Bonfire down until you restart Jellyfin. It exists for when the plugin
+                breaks badly enough to block the settings page you would use to remove it.
+                <br><br>
+                <strong>The cost:</strong> anyone with the code can skip the profile prompt on a device that is
+                already signed in. On a TV left on the master account, that means the master's library.
+                <br><br>
+                It does not unlock other profiles — switching still needs their PIN — and it does not change
+                library access or parental ratings, which Jellyfin enforces on its own.
+                <br><br>
+                No password is asked for, so make it long. Five attempts per hour per address, and every use is
+                logged as an error.
+            </div>
+
+            <div id="panicStatusLine" class="fieldDescription" style="margin-bottom:1em;">…</div>
+
+            <div class="inputContainer">
+                <label class="inputLabel" for="panicCodeInput">Emergency disable code</label>
+                <input is="emby-input" type="text" id="panicCodeInput" autocomplete="off" placeholder="At least 10 characters" />
+                <div class="fieldDescription">
+                    Save blank to turn it off. The code is hashed and cannot be shown again — write it down
+                    somewhere off this server.
+                </div>
+            </div>
+            <div style="margin-bottom:3em;">
+                <button is="emby-button" type="button" id="savePanicCode" class="raised block" style="max-width:280px;">Save code</button>
+                <div id="panicCodeResult" style="display:none; font-size:0.88rem; font-weight:600; margin-top:8px;"></div>
+            </div>
 
             <div class="sectionTitleContainer" style="margin-top: 3em;">
                 <h2 class="sectionTitle">Accounts &amp; Profiles</h2>
@@ -155,8 +257,16 @@
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
                     page.querySelector('#requireMasterPin').checked = config.RequireMasterPinForCreation;
+                    page.querySelector('#disallowCustomAvatars').checked = !!config.DisallowCustomAvatarUploads;
+                    // Absent on a configuration written before 1.3.4 — keep the shipped defaults.
+                    page.querySelector('#defaultAskOnStartup').checked = config.DefaultAskOnStartup !== false;
+                    page.querySelector('#defaultSwitcherLocation').value =
+                        config.DefaultSwitcherLocation === 'menu' ? 'menu' : 'button';
                     loadMappings(page);
                     loadAuditLogs(page);
+                    loadAvatarLibrary(page);
+                    loadAvatarHealth(page);
+                    loadPanicStatus(page);
                 }).catch(function (err) {
                     console.error("Failed to load plugin configuration:", err);
                     Dashboard.hideLoadingMsg();
@@ -445,7 +555,7 @@
                             '<div class="listItemBody" style="flex:1; min-width:0;">' +
                             '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#ffc078;">⚠️ Unlinked sub-profiles</div>' +
                             '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">' +
-                            'These profiles reference a master account that no longer exists. They are usually left behind by a partially failed deletion.' +
+                            'These profiles point at a master account that no longer exists.' +
                             '</div>' +
                             '</div></div>' +
                             '<div style="background:rgba(0,0,0,0.18);">' + orphans.map(subProfileRowHtml).join('') + '</div>' +
@@ -572,11 +682,405 @@
                 });
             }
 
+            // ── Avatar library ────────────────────────────────────────────────────
+            // Images are squared and resized here, in the browser, before upload — the
+            // plugin has no server-side image library, and doing it this way keeps it that
+            // way. Two renderings are sent: a master, and a thumbnail for the pickers.
+
+            const AVATAR_MASTER = 512;
+            const AVATAR_THUMB = 128;
+
+            // Centre-cropped square. The admin is uploading a set of avatars rather than
+            // positioning one picture, so this stays automatic — end users get the crop
+            // editor when they choose one.
+            function squareToDataUrl(img, size, preferPng) {
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                const side = Math.min(img.width, img.height);
+                const sx = (img.width - side) / 2;
+                const sy = (img.height - side) / 2;
+                ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+                return preferPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.85);
+            }
+
+            function hasTransparency(img) {
+                try {
+                    const s = 32;
+                    const c = document.createElement('canvas');
+                    c.width = s; c.height = s;
+                    const ctx = c.getContext('2d');
+                    ctx.drawImage(img, 0, 0, s, s);
+                    const data = ctx.getImageData(0, 0, s, s).data;
+                    for (let i = 3; i < data.length; i += 4) if (data[i] < 250) return true;
+                } catch (e) { /* assume opaque */ }
+                return false;
+            }
+
+            function rejectAvatarFile(file) {
+                const name = (file.name || '').toLowerCase();
+                const type = (file.type || '').toLowerCase();
+                // iPhones shoot HEIC by default and only Safari decodes it, so without this
+                // the upload just fails silently on most machines.
+                if (type.includes('heic') || type.includes('heif') || /\.hei[cf]$/.test(name)) {
+                    return 'HEIC photos aren’t supported. Export the photo as JPEG first.';
+                }
+                if (type.includes('svg') || /\.svgz?$/.test(name)) {
+                    return 'SVG isn’t supported. Use a JPEG, PNG, WebP or GIF.';
+                }
+                if (file.size > 25 * 1024 * 1024) return 'That image is over 25 MB. Use a smaller one.';
+                return null;
+            }
+
+            function loadAvatarLibrary(page) {
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('plugins/profiles/avatars'),
+                    dataType: 'json'
+                }).then(function (data) {
+                    const avatars = field(data, 'avatars') || [];
+                    const grid = page.querySelector('#avatarLibraryGrid');
+
+                    if (!avatars.length) {
+                        grid.innerHTML = '<div class="fieldDescription">No avatars yet. Upload one above.</div>';
+                        return;
+                    }
+
+                    grid.innerHTML = avatars.map(function (a) {
+                        const id = field(a, 'id');
+                        const name = field(a, 'displayName') || '';
+                        const thumb = field(a, 'thumbUrl');
+                        return '<div style="text-align:center;">' +
+                            '<div style="position:relative; width:100%; aspect-ratio:1/1; border-radius:50%; overflow:hidden; background:rgba(255,255,255,0.06);">' +
+                            // If the file has gone missing the tile shows a marker rather
+                            // than a broken-image icon, and the count above says why.
+                            '<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0.35;font-size:0.75rem;">missing</span>' +
+                            '<img src="' + escapeHtml(thumb) + '" alt="" onerror="this.remove()" ' +
+                            'style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;" />' +
+                            '</div>' +
+                            '<div style="font-size:0.8rem; margin-top:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(name) + '</div>' +
+                            '<button is="emby-button" type="button" class="raised avatarDeleteBtn" data-id="' + escapeHtml(id) + '" ' +
+                            'style="margin-top:4px; padding:2px 10px; font-size:0.75rem;">Remove</button>' +
+                            '</div>';
+                    }).join('');
+
+                    grid.querySelectorAll('.avatarDeleteBtn').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            deleteAvatar(page, btn.getAttribute('data-id'));
+                        });
+                    });
+                }).catch(function (err) {
+                    console.error('Failed to load avatar library:', err);
+                });
+            }
+
+            function deleteAvatar(page, id) {
+                // Profiles created from this avatar keep their own copy, so nothing anyone
+                // is using breaks — only the picker loses the option.
+                ApiClient.ajax({
+                    type: 'DELETE',
+                    url: ApiClient.getUrl('plugins/profiles/admin/avatars/' + encodeURIComponent(id))
+                }).then(function () {
+                    loadAvatarLibrary(page);
+                }).catch(function (err) {
+                    console.error('Failed to delete avatar:', err);
+                    Dashboard.alert({ message: 'Could not remove that avatar.', title: 'Error' });
+                });
+            }
+
+            // Resolves when the file has been stored, rejects with a message fit to show.
+            // Separated from the batching below so one bad file in a selection of twenty
+            // reports itself and the rest still upload.
+            function uploadOneAvatar(file) {
+                const reason = rejectAvatarFile(file);
+                if (reason) return Promise.reject(new Error(reason));
+
+                return new Promise(function (resolve, reject) {
+                    const reader = new FileReader();
+                    reader.onerror = function () { reject(new Error('That file could not be read.')); };
+                    reader.onload = function (event) {
+                        const img = new Image();
+                        img.onerror = function () {
+                            reject(new Error('That image format isn’t supported. Save it as a JPEG or PNG first.'));
+                        };
+                        img.onload = function () {
+                            // Canvas work can throw — a zero-dimension decode, or no 2d
+                            // context under memory pressure. An escaping exception here
+                            // would leave this promise unsettled and stall the whole batch.
+                            let payload;
+                            try {
+                                const preferPng = hasTransparency(img);
+                                payload = JSON.stringify({
+                                    image: squareToDataUrl(img, AVATAR_MASTER, preferPng),
+                                    thumb: squareToDataUrl(img, AVATAR_THUMB, preferPng),
+                                    // Filename without its extension is a reasonable default
+                                    // label, and the admin can rename the file to change it.
+                                    displayName: (file.name || 'Avatar').replace(/\.[^.]+$/, '')
+                                });
+                            } catch (e) {
+                                console.error('Avatar resize failed:', e);
+                                reject(new Error('That image could not be resized.'));
+                                return;
+                            }
+
+                            ApiClient.ajax({
+                                type: 'POST',
+                                url: ApiClient.getUrl('plugins/profiles/admin/avatars'),
+                                contentType: 'application/json',
+                                data: payload
+                            }).then(resolve).catch(function (err) {
+                                console.error('Avatar upload failed:', err);
+                                reject(new Error('The server rejected it. It may be over the 2 MB limit after resizing.'));
+                            });
+                        };
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            // One at a time, not Promise.all: each upload carries two base64 images, and
+            // firing twenty at once is how you get a queue of rejected requests instead of
+            // twenty avatars.
+            function uploadAvatars(page, files) {
+                const list = Array.prototype.slice.call(files || []);
+                if (!list.length) return;
+
+                const errEl = page.querySelector('#avatarUploadError');
+                const statusEl = page.querySelector('#avatarUploadStatus');
+                const failures = [];
+
+                const setStatus = function (msg) {
+                    statusEl.textContent = msg || '';
+                    statusEl.style.display = msg ? 'block' : 'none';
+                };
+                const setError = function (msg) {
+                    errEl.innerHTML = msg || '';
+                    errEl.style.display = msg ? 'block' : 'none';
+                };
+
+                setError('');
+                Dashboard.showLoadingMsg();
+
+                const step = function (i) {
+                    if (i >= list.length) {
+                        Dashboard.hideLoadingMsg();
+                        setStatus(list.length > 1
+                            ? (list.length - failures.length) + ' of ' + list.length + ' uploaded.'
+                            : '');
+                        if (failures.length) {
+                            setError(failures.map(function (f) {
+                                return escapeHtml(f.name) + ' — ' + escapeHtml(f.reason);
+                            }).join('<br>'));
+                        }
+                        loadAvatarLibrary(page);
+                        loadAvatarHealth(page);
+                        return;
+                    }
+
+                    if (list.length > 1) setStatus('Uploading ' + (i + 1) + ' of ' + list.length + '…');
+
+                    uploadOneAvatar(list[i])
+                        .catch(function (err) {
+                            failures.push({ name: list[i].name || 'That image', reason: err.message });
+                        })
+                        .then(function () { step(i + 1); });
+                };
+
+                step(0);
+            }
+
+            // Imports a folder of pictures that already live on the server.
+            //
+            // The server lists the folder and hands over one file at a time; the resizing
+            // happens here, on a canvas, exactly as it does for an upload. That is what
+            // keeps the plugin free of a server-side image library, and it means every
+            // stored avatar comes out of one code path rather than two.
+            function importAvatarFolder(page) {
+                const pathInput = page.querySelector('#avatarScanPath');
+                const statusEl = page.querySelector('#avatarUploadStatus');
+                const errEl = page.querySelector('#avatarUploadError');
+                const folder = (pathInput.value || '').trim();
+
+                const setStatus = function (msg) {
+                    statusEl.textContent = msg || '';
+                    statusEl.style.display = msg ? 'block' : 'none';
+                };
+                const setError = function (msg) {
+                    errEl.innerHTML = msg || '';
+                    errEl.style.display = msg ? 'block' : 'none';
+                };
+
+                setError('');
+                setStatus('');
+                if (!folder) { setError('Enter a folder path first.'); return; }
+
+                Dashboard.showLoadingMsg();
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('plugins/profiles/admin/avatars/scan', { path: folder }),
+                    dataType: 'json'
+                }).then(function (data) {
+                    const files = field(data, 'files') || [];
+                    if (!files.length) {
+                        Dashboard.hideLoadingMsg();
+                        setError('No pictures in that folder.');
+                        return;
+                    }
+
+                    const failures = [];
+                    const step = function (i) {
+                        if (i >= files.length) {
+                            Dashboard.hideLoadingMsg();
+                            setStatus((files.length - failures.length) + ' of ' + files.length + ' imported.'
+                                + (field(data, 'truncated') ? ' The folder holds more than can be listed at once.' : ''));
+                            if (failures.length) {
+                                setError(failures.map(function (f) {
+                                    return escapeHtml(f.name) + ' — ' + escapeHtml(f.reason);
+                                }).join('<br>'));
+                            }
+                            loadAvatarLibrary(page);
+                            loadAvatarHealth(page);
+                            return;
+                        }
+
+                        const name = field(files[i], 'name');
+                        setStatus('Importing ' + (i + 1) + ' of ' + files.length + '…');
+
+                        fetch(ApiClient.getUrl('plugins/profiles/admin/avatars/scan/file', { path: folder, name: name }), {
+                            headers: { 'X-Emby-Token': ApiClient.accessToken() }
+                        })
+                        .then(function (res) {
+                            if (!res.ok) return res.text().then(function (t) { throw new Error(t || 'could not be read'); });
+                            return res.blob();
+                        })
+                        // A Blob is what the upload path already expects, so the file goes
+                        // through the same checks, resize and encode as a picked one.
+                        .then(function (blob) { return uploadOneAvatar(new File([blob], name, { type: blob.type })); })
+                        .catch(function (err) { failures.push({ name: name, reason: err.message }); })
+                        .then(function () { step(i + 1); });
+                    };
+
+                    step(0);
+                }).catch(function (err) {
+                    Dashboard.hideLoadingMsg();
+                    console.error('Avatar folder scan failed:', err);
+                    setError('That folder could not be read. Check the path as the server sees it.');
+                });
+            }
+
+            // Counts profiles whose stored picture no longer resolves. The images are
+            // fetched by the browser anyway when the picker renders, so this is a cheap
+            // HEAD-style check rather than new server work.
+            function loadAvatarHealth(page) {
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('plugins/profiles/admin/mappings'),
+                    dataType: 'json'
+                }).then(function (data) {
+                    const masters = field(data, 'masterUsers') || [];
+                    const subs = field(data, 'subProfiles') || [];
+                    const all = masters.concat(subs).filter(function (p) {
+                        const img = field(p, 'profileImage');
+                        // Only our own stored images can go missing; a remote URL failing is
+                        // the remote host's problem and not something to report here.
+                        return img && String(img).indexOf('/plugins/profiles/image/') === 0;
+                    });
+
+                    if (!all.length) { page.querySelector('#avatarMissingWarning').style.display = 'none'; return; }
+
+                    let pending = all.length;
+                    const missing = [];
+                    all.forEach(function (p) {
+                        const probe = new Image();
+                        const done = function (ok) {
+                            if (!ok) missing.push(field(p, 'profileName') || 'Unnamed profile');
+                            if (--pending === 0) renderAvatarHealth(page, missing);
+                        };
+                        probe.onload = function () { done(true); };
+                        probe.onerror = function () { done(false); };
+                        probe.src = field(p, 'profileImage') + (String(field(p, 'profileImage')).indexOf('?') >= 0 ? '&' : '?') + 'size=thumb';
+                    });
+                }).catch(function () { /* the mappings list has its own error path */ });
+            }
+
+            function renderAvatarHealth(page, missing) {
+                const el = page.querySelector('#avatarMissingWarning');
+                if (!missing.length) { el.style.display = 'none'; return; }
+                el.style.display = 'block';
+                el.innerHTML = '<strong>&#9888;&nbsp; ' + missing.length +
+                    (missing.length === 1 ? ' profile has' : ' profiles have') +
+                    ' a picture that is no longer on disk.</strong><br>' +
+                    escapeHtml(missing.join(', ')) +
+                    '<br><span style="opacity:0.8;">They fall back to the initial and colour, so nothing is broken. ' +
+                    'Set a new picture on each to clear this.</span>';
+            }
+
+            // ── Emergency disable code ────────────────────────────────────────────
+
+            function loadPanicStatus(page) {
+                ApiClient.ajax({
+                    type: 'GET',
+                    url: ApiClient.getUrl('plugins/profiles/admin/panic-status'),
+                    dataType: 'json'
+                }).then(function (data) {
+                    const configured = field(data, 'isConfigured');
+                    const disabled = field(data, 'isCurrentlyDisabled');
+                    const line = page.querySelector('#panicStatusLine');
+                    if (disabled) {
+                        line.innerHTML = '<span style="color:#ff9900; font-weight:600;">Bonfire is currently disabled.</span> ' +
+                            'Restart Jellyfin to bring the switcher back.';
+                    } else if (configured) {
+                        line.innerHTML = '<span style="color:#51cf66; font-weight:600;">A code is set.</span> ' +
+                            'Enter it from the link on the profile screen, or press Ctrl+Shift+B on a keyboard.';
+                    } else {
+                        line.textContent = 'No code is set. The feature is off.';
+                    }
+                }).catch(function () {
+                    page.querySelector('#panicStatusLine').textContent = 'Could not read the current status.';
+                });
+            }
+
+            function savePanicCode(page) {
+                const input = page.querySelector('#panicCodeInput');
+                const result = page.querySelector('#panicCodeResult');
+                const code = (input.value || '').trim();
+
+                const show = function (msg, ok) {
+                    result.textContent = msg;
+                    result.style.color = ok ? '#51cf66' : '#ff6b6b';
+                    result.style.display = 'block';
+                };
+
+                if (code && code.length < 10) {
+                    show('The code must be at least 10 characters.', false);
+                    return;
+                }
+
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('plugins/profiles/admin/panic-code'),
+                    contentType: 'application/json',
+                    data: JSON.stringify({ code: code })
+                }).then(function () {
+                    input.value = '';
+                    show(code ? 'Code saved. Write it down — it cannot be shown again.' : 'Code cleared. The feature is off.', true);
+                    loadPanicStatus(page);
+                }).catch(function (err) {
+                    console.error('Failed to save the emergency code:', err);
+                    show('The server rejected that code.', false);
+                });
+            }
+
             function saveConfiguration(page) {
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     config.MaxProfilesPerUser = parseInt(page.querySelector('#maxProfiles').value, 10) || 5;
                     config.RequireMasterPinForCreation = page.querySelector('#requireMasterPin').checked;
+                    config.DisallowCustomAvatarUploads = page.querySelector('#disallowCustomAvatars').checked;
+                    config.DefaultAskOnStartup = page.querySelector('#defaultAskOnStartup').checked;
+                    config.DefaultSwitcherLocation = page.querySelector('#defaultSwitcherLocation').value === 'menu' ? 'menu' : 'button';
 
                     ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
@@ -603,6 +1107,53 @@
                     btn.dataset.retryBound = '1';
                     btn.addEventListener('click', function () { retryInjection(page); });
                 });
+
+                // pageshow can fire repeatedly for the same element, so every handler below
+                // is guarded — otherwise one click would upload the same avatar twice.
+                const avatarInput = page.querySelector('#avatarUploadInput');
+                if (avatarInput && !avatarInput.dataset.bound) {
+                    avatarInput.dataset.bound = '1';
+                    avatarInput.addEventListener('change', function (e) {
+                        const files = e.target.files;
+                        if (!files || !files.length) return;
+                        uploadAvatars(page, files);
+                        avatarInput.value = '';
+                    });
+                }
+
+                const scanBtn = page.querySelector('#avatarScanBtn');
+                if (scanBtn && !scanBtn.dataset.bound) {
+                    scanBtn.dataset.bound = '1';
+                    scanBtn.addEventListener('click', function () { importAvatarFolder(page); });
+                }
+
+                const folderInput = page.querySelector('#avatarFolderInput');
+                if (folderInput && !folderInput.dataset.bound) {
+                    folderInput.dataset.bound = '1';
+                    folderInput.addEventListener('change', function (e) {
+                        // A folder brings everything in it, so the pictures are picked out
+                        // here. Handing the rest to the uploader would report a failure per
+                        // subtitle file and bury the real result.
+                        const all = Array.prototype.slice.call(e.target.files || []);
+                        const images = all.filter(function (f) {
+                            return /^image\//i.test(f.type || '') || /\.(jpe?g|png|webp|gif|bmp|avif)$/i.test(f.name || '');
+                        });
+                        folderInput.value = '';
+                        if (!images.length) {
+                            const errEl = page.querySelector('#avatarUploadError');
+                            errEl.textContent = 'No pictures in that folder.';
+                            errEl.style.display = 'block';
+                            return;
+                        }
+                        uploadAvatars(page, images);
+                    });
+                }
+
+                const panicBtn = page.querySelector('#savePanicCode');
+                if (panicBtn && !panicBtn.dataset.bound) {
+                    panicBtn.dataset.bound = '1';
+                    panicBtn.addEventListener('click', function () { savePanicCode(page); });
+                }
 
                 const dismissBtn = page.querySelector('#dismissStaleBtn');
                 if (dismissBtn && !dismissBtn.dataset.bound) {

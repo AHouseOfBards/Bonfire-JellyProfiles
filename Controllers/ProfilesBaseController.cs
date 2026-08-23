@@ -262,6 +262,26 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
+        /// Returns null when the caller is a Jellyfin administrator, or the ActionResult to
+        /// return when they are not. <paramref name="action"/> completes the sentence
+        /// "Only administrators can …".
+        /// </summary>
+        protected ActionResult? RequireAdministrator(string action)
+        {
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+
+            var caller = _userManager.GetUserById(currentUserIdVal.Value);
+            if (caller == null) return Unauthorized();
+
+            var callerDto = _userManager.GetUserDto(caller, string.Empty);
+            if (!callerDto.Policy.IsAdministrator)
+                return Unauthorized($"Only administrators can {action}.");
+
+            return null;
+        }
+
+        /// <summary>
         /// True when the given user account carries administrator rights. Used where a warning
         /// or a log line needs to reflect how much a session for that account is worth, rather
         /// than to authorise the caller — for that, check the caller's own policy directly.
@@ -624,6 +644,13 @@ namespace Jellyfin.Profiles.Controllers
 
         protected const int MaxProfileImageBytes = 2 * 1024 * 1024;
 
+        /// <summary>
+        /// Minimum length of the emergency disable code. It is submitted without any
+        /// authentication, so length is doing the work that a login would normally do; the
+        /// rate limiter caps guessing at five an hour, but a short code would still fall.
+        /// </summary>
+        protected const int MinPanicCodeLength = 10;
+
         // ── Presentation-value validation ───────────────────────────────────────────
         // Avatar colours and image URLs are stored server-side and rendered on other
         // accounts' switcher screens via Bonfire groups. They are validated here so a
@@ -655,24 +682,285 @@ namespace Jellyfin.Profiles.Controllers
                && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
                && value.IndexOfAny(new[] { '"', '\'', '<', '>' }) < 0;
 
-        protected string? SaveProfileImage(Guid profileId, string? profileImageInput)
+        // ── Image storage ───────────────────────────────────────────────────────────
+        // Every stored image is written twice: a full-size master and a small thumbnail.
+        // Both are produced by the browser's canvas before upload rather than resized here,
+        // which keeps the plugin free of any image-processing dependency. The thumbnail is
+        // what grids and switcher cards request — a picker showing twenty full-size avatars
+        // would otherwise decode tens of megabytes of bitmap, which is enough to stall the
+        // TV browsers this plugin explicitly supports.
+
+        /// <summary>Suffix distinguishing the thumbnail file from its master.</summary>
+        protected const string ThumbSuffix = "_t";
+
+        /// <summary>
+        /// Formats accepted from a data URL. The client re-encodes everything through a
+        /// canvas, so this is the set it can emit, not the set a user may pick from — the
+        /// browser decodes far more than this on the way in.
+        /// <para>
+        /// SVG is deliberately absent: it can carry script, and these files are served from
+        /// the server's own origin.
+        /// </para>
+        /// </summary>
+        private static readonly (string Mime, string Extension, string ContentType)[] StorableImageFormats =
         {
-            var pluginDataFolder = Path.Combine(
-                Plugin.Instance?.AppPaths.DataPath ?? Path.GetTempPath(),
-                "plugins", "ProfilesManagement");
+            ("image/png",  ".png",  "image/png"),
+            ("image/webp", ".webp", "image/webp"),
+            ("image/gif",  ".gif",  "image/gif"),
+            ("image/jpeg", ".jpg",  "image/jpeg"),
+        };
+
+        /// <summary>All extensions this plugin may have written, newest scheme first.</summary>
+        /// <summary>Most files one folder import will list. A guard against a folder of thousands.</summary>
+        protected const int MaxScanFiles = 200;
+
+        /// <summary>Largest file the folder import will hand to the browser to resize.</summary>
+        protected const long MaxScanFileBytes = 25L * 1024 * 1024;
+
+        protected static readonly string[] StorableImageExtensions = { ".jpg", ".png", ".webp", ".gif" };
+
+        /// <summary>Maps a stored file extension back to a MIME type for the response.</summary>
+        protected static string ContentTypeForExtension(string extension)
+        {
+            foreach (var f in StorableImageFormats)
+                if (string.Equals(f.Extension, extension, StringComparison.OrdinalIgnoreCase)) return f.ContentType;
+            return "application/octet-stream";
+        }
+
+        /// <summary>
+        /// Decodes a <c>data:image/…;base64,…</c> payload. Returns null for anything that is
+        /// not a well-formed, in-budget image in a format we are willing to store.
+        /// </summary>
+        protected (byte[] Bytes, string Extension)? DecodeImageDataUrl(string? dataUrl, string context)
+        {
+            if (string.IsNullOrEmpty(dataUrl) ||
+                !dataUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase)) return null;
+
+            var commaIndex = dataUrl.IndexOf(',');
+            if (commaIndex < 0) return null;
+
+            var header = dataUrl.Substring(0, commaIndex);
+            string? extension = null;
+            foreach (var f in StorableImageFormats)
+            {
+                if (header.Contains(f.Mime, StringComparison.OrdinalIgnoreCase)) { extension = f.Extension; break; }
+            }
+
+            // Reject rather than defaulting. Falling back to .jpg would store
+            // "data:image/svg+xml,<script>…" as a JPEG and then serve it as one — the format
+            // is excluded precisely because these files come back from our own origin.
+            if (extension == null)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: Rejected image for {Context} — '{Header}' is not a format this plugin stores.",
+                    context, header.Length > 64 ? header.Substring(0, 64) : header);
+                return null;
+            }
+
+            try
+            {
+                var bytes = Convert.FromBase64String(dataUrl.Substring(commaIndex + 1));
+                if (bytes.Length > MaxProfileImageBytes)
+                {
+                    _logger.LogWarning(
+                        "ProfilesPlugin: Image for {Context} is {Size} bytes, over the {Limit} byte limit. Rejected.",
+                        context, bytes.Length, MaxProfileImageBytes);
+                    return null;
+                }
+                return (bytes, extension);
+            }
+            catch (FormatException ex)
+            {
+                _logger.LogWarning(ex, "ProfilesPlugin: Image for {Context} was not valid base64.", context);
+                return null;
+            }
+        }
+
+        /// <summary>Removes every variant of a stored image, in both formats and both sizes.</summary>
+        protected static void DeleteImageFiles(string folder, string baseName)
+        {
+            foreach (var ext in StorableImageExtensions)
+            {
+                foreach (var name in new[] { $"{baseName}{ext}", $"{baseName}{ThumbSuffix}{ext}" })
+                {
+                    var p = Path.Combine(folder, name);
+                    if (System.IO.File.Exists(p)) System.IO.File.Delete(p);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Writes a master image and, when supplied, its thumbnail. Stale variants are
+        /// cleared first so a format change cannot leave the previous file shadowing the new
+        /// one. Returns the stored extension, or null if nothing was written.
+        /// </summary>
+        protected string? WriteImageFiles(string folder, string baseName, string? dataUrl, string? thumbDataUrl, string context)
+        {
+            var master = DecodeImageDataUrl(dataUrl, context);
+            if (master == null) return null;
+
+            Directory.CreateDirectory(folder);
+            DeleteImageFiles(folder, baseName);
+
+            System.IO.File.WriteAllBytes(Path.Combine(folder, $"{baseName}{master.Value.Extension}"), master.Value.Bytes);
+
+            // A missing or unusable thumbnail is not fatal — the master is served in its
+            // place. Falling back costs bandwidth; refusing the whole save would cost the
+            // user their picture.
+            var thumb = DecodeImageDataUrl(thumbDataUrl, context + " thumbnail");
+            if (thumb != null)
+            {
+                System.IO.File.WriteAllBytes(
+                    Path.Combine(folder, $"{baseName}{ThumbSuffix}{thumb.Value.Extension}"), thumb.Value.Bytes);
+            }
+
+            return master.Value.Extension;
+        }
+
+        /// <summary>
+        /// Resolves a stored image on disk, preferring the thumbnail when one is asked for
+        /// and falling back to the master when it does not exist.
+        /// </summary>
+        protected static (string Path, string ContentType)? FindImageFile(string folder, string baseName, bool wantThumb)
+        {
+            var names = wantThumb
+                ? new[] { baseName + ThumbSuffix, baseName }
+                : new[] { baseName };
+
+            foreach (var name in names)
+            {
+                foreach (var ext in StorableImageExtensions)
+                {
+                    var p = Path.Combine(folder, $"{name}{ext}");
+                    if (System.IO.File.Exists(p)) return (p, ContentTypeForExtension(ext));
+                }
+            }
+            return null;
+        }
+
+        /// <summary>The directory holding per-profile avatar images.</summary>
+        protected static string ProfileImageFolder => Path.Combine(
+            Plugin.Instance?.AppPaths.DataPath ?? Path.GetTempPath(),
+            "plugins", "ProfilesManagement");
+
+        /// <summary>The directory holding the administrator's shared avatar library.</summary>
+        protected static string AvatarLibraryFolder => Path.Combine(ProfileImageFolder, "avatars");
+
+        /// <summary>The directory holding per-profile library tile artwork (GitHub issue #19).</summary>
+        protected static string LibraryArtFolder => Path.Combine(ProfileImageFolder, "libraryart");
+
+        /// <summary>
+        /// File name for one profile's artwork for one library. Derived from the two ids rather
+        /// than stored, so the configuration cannot drift out of step with what is on disk and
+        /// there is no orphaned identifier to clean up.
+        /// </summary>
+        protected static string LibraryArtName(Guid profileId, Guid libraryId)
+            => profileId.ToString("N") + "_" + libraryId.ToString("N");
+
+        /// <summary>
+        /// True when the administrator has restricted profile pictures to the avatar library.
+        /// Hiding the upload control is presentation; this is the rule.
+        /// </summary>
+        protected bool AreCustomAvatarsBlocked()
+            => Plugin.Instance?.Configuration?.DisallowCustomAvatarUploads == true;
+
+        /// <summary>
+        /// Copies a library avatar to a profile, server-side, byte for byte.
+        /// <para>
+        /// This exists so the "only allow avatars from this library" setting can actually be
+        /// enforced. Choosing a library picture normally means the client crops it and posts
+        /// the result, which arrives looking exactly like any other upload — the server has no
+        /// way to tell them apart. Passing the library id instead makes the choice verifiable:
+        /// nothing is decoded, and the only bytes that can land are ones the administrator
+        /// published. The cost is that a locked-down server gives up per-user cropping, which
+        /// is a fair trade for a setting whose point is a consistent set.
+        /// </para>
+        /// </summary>
+        protected string? CopyLibraryAvatarToProfile(Guid profileId, string libraryAvatarId)
+        {
+            return CopyLibraryAvatar(libraryAvatarId, ProfileImageFolder, profileId.ToString())
+                ? $"/plugins/profiles/image/{profileId}?v={DateTime.UtcNow.Ticks}"
+                : null;
+        }
+
+        /// <summary>
+        /// Copies a published library avatar to <paramref name="destFolder"/> under
+        /// <paramref name="baseName"/>, master and thumbnail alike. Returns false when the id
+        /// is unknown or nothing is on disk for it.
+        /// </summary>
+        protected bool CopyLibraryAvatar(string libraryAvatarId, string destFolder, string baseName)
+        {
+            var config = Plugin.Instance?.Configuration;
+            var item = config?.AvatarLibrary.FirstOrDefault(a =>
+                string.Equals(a.Id, libraryAvatarId, StringComparison.OrdinalIgnoreCase));
+            if (item == null)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: Asked for library avatar '{Avatar}', which does not exist.",
+                    libraryAvatarId);
+                return false;
+            }
+
+            // Confirmed before anything is removed: a listed avatar whose file has gone
+            // would otherwise clear the destination and leave the caller pointing at a
+            // picture that no longer exists.
+            if (FindImageFile(AvatarLibraryFolder, item.Id, false) == null)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: Library avatar {Avatar} is listed but has no file on disk.", item.Id);
+                return false;
+            }
+
+            Directory.CreateDirectory(destFolder);
+            DeleteImageFiles(destFolder, baseName);
+
+            bool copiedAny = false;
+            foreach (var (suffix, wantThumb) in new[] { (string.Empty, false), (ThumbSuffix, true) })
+            {
+                var source = FindImageFile(AvatarLibraryFolder, item.Id, wantThumb);
+                // FindImageFile falls back to the master when no thumbnail exists; only copy
+                // it into the thumbnail slot if it really is a distinct file.
+                if (source == null) continue;
+                if (wantThumb && !Path.GetFileNameWithoutExtension(source.Value.Path).EndsWith(ThumbSuffix, StringComparison.Ordinal))
+                    continue;
+
+                var extension = Path.GetExtension(source.Value.Path);
+                System.IO.File.Copy(source.Value.Path, Path.Combine(destFolder, $"{baseName}{suffix}{extension}"), true);
+                copiedAny = true;
+            }
+
+            if (!copiedAny)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: Library avatar {Avatar} is listed but has no file on disk.", item.Id);
+            }
+
+            return copiedAny;
+        }
+
+        protected string? SaveProfileImage(Guid profileId, string? profileImageInput, string? thumbInput = null)
+        {
+            var folder = ProfileImageFolder;
 
             if (string.IsNullOrEmpty(profileImageInput))
             {
-                foreach (var ext in new[] { ".jpg", ".png", ".gif" })
-                {
-                    var p = Path.Combine(pluginDataFolder, $"{profileId}{ext}");
-                    if (System.IO.File.Exists(p)) System.IO.File.Delete(p);
-                }
+                DeleteImageFiles(folder, profileId.ToString());
                 return null;
             }
 
             if (profileImageInput.StartsWith("/plugins/profiles/image/", StringComparison.OrdinalIgnoreCase))
                 return profileImageInput;
+
+            // Enforced here, not only by hiding the upload control, so a hand-written request
+            // cannot walk around a setting the administrator is relying on. A locked-down
+            // server accepts pictures solely through CopyLibraryAvatarToProfile.
+            if (AreCustomAvatarsBlocked())
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: Rejected a profile picture for {Id} — this server allows library avatars only.",
+                    profileId);
+                return null;
+            }
 
             if (IsValidImageUrl(profileImageInput)) return profileImageInput.Trim();
 
@@ -680,29 +968,12 @@ namespace Jellyfin.Profiles.Controllers
             {
                 try
                 {
-                    var commaIndex = profileImageInput.IndexOf(',');
-                    if (commaIndex >= 0)
+                    var ext = WriteImageFiles(folder, profileId.ToString(), profileImageInput, thumbInput,
+                        $"profile {profileId}");
+                    if (ext != null)
                     {
-                        var mimePart = profileImageInput.Substring(0, commaIndex);
-                        var bytes = Convert.FromBase64String(profileImageInput.Substring(commaIndex + 1));
-
-                        if (bytes.Length > MaxProfileImageBytes)
-                        {
-                            _logger.LogWarning("ProfilesPlugin: Image for {Id} exceeds 2 MB limit. Rejected.", profileId);
-                            return null;
-                        }
-
-                        string ext = mimePart.Contains("image/png") ? ".png"
-                                   : mimePart.Contains("image/gif") ? ".gif"
-                                   : ".jpg";
-
-                        Directory.CreateDirectory(pluginDataFolder);
-                        foreach (var old in new[] { ".jpg", ".png", ".gif" })
-                        {
-                            var op = Path.Combine(pluginDataFolder, $"{profileId}{old}");
-                            if (System.IO.File.Exists(op)) System.IO.File.Delete(op);
-                        }
-                        System.IO.File.WriteAllBytes(Path.Combine(pluginDataFolder, $"{profileId}{ext}"), bytes);
+                        // The cache-buster is what makes a changed picture appear immediately;
+                        // without it browsers keep showing the previous one at the same URL.
                         return $"/plugins/profiles/image/{profileId}?v={DateTime.UtcNow.Ticks}";
                     }
                 }
@@ -710,6 +981,7 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     _logger.LogError(ex, "ProfilesPlugin: Failed to save image for {Id}.", profileId);
                 }
+                return null;
             }
 
             // Unrecognised shape — reject rather than storing an arbitrary string that
