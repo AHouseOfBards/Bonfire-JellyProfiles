@@ -130,6 +130,22 @@
                     <div class="fieldDescription">The menu option adds a row to Settings instead of a second portrait.</div>
                 </div>
 
+                <h3 class="checkboxListLabel" style="margin-top:1.5em;">Client script</h3>
+                <div class="fieldDescription" style="margin-bottom:1em;">
+                    How Bonfire gets its script into Jellyfin's web client.
+                </div>
+
+                <div class="selectContainer">
+                    <label class="selectLabel" for="indexInjectionMode">Method</label>
+                    <select is="emby-select" id="indexInjectionMode">
+                        <option value="both">Patch index.html, fall back to serving it live</option>
+                        <option value="middleware">Serve it live, never touch index.html</option>
+                        <option value="file">Patch index.html only</option>
+                    </select>
+                    <div class="fieldDescription" id="indexInjectionModeHelp"></div>
+                    <div class="fieldDescription" id="middlewareStatusLine" style="margin-top:8px;"></div>
+                </div>
+
                 <div class="buttonContainer">
                     <button is="emby-button" type="submit" class="raised button-submit block">Save Settings</button>
                 </div>
@@ -262,6 +278,11 @@
                     page.querySelector('#defaultAskOnStartup').checked = config.DefaultAskOnStartup !== false;
                     page.querySelector('#defaultSwitcherLocation').value =
                         config.DefaultSwitcherLocation === 'menu' ? 'menu' : 'button';
+                    // Absent before 1.4.1 — "both" is the shipped default and the safe one.
+                    const mode = String(config.IndexInjectionMode || 'both').toLowerCase();
+                    page.querySelector('#indexInjectionMode').value =
+                        (mode === 'middleware' || mode === 'file') ? mode : 'both';
+                    updateInjectionModeHelp(page);
                     loadMappings(page);
                     loadAuditLogs(page);
                     loadAvatarLibrary(page);
@@ -287,12 +308,67 @@
                 return String(guid).toLowerCase().replace(/[^a-z0-9]/g, '');
             }
 
+            const INJECTION_MODE_HELP = {
+                both: 'index.html is patched exactly as before. If that write fails — a read-only '
+                    + 'install, a container layer, a locked Program Files — the script is added to the '
+                    + 'page as it is served instead, so the switcher still loads.',
+                middleware: 'index.html is left alone, and the tags Bonfire added earlier are taken back '
+                    + 'out. Nothing to re-apply after a Jellyfin update, and no write permission needed.',
+                file: 'How every release up to 1.4.0 worked. Needs write access to index.html, and has to '
+                    + 'be redone after each Jellyfin update.'
+            };
+
+            function updateInjectionModeHelp(page) {
+                const select = page.querySelector('#indexInjectionMode');
+                const help = page.querySelector('#indexInjectionModeHelp');
+                if (!select || !help) return;
+                help.textContent = INJECTION_MODE_HELP[select.value] || '';
+            }
+
+            // Says whether the pipeline hook is actually there. Worth showing plainly: it is new
+            // in 1.4.1, and "it did not attach" and "it attached and had nothing to do" look
+            // identical from the outside.
+            function renderMechanism(page, result) {
+                const line = page.querySelector('#middlewareStatusLine');
+                if (!line) return;
+
+                const m = field(result, 'mechanism');
+                if (!m) { line.textContent = ''; return; }
+
+                const registered = field(m, 'middlewareRegistered') === true;
+                const active = field(m, 'middlewareActive') === true;
+                const served = field(m, 'middlewareServed') || 0;
+                const err = field(m, 'middlewareError');
+
+                let text;
+                let colour = '';
+                if (!registered) {
+                    text = 'Live injection could not attach to Jellyfin. Only patching index.html will work here.';
+                    colour = '#ff8787';
+                } else if (!active) {
+                    text = 'Live injection is loaded, but no page request has reached it yet. Reload this page to confirm.';
+                } else if (served > 0) {
+                    text = 'Live injection is working — ' + served
+                        + (served === 1 ? ' page served.' : ' pages served.');
+                    colour = '#69db7c';
+                } else {
+                    text = 'Live injection is loaded and index.html is already patched, so it has nothing to do.';
+                    colour = '#69db7c';
+                }
+
+                if (err) text += ' Last problem: ' + err;
+                line.textContent = text;
+                line.style.color = colour;
+            }
+
             // Single place that decides which of the three status banners is visible, so the
             // page load and the Re-check button can never disagree about the current state.
             function renderInjectionStatus(page, result) {
                 const warningContainer = page.querySelector('#injectionWarningContainer');
                 const staleContainer = page.querySelector('#staleVersionWarningContainer');
                 const okContainer = page.querySelector('#injectionOkContainer');
+
+                renderMechanism(page, result);
 
                 const succeeded = field(result, 'injectionSucceeded');
                 const isStale = field(result, 'isVersionStale');
@@ -1081,6 +1157,7 @@
                     config.DisallowCustomAvatarUploads = page.querySelector('#disallowCustomAvatars').checked;
                     config.DefaultAskOnStartup = page.querySelector('#defaultAskOnStartup').checked;
                     config.DefaultSwitcherLocation = page.querySelector('#defaultSwitcherLocation').value === 'menu' ? 'menu' : 'button';
+                    config.IndexInjectionMode = page.querySelector('#indexInjectionMode').value;
 
                     ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
@@ -1095,6 +1172,10 @@
             document.getElementById('profilesConfigurationPage').addEventListener('pageshow', function () {
                 const page = this;
                 loadConfiguration(page);
+                const modeSelect = page.querySelector('#indexInjectionMode');
+                if (modeSelect) {
+                    modeSelect.addEventListener('change', function () { updateInjectionModeHelp(page); });
+                }
                 page.querySelector('form').addEventListener('submit', function (e) {
                     e.preventDefault();
                     saveConfiguration(page);

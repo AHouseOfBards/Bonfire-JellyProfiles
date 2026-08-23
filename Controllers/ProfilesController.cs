@@ -1063,8 +1063,31 @@ namespace Jellyfin.Profiles.Controllers
                 // Jellyfin runs as, instead of guessing between service and desktop mode.
                 ServiceAccount = ProfilesBootstrapTask.RunningAccount,
                 IsWindows = OperatingSystem.IsWindows(),
-                PluginVersion = GetPluginVersion()
+                PluginVersion = GetPluginVersion(),
+                Mechanism = DescribeInjectionMechanism()
             });
+        }
+
+        /// <summary>
+        /// How the client script is reaching the browser, and whether the request-pipeline hook
+        /// is doing anything.
+        /// <para>
+        /// Reported next to every injection status because from 1.4.1 an index.html with no tag
+        /// in it is no longer necessarily a failure — it is the expected state when the plugin
+        /// is injecting on the fly.
+        /// </para>
+        /// </summary>
+        private static object DescribeInjectionMechanism()
+        {
+            return new
+            {
+                Mode = IndexInjectionModes.Normalize(Plugin.Instance?.Configuration?.IndexInjectionMode),
+                MiddlewareRegistered = ProfilesIndexMiddleware.IsRegistered,
+                MiddlewareActive = ProfilesIndexMiddleware.HasSeenIndexRequest,
+                MiddlewareServed = ProfilesIndexMiddleware.ServedCountValue,
+                MiddlewareLastServedUtc = ProfilesIndexMiddleware.LastServedUtc,
+                MiddlewareError = ProfilesIndexMiddleware.LastError
+            };
         }
 
         /// <summary>
@@ -1101,7 +1124,8 @@ namespace Jellyfin.Profiles.Controllers
                 // Jellyfin runs as, instead of guessing between service and desktop mode.
                 ServiceAccount = ProfilesBootstrapTask.RunningAccount,
                 IsWindows = OperatingSystem.IsWindows(),
-                PluginVersion = GetPluginVersion()
+                PluginVersion = GetPluginVersion(),
+                Mechanism = DescribeInjectionMechanism()
             });
         }
 

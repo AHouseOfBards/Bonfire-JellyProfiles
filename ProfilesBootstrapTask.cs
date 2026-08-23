@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Profiles.Configuration;
 using MediaBrowser.Common.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -28,48 +29,21 @@ namespace Jellyfin.Profiles
     /// </summary>
     public class ProfilesBootstrapTask : IHostedService
     {
-        // The exact script tag to inject before </body>.
-        // The URL /plugins/profiles/profiles.js is the path
-        // Jellyfin uses to serve embedded resources from plugin assemblies.
-        /// <summary>
-        /// Cache-buster written into the script URL.
-        ///
-        /// Deliberately the assembly version and nothing else. This used to prefer
-        /// Plugin.Instance?.Version with the assembly version as a fallback, which made the
-        /// value depend on WHEN it was read: this hosted service can run before the Plugin
-        /// constructor has assigned Plugin.Instance, so the tag could be written using one
-        /// source and later compared against the other. If those two render differently
-        /// (e.g. "1.2.8" vs "1.2.8.0") the comparison never matches again and the dashboard
-        /// shows "script update pending" forever, no matter how many times the file is
-        /// rewritten or what permissions are granted.
-        /// </summary>
-        internal static string ScriptVersion =>
-            typeof(ProfilesBootstrapTask).Assembly.GetName().Version?.ToString() ?? "0";
+        // The script fragments and the injection logic now live in WebInjection, shared
+        // with the middleware that serves index.html straight from the request pipeline.
+        // These forwarders keep the rest of this file — and the dashboard status it feeds —
+        // reading exactly as before.
+        internal static string ScriptVersion => WebInjection.ScriptVersion;
 
-        // The exact script tag to inject before </body>.
-        // The URL /plugins/profiles/profiles.js is the path
-        // Jellyfin uses to serve embedded resources from plugin assemblies.
-        private static string BodyScriptTag =>
-            $"<script src=\"/plugins/profiles/profiles.js?v={ScriptVersion}\" defer></script>";
+        private static string BodyScriptTag => WebInjection.BodyScriptTag;
 
-        // Pulls the ?v= value out of whatever plugin script tag is currently in index.html.
-        // Comparing the extracted version beats comparing the whole tag string: a hand-edited
-        // file with different attribute order, quoting or spacing is still recognised as
-        // current instead of being reported as stale forever.
-        private static readonly Regex InjectedVersionRegex = new(
-            @"/plugins/profiles/profiles\.js\?v=([^""'&\s>]+)",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        /// <summary>Version recorded in index.html's script tag, or null if absent/unparseable.</summary>
+        /// <summary>Version recorded in index.html’s script tag, or null if absent/unparseable.</summary>
         private static string? GetInjectedScriptVersion(string html)
-        {
-            var m = InjectedVersionRegex.Match(html);
-            return m.Success ? m.Groups[1].Value : null;
-        }
+            => WebInjection.GetInjectedScriptVersion(html);
 
-        /// <summary>True when index.html's script tag already points at this build.</summary>
+        /// <summary>True when index.html’s script tag already points at this build.</summary>
         private static bool IsScriptVersionCurrent(string html)
-            => string.Equals(GetInjectedScriptVersion(html), ScriptVersion, StringComparison.Ordinal);
+            => WebInjection.IsScriptVersionCurrent(html);
 
         /// <summary>
         /// The OS account the Jellyfin process is running under.
@@ -124,34 +98,10 @@ namespace Jellyfin.Profiles
             }
         }
 
-        // Unique substring to detect whether the body tag is already present.
-        private const string BodyMarker = "/plugins/profiles/profiles.js";
-
-        // Tiny inline script injected into <head> — runs before any deferred bundle,
-        // before React renders. Reads the switching flag set by profiles.js before
-        // each window.location.reload() and hides the html element instantly to
-        // prevent the flash-of-content during profile switches.
-        // A 4-second failsafe restores visibility if profiles.js fails to load.
-        private const string HeadScript =
-            "<script id=\"jpf-eh\">" +
-            "!function(){" +
-                "if(localStorage.getItem('jpf-sw')){" +
-                    "var h=document.documentElement;" +
-                    "h.style.opacity='0';" +
-                    "h.style.background='#101010';" +
-                    "h.style.colorScheme='dark';" +
-                    "window.__jpReveal=setTimeout(function(){" +
-                        "h.style.opacity='';" +
-                        "h.style.background='';" +
-                        "h.style.colorScheme='';" +
-                    "},4e3);" +
-                    "localStorage.removeItem('jpf-sw');" +
-                "}" +
-            "}();" +
-            "</script>";
-
-        // Unique substring to detect whether the head script is already present.
-        private const string HeadMarker = "jpf-eh";
+        // Shared with the middleware — see WebInjection for what these contain and why.
+        private const string BodyMarker = WebInjection.BodyMarker;
+        private const string HeadScript = WebInjection.HeadScript;
+        private const string HeadMarker = WebInjection.HeadMarker;
 
         // Exposed so the dashboard page JS can check whether setup is complete.
         internal static bool InjectionSucceeded { get; private set; }
@@ -187,6 +137,14 @@ namespace Jellyfin.Profiles
         // chmod/icacls command, reload the page, and still see the failure warning, because
         // nothing re-read index.html until the next full Jellyfin restart. The static
         // self-reference lets the admin endpoints re-evaluate (and retry) on demand.
+        /// <summary>
+        /// Which mechanism is supposed to be adding the script tags. Falls back to
+        /// <see cref="IndexInjectionModes.Both"/> when the plugin instance is not up yet,
+        /// which keeps a cold start behaving exactly as it did before 1.4.1.
+        /// </summary>
+        private static string CurrentInjectionMode =>
+            IndexInjectionModes.Normalize(Plugin.Instance?.Configuration?.IndexInjectionMode);
+
         private static ProfilesBootstrapTask? _current;
         private static readonly object PatchLock = new();
 
@@ -227,6 +185,21 @@ namespace Jellyfin.Profiles
             {
                 try
                 {
+                    // Middleware only: index.html is *supposed* to be clean, so reading it
+                    // says nothing about whether the switcher will load. What matters is
+                    // whether the pipeline hook is live.
+                    if (!IndexInjectionModes.PatchesFile(CurrentInjectionMode))
+                    {
+                        IndexPath = IndexPath ?? self.FindIndexHtml();
+                        InjectionSucceeded = ProfilesIndexMiddleware.IsRegistered;
+                        IsVersionStale = false;
+                        LastFailureReason = ProfilesIndexMiddleware.IsRegistered
+                            ? null
+                            : "Bonfire could not attach to Jellyfin's request pipeline, so nothing "
+                              + "is adding the client script. Switch back to patching index.html.";
+                        return;
+                    }
+
                     var indexPath = IndexPath ?? self.FindIndexHtml();
                     IndexPath = indexPath;
 
@@ -243,8 +216,22 @@ namespace Jellyfin.Profiles
                     var hasHead = html.Contains(HeadMarker, StringComparison.Ordinal);
                     var versionCurrent = IsScriptVersionCurrent(html);
 
-                    InjectionSucceeded = hasBody;
-                    IsVersionStale = hasBody && (!versionCurrent || !hasHead);
+                    // In "both" mode the middleware picks up whatever the file patch could
+                    // not do, so an unpatched or stale index.html stops being a failure and
+                    // becomes the fallback working as designed. Gate that on having actually
+                    // seen a request, not merely on being registered — otherwise a filter
+                    // that never got installed would silently suppress the real warning.
+                    bool middlewareCovers = IndexInjectionModes.UsesMiddleware(CurrentInjectionMode)
+                        && ProfilesIndexMiddleware.HasSeenIndexRequest;
+
+                    InjectionSucceeded = hasBody || middlewareCovers;
+                    IsVersionStale = !middlewareCovers && hasBody && (!versionCurrent || !hasHead);
+
+                    if (middlewareCovers)
+                    {
+                        LastFailureReason = null;
+                        return;
+                    }
 
                     if (!hasBody)
                     {
@@ -391,6 +378,15 @@ namespace Jellyfin.Profiles
 
         private void TryPatchIndex()
         {
+            // Middleware only: index.html is not ours to write any more. Take the tags
+            // back out so the file returns to how Jellyfin shipped it, and let the
+            // request pipeline do the work from here.
+            if (!IndexInjectionModes.PatchesFile(CurrentInjectionMode))
+            {
+                TryUnpatchIndex();
+                return;
+            }
+
             var indexPath = FindIndexHtml();
             IndexPath = indexPath;
 
@@ -462,52 +458,8 @@ namespace Jellyfin.Profiles
                     IsVersionStale = false;
                 }
 
-                bool changed = false;
-
-                // ── 1. Update or inject head early-hide script ───────────────────
-                var headRegex = new Regex(@"<script id=""jpf-eh"">[\s\S]*?</script>", RegexOptions.IgnoreCase);
-                if (headRegex.IsMatch(html))
-                {
-                    if (!html.Contains(HeadScript, StringComparison.Ordinal))
-                    {
-                        // MatchEvaluator, not a replacement string: "$" is a substitution token
-                        // in the string overload, so a "$" anywhere in the script would corrupt
-                        // index.html silently.
-                        html = headRegex.Replace(html, _ => HeadScript);
-                        changed = true;
-                    }
-                }
-                else
-                {
-                    int headIdx = html.IndexOf("<head>", StringComparison.OrdinalIgnoreCase);
-                    if (headIdx != -1)
-                    {
-                        html = html.Insert(headIdx + "<head>".Length, Environment.NewLine + HeadScript);
-                        changed = true;
-                    }
-                }
-
-                // ── 2. Update or inject body script ──────────────────────────────
-                var bodyRegex = new Regex(@"<script[^>]*src=[""'][^""']*/plugins/profiles/profiles\.js[^""']*[""'][^>]*>\s*(</script>)?", RegexOptions.IgnoreCase);
-                if (bodyRegex.IsMatch(html))
-                {
-                    if (!IsScriptVersionCurrent(html))
-                    {
-                        // MatchEvaluator — see the note on the head script above.
-                        var tag = BodyScriptTag;
-                        html = bodyRegex.Replace(html, _ => tag);
-                        changed = true;
-                    }
-                }
-                else
-                {
-                    int bodyIdx = html.IndexOf("</body>", StringComparison.OrdinalIgnoreCase);
-                    if (bodyIdx != -1)
-                    {
-                        html = html.Insert(bodyIdx, BodyScriptTag + Environment.NewLine);
-                        changed = true;
-                    }
-                }
+                // Both fragments in one pass, shared with ProfilesIndexMiddleware.
+                bool changed = WebInjection.Inject(html, out html);
 
                 // The body script is what makes the switcher work at all; the head script only
                 // prevents a flash of content. Track them separately so a missing <head> anchor
@@ -626,6 +578,49 @@ namespace Jellyfin.Profiles
         /// Falls back to a direct write if the atomic replace isn't permitted — some
         /// container mounts allow writing a file but not creating siblings.
         /// </summary>
+        /// <summary>
+        /// Takes the script tags back out of index.html, restoring the file to how Jellyfin
+        /// shipped it. Runs when injection is set to middleware only, so that changing the
+        /// setting actually cleans the file up rather than merely stopping further writes.
+        /// <para>
+        /// Failing here is harmless. The tags stay where they are, the middleware sees a
+        /// document that is already injected and steps aside, and the switcher loads from
+        /// the file exactly as it did before.
+        /// </para>
+        /// </summary>
+        private void TryUnpatchIndex()
+        {
+            IndexPath = FindIndexHtml();
+            InjectionSucceeded = ProfilesIndexMiddleware.IsRegistered;
+            IsVersionStale = false;
+            LastFailureReason = null;
+
+            if (IndexPath is null)
+            {
+                return;
+            }
+
+            try
+            {
+                var html = File.ReadAllText(IndexPath);
+                if (!WebInjection.Remove(html, out var cleaned))
+                {
+                    return;
+                }
+
+                WriteFileAtomic(IndexPath, cleaned);
+                _logger.LogInformation(
+                    "ProfilesPlugin: Removed the client script tags from {Path}. index.html is "
+                    + "now served from the request pipeline instead.", IndexPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex,
+                    "ProfilesPlugin: Could not clean {Path}. Harmless — the middleware will "
+                    + "see the existing tags and step aside.", IndexPath);
+            }
+        }
+
         private void WriteFileAtomic(string path, string contents)
         {
             try

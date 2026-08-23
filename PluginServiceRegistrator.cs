@@ -1,5 +1,6 @@
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Jellyfin.Profiles
@@ -21,6 +22,14 @@ namespace Jellyfin.Profiles
             // ProfilesBootstrapTask runs at every server startup.
             // It patches index.html so the client script loads automatically.
             serviceCollection.AddHostedService<ProfilesBootstrapTask>();
+
+            // Serves index.html with the script tags already in it, so the file on disk does
+            // not have to be modified at all. This call site is the reason the whole approach
+            // works: Jellyfin invokes RegisterServices from ApplicationHost.Init, which runs
+            // inside ConfigureServices, before the request pipeline is built — so an
+            // IStartupFilter registered here is picked up like any other.
+            serviceCollection.AddTransient<IStartupFilter, ProfilesStartupFilter>();
+            ProfilesIndexMiddleware.IsRegistered = true;
         }
     }
 }
