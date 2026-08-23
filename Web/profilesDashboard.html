@@ -14,6 +14,54 @@
             --jpf-accent-a35: color-mix(in srgb, var(--jpf-accent) 35%, transparent);
         }
     }
+
+    /* Five unrelated jobs — limits, pictures, accounts, history, the panic switch —
+       used to be one column five screens tall, so finding any of them meant
+       scrolling past the other four. */
+    #profilesConfigurationPage .jpf-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+        margin: 0 0 2em 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    }
+    #profilesConfigurationPage .jpf-tab {
+        -webkit-appearance: none;
+        appearance: none;
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        padding: 0.65em 1.1em;
+        font: inherit;
+        font-weight: 600;
+        color: inherit;
+        opacity: 0.6;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    #profilesConfigurationPage .jpf-tab:hover {
+        opacity: 1;
+    }
+    #profilesConfigurationPage .jpf-tab.is-active {
+        opacity: 1;
+        border-bottom-color: var(--jpf-accent);
+    }
+    #profilesConfigurationPage .jpf-tab:focus-visible {
+        outline: 2px solid var(--jpf-accent);
+        outline-offset: -2px;
+    }
+    /* Stated rather than left to the user agent: this page sets display on plenty of
+       its own containers, and one of them inheriting past [hidden] would show two
+       tabs at once. */
+    #profilesConfigurationPage .jpf-tab-panel[hidden] {
+        display: none;
+    }
+    /* Each section still carries the 3em that separated it from the one above, which
+       is now a gap at the top of a tab. */
+    #profilesConfigurationPage .jpf-tab-panel > .sectionTitleContainer:first-child {
+        margin-top: 0 !important;
+    }
 </style>
 <div id="profilesConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="libraryloading,embyrouter,selectmenu,dialogHelper">
     <div data-role="content">
@@ -91,6 +139,19 @@
                 <strong>✅ Client script is installed and up to date.</strong>
                 <span style="opacity:0.85;">The profile switcher will load for all users.</span>
             </div>
+
+            <!-- Above the tabs on purpose: the banners above this line report whether the
+                 plugin is working at all, and must not be hidden behind a tab nobody has
+                 a reason to open. -->
+            <div class="jpf-tabs" role="tablist" aria-label="Bonfire settings sections">
+                <button type="button" class="jpf-tab" role="tab" data-tab="settings" aria-controls="jpfPanelSettings">Settings</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="avatars" aria-controls="jpfPanelAvatars">Avatars</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="accounts" aria-controls="jpfPanelAccounts">Accounts</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="activity" aria-controls="jpfPanelActivity">Activity</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="advanced" aria-controls="jpfPanelAdvanced">Advanced</button>
+            </div>
+
+            <div class="jpf-tab-panel" id="jpfPanelSettings" data-panel="settings" role="tabpanel" hidden>
             <form id="profilesConfigurationForm">
                 <div class="sectionTitleContainer" style="display:flex; align-items:center; justify-content:space-between;">
                     <h2 class="sectionTitle">Bonfire Settings</h2>
@@ -161,7 +222,9 @@
                     <button is="emby-button" type="submit" class="raised button-submit block">Save profile &amp; switcher settings</button>
                 </div>
             </form>
+            </div><!-- /settings -->
 
+            <div class="jpf-tab-panel" id="jpfPanelAvatars" data-panel="avatars" role="tabpanel" hidden>
             <div class="sectionTitleContainer" style="margin-top: 3em;">
                 <h2 class="sectionTitle">Avatar Library</h2>
             </div>
@@ -204,7 +267,9 @@
             <div id="avatarLibraryGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:14px; margin-bottom:3em;">
                 <!-- Library avatars rendered here -->
             </div>
+            </div><!-- /avatars -->
 
+            <div class="jpf-tab-panel" id="jpfPanelAdvanced" data-panel="advanced" role="tabpanel" hidden>
             <div class="sectionTitleContainer" style="margin-top: 3em;">
                 <h2 class="sectionTitle">Emergency Disable Code</h2>
             </div>
@@ -234,7 +299,9 @@
                 <button is="emby-button" type="button" id="savePanicCode" class="raised block" style="max-width:280px;">Save code</button>
                 <div id="panicCodeResult" style="display:none; font-size:0.88rem; font-weight:600; margin-top:8px;"></div>
             </div>
+            </div><!-- /advanced -->
 
+            <div class="jpf-tab-panel" id="jpfPanelAccounts" data-panel="accounts" role="tabpanel" hidden>
             <div class="sectionTitleContainer" style="margin-top: 3em;">
                 <h2 class="sectionTitle">Accounts &amp; Profiles</h2>
             </div>
@@ -245,7 +312,9 @@
             <div class="paperList" id="masterUsersList" style="margin-bottom: 3em;">
                 <!-- Master accounts, each with its sub-profiles nested inside -->
             </div>
+            </div><!-- /accounts -->
 
+            <div class="jpf-tab-panel" id="jpfPanelActivity" data-panel="activity" role="tabpanel" hidden>
             <div class="sectionTitleContainer" style="margin-top: 3em;">
                 <h2 class="sectionTitle">Profile Switch Audit Logs</h2>
             </div>
@@ -255,6 +324,7 @@
             <div class="paperList" id="auditLogsList" style="margin-bottom: 3em; max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.15);">
                 <!-- Audit logs dynamically loaded here -->
             </div>
+            </div><!-- /activity -->
         </div>
     </div>
 
@@ -270,6 +340,57 @@
                     .replace(/>/g, "&gt;")
                     .replace(/"/g, "&quot;")
                     .replace(/'/g, "&#039;");
+            }
+
+            // Which tab was open is remembered per browser, because an administrator who
+            // is working through the account list does not want to land on Settings every
+            // time they come back to the page.
+            function initTabs(page) {
+                const tabs = Array.prototype.slice.call(page.querySelectorAll('.jpf-tab'));
+                const panels = Array.prototype.slice.call(page.querySelectorAll('.jpf-tab-panel'));
+                if (!tabs.length || !panels.length) return;
+
+                const names = tabs.map(function (t) { return t.getAttribute('data-tab'); });
+
+                function show(name) {
+                    tabs.forEach(function (t) {
+                        const on = t.getAttribute('data-tab') === name;
+                        t.classList.toggle('is-active', on);
+                        t.setAttribute('aria-selected', on ? 'true' : 'false');
+                        // Roving tabindex: Tab reaches the strip once, then arrow keys move
+                        // within it. Five stops before the first field is a lot of tabbing.
+                        t.setAttribute('tabindex', on ? '0' : '-1');
+                    });
+                    panels.forEach(function (p) {
+                        p.hidden = p.getAttribute('data-panel') !== name;
+                    });
+                    try { localStorage.setItem('bonfire-admin-tab', name); } catch (e) { /* private mode */ }
+                }
+
+                if (!page.dataset.tabsBound) {
+                    page.dataset.tabsBound = '1';
+                    tabs.forEach(function (t, i) {
+                        t.addEventListener('click', function () { show(t.getAttribute('data-tab')); });
+                        t.addEventListener('keydown', function (e) {
+                            let next = -1;
+                            if (e.key === 'ArrowRight') next = (i + 1) % tabs.length;
+                            if (e.key === 'ArrowLeft') next = (i - 1 + tabs.length) % tabs.length;
+                            if (e.key === 'Home') next = 0;
+                            if (e.key === 'End') next = tabs.length - 1;
+                            if (next < 0) return;
+                            e.preventDefault();
+                            show(tabs[next].getAttribute('data-tab'));
+                            tabs[next].focus();
+                        });
+                    });
+                }
+
+                // Checked against the strip rather than turned into a selector, so a
+                // hand-edited localStorage value cannot become one.
+                let start = '';
+                try { start = localStorage.getItem('bonfire-admin-tab') || ''; } catch (e) { /* private mode */ }
+                if (names.indexOf(start) < 0) start = names[0];
+                show(start);
             }
 
             function loadConfiguration(page) {
@@ -1195,6 +1316,8 @@
                     saveConfiguration(page);
                     return false;
                 });
+                initTabs(page);
+
                 // pageshow can fire more than once for the same element, so guard against
                 // stacking duplicate handlers that would fire several retries per click.
                 page.querySelectorAll('.retryInjectionBtn').forEach(function (btn) {

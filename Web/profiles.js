@@ -1659,6 +1659,20 @@
 
         initLibraryArtworkEditor: function (container, profileId) {
             const rows = Array.prototype.slice.call(container.querySelectorAll(".libart-row"));
+            const list = container.querySelector(".libart-list");
+            const artToggle = container.querySelector(".libart-toggle input");
+            const artHint = container.querySelector(".libart-explainer");
+
+            // Off is the honest default: most profiles never touch artwork, and the
+            // controls meant nothing to anyone who was only picking libraries.
+            const showArtwork = (on) => {
+                if (list) list.classList.toggle("show-artwork", on);
+                if (artHint) artHint.style.display = on ? "" : "none";
+            };
+            if (artToggle) {
+                artToggle.addEventListener("change", (e) => showArtwork(e.target.checked));
+            }
+            showArtwork(false);
             const state = {};
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || "null");
 
@@ -1680,6 +1694,9 @@
 
                 select.value = entry.mode;
                 choose.style.visibility = entry.mode === "custom" ? "visible" : "hidden";
+                // Class, not an inline style: the artwork switch hides these by rule, and an
+                // inline display would outrank it and put the placeholder back.
+                row.classList.toggle("libart-has-art", entry.mode !== "inherit");
 
                 const preview = entry.mode === "custom" ? previewUrl(entry) : "";
                 thumb.style.backgroundImage = preview ? ("url(\"" + preview + "\")") : "";
@@ -1737,6 +1754,15 @@
                         };
                         paint(row);
                     });
+
+                    // A profile that already has artwork set should not have to find the
+                    // switch to see it. Only ever turns the section on, so it cannot fold
+                    // away controls somebody has just opened by hand.
+                    const anyArt = rows.some(r => (state[r.getAttribute("data-lib")] || {}).mode !== "inherit");
+                    if (anyArt && artToggle && !artToggle.checked) {
+                        artToggle.checked = true;
+                        showArtwork(true);
+                    }
                 })
                 .catch(() => { /* nothing stored yet, or a server older than this build */ });
             }
@@ -2447,22 +2473,25 @@
                     // the one that can hand somebody your admin rights, is somewhere you went
                     // on purpose rather than somewhere you can land while renaming a profile.
 
-                    // Deliberately in both modes. This used to render only when NOT managing,
-            // so the one screen actually called "Manage Profiles" was the one screen
-            // with no way to add a profile.
-            if (!atLimit) {
-                        cardsHtml += `
-                            <div class="profile-card action-add-profile" tabindex="0">
-                                <div class="profile-avatar-container">
-                                    <div class="profile-avatar add-avatar">+</div>
+                    // Manage Profiles only. The gate answers one question — who is
+                    // watching — and a card in that grid reads as a person. Adding one is
+                    // administration, and it belongs on the screen named for it, which is
+                    // one button away and already where you go to rename or delete.
+                    if (this.isManageMode) {
+                        if (!atLimit) {
+                            cardsHtml += `
+                                <div class="profile-card action-add-profile" tabindex="0">
+                                    <div class="profile-avatar-container">
+                                        <div class="profile-avatar add-avatar">+</div>
+                                    </div>
+                                    <div class="profile-name">Add Profile</div>
                                 </div>
-                                <div class="profile-name">Add Profile</div>
-                            </div>
-                        `;
-                    } else if (!this.isManageMode) {
-                        cardsHtml += `
-                            <div class="profiles-limit-notice">${subProfileCount}/${maxSubProfiles} profiles — limit reached</div>
-                        `;
+                            `;
+                        } else {
+                            cardsHtml += `
+                                <div class="profiles-limit-notice">${subProfileCount}/${maxSubProfiles} profiles — limit reached</div>
+                            `;
+                        }
                     }
                 }
 
@@ -3341,8 +3370,8 @@
             const preview = currentImage ? avatarInner(currentImage, '+', /* useThumb */ true) : '+';
 
             const libraryHtml = hasLibrary ? `
-                <div class="form-group" style="margin: 0;">
-                    <div class="form-hint" style="margin: 0 0 6px 0;">Choose one of your server's avatars</div>
+                <div class="picture-source-block">
+                    <div class="picture-source-title">From this server</div>
                     <div id="${prefix}-avatar-library" class="avatar-library-grid">
                         ${library.avatars.map(a => `
                             <button type="button" class="avatar-library-item" tabindex="0"
@@ -3359,7 +3388,8 @@
             // The upload control disappears entirely when the administrator has locked
             // avatars to the library — a disabled button people cannot use is just noise.
             const uploadHtml = library.allowCustomUploads ? `
-                <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0; width: 100%;">
+                <div class="picture-source-block">
+                    <div class="picture-source-title">From this device</div>
                     <label for="${prefix}-profile-image-file" id="${prefix}-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
                         <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
                         <span>Upload a picture</span>
@@ -3373,38 +3403,41 @@
                 </div>
             `;
 
-            const urlHtml = library.allowCustomUploads ? `
-                <div class="form-divider"><span>OR</span></div>
-                <div class="form-group" style="margin: 0;">
-                    <input type="text" id="${prefix}-profile-image-url" placeholder="Paste image URL" />
-                    <div class="form-hint" style="margin: 4px 0 0 0;">Linked directly, not stored on your server — and not croppable.</div>
-                </div>
-            ` : '';
+            // A pasted URL was the odd one out among the ways of setting a picture: it
+            // could not be cropped, nothing was copied onto the server, and the avatar
+            // broke the day the far end went away — with no sign here that it had. Every
+            // other path ends in a file this server owns.
 
-            // Setting one picture used to mean six controls on screen at once: the
-            // library grid, the preview, an Upload button, an OR divider, a URL field and
-            // Remove. The preview and one action stay; the ways of choosing collapse
-            // behind them. Open by default when there is no picture yet, because on a new
-            // profile choosing one IS the task — it is on an existing profile that the
-            // whole apparatus was sitting there for nothing.
+            // Open when there is no picture yet, because on a new profile choosing one IS
+            // the task. On a profile that already has one, the whole apparatus was sitting
+            // open for nothing.
             const sourcesOpen = !currentImage;
 
+            // Remove is rendered here rather than by the edit form, so the two actions are
+            // the same size and sit together. It was a third-height button hanging under
+            // the row, which read as belonging to whatever came next.
             return `
                 <div class="form-group">
                     <label>Profile Picture</label>
                     <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: var(--jpf-gap);">
                         <div class="image-upload-row">
                             <div id="${prefix}-image-upload-preview" class="image-upload-preview" style="background-color: ${safeColor(currentColor)};">${preview}</div>
-                            <button type="button" id="${prefix}-change-picture" class="profiles-btn btn-secondary image-upload-btn"
-                                    aria-expanded="${sourcesOpen}" aria-controls="${prefix}-picture-sources">
-                                <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
-                                <span>${currentImage ? 'Change picture' : 'Choose a picture'}</span>
-                            </button>
+                            <div class="image-upload-actions">
+                                <button type="button" id="${prefix}-change-picture" class="profiles-btn btn-secondary image-upload-btn"
+                                        aria-expanded="${sourcesOpen}" aria-controls="${prefix}-picture-sources">
+                                    <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
+                                    <span>${currentImage ? 'Change picture' : 'Choose a picture'}</span>
+                                </button>
+                                <button type="button" id="${prefix}-clear-profile-image-btn" class="profiles-btn btn-secondary image-upload-btn picture-remove-btn"
+                                        style="display: ${currentImage ? 'inline-flex' : 'none'};">
+                                    <span class="material-icons" style="font-size: 1.25rem;">delete_outline</span>
+                                    <span>Remove</span>
+                                </button>
+                            </div>
                         </div>
                         <div id="${prefix}-picture-sources" class="picture-sources${sourcesOpen ? ' is-open' : ''}">
                             ${libraryHtml}
                             ${uploadHtml}
-                            ${urlHtml}
                         </div>
                         <div id="${prefix}-image-error" style="display:none; color:#ff6b6b; font-size:0.82rem; font-weight:600; line-height:1.45;"></div>
                     </div>
@@ -3424,7 +3457,7 @@
             const errEl = container.querySelector(`#${prefix}-image-error`);
             const fileInput = container.querySelector(`#${prefix}-profile-image-file`);
             const fileLabel = container.querySelector(`#${prefix}-profile-image-label`);
-            const urlInput = container.querySelector(`#${prefix}-profile-image-url`);
+            const removeBtn = container.querySelector(`#${prefix}-clear-profile-image-btn`);
 
             const showError = (message) => {
                 if (!errEl) return;
@@ -3436,6 +3469,10 @@
                 if (!previewEl) return;
                 previewEl.style.position = 'relative';
                 previewEl.innerHTML = src ? avatarInner(src, '+', /* useThumb */ true) : '+';
+                // Removing is only an option while there is something to remove. Driven
+                // from here so it is right on the first paint too — setPreview runs once
+                // at init.
+                if (removeBtn) removeBtn.style.display = src ? 'inline-flex' : 'none';
                 if (typeof onPreviewChange === 'function') onPreviewChange(src);
             };
             setPreview(state.image);
@@ -3458,7 +3495,6 @@
                 state.libraryId = null;
                 setPreview(result.image);
                 showError('');
-                if (urlInput) urlInput.value = '';
                 if (fileInput) fileInput.value = '';
             };
 
@@ -3510,31 +3546,21 @@
                 });
             });
 
-            if (urlInput) {
-                urlInput.addEventListener('input', () => {
-                    const url = urlInput.value.trim();
-                    // A remote URL is stored as a link, so there is nothing to crop and no
-                    // thumbnail to generate — the browser scales it on render instead.
-                    state.image = url || null;
-                    state.thumb = null;
-                    state.libraryId = null;
-                    setPreview(url || null);
-                    if (fileInput) fileInput.value = '';
-                });
-            }
+            // Empty string, not null: the server reads that as "delete the picture",
+            // whereas null means "leave it alone".
+            const clearPicture = () => {
+                state.image = '';
+                state.thumb = null;
+                state.libraryId = null;
+                setPreview(null);
+                if (fileInput) fileInput.value = '';
+            };
+
+            if (removeBtn) removeBtn.addEventListener('click', clearPicture);
 
             return {
                 get: () => ({ image: state.image, thumb: state.thumb, libraryId: state.libraryId }),
-                clear: () => {
-                    // Empty string, not null: the server reads that as "delete the picture",
-                    // whereas null means "leave it alone".
-                    state.image = '';
-                    state.thumb = null;
-                    state.libraryId = null;
-                    setPreview(null);
-                    if (urlInput) urlInput.value = '';
-                    if (fileInput) fileInput.value = '';
-                },
+                clear: clearPicture,
                 setError: showError
             };
         },
@@ -3620,7 +3646,7 @@
                                 </label>
                             `).join('')}
                         </div>
-                        <div class="form-hint">If nothing is selected, this profile inherits every library your account can see.</div>
+                        <div class="form-hint">Tick nothing and this profile sees the same libraries as your account.</div>
                     </div>
                 `;
 
@@ -3943,9 +3969,6 @@
                         <div class="form-hint" data-role="color-hint">Used as the avatar background when no picture is set.</div>
                     </div>
                     ${this.renderAvatarPicker('edit', avatarLibrary, profile.profileImage, profile.avatarColor)}
-                    ${profile.profileImage ? `
-                        <button type="button" id="edit-clear-profile-image-btn" class="profiles-btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; align-self: flex-start; margin-top: -6px;">Remove Picture</button>
-                    ` : ''}
                 `;
 
                 // ── Section 2: getting into this profile ────────────────────────
@@ -3995,7 +4018,14 @@
                                 <span>Select all</span>
                             </label>
                         </div>
+                        <div class="form-hint" style="margin: 0 0 8px 0;">
+                            Tick nothing and this profile sees the same libraries as your account.
+                        </div>
                         <div class="libart-list" id="edit-library-artwork">
+                            <div class="libart-head" aria-hidden="true">
+                                <span class="libart-head-lib">Library</span>
+                                <span class="libart-head-art">Artwork</span>
+                            </div>
                             ${normalizedLibs.map(lib => {
                                 const storedFolders = profile.enabledFolders;
                                 let isChecked;
@@ -4021,7 +4051,16 @@
                                 `;
                             }).join('')}
                         </div>
-                        <div class="form-hint">If nothing is ticked, this profile inherits every library your account can see. Artwork applies to the tile Jellyfin builds from the items inside a library, which can show something this profile cannot open — Hidden shows just the icon and name.</div>
+                        <label class="library-check-label libart-toggle">
+                            <input type="checkbox" id="edit-libart-toggle" />
+                            <span>Choose the artwork on each library tile</span>
+                        </label>
+                        <div class="form-hint libart-explainer" id="edit-libart-hint" style="display: none;">
+                            A library tile takes its picture from whatever is inside the library —
+                            which can be something this profile is not allowed to open.
+                            <strong>Picture</strong> puts an image you choose on the tile instead, and
+                            <strong>Hidden</strong> leaves just the icon and the name.
+                        </div>
                     </div>
                 `;
 
@@ -4130,23 +4169,15 @@
                     });
                 });
 
-                const clearImgBtn = document.getElementById('edit-clear-profile-image-btn');
+                // Remove now lives inside the picker, next to Change picture, and shows
+                // itself from setPreview — so there is nothing left to wire here.
                 const avatarPicker = this.initAvatarPicker(
                     content, 'edit', avatarLibrary, profile.profileImage,
                     (src) => {
-                        // The Remove button only makes sense while there is a picture.
-                        if (clearImgBtn) clearImgBtn.style.display = src ? 'block' : 'none';
                         this.setColorGroupInert('edit', !!src);
                         const preview = document.getElementById('edit-image-upload-preview');
                         if (preview && !src) preview.innerHTML = escapeHtml(profile.avatarInitial);
                     });
-
-                if (clearImgBtn) {
-                    clearImgBtn.addEventListener('click', () => {
-                        avatarPicker.clear();
-                        clearImgBtn.style.display = 'none';
-                    });
-                }
 
                 // Support D-pad Enter/Space select on color dots
                 content.addEventListener('keydown', (e) => {
@@ -5851,16 +5882,61 @@
                 .avatar-color-group.is-inert {
                     opacity: 0.45;
                 }
-                /* Collapsed by default on a profile that already has a picture. */
+                /* Change picture and Remove: same class, same height, one group. */
+                .image-upload-actions {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    flex-wrap: wrap;
+                    min-width: 0;
+                }
+                .picture-remove-btn .material-icons {
+                    color: rgba(255, 107, 107, 0.85);
+                }
+                .picture-remove-btn:hover, .picture-remove-btn:focus {
+                    color: #ff8787;
+                }
+                /* Collapsed by default on a profile that already has a picture. When it
+                   opens it needs to read as one panel belonging to the button above it —
+                   loose controls stacked in the form was the part that looked unfinished. */
                 .picture-sources {
                     display: none;
                     flex-direction: column;
                     gap: var(--jpf-gap);
                     width: 100%;
                     min-width: 0;
+                    padding: 0.9rem;
+                    background: rgba(0, 0, 0, 0.18);
+                    border: 1px solid rgba(255, 255, 255, 0.09);
+                    border-radius: var(--jpf-r-md);
                 }
                 .picture-sources.is-open {
                     display: flex;
+                }
+                .picture-source-block {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    min-width: 0;
+                }
+                /* One rule, so a server with uploads locked off does not leave a divider
+                   above nothing. */
+                .picture-source-block + .picture-source-block {
+                    border-top: 1px solid rgba(255, 255, 255, 0.08);
+                    padding-top: var(--jpf-gap);
+                }
+                .picture-source-title {
+                    font-size: 0.72rem;
+                    font-weight: 700;
+                    letter-spacing: 0.06em;
+                    text-transform: uppercase;
+                    color: rgba(255, 255, 255, 0.5);
+                }
+                /* The panel is the box now; a second one inside it was two frames deep. */
+                .picture-sources .avatar-library-grid {
+                    background: transparent;
+                    border: none;
+                    padding: 0;
                 }
                 .avatar-library-grid {
                     display: grid;
@@ -6430,6 +6506,47 @@
                     border-radius: var(--jpf-r-md);
                     padding: 8px;
                 }
+                /* Only there to say what the second column is. Hidden with the controls it
+                   labels, and out of the accessibility tree either way — a remote should
+                   not have to step through a table header to reach the libraries. */
+                .libart-head {
+                    display: none;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: var(--jpf-gap);
+                    padding: 2px 8px 6px;
+                    font-size: 0.72rem;
+                    font-weight: 700;
+                    letter-spacing: 0.06em;
+                    text-transform: uppercase;
+                    color: rgba(255, 255, 255, 0.45);
+                }
+                .libart-list.show-artwork .libart-head {
+                    display: flex;
+                }
+                /* Artwork is opt-in. Without this the row carried an empty picture slot and
+                   an unlabelled dropdown for every library on the server. */
+                .libart-thumb,
+                .libart-mode,
+                .libart-choose {
+                    display: none;
+                }
+                .libart-list.show-artwork .libart-row.libart-has-art .libart-thumb {
+                    display: flex;
+                }
+                .libart-list.show-artwork .libart-mode {
+                    display: block;
+                }
+                .libart-list.show-artwork .libart-choose {
+                    display: inline-flex;
+                }
+                .libart-toggle {
+                    margin-top: 10px !important;
+                    font-size: 0.88rem !important;
+                }
+                .libart-explainer {
+                    margin-top: 6px;
+                }
                 .libart-row {
                     display: flex;
                     align-items: center;
@@ -6446,6 +6563,7 @@
                     width: 44px;
                     height: 26px;
                     flex-shrink: 0;
+                    order: 2;
                     border-radius: var(--jpf-r-sm);
                     background-color: rgba(255, 255, 255, 0.08);
                     background-size: cover;
@@ -6466,8 +6584,8 @@
                 }
                 .libart-name {
                     /* Enough to read a real library name before anything else gives. */
-                    flex: 1 1 150px;
-                    min-width: 150px;
+                    flex: 1 1 auto;
+                    min-width: 0;
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
@@ -6572,19 +6690,6 @@
                     margin-bottom: 0.35rem;
                 }
 
-                .form-divider {
-                    display: flex;
-                    align-items: center;
-                    gap: var(--jpf-gap);
-                    opacity: 0.5;
-                    font-size: 0.8rem;
-                    margin: 2px 0;
-                }
-                .form-divider::before, .form-divider::after {
-                    content: "";
-                    flex: 1;
-                    border-top: 1px solid rgba(255, 255, 255, 0.2);
-                }
                 .form-hint-warn {
                     color: rgba(245, 159, 0, 0.85) !important;
                 }
