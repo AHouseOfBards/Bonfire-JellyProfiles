@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**New**\n\n- Bonfire can now add its script to the page as Jellyfin serves it, instead of editing index.html on disk. Nothing to re-apply after a Jellyfin update, and no file permissions to grant. (#17, #11, #3)\n- **Settings → Client script** picks the method. The default keeps patching the file and only serves it live if that write fails, so upgrading changes nothing on a working server.\n\n**Changed**\n\n- Choosing \"never touch index.html\" also removes the tags Bonfire added earlier, restoring the file.\n- The settings page says whether live injection is actually running.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.4.1/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "8288f29afaeb8715fccbdb1dc4f2074a",
         "timestamp": "2026-08-22T00:00:00Z"
       },
       {
