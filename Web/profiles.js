@@ -1635,6 +1635,28 @@
         ///
         /// Choices are held in memory until the form is saved, so backing out leaves
         /// nothing behind — the same contract as every other field on the form.
+        /// Greys the artwork controls on a library this profile cannot see.
+        ///
+        /// Now that the tick and the artwork sit on one row, an enabled Picture
+        /// dropdown next to an unticked library would be offering to style something
+        /// that is not there.
+        syncLibraryRowState: function (row) {
+            if (!row) return;
+            const box = row.querySelector('.library-checkbox');
+            const on = !box || box.checked;
+
+            row.querySelectorAll('.libart-mode, .libart-choose').forEach(el => {
+                el.disabled = !on;
+            });
+            row.style.opacity = on ? '' : '0.5';
+        },
+
+        /// Applies the above to every row in a container.
+        syncAllLibraryRows: function (root) {
+            const scope = root || document;
+            scope.querySelectorAll('.libart-row').forEach(r => this.syncLibraryRowState(r));
+        },
+
         initLibraryArtworkEditor: function (container, profileId) {
             const rows = Array.prototype.slice.call(container.querySelectorAll(".libart-row"));
             const state = {};
@@ -3937,13 +3959,13 @@
                 const librariesBody = `
                     <div class="form-group">
                         <div class="section-inline-header">
-                            <label style="margin: 0;">Enabled Libraries</label>
+                            <label style="margin: 0;">Libraries</label>
                             <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
                                 <input type="checkbox" id="edit-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: var(--jpf-accent);" />
                                 <span>Select all</span>
                             </label>
                         </div>
-                        <div class="library-checklist">
+                        <div class="libart-list" id="edit-library-artwork">
                             ${normalizedLibs.map(lib => {
                                 const storedFolders = profile.enabledFolders;
                                 let isChecked;
@@ -3953,32 +3975,22 @@
                                     isChecked = enableAll || !blockedFolders.some(bf => this.normalizeGuid(bf) === this.normalizeGuid(lib.id));
                                 }
                                 return `
-                                    <label class="library-check-label">
-                                        <input type="checkbox" class="library-checkbox" value="${lib.id}" ${isChecked ? 'checked' : ''} />
-                                        <span>${escapeHtml(lib.name)}</span>
-                                    </label>
+                                    <div class="libart-row" data-lib="${lib.id}">
+                                        <input type="checkbox" class="library-checkbox" value="${lib.id}" ${isChecked ? 'checked' : ''}
+                                               aria-label="Show ${escapeHtml(lib.name)}" />
+                                        <span class="libart-thumb" aria-hidden="true"></span>
+                                        <span class="libart-name" title="${escapeHtml(lib.name)}">${escapeHtml(lib.name)}</span>
+                                        <select class="libart-mode" aria-label="Artwork for ${escapeHtml(lib.name)}">
+                                            <option value="inherit">Default</option>
+                                            <option value="custom">Picture</option>
+                                            <option value="none">Hidden</option>
+                                        </select>
+                                        <button type="button" class="profiles-btn btn-secondary libart-choose" style="padding:6px 12px; font-size:0.8rem;">Choose</button>
+                                    </div>
                                 `;
                             }).join('')}
                         </div>
-                        <div class="form-hint">If nothing is selected, this profile inherits every library your account can see.</div>
-                    </div>
-                    <div class="form-group">
-                        <label>Library Artwork</label>
-                        <div class="libart-list" id="edit-library-artwork">
-                            ${normalizedLibs.map(lib => `
-                                <div class="libart-row" data-lib="${lib.id}">
-                                    <span class="libart-thumb" aria-hidden="true"></span>
-                                    <span class="libart-name" title="${escapeHtml(lib.name)}">${escapeHtml(lib.name)}</span>
-                                    <select class="libart-mode" aria-label="Artwork for ${escapeHtml(lib.name)}">
-                                        <option value="inherit">Default</option>
-                                        <option value="custom">Picture</option>
-                                        <option value="none">Hidden</option>
-                                    </select>
-                                    <button type="button" class="profiles-btn btn-secondary libart-choose" style="padding:6px 12px; font-size:0.8rem;">Choose</button>
-                                </div>
-                            `).join('')}
-                        </div>
-                        <div class="form-hint">Jellyfin builds a library tile from the items inside it, which can show something this profile cannot open. Hidden shows the icon and name.</div>
+                        <div class="form-hint">If nothing is ticked, this profile inherits every library your account can see. Artwork applies to the tile Jellyfin builds from the items inside a library, which can show something this profile cannot open — Hidden shows just the icon and name.</div>
                     </div>
                 `;
 
@@ -4122,15 +4134,21 @@
                         libCheckboxes.forEach(cb => {
                             cb.checked = isChecked;
                         });
+                        this.syncAllLibraryRows(content);
                     });
 
                     libCheckboxes.forEach(cb => {
                         cb.addEventListener('change', () => {
                             const allChecked = Array.from(libCheckboxes).every(c => c.checked);
                             selectAllCheckbox.checked = allChecked;
+                            this.syncLibraryRowState(cb.closest('.libart-row'));
                         });
                     });
                 }
+
+                // The tick and the artwork controls share a row now, so the artwork half
+                // has to start out matching the tick rather than waiting for a change.
+                this.syncAllLibraryRows(content);
 
                 // Devices dropdown logic for edit
                 const editTrigger = document.getElementById('devices-dropdown-trigger');
@@ -6305,12 +6323,18 @@
                     max-height: 140px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1);
                 }
                 /* Per-library artwork rows in the edit form (issue #19). */
+                /* Deliberately no max-height and no overflow. This list used to scroll
+                   inside a form that also scrolled, next to a second list that scrolled
+                   too — three nested scroll areas, and on a D-pad no way to tell which
+                   one the remote had hold of. The dialog is the only scroller now. */
                 .libart-list {
                     display: flex;
                     flex-direction: column;
                     gap: 6px;
-                    max-height: 240px;
-                    overflow-y: auto;
+                    background: rgba(255,255,255,0.04);
+                    border: 1px solid rgba(255,255,255,0.1);
+                    border-radius: var(--jpf-r-md);
+                    padding: 8px;
                 }
                 .libart-row {
                     display: flex;
