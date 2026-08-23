@@ -3660,11 +3660,15 @@
 
                 content.innerHTML = `
                     <h1 class="profiles-title">Create Profile</h1>
-                    <div class="create-profile-container">
-                        ${this.renderSection('person', 'Profile', 'Name, colour, and picture', createAppearance)}
-                        ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', createSecurity)}
-                        ${this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', createLibraries)}
-                        ${this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', createRestrictions)}
+                    <div class="create-profile-container is-two-col">
+                        <div class="form-col">
+                            ${this.renderSection('person', 'Profile', 'Name, colour, and picture', createAppearance)}
+                            ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', createSecurity)}
+                        </div>
+                        <div class="form-col">
+                            ${this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', createLibraries)}
+                            ${this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', createRestrictions)}
+                        </div>
 
                         <div id="create-error-msg" class="form-error" style="display:none;"></div>
                         <div class="pin-actions">
@@ -4059,11 +4063,15 @@
 
                 content.innerHTML = `
                     <h1 class="profiles-title">Edit Profile</h1>
-                    <div class="create-profile-container">
-                        ${this.renderSection('person', 'Profile', 'Name, colour, and picture', appearanceBody)}
-                        ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', securityBody)}
-                        ${isSub ? this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', librariesBody) : ''}
-                        ${isSub ? this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', restrictionsBody) : ''}
+                    <div class="create-profile-container${isSub ? ' is-two-col' : ''}">
+                        <div class="form-col">
+                            ${this.renderSection('person', 'Profile', 'Name, colour, and picture', appearanceBody)}
+                            ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', securityBody)}
+                        </div>
+                        <div class="form-col">
+                            ${isSub ? this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', librariesBody) : ''}
+                            ${isSub ? this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', restrictionsBody) : ''}
+                        </div>
 
                         <div class="profile-dialog-actions">
                             <div class="dialog-action-buttons">
@@ -5914,14 +5922,21 @@
                 }
                 .profiles-grid {
                     display: flex; flex-wrap: wrap; gap: 3rem; justify-content: center; width: 100%;
+                    max-width: var(--jpf-w-wide); margin: 0 auto;
                 }
-                .profile-card {
-                    display: flex; flex-direction: column; align-items: center;
-                    width: 140px; cursor: pointer; position: relative;
-                }
-                .profile-avatar-container {
-                    position: relative; width: 130px; height: 130px;
-                    margin-top: 15px;
+                /* Cards used to be a fixed 140px whatever the display, so on a desktop
+                   they sat in a thin band with large voids above and below, and on a TV
+                   they were small at viewing distance. clamp keeps the phone size as
+                   the floor and lets them grow with the viewport. */
+                .profile-card {
+                    display: flex; flex-direction: column; align-items: center;
+                    width: clamp(140px, 12vw, 210px); cursor: pointer; position: relative;
+                }
+                .profile-avatar-container {
+                    position: relative;
+                    width: clamp(130px, 11vw, 195px);
+                    height: clamp(130px, 11vw, 195px);
+                    margin-top: 15px;
                 }
                 .profile-crown {
                     position: absolute; top: -20px; left: 50%;
@@ -6184,8 +6199,33 @@
                 }
 
                 /* Profile Creation Form styles */
-                .create-profile-container {
-                    width: 100%; max-width: 440px; box-sizing: border-box;
+                /* A column of sections. Below the breakpoint the two of these simply
+                   stack, so the phone order is unchanged: Profile, Security,
+                   Libraries, Restrictions. */
+                .form-col {
+                    display: flex; flex-direction: column; gap: 1.5rem;
+                    min-width: 0;
+                }
+
+                /* Two columns once there is room for them. Everything Bonfire drew was
+                   a phone column whatever the screen — on a desktop this form was a
+                   ~440px ribbon with the rest of the window empty, and the Save button
+                   several screens below the name field. */
+                @media (min-width: 900px) {
+                    .create-profile-container.is-two-col {
+                        max-width: var(--jpf-w-wide);
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        align-items: start;
+                        max-height: 85vh;
+                    }
+                    .create-profile-container.is-two-col .profile-dialog-actions {
+                        grid-column: 1 / -1;
+                    }
+                }
+
+                .create-profile-container {
+                    width: 100%; max-width: var(--jpf-w-form); box-sizing: border-box;
                     display: flex; flex-direction: column; gap: 1.5rem;
                     background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
                     border-radius: var(--jpf-r-lg); padding: 2rem; box-shadow: 0 20px 50px rgba(0,0,0,0.4);
