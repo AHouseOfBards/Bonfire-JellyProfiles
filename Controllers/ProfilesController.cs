@@ -877,7 +877,11 @@ namespace Jellyfin.Profiles.Controllers
             return Ok(new
             {
                 ActiveProfileToken = session.AccessToken,
-                JellyfinUserId = targetUser.Id
+                JellyfinUserId = targetUser.Id,
+                // Carried in the switch response so the client can cache it before the reload.
+                // Fetching it afterwards would leave a window in which the home screen shows
+                // the library artwork this profile is not supposed to see.
+                LibraryArtwork = DescribeLibraryArtwork(config, targetUser.Id)
             });
         }
 
@@ -1884,6 +1888,238 @@ namespace Jellyfin.Profiles.Controllers
                 SwitcherLocation = location,
                 SwitcherMode = askOnStartup ? SwitcherModes.Gate : SwitcherModes.Native
             });
+        }
+
+        // ── Library tile artwork (GitHub issue #19) ────────────────────────────────
+        //
+        // Jellyfin builds one image per library and caches it on the folder, from a query
+        // that has no user attached — so a profile restricted to children's films still gets
+        // a tile drawn from whatever else lives in that library. There is no per-user image
+        // for the server to hand out, so the client substitutes; these endpoints are the
+        // storage and the source of truth behind that.
+
+        /// <summary>
+        /// The calling profile's own artwork choices. Only entries that change something are
+        /// returned — an untouched library inherits Jellyfin's artwork and is simply absent.
+        /// </summary>
+        [HttpGet("library-artwork")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<IEnumerable<object>> GetMyLibraryArtwork()
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+
+            return Ok(DescribeLibraryArtwork(config, currentUserIdVal.Value));
+        }
+
+        /// <summary>
+        /// One profile's choices, for the edit form. Restricted to that profile's master, the
+        /// same rule that governs every other profile setting.
+        /// </summary>
+        [HttpGet("library-artwork/{profileId}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<IEnumerable<object>> GetProfileLibraryArtwork(Guid profileId)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+
+            var denied = DenyUnlessProfileOwner(config, currentUserIdVal.Value, profileId);
+            if (denied != null) return denied;
+
+            return Ok(DescribeLibraryArtwork(config, profileId));
+        }
+
+        /// <summary>Sets or clears one profile's artwork for one library.</summary>
+        [HttpPost("library-artwork")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> SetLibraryArtwork([FromBody] LibraryArtworkRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid currentUserId = currentUserIdVal.Value;
+
+            if (!Guid.TryParse(request.ProfileId, out var profileId)) return BadRequest("Missing profile.");
+            if (!Guid.TryParse(request.LibraryId, out var libraryId)) return BadRequest("Missing library.");
+
+            var denied = DenyUnlessProfileOwner(config, currentUserId, profileId);
+            if (denied != null) return denied;
+
+            // The master PIN guards profile edits, and artwork is one of them.
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
+            var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
+            {
+                if (!VerifyPinAndUpgrade(request.MasterPin, masterMapping, config))
+                {
+                    return BadRequest("Invalid Master PIN code.");
+                }
+            }
+
+            // The library has to be one Jellyfin actually knows about. Without this the id is
+            // just a string that ends up in a filename.
+            bool known = _libraryManager.GetVirtualFolders()
+                .Any(f => Guid.TryParse(f.ItemId, out var id) && id == libraryId);
+            if (!known) return BadRequest("That library no longer exists.");
+
+            string mode = LibraryArtworkModes.Normalize(request.Mode);
+            string baseName = LibraryArtName(profileId, libraryId);
+
+            if (mode == LibraryArtworkModes.Custom)
+            {
+                if (!string.IsNullOrEmpty(request.AvatarLibraryId))
+                {
+                    if (!CopyLibraryAvatar(request.AvatarLibraryId, LibraryArtFolder, baseName))
+                    {
+                        return BadRequest("That picture is no longer available.");
+                    }
+                }
+                else if (!string.IsNullOrEmpty(request.Image))
+                {
+                    // Same rule as profile pictures: when the administrator has curated a set,
+                    // an arbitrary upload is not an option here either.
+                    if (AreCustomAvatarsBlocked())
+                    {
+                        return BadRequest("Only pictures from the avatar library can be used.");
+                    }
+
+                    Directory.CreateDirectory(LibraryArtFolder);
+                    var ext = WriteImageFiles(LibraryArtFolder, baseName, request.Image, request.Thumb,
+                        "library artwork for profile " + profileId);
+                    if (ext == null) return BadRequest("That image could not be saved.");
+                }
+                else if (FindImageFile(LibraryArtFolder, baseName, false) == null)
+                {
+                    // Nothing supplied now and nothing stored before.
+                    return BadRequest("Choose a picture first.");
+                }
+            }
+            else
+            {
+                // Inherit and none both mean "stop serving a picture for this pair".
+                DeleteImageFiles(LibraryArtFolder, baseName);
+            }
+
+            lock (config)
+            {
+                var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+                if (mapping == null) return NotFound("Profile not found.");
+
+                if (mapping.LibraryArtwork == null) mapping.LibraryArtwork = new List<LibraryArtwork>();
+                var entry = mapping.LibraryArtwork.FirstOrDefault(a => a.LibraryId == libraryId);
+
+                if (mode == LibraryArtworkModes.Inherit)
+                {
+                    // Inherit is the default, so it is stored as absence rather than as a row.
+                    if (entry != null) mapping.LibraryArtwork.Remove(entry);
+                }
+                else if (entry == null)
+                {
+                    mapping.LibraryArtwork.Add(new LibraryArtwork { LibraryId = libraryId, Mode = mode });
+                }
+                else
+                {
+                    entry.Mode = mode;
+                }
+
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            _logger.LogInformation(
+                "ProfilesPlugin: Library artwork for profile {Profile}, library {Library} set to {Mode}.",
+                profileId, libraryId, mode);
+
+            return Ok(new { Mode = mode, Url = LibraryArtUrl(profileId, libraryId, mode) });
+        }
+
+        /// <summary>Serves a stored library picture. Anonymous, like the other image routes.</summary>
+        [HttpGet("library-art/{profileId}/{libraryId}")]
+        public ActionResult GetLibraryArtImage(Guid profileId, Guid libraryId, [FromQuery] string? size = null)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return NotFound();
+
+            // Serve only what the configuration says is in use. The ids are parsed as GUIDs,
+            // so they cannot carry a path, but a file left behind by an old choice should not
+            // stay reachable either.
+            var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+            var entry = mapping?.LibraryArtwork?.FirstOrDefault(a => a.LibraryId == libraryId);
+            if (entry == null || LibraryArtworkModes.Normalize(entry.Mode) != LibraryArtworkModes.Custom)
+            {
+                return NotFound();
+            }
+
+            bool wantThumb = string.Equals(size, "thumb", StringComparison.OrdinalIgnoreCase);
+            var found = FindImageFile(LibraryArtFolder, LibraryArtName(profileId, libraryId), wantThumb);
+            if (found == null)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: Library artwork for profile {Profile}, library {Library} is set but its file is missing.",
+                    profileId, libraryId);
+                return NotFound();
+            }
+
+            return File(System.IO.File.ReadAllBytes(found.Value.Path), found.Value.ContentType);
+        }
+
+        /// <summary>
+        /// Only the master of a profile may read or change its settings — the same rule the
+        /// create, update and delete endpoints apply. A master is its own owner.
+        /// </summary>
+        private ActionResult? DenyUnlessProfileOwner(PluginConfiguration config, Guid callerId, Guid profileId)
+        {
+            var callerMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == callerId);
+            Guid masterUserId = callerMapping != null ? callerMapping.MasterUserId : callerId;
+
+            if (callerId != masterUserId)
+            {
+                return Unauthorized("Only the master profile can manage profiles.");
+            }
+
+            if (profileId == masterUserId) return null;
+
+            var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+            if (mapping == null || mapping.MasterUserId != masterUserId)
+            {
+                return Unauthorized("That profile does not belong to this account.");
+            }
+
+            return null;
+        }
+
+        private static string? LibraryArtUrl(Guid profileId, Guid libraryId, string mode)
+            => mode == LibraryArtworkModes.Custom
+                ? "/plugins/profiles/library-art/" + profileId + "/" + libraryId + "?v=" + DateTime.UtcNow.Ticks
+                : null;
+
+        private static IEnumerable<object> DescribeLibraryArtwork(PluginConfiguration config, Guid profileId)
+        {
+            var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+            var entries = mapping?.LibraryArtwork ?? new List<LibraryArtwork>();
+
+            return entries.Select(a =>
+            {
+                string mode = LibraryArtworkModes.Normalize(a.Mode);
+                return (object)new
+                {
+                    LibraryId = a.LibraryId,
+                    Mode = mode,
+                    Url = LibraryArtUrl(profileId, a.LibraryId, mode)
+                };
+            }).ToList();
         }
 
         // ── Device Management ──────────────────────────────────────────────────────

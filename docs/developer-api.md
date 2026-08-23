@@ -117,6 +117,7 @@ Authenticates a profile selection and returns a scoped session token. Rate limit
 |---|---|---|
 | `activeProfileToken` | string | Scoped Jellyfin session token for the target profile. |
 | `jellyfinUserId` | string (GUID) | Jellyfin user ID of the target profile. |
+| `libraryArtwork` | array | The target profile’s library artwork choices, in the same shape as `GET /library-artwork`. Included so a client can apply them before reloading. Added in 1.4.0. |
 
 * **Error Responses:**
   * `400 Bad Request`: Incorrect PIN, device restrictions not met, target is an unprotected master account reached via Bonfire, invalid parameters, or the session for the target profile could not be created (device not permitted for that user, or its maximum active sessions reached). The body carries the reason.
@@ -129,6 +130,88 @@ Authenticates a profile selection and returns a scoped session token. Rate limit
 > can safely treat `401` as "my own token is no longer valid" and nothing else. Before 1.3.3 a
 > failure to create the target's session surfaced as a `401`, and clients that read it as session
 > expiry signed the user out of an account that was working fine (issue #15).
+
+### `GET /plugins/profiles/library-artwork`
+Returns the calling profile’s library tile artwork choices. Added in 1.4.0.
+
+* **Headers:** `Authorization: MediaBrowser Token="<token>"`
+* **Response `200 OK`:**
+
+```json
+[
+  {
+    "libraryId": "f137a2dd21bbc1b99aa5c0f6bf02a805",
+    "mode": "custom",
+    "url": "/plugins/profiles/library-art/<profileId>/<libraryId>?v=638..."
+  }
+]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `libraryId` | string (GUID) | The library the choice applies to. |
+| `mode` | string | `custom` (use `url`) or `none` (show no artwork). `inherit` is never returned — it is the default and is stored as absence. |
+| `url` | string | Path to the stored picture, or null unless the mode is `custom`. |
+
+> **Why a client has to do this.** Jellyfin builds one image per library and caches it on
+> the folder (`CollectionFolderImageProvider`, a collage of up to eight random items). The
+> query behind it has no user attached, so the artwork cannot respect who is asking: a
+> profile restricted to children’s films still gets a tile drawn from whatever else lives
+> in the library. There is no per-user image for the server to hand out, so a client that
+> wants this has to substitute it. The bundled `profiles.js` does it with one `!important`
+> stylesheet rule per library, keyed on the `data-id` jellyfin-web puts on every card.
+
+The same list is included in the `POST /switch` response as `libraryArtwork`, so a client
+can apply the incoming profile’s choices before it reloads rather than after — fetching
+afterwards leaves a window in which the restricted artwork is on screen.
+
+### `GET /plugins/profiles/library-artwork/{profileId}`
+The same list for another profile. Master-only, like every other profile setting.
+
+  * `401 Unauthorized`: Caller is not the master of that profile.
+
+### `POST /plugins/profiles/library-artwork`
+Sets or clears one profile’s artwork for one library.
+
+* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
+* **Body:**
+
+```json
+{
+  "profileId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a",
+  "libraryId": "f137a2dd21bbc1b99aa5c0f6bf02a805",
+  "mode": "custom",
+  "image": "data:image/jpeg;base64,...",
+  "thumb": "data:image/jpeg;base64,...",
+  "avatarLibraryId": null,
+  "masterPin": "1234"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `profileId` | string (GUID) | Yes | The profile whose view is being changed. |
+| `libraryId` | string (GUID) | Yes | Must be a library Jellyfin currently knows about. |
+| `mode` | string | Yes | `inherit`, `custom` or `none`. Unrecognised values normalise to `inherit`. |
+| `image` | string | No | Full-size picture as a data URL. Only read when the mode is `custom`. |
+| `thumb` | string | No | Small rendering of the same picture. |
+| `avatarLibraryId` | string | No | Use a picture from the administrator’s avatar library instead of `image`. Copied server-side, which is what makes "only allow avatars from this library" enforceable. |
+| `masterPin` | string | No | Required when the master account has a PIN. |
+
+`inherit` and `none` both delete any stored picture for that pair. Sending `custom` with
+neither `image` nor `avatarLibraryId` keeps whatever is already stored, and is refused if
+nothing is.
+
+  * `400 Bad Request`: Unknown library, invalid master PIN, an image that could not be
+    stored, or `custom` with no picture available.
+  * `401 Unauthorized`: Caller is not the master of that profile.
+
+### `GET /plugins/profiles/library-art/{profileId}/{libraryId}`
+Serves a stored picture. Unauthenticated, like the other image routes, and serves only
+pairs the configuration currently lists as `custom` — a file left behind by an earlier
+choice stops being reachable.
+
+* **Query:** `size=thumb` for the small rendering.
 
 ### `POST /plugins/profiles/verify-pin`
 Validates a profile PIN without switching the active session. Rate limited to 5 failed attempts in 15 minutes.

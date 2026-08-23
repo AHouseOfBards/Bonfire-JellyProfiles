@@ -162,7 +162,11 @@
                     <span>Upload avatars</span>
                 </label>
                 <input type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" style="display:none;" />
-                <div class="fieldDescription">JPEG, PNG, WebP or GIF. Pick several at once; they are squared and resized automatically.</div>
+                <label for="avatarFolderInput" id="avatarFolderLabel" is="emby-button" class="raised block" style="display:inline-block; cursor:pointer; max-width:280px; margin-left:8px;">
+                    <span>Upload a folder</span>
+                </label>
+                <input type="file" id="avatarFolderInput" webkitdirectory directory multiple style="display:none;" />
+                <div class="fieldDescription">JPEG, PNG, WebP or GIF. Pick several files or a whole folder; they are squared and resized automatically.</div>
                 <div id="avatarUploadStatus" style="display:none; font-size:0.88rem; opacity:0.75; margin-top:8px;"></div>
                 <div id="avatarUploadError" style="display:none; color:#ff6b6b; font-size:0.88rem; font-weight:600; margin-top:8px; line-height:1.6;"></div>
             </div>
@@ -1028,6 +1032,28 @@
                         if (!files || !files.length) return;
                         uploadAvatars(page, files);
                         avatarInput.value = '';
+                    });
+                }
+
+                const folderInput = page.querySelector('#avatarFolderInput');
+                if (folderInput && !folderInput.dataset.bound) {
+                    folderInput.dataset.bound = '1';
+                    folderInput.addEventListener('change', function (e) {
+                        // A folder brings everything in it, so the pictures are picked out
+                        // here. Handing the rest to the uploader would report a failure per
+                        // subtitle file and bury the real result.
+                        const all = Array.prototype.slice.call(e.target.files || []);
+                        const images = all.filter(function (f) {
+                            return /^image\//i.test(f.type || '') || /\.(jpe?g|png|webp|gif|bmp|avif)$/i.test(f.name || '');
+                        });
+                        folderInput.value = '';
+                        if (!images.length) {
+                            const errEl = page.querySelector('#avatarUploadError');
+                            errEl.textContent = 'No pictures in that folder.';
+                            errEl.style.display = 'block';
+                            return;
+                        }
+                        uploadAvatars(page, images);
                     });
                 }
 

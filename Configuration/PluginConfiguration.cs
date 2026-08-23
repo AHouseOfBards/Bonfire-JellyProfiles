@@ -174,6 +174,54 @@ namespace Jellyfin.Profiles.Configuration
         }
     }
 
+    /// <summary>
+    /// What a profile sees as a library's tile artwork.
+    /// <para>
+    /// Jellyfin builds one image per library and caches it on the folder
+    /// (<c>CollectionFolderImageProvider</c>, a collage of up to eight random items). The
+    /// query behind it has no user, so the artwork cannot respect who is asking: a profile
+    /// restricted to children's films still gets a tile drawn from whatever else is in the
+    /// library. That is GitHub issue #19, and it is why the substitution has to happen in
+    /// the client — there is no per-user image for the server to hand out.
+    /// </para>
+    /// <para>
+    /// One setting with three values rather than an override plus a separate "hide artwork"
+    /// switch: two mechanisms would have to negotiate which wins, and this way choosing a
+    /// picture and refusing one are the same decision.
+    /// </para>
+    /// </summary>
+    public static class LibraryArtworkModes
+    {
+        /// <summary>Jellyfin's own artwork. The default, and what every profile had before 1.4.</summary>
+        public const string Inherit = "inherit";
+
+        /// <summary>A picture stored by this plugin for this profile and library.</summary>
+        public const string Custom = "custom";
+
+        /// <summary>No artwork at all — the tile falls back to its icon and name.</summary>
+        public const string None = "none";
+
+        /// <summary>Maps arbitrary input to a known mode, falling back to <see cref="Inherit"/>.</summary>
+        public static string Normalize(string? mode)
+        {
+            if (string.Equals(mode, Custom, System.StringComparison.OrdinalIgnoreCase)) return Custom;
+            if (string.Equals(mode, None, System.StringComparison.OrdinalIgnoreCase)) return None;
+            return Inherit;
+        }
+    }
+
+    /// <summary>
+    /// One profile's artwork choice for one library. Absent means <see cref="LibraryArtworkModes.Inherit"/>,
+    /// so a profile that has never been configured stores nothing at all.
+    /// </summary>
+    public class LibraryArtwork
+    {
+        public Guid LibraryId { get; set; }
+
+        /// <summary>See <see cref="LibraryArtworkModes"/>.</summary>
+        public string Mode { get; set; } = LibraryArtworkModes.Inherit;
+    }
+
     public class ProfileMapping
     {
         public Guid ProfileUserId { get; set; }
@@ -226,6 +274,13 @@ namespace Jellyfin.Profiles.Configuration
         public bool AllowHouseholdLanBypass { get; set; } = false;
         public List<string> AllowedDeviceIds { get; set; } = new List<string>();
         public string? ProfileImage { get; set; }
+        /// <summary>
+        /// Per-library tile artwork for this profile. Only libraries the profile has been
+        /// given a choice for appear here; anything absent inherits Jellyfin's own artwork.
+        /// The picture itself lives on disk under <c>libraryart/</c>, named from the profile
+        /// and library ids, so no separate image identifier has to be stored or kept in step.
+        /// </summary>
+        public List<LibraryArtwork> LibraryArtwork { get; set; } = new List<LibraryArtwork>();
         public bool HideMySubProfilesFromOthers { get; set; } = false;
         public bool HideOthersSubProfilesFromMe { get; set; } = false;
         /// <summary>

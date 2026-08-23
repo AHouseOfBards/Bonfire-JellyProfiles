@@ -102,6 +102,9 @@
             panicKey: 'jellyfin_profiles_disabled',
             // Local mirror of the account's gate/native preference, so checkRoute can decide
             // whether to raise the gate without waiting on a request.
+            // Per-account cache of the library tile artwork rules, applied before the
+            // server answers so the real artwork never gets a frame on screen.
+            libraryArtKey: 'jellyfin_profiles_library_art',
             switcherModeKey: 'jellyfin_profiles_switcher_mode'
         },
         pluginId: 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9',
@@ -549,6 +552,11 @@
             this.injectStyles();
             // Kicked off before the first route check so the gate decision is usually made
             // with the real answer in hand rather than the cached one.
+            // Before any Jellyfin view renders: the cached rules have to be in the document
+            // by the time the first library card paints, or the artwork this profile is not
+            // meant to see gets a frame on screen.
+            this.applyCachedLibraryArtwork();
+            this.loadLibraryArtwork();
             this.loadSwitcherPrefs();
             this.bindPanicShortcut();
             // Bound once for the life of the page. It resolves the active Bonfire screen on
@@ -600,6 +608,7 @@
                     this._switcherPrefs = null;
                     // Learned from the same response as the preferences, so it goes with them.
                     this._panicLinkAvailable = null;
+                    localStorage.removeItem(this.config.libraryArtKey);
                     this.clearProfileSession();
                 } catch (e) { /* ignore storage errors */ }
             });
@@ -1512,6 +1521,304 @@
             }, 100);
         },
 
+        /// Builds the per-library artwork controls in the edit form and returns a handle
+        /// whose save() posts whatever changed.
+        ///
+        /// Choices are held in memory until the form is saved, so backing out leaves
+        /// nothing behind — the same contract as every other field on the form.
+        initLibraryArtworkEditor: function (container, profileId) {
+            const rows = Array.prototype.slice.call(container.querySelectorAll(".libart-row"));
+            const state = {};
+            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || "null");
+
+            // A value safe to drop into a CSS url(): a data payload or our own endpoint.
+            // Anything else previews as empty rather than as a broken rule.
+            const previewUrl = (entry) => {
+                if (entry.image && /^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/=]+$/i.test(entry.image)) {
+                    return entry.image;
+                }
+                return entry.url ? this._libraryArtUrl(entry.url) : "";
+            };
+
+            const paint = (row) => {
+                const id = row.getAttribute("data-lib");
+                const entry = state[id] || { mode: "inherit" };
+                const select = row.querySelector(".libart-mode");
+                const choose = row.querySelector(".libart-choose");
+                const thumb = row.querySelector(".libart-thumb");
+
+                select.value = entry.mode;
+                choose.style.visibility = entry.mode === "custom" ? "visible" : "hidden";
+
+                const preview = entry.mode === "custom" ? previewUrl(entry) : "";
+                thumb.style.backgroundImage = preview ? ("url(\"" + preview + "\")") : "";
+                thumb.textContent = (!preview && entry.mode === "none") ? "\u2014" : "";
+            };
+
+            rows.forEach(row => {
+                const id = row.getAttribute("data-lib");
+                state[id] = { mode: "inherit" };
+
+                row.querySelector(".libart-mode").addEventListener("change", (e) => {
+                    state[id].mode = e.target.value;
+                    state[id].dirty = true;
+                    paint(row);
+                    // Choosing Picture with nothing picked yet opens the picker, rather
+                    // than leaving a mode the server would refuse to save.
+                    if (state[id].mode === "custom" && !state[id].image && !state[id].url) {
+                        row.querySelector(".libart-choose").click();
+                    }
+                });
+
+                row.querySelector(".libart-choose").addEventListener("click", () => {
+                    this.pickLibraryArtwork((picked) => {
+                        state[id].mode = "custom";
+                        state[id].image = picked.image;
+                        state[id].thumb = picked.thumb;
+                        state[id].avatarLibraryId = picked.libraryId;
+                        state[id].url = null;
+                        state[id].dirty = true;
+                        paint(row);
+                    });
+                });
+
+                paint(row);
+            });
+
+            // Existing choices arrive after the form is drawn; the rows work meanwhile.
+            if (masterState && masterState.masterToken && rows.length) {
+                fetch(ApiClient.getUrl("plugins/profiles/library-artwork/" + profileId), {
+                    cache: "no-store",
+                    headers: this.getAuthHeaders(masterState.masterToken)
+                })
+                .then(res => res.ok ? res.json() : Promise.reject(new Error("unavailable")))
+                .then(entries => {
+                    (entries || []).forEach(entry => {
+                        const wanted = this.normalizeGuid(entry.libraryId || entry.LibraryId);
+                        const row = rows.find(r => this.normalizeGuid(r.getAttribute("data-lib")) === wanted);
+                        if (!row) return;
+                        const key = row.getAttribute("data-lib");
+                        // Anything already changed by hand outranks what the server had.
+                        if (state[key].dirty) return;
+                        state[key] = {
+                            mode: String(entry.mode || entry.Mode || "inherit").toLowerCase(),
+                            url: entry.url || entry.Url || null
+                        };
+                        paint(row);
+                    });
+                })
+                .catch(() => { /* nothing stored yet, or a server older than this build */ });
+            }
+
+            return {
+                save: (targetProfileId) => {
+                    const changed = rows.filter(r => state[r.getAttribute("data-lib")].dirty);
+                    if (!changed.length) return Promise.resolve();
+
+                    // One at a time: each request can carry an image and the server writes
+                    // files, so firing them together buys nothing and risks a partial save.
+                    return changed.reduce((chain, row) => chain.then(() => {
+                        const id = row.getAttribute("data-lib");
+                        const entry = state[id];
+                        return fetch(ApiClient.getUrl("plugins/profiles/library-artwork"), {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                ...this.getAuthHeaders(masterState ? masterState.masterToken : ApiClient.accessToken())
+                            },
+                            body: JSON.stringify({
+                                profileId: targetProfileId,
+                                libraryId: id,
+                                mode: entry.mode,
+                                image: entry.image || null,
+                                thumb: entry.thumb || null,
+                                avatarLibraryId: entry.avatarLibraryId || null,
+                                masterPin: this.masterPin
+                            })
+                        }).then(res => {
+                            if (!res.ok) return res.text().then(t => { throw new Error(t || "Could not save the artwork."); });
+                            entry.dirty = false;
+                        });
+                    }), Promise.resolve());
+                }
+            };
+        },
+
+        /// Opens the picker and crop editor the profile pictures already use, so library
+        /// artwork gets the avatar library, uploads and positioning without a second
+        /// implementation of any of it.
+        pickLibraryArtwork: function (onPicked) {
+            const apiClient = ApiClient;
+            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || "null");
+            const token = masterState ? masterState.masterToken : apiClient.accessToken();
+
+            this.fetchAvatarLibrary(apiClient, token).then(library => {
+                if (document.getElementById("profiles-libart-dialog")) return;
+
+                const dialog = document.createElement("div");
+                dialog.id = "profiles-libart-dialog";
+                dialog.style.cssText =
+                    "position:fixed; top:0; left:0; right:0; bottom:0;" +
+                    "background:rgba(0,0,0,0.85); backdrop-filter:blur(8px);" +
+                    "display:flex; align-items:center; justify-content:center; z-index:" + DIALOG_Z + ";";
+                dialog.innerHTML =
+                    '<div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius:12px;' +
+                    ' padding:22px; max-width:420px; width:94%; max-height:86vh; overflow:auto;">' +
+                    '<h2 style="margin:0 0 14px 0; color:#fff; font-size:1.15rem; font-weight:700;">Library artwork</h2>' +
+                    '<div id="profiles-libart-host"></div>' +
+                    '<div id="profiles-libart-error" style="display:none; color:#ff6b6b; font-size:0.85rem;' +
+                    ' font-weight:600; margin-top:8px;"></div>' +
+                    '<div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px;">' +
+                    '<button id="profiles-libart-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>' +
+                    '<button id="profiles-libart-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">Use picture</button>' +
+                    '</div></div>';
+                document.body.appendChild(dialog);
+
+                const host = dialog.querySelector("#profiles-libart-host");
+                host.innerHTML = this.renderAvatarPicker("libart", library, null, "#00A4DC");
+                const picker = this.initAvatarPicker(host, "libart", library, null, () => {});
+
+                const close = () => dialog.remove();
+                dialog.querySelector("#profiles-libart-cancel").addEventListener("click", close);
+                dialog.querySelector("#profiles-libart-save").addEventListener("click", () => {
+                    const picked = picker.get();
+                    if (!picked.image && !picked.libraryId) {
+                        const err = dialog.querySelector("#profiles-libart-error");
+                        err.textContent = "Choose a picture first.";
+                        err.style.display = "block";
+                        return;
+                    }
+                    close();
+                    onPicked(picked);
+                });
+
+                setTimeout(() => {
+                    const first = dialog.querySelector("button, input");
+                    if (first) first.focus();
+                }, 50);
+            });
+        },
+
+        // ─── Library tile artwork (issue #19) ──────────────────────────────────────
+        //
+        // Jellyfin builds one image per library and caches it on the folder, from a query
+        // with no user attached, so the tile for a mixed library can be drawn from something
+        // the active profile is not allowed to open. There is no per-user image to ask the
+        // server for, so the substitution happens here.
+        //
+        // It is done with a stylesheet rule per library rather than by touching the cards.
+        // jellyfin-web renders `.card[data-id]` containing a `.cardImageContainer` and fills
+        // its background in later from `data-src`, as a plain inline style. A stylesheet rule
+        // marked !important outranks a non-important inline one, so ours wins without having
+        // to race the lazy loader, survives every re-render with no observer, and applies
+        // anywhere a card for that library appears.
+        //
+        // Honest limit: jellyfin-web preloads the original through `new Image()` before it
+        // sets the style, so the file is still fetched even though it is never displayed.
+        // Stopping that would mean rewriting `data-src` before the loader reads it, which is
+        // the fragile DOM race this approach exists to avoid. Nobody sees the picture; it is
+        // not a claim that the bytes never reach the device.
+
+        LIBRARY_ART_STYLE_ID: 'profiles-library-art',
+
+        /// Accepts only the shape our own endpoint produces. The value is interpolated into
+        /// a stylesheet, where escapeHtml would be the wrong tool and a stray quote or
+        /// parenthesis would end the rule early.
+        _libraryArtUrl: function (value) {
+            if (!value) return '';
+            const raw = String(value).trim();
+            if (!/^\/plugins\/profiles\/library-art\/[0-9a-f-]{36}\/[0-9a-f-]{36}(\?v=\d+)?$/i.test(raw)) return '';
+            return pluginUrl(raw);
+        },
+
+        /// Writes the rules for `entries` into a single style element, replacing whatever was
+        /// there. Entries are `{ libraryId, mode, url }`; anything unrecognised is skipped.
+        applyLibraryArtwork: function (entries) {
+            let css = '';
+
+            (entries || []).forEach(entry => {
+                const id = String(entry.libraryId || entry.LibraryId || '');
+                // Library ids are GUIDs. Anything else does not go into a selector.
+                if (!/^[0-9a-f-]{36}$/i.test(id)) return;
+
+                const mode = String(entry.mode || entry.Mode || '').toLowerCase();
+                const selector = '.card[data-id="' + id + '"] .cardImageContainer';
+
+                if (mode === 'custom') {
+                    const url = this._libraryArtUrl(entry.url || entry.Url);
+                    if (!url) return;
+                    css += selector + '{background-image:url("' + url + '")!important;' +
+                           'background-size:cover!important;background-position:center!important;}';
+                } else if (mode === 'none') {
+                    // Reveals the card padder underneath, which is the icon and name — the
+                    // same thing a library with no artwork shows.
+                    css += selector + '{background-image:none!important;}';
+                }
+            });
+
+            let style = document.getElementById(this.LIBRARY_ART_STYLE_ID);
+            if (!css) {
+                if (style) style.remove();
+                return;
+            }
+            if (!style) {
+                style = document.createElement('style');
+                style.id = this.LIBRARY_ART_STYLE_ID;
+                document.head.appendChild(style);
+            }
+            style.textContent = css;
+        },
+
+        /// Remembers the rules against the account they belong to, so the next load can apply
+        /// them before any request comes back. Without this every page load would show the
+        /// real artwork until the fetch resolved, which is the whole thing being avoided.
+        cacheLibraryArtwork: function (userId, entries) {
+            try {
+                localStorage.setItem(this.config.libraryArtKey, JSON.stringify({
+                    userId: this.normalizeGuid(userId),
+                    entries: entries || []
+                }));
+            } catch (e) { /* storage full or blocked — the fetch below still applies them */ }
+        },
+
+        /// Applies the cached rules if they belong to whoever is signed in now.
+        applyCachedLibraryArtwork: function () {
+            try {
+                const cached = JSON.parse(localStorage.getItem(this.config.libraryArtKey) || 'null');
+                if (!cached || !cached.entries) return;
+
+                const current = (typeof ApiClient !== 'undefined' && ApiClient)
+                    ? this.normalizeGuid(ApiClient.getCurrentUserId()) : '';
+                // A cache belonging to somebody else is worse than none: it would paint one
+                // profile's choices over another's libraries.
+                if (!current || this.normalizeGuid(cached.userId) !== current) return;
+
+                this.applyLibraryArtwork(cached.entries);
+            } catch (e) { /* unreadable cache — the fetch will rebuild it */ }
+        },
+
+        /// Refreshes the rules from the server for whoever is signed in.
+        loadLibraryArtwork: function () {
+            if (typeof ApiClient === 'undefined' || !ApiClient || !ApiClient.accessToken()) return;
+            const userId = ApiClient.getCurrentUserId();
+            if (!userId) return;
+
+            fetch(ApiClient.getUrl('plugins/profiles/library-artwork'), {
+                cache: 'no-store',
+                headers: this.getAuthHeaders(ApiClient.accessToken())
+            })
+            .then(res => res.ok ? res.json() : Promise.reject(new Error('unavailable')))
+            .then(entries => {
+                const list = Array.isArray(entries) ? entries : [];
+                this.cacheLibraryArtwork(userId, list);
+                this.applyLibraryArtwork(list);
+            })
+            .catch(() => {
+                // Server unreachable, or a server older than this build. Leave whatever the
+                // cache already applied rather than dropping back to Jellyfin's artwork.
+            });
+        },
+
         // ─── D-pad focus trap ─────────────────────────────────────────────────────
         // Issue #16: on a television our screens cover the page, but Jellyfin's own
         // navigation is still listening on document and still sees every element behind
@@ -1571,7 +1878,7 @@
             const back = surface.querySelector(
                 '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
                 '#pin-cancel-btn, #master-pin-cancel-btn, #create-cancel-btn, #edit-cancel-btn, ' +
-                '#bonfire-back-btn, #switcher-mode-back-btn, #profiles-resume-btn'
+                '#bonfire-back-btn, #switcher-mode-back-btn, #profiles-resume-btn, #profiles-libart-cancel'
             );
             if (back) back.click();
         },
@@ -2473,6 +2780,10 @@
                 }
 
                 this._sessionSet(this.config.activeSessionKey, activeProfileToken);
+                // Cached against the profile being switched into, before the reload, so the
+                // next load starts with the right rules already in place.
+                this.cacheLibraryArtwork(jellyfinUserId, data.libraryArtwork || data.LibraryArtwork || []);
+
                 // A switch has happened; there is no longer an earlier profile to go back to.
                 this._resumeState = null;
 
@@ -3398,7 +3709,11 @@
                         return res.json();
                     })
                     .then(() => {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
+                        // Artwork is stored per library, so it is saved after the profile
+                        // itself rather than folded into that one request.
+                        return artworkEditor.save(profile.profileUserId).then(() => {
+                            this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
+                        });
                     })
                     .catch(err => {
                         const el = document.getElementById('create-error-msg');
@@ -3409,6 +3724,7 @@
                 document.getElementById('create-cancel-btn').addEventListener('click', () => {
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
                 });
+                const artworkEditor = this.initLibraryArtworkEditor(content, profile.profileUserId);
                 this.initTVCheckboxes(content);
                 this.initTagEditors(content);
             });
@@ -3532,6 +3848,24 @@
                             }).join('')}
                         </div>
                         <div class="form-hint">If nothing is selected, this profile inherits every library your account can see.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Library Artwork</label>
+                        <div class="libart-list" id="edit-library-artwork">
+                            ${normalizedLibs.map(lib => `
+                                <div class="libart-row" data-lib="${lib.id}">
+                                    <span class="libart-thumb" aria-hidden="true"></span>
+                                    <span class="libart-name">${escapeHtml(lib.name)}</span>
+                                    <select class="libart-mode" aria-label="Artwork for ${escapeHtml(lib.name)}">
+                                        <option value="inherit">Default</option>
+                                        <option value="custom">Picture</option>
+                                        <option value="none">Hidden</option>
+                                    </select>
+                                    <button type="button" class="profiles-btn btn-secondary libart-choose" style="padding:6px 12px; font-size:0.8rem;">Choose</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="form-hint">Jellyfin draws a library tile from the items inside it, which can show artwork this profile cannot open. Hidden shows the icon and name instead.</div>
                     </div>
                 `;
 
@@ -5665,6 +5999,56 @@
                     background: rgba(255,255,255,0.04); border-radius: 8px;
                     padding: 10px; display: flex; flex-direction: column; gap: 0.5rem;
                     max-height: 140px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1);
+                }
+                /* Per-library artwork rows in the edit form (issue #19). */
+                .libart-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
+                    max-height: 240px;
+                    overflow-y: auto;
+                }
+                .libart-row {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    padding: 6px 8px;
+                    border-radius: 6px;
+                    background: rgba(255, 255, 255, 0.04);
+                }
+                .libart-thumb {
+                    width: 44px;
+                    height: 26px;
+                    flex-shrink: 0;
+                    border-radius: 4px;
+                    background-color: rgba(255, 255, 255, 0.08);
+                    background-size: cover;
+                    background-position: center;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 0.8rem;
+                    color: rgba(255, 255, 255, 0.35);
+                }
+                .libart-name {
+                    flex: 1;
+                    min-width: 0;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                    font-size: 0.9rem;
+                }
+                .libart-mode {
+                    flex-shrink: 0;
+                    width: auto !important;
+                    min-width: 100px;
+                    padding: 4px 6px !important;
+                    font-size: 0.82rem !important;
+                    margin: 0 !important;
+                }
+                /* Kept in the layout when hidden so rows do not jump as modes change. */
+                .libart-choose {
+                    flex-shrink: 0;
                 }
                 .library-check-label {
                     display: flex !important; align-items: center !important; gap: 0.6rem; cursor: pointer;

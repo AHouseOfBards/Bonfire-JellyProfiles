@@ -840,6 +840,17 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>The directory holding the administrator's shared avatar library.</summary>
         protected static string AvatarLibraryFolder => Path.Combine(ProfileImageFolder, "avatars");
 
+        /// <summary>The directory holding per-profile library tile artwork (GitHub issue #19).</summary>
+        protected static string LibraryArtFolder => Path.Combine(ProfileImageFolder, "libraryart");
+
+        /// <summary>
+        /// File name for one profile's artwork for one library. Derived from the two ids rather
+        /// than stored, so the configuration cannot drift out of step with what is on disk and
+        /// there is no orphaned identifier to clean up.
+        /// </summary>
+        protected static string LibraryArtName(Guid profileId, Guid libraryId)
+            => profileId.ToString("N") + "_" + libraryId.ToString("N");
+
         /// <summary>
         /// True when the administrator has restricted profile pictures to the avatar library.
         /// Hiding the upload control is presentation; this is the rule.
@@ -861,20 +872,31 @@ namespace Jellyfin.Profiles.Controllers
         /// </summary>
         protected string? CopyLibraryAvatarToProfile(Guid profileId, string libraryAvatarId)
         {
+            return CopyLibraryAvatar(libraryAvatarId, ProfileImageFolder, profileId.ToString())
+                ? $"/plugins/profiles/image/{profileId}?v={DateTime.UtcNow.Ticks}"
+                : null;
+        }
+
+        /// <summary>
+        /// Copies a published library avatar to <paramref name="destFolder"/> under
+        /// <paramref name="baseName"/>, master and thumbnail alike. Returns false when the id
+        /// is unknown or nothing is on disk for it.
+        /// </summary>
+        protected bool CopyLibraryAvatar(string libraryAvatarId, string destFolder, string baseName)
+        {
             var config = Plugin.Instance?.Configuration;
             var item = config?.AvatarLibrary.FirstOrDefault(a =>
                 string.Equals(a.Id, libraryAvatarId, StringComparison.OrdinalIgnoreCase));
             if (item == null)
             {
                 _logger.LogWarning(
-                    "ProfilesPlugin: Profile {Id} asked for library avatar '{Avatar}', which does not exist.",
-                    profileId, libraryAvatarId);
-                return null;
+                    "ProfilesPlugin: Asked for library avatar '{Avatar}', which does not exist.",
+                    libraryAvatarId);
+                return false;
             }
 
-            var destFolder = ProfileImageFolder;
             Directory.CreateDirectory(destFolder);
-            DeleteImageFiles(destFolder, profileId.ToString());
+            DeleteImageFiles(destFolder, baseName);
 
             bool copiedAny = false;
             foreach (var (suffix, wantThumb) in new[] { (string.Empty, false), (ThumbSuffix, true) })
@@ -887,7 +909,7 @@ namespace Jellyfin.Profiles.Controllers
                     continue;
 
                 var extension = Path.GetExtension(source.Value.Path);
-                System.IO.File.Copy(source.Value.Path, Path.Combine(destFolder, $"{profileId}{suffix}{extension}"), true);
+                System.IO.File.Copy(source.Value.Path, Path.Combine(destFolder, $"{baseName}{suffix}{extension}"), true);
                 copiedAny = true;
             }
 
@@ -895,10 +917,9 @@ namespace Jellyfin.Profiles.Controllers
             {
                 _logger.LogWarning(
                     "ProfilesPlugin: Library avatar {Avatar} is listed but has no file on disk.", item.Id);
-                return null;
             }
 
-            return $"/plugins/profiles/image/{profileId}?v={DateTime.UtcNow.Ticks}";
+            return copiedAny;
         }
 
         protected string? SaveProfileImage(Guid profileId, string? profileImageInput, string? thumbInput = null)
