@@ -73,18 +73,17 @@ Add it alongside the stable one — both describe the same plugin, so Jellyfin m
 
 ## Library Artwork
 
-Jellyfin builds a library tile from the items inside that library, and the query behind
-it does not know who is looking. A profile restricted to children’s films can therefore
-end up with a Movies tile showing a poster it is not allowed to open.
+Jellyfin builds a library tile from the items inside it, and that query does not know who
+is looking. So a Kids profile can end up with a Movies tile showing a poster from a film it
+cannot open.
 
-Each profile can be given its own picture for a library, or told to show no artwork at
-all — in which case the tile falls back to its icon and name. Set it per profile under
-**Edit profile → Library Artwork**. Libraries left alone keep Jellyfin’s own artwork.
+Give a profile its own picture for a library, or no artwork at all, under **Edit profile
+→ Library Artwork**. With no artwork the tile falls back to its icon and name. Libraries
+left alone keep Jellyfin's own.
 
-Two honest limits. The substitution happens in the browser, so it changes what is shown,
-not what the server stores — jellyfin-web still fetches the original image even though it
-is never displayed. And it only applies where Bonfire runs; a client that cannot load the
-plugin script shows Jellyfin’s artwork as usual.
+Two limits. The swap happens in the browser, so the picture is never shown but jellyfin-web
+still downloads the original. And it only applies where Bonfire runs — a client that cannot
+load the plugin script shows Jellyfin's artwork as usual.
 
 ---
 

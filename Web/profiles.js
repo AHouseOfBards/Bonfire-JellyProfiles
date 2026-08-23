@@ -3869,7 +3869,7 @@
                                 </div>
                             `).join('')}
                         </div>
-                        <div class="form-hint">Jellyfin draws a library tile from the items inside it, which can show artwork this profile cannot open. Hidden shows the icon and name instead.</div>
+                        <div class="form-hint">Jellyfin builds a library tile from the items inside it, which can show something this profile cannot open. Hidden shows the icon and name.</div>
                     </div>
                 `;
 
