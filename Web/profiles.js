@@ -3426,7 +3426,7 @@
                     </div>
                     <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
-                            <input type="checkbox" id="create-local-bypass-checkbox" style="cursor: pointer; accent-color: #00a4dc;" />
+                            <input type="checkbox" id="create-local-bypass-checkbox" style="cursor: pointer; accent-color: var(--jpf-accent);" />
                             <span>Bypass PIN on local network (LAN)</span>
                         </label>
                         <div class="form-hint">No PIN prompt on your home network.</div>
@@ -3452,7 +3452,7 @@
                         <div class="section-inline-header">
                             <label style="margin: 0;">Enabled Libraries</label>
                             <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
-                                <input type="checkbox" id="create-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: #00a4dc;" />
+                                <input type="checkbox" id="create-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: var(--jpf-accent);" />
                                 <span>Select all</span>
                             </label>
                         </div>
@@ -3489,7 +3489,7 @@
                                     return `
                                         <div class="device-dropdown-item">
                                             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
-                                                <input type="checkbox" class="create-device-checkbox" value="${escapeHtml(deviceId)}" style="cursor: pointer; accent-color: #00a4dc; flex-shrink: 0;" />
+                                                <input type="checkbox" class="create-device-checkbox" value="${escapeHtml(deviceId)}" style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
                                                 <span style="display: flex; flex-direction: column; min-width: 0;">
                                                     <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
                                                     <span style="font-size: 0.75rem; opacity: 0.6;">${escapeHtml(client)} • Last seen ${lastSeenStr}</span>
@@ -3804,7 +3804,7 @@
                     </div>
                     <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
-                            <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc;" />
+                            <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent);" />
                             <span>Bypass PIN on local network (LAN)</span>
                         </label>
                         <div class="form-hint">No PIN prompt on your home network.</div>
@@ -3830,7 +3830,7 @@
                         <div class="section-inline-header">
                             <label style="margin: 0;">Enabled Libraries</label>
                             <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
-                                <input type="checkbox" id="edit-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: #00a4dc;" />
+                                <input type="checkbox" id="edit-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: var(--jpf-accent);" />
                                 <span>Select all</span>
                             </label>
                         </div>
@@ -3895,7 +3895,7 @@
                                     return `
                                         <div class="device-dropdown-item">
                                             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
-                                                <input type="checkbox" class="device-checkbox" value="${escapeHtml(deviceId)}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc; flex-shrink: 0;" />
+                                                <input type="checkbox" class="device-checkbox" value="${escapeHtml(deviceId)}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
                                                 <span style="display: flex; flex-direction: column; min-width: 0;">
                                                     <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
                                                     <span style="font-size: 0.75rem; opacity: 0.6;">${escapeHtml(client)} • Last seen ${lastSeenStr}</span>
@@ -4267,7 +4267,7 @@
                 <div class="create-profile-container" style="max-width: 500px; width: 100%;">
                     <div id="bonfire-container" style="width: 100%; min-height: 100px; display: flex; flex-direction: column; gap: 1.5rem;">
                         <div style="display: flex; justify-content: center; padding: 20px;">
-                            <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid #00a4dc; width: 24px; height: 24px; animation: spin 1s linear infinite;"></div>
+                            <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: spin 1s linear infinite;"></div>
                         </div>
                         <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
                             <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">Back</button>
@@ -4318,10 +4318,10 @@
                      aria-checked="${prefs.location === value}" style="
                     display: flex; gap: 14px; text-align: left; padding: 16px;
                     border-radius: 12px; cursor: pointer; box-sizing: border-box;
-                    border: 2px solid ${prefs.location === value ? '#00a4dc' : 'rgba(255,255,255,0.08)'};
-                    background: ${prefs.location === value ? 'rgba(0,164,220,0.08)' : 'rgba(255,255,255,0.02)'};
+                    border: 2px solid ${prefs.location === value ? 'var(--jpf-accent)' : 'rgba(255,255,255,0.08)'};
+                    background: ${prefs.location === value ? 'var(--jpf-accent-a08)' : 'rgba(255,255,255,0.02)'};
                 ">
-                    <span class="material-icons" style="font-size: 2rem; color: ${prefs.location === value ? '#00a4dc' : 'rgba(255,255,255,0.5)'}; flex-shrink: 0;">${icon}</span>
+                    <span class="material-icons" style="font-size: 2rem; color: ${prefs.location === value ? 'var(--jpf-accent)' : 'rgba(255,255,255,0.5)'}; flex-shrink: 0;">${icon}</span>
                     <div style="flex: 1 1 auto; min-width: 0;">
                         <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
                         <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
@@ -4338,7 +4338,7 @@
 
                     <div class="bonfire-form-group" style="gap: 4px; text-align: left; margin-bottom: 1.5rem;">
                         <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.95rem !important; font-weight: 600 !important; position: relative !important;">
-                            <input type="checkbox" id="switcher-ask-startup" ${prefs.askOnStartup ? 'checked' : ''} style="cursor: pointer !important; accent-color: #00a4dc !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
+                            <input type="checkbox" id="switcher-ask-startup" ${prefs.askOnStartup ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                             <span>Ask "Who's watching?" on startup</span>
                         </label>
                         <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.78rem !important; position: relative !important; display: block !important;">
@@ -4538,7 +4538,7 @@
                         <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; color: #3b82f6; display: block; margin-bottom: 4px;">Joined Bonfire</label>
                             <span style="font-size: 0.88rem; opacity: 0.75;">You have joined a bonfire group owned by:</span>
-                            <div style="font-size: 1.25rem; font-weight: 700; color: #00a4dc; margin: 12px 0; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">${joinedOwnerName}</div>
+                            <div style="font-size: 1.25rem; font-weight: 700; color: var(--jpf-accent); margin: 12px 0; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">${joinedOwnerName}</div>
                             <span style="font-size: 0.85rem; opacity: 0.6; display: block; margin-top: -4px;">You can access each other's profiles from the switcher grid.</span>
                         </div>
                         <div style="display: flex; justify-content: flex-end;">
@@ -4591,7 +4591,7 @@
                 <div class="bonfire-form-group" style="margin-top: 5px; display: flex; flex-direction: column; gap: 16px;">
                     <div class="bonfire-form-group" style="gap: 4px;">
                         <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
-                            <input type="checkbox" id="bonfire-hide-mine-checkbox" ${hideMine ? 'checked' : ''} style="cursor: pointer !important; accent-color: #00a4dc !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
+                            <input type="checkbox" id="bonfire-hide-mine-checkbox" ${hideMine ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                             <span>Hide my sub-profiles from others</span>
                         </label>
                         <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">Connected homes see only your master profile.</div>
@@ -4599,7 +4599,7 @@
 
                     <div class="bonfire-form-group" style="gap: 4px;">
                         <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
-                            <input type="checkbox" id="bonfire-hide-others-checkbox" ${hideOthers ? 'checked' : ''} style="cursor: pointer !important; accent-color: #00a4dc !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
+                            <input type="checkbox" id="bonfire-hide-others-checkbox" ${hideOthers ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                             <span>Hide other people's sub-profiles from me</span>
                         </label>
                         <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">You see only the master profiles of connected homes.</div>
@@ -5536,6 +5536,49 @@
         injectStyles: function () {
             const style = document.createElement('style');
             style.innerHTML = `
+                /* ── Theme integration ───────────────────────────────────────────
+                   jellyfin-web has no colour variables of its own. The request to add
+                   them (jellyfin-web discussion #6520) is answered "planned" and nothing
+                   more, so there is no supported token to read. What every custom theme
+                   and Skin Manager *does* converge on is --accent, so read that where it
+                   exists and fall back to Jellyfin's stock blue everywhere else. A stock
+                   install renders exactly as it did before; a themed one stops having a
+                   foreign blue button sitting in its header.
+
+                   Declared on body as well as :root because a theme may set --accent on
+                   either, and a custom property resolves against the element it is
+                   declared on — reading it only at :root would silently miss every theme
+                   that sets it on body. */
+                :root, body {
+                    --jpf-accent: var(--accent, #00a4dc);
+
+                    /* Tints of the accent. These literals are what Bonfire shipped
+                       through 1.4.1 and stay as the floor, because deriving them needs
+                       colour arithmetic the older TV browsers do not have. */
+                    --jpf-accent-a08: rgba(0, 164, 220, 0.08);
+                    --jpf-accent-a18: rgba(0, 164, 220, 0.18);
+                    --jpf-accent-a30: rgba(0, 164, 220, 0.3);
+                    --jpf-accent-a40: rgba(0, 164, 220, 0.4);
+                    --jpf-accent-a45: rgba(0, 164, 220, 0.45);
+                    --jpf-accent-a50: rgba(0, 164, 220, 0.5);
+                    --jpf-accent-a60: rgba(0, 164, 220, 0.6);
+                }
+
+                /* Where the browser can mix colours, tint the *theme's* accent rather
+                   than the hardcoded blue. color-mix is Chrome 111+, so Tizen 6
+                   (Chromium 76) and older webOS keep the literals above instead of
+                   losing the glow altogether. */
+                @supports (color: color-mix(in srgb, red 50%, transparent)) {
+                    :root, body {
+                        --jpf-accent-a08: color-mix(in srgb, var(--jpf-accent) 8%, transparent);
+                        --jpf-accent-a18: color-mix(in srgb, var(--jpf-accent) 18%, transparent);
+                        --jpf-accent-a30: color-mix(in srgb, var(--jpf-accent) 30%, transparent);
+                        --jpf-accent-a40: color-mix(in srgb, var(--jpf-accent) 40%, transparent);
+                        --jpf-accent-a45: color-mix(in srgb, var(--jpf-accent) 45%, transparent);
+                        --jpf-accent-a50: color-mix(in srgb, var(--jpf-accent) 50%, transparent);
+                        --jpf-accent-a60: color-mix(in srgb, var(--jpf-accent) 60%, transparent);
+                    }
+                }
                 /* Administrator-supplied avatar picker.
                    auto-fill rather than a fixed count so it reflows from a phone to a TV
                    without a media query, and scrolls internally instead of pushing the
@@ -5566,7 +5609,7 @@
                 }
                 .avatar-library-item:hover,
                 .avatar-library-item:focus {
-                    border-color: #00a4dc;
+                    border-color: var(--jpf-accent);
                     transform: scale(1.06);
                     outline: none;
                 }
@@ -5684,7 +5727,7 @@
                 .profile-card:focus .profile-avatar,
                 .profile-card:focus-within .profile-avatar {
                     transform: scale(1.08);
-                    box-shadow: 0 15px 35px rgba(0,164,220,0.4);
+                    box-shadow: 0 15px 35px var(--jpf-accent-a40);
                     border-color: rgba(255,255,255,0.8);
                 }
                 .profile-card:focus {
@@ -5761,8 +5804,8 @@
                     position: relative !important;
                 }
                 #bonfire-join-input:focus {
-                    border-color: #00a4dc; outline: none;
-                    box-shadow: 0 0 10px rgba(0, 164, 220, 0.4);
+                    border-color: var(--jpf-accent); outline: none;
+                    box-shadow: 0 0 10px var(--jpf-accent-a40);
                 }
                 .bonfire-kick-btn:focus, .bonfire-kick-btn:hover {
                     background-color: #e64980 !important;
@@ -5771,7 +5814,7 @@
                 }
                 .profile-card.manage-mode:hover .profile-avatar {
                     transform: scale(1.08);
-                    border-color: #00a4dc;
+                    border-color: var(--jpf-accent);
                 }
 
                 /* PIN Status Badges */
@@ -5827,6 +5870,8 @@
                 /* Footer and bottom buttons */
                 .profiles-footer {
                     margin-top: 4rem; width: 100%; display: flex; justify-content: center;
+                    /* Matches .pin-actions, the button row on the other gate screens. */
+                    gap: 1.25rem; flex-wrap: wrap;
                 }
 
                 /* PIN Entry Form styles */
@@ -5844,8 +5889,8 @@
                     -webkit-text-security: disc;
                 }
                 #profile-pin-input:focus, #master-pin-input:focus {
-                    border-color: #00a4dc; outline: none;
-                    box-shadow: 0 0 15px rgba(0,164,220,0.3);
+                    border-color: var(--jpf-accent); outline: none;
+                    box-shadow: 0 0 15px var(--jpf-accent-a30);
                 }
                 .pin-error-text {
                     color: #ff6b6b;
@@ -5872,12 +5917,12 @@
                     box-shadow: none !important;
                 }
                 .btn-primary {
-                    background-color: #00a4dc; color: #fff;
+                    background-color: var(--jpf-accent); color: #fff;
                 }
                 .btn-primary:hover,
                 .btn-primary:focus {
                     background-color: #0082ad; border-color: rgba(255, 255, 255, 0.4);
-                    box-shadow: 0 0 12px rgba(0, 164, 220, 0.5); transform: translateY(-1px);
+                    box-shadow: 0 0 12px var(--jpf-accent-a50); transform: translateY(-1px);
                     outline: none;
                 }
                 .btn-secondary {
@@ -5887,8 +5932,8 @@
                 .btn-secondary:hover,
                 .btn-secondary:focus {
                     background-color: rgba(255,255,255,0.15); color: #fff;
-                    border-color: #00a4dc;
-                    box-shadow: 0 0 10px rgba(0, 164, 220, 0.4);
+                    border-color: var(--jpf-accent);
+                    box-shadow: 0 0 10px var(--jpf-accent-a40);
                     outline: none;
                 }
                 .pin-actions {
@@ -5994,8 +6039,8 @@
                     color: #fff;
                 }
                 .form-group input:focus, .form-group select:focus {
-                    border-color: #00a4dc; outline: none;
-                    box-shadow: 0 0 10px rgba(0, 164, 220, 0.4);
+                    border-color: var(--jpf-accent); outline: none;
+                    box-shadow: 0 0 10px var(--jpf-accent-a40);
                 }
                 .avatar-color-picker {
                     display: flex; flex-wrap: wrap; gap: 10px;
@@ -6076,7 +6121,7 @@
                     position: relative !important;
                 }
                 .library-check-label input {
-                    cursor: pointer; accent-color: #00a4dc;
+                    cursor: pointer; accent-color: var(--jpf-accent);
                     position: relative !important;
                     opacity: 1 !important;
                     width: 18px !important;
@@ -6091,7 +6136,7 @@
                     outline: none;
                 }
                 .library-check-label:focus input, .library-check-label:hover input {
-                    box-shadow: 0 0 8px rgba(0, 164, 220, 0.6);
+                    box-shadow: 0 0 8px var(--jpf-accent-a60);
                 }
                 /* ── Titled sections in the create/edit forms ───────────────────── */
                 .profile-section {
@@ -6111,7 +6156,7 @@
                 }
                 .profile-section-icon {
                     font-size: 1.35rem;
-                    color: #00a4dc;
+                    color: var(--jpf-accent);
                     flex-shrink: 0;
                     line-height: 1.3;
                 }
@@ -6258,7 +6303,7 @@
                    focused control inside a scrolling section has to scroll itself into
                    view rather than sitting behind a section header. */
                 .profile-section :focus-visible {
-                    outline: 2px solid #00a4dc;
+                    outline: 2px solid var(--jpf-accent);
                     outline-offset: 2px;
                     scroll-margin-top: 4rem;
                     scroll-margin-bottom: 4rem;
@@ -6282,8 +6327,8 @@
                 }
                 .tag-chip {
                     display: inline-flex; align-items: center; gap: 6px;
-                    background: rgba(0,164,220,0.18);
-                    border: 1px solid rgba(0,164,220,0.45);
+                    background: var(--jpf-accent-a18);
+                    border: 1px solid var(--jpf-accent-a45);
                     color: #fff; border-radius: 999px;
                     padding: 3px 6px 3px 12px; font-size: 0.85rem;
                     max-width: 100%; word-break: break-word;
@@ -6358,8 +6403,8 @@
                 }
                 .devices-dropdown-trigger:focus {
                     outline: none;
-                    border-color: #00a4dc !important;
-                    box-shadow: 0 0 10px rgba(0, 164, 220, 0.5) !important;
+                    border-color: var(--jpf-accent) !important;
+                    box-shadow: 0 0 10px var(--jpf-accent-a50) !important;
                 }
                 .devices-dropdown-trigger:hover {
                     background: rgba(255,255,255,0.05);

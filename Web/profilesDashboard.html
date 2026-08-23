@@ -1,3 +1,20 @@
+<style>
+    /* Tints of the active theme's accent, with the colours this page shipped
+       with as the floor. See the matching block in profiles.js for why
+       --accent is read rather than a jellyfin-web token: there is no token,
+       only a convention every theme follows. */
+    #profilesConfigurationPage {
+        --jpf-accent: var(--accent, #00a4dc);
+        --jpf-accent-a12: rgba(0, 164, 220, 0.12);
+        --jpf-accent-a35: rgba(0, 164, 220, 0.35);
+    }
+    @supports (color: color-mix(in srgb, red 50%, transparent)) {
+        #profilesConfigurationPage {
+            --jpf-accent-a12: color-mix(in srgb, var(--jpf-accent) 12%, transparent);
+            --jpf-accent-a35: color-mix(in srgb, var(--jpf-accent) 35%, transparent);
+        }
+    }
+</style>
 <div id="profilesConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="libraryloading,embyrouter,selectmenu,dialogHelper">
     <div data-role="content">
         <div class="content-primary">
@@ -81,7 +98,7 @@
                     <span id="pluginVersionBadge" style="font-size:0.85em; font-weight:600; opacity:0.8; background:rgba(255,255,255,0.08); padding:3px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12);">…</span>
                 </div>
 
-                <div style="background:rgba(0,164,220,0.12);border:1px solid rgba(0,164,220,0.35);border-radius:6px;padding:14px 18px;margin-bottom:2em;font-size:0.95rem;line-height:1.6;">
+                <div style="background:var(--jpf-accent-a12,rgba(0,164,220,0.12));border:1px solid var(--jpf-accent-a35,rgba(0,164,220,0.35));border-radius:6px;padding:14px 18px;margin-bottom:2em;font-size:0.95rem;line-height:1.6;">
                     <strong style="display:block;margin-bottom:6px;">&#9432;&nbsp; Where to create &amp; manage profiles</strong>
                     Profiles are created, edited, and deleted from the <strong>Jellyfin home screen</strong>.
                     After logging in, look for the <strong>Switch Profile</strong> button in the top navigation bar
@@ -575,7 +592,7 @@
                                 '<div style="display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;">' +
                                 '<span style="font-size:0.85rem; opacity:0.6;">Profile Limit:</span>' +
                                 '<input is="emby-input" type="number" class="user-limit-input" data-id="' + pId + '" min="1" max="20" value="' + maxProfiles + '" style="width:60px !important; height:28px !important; padding:2px 6px !important; font-size:0.85rem !important; margin:0 !important; box-sizing:border-box !important;" />' +
-                                '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + pId + '" style="background:#00a4dc; color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">Set</button>' +
+                                '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + pId + '" style="padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">Set</button>' +
                                 (limitOverride !== null && limitOverride !== undefined
                                     ? '<button type="button" class="raised button-mini clear-limit-btn" data-id="' + pId + '" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.15); padding:3px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer;">Reset</button>'
                                     : '') +
