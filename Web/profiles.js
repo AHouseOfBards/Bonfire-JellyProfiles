@@ -160,7 +160,7 @@
                 <div class="confirm-dialog-content" style="
                     background: #181818;
                     border: 1px solid rgba(255, 255, 255, 0.1);
-                    border-radius: 12px;
+                    border-radius: var(--jpf-r-md);
                     padding: 24px;
                     max-width: 420px;
                     width: 90%;
@@ -169,7 +169,7 @@
                 ">
                     <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
                     <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
-                    <div style="display: flex; gap: 12px; justify-content: center;">
+                    <div style="display: flex; gap: var(--jpf-gap); justify-content: center;">
                         <button id="dialog-confirm-btn" class="profiles-btn btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">Confirm</button>
                         <button id="dialog-cancel-btn" class="profiles-btn btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">Cancel</button>
                     </div>
@@ -241,7 +241,7 @@
                 <div class="alert-dialog-content" style="
                     background: #181818;
                     border: 1px solid rgba(255, 255, 255, 0.1);
-                    border-radius: 12px;
+                    border-radius: var(--jpf-r-md);
                     padding: 24px;
                     max-width: 420px;
                     width: 90%;
@@ -1128,7 +1128,7 @@
             `;
 
             dialog.innerHTML = `
-                <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius:12px;
+                <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);
                             padding:24px; max-width:460px; width:90%; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
                     <h2 style="margin:0 0 12px 0; color:#fff; font-size:1.2rem; font-weight:700;">Emergency disable</h2>
                     <p style="color:rgba(255,255,255,0.7); font-size:0.9rem; line-height:1.5; margin:0 0 16px 0;">
@@ -1139,7 +1139,7 @@
                     <input type="password" id="profiles-panic-input" autocomplete="off" placeholder="Emergency code"
                            style="width:100%; box-sizing:border-box; padding:10px; font-size:1rem; margin-bottom:8px;" />
                     <div id="profiles-panic-error" style="display:none; color:#ff6b6b; font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
-                    <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:12px;">
+                    <div style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:12px;">
                         <button id="profiles-panic-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>
                         <button id="profiles-panic-submit" class="profiles-btn btn-danger" style="padding:10px 20px; font-weight:600;">Disable</button>
                     </div>
@@ -1750,13 +1750,13 @@
                     "background:rgba(0,0,0,0.85); backdrop-filter:blur(8px);" +
                     "display:flex; align-items:center; justify-content:center; z-index:" + DIALOG_Z + ";";
                 dialog.innerHTML =
-                    '<div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius:12px;' +
+                    '<div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);' +
                     ' padding:22px; max-width:420px; width:94%; max-height:86vh; overflow:auto;">' +
                     '<h2 style="margin:0 0 14px 0; color:#fff; font-size:1.15rem; font-weight:700;">Library artwork</h2>' +
                     '<div id="profiles-libart-host"></div>' +
                     '<div id="profiles-libart-error" style="display:none; color:#ff6b6b; font-size:0.85rem;' +
                     ' font-weight:600; margin-top:8px;"></div>' +
-                    '<div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px;">' +
+                    '<div style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:16px;">' +
                     '<button id="profiles-libart-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>' +
                     '<button id="profiles-libart-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">Use picture</button>' +
                     '</div></div>';
@@ -3090,7 +3090,7 @@
                 z-index: ${DIALOG_Z};
             `;
             dialog.innerHTML = `
-                <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius:12px;
+                <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);
                             padding:22px; max-width:340px; width:92%; box-shadow:0 10px 30px rgba(0,0,0,0.5); text-align:center;
                             user-select:none; -webkit-user-select:none;">
                     <h2 style="margin:0 0 4px 0; color:#fff; font-size:1.15rem; font-weight:700;">Position your picture</h2>
@@ -3109,7 +3109,7 @@
                     </div>
                     <input type="range" id="profiles-crop-zoom" min="1" max="4" step="0.01" value="1"
                            style="width:100%; margin:16px 0 4px 0;" aria-label="Zoom" />
-                    <div style="display:flex; gap:12px; justify-content:center; margin-top:12px;">
+                    <div style="display:flex; gap: var(--jpf-gap); justify-content:center; margin-top:12px;">
                         <button id="profiles-crop-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>
                         <button id="profiles-crop-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">Use picture</button>
                     </div>
@@ -3347,7 +3347,7 @@
             return `
                 <div class="form-group">
                     <label>Profile Picture</label>
-                    <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 12px;">
+                    <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: var(--jpf-gap);">
                         ${libraryHtml}
                         <div class="image-upload-row">
                             <div id="${prefix}-image-upload-preview" class="image-upload-preview" style="background-color: ${safeColor(currentColor)};">${preview}</div>
@@ -3883,7 +3883,7 @@
                 const securityBody = `
                     <div class="form-group">
                         <label for="edit-pin-input">PIN Code (Optional, 4-8 digits)</label>
-                        <div class="pin-edit-group" style="display:flex; gap:10px; flex-wrap: wrap;">
+                        <div class="pin-edit-group" style="display:flex; gap: var(--jpf-gap); flex-wrap: wrap;">
                             <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? 'New PIN' : 'No PIN'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
                             ${profile.hasPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">Clear PIN</button>` : ''}
                         </div>
@@ -4410,8 +4410,8 @@
             const locationOption = (value, icon, title, body) => `
                 <div class="switcher-location-option" data-location="${value}" tabindex="0" role="radio"
                      aria-checked="${prefs.location === value}" style="
-                    display: flex; gap: 14px; text-align: left; padding: 16px;
-                    border-radius: 12px; cursor: pointer; box-sizing: border-box;
+                    display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
+                    border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
                     border: 2px solid ${prefs.location === value ? 'var(--jpf-accent)' : 'rgba(255,255,255,0.08)'};
                     background: ${prefs.location === value ? 'var(--jpf-accent-a08)' : 'rgba(255,255,255,0.02)'};
                 ">
@@ -4441,7 +4441,7 @@
                     </div>
 
                     <div style="text-align: left; font-size: 0.95rem; font-weight: 600; margin-bottom: 10px;">Where to switch from</div>
-                    <div role="radiogroup" style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+                    <div role="radiogroup" style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
                         ${locationOption('button', 'account_circle', 'Bonfire button',
                             'A separate switcher button in the header, next to Jellyfin\'s own profile icon.')}
                         ${locationOption('menu', 'switch_account', 'Jellyfin\'s user menu',
@@ -4588,23 +4588,23 @@
             let hostSectionHtml = '';
             if (isOwner) {
                 hostSectionHtml = `
-                    <div style="display: flex; flex-direction: column; gap: 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Your Hosted Bonfire</label>
                             <span style="font-size: 0.88rem; opacity: 0.75; display: block;">Share this code to invite someone to your Bonfire:</span>
-                            <div style="font-size: 2rem; font-weight: 700; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--jpf-accent-a30);">${ownedCode}</div>
+                            <div style="font-size: 2rem; font-weight: 700; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 12px; border-radius: var(--jpf-r-md); border: 1px solid var(--jpf-accent-a30);">${ownedCode}</div>
                         </div>
                         
                         <div class="bonfire-form-group">
                             <label style="font-size: 1rem; font-weight: 600; color: #fff; display: block; margin-bottom: 8px;">Members (${ownedMembers.length})</label>
-                            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px;">
+                            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--jpf-r-md); padding: 8px;">
                                 ${ownedMembers.length > 0 ? ownedMembers.map(m => {
                                     const mUserId = m.userId || m.UserId;
                                     const mUsername = m.username || m.Username || 'Unknown User';
                                     return `
-                                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: 6px;">
+                                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: var(--jpf-r-sm);">
                                         <span style="font-size: 0.95rem; font-weight: 500;">${mUsername}</span>
-                                        <button type="button" class="bonfire-kick-btn" data-id="${mUserId}" style="background: #ff6b6b !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: 6px !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">Kick</button>
+                                        <button type="button" class="bonfire-kick-btn" data-id="${mUserId}" style="background: #ff6b6b !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">Kick</button>
                                     </div>
                                     `;
                                 }).join('') : '<div style="font-size: 0.9rem; opacity: 0.5; font-style: italic; text-align: center; padding: 12px;">No members joined yet.</div>'}
@@ -4628,11 +4628,11 @@
             let guestSectionHtml = '';
             if (isMember) {
                 guestSectionHtml = `
-                    <div style="display: flex; flex-direction: column; gap: 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Joined Bonfire</label>
                             <span style="font-size: 0.88rem; opacity: 0.75;">You have joined a bonfire group owned by:</span>
-                            <div style="font-size: 1.25rem; font-weight: 700; color: var(--jpf-accent); margin: 12px 0; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">${joinedOwnerName}</div>
+                            <div style="font-size: 1.25rem; font-weight: 700; color: var(--jpf-accent); margin: 12px 0; background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--jpf-r-md); border: 1px solid rgba(255,255,255,0.05); text-align: center;">${joinedOwnerName}</div>
                             <span style="font-size: 0.85rem; opacity: 0.6; display: block; margin-top: -4px;">You can access each other's profiles from the switcher grid.</span>
                         </div>
                         <div style="display: flex; justify-content: flex-end;">
@@ -4645,7 +4645,7 @@
                     <div class="bonfire-form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
                         <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Join a Bonfire</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">Enter a friend's Bonfire Code to join their group:</span>
-                        <div style="display: flex !important; gap: 10px !important; align-items: center !important; width: 100% !important; box-sizing: border-box !important; margin: 12px 0 !important;">
+                        <div style="display: flex !important; gap: var(--jpf-gap) !important; align-items: center !important; width: 100% !important; box-sizing: border-box !important; margin: 12px 0 !important;">
                             <input type="text" id="bonfire-join-input" placeholder="e.g. B7F8XA" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; margin: 0 !important; padding: 10px !important;" />
                             <button type="button" id="bonfire-join-btn" class="profiles-btn btn-primary" style="flex: 0 0 auto !important; padding: 0 24px !important; height: 44px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; font-weight: 600 !important; margin: 0 !important; box-sizing: border-box !important;">Join</button>
                         </div>
@@ -4672,7 +4672,7 @@
                         No PIN needed on your home network. Away from home it still is${hasPinSet ? '' : ', and until you set one your account cannot be opened remotely at all'}.
                     </div>
                     ${isAdmin ? `
-                    <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid #ff9900; border-radius: 4px; font-size: 0.75rem; line-height: 1.5; color: rgba(255,255,255,0.8);">
+                    <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid #ff9900; border-radius: var(--jpf-r-sm); font-size: 0.75rem; line-height: 1.5; color: rgba(255,255,255,0.8);">
                         <strong style="color: #ff9900;">This is an admin account.</strong> Whoever switches into it gets your admin rights.
                     </div>` : ''}
                     <div style="margin-left: 1.6rem; margin-top: 8px; font-size: 0.72rem; line-height: 1.5; opacity: 0.45;">
@@ -4682,7 +4682,7 @@
             ` : '';
 
             const settingsSectionHtml = `
-                <div class="bonfire-form-group" style="margin-top: 5px; display: flex; flex-direction: column; gap: 16px;">
+                <div class="bonfire-form-group" style="margin-top: 5px; display: flex; flex-direction: column; gap: var(--jpf-gap);">
                     <div class="bonfire-form-group" style="gap: 4px;">
                         <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
                             <input type="checkbox" id="bonfire-hide-mine-checkbox" ${hideMine ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
@@ -5655,7 +5655,28 @@
                     --jpf-accent-a40: rgba(0, 164, 220, 0.4);
                     --jpf-accent-a45: rgba(0, 164, 220, 0.45);
                     --jpf-accent-a50: rgba(0, 164, 220, 0.5);
-                    --jpf-accent-a60: rgba(0, 164, 220, 0.6);
+                    --jpf-accent-a60: rgba(0, 164, 220, 0.6);
+
+                    /* ── Shape and spacing ───────────────────────────────────
+                       Every screen was styled on its own, which left eight corner
+                       radii, ten container widths and four gap values across the
+                       product — so the surfaces never read as one thing. Three of
+                       each, chosen near the most common existing values.
+
+                       50% and 999px are deliberately NOT tokens: those mean "a
+                       circle" and "a pill", which are shapes rather than sizes. */
+                    --jpf-r-sm: 6px;    /* inputs, chips, small controls */
+                    --jpf-r-md: 12px;   /* buttons, cards, dialogs       */
+                    --jpf-r-lg: 20px;   /* full-screen surfaces, avatars */
+
+                    --jpf-gap: 12px;      /* controls sitting in a row */
+                    --jpf-gap-lg: 1.25rem; /* sections and button rows */
+
+                    /* Applied by the layout work rather than swapped in blind: a
+                       container width is not interchangeable the way a radius is. */
+                    --jpf-w-narrow: 420px; /* PIN and confirm dialogs   */
+                    --jpf-w-form: 560px;   /* single-column forms       */
+                    --jpf-w-wide: 960px;   /* two-column forms, the gate */
                 }
 
                 /* Where the browser can mix colours, tint the *theme's* accent rather
@@ -5680,12 +5701,12 @@
                 .avatar-library-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
-                    gap: 10px;
+                    gap: var(--jpf-gap);
                     max-height: 200px;
                     overflow-y: auto;
                     padding: 4px;
                     background: rgba(0,0,0,0.15);
-                    border-radius: 10px;
+                    border-radius: var(--jpf-r-md);
                     border: 1px solid rgba(255,255,255,0.05);
                 }
                 .avatar-library-item {
@@ -5754,7 +5775,7 @@
                     margin-bottom: 2.5rem;
                     background: rgba(255, 255, 255, 0.015);
                     border: 1px solid rgba(255, 255, 255, 0.04);
-                    border-radius: 20px;
+                    border-radius: var(--jpf-r-lg);
                     padding: 1.75rem 2rem;
                     box-sizing: border-box;
                     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
@@ -5810,7 +5831,7 @@
                 }
                 .profile-avatar {
                     position: relative;
-                    width: 100%; height: 100%; border-radius: 20px;
+                    width: 100%; height: 100%; border-radius: var(--jpf-r-lg);
                     /* The 3px border below is transparent, so without this the avatar
                        colour showed through it as a ring — a blue outline around Bard's
                        orange picture. Clipping to the padding box keeps the colour behind
@@ -5863,7 +5884,7 @@
                 /* Manage Mode Overlay Icon styling */
                 .profile-avatar-overlay-wrap {
                     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-                    background: rgba(0, 0, 0, 0.65); border-radius: 20px;
+                    background: rgba(0, 0, 0, 0.65); border-radius: var(--jpf-r-lg);
                     display: flex; align-items: center; justify-content: center;
                     opacity: 0; transition: opacity 0.25s ease;
                     pointer-events: none;
@@ -5898,7 +5919,7 @@
                 }
                 #bonfire-join-input {
                     background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: 8px; padding: 10px; color: #fff; font-size: 1rem;
+                    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
                     transition: border-color 0.25s, box-shadow 0.25s;
                     position: relative !important;
                 }
@@ -5918,7 +5939,7 @@
 
                 /* PIN Status Badges */
                 .profile-pin-badge {
-                    font-size: 0.75rem; margin-top: 4px; padding: 2px 8px; border-radius: 12px;
+                    font-size: 0.75rem; margin-top: 4px; padding: 2px 8px; border-radius: var(--jpf-r-md);
                     font-weight: 600; display: inline-flex; align-items: center; gap: 4px;
                 }
                 /* These were inverted: "PIN Protected" in red and "No PIN" in green, so
@@ -5974,7 +5995,7 @@
                 .profiles-footer {
                     margin-top: 4rem; width: 100%; display: flex; justify-content: center;
                     /* Matches .pin-actions, the button row on the other gate screens. */
-                    gap: 1.25rem; flex-wrap: wrap;
+                    gap: var(--jpf-gap-lg); flex-wrap: wrap;
                 }
 
                 /* PIN Entry Form styles */
@@ -5983,7 +6004,7 @@
                 }
                 #profile-pin-input, #master-pin-input {
                     background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.15);
-                    border-radius: 12px; color: #fff; font-size: 2.5rem; text-align: center;
+                    border-radius: var(--jpf-r-md); color: #fff; font-size: 2.5rem; text-align: center;
                     padding: 12px; width: 180px; letter-spacing: 0.6rem;
                     transition: border-color 0.3s ease, box-shadow 0.3s ease;
                     -webkit-text-security: disc;
@@ -6009,7 +6030,7 @@
 
                 /* Button Styling */
                 .profiles-btn {
-                    padding: 10px 24px; border: 1.5px solid transparent; border-radius: 8px;
+                    padding: 10px 24px; border: 1.5px solid transparent; border-radius: var(--jpf-r-md);
                     font-weight: 600; font-size: 1rem; cursor: pointer;
                     transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
                 }
@@ -6040,7 +6061,7 @@
                     outline: none;
                 }
                 .pin-actions {
-                    display: flex; gap: 1.25rem; margin-top: 1rem;
+                    display: flex; gap: var(--jpf-gap-lg); margin-top: 1rem;
                 }
 
                 /* Profile Creation Form styles */
@@ -6048,14 +6069,14 @@
                     width: 100%; max-width: 440px; box-sizing: border-box;
                     display: flex; flex-direction: column; gap: 1.5rem;
                     background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
-                    border-radius: 20px; padding: 2rem; box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+                    border-radius: var(--jpf-r-lg); padding: 2rem; box-shadow: 0 20px 50px rgba(0,0,0,0.4);
                     text-align: left; max-height: 75vh; overflow-y: auto;
                 }
                 .profile-dialog-actions {
-                    margin-top: 1rem; display: flex; justify-content: space-between; width: 100%; gap: 10px;
+                    margin-top: 1rem; display: flex; justify-content: space-between; width: 100%; gap: var(--jpf-gap);
                 }
                 .dialog-action-buttons {
-                    display: flex; gap: 10px;
+                    display: flex; gap: var(--jpf-gap);
                 }
                 .btn-danger {
                     background: rgba(230,0,0,0.85); color:#fff; border:none;
@@ -6108,7 +6129,7 @@
                     .profiles-home-section {
                         padding: 1.25rem 1rem;
                         margin-bottom: 1.5rem;
-                        border-radius: 12px;
+                        border-radius: var(--jpf-r-md);
                     }
                     .profiles-home-title {
                         font-size: 1.25rem;
@@ -6140,13 +6161,13 @@
                 .bonfire-form-group input[type="text"],
                 .form-group input[type="password"] {
                     background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: 8px; padding: 10px; color: #fff; font-size: 1rem;
+                    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
                 }
                 .form-group select {
                     background: rgba(255, 255, 255, 0.06) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
                     background-size: 20px;
                     border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: 8px; padding: 10px; color: #fff; font-size: 1rem;
+                    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
                     cursor: pointer;
                     appearance: none;
                     -webkit-appearance: none;
@@ -6162,7 +6183,7 @@
                     box-shadow: 0 0 10px var(--jpf-accent-a40);
                 }
                 .avatar-color-picker {
-                    display: flex; flex-wrap: wrap; gap: 10px;
+                    display: flex; flex-wrap: wrap; gap: var(--jpf-gap);
                 }
                 .color-dot {
                     width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
@@ -6178,7 +6199,7 @@
                     border-color: #fff; transform: scale(1.1);
                 }
                 .library-checklist {
-                    background: rgba(255,255,255,0.04); border-radius: 8px;
+                    background: rgba(255,255,255,0.04); border-radius: var(--jpf-r-md);
                     padding: 10px; display: flex; flex-direction: column; gap: 0.5rem;
                     max-height: 140px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1);
                 }
@@ -6197,16 +6218,16 @@
                        and in a narrow dialog the name was the only flexible part, so it
                        ellipsised down to "3D Movi…" while the select kept its width. */
                     flex-wrap: wrap;
-                    gap: 10px;
+                    gap: var(--jpf-gap);
                     padding: 6px 8px;
-                    border-radius: 6px;
+                    border-radius: var(--jpf-r-sm);
                     background: rgba(255, 255, 255, 0.04);
                 }
                 .libart-thumb {
                     width: 44px;
                     height: 26px;
                     flex-shrink: 0;
-                    border-radius: 4px;
+                    border-radius: var(--jpf-r-sm);
                     background-color: rgba(255, 255, 255, 0.08);
                     background-size: cover;
                     background-position: center;
@@ -6240,7 +6261,7 @@
                 .library-check-label {
                     display: flex !important; align-items: center !important; gap: 0.6rem; cursor: pointer;
                     font-size: 0.95rem; color: rgba(255,255,255,0.85);
-                    border-radius: 4px; padding: 4px 8px; margin-left: -8px;
+                    border-radius: var(--jpf-r-sm); padding: 4px 8px; margin-left: -8px;
                     transition: background 0.2s, color 0.2s;
                     position: relative !important;
                 }
@@ -6266,7 +6287,7 @@
                 .profile-section {
                     background: rgba(255, 255, 255, 0.025);
                     border: 1px solid rgba(255, 255, 255, 0.08);
-                    border-radius: 10px;
+                    border-radius: var(--jpf-r-md);
                     padding: 1rem 1.15rem 1.15rem;
                     margin-bottom: 1.25rem;
                 }
@@ -6327,7 +6348,7 @@
                 .form-divider {
                     display: flex;
                     align-items: center;
-                    gap: 10px;
+                    gap: var(--jpf-gap);
                     opacity: 0.5;
                     font-size: 0.8rem;
                     margin: 2px 0;
@@ -6347,14 +6368,14 @@
                     text-align: center;
                     padding: 8px 12px;
                     background: rgba(255, 107, 107, 0.1);
-                    border-radius: 8px;
+                    border-radius: var(--jpf-r-md);
                     border: 1px solid rgba(255, 107, 107, 0.25);
                 }
 
                 .image-upload-row {
                     display: flex;
                     align-items: center;
-                    gap: 15px;
+                    gap: var(--jpf-gap);
                     flex-wrap: wrap;
                 }
                 .image-upload-preview {
@@ -6388,7 +6409,7 @@
                 }
                 .device-delete-btn {
                     background: transparent; border: none; color: #ff6b6b;
-                    cursor: pointer; padding: 6px; border-radius: 4px;
+                    cursor: pointer; padding: 6px; border-radius: var(--jpf-r-sm);
                     display: flex; align-items: center; justify-content: center;
                     font-size: 1.1rem; flex-shrink: 0;
                     transition: background 0.2s;
@@ -6415,7 +6436,7 @@
                     .profile-section {
                         padding: 0.85rem 0.8rem 0.9rem;
                         margin-bottom: 1rem;
-                        border-radius: 8px;
+                        border-radius: var(--jpf-r-md);
                     }
                     .profile-section-body { gap: 0.95rem; }
                     .profile-section-title { font-size: 1rem; }
@@ -6438,7 +6459,7 @@
                 }
                 .tag-chip-list {
                     display: flex; flex-wrap: wrap; gap: 6px;
-                    background: rgba(255,255,255,0.04); border-radius: 8px;
+                    background: rgba(255,255,255,0.04); border-radius: var(--jpf-r-md);
                     border: 1px solid rgba(255,255,255,0.1);
                     padding: 8px; min-height: 40px;
                     max-height: 120px; overflow-y: auto;
@@ -6519,7 +6540,7 @@
                     padding: 10px 14px;
                     background: rgba(0,0,0,0.2);
                     border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 6px;
+                    border-radius: var(--jpf-r-sm);
                     cursor: pointer;
                     user-select: none;
                     font-size: 0.95rem;
@@ -6536,7 +6557,7 @@
                 .devices-dropdown-list {
                     background: #202020;
                     border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: 6px;
+                    border-radius: var(--jpf-r-sm);
                     max-height: 250px;
                     overflow-y: auto;
                     box-shadow: 0 4px 15px rgba(0,0,0,0.5);
