@@ -414,27 +414,27 @@
 
         /// The avatar swatches are identical in both forms; keeping one copy means a palette
         /// change lands in both places at once.
-        /// Dims the avatar colour once a picture is set.
-        ///
-        /// The colour is the background behind the initial, so with a picture it does
-        /// nothing at all — and it was twenty-one swatches over three rows, the largest
-        /// thing on the form, sitting there inert. Dimmed rather than hidden: it starts
-        /// mattering again the moment the picture is removed, and a control that
-        /// vanishes and reappears is worse than one that fades.
-        setColorGroupInert: function (prefix, hasPicture) {
-            const group = document.getElementById(prefix + '-color-group');
-            if (!group) return;
-
-            group.classList.toggle('is-inert', !!hasPicture);
-
-            const hint = group.querySelector('[data-role="color-hint"]');
-            if (hint) {
-                hint.textContent = hasPicture
-                    ? 'Not used while a picture is set.'
-                    : 'Used as the avatar background when no picture is set.';
-            }
-        },
-
+        /// Dims the avatar colour once a picture is set.
+        ///
+        /// The colour is the background behind the initial, so with a picture it does
+        /// nothing at all — and it was twenty-one swatches over three rows, the largest
+        /// thing on the form, sitting there inert. Dimmed rather than hidden: it starts
+        /// mattering again the moment the picture is removed, and a control that
+        /// vanishes and reappears is worse than one that fades.
+        setColorGroupInert: function (prefix, hasPicture) {
+            const group = document.getElementById(prefix + '-color-group');
+            if (!group) return;
+
+            group.classList.toggle('is-inert', !!hasPicture);
+
+            const hint = group.querySelector('[data-role="color-hint"]');
+            if (hint) {
+                hint.textContent = hasPicture
+                    ? 'Not used while a picture is set.'
+                    : 'Used as the avatar background when no picture is set.';
+            }
+        },
+
         renderColorPicker: function (selectedColor) {
             const palette = [
                 '#00A4DC', '#E50914', '#22C55E', '#EAB308', '#A855F7', '#EC4899',
@@ -1635,28 +1635,28 @@
         ///
         /// Choices are held in memory until the form is saved, so backing out leaves
         /// nothing behind — the same contract as every other field on the form.
-        /// Greys the artwork controls on a library this profile cannot see.
-        ///
-        /// Now that the tick and the artwork sit on one row, an enabled Picture
-        /// dropdown next to an unticked library would be offering to style something
-        /// that is not there.
-        syncLibraryRowState: function (row) {
-            if (!row) return;
-            const box = row.querySelector('.library-checkbox');
-            const on = !box || box.checked;
-
-            row.querySelectorAll('.libart-mode, .libart-choose').forEach(el => {
-                el.disabled = !on;
-            });
-            row.style.opacity = on ? '' : '0.5';
-        },
-
-        /// Applies the above to every row in a container.
-        syncAllLibraryRows: function (root) {
-            const scope = root || document;
-            scope.querySelectorAll('.libart-row').forEach(r => this.syncLibraryRowState(r));
-        },
-
+        /// Greys the artwork controls on a library this profile cannot see.
+        ///
+        /// Now that the tick and the artwork sit on one row, an enabled Picture
+        /// dropdown next to an unticked library would be offering to style something
+        /// that is not there.
+        syncLibraryRowState: function (row) {
+            if (!row) return;
+            const box = row.querySelector('.library-checkbox');
+            const on = !box || box.checked;
+
+            row.querySelectorAll('.libart-mode, .libart-choose').forEach(el => {
+                el.disabled = !on;
+            });
+            row.style.opacity = on ? '' : '0.5';
+        },
+
+        /// Applies the above to every row in a container.
+        syncAllLibraryRows: function (root) {
+            const scope = root || document;
+            scope.querySelectorAll('.libart-row').forEach(r => this.syncLibraryRowState(r));
+        },
+
         initLibraryArtworkEditor: function (container, profileId) {
             const rows = Array.prototype.slice.call(container.querySelectorAll(".libart-row"));
             const state = {};
@@ -3438,20 +3438,20 @@
                 previewEl.innerHTML = src ? avatarInner(src, '+', /* useThumb */ true) : '+';
                 if (typeof onPreviewChange === 'function') onPreviewChange(src);
             };
-            setPreview(state.image);
-
-            // The ways of choosing a picture are collapsed behind one button. Every id
-            // the handlers below bind to still exists — they have only moved inside the
-            // panel — so nothing else in this function changes.
-            const sourcesEl = container.querySelector(`#${prefix}-picture-sources`);
-            const changeBtn = container.querySelector(`#${prefix}-change-picture`);
-            if (sourcesEl && changeBtn) {
-                changeBtn.addEventListener('click', () => {
-                    const open = sourcesEl.classList.toggle('is-open');
-                    changeBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-                });
-            }
-
+            setPreview(state.image);
+
+            // The ways of choosing a picture are collapsed behind one button. Every id
+            // the handlers below bind to still exists — they have only moved inside the
+            // panel — so nothing else in this function changes.
+            const sourcesEl = container.querySelector(`#${prefix}-picture-sources`);
+            const changeBtn = container.querySelector(`#${prefix}-change-picture`);
+            if (sourcesEl && changeBtn) {
+                changeBtn.addEventListener('click', () => {
+                    const open = sourcesEl.classList.toggle('is-open');
+                    changeBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                });
+            }
+
             const applyCropped = (result) => {
                 state.image = result.image;
                 state.thumb = result.thumb;
@@ -4006,10 +4006,11 @@
                                 }
                                 return `
                                     <div class="libart-row" data-lib="${lib.id}">
-                                        <input type="checkbox" class="library-checkbox" value="${lib.id}" ${isChecked ? 'checked' : ''}
-                                               aria-label="Show ${escapeHtml(lib.name)}" />
-                                        <span class="libart-thumb" aria-hidden="true"></span>
-                                        <span class="libart-name" title="${escapeHtml(lib.name)}">${escapeHtml(lib.name)}</span>
+                                        <label class="library-check-label libart-check">
+                                            <input type="checkbox" class="library-checkbox" value="${lib.id}" ${isChecked ? 'checked' : ''} />
+                                            <span class="libart-thumb" aria-hidden="true"></span>
+                                            <span class="libart-name" title="${escapeHtml(lib.name)}">${escapeHtml(lib.name)}</span>
+                                        </label>
                                         <select class="libart-mode" aria-label="Artwork for ${escapeHtml(lib.name)}">
                                             <option value="inherit">Default</option>
                                             <option value="custom">Picture</option>
@@ -4253,6 +4254,12 @@
                             })
                             .then(res => {
                                 if (res.ok) {
+                                    // The device list is part of the account-wide cache the
+                                    // forms share. Removing only the row would let the next
+                                    // form re-list the device it just deleted, and allow it
+                                    // to be ticked as permitted.
+                                    this.clearSharedFormData();
+
                                     const row = btn.closest('.device-dropdown-item');
                                     if (row) row.remove();
                                     const remaining = editList.querySelectorAll('.device-dropdown-item');
@@ -4416,7 +4423,8 @@
         },
 
         showBonfireModal: function () {
-            this.beginNavigation();
+            // Kept, so a slow render cannot draw over a screen the user moved on to.
+            const navTicket = this.beginNavigation();
             const apiClient = ApiClient;
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
             if (!masterState) return;
@@ -4462,71 +4470,71 @@
         /// A per-account preference rather than a server setting — some households want the
         /// Netflix-style "Who's Watching?" screen, others find it intrusive, and neither
         /// answer should be imposed on the other by whoever runs the server.
-        /// Everything that is not a profile.
-        ///
-        /// Bonfire has four scopes of setting: per profile (Edit Profile), per account
-        /// (Switcher Style), between accounts (Your Bonfire) and server-wide (the
-        /// dashboard). The middle two used to be cards in the profile grid, which is
-        /// why they needed their own gradient tiles to avoid reading as people.
-        showSettingsMenu: function () {
-            this.beginNavigation();
-
-            const content = document.querySelector('.profiles-modal-content');
-            if (!content) return;
-
-            const entry = (id, icon, title, body) => `
-                <div class="settings-menu-entry" id="${id}" tabindex="0" role="button" style="
-                    display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
-                    border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
-                    border: 2px solid rgba(255,255,255,0.08);
-                    background: rgba(255,255,255,0.02);
-                ">
-                    <span class="material-icons" style="font-size: 2rem; color: rgba(255,255,255,0.5); flex-shrink: 0;">${icon}</span>
-                    <div style="flex: 1 1 auto; min-width: 0;">
-                        <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
-                        <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
-                    </div>
-                </div>
-            `;
-
-            content.innerHTML = `
-                <h1 class="profiles-title">Settings</h1>
-                <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
-                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
-                        ${entry('settings-switcher-style', 'switch_account', 'Switcher Style',
-                            'Where you reach this screen from, and whether it opens on startup.')}
-                        ${entry('settings-your-bonfire', 'local_fire_department', 'Your Bonfire',
-                            'Share your profiles with another home, or join theirs.')}
-                    </div>
-                    <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
-                        <button id="settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">Back</button>
-                    </div>
-                </div>
-            `;
-
-            const open = (id, fn) => {
-                const el = content.querySelector('#' + id);
-                if (!el) return;
-                el.addEventListener('click', () => fn.call(this));
-                el.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
-                });
-            };
-            open('settings-switcher-style', this.showSwitcherModeModal);
-            open('settings-your-bonfire', this.showBonfireModal);
-
-            const back = content.querySelector('#settings-back-btn');
-            if (back) {
-                back.addEventListener('click', () => {
-                    const st = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
-                    if (st) {
-                        this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.masterToken, /* forceRefresh */ true);
-                    }
-                });
-            }
-
-        },
-
+        /// Everything that is not a profile.
+        ///
+        /// Bonfire has four scopes of setting: per profile (Edit Profile), per account
+        /// (Switcher Style), between accounts (Your Bonfire) and server-wide (the
+        /// dashboard). The middle two used to be cards in the profile grid, which is
+        /// why they needed their own gradient tiles to avoid reading as people.
+        showSettingsMenu: function () {
+            this.beginNavigation();
+
+            const content = document.querySelector('.profiles-modal-content');
+            if (!content) return;
+
+            const entry = (id, icon, title, body) => `
+                <div class="settings-menu-entry" id="${id}" tabindex="0" role="button" style="
+                    display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
+                    border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
+                    border: 2px solid rgba(255,255,255,0.08);
+                    background: rgba(255,255,255,0.02);
+                ">
+                    <span class="material-icons" style="font-size: 2rem; color: rgba(255,255,255,0.5); flex-shrink: 0;">${icon}</span>
+                    <div style="flex: 1 1 auto; min-width: 0;">
+                        <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
+                        <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
+                    </div>
+                </div>
+            `;
+
+            content.innerHTML = `
+                <h1 class="profiles-title">Settings</h1>
+                <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
+                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
+                        ${entry('settings-switcher-style', 'switch_account', 'Switcher Style',
+                            'Where you reach this screen from, and whether it opens on startup.')}
+                        ${entry('settings-your-bonfire', 'local_fire_department', 'Your Bonfire',
+                            'Share your profiles with another home, or join theirs.')}
+                    </div>
+                    <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
+                        <button id="settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">Back</button>
+                    </div>
+                </div>
+            `;
+
+            const open = (id, fn) => {
+                const el = content.querySelector('#' + id);
+                if (!el) return;
+                el.addEventListener('click', () => fn.call(this));
+                el.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+                });
+            };
+            open('settings-switcher-style', this.showSwitcherModeModal);
+            open('settings-your-bonfire', this.showBonfireModal);
+
+            const back = content.querySelector('#settings-back-btn');
+            if (back) {
+                back.addEventListener('click', () => {
+                    const st = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+                    if (st) {
+                        this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.masterToken, /* forceRefresh */ true);
+                    }
+                });
+            }
+
+        },
+
         showSwitcherModeModal: function () {
             this.beginNavigation();
             const apiClient = ApiClient;
@@ -4695,6 +4703,11 @@
             const container = content.querySelector('#bonfire-container');
             if (!container) return;
 
+            // Whatever owns the screen right now. If anything claims it before this
+            // returns, the response is dropped rather than drawn over the newer screen —
+            // the same guard the profile forms use.
+            const ticket = this._navTicket;
+
             const statusUrl = apiClient.getUrl('plugins/profiles/bonfire/status');
             fetch(statusUrl, { headers: this.getAuthHeaders(masterToken) })
             .then(res => {
@@ -4705,9 +4718,11 @@
                 return res.json();
             })
             .then(status => {
+                if (!this.navIsCurrent(ticket)) return;
                 this.renderBonfireStatus(container, content, status, apiClient, masterToken);
             })
             .catch(err => {
+                if (!this.navIsCurrent(ticket)) return;
                 container.innerHTML = `<div style="color: #ff6b6b; font-size: 0.9rem;">Failed to load Bonfire status: ${err.message}</div>`;
             });
         },
@@ -5787,28 +5802,28 @@
                     --jpf-accent-a40: rgba(0, 164, 220, 0.4);
                     --jpf-accent-a45: rgba(0, 164, 220, 0.45);
                     --jpf-accent-a50: rgba(0, 164, 220, 0.5);
-                    --jpf-accent-a60: rgba(0, 164, 220, 0.6);
-
-                    /* ── Shape and spacing ───────────────────────────────────
-                       Every screen was styled on its own, which left eight corner
-                       radii, ten container widths and four gap values across the
-                       product — so the surfaces never read as one thing. Three of
-                       each, chosen near the most common existing values.
-
-                       50% and 999px are deliberately NOT tokens: those mean "a
-                       circle" and "a pill", which are shapes rather than sizes. */
-                    --jpf-r-sm: 6px;    /* inputs, chips, small controls */
-                    --jpf-r-md: 12px;   /* buttons, cards, dialogs       */
-                    --jpf-r-lg: 20px;   /* full-screen surfaces, avatars */
-
-                    --jpf-gap: 12px;      /* controls sitting in a row */
-                    --jpf-gap-lg: 1.25rem; /* sections and button rows */
-
-                    /* Applied by the layout work rather than swapped in blind: a
-                       container width is not interchangeable the way a radius is. */
-                    --jpf-w-narrow: 420px; /* PIN and confirm dialogs   */
-                    --jpf-w-form: 560px;   /* single-column forms       */
-                    --jpf-w-wide: 960px;   /* two-column forms, the gate */
+                    --jpf-accent-a60: rgba(0, 164, 220, 0.6);
+
+                    /* ── Shape and spacing ───────────────────────────────────
+                       Every screen was styled on its own, which left eight corner
+                       radii, ten container widths and four gap values across the
+                       product — so the surfaces never read as one thing. Three of
+                       each, chosen near the most common existing values.
+
+                       50% and 999px are deliberately NOT tokens: those mean "a
+                       circle" and "a pill", which are shapes rather than sizes. */
+                    --jpf-r-sm: 6px;    /* inputs, chips, small controls */
+                    --jpf-r-md: 12px;   /* buttons, cards, dialogs       */
+                    --jpf-r-lg: 20px;   /* full-screen surfaces, avatars */
+
+                    --jpf-gap: 12px;      /* controls sitting in a row */
+                    --jpf-gap-lg: 1.25rem; /* sections and button rows */
+
+                    /* Applied by the layout work rather than swapped in blind: a
+                       container width is not interchangeable the way a radius is. */
+                    --jpf-w-narrow: 420px; /* PIN and confirm dialogs   */
+                    --jpf-w-form: 560px;   /* single-column forms       */
+                    --jpf-w-wide: 960px;   /* two-column forms, the gate */
                 }
 
                 /* Where the browser can mix colours, tint the *theme's* accent rather
@@ -5830,23 +5845,23 @@
                    auto-fill rather than a fixed count so it reflows from a phone to a TV
                    without a media query, and scrolls internally instead of pushing the
                    form's buttons off screen when the library is large. */
-                .avatar-color-group {
-                    transition: opacity 0.2s ease;
-                }
-                .avatar-color-group.is-inert {
-                    opacity: 0.45;
-                }
-                /* Collapsed by default on a profile that already has a picture. */
-                .picture-sources {
-                    display: none;
-                    flex-direction: column;
-                    gap: var(--jpf-gap);
-                    width: 100%;
-                    min-width: 0;
-                }
-                .picture-sources.is-open {
-                    display: flex;
-                }
+                .avatar-color-group {
+                    transition: opacity 0.2s ease;
+                }
+                .avatar-color-group.is-inert {
+                    opacity: 0.45;
+                }
+                /* Collapsed by default on a profile that already has a picture. */
+                .picture-sources {
+                    display: none;
+                    flex-direction: column;
+                    gap: var(--jpf-gap);
+                    width: 100%;
+                    min-width: 0;
+                }
+                .picture-sources.is-open {
+                    display: flex;
+                }
                 .avatar-library-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
@@ -5960,19 +5975,19 @@
                     display: flex; flex-wrap: wrap; gap: 3rem; justify-content: center; width: 100%;
                     max-width: var(--jpf-w-wide); margin: 0 auto;
                 }
-                /* Cards used to be a fixed 140px whatever the display, so on a desktop
-                   they sat in a thin band with large voids above and below, and on a TV
-                   they were small at viewing distance. clamp keeps the phone size as
-                   the floor and lets them grow with the viewport. */
-                .profile-card {
-                    display: flex; flex-direction: column; align-items: center;
-                    width: clamp(140px, 12vw, 210px); cursor: pointer; position: relative;
-                }
-                .profile-avatar-container {
-                    position: relative;
-                    width: clamp(130px, 11vw, 195px);
-                    height: clamp(130px, 11vw, 195px);
-                    margin-top: 15px;
+                /* Cards used to be a fixed 140px whatever the display, so on a desktop
+                   they sat in a thin band with large voids above and below, and on a TV
+                   they were small at viewing distance. clamp keeps the phone size as
+                   the floor and lets them grow with the viewport. */
+                .profile-card {
+                    display: flex; flex-direction: column; align-items: center;
+                    width: clamp(140px, 12vw, 210px); cursor: pointer; position: relative;
+                }
+                .profile-avatar-container {
+                    position: relative;
+                    width: clamp(130px, 11vw, 195px);
+                    height: clamp(130px, 11vw, 195px);
+                    margin-top: 15px;
                 }
                 .profile-crown {
                     position: absolute; top: -20px; left: 50%;
@@ -5999,20 +6014,20 @@
                     transition: transform 0.3s cubic-bezier(0.165, 0.84, 0.44, 1), box-shadow 0.3s ease, border-color 0.3s ease;
                     border: 3px solid transparent;
                 }
-                /* The one you are already in. Now that the avatar colour no longer
-                   paints the border, an accent ring means exactly one thing. */
-                .profile-card.is-current .profile-avatar {
-                    border-color: var(--jpf-accent);
-                }
-                .profile-current-badge {
-                    display: block;
-                    font-size: 0.7rem;
-                    font-weight: 600;
-                    letter-spacing: 0.04em;
-                    text-transform: uppercase;
-                    color: var(--jpf-accent);
-                    margin-top: 2px;
-                }
+                /* The one you are already in. Now that the avatar colour no longer
+                   paints the border, an accent ring means exactly one thing. */
+                .profile-card.is-current .profile-avatar {
+                    border-color: var(--jpf-accent);
+                }
+                .profile-current-badge {
+                    display: block;
+                    font-size: 0.7rem;
+                    font-weight: 600;
+                    letter-spacing: 0.04em;
+                    text-transform: uppercase;
+                    color: var(--jpf-accent);
+                    margin-top: 2px;
+                }
                 .profile-card:hover .profile-avatar,
                 .profile-card:focus .profile-avatar,
                 .profile-card:focus-within .profile-avatar {
@@ -6235,33 +6250,36 @@
                 }
 
                 /* Profile Creation Form styles */
-                /* A column of sections. Below the breakpoint the two of these simply
-                   stack, so the phone order is unchanged: Profile, Security,
-                   Libraries, Restrictions. */
-                .form-col {
-                    display: flex; flex-direction: column; gap: 1.5rem;
-                    min-width: 0;
-                }
-
-                /* Two columns once there is room for them. Everything Bonfire drew was
-                   a phone column whatever the screen — on a desktop this form was a
-                   ~440px ribbon with the rest of the window empty, and the Save button
-                   several screens below the name field. */
-                @media (min-width: 900px) {
-                    .create-profile-container.is-two-col {
-                        max-width: var(--jpf-w-wide);
-                        display: grid;
-                        grid-template-columns: 1fr 1fr;
-                        align-items: start;
-                        max-height: 85vh;
-                    }
-                    .create-profile-container.is-two-col .profile-dialog-actions {
-                        grid-column: 1 / -1;
-                    }
-                }
-
-                .create-profile-container {
-                    width: 100%; max-width: var(--jpf-w-form); box-sizing: border-box;
+                /* A column of sections. Below the breakpoint the two of these simply
+                   stack, so the phone order is unchanged: Profile, Security,
+                   Libraries, Restrictions. */
+                .form-col {
+                    display: flex; flex-direction: column; gap: 1.5rem;
+                    min-width: 0;
+                }
+
+                /* Two columns once there is room for them. Everything Bonfire drew was
+                   a phone column whatever the screen — on a desktop this form was a
+                   ~440px ribbon with the rest of the window empty, and the Save button
+                   several screens below the name field. */
+                @media (min-width: 900px) {
+                    .create-profile-container.is-two-col {
+                        max-width: var(--jpf-w-wide);
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        align-items: start;
+                        max-height: 85vh;
+                    }
+                    /* Everything that is not one of the two columns spans both of them.
+                       Naming only .profile-dialog-actions left the Create form's button row
+                       and its error line as half-width grid items under the left column. */
+                    .create-profile-container.is-two-col > *:not(.form-col) {
+                        grid-column: 1 / -1;
+                    }
+                }
+
+                .create-profile-container {
+                    width: 100%; max-width: var(--jpf-w-form); box-sizing: border-box;
                     display: flex; flex-direction: column; gap: 1.5rem;
                     background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
                     border-radius: var(--jpf-r-lg); padding: 2rem; box-shadow: 0 20px 50px rgba(0,0,0,0.4);
@@ -6437,6 +6455,14 @@
                     justify-content: center;
                     font-size: 0.8rem;
                     color: rgba(255, 255, 255, 0.35);
+                }
+                /* Wraps the tick, the thumbnail and the name — the part of the row that
+                   is one target. initTVCheckboxes binds to .library-check-label, which is
+                   how a remote toggles it: Enter does not tick a native checkbox. */
+                .libart-check {
+                    flex: 1 1 220px;
+                    min-width: 0;
+                    margin-left: 0;
                 }
                 .libart-name {
                     /* Enough to read a real library name before anything else gives. */
@@ -6759,8 +6785,10 @@
                     border-color: var(--jpf-accent) !important;
                     box-shadow: 0 0 10px var(--jpf-accent-a50) !important;
                 }
+                /* background-color, not background: the shorthand would reset the chevron
+                   that now lives in this element's background-image. */
                 .devices-dropdown-trigger:hover {
-                    background: rgba(255,255,255,0.05);
+                    background-color: rgba(255,255,255,0.05);
                 }
                 .devices-dropdown-list {
                     background: #202020;

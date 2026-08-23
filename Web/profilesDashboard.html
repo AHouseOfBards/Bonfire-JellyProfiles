@@ -1209,13 +1209,15 @@
                 // is="emby-button" only upgrades a <button>. So it has to forward the click.
                 const avatarUploadBtn = page.querySelector('#avatarUploadBtn');
                 const avatarFolderBtn = page.querySelector('#avatarFolderBtn');
-                if (avatarUploadBtn) {
+                if (avatarUploadBtn && !avatarUploadBtn.dataset.bound) {
+                    avatarUploadBtn.dataset.bound = '1';
                     avatarUploadBtn.addEventListener('click', function () {
                         const el = page.querySelector('#avatarUploadInput');
                         if (el) el.click();
                     });
                 }
-                if (avatarFolderBtn) {
+                if (avatarFolderBtn && !avatarFolderBtn.dataset.bound) {
+                    avatarFolderBtn.dataset.bound = '1';
                     avatarFolderBtn.addEventListener('click', function () {
                         const el = page.querySelector('#avatarFolderInput');
                         if (el) el.click();

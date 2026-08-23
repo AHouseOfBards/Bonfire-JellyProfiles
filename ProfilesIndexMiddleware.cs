@@ -124,6 +124,15 @@ namespace Jellyfin.Profiles
                 return;
             }
 
+            // Reaching here is the proof the bootstrap task cannot have at startup: the
+            // hook is in the pipeline and handling requests. Only now is it safe to take
+            // the tags out of index.html, which until this moment are what is making the
+            // switcher work. One-shot and off-thread; see the method itself.
+            if (!IndexInjectionModes.PatchesFile(config?.IndexInjectionMode))
+            {
+                ProfilesBootstrapTask.CleanIndexOnceMiddlewareIsLive();
+            }
+
             // Everything that can fail happens before a single byte is written, so any problem
             // can still fall through to Jellyfin's own static file handling.
             string html;

@@ -579,6 +579,47 @@ namespace Jellyfin.Profiles
         /// container mounts allow writing a file but not creating siblings.
         /// </summary>
         /// <summary>
+        /// Cleans index.html once the middleware has proved it is in the pipeline.
+        ///
+        /// <para>
+        /// Called by <see cref="ProfilesIndexMiddleware"/> the first time it handles a
+        /// request. That is the only moment we know the hook is genuinely live — being
+        /// registered in DI does not mean the pipeline ever applies it — and it is
+        /// therefore the only safe moment to remove tags that are currently the thing
+        /// making the switcher work.
+        /// </para>
+        /// </summary>
+        internal static void CleanIndexOnceMiddlewareIsLive()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _cleanedForMiddleware, 1) != 0)
+            {
+                return;
+            }
+
+            var self = _current;
+            if (self == null) return;
+
+            // Off the request thread: this reads and rewrites a file, and the browser is
+            // waiting on the response that triggered it.
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                lock (PatchLock)
+                {
+                    try
+                    {
+                        self.TryUnpatchIndex();
+                    }
+                    catch (Exception ex)
+                    {
+                        self._logger.LogDebug(ex, "ProfilesPlugin: deferred index cleanup failed.");
+                    }
+                }
+            });
+        }
+
+        private static int _cleanedForMiddleware;
+
+        /// <summary>
         /// Takes the script tags back out of index.html, restoring the file to how Jellyfin
         /// shipped it. Runs when injection is set to middleware only, so that changing the
         /// setting actually cleans the file up rather than merely stopping further writes.
@@ -600,15 +641,19 @@ namespace Jellyfin.Profiles
                 return;
             }
 
-            if (!ProfilesIndexMiddleware.IsRegistered)
+            // Registration proves nothing: IsRegistered is set unconditionally by
+            // RegisterServices, so it is always true here. What has to be true before the
+            // tags come out is that the middleware has actually handled a request — and at
+            // startup nothing has. So the file stays patched until the middleware itself
+            // says otherwise, via CleanIndexOnceMiddlewareIsLive below.
+            //
+            // Leaving it patched costs nothing in the meantime: the middleware sees the
+            // tags already present and steps aside.
+            if (!ProfilesIndexMiddleware.HasSeenIndexRequest)
             {
-                // Nothing would serve the tags if we took them out. This matters now that
-                // middleware is the default: an install where the filter never registered
-                // would otherwise have a working switcher removed by an upgrade.
-                _logger.LogWarning(
-                    "ProfilesPlugin: injection is set to middleware only, but the request-pipeline "
-                    + "hook did not register. Leaving {Path} patched so the switcher keeps working.",
-                    IndexPath);
+                _logger.LogDebug(
+                    "ProfilesPlugin: middleware-only injection, but no page request has reached "
+                    + "the hook yet. Leaving {Path} as it is until one does.", IndexPath);
                 return;
             }
 
