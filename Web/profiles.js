@@ -438,6 +438,74 @@
 
         /// Fetches the distinct tags present in the master's libraries, for the suggestion
         /// list. Degrades to an empty list — the inputs stay usable as free text.
+        // ── Navigation ──────────────────────────────────────────────────────
+
+        /// Ticket for the screen currently being asked for.
+        ///
+        /// Opening a form fires network requests and only draws when they return.
+        /// Nothing used to stop a second navigation in the meantime, and nothing
+        /// stopped the first response drawing itself over whatever had replaced it —
+        /// so clicking Manage Profiles and then Switcher Style showed Switcher Style,
+        /// then silently replaced it with Manage Profiles seconds later.
+        ///
+        /// Every screen change takes a ticket. An async render compares its ticket
+        /// before touching the DOM and drops the response if the user has moved on.
+        _navTicket: 0,
+
+        /// Claims the screen. Call from anything that replaces the modal contents,
+        /// including synchronous renders — those are exactly what a slow form loses
+        /// the race to.
+        beginNavigation: function () {
+            return ++this._navTicket;
+        },
+
+        /// True while the ticket still owns the screen.
+        navIsCurrent: function (ticket) {
+            return ticket === this._navTicket;
+        },
+
+        // ── Shared form data ────────────────────────────────────────────────
+
+        /// Cached answer to the four requests that are the same for every profile.
+        ///
+        /// Add and Edit Profile each fired five requests and waited for all of them.
+        /// Only one — Users/{id} — is about the profile you clicked; the available
+        /// libraries, the connected devices, the library tags and the avatar library
+        /// belong to the account and were refetched in full every single time.
+        _sharedForm: null,
+
+        /// Fetches them once per gate session. Prefetched when the overlay opens, so
+        /// by the time anyone picks a profile the shared half is already in hand and
+        /// opening a form costs one request instead of five.
+        fetchSharedFormData: function (apiClient, masterState) {
+            if (this._sharedForm) return this._sharedForm;
+
+            const headers = this.getAuthHeaders(masterState.masterToken);
+            this._sharedForm = Promise.all([
+                fetch(apiClient.getUrl('plugins/profiles/libraries'), { headers })
+                    .then(res => res.json()),
+                fetch(apiClient.getUrl('plugins/profiles/devices'), { headers })
+                    .then(res => res.json()).catch(() => []),
+                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId),
+                this.fetchAvatarLibrary(apiClient, masterState.masterToken)
+            ]).then(([libraries, devices, libraryTags, avatarLibrary]) => ({
+                libraries, devices, libraryTags, avatarLibrary
+            })).catch(err => {
+                // Never cache a failure. A server that was briefly unreachable would
+                // otherwise keep every form broken until the overlay was closed.
+                this._sharedForm = null;
+                throw err;
+            });
+
+            return this._sharedForm;
+        },
+
+        /// Dropped when the overlay closes, so reopening the gate always re-reads the
+        /// server. Within one session the data does not change underneath us.
+        clearSharedFormData: function () {
+            this._sharedForm = null;
+        },
+
         fetchLibraryTags: function (apiClient, token, userId) {
             let url;
             try {
@@ -1473,6 +1541,20 @@
         showProfileOverlay: function (profiles) {
             // Always stop the inactivity timer when showing the profile selector
             this.stopInactivityTimer();
+
+            // Warm the account-wide form data now, while the user is still reading the
+            // grid. Opening a profile then costs one request rather than five, which is
+            // the difference between instant and the several-second wait that made
+            // people click a second time.
+            try {
+                const warmState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+                if (warmState && warmState.masterToken) {
+                    this.fetchSharedFormData(ApiClient, warmState).catch(() => {
+                        // A cold prefetch failing is not an error anyone needs to see;
+                        // the form will retry and report it properly if it still fails.
+                    });
+                }
+            } catch (e) { /* no master state yet — the form will fetch on demand */ }
             this._overlayMountTime = Date.now();
 
             // Returning to the grid replaces the modal contents, so any document-level
@@ -2067,6 +2149,10 @@
             const overlay = document.getElementById('profiles-gate-overlay');
             if (overlay) overlay.remove();
 
+            // Reopening the gate should re-read the server; caching only spans one
+            // session so a library added elsewhere shows up next time.
+            this.clearSharedFormData();
+
             // Tearing down the overlay must also drop the form listeners it owned.
             this.clearManagedDocumentListeners();
 
@@ -2183,6 +2269,10 @@
 
 
         renderOverlayContent: function (overlay, profiles) {
+            // Claims the screen so a form still loading in the background does not
+            // draw itself over the grid when it finally returns.
+            this.beginNavigation();
+
             const title = this.isManageMode ? "Manage Profiles" : "Who's Watching?";
             const manageBtnText = this.isManageMode ? "Done" : "Manage Profiles";
 
@@ -2497,6 +2587,7 @@
         },
 
         promptPinEntry: function (profileId) {
+            this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
             content.innerHTML = `
                 <h1 class="profiles-title">Enter Profile PIN</h1>
@@ -2608,6 +2699,7 @@
         },
 
         promptMasterPinEntry: function (actionType, callback) {
+            this.beginNavigation();
             const masterProfile = this.currentProfiles.find(p => p.isMaster && !p.isBonfire);
             if (!masterProfile) return;
 
@@ -3385,17 +3477,14 @@
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
             if (!masterState) return;
 
-            // Fetch libraries matching master user permissions and connected devices
-            const libUrl = apiClient.getUrl('plugins/profiles/libraries');
-            const devicesUrl = apiClient.getUrl('plugins/profiles/devices');
+            const ticket = this.beginNavigation();
 
-            Promise.all([
-                fetch(libUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
-                fetch(devicesUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()).catch(() => []),
-                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId),
-                this.fetchAvatarLibrary(apiClient, masterState.masterToken)
-            ])
+            // Everything this form needs is account-wide, so it is usually already
+            // cached from the prefetch that ran when the overlay opened.
+            this.fetchSharedFormData(apiClient, masterState)
+            .then(shared => [shared.libraries, shared.devices, shared.libraryTags, shared.avatarLibrary])
             .then(([libraries, devices, libraryTags, avatarLibrary]) => {
+                if (!this.navIsCurrent(ticket)) return;
                 const normalizedLibs = (libraries || []).map(lib => ({
                     id: lib.id || lib.Id,
                     name: lib.name || lib.Name,
@@ -3739,19 +3828,19 @@
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
             if (!masterState) return;
 
-            // Fetch libraries, target user details, and connected devices
-            const libUrl = apiClient.getUrl('plugins/profiles/libraries');
+            const ticket = this.beginNavigation();
+
+            // Users/{id} is the only one of the five that is about the profile you
+            // clicked. The rest come from the account-wide cache.
             const userUrl = apiClient.getUrl(`Users/${profile.profileUserId}`);
-            const devicesUrl = apiClient.getUrl('plugins/profiles/devices');
 
             Promise.all([
-                fetch(libUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
-                fetch(userUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
-                fetch(devicesUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()).catch(() => []),
-                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId),
-                this.fetchAvatarLibrary(apiClient, masterState.masterToken)
+                this.fetchSharedFormData(apiClient, masterState),
+                fetch(userUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json())
             ])
+            .then(([shared, userDetails]) => [shared.libraries, userDetails, shared.devices, shared.libraryTags, shared.avatarLibrary])
             .then(([libraries, userDetails, devices, libraryTags, avatarLibrary]) => {
+                if (!this.navIsCurrent(ticket)) return;
                 const normalizedLibs = (libraries || []).map(lib => ({
                     id: lib.id || lib.Id,
                     name: lib.name || lib.Name,
@@ -4255,6 +4344,7 @@
         },
 
         showBonfireModal: function () {
+            this.beginNavigation();
             const apiClient = ApiClient;
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
             if (!masterState) return;
@@ -4301,6 +4391,7 @@
         /// Netflix-style "Who's Watching?" screen, others find it intrusive, and neither
         /// answer should be imposed on the other by whoever runs the server.
         showSwitcherModeModal: function () {
+            this.beginNavigation();
             const apiClient = ApiClient;
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
             if (!masterState) return;
