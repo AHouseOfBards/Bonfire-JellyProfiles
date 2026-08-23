@@ -721,8 +721,10 @@
                             const client = log.Client || log.client || 'Unknown Client';
                             const ip = log.IpAddress || log.ipAddress || 'Unknown IP';
 
-                            return '<div class="listItem" style="display:flex; flex-direction:column; padding:12px 15px; border-bottom:1px solid rgba(255,255,255,0.06);">' +
-                                   '<div style="display:flex; justify-content:space-between; font-size:0.85rem; opacity:0.5; margin-bottom:4px;">' +
+                            return '<div class="listItem" style="display:flex; flex-direction:column; width:100%; padding:12px 15px; border-bottom:1px solid rgba(255,255,255,0.06);">' +
+                                   // space-between distributes nothing once the row is narrow, which ran
+                                   // the timestamp straight into the address: "12:09:28 PMIP: 127.0.0.1".
+                                   '<div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 16px; font-size:0.85rem; opacity:0.5; margin-bottom:4px;">' +
                                    '<span>' + dateStr + '</span>' +
                                    '<span>IP: ' + ip + '</span>' +
                                    '</div>' +

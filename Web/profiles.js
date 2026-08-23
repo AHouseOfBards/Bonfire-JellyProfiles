@@ -2405,7 +2405,10 @@
                         `;
                     }
 
-                    if (!this.isManageMode && !atLimit) {
+                    // Deliberately in both modes. This used to render only when NOT managing,
+            // so the one screen actually called "Manage Profiles" was the one screen
+            // with no way to add a profile.
+            if (!atLimit) {
                         cardsHtml += `
                             <div class="profile-card action-add-profile" tabindex="0">
                                 <div class="profile-avatar-container">
@@ -3881,7 +3884,7 @@
                     <div class="form-group">
                         <label for="edit-pin-input">PIN Code (Optional, 4-8 digits)</label>
                         <div class="pin-edit-group" style="display:flex; gap:10px; flex-wrap: wrap;">
-                            <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? 'Enter a new PIN to replace the current one' : 'Leave empty for no PIN'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
+                            <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? 'New PIN' : 'No PIN'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
                             ${profile.hasPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">Clear PIN</button>` : ''}
                         </div>
                         <div id="edit-pin-error" class="form-error" style="display:none; margin-top:8px;"></div>
@@ -3948,7 +3951,7 @@
                             ${normalizedLibs.map(lib => `
                                 <div class="libart-row" data-lib="${lib.id}">
                                     <span class="libart-thumb" aria-hidden="true"></span>
-                                    <span class="libart-name">${escapeHtml(lib.name)}</span>
+                                    <span class="libart-name" title="${escapeHtml(lib.name)}">${escapeHtml(lib.name)}</span>
                                     <select class="libart-mode" aria-label="Artwork for ${escapeHtml(lib.name)}">
                                         <option value="inherit">Default</option>
                                         <option value="custom">Picture</option>
@@ -6165,6 +6168,10 @@
                 .libart-row {
                     display: flex;
                     align-items: center;
+                    /* Wrap rather than crush the name. The row is thumb + name + mode,
+                       and in a narrow dialog the name was the only flexible part, so it
+                       ellipsised down to "3D Movi…" while the select kept its width. */
+                    flex-wrap: wrap;
                     gap: 10px;
                     padding: 6px 8px;
                     border-radius: 6px;
@@ -6185,8 +6192,9 @@
                     color: rgba(255, 255, 255, 0.35);
                 }
                 .libart-name {
-                    flex: 1;
-                    min-width: 0;
+                    /* Enough to read a real library name before anything else gives. */
+                    flex: 1 1 150px;
+                    min-width: 150px;
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
