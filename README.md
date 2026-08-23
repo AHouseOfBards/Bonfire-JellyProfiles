@@ -28,13 +28,13 @@ Once the server restarts, the plugin is active and will automatically load on al
 
 ### Beta channel
 
-The repository above lists **milestone releases only** — the builds meant for everyday use. Pre-release builds live in a separate repository, along with every published point release:
+The repository above lists **milestone releases only** — the builds meant for everyday use. Pre-release builds and older point releases live in a separate repository:
 
 ```
 https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/beta/manifest.json
 ```
 
-Add it alongside the stable one — both describe the same plugin, so Jellyfin merges them and simply offers more versions to choose from. Remove it to go back to milestones only. See [BETA-CHANNEL.md](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/beta/BETA-CHANNEL.md).
+Add it **alongside** the stable one, not instead of it. The two lists do not overlap — every version appears in exactly one of them — so the beta repository on its own would never offer you a stable release. Both describe the same plugin, so Jellyfin merges them into one version list. Remove the beta repository to go back to milestones only. See [BETA-CHANNEL.md](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/beta/BETA-CHANNEL.md).
 
 > [!WARNING]
 > **Beta builds are unfinished and features in them may be broken.** They exist so new work can be tested before it reaches everyone, which means:
