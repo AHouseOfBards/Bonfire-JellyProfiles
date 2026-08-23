@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Changed**\n\n- The plugin settings page is split into tabs — Settings, Avatars, Accounts, Activity and Advanced — instead of one page five screens tall.\n- Add Profile appears on Manage Profiles only. The \"Who's watching?\" screen is people to pick from.\n- Setting a profile picture opens one panel, with your server's avatars and your own uploads labelled separately. Remove sits next to Change picture.\n- The library list is libraries again. Artwork is behind a switch, already on for any profile using it.\n\n**Removed**\n\n- The \"paste image URL\" box. A linked picture could not be cropped, was never stored on your server, and disappeared without warning when the link died.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.4.3/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "c0c0f61dd63f1e55e65a34465bff1595",
         "timestamp": "2026-08-23T00:00:00Z"
       },
       {
