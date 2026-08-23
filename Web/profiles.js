@@ -4042,7 +4042,7 @@
                                 <button id="edit-cancel-btn" class="profiles-btn btn-secondary">Cancel</button>
                             </div>
                             ${isSub ? `
-                                <button id="edit-delete-btn" class="profiles-btn btn-danger">Delete Profile</button>
+                                <button id="edit-delete-btn" class="profiles-btn btn-danger-quiet">Delete Profile</button>
                             ` : ''}
                         </div>
                     </div>
@@ -4590,9 +4590,9 @@
                 hostSectionHtml = `
                     <div style="display: flex; flex-direction: column; gap: 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
-                            <label style="font-size: 1.1rem; font-weight: 700; color: #ff9900; display: block; margin-bottom: 4px;">Your Hosted Bonfire</label>
+                            <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Your Hosted Bonfire</label>
                             <span style="font-size: 0.88rem; opacity: 0.75; display: block;">Share this code to invite someone to your Bonfire:</span>
-                            <div style="font-size: 2rem; font-weight: 700; color: #22c55e; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px dashed rgba(34,197,94,0.3);">${ownedCode}</div>
+                            <div style="font-size: 2rem; font-weight: 700; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--jpf-accent-a30);">${ownedCode}</div>
                         </div>
                         
                         <div class="bonfire-form-group">
@@ -4611,14 +4611,14 @@
                             </div>
                         </div>
                         <div style="display: flex; justify-content: flex-end;">
-                            <button type="button" id="bonfire-delete-btn" class="profiles-btn btn-danger" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">Delete Group</button>
+                            <button type="button" id="bonfire-delete-btn" class="profiles-btn btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">Delete Group</button>
                         </div>
                     </div>
                 `;
             } else {
                 hostSectionHtml = `
                     <div class="bonfire-form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
-                        <label style="font-size: 1.1rem; font-weight: 700; color: #ff9900; display: block; margin-bottom: 4px;">Host a Bonfire</label>
+                        <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Host a Bonfire</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">Host your own group to share your sub-profiles with friends.</span>
                         <button type="button" id="bonfire-generate-btn" class="profiles-btn btn-primary" style="width: 100% !important; padding: 12px !important; font-weight: 600 !important; box-sizing: border-box !important; display: block !important; margin: 8px 0 !important;">Generate Join Code</button>
                     </div>
@@ -4630,20 +4630,20 @@
                 guestSectionHtml = `
                     <div style="display: flex; flex-direction: column; gap: 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
-                            <label style="font-size: 1.1rem; font-weight: 700; color: #3b82f6; display: block; margin-bottom: 4px;">Joined Bonfire</label>
+                            <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Joined Bonfire</label>
                             <span style="font-size: 0.88rem; opacity: 0.75;">You have joined a bonfire group owned by:</span>
                             <div style="font-size: 1.25rem; font-weight: 700; color: var(--jpf-accent); margin: 12px 0; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">${joinedOwnerName}</div>
                             <span style="font-size: 0.85rem; opacity: 0.6; display: block; margin-top: -4px;">You can access each other's profiles from the switcher grid.</span>
                         </div>
                         <div style="display: flex; justify-content: flex-end;">
-                            <button type="button" id="bonfire-leave-btn" class="profiles-btn btn-danger" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">Leave Group</button>
+                            <button type="button" id="bonfire-leave-btn" class="profiles-btn btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">Leave Group</button>
                         </div>
                     </div>
                 `;
             } else {
                 guestSectionHtml = `
                     <div class="bonfire-form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
-                        <label style="font-size: 1.1rem; font-weight: 700; color: #3b82f6; display: block; margin-bottom: 4px;">Join a Bonfire</label>
+                        <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Join a Bonfire</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">Enter a friend's Bonfire Code to join their group:</span>
                         <div style="display: flex !important; gap: 10px !important; align-items: center !important; width: 100% !important; box-sizing: border-box !important; margin: 12px 0 !important;">
                             <input type="text" id="bonfire-join-input" placeholder="e.g. B7F8XA" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; margin: 0 !important; padding: 10px !important;" />
@@ -5811,6 +5811,11 @@
                 .profile-avatar {
                     position: relative;
                     width: 100%; height: 100%; border-radius: 20px;
+                    /* The 3px border below is transparent, so without this the avatar
+                       colour showed through it as a ring — a blue outline around Bard's
+                       orange picture. Clipping to the padding box keeps the colour behind
+                       the initial, which is the only thing it is for, and off the border. */
+                    background-clip: padding-box;
                     display: flex; align-items: center; justify-content: center;
                     font-size: 3.5rem; font-weight: bold; text-transform: uppercase;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
@@ -5916,13 +5921,17 @@
                     font-size: 0.75rem; margin-top: 4px; padding: 2px 8px; border-radius: 12px;
                     font-weight: 600; display: inline-flex; align-items: center; gap: 4px;
                 }
+                /* These were inverted: "PIN Protected" in red and "No PIN" in green, so
+                   the screen called the protected state a problem and the unprotected one
+                   a success. Neither is an error, so neither gets an error colour —
+                   protected reads present, unprotected reads muted. */
                 .profile-pin-badge.locked {
-                    background: rgba(230, 0, 0, 0.15); color: #ff6b6b;
-                    border: 1px solid rgba(230, 0, 0, 0.3);
+                    background: rgba(255, 255, 255, 0.10); color: rgba(255, 255, 255, 0.88);
+                    border: 1px solid rgba(255, 255, 255, 0.20);
                 }
                 .profile-pin-badge.unlocked {
-                    background: rgba(0, 230, 0, 0.1); color: #51cf66;
-                    border: 1px solid rgba(0, 230, 0, 0.25);
+                    background: transparent; color: rgba(255, 255, 255, 0.45);
+                    border: 1px solid rgba(255, 255, 255, 0.12);
                 }
 
                 /* Floating Profiles Selector Bubble — fallback corner pill */
@@ -6050,6 +6059,22 @@
                 }
                 .btn-danger {
                     background: rgba(230,0,0,0.85); color:#fff; border:none;
+                }
+                /* The trigger, not the confirmation. Delete Profile and Delete Group sat
+                   beside Save as equally solid red buttons, so the destructive option
+                   carried the same weight as the safe one. btn-danger itself stays filled
+                   because it is also the Confirm button on the dialog these open, where
+                   loud red is correct — that is the moment you mean it. */
+                .btn-danger-quiet {
+                    background: transparent; color: #ff8787;
+                    border: 1.5px solid rgba(230,0,0,0.40);
+                }
+                .btn-danger-quiet:hover,
+                .btn-danger-quiet:focus {
+                    background: rgba(230,0,0,0.15);
+                    border-color: rgba(230,0,0,0.85);
+                    color: #ffa8a8;
+                    outline: none;
                 }
                 .btn-danger:hover,
                 .btn-danger:focus {
