@@ -99,22 +99,16 @@
                 </div>
 
                 <div style="background:var(--jpf-accent-a12,rgba(0,164,220,0.12));border:1px solid var(--jpf-accent-a35,rgba(0,164,220,0.35));border-radius:6px;padding:14px 18px;margin-bottom:2em;font-size:0.95rem;line-height:1.6;">
-                    <strong style="display:block;margin-bottom:6px;">&#9432;&nbsp; Where to create &amp; manage profiles</strong>
-                    Profiles are created, edited, and deleted from the <strong>Jellyfin home screen</strong>.
-                    After logging in, look for the <strong>Switch Profile</strong> button in the top navigation bar
-                    (a person icon next to the search and account buttons). Clicking it opens the profile
-                    manager where you can add sub-profiles, set PINs, pick avatar colors, and configure
-                    library access &amp; parental controls.
-                    <br><br>
-                    This settings page is for <strong>server administrators only</strong> and controls the
-                    maximum number of profiles allowed per account and whether a master PIN is required
-                    before creating new sub-profiles.
+                    <strong style="display:block;margin-bottom:6px;">&#9432;&nbsp; Where to manage profiles</strong>
+                    Profiles are managed from the Jellyfin home screen — look for the
+                    <strong>Switch Profile</strong> button in the top bar. This page sets the
+                    server-wide limits.
                 </div>
                 
                 <div class="inputContainer">
                     <label class="inputLabel" for="maxProfiles">Maximum Profiles Per User</label>
                     <input is="emby-input" type="number" id="maxProfiles" min="1" max="10" required />
-                    <div class="fieldDescription">The maximum number of sub-profiles a master account is allowed to create (Default: 5).</div>
+                    <div class="fieldDescription">Default 5.</div>
                 </div>
 
                 <div class="checkboxContainer checkboxContainer-withDescription">
@@ -122,7 +116,7 @@
                         <input is="emby-checkbox" type="checkbox" id="requireMasterPin" />
                         <span>Require Master PIN for creating new profiles</span>
                     </label>
-                    <div class="fieldDescription">If checked, users must enter their PIN code to add new sub-profiles.</div>
+                    <div class="fieldDescription">Users enter their PIN before adding a sub-profile.</div>
                 </div>
 
                 <h3 class="checkboxListLabel" style="margin-top:1.5em;">Switcher defaults</h3>
@@ -155,8 +149,8 @@
                 <div class="selectContainer">
                     <label class="selectLabel" for="indexInjectionMode">Method</label>
                     <select is="emby-select" id="indexInjectionMode">
-                        <option value="both">Patch index.html, fall back to serving it live</option>
                         <option value="middleware">Serve it live, never touch index.html</option>
+                        <option value="both">Patch index.html, fall back to serving it live</option>
                         <option value="file">Patch index.html only</option>
                     </select>
                     <div class="fieldDescription" id="indexInjectionModeHelp"></div>
@@ -164,7 +158,7 @@
                 </div>
 
                 <div class="buttonContainer">
-                    <button is="emby-button" type="submit" class="raised button-submit block">Save Settings</button>
+                    <button is="emby-button" type="submit" class="raised button-submit block">Save profile &amp; switcher settings</button>
                 </div>
             </form>
 
@@ -191,13 +185,9 @@
             </div>
 
             <div style="margin: 1em 0;">
-                <label for="avatarUploadInput" id="avatarUploadLabel" is="emby-button" class="raised block" style="display:inline-block; cursor:pointer; max-width:280px;">
-                    <span>Upload avatars</span>
-                </label>
+                <button is="emby-button" type="button" id="avatarUploadBtn" class="raised" style="max-width:280px;">Upload avatars</button>
                 <input type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" style="display:none;" />
-                <label for="avatarFolderInput" id="avatarFolderLabel" is="emby-button" class="raised block" style="display:inline-block; cursor:pointer; max-width:280px; margin-left:8px;">
-                    <span>Upload a folder</span>
-                </label>
+                <button is="emby-button" type="button" id="avatarFolderBtn" class="raised" style="max-width:280px; margin-left:8px;">Upload a folder</button>
                 <input type="file" id="avatarFolderInput" webkitdirectory directory multiple style="display:none;" />
                 <div class="fieldDescription">JPEG, PNG, WebP or GIF. Pick several files or a whole folder; they are squared and resized automatically.</div>
                 <div class="inputContainer" style="margin-top:1em; max-width:520px;">
@@ -220,17 +210,14 @@
             </div>
             <div style="background:rgba(255,153,0,0.10);border:1px solid rgba(255,153,0,0.35);border-radius:6px;padding:14px 18px;margin-bottom:1.5em;font-size:0.94rem;line-height:1.65;">
                 <strong style="display:block;margin-bottom:6px;">&#9888;&nbsp; Read this before turning it on</strong>
-                Entering this code shuts Bonfire down until you restart Jellyfin. It exists for when the plugin
-                breaks badly enough to block the settings page you would use to remove it.
+                Entering this code shuts Bonfire down until Jellyfin restarts — for when the plugin
+                breaks badly enough to block this page.
                 <br><br>
                 <strong>The cost:</strong> anyone with the code can skip the profile prompt on a device that is
                 already signed in. On a TV left on the master account, that means the master's library.
+                Other profiles still need their PIN, and parental controls are unaffected.
                 <br><br>
-                It does not unlock other profiles — switching still needs their PIN — and it does not change
-                library access or parental ratings, which Jellyfin enforces on its own.
-                <br><br>
-                No password is asked for, so make it long. Five attempts per hour per address, and every use is
-                logged as an error.
+                No password is asked for, so make it long.
             </div>
 
             <div id="panicStatusLine" class="fieldDescription" style="margin-bottom:1em;">…</div>
@@ -296,9 +283,12 @@
                     page.querySelector('#defaultSwitcherLocation').value =
                         config.DefaultSwitcherLocation === 'menu' ? 'menu' : 'button';
                     // Absent before 1.4.1 — "both" is the shipped default and the safe one.
-                    const mode = String(config.IndexInjectionMode || 'both').toLowerCase();
+                    // Matches IndexInjectionModes.Normalize on the server: anything
+                    // unrecognised, including a configuration written before 1.4.1, is
+                    // middleware now.
+                    const mode = String(config.IndexInjectionMode || 'middleware').toLowerCase();
                     page.querySelector('#indexInjectionMode').value =
-                        (mode === 'middleware' || mode === 'file') ? mode : 'both';
+                        (mode === 'both' || mode === 'file') ? mode : 'middleware';
                     updateInjectionModeHelp(page);
                     loadMappings(page);
                     loadAuditLogs(page);
@@ -326,11 +316,11 @@
             }
 
             const INJECTION_MODE_HELP = {
-                both: 'index.html is patched exactly as before. If that write fails — a read-only '
-                    + 'install, a container layer, a locked Program Files — the script is added to the '
-                    + 'page as it is served instead, so the switcher still loads.',
-                middleware: 'index.html is left alone, and the tags Bonfire added earlier are taken back '
-                    + 'out. Nothing to re-apply after a Jellyfin update, and no write permission needed.',
+                both: 'Belt and braces: index.html is patched as well, and if that write fails the script '
+                    + 'is added to the page as it is served. Mainly for a proxy that caches index.html.',
+                middleware: 'The default. index.html is left alone, and any tags Bonfire added earlier '
+                    + 'are taken back out. Nothing to re-apply after a Jellyfin update, and no write '
+                    + 'permission needed.',
                 file: 'How every release up to 1.4.0 worked. Needs write access to index.html, and has to '
                     + 'be redone after each Jellyfin update.'
             };
@@ -550,10 +540,12 @@
                         subsByMaster[key].push(s);
                     });
 
+                    // Neither state is an error, so neither gets an error colour. This was
+                    // red for protected and green for unprotected, i.e. exactly backwards.
                     function pinStatusHtml(reqPin) {
                         return reqPin
-                            ? '<span style="color:#ff6b6b;font-weight:600;">PIN Protected</span>'
-                            : '<span style="color:#51cf66;font-weight:600;">No PIN</span>';
+                            ? '<span style="font-weight:600;opacity:0.9;">PIN protected</span>'
+                            : '<span style="font-weight:600;opacity:0.5;">No PIN</span>';
                     }
 
                     function resetPinBtnHtml(pId, reqPin) {
@@ -589,8 +581,8 @@
                             const subs = subsByMaster[normId(pId)] || [];
 
                             const overrideControl =
-                                '<div style="display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;">' +
-                                '<span style="font-size:0.85rem; opacity:0.6;">Profile Limit:</span>' +
+                                '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
+                                '<span style="font-size:0.85rem; opacity:0.6;">Limit</span>' +
                                 '<input is="emby-input" type="number" class="user-limit-input" data-id="' + pId + '" min="1" max="20" value="' + maxProfiles + '" style="width:60px !important; height:28px !important; padding:2px 6px !important; font-size:0.85rem !important; margin:0 !important; box-sizing:border-box !important;" />' +
                                 '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + pId + '" style="padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">Set</button>' +
                                 (limitOverride !== null && limitOverride !== undefined
@@ -605,11 +597,11 @@
                             const toggle = subs.length > 0
                                 ? '<button type="button" class="sub-profile-toggle" data-master="' + normId(pId) + '" aria-expanded="false" ' +
                                   'style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#fff; ' +
-                                  'border-radius:6px; padding:5px 12px; font-size:0.85rem; font-weight:600; cursor:pointer; margin-top:10px;">' +
+                                  'border-radius:6px; padding:4px 10px; font-size:0.8rem; font-weight:600; cursor:pointer;">' +
                                   '<span class="material-icons toggle-chevron" style="font-size:1.1rem; transition:transform 0.15s ease;">expand_more</span>' +
                                   '<span>' + countLabel + '</span>' +
                                   '</button>'
-                                : '<div style="margin-top:10px; font-size:0.85rem; opacity:0.5;">No sub-profiles</div>';
+                                : '<span style="font-size:0.8rem; opacity:0.4;">No sub-profiles</span>';
 
                             const subPanel = subs.length > 0
                                 ? '<div class="sub-profile-panel" data-master="' + normId(pId) + '" style="display:none; background:rgba(0,0,0,0.18);">' +
@@ -617,14 +609,17 @@
                                   '</div>'
                                 : '';
 
+                            // One line per account. This used to be a stacked block roughly
+                            // 125px tall carrying two values, so a dozen accounts meant a very
+                            // long scroll for what is a table's worth of data.
                             return '<div class="listItem-group" style="border-bottom:1px solid rgba(255,255,255,0.08);">' +
-                                   '<div class="listItem" style="display:flex; align-items:flex-start; padding:15px;">' +
-                                   '<div class="listItemBody" style="flex:1; min-width:0;">' +
-                                   '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#fff;">' + pName + '</div>' +
-                                   '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">Status: ' + pinStatusHtml(reqPin) + '</div>' +
-                                   overrideControl +
+                                   '<div class="listItem" style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:10px 15px;">' +
+                                   '<div style="flex:1 1 220px; min-width:0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
+                                   '<span style="font-weight:600; font-size:1rem; color:#fff;">' + pName + '</span>' +
+                                   pinStatusHtml(reqPin) +
                                    toggle +
                                    '</div>' +
+                                   overrideControl +
                                    resetPinBtnHtml(pId, reqPin) +
                                    '</div>' +
                                    subPanel +
@@ -1210,6 +1205,23 @@
 
                 // pageshow can fire repeatedly for the same element, so every handler below
                 // is guarded — otherwise one click would upload the same avatar twice.
+                // The trigger is a button rather than a label wrapping the input, because
+                // is="emby-button" only upgrades a <button>. So it has to forward the click.
+                const avatarUploadBtn = page.querySelector('#avatarUploadBtn');
+                const avatarFolderBtn = page.querySelector('#avatarFolderBtn');
+                if (avatarUploadBtn) {
+                    avatarUploadBtn.addEventListener('click', function () {
+                        const el = page.querySelector('#avatarUploadInput');
+                        if (el) el.click();
+                    });
+                }
+                if (avatarFolderBtn) {
+                    avatarFolderBtn.addEventListener('click', function () {
+                        const el = page.querySelector('#avatarFolderInput');
+                        if (el) el.click();
+                    });
+                }
+
                 const avatarInput = page.querySelector('#avatarUploadInput');
                 if (avatarInput && !avatarInput.dataset.bound) {
                     avatarInput.dataset.bound = '1';

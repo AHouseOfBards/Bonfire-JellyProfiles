@@ -600,6 +600,18 @@ namespace Jellyfin.Profiles
                 return;
             }
 
+            if (!ProfilesIndexMiddleware.IsRegistered)
+            {
+                // Nothing would serve the tags if we took them out. This matters now that
+                // middleware is the default: an install where the filter never registered
+                // would otherwise have a working switcher removed by an upgrade.
+                _logger.LogWarning(
+                    "ProfilesPlugin: injection is set to middleware only, but the request-pipeline "
+                    + "hook did not register. Leaving {Path} patched so the switcher keeps working.",
+                    IndexPath);
+                return;
+            }
+
             try
             {
                 var html = File.ReadAllText(IndexPath);

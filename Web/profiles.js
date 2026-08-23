@@ -3550,7 +3550,7 @@
                 // ── Section 2: getting into this profile ────────────────────────
                 const createSecurity = `
                     <div class="form-group">
-                        <label for="create-pin-input">PIN Code (Optional, 4-8 digits)</label>
+                        <label for="create-pin-input">PIN</label>
                         <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="Leave empty for no PIN" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     </div>
                     <div class="form-group">
@@ -3600,7 +3600,7 @@
                 // ── Section 4: limits applied on top of the libraries above ─────
                 const createRestrictions = `
                     <div class="form-group">
-                        <label>Allowed Devices (Optional)</label>
+                        <label>Allowed Devices</label>
                         <div class="devices-dropdown-container" style="position: relative;">
                             <div id="create-devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
                                 <span id="create-devices-dropdown-selected-text">All Devices Allowed</span>
@@ -3635,7 +3635,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="create-rating-select">Max Parental Rating Limit (Optional)</label>
+                        <label for="create-rating-select">Maximum rating</label>
                         <select id="create-rating-select">
                             <option value="">No Restrictions</option>
                             <option value="6">G / TV-G (6+)</option>
@@ -3647,12 +3647,12 @@
 
                     ${this.renderTagSuggestions('create-tag-suggestions', libraryTags)}
                     <div class="form-group">
-                        <label>Blocked Tags (Optional)</label>
+                        <label>Blocked tags</label>
                         ${this.renderTagEditor('create-blocked-tags', [], 'e.g. adults', 'create-tag-suggestions')}
                         <div class="form-hint">Hides anything with these tags. A tag on a series or library covers everything inside it.</div>
                     </div>
                     <div class="form-group">
-                        <label>Allowed Tags (Optional)</label>
+                        <label>Allowed tags</label>
                         ${this.renderTagEditor('create-allowed-tags', [], 'e.g. kids', 'create-tag-suggestions')}
                         <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items. Untagged content is hidden too.</div>
                     </div>
@@ -3925,7 +3925,7 @@
                 // ── Section 2: getting into this profile ────────────────────────
                 const securityBody = `
                     <div class="form-group">
-                        <label for="edit-pin-input">PIN Code (Optional, 4-8 digits)</label>
+                        <label for="edit-pin-input">PIN</label>
                         <div class="pin-edit-group" style="display:flex; gap: var(--jpf-gap); flex-wrap: wrap;">
                             <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? 'New PIN' : 'No PIN'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
                             ${profile.hasPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">Clear PIN</button>` : ''}
@@ -4001,7 +4001,7 @@
                 // ── Section 4: limits applied on top of the libraries above ─────
                 const restrictionsBody = `
                     <div class="form-group">
-                        <label>Allowed Devices (Optional)</label>
+                        <label>Allowed Devices</label>
                         <div class="devices-dropdown-container" style="position: relative;">
                             <div id="devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
                                 <span id="devices-dropdown-selected-text">All Devices Allowed</span>
@@ -4038,7 +4038,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="edit-rating-select">Max Parental Rating Limit (Optional)</label>
+                        <label for="edit-rating-select">Maximum rating</label>
                         <select id="edit-rating-select">
                             <option value="" ${maxRating === null ? 'selected' : ''}>No Restrictions</option>
                             <option value="6" ${maxRating === 6 ? 'selected' : ''}>G / TV-G (6+)</option>
@@ -4050,12 +4050,12 @@
 
                     ${this.renderTagSuggestions('edit-tag-suggestions', libraryTags)}
                     <div class="form-group">
-                        <label>Blocked Tags (Optional)</label>
+                        <label>Blocked tags</label>
                         ${this.renderTagEditor('edit-blocked-tags', profile.blockedTags || [], 'e.g. adults', 'edit-tag-suggestions')}
                         <div class="form-hint">Hides anything with these tags. A tag on a series or library covers everything inside it.</div>
                     </div>
                     <div class="form-group">
-                        <label>Allowed Tags (Optional)</label>
+                        <label>Allowed tags</label>
                         ${this.renderTagEditor('edit-allowed-tags', profile.allowedTags || [], 'e.g. kids', 'edit-tag-suggestions')}
                         <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items. Untagged content is hidden too.</div>
                     </div>

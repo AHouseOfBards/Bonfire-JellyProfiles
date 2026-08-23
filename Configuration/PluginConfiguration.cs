@@ -56,7 +56,7 @@ namespace Jellyfin.Profiles.Configuration
         /// index.html from the request pipeline and leaving the file alone.
         /// </para>
         /// </summary>
-        public string IndexInjectionMode { get; set; } = IndexInjectionModes.Both;
+        public string IndexInjectionMode { get; set; } = IndexInjectionModes.Middleware;
 
         /// <summary>
         /// PBKDF2 hash of the emergency disable code, or null when the feature is off (the
@@ -162,19 +162,26 @@ namespace Jellyfin.Profiles.Configuration
         public const string Middleware = "middleware";
 
         /// <summary>
-        /// Both, which is the default while the middleware is new. The file gets patched as
-        /// it always did, and the middleware finds the tags already present and steps aside,
-        /// so upgrading changes nothing until someone opts in. If the file cannot be written
-        /// — the case this whole feature exists for — the middleware serves the injected
-        /// copy and the switcher works anyway.
+        /// Both. Was the default while the middleware was new; kept as a belt-and-braces
+        /// option. The file gets patched as it always did, and the middleware finds the tags
+        /// already present and steps aside.
         /// </summary>
         public const string Both = "both";
 
-        /// <summary>Falls back to <see cref="Both"/> for anything unrecognised.</summary>
+        /// <summary>
+        /// Falls back to <see cref="Middleware"/> for anything unrecognised, including the
+        /// empty value on a configuration written before 1.4.1.
+        /// <para>
+        /// This was <see cref="Both"/> through the 1.4.x betas, so that upgrading changed
+        /// nothing until someone opted in. Now that the middleware is confirmed working on
+        /// real hardware, not writing to index.html is the behaviour worth defaulting to:
+        /// it is the whole reason issues #17, #11 and #3 exist.
+        /// </para>
+        /// </summary>
         public static string Normalize(string? value)
         {
             var v = (value ?? string.Empty).Trim().ToLowerInvariant();
-            return v == File || v == Middleware ? v : Both;
+            return v == File || v == Both ? v : Middleware;
         }
 
         /// <summary>True when this mode should rewrite index.html on disk.</summary>
