@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.4.2.0",
+        "changelog": "**Beta release** — please report issues on GitHub.\n\n**New**\n\n- Bonfire no longer edits Jellyfin's index.html by default. The script is added to the page as it is served, so there is nothing to re-apply after a Jellyfin update and no file permissions to grant. Patching the file is still available under **Settings → Client script**. (#17, #11, #3)\n- The switcher follows your theme's accent colour instead of always drawing Jellyfin blue.\n- Profile screens use the whole window on a desktop instead of a single phone-width column.\n- The gate shows which profile you are currently watching as.\n\n**Fixed**\n\n- Opening a profile took several seconds and could drop you back on a screen you had already left. Forms now open on cached data and a slow one can no longer overwrite a newer screen.\n- Add Profile was missing from the Manage Profiles screen.\n- Library names were cut off to \"3D Movi…\" when choosing artwork.\n- The audit log ran the time into the address as \"12:09:28 PMIP\".\n- **Upload avatars** and **Upload a folder** were unstyled text instead of buttons.\n- \"PIN Protected\" showed in red and \"No PIN\" in green — the wrong way round.\n\n**Changed**\n\n- Switcher Style and Your Bonfire move out of the profile grid into their own **Settings** screen. Bonfire Grouping is now called Your Bonfire.\n- Libraries and their artwork are one list instead of two lists of the same libraries.\n- Delete is no longer as prominent as Save.\n- Choosing a profile picture is one button rather than six controls.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.4.2/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-08-23T00:00:00Z"
+      },
+      {
         "version": "1.4.1.0",
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**New**\n\n- Bonfire can now add its script to the page as Jellyfin serves it, instead of editing index.html on disk. Nothing to re-apply after a Jellyfin update, and no file permissions to grant. (#17, #11, #3)\n- **Settings → Client script** picks the method. The default keeps patching the file and only serves it live if that write fails, so upgrading changes nothing on a working server.\n\n**Changed**\n\n- Choosing \"never touch index.html\" also removes the tags Bonfire added earlier, restoring the file.\n- The settings page says whether live injection is actually running.",
         "targetAbi": "10.11.0.0",
