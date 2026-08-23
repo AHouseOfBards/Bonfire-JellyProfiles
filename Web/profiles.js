@@ -1969,7 +1969,7 @@
             const back = surface.querySelector(
                 '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
                 '#pin-cancel-btn, #master-pin-cancel-btn, #create-cancel-btn, #edit-cancel-btn, ' +
-                '#bonfire-back-btn, #switcher-mode-back-btn, #profiles-resume-btn, #profiles-libart-cancel'
+                '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #profiles-resume-btn, #profiles-libart-cancel'
             );
             if (back) back.click();
         },
@@ -2284,6 +2284,10 @@
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
             const localMasterId = masterState ? this.normalizeGuid(masterState.masterUserId) : '';
 
+            // Same condition the two settings tiles used, so Settings shows up in exactly
+            // the cases they used to.
+            const hasLocalMaster = profiles.some(p => p.isMaster && !p.isBonfire);
+
             // Group profiles by masterUserId
             const grouped = {};
             for (const p of profiles) {
@@ -2380,30 +2384,12 @@
                 let cardsHtml = groupProfiles.map(p => renderCard(p)).join('');
 
                 if (isLocalGroup) {
-                    if (this.isManageMode && profiles.some(p => p.isMaster && !p.isBonfire)) {
-                        cardsHtml += `
-                            <div class="profile-card action-bonfire" tabindex="0">
-                                <div class="profile-avatar-container">
-                                    <div class="profile-avatar" style="background: linear-gradient(135deg, #ff9900 0%, #ff5500 100%); display: flex; align-items: center; justify-content: center;">
-                                        <span class="material-icons" style="font-size: 3.5rem; color: #fff;">local_fire_department</span>
-                                    </div>
-                                </div>
-                                <div class="profile-name">
-                                    <span>Bonfire Grouping</span>
-                                </div>
-                            </div>
-                            <div class="profile-card action-switcher-mode" tabindex="0">
-                                <div class="profile-avatar-container">
-                                    <div class="profile-avatar" style="background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); display: flex; align-items: center; justify-content: center;">
-                                        <span class="material-icons" style="font-size: 3.5rem; color: #fff;">switch_account</span>
-                                    </div>
-                                </div>
-                                <div class="profile-name">
-                                    <span>Switcher Style</span>
-                                </div>
-                            </div>
-                        `;
-                    }
+                    // Settings used to sit here, as two cards in the same row as people.
+                    // They are not profiles: Switcher Style is per-account and Your Bonfire
+                    // is between accounts, and neither belongs to the grid of who can watch.
+                    // They live behind Settings now — which also means the LAN-bypass toggle,
+                    // the one that can hand somebody your admin rights, is somewhere you went
+                    // on purpose rather than somewhere you can land while renaming a profile.
 
                     // Deliberately in both modes. This used to render only when NOT managing,
             // so the one screen actually called "Manage Profiles" was the one screen
@@ -2443,6 +2429,9 @@
                     ${sectionsHtml}
                     <div class="profiles-footer">
                         <button id="profiles-toggle-manage-btn" class="profiles-btn btn-secondary">${manageBtnText}</button>
+                        ${this.isManageMode && hasLocalMaster
+                            ? '<button id="profiles-settings-btn" class="profiles-btn btn-secondary">Settings</button>'
+                            : ''}
                         ${this._resumeState && !this.isManageMode
                             ? '<button id="profiles-resume-btn" class="profiles-btn btn-secondary">Cancel</button>'
                             : ''}
@@ -2522,12 +2511,12 @@
                 });
             }
 
-            // "Bonfire" action
-            const bonfireCard = overlay.querySelector('.action-bonfire');
-            if (bonfireCard) {
-                bonfireCard.addEventListener('click', () => {
+            // Settings: everything that is not a profile.
+            const settingsBtn = overlay.querySelector('#profiles-settings-btn');
+            if (settingsBtn) {
+                settingsBtn.addEventListener('click', () => {
                     if (this._switchLock) return;
-                    this.showBonfireModal();
+                    this.showSettingsMenu();
                 });
             }
 
@@ -2544,14 +2533,6 @@
                 this.applyPanicLinkVisibility();
             }
 
-            // "Switcher Style" action
-            const switcherModeCard = overlay.querySelector('.action-switcher-mode');
-            if (switcherModeCard) {
-                switcherModeCard.addEventListener('click', () => {
-                    if (this._switchLock) return;
-                    this.showSwitcherModeModal();
-                });
-            }
 
             // Back out of a switcher the user opened on purpose, returning to the profile
             // they were already using. Only present when there is something to return to —
@@ -4356,7 +4337,7 @@
             if (!content) return;
 
             content.innerHTML = `
-                <h1 class="profiles-title">Bonfire Grouping</h1>
+                <h1 class="profiles-title">Your Bonfire</h1>
                 <div class="create-profile-container" style="max-width: 500px; width: 100%;">
                     <div id="bonfire-container" style="width: 100%; min-height: 100px; display: flex; flex-direction: column; gap: 1.5rem;">
                         <div style="display: flex; justify-content: center; padding: 20px;">
@@ -4393,6 +4374,71 @@
         /// A per-account preference rather than a server setting — some households want the
         /// Netflix-style "Who's Watching?" screen, others find it intrusive, and neither
         /// answer should be imposed on the other by whoever runs the server.
+        /// Everything that is not a profile.
+        ///
+        /// Bonfire has four scopes of setting: per profile (Edit Profile), per account
+        /// (Switcher Style), between accounts (Your Bonfire) and server-wide (the
+        /// dashboard). The middle two used to be cards in the profile grid, which is
+        /// why they needed their own gradient tiles to avoid reading as people.
+        showSettingsMenu: function () {
+            this.beginNavigation();
+
+            const content = document.querySelector('.profiles-modal-content');
+            if (!content) return;
+
+            const entry = (id, icon, title, body) => `
+                <div class="settings-menu-entry" id="${id}" tabindex="0" role="button" style="
+                    display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
+                    border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
+                    border: 2px solid rgba(255,255,255,0.08);
+                    background: rgba(255,255,255,0.02);
+                ">
+                    <span class="material-icons" style="font-size: 2rem; color: rgba(255,255,255,0.5); flex-shrink: 0;">${icon}</span>
+                    <div style="flex: 1 1 auto; min-width: 0;">
+                        <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
+                        <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
+                    </div>
+                </div>
+            `;
+
+            content.innerHTML = `
+                <h1 class="profiles-title">Settings</h1>
+                <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
+                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
+                        ${entry('settings-switcher-style', 'switch_account', 'Switcher Style',
+                            'Where you reach this screen from, and whether it opens on startup.')}
+                        ${entry('settings-your-bonfire', 'local_fire_department', 'Your Bonfire',
+                            'Share your profiles with another home, or join theirs.')}
+                    </div>
+                    <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
+                        <button id="settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">Back</button>
+                    </div>
+                </div>
+            `;
+
+            const open = (id, fn) => {
+                const el = content.querySelector('#' + id);
+                if (!el) return;
+                el.addEventListener('click', () => fn.call(this));
+                el.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+                });
+            };
+            open('settings-switcher-style', this.showSwitcherModeModal);
+            open('settings-your-bonfire', this.showBonfireModal);
+
+            const back = content.querySelector('#settings-back-btn');
+            if (back) {
+                back.addEventListener('click', () => {
+                    const st = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+                    if (st) {
+                        this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.masterToken, /* forceRefresh */ true);
+                    }
+                });
+            }
+
+        },
+
         showSwitcherModeModal: function () {
             this.beginNavigation();
             const apiClient = ApiClient;
@@ -4455,8 +4501,8 @@
                 </div>
             `;
 
-            const goBack = () => this.fetchAndRenderProfiles(
-                apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
+            // Back to Settings, which is where this was opened from.
+            const goBack = () => this.showSettingsMenu();
 
             const backBtn = content.querySelector('#switcher-mode-back-btn');
             if (backBtn) backBtn.addEventListener('click', goBack);
@@ -4718,10 +4764,8 @@
             const backBtn = container.querySelector('#bonfire-back-btn');
             if (backBtn) {
                 backBtn.addEventListener('click', () => {
-                    const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
-                    if (masterState) {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
-                    }
+                    // Back to Settings, which is where this was opened from.
+                    this.showSettingsMenu();
                 });
             }
 
