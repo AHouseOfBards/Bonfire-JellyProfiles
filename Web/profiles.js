@@ -3423,10 +3423,11 @@
                         <div class="image-upload-row">
                             <div id="${prefix}-image-upload-preview" class="image-upload-preview" style="background-color: ${safeColor(currentColor)};">${preview}</div>
                             <div class="image-upload-actions">
-                                <button type="button" id="${prefix}-change-picture" class="profiles-btn btn-secondary image-upload-btn"
+                                <button type="button" id="${prefix}-change-picture" class="profiles-btn btn-secondary image-upload-btn picture-change-btn"
                                         aria-expanded="${sourcesOpen}" aria-controls="${prefix}-picture-sources">
                                     <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
                                     <span>${currentImage ? 'Change picture' : 'Choose a picture'}</span>
+                                    <span class="material-icons picture-caret" aria-hidden="true">expand_more</span>
                                 </button>
                                 <button type="button" id="${prefix}-clear-profile-image-btn" class="profiles-btn btn-secondary image-upload-btn picture-remove-btn"
                                         style="display: ${currentImage ? 'inline-flex' : 'none'};">
@@ -5882,6 +5883,29 @@
                 .avatar-color-group.is-inert {
                     opacity: 0.45;
                 }
+                /* The only thing that said this button opens a panel was aria-expanded,
+                   which is not a thing anyone can see. */
+                .picture-caret {
+                    font-size: 1.15rem !important;
+                    margin-left: -2px;
+                    opacity: 0.7;
+                    transition: transform 0.2s ease;
+                }
+                .picture-change-btn[aria-expanded="true"] .picture-caret {
+                    transform: rotate(180deg);
+                }
+                /* Held down for as long as the panel is out, so the link between the two
+                   survives the panel being scrolled past. */
+                .picture-change-btn[aria-expanded="true"] {
+                    background-color: var(--jpf-accent-a18);
+                    border-color: var(--jpf-accent-a60);
+                    color: #fff;
+                }
+                @media (prefers-reduced-motion: reduce) {
+                    .picture-caret {
+                        transition: none;
+                    }
+                }
                 /* Change picture and Remove: same class, same height, one group. */
                 .image-upload-actions {
                     display: flex;
@@ -5905,6 +5929,9 @@
                     gap: var(--jpf-gap);
                     width: 100%;
                     min-width: 0;
+                    /* Required: width:100% and padding on a content-box element add up
+                       to wider than the card. This sheet has no global box-sizing. */
+                    box-sizing: border-box;
                     padding: 0.9rem;
                     background: rgba(0, 0, 0, 0.18);
                     border: 1px solid rgba(255, 255, 255, 0.09);
@@ -6559,6 +6586,10 @@
                     border-radius: var(--jpf-r-sm);
                     background: rgba(255, 255, 255, 0.04);
                 }
+                /* No display here. It is hidden by the grouped rule above and shown by
+                   .libart-list.show-artwork .libart-row.libart-has-art — declaring
+                   display:flex in this block would outrank the first (same specificity,
+                   later in the sheet) and put the empty slot back on every row. */
                 .libart-thumb {
                     width: 44px;
                     height: 26px;
@@ -6568,7 +6599,6 @@
                     background-color: rgba(255, 255, 255, 0.08);
                     background-size: cover;
                     background-position: center;
-                    display: flex;
                     align-items: center;
                     justify-content: center;
                     font-size: 0.8rem;

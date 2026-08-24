@@ -1,3 +1,4 @@
+<div id="profilesConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="libraryloading,embyrouter,selectmenu,dialogHelper">
 <style>
     /* Tints of the active theme's accent, with the colours this page shipped
        with as the floor. See the matching block in profiles.js for why
@@ -25,27 +26,43 @@
         margin: 0 0 2em 0;
         border-bottom: 1px solid rgba(255, 255, 255, 0.14);
     }
+    /* Every other control on this page is is="emby-button" and inherits Jellyfin's
+       styling. These are plain buttons, so everything the user agent would otherwise
+       supply has to be turned off by hand — including the border and background that
+       made them read as five little white chips. */
     #profilesConfigurationPage .jpf-tab {
         -webkit-appearance: none;
         appearance: none;
-        background: transparent;
-        border: none;
+        background: none;
+        background-color: transparent;
+        border: 0;
         border-bottom: 2px solid transparent;
-        margin-bottom: -1px;
-        padding: 0.65em 1.1em;
-        font: inherit;
-        font-weight: 600;
+        border-radius: 0;
+        box-shadow: none;
+        margin: 0 0 -1px 0;
+        padding: 0.7em 1.15em;
+        font-family: inherit;
+        font-size: 1.05em;
+        font-weight: 500;
+        line-height: 1.4;
         color: inherit;
-        opacity: 0.6;
+        opacity: 0.55;
         cursor: pointer;
         white-space: nowrap;
+        transition: opacity 0.15s ease, border-color 0.15s ease;
     }
     #profilesConfigurationPage .jpf-tab:hover {
         opacity: 1;
     }
     #profilesConfigurationPage .jpf-tab.is-active {
         opacity: 1;
+        font-weight: 600;
         border-bottom-color: var(--jpf-accent);
+    }
+    @media (prefers-reduced-motion: reduce) {
+        #profilesConfigurationPage .jpf-tab {
+            transition: none;
+        }
     }
     #profilesConfigurationPage .jpf-tab:focus-visible {
         outline: 2px solid var(--jpf-accent);
@@ -63,7 +80,6 @@
         margin-top: 0 !important;
     }
 </style>
-<div id="profilesConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="libraryloading,embyrouter,selectmenu,dialogHelper">
     <div data-role="content">
         <div class="content-primary">
             <div id="injectionWarningContainer" style="display:none; background:rgba(230,73,128,0.12); border:1px solid rgba(230,73,128,0.35); border-radius:6px; padding:14px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#ff6b6b;">
@@ -144,14 +160,14 @@
                  plugin is working at all, and must not be hidden behind a tab nobody has
                  a reason to open. -->
             <div class="jpf-tabs" role="tablist" aria-label="Bonfire settings sections">
-                <button type="button" class="jpf-tab" role="tab" data-tab="settings" aria-controls="jpfPanelSettings">Settings</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="general" aria-controls="jpfPanelGeneral">General</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="avatars" aria-controls="jpfPanelAvatars">Avatars</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="accounts" aria-controls="jpfPanelAccounts">Accounts</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="activity" aria-controls="jpfPanelActivity">Activity</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="advanced" aria-controls="jpfPanelAdvanced">Advanced</button>
             </div>
 
-            <div class="jpf-tab-panel" id="jpfPanelSettings" data-panel="settings" role="tabpanel" hidden>
+            <div class="jpf-tab-panel" id="jpfPanelGeneral" data-panel="general" role="tabpanel" hidden>
             <form id="profilesConfigurationForm">
                 <div class="sectionTitleContainer" style="display:flex; align-items:center; justify-content:space-between;">
                     <h2 class="sectionTitle">Bonfire Settings</h2>
@@ -222,7 +238,7 @@
                     <button is="emby-button" type="submit" class="raised button-submit block">Save profile &amp; switcher settings</button>
                 </div>
             </form>
-            </div><!-- /settings -->
+            </div><!-- /general -->
 
             <div class="jpf-tab-panel" id="jpfPanelAvatars" data-panel="avatars" role="tabpanel" hidden>
             <div class="sectionTitleContainer" style="margin-top: 3em;">
