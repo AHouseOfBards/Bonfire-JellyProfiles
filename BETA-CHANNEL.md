@@ -6,7 +6,7 @@ This branch serves the **pre-release manifest** for Bonfire/JellyProfiles.
 
 | Channel | Repository URL | Contains |
 |---|---|---|
-| **Stable** (default) | `https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json` | Milestone releases — 1.0, 1.1, 1.1.13, 1.2, 1.2.12, 1.3, 1.4 |
+| **Stable** (default) | `https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json` | Milestone releases — 1.0, 1.1, 1.1.13, 1.2, 1.2.12, 1.3, 1.4, 1.5 |
 | **Beta** | `https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/beta/manifest.json` | Pre-release builds, and point releases that never became milestones |
 
 The two lists **do not overlap**: every published version appears in exactly one of
