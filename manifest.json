@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.4.8.0",
+        "changelog": "**Beta release** — please report issues on GitHub.\n\nFive faults found in a review before the next stable release.\n\n**Fixed**\n\n- On Android, the 1.4.6 fix for the profile picker coming back over and over had never actually run — the script that hides the page during a switch was clearing the marker the fix needed before the fix could read it. Switching should now take one reload rather than several.\n- Bonfire rewrote Jellyfin's `index.html` once on startup even when set never to touch it, stripping blank lines out of a file it had not patched.\n- The settings page reported **Client script is installed and up to date** whenever the plugin was loaded at all, including on a server where nothing was reaching the page.\n- A one-off problem stayed on the settings page as the last problem until Jellyfin was restarted.\n- Returning to the profile grid could draw it over a screen you had already moved on to.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.4.8/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-08-25T00:00:00Z"
+      },
+      {
         "version": "1.4.7.0",
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- Picking a profile showed nothing at all for the second or two it takes, so on a phone the tap read as missed. The profile you picked now shows a spinner and the rest step back, and the screen no longer goes black while it loads.\n- The loading spinner on **Your Bonfire** never actually turned.",
         "targetAbi": "10.11.0.0",
