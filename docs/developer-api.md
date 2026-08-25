@@ -1,7 +1,11 @@
-# Jellyfin Profiles Plugin — Developer API Reference
+# Bonfire — Developer API Reference
 
 **Plugin ID:** `b1462fca-774b-4b13-8d02-e2d4f2bc18b9`  
-**Base Path:** `/plugins/profiles`  
+**Base path:** `/plugins/profiles`  
+**Server:** Jellyfin 10.11.x  
+
+All paths below are relative to the base path. All request and response bodies are JSON
+unless stated otherwise. Field names are returned camelCase.
 
 ---
 
@@ -391,6 +395,22 @@ Retrieves media library folders visible to the master user.
 ---
 
 ## Client Script
+
+The plugin serves one script, which the browser must load for any of the switcher UI to
+exist. Delivery is set server-wide under **Advanced → Client script** on the plugin
+configuration page, and reported by `mechanism.mode`:
+
+| `mode` | Behaviour |
+| --- | --- |
+| `middleware` | Default since 1.5. The plugin holds a place in the ASP.NET request pipeline and adds its tags to `index.html` as it is served. The file on disk is not modified, and any tags an earlier version wrote are removed. |
+| `both` | Legacy. `index.html` is patched on disk, and the pipeline is used as a fallback if that write fails. |
+| `file` | Legacy. `index.html` is patched on disk only. This is what every release up to 1.4 did. |
+
+Under `middleware`, `index.html` on disk contains no plugin tags. Do not treat its absence
+as a failure: read `mechanism` instead (see `GET /plugins/profiles/admin/mappings`).
+
+A client that supplies its own copy of the web client — a Tizen `.wgt`, for example — is
+not served by any of them and must bundle the script itself.
 
 ### `GET /plugins/profiles/profiles.js`
 Serves the web client script. Unauthenticated — it is loaded by a `<script>` tag in Jellyfin's `index.html`.
@@ -951,15 +971,43 @@ Retrieves all user profile mappings configured on the server.
 |---|---|---|
 | `masterUsers` | array | Master accounts. Each entry has `profileUserId`, `profileName`, `requiresPin`, `maxProfiles`, and `limitOverride`. |
 | `subProfiles` | array | Sub-profiles. Each entry has `profileUserId`, `profileName`, `masterName`, `masterUserId`, and `requiresPin`. Group by `masterUserId`, not `masterName` — names change on rename and are not guaranteed unique. |
-| `injectionSucceeded` | boolean | False only when the client script is absent from `index.html`, meaning the switcher will not load. |
+| `injectionSucceeded` | boolean | Whether the script is reaching the browser. Under `middleware` this comes from `mechanism`; under the legacy modes it means the tags are present in `index.html`. |
 | `isVersionStale` | boolean | True when the script is present but `index.html` is not fully current. The switcher works; this is advisory. |
 | `indexPath` | string | Resolved absolute path to Jellyfin's `index.html` on the host. |
 | `failureReason` | string \| null | Human-readable description of the specific problem, or null when everything is correct. |
 | `serviceAccount` | string \| null | OS account the Jellyfin process is running under (e.g. `NT AUTHORITY\NETWORK SERVICE`, `DESKTOP-PC\alice`, `jellyfin`). Null if it could not be determined. Use it to generate an exact permission command instead of guessing between service and desktop installs. |
 | `isWindows` | boolean | Whether the server is running on Windows, for choosing between `icacls` and `chown`/`chmod` guidance. |
 | `pluginVersion` | string | Running plugin version. Carries a pre-release suffix (e.g. `1.3.1-beta`) on pre-release builds; a stable build has no suffix. |
+| `mechanism` | object | How the script is being delivered. See below. |
 
-This endpoint re-reads `index.html` on every call, so the injection fields always reflect the file as it is now rather than as it was at server startup.
+`mechanism`:
+
+```json
+{
+  "mode": "middleware",
+  "middlewareRegistered": true,
+  "middlewareActive": true,
+  "middlewareServed": 42,
+  "middlewareLastServedUtc": "2026-08-25T15:04:11.000Z",
+  "middlewareError": null
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `mode` | string | `middleware`, `both` or `file`. See **Client Script**. |
+| `middlewareRegistered` | boolean | The pipeline hook was registered at startup. Always true wherever the plugin loads, so it does **not** indicate the hook is working. |
+| `middlewareActive` | boolean | The hook has handled at least one request for the web page. This is the signal that it is live. |
+| `middlewareServed` | number | Pages served with the tags added, since the server started. |
+| `middlewareLastServedUtc` | string \| null | When the last one was served. |
+| `middlewareError` | string \| null | Why the most recent handled request could not have the tags added, or null. Reset per request. |
+
+In `middleware` mode, `injectionSucceeded` is derived from `middlewareActive` and
+`middlewareError`, not from the contents of `index.html`. `isVersionStale` is always false,
+because the tags are generated per request and cannot be out of date.
+
+This endpoint re-reads `index.html` on every call, so in the two legacy modes the injection
+fields reflect the file as it is now rather than as it was at server startup.
 
 * **Error Responses:**
   * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
@@ -986,7 +1034,12 @@ Removes the PIN requirement from the specified profile.
   * `404 Not Found`: Profile mapping not found.
 
 ### `POST /plugins/profiles/admin/retry-injection`
-Re-runs the client-script injection into Jellyfin's `index.html` and returns the resulting status. Lets an administrator apply a file-permission fix and confirm it worked without restarting the Jellyfin server.
+Re-runs the on-disk injection into Jellyfin's `index.html` and returns the resulting status.
+Lets an administrator apply a file-permission fix and confirm it worked without restarting
+the server.
+
+Only meaningful in the `both` and `file` modes. Under `middleware` there is nothing on disk
+to retry, and the call reports the current state without writing anything.
 
 * **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
 * **Request Body:** none.
@@ -1004,11 +1057,16 @@ Re-runs the client-script injection into Jellyfin's `index.html` and returns the
 }
 ```
 
-Returns the same injection-status fields as `GET /plugins/profiles/admin/mappings` (see that endpoint for the full table), reflecting the state *after* the retry.
+Returns the same injection-status fields as `GET /plugins/profiles/admin/mappings`, including
+`mechanism`, reflecting the state *after* the retry.
 
-Both `injectionSucceeded: true` and `isVersionStale: false` means the script is installed and current. `isVersionStale: true` on its own is advisory — the switcher is running, and clients pick up new script versions on their own within `max-age` (see `GET /plugins/profiles/profiles.js`), so write access to `index.html` only makes updates immediate rather than being required.
+`injectionSucceeded: true` with `isVersionStale: false` means the script is installed and
+current. `isVersionStale: true` alone is advisory: the switcher is running, and clients pick
+up new script versions within `max-age` on their own (see `GET /plugins/profiles/profiles.js`).
 
-`failureReason` names the actual cause, including whether Jellyfin can write `index.html` at all, which is tested directly rather than inferred. Combine it with `serviceAccount` to present an exact permission command.
+`failureReason` names the cause, including whether Jellyfin can write `index.html`, which is
+tested directly rather than inferred. Combine it with `serviceAccount` to present an exact
+permission command.
 
 * **Error Responses:**
   * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.

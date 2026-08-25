@@ -8,9 +8,13 @@ Adds multi-user profile switching to Jellyfin. A single account can have up to f
 
 ## Screenshots
 
-![Profile selection screen](images/profile-selector.png)
+![The profile picker, showing two profiles in a Bonfire](images/profile-selector.png)
 
-*Profile selector — shown on launch and when switching profiles.*
+*Shown when the app opens, and whenever you switch.*
+
+![The create-profile form](images/create-profile.png)
+
+*Creating a profile: libraries, PIN, device limits and tag filters in one place.*
 
 ---
 
@@ -28,13 +32,13 @@ Once the server restarts, the plugin is active and will automatically load on al
 
 ### Beta channel
 
-The repository above lists **milestone releases only** — the builds meant for everyday use. Pre-release builds live in a separate repository, along with every published point release:
+The repository above lists **milestone releases only** — the builds meant for everyday use. Pre-release builds and older point releases live in a separate repository:
 
 ```
 https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/beta/manifest.json
 ```
 
-Add it alongside the stable one — both describe the same plugin, so Jellyfin merges them and simply offers more versions to choose from. Remove it to go back to milestones only. See [BETA-CHANNEL.md](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/beta/BETA-CHANNEL.md).
+Add it **alongside** the stable one, not instead of it. The two lists do not overlap — every version appears in exactly one of them — so the beta repository on its own would never offer you a stable release. Both describe the same plugin, so Jellyfin merges them into one version list. Remove the beta repository to go back to milestones only. See [BETA-CHANNEL.md](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/beta/BETA-CHANNEL.md).
 
 > [!WARNING]
 > **Beta builds are unfinished and features in them may be broken.** They exist so new work can be tested before it reaches everyone, which means:
@@ -46,28 +50,38 @@ Add it alongside the stable one — both describe the same plugin, so Jellyfin m
 > Please do report what you find on [GitHub Issues](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues) — that is what the channel is for. Just don't put a beta on a server your household depends on that evening.
 
 > [!NOTE]
-> **Automatic Client Script Injection & Permissions:**
-> On startup, the plugin automatically patches Jellyfin's `index.html` to inject the client-side profile switcher. If the Jellyfin process lacks write permissions to its web client files (common on Docker, Linux, or restricted Windows directories), the injection will fail.
-> 
-> * **How to know:** If injection fails, a prominent **⚠️ Client Script Auto-Injection Failed** banner will appear at the top of your plugin configuration page (**Dashboard → Plugins → Profiles**) with the copy-pasteable fix commands for your host OS.
-> * **Quick Fixes:**
->   * **Linux (Native):** Run `sudo chmod 666 /usr/share/jellyfin/web/index.html` and restart Jellyfin.
->   * **Docker (Run on host):** Run `docker exec -u root <container-name> chmod 666 /usr/share/jellyfin/web/index.html` (adjust path if different) and restart the container.
->   * **Windows (Admin Command Prompt):** Run `icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "NT AUTHORITY\NetworkService:(M)"` and restart Jellyfin.
+> **How the client script reaches your browser**
+>
+> Bonfire adds a small script to the Jellyfin web page. Since 1.5 it does that **as the page is served**, leaving `index.html` on disk alone. Nothing to re-apply after a Jellyfin update, and no file permissions to grant. Editing `index.html` is still available as a legacy option.
+>
+> If it is ever not working, the plugin configuration page (**Dashboard → Plugins → Bonfire**) says so under **Advanced → Client script**, along with how many pages it has served.
+
+<details>
+<summary><b>Legacy: editing <code>index.html</code></b></summary>
+
+Under **Advanced → Client script** on the plugin configuration page:
+
+| Method | What it does |
+| --- | --- |
+| **Serve it live, never touch index.html** | The default. Any tags an earlier version wrote are taken back out. |
+| **Patch index.html, fall back to serving it live** *(legacy)* | For a setup that needs the tag physically in the file, such as a proxy that caches the page. |
+| **Patch index.html only** *(legacy)* | What every release up to 1.4 did. No fallback. |
+
+Both legacy modes need Jellyfin to be able to write to its own web files, which it often cannot on Docker, on Linux packages, or in a protected Windows directory. If that write fails the configuration page prints the exact command for your host — but unless you have deliberately picked one of these modes, there is no reason to grant that access.
+
+</details>
 
 ---
 
 ## Features
 
-- **Multi-User Profile Switching**: Up to 5 isolated sub-profiles per Jellyfin account, each with separate watch history, library access, and parental ratings.
-- **Tag-Based Content Filtering**: Block or allow content per profile using Jellyfin's own tags (e.g. `adults`, `teens`, `kids`). Tags are inherited, so tagging a series or an entire library applies to everything inside it — and because this is enforced by Jellyfin server-side, it holds on *every* client, including the ones that can't do profile switching.
-- **Resilient Deletion**: Automatically handles native Jellyfin database deletion bugs (like the playlist null reference error) by deactivating the underlying sub-profile user account and clearing plugin mappings.
-- **Bonfire Grouping**: Link different master accounts together using secure 6-character codes to share switcher screens.
-- **PIN Protection & LAN Bypass**: Secure profiles with PIN codes and bypass verification automatically when connected on your local network (LAN). PINs are stored as salted PBKDF2-SHA256 hashes.
-- **Device Whitelists**: Limit specific profiles to designated devices.
-- **Avatar Library**: Administrators can upload a set of profile pictures in the plugin settings that anyone on the server can choose from — with an option to require them, for a consistent household look. This is also the only practical way to set a profile picture on a TV, where there is no file browser. Pictures can be positioned and zoomed before saving.
-- **Choose Your Switcher**: Each account decides how it reaches the switcher — the full-screen "Who's Watching?" gate on the home screen, or nothing at all in the way, with a **Switch Profile** entry added to Jellyfin's own user menu and profile page instead. Set it under **Manage Profiles → Switcher Style**; it is a per-household choice, not a server setting.
-- **Premium UI**: Seamless native UI integration with custom profile pictures, custom avatar colors, and TV D-pad navigation support.
+- Up to five profiles per Jellyfin account, each with its own watch history, library access and parental rating.
+- **Tag filters.** Block or allow content per profile using Jellyfin's own tags (`adults`, `kids`, and so on). Tags are inherited, so tagging a series or a whole library covers everything inside it. Jellyfin enforces this server-side, so it holds on every client — including the ones that cannot show the switcher.
+- **PINs.** Optional per profile, stored as salted PBKDF2-SHA256 hashes, with an optional bypass on your own network.
+- **Device limits.** Restrict a profile to particular devices.
+- **Your Bonfire.** Link accounts with a 6-character code so two households share one switcher screen.
+- **Avatar library.** Upload a set of pictures everyone on the server can pick from, and optionally require them. On a TV this is the only practical way to set a picture, since there is no file browser.
+- **Switcher style.** Each account picks the full-screen "Who's Watching?" gate or a **Switch Profile** entry in Jellyfin's own menu, under **Settings → Switcher Style**. It is a per-household choice, not a server setting.
 
 ---
 
@@ -123,7 +137,7 @@ Sharing a Bonfire code lets another household see your switcher screen — and s
 
 Both rules are strict by design, and for two adults who share a living room they are strict in the wrong direction: typing a PIN with a TV remote every time you swap accounts is miserable.
 
-So each account can lift them **for itself**. In **Manage Profiles → Bonfire Grouping**, tick *"Let my Bonfire switch into my account on this network"*. People in your Bonfire can then enter your account from your home network without your PIN — including when you have no PIN at all. Away from home nothing changes: the PIN is still required, and an account with no PIN still cannot be opened remotely.
+So each account can lift them **for itself**. In **Settings → Your Bonfire** on the switcher screen, tick *"Let my Bonfire switch into my account on this network"*. People in your Bonfire can then enter your account from your home network without your PIN — including when you have no PIN at all. Away from home nothing changes: the PIN is still required, and an account with no PIN still cannot be opened remotely.
 
 It is off by default, only you can turn it on for your own account, and every switch that uses it is written to the profile activity log.
 
@@ -135,13 +149,13 @@ It is off by default, only you can turn it on for your own account, and every sw
 ## Known Limitations
 
 **Skin Manager / custom themes**  
-The Switch Profile button is designed to align with standard Jellyfin layouts. If you use custom themes or a skin manager, the button might occasionally appear misaligned or out of place. Switching to the **Jellyfin menu** style under *Manage Profiles → Switcher Style* removes the injected button entirely and puts the switcher on your profile page instead, which sidesteps theme conflicts. Either way, please open an issue with the name of the theme you are using.
+The Switch Profile button is designed to align with standard Jellyfin layouts. If you use custom themes or a skin manager, the button might occasionally appear misaligned or out of place. Switching to the **Jellyfin menu** style under *Settings → Switcher Style* removes the injected button entirely and puts the switcher on your profile page instead, which sidesteps theme conflicts. Either way, please open an issue with the name of the theme you are using.
 
 **Profile creation is on the home screen, not the admin dashboard**  
-Profiles are created and managed via the Switch Profile button on the Jellyfin home screen. The admin dashboard page (**Dashboard → Plugins → Profiles**) is for server-wide settings (maximum profile count, require-PIN policy), the avatar library, administrator PIN resets, and the emergency disable code.
+Profiles are created and managed via the Switch Profile button on the Jellyfin home screen. The admin dashboard page (**Dashboard → Plugins → Bonfire**) is for server-wide settings (maximum profile count, require-PIN policy), the avatar library, administrator PIN resets, and the emergency disable code.
 
 **Emergency disable code**  
-If Bonfire breaks badly it can make the Jellyfin web interface hard to use — including the settings page you would need to uninstall it. Administrators can set a code under **Dashboard → Plugins → Profiles → Emergency Disable Code**. Entering it on any Bonfire screen, or pressing `Ctrl+Shift+B`, shuts the plugin's client script off **until Jellyfin restarts**.
+If Bonfire breaks badly it can make the Jellyfin web interface hard to use — including the settings page you would need to uninstall it. Administrators can set a code under **Dashboard → Plugins → Bonfire → Advanced → Emergency Disable Code**. Entering it on any Bonfire screen, or pressing `Ctrl+Shift+B`, shuts the plugin's client script off **until Jellyfin restarts**.
 
 It is off by default, and worth understanding before you turn it on:
 

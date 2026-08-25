@@ -1,4 +1,85 @@
 <div id="profilesConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="libraryloading,embyrouter,selectmenu,dialogHelper">
+<style>
+    /* Tints of the active theme's accent, with the colours this page shipped
+       with as the floor. See the matching block in profiles.js for why
+       --accent is read rather than a jellyfin-web token: there is no token,
+       only a convention every theme follows. */
+    #profilesConfigurationPage {
+        --jpf-accent: var(--accent, #00a4dc);
+        --jpf-accent-a12: rgba(0, 164, 220, 0.12);
+        --jpf-accent-a35: rgba(0, 164, 220, 0.35);
+    }
+    @supports (color: color-mix(in srgb, red 50%, transparent)) {
+        #profilesConfigurationPage {
+            --jpf-accent-a12: color-mix(in srgb, var(--jpf-accent) 12%, transparent);
+            --jpf-accent-a35: color-mix(in srgb, var(--jpf-accent) 35%, transparent);
+        }
+    }
+
+    /* Five unrelated jobs — limits, pictures, accounts, history, the panic switch —
+       used to be one column five screens tall, so finding any of them meant
+       scrolling past the other four. */
+    #profilesConfigurationPage .jpf-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+        margin: 0 0 2em 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    }
+    /* Every other control on this page is is="emby-button" and inherits Jellyfin's
+       styling. These are plain buttons, so everything the user agent would otherwise
+       supply has to be turned off by hand — including the border and background that
+       made them read as five little white chips. */
+    #profilesConfigurationPage .jpf-tab {
+        -webkit-appearance: none;
+        appearance: none;
+        background: none;
+        background-color: transparent;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        box-shadow: none;
+        margin: 0 0 -1px 0;
+        padding: 0.7em 1.15em;
+        font-family: inherit;
+        font-size: 1.05em;
+        font-weight: 500;
+        line-height: 1.4;
+        color: inherit;
+        opacity: 0.55;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: opacity 0.15s ease, border-color 0.15s ease;
+    }
+    #profilesConfigurationPage .jpf-tab:hover {
+        opacity: 1;
+    }
+    #profilesConfigurationPage .jpf-tab.is-active {
+        opacity: 1;
+        font-weight: 600;
+        border-bottom-color: var(--jpf-accent);
+    }
+    @media (prefers-reduced-motion: reduce) {
+        #profilesConfigurationPage .jpf-tab {
+            transition: none;
+        }
+    }
+    #profilesConfigurationPage .jpf-tab:focus-visible {
+        outline: 2px solid var(--jpf-accent);
+        outline-offset: -2px;
+    }
+    /* Stated rather than left to the user agent: this page sets display on plenty of
+       its own containers, and one of them inheriting past [hidden] would show two
+       tabs at once. */
+    #profilesConfigurationPage .jpf-tab-panel[hidden] {
+        display: none;
+    }
+    /* Each section still carries the 3em that separated it from the one above, which
+       is now a gap at the top of a tab. */
+    #profilesConfigurationPage .jpf-tab-panel > .sectionTitleContainer:first-child {
+        margin-top: 0 !important;
+    }
+</style>
     <div data-role="content">
         <div class="content-primary">
             <div id="injectionWarningContainer" style="display:none; background:rgba(230,73,128,0.12); border:1px solid rgba(230,73,128,0.35); border-radius:6px; padding:14px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#ff6b6b;">
@@ -74,6 +155,19 @@
                 <strong>✅ Client script is installed and up to date.</strong>
                 <span style="opacity:0.85;">The profile switcher will load for all users.</span>
             </div>
+
+            <!-- Above the tabs on purpose: the banners above this line report whether the
+                 plugin is working at all, and must not be hidden behind a tab nobody has
+                 a reason to open. -->
+            <div class="jpf-tabs" role="tablist" aria-label="Bonfire settings sections">
+                <button type="button" class="jpf-tab" role="tab" data-tab="general" aria-controls="jpfPanelGeneral">General</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="avatars" aria-controls="jpfPanelAvatars">Avatars</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="accounts" aria-controls="jpfPanelAccounts">Accounts</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="activity" aria-controls="jpfPanelActivity">Activity</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="advanced" aria-controls="jpfPanelAdvanced">Advanced</button>
+            </div>
+
+            <div class="jpf-tab-panel" id="jpfPanelGeneral" data-panel="general" role="tabpanel" hidden>
             <form id="profilesConfigurationForm">
                 <div class="sectionTitleContainer" style="display:flex; align-items:center; justify-content:space-between;">
                     <h2 class="sectionTitle">Bonfire Settings</h2>
@@ -81,23 +175,17 @@
                     <span id="pluginVersionBadge" style="font-size:0.85em; font-weight:600; opacity:0.8; background:rgba(255,255,255,0.08); padding:3px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12);">…</span>
                 </div>
 
-                <div style="background:rgba(0,164,220,0.12);border:1px solid rgba(0,164,220,0.35);border-radius:6px;padding:14px 18px;margin-bottom:2em;font-size:0.95rem;line-height:1.6;">
-                    <strong style="display:block;margin-bottom:6px;">&#9432;&nbsp; Where to create &amp; manage profiles</strong>
-                    Profiles are created, edited, and deleted from the <strong>Jellyfin home screen</strong>.
-                    After logging in, look for the <strong>Switch Profile</strong> button in the top navigation bar
-                    (a person icon next to the search and account buttons). Clicking it opens the profile
-                    manager where you can add sub-profiles, set PINs, pick avatar colors, and configure
-                    library access &amp; parental controls.
-                    <br><br>
-                    This settings page is for <strong>server administrators only</strong> and controls the
-                    maximum number of profiles allowed per account and whether a master PIN is required
-                    before creating new sub-profiles.
+                <div style="background:var(--jpf-accent-a12,rgba(0,164,220,0.12));border:1px solid var(--jpf-accent-a35,rgba(0,164,220,0.35));border-radius:6px;padding:14px 18px;margin-bottom:2em;font-size:0.95rem;line-height:1.6;">
+                    <strong style="display:block;margin-bottom:6px;">&#9432;&nbsp; Where to manage profiles</strong>
+                    Profiles are managed from the Jellyfin home screen — look for the
+                    <strong>Switch Profile</strong> button in the top bar. This page sets the
+                    server-wide limits.
                 </div>
                 
                 <div class="inputContainer">
                     <label class="inputLabel" for="maxProfiles">Maximum Profiles Per User</label>
                     <input is="emby-input" type="number" id="maxProfiles" min="1" max="10" required />
-                    <div class="fieldDescription">The maximum number of sub-profiles a master account is allowed to create (Default: 5).</div>
+                    <div class="fieldDescription">Default 5.</div>
                 </div>
 
                 <div class="checkboxContainer checkboxContainer-withDescription">
@@ -105,7 +193,7 @@
                         <input is="emby-checkbox" type="checkbox" id="requireMasterPin" />
                         <span>Require Master PIN for creating new profiles</span>
                     </label>
-                    <div class="fieldDescription">If checked, users must enter their PIN code to add new sub-profiles.</div>
+                    <div class="fieldDescription">Users enter their PIN before adding a sub-profile.</div>
                 </div>
 
                 <h3 class="checkboxListLabel" style="margin-top:1.5em;">Switcher defaults</h3>
@@ -130,11 +218,14 @@
                     <div class="fieldDescription">The menu option adds a row to Settings instead of a second portrait.</div>
                 </div>
 
+
                 <div class="buttonContainer">
-                    <button is="emby-button" type="submit" class="raised button-submit block">Save Settings</button>
+                    <button is="emby-button" type="submit" class="raised button-submit block">Save profile &amp; switcher settings</button>
                 </div>
             </form>
+            </div><!-- /general -->
 
+            <div class="jpf-tab-panel" id="jpfPanelAvatars" data-panel="avatars" role="tabpanel" hidden>
             <div class="sectionTitleContainer" style="margin-top: 3em;">
                 <h2 class="sectionTitle">Avatar Library</h2>
             </div>
@@ -158,13 +249,9 @@
             </div>
 
             <div style="margin: 1em 0;">
-                <label for="avatarUploadInput" id="avatarUploadLabel" is="emby-button" class="raised block" style="display:inline-block; cursor:pointer; max-width:280px;">
-                    <span>Upload avatars</span>
-                </label>
+                <button is="emby-button" type="button" id="avatarUploadBtn" class="raised" style="max-width:280px;">Upload avatars</button>
                 <input type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" style="display:none;" />
-                <label for="avatarFolderInput" id="avatarFolderLabel" is="emby-button" class="raised block" style="display:inline-block; cursor:pointer; max-width:280px; margin-left:8px;">
-                    <span>Upload a folder</span>
-                </label>
+                <button is="emby-button" type="button" id="avatarFolderBtn" class="raised" style="max-width:280px; margin-left:8px;">Upload a folder</button>
                 <input type="file" id="avatarFolderInput" webkitdirectory directory multiple style="display:none;" />
                 <div class="fieldDescription">JPEG, PNG, WebP or GIF. Pick several files or a whole folder; they are squared and resized automatically.</div>
                 <div class="inputContainer" style="margin-top:1em; max-width:520px;">
@@ -181,23 +268,45 @@
             <div id="avatarLibraryGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:14px; margin-bottom:3em;">
                 <!-- Library avatars rendered here -->
             </div>
+            </div><!-- /avatars -->
+
+            <div class="jpf-tab-panel" id="jpfPanelAdvanced" data-panel="advanced" role="tabpanel" hidden>
+            <div class="sectionTitleContainer" style="margin-top: 3em;">
+                <h2 class="sectionTitle">Client Script</h2>
+            </div>
+            <div class="fieldDescription" style="margin-bottom: 1em;">
+                How Bonfire gets its script into Jellyfin's web client. A working server does
+                not need this changed.
+            </div>
+
+            <div class="selectContainer">
+                <label class="selectLabel" for="indexInjectionMode">Method</label>
+                <select is="emby-select" id="indexInjectionMode">
+                    <option value="middleware">Serve it live, never touch index.html</option>
+                    <option value="both">Patch index.html, fall back to serving it live (legacy)</option>
+                    <option value="file">Patch index.html only (legacy)</option>
+                </select>
+                <div class="fieldDescription" id="indexInjectionModeHelp"></div>
+                <div class="fieldDescription" id="middlewareStatusLine" style="margin-top:8px;"></div>
+            </div>
+
+            <div class="buttonContainer" style="margin-bottom:3em;">
+                <button is="emby-button" type="button" id="saveInjectionMode" class="raised" style="max-width:280px;">Save method</button>
+            </div>
 
             <div class="sectionTitleContainer" style="margin-top: 3em;">
                 <h2 class="sectionTitle">Emergency Disable Code</h2>
             </div>
             <div style="background:rgba(255,153,0,0.10);border:1px solid rgba(255,153,0,0.35);border-radius:6px;padding:14px 18px;margin-bottom:1.5em;font-size:0.94rem;line-height:1.65;">
                 <strong style="display:block;margin-bottom:6px;">&#9888;&nbsp; Read this before turning it on</strong>
-                Entering this code shuts Bonfire down until you restart Jellyfin. It exists for when the plugin
-                breaks badly enough to block the settings page you would use to remove it.
+                Entering this code shuts Bonfire down until Jellyfin restarts — for when the plugin
+                breaks badly enough to block this page.
                 <br><br>
                 <strong>The cost:</strong> anyone with the code can skip the profile prompt on a device that is
                 already signed in. On a TV left on the master account, that means the master's library.
+                Other profiles still need their PIN, and parental controls are unaffected.
                 <br><br>
-                It does not unlock other profiles — switching still needs their PIN — and it does not change
-                library access or parental ratings, which Jellyfin enforces on its own.
-                <br><br>
-                No password is asked for, so make it long. Five attempts per hour per address, and every use is
-                logged as an error.
+                No password is asked for, so make it long.
             </div>
 
             <div id="panicStatusLine" class="fieldDescription" style="margin-bottom:1em;">…</div>
@@ -214,7 +323,9 @@
                 <button is="emby-button" type="button" id="savePanicCode" class="raised block" style="max-width:280px;">Save code</button>
                 <div id="panicCodeResult" style="display:none; font-size:0.88rem; font-weight:600; margin-top:8px;"></div>
             </div>
+            </div><!-- /advanced -->
 
+            <div class="jpf-tab-panel" id="jpfPanelAccounts" data-panel="accounts" role="tabpanel" hidden>
             <div class="sectionTitleContainer" style="margin-top: 3em;">
                 <h2 class="sectionTitle">Accounts &amp; Profiles</h2>
             </div>
@@ -225,7 +336,9 @@
             <div class="paperList" id="masterUsersList" style="margin-bottom: 3em;">
                 <!-- Master accounts, each with its sub-profiles nested inside -->
             </div>
+            </div><!-- /accounts -->
 
+            <div class="jpf-tab-panel" id="jpfPanelActivity" data-panel="activity" role="tabpanel" hidden>
             <div class="sectionTitleContainer" style="margin-top: 3em;">
                 <h2 class="sectionTitle">Profile Switch Audit Logs</h2>
             </div>
@@ -235,6 +348,7 @@
             <div class="paperList" id="auditLogsList" style="margin-bottom: 3em; max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.15);">
                 <!-- Audit logs dynamically loaded here -->
             </div>
+            </div><!-- /activity -->
         </div>
     </div>
 
@@ -252,6 +366,57 @@
                     .replace(/'/g, "&#039;");
             }
 
+            // Which tab was open is remembered per browser, because an administrator who
+            // is working through the account list does not want to land on Settings every
+            // time they come back to the page.
+            function initTabs(page) {
+                const tabs = Array.prototype.slice.call(page.querySelectorAll('.jpf-tab'));
+                const panels = Array.prototype.slice.call(page.querySelectorAll('.jpf-tab-panel'));
+                if (!tabs.length || !panels.length) return;
+
+                const names = tabs.map(function (t) { return t.getAttribute('data-tab'); });
+
+                function show(name) {
+                    tabs.forEach(function (t) {
+                        const on = t.getAttribute('data-tab') === name;
+                        t.classList.toggle('is-active', on);
+                        t.setAttribute('aria-selected', on ? 'true' : 'false');
+                        // Roving tabindex: Tab reaches the strip once, then arrow keys move
+                        // within it. Five stops before the first field is a lot of tabbing.
+                        t.setAttribute('tabindex', on ? '0' : '-1');
+                    });
+                    panels.forEach(function (p) {
+                        p.hidden = p.getAttribute('data-panel') !== name;
+                    });
+                    try { localStorage.setItem('bonfire-admin-tab', name); } catch (e) { /* private mode */ }
+                }
+
+                if (!page.dataset.tabsBound) {
+                    page.dataset.tabsBound = '1';
+                    tabs.forEach(function (t, i) {
+                        t.addEventListener('click', function () { show(t.getAttribute('data-tab')); });
+                        t.addEventListener('keydown', function (e) {
+                            let next = -1;
+                            if (e.key === 'ArrowRight') next = (i + 1) % tabs.length;
+                            if (e.key === 'ArrowLeft') next = (i - 1 + tabs.length) % tabs.length;
+                            if (e.key === 'Home') next = 0;
+                            if (e.key === 'End') next = tabs.length - 1;
+                            if (next < 0) return;
+                            e.preventDefault();
+                            show(tabs[next].getAttribute('data-tab'));
+                            tabs[next].focus();
+                        });
+                    });
+                }
+
+                // Checked against the strip rather than turned into a selector, so a
+                // hand-edited localStorage value cannot become one.
+                let start = '';
+                try { start = localStorage.getItem('bonfire-admin-tab') || ''; } catch (e) { /* private mode */ }
+                if (names.indexOf(start) < 0) start = names[0];
+                show(start);
+            }
+
             function loadConfiguration(page) {
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
@@ -262,6 +427,14 @@
                     page.querySelector('#defaultAskOnStartup').checked = config.DefaultAskOnStartup !== false;
                     page.querySelector('#defaultSwitcherLocation').value =
                         config.DefaultSwitcherLocation === 'menu' ? 'menu' : 'button';
+                    // Absent before 1.4.1 — "both" is the shipped default and the safe one.
+                    // Matches IndexInjectionModes.Normalize on the server: anything
+                    // unrecognised, including a configuration written before 1.4.1, is
+                    // middleware now.
+                    const mode = String(config.IndexInjectionMode || 'middleware').toLowerCase();
+                    page.querySelector('#indexInjectionMode').value =
+                        (mode === 'both' || mode === 'file') ? mode : 'middleware';
+                    updateInjectionModeHelp(page);
                     loadMappings(page);
                     loadAuditLogs(page);
                     loadAvatarLibrary(page);
@@ -287,12 +460,67 @@
                 return String(guid).toLowerCase().replace(/[^a-z0-9]/g, '');
             }
 
+            const INJECTION_MODE_HELP = {
+                middleware: 'The default. index.html is left alone, and any tags Bonfire added earlier '
+                    + 'are taken back out. Nothing to re-apply after a Jellyfin update, and no write '
+                    + 'permission needed.',
+                both: 'Legacy. index.html is patched as well, and if that write fails the script is '
+                    + 'added to the page as it is served. Mainly for a proxy that caches index.html.',
+                file: 'Legacy. How every release up to 1.4.0 worked. Needs write access to index.html, '
+                    + 'and has to be redone after each Jellyfin update.'
+            };
+
+            function updateInjectionModeHelp(page) {
+                const select = page.querySelector('#indexInjectionMode');
+                const help = page.querySelector('#indexInjectionModeHelp');
+                if (!select || !help) return;
+                help.textContent = INJECTION_MODE_HELP[select.value] || '';
+            }
+
+            // Says whether the pipeline hook is actually there. Worth showing plainly: it is new
+            // in 1.4.1, and "it did not attach" and "it attached and had nothing to do" look
+            // identical from the outside.
+            function renderMechanism(page, result) {
+                const line = page.querySelector('#middlewareStatusLine');
+                if (!line) return;
+
+                const m = field(result, 'mechanism');
+                if (!m) { line.textContent = ''; return; }
+
+                const registered = field(m, 'middlewareRegistered') === true;
+                const active = field(m, 'middlewareActive') === true;
+                const served = field(m, 'middlewareServed') || 0;
+                const err = field(m, 'middlewareError');
+
+                let text;
+                let colour = '';
+                if (!registered) {
+                    text = 'Live injection could not attach to Jellyfin. Only patching index.html will work here.';
+                    colour = '#ff8787';
+                } else if (!active) {
+                    text = 'Live injection is loaded, but no page request has reached it yet. Reload this page to confirm.';
+                } else if (served > 0) {
+                    text = 'Live injection is working — ' + served
+                        + (served === 1 ? ' page served.' : ' pages served.');
+                    colour = '#69db7c';
+                } else {
+                    text = 'Live injection is loaded and index.html is already patched, so it has nothing to do.';
+                    colour = '#69db7c';
+                }
+
+                if (err) text += ' Last problem: ' + err;
+                line.textContent = text;
+                line.style.color = colour;
+            }
+
             // Single place that decides which of the three status banners is visible, so the
             // page load and the Re-check button can never disagree about the current state.
             function renderInjectionStatus(page, result) {
                 const warningContainer = page.querySelector('#injectionWarningContainer');
                 const staleContainer = page.querySelector('#staleVersionWarningContainer');
                 const okContainer = page.querySelector('#injectionOkContainer');
+
+                renderMechanism(page, result);
 
                 const succeeded = field(result, 'injectionSucceeded');
                 const isStale = field(result, 'isVersionStale');
@@ -457,10 +685,12 @@
                         subsByMaster[key].push(s);
                     });
 
+                    // Neither state is an error, so neither gets an error colour. This was
+                    // red for protected and green for unprotected, i.e. exactly backwards.
                     function pinStatusHtml(reqPin) {
                         return reqPin
-                            ? '<span style="color:#ff6b6b;font-weight:600;">PIN Protected</span>'
-                            : '<span style="color:#51cf66;font-weight:600;">No PIN</span>';
+                            ? '<span style="font-weight:600;opacity:0.9;">PIN protected</span>'
+                            : '<span style="font-weight:600;opacity:0.5;">No PIN</span>';
                     }
 
                     function resetPinBtnHtml(pId, reqPin) {
@@ -496,10 +726,10 @@
                             const subs = subsByMaster[normId(pId)] || [];
 
                             const overrideControl =
-                                '<div style="display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;">' +
-                                '<span style="font-size:0.85rem; opacity:0.6;">Profile Limit:</span>' +
+                                '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
+                                '<span style="font-size:0.85rem; opacity:0.6;">Limit</span>' +
                                 '<input is="emby-input" type="number" class="user-limit-input" data-id="' + pId + '" min="1" max="20" value="' + maxProfiles + '" style="width:60px !important; height:28px !important; padding:2px 6px !important; font-size:0.85rem !important; margin:0 !important; box-sizing:border-box !important;" />' +
-                                '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + pId + '" style="background:#00a4dc; color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">Set</button>' +
+                                '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + pId + '" style="padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">Set</button>' +
                                 (limitOverride !== null && limitOverride !== undefined
                                     ? '<button type="button" class="raised button-mini clear-limit-btn" data-id="' + pId + '" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.15); padding:3px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer;">Reset</button>'
                                     : '') +
@@ -512,11 +742,11 @@
                             const toggle = subs.length > 0
                                 ? '<button type="button" class="sub-profile-toggle" data-master="' + normId(pId) + '" aria-expanded="false" ' +
                                   'style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#fff; ' +
-                                  'border-radius:6px; padding:5px 12px; font-size:0.85rem; font-weight:600; cursor:pointer; margin-top:10px;">' +
+                                  'border-radius:6px; padding:4px 10px; font-size:0.8rem; font-weight:600; cursor:pointer;">' +
                                   '<span class="material-icons toggle-chevron" style="font-size:1.1rem; transition:transform 0.15s ease;">expand_more</span>' +
                                   '<span>' + countLabel + '</span>' +
                                   '</button>'
-                                : '<div style="margin-top:10px; font-size:0.85rem; opacity:0.5;">No sub-profiles</div>';
+                                : '<span style="font-size:0.8rem; opacity:0.4;">No sub-profiles</span>';
 
                             const subPanel = subs.length > 0
                                 ? '<div class="sub-profile-panel" data-master="' + normId(pId) + '" style="display:none; background:rgba(0,0,0,0.18);">' +
@@ -524,14 +754,17 @@
                                   '</div>'
                                 : '';
 
+                            // One line per account. This used to be a stacked block roughly
+                            // 125px tall carrying two values, so a dozen accounts meant a very
+                            // long scroll for what is a table's worth of data.
                             return '<div class="listItem-group" style="border-bottom:1px solid rgba(255,255,255,0.08);">' +
-                                   '<div class="listItem" style="display:flex; align-items:flex-start; padding:15px;">' +
-                                   '<div class="listItemBody" style="flex:1; min-width:0;">' +
-                                   '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#fff;">' + pName + '</div>' +
-                                   '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">Status: ' + pinStatusHtml(reqPin) + '</div>' +
-                                   overrideControl +
+                                   '<div class="listItem" style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:10px 15px;">' +
+                                   '<div style="flex:1 1 220px; min-width:0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
+                                   '<span style="font-weight:600; font-size:1rem; color:#fff;">' + pName + '</span>' +
+                                   pinStatusHtml(reqPin) +
                                    toggle +
                                    '</div>' +
+                                   overrideControl +
                                    resetPinBtnHtml(pId, reqPin) +
                                    '</div>' +
                                    subPanel +
@@ -628,8 +861,10 @@
                             const client = log.Client || log.client || 'Unknown Client';
                             const ip = log.IpAddress || log.ipAddress || 'Unknown IP';
 
-                            return '<div class="listItem" style="display:flex; flex-direction:column; padding:12px 15px; border-bottom:1px solid rgba(255,255,255,0.06);">' +
-                                   '<div style="display:flex; justify-content:space-between; font-size:0.85rem; opacity:0.5; margin-bottom:4px;">' +
+                            return '<div class="listItem" style="display:flex; flex-direction:column; width:100%; padding:12px 15px; border-bottom:1px solid rgba(255,255,255,0.06);">' +
+                                   // space-between distributes nothing once the row is narrow, which ran
+                                   // the timestamp straight into the address: "12:09:28 PMIP: 127.0.0.1".
+                                   '<div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 16px; font-size:0.85rem; opacity:0.5; margin-bottom:4px;">' +
                                    '<span>' + dateStr + '</span>' +
                                    '<span>IP: ' + ip + '</span>' +
                                    '</div>' +
@@ -1081,6 +1316,7 @@
                     config.DisallowCustomAvatarUploads = page.querySelector('#disallowCustomAvatars').checked;
                     config.DefaultAskOnStartup = page.querySelector('#defaultAskOnStartup').checked;
                     config.DefaultSwitcherLocation = page.querySelector('#defaultSwitcherLocation').value === 'menu' ? 'menu' : 'button';
+                    config.IndexInjectionMode = page.querySelector('#indexInjectionMode').value;
 
                     ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
@@ -1095,11 +1331,30 @@
             document.getElementById('profilesConfigurationPage').addEventListener('pageshow', function () {
                 const page = this;
                 loadConfiguration(page);
+                // pageshow fires more than once for the same element, so this needs the same
+                // guard every other handler on this page has. Without it the help text was
+                // recomputed once per past visit.
+                const modeSelect = page.querySelector('#indexInjectionMode');
+                if (modeSelect && !modeSelect.dataset.bound) {
+                    modeSelect.dataset.bound = '1';
+                    modeSelect.addEventListener('change', function () { updateInjectionModeHelp(page); });
+                }
+
+                // The method moved to Advanced, so it is no longer inside the General form and
+                // its Save button. saveConfiguration reads every field by id from the page, so
+                // it saves correctly from either tab.
+                const saveModeBtn = page.querySelector('#saveInjectionMode');
+                if (saveModeBtn && !saveModeBtn.dataset.bound) {
+                    saveModeBtn.dataset.bound = '1';
+                    saveModeBtn.addEventListener('click', function () { saveConfiguration(page); });
+                }
                 page.querySelector('form').addEventListener('submit', function (e) {
                     e.preventDefault();
                     saveConfiguration(page);
                     return false;
                 });
+                initTabs(page);
+
                 // pageshow can fire more than once for the same element, so guard against
                 // stacking duplicate handlers that would fire several retries per click.
                 page.querySelectorAll('.retryInjectionBtn').forEach(function (btn) {
@@ -1110,6 +1365,25 @@
 
                 // pageshow can fire repeatedly for the same element, so every handler below
                 // is guarded — otherwise one click would upload the same avatar twice.
+                // The trigger is a button rather than a label wrapping the input, because
+                // is="emby-button" only upgrades a <button>. So it has to forward the click.
+                const avatarUploadBtn = page.querySelector('#avatarUploadBtn');
+                const avatarFolderBtn = page.querySelector('#avatarFolderBtn');
+                if (avatarUploadBtn && !avatarUploadBtn.dataset.bound) {
+                    avatarUploadBtn.dataset.bound = '1';
+                    avatarUploadBtn.addEventListener('click', function () {
+                        const el = page.querySelector('#avatarUploadInput');
+                        if (el) el.click();
+                    });
+                }
+                if (avatarFolderBtn && !avatarFolderBtn.dataset.bound) {
+                    avatarFolderBtn.dataset.bound = '1';
+                    avatarFolderBtn.addEventListener('click', function () {
+                        const el = page.querySelector('#avatarFolderInput');
+                        if (el) el.click();
+                    });
+                }
+
                 const avatarInput = page.querySelector('#avatarUploadInput');
                 if (avatarInput && !avatarInput.dataset.bound) {
                     avatarInput.dataset.bound = '1';

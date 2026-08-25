@@ -6,11 +6,15 @@ This branch serves the **pre-release manifest** for Bonfire/JellyProfiles.
 
 | Channel | Repository URL | Contains |
 |---|---|---|
-| **Stable** (default) | `https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json` | Milestone releases only — 1.0, 1.1, 1.1.13, 1.2, 1.2.12, 1.3 |
-| **Beta** | `https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/beta/manifest.json` | Every published version, including all point releases |
+| **Stable** (default) | `https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json` | Milestone releases — 1.0, 1.1, 1.1.13, 1.2, 1.2.12, 1.3, 1.4, 1.5 |
+| **Beta** | `https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/beta/manifest.json` | Pre-release builds, and point releases that never became milestones |
+
+The two lists **do not overlap**: every published version appears in exactly one of
+them. See *Why nothing appears twice* below.
 
 Most people want the stable channel. Add the beta URL only if you are testing
-pre-release builds or need to install a specific point release.
+pre-release builds or need a specific point release — and add it **as well as** the
+stable one, never on its own, or you will stop being offered stable releases.
 
 ## How to use the beta channel
 
@@ -18,9 +22,10 @@ In Jellyfin: **Dashboard → Plugins → Repositories → ＋**, then paste the 
 above and save. Bonfire will then offer the full version list under
 **Plugins → Catalog**.
 
-Adding the beta repository *alongside* the stable one is fine — both describe the
-same plugin GUID, so Jellyfin merges them and simply shows more versions to
-choose from. Remove the beta repository to go back to milestones only.
+Add the beta repository *alongside* the stable one. Both describe the same plugin
+GUID, so Jellyfin merges them into a single version list. Because no version is in
+both files, nothing appears twice and the merged list is simply every build there
+is. Remove the beta repository to go back to milestones only.
 
 ## Why the two lists differ
 
@@ -40,3 +45,14 @@ If you are choosing between them, take the higher one.
 Nothing here changes where downloads come from. Every version in both manifests
 points at its original GitHub release asset, so no download URL is affected by
 which channel you use.
+
+## Why nothing appears twice
+
+Both manifests declare the same plugin GUID, so Jellyfin concatenates their version
+lists for anyone subscribed to both. A version listed in each file would show up
+twice, and the two copies could disagree: a release only writes its checksum into
+the channel it was published to, so the other copy would keep its placeholder and
+offer an install that fails the checksum.
+
+So each version lives in exactly one manifest, and the release workflow refuses to
+publish a version that is already listed on the other branch.

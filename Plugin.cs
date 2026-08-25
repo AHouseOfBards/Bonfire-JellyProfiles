@@ -48,8 +48,8 @@ namespace Jellyfin.Profiles
             {
                 new PluginPageInfo
                 {
-                    Name = "Profiles",
-                    DisplayName = "Profiles",
+                    Name = "Bonfire",
+                    DisplayName = "Bonfire",
                     EnableInMainMenu = true,
                     EmbeddedResourcePath = GetType().Namespace + ".Web.profilesDashboard.html"
                 }

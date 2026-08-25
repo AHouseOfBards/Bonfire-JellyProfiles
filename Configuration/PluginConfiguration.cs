@@ -45,6 +45,20 @@ namespace Jellyfin.Profiles.Configuration
         public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;
 
         /// <summary>
+        /// How the client script gets into Jellyfin’s index.html. One of the
+        /// <see cref="IndexInjectionModes"/> values.
+        /// <para>
+        /// Every release up to 1.4.0 rewrote index.html on disk, which is the single cause
+        /// behind issues #17, #11 and #3: it needs write permission to a directory the
+        /// package manager owns, it has to be reapplied after every Jellyfin update, and when
+        /// the file being served is not the file being patched there is no way to tell from
+        /// the outside. From 1.4.1 the plugin can instead inject on the fly, serving
+        /// index.html from the request pipeline and leaving the file alone.
+        /// </para>
+        /// </summary>
+        public string IndexInjectionMode { get; set; } = IndexInjectionModes.Middleware;
+
+        /// <summary>
         /// PBKDF2 hash of the emergency disable code, or null when the feature is off (the
         /// default). Entering the code shuts the plugin's client script down until the
         /// server restarts — see <see cref="Plugin.IsPanicDisabled"/>.
@@ -132,6 +146,51 @@ namespace Jellyfin.Profiles.Configuration
     /// prompt appears — the two were one setting in 1.3.1-beta, which could not express
     /// "ask me on startup, but put the switcher in Jellyfin's menu" (GitHub issue #14).
     /// </summary>
+    /// <summary>
+    /// Where the client script tag comes from. See
+    /// <see cref="PluginConfiguration.IndexInjectionMode"/>.
+    /// </summary>
+    public static class IndexInjectionModes
+    {
+        /// <summary>Patch index.html on disk only — the behaviour of 1.4.0 and earlier.</summary>
+        public const string File = "file";
+
+        /// <summary>
+        /// Inject on the fly only, never writing to index.html. What the middleware is for;
+        /// this is the setting that actually tests it.
+        /// </summary>
+        public const string Middleware = "middleware";
+
+        /// <summary>
+        /// Both. Was the default while the middleware was new; kept as a belt-and-braces
+        /// option. The file gets patched as it always did, and the middleware finds the tags
+        /// already present and steps aside.
+        /// </summary>
+        public const string Both = "both";
+
+        /// <summary>
+        /// Falls back to <see cref="Middleware"/> for anything unrecognised, including the
+        /// empty value on a configuration written before 1.4.1.
+        /// <para>
+        /// This was <see cref="Both"/> through the 1.4.x betas, so that upgrading changed
+        /// nothing until someone opted in. Now that the middleware is confirmed working on
+        /// real hardware, not writing to index.html is the behaviour worth defaulting to:
+        /// it is the whole reason issues #17, #11 and #3 exist.
+        /// </para>
+        /// </summary>
+        public static string Normalize(string? value)
+        {
+            var v = (value ?? string.Empty).Trim().ToLowerInvariant();
+            return v == File || v == Both ? v : Middleware;
+        }
+
+        /// <summary>True when this mode should rewrite index.html on disk.</summary>
+        public static bool PatchesFile(string? value) => Normalize(value) != Middleware;
+
+        /// <summary>True when this mode should inject from the request pipeline.</summary>
+        public static bool UsesMiddleware(string? value) => Normalize(value) != File;
+    }
+
     public static class SwitcherLocations
     {
         /// <summary>Bonfire's own floating button, injected into the client header.</summary>

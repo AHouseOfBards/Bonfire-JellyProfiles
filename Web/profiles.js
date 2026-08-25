@@ -160,7 +160,7 @@
                 <div class="confirm-dialog-content" style="
                     background: #181818;
                     border: 1px solid rgba(255, 255, 255, 0.1);
-                    border-radius: 12px;
+                    border-radius: var(--jpf-r-md);
                     padding: 24px;
                     max-width: 420px;
                     width: 90%;
@@ -169,7 +169,7 @@
                 ">
                     <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
                     <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
-                    <div style="display: flex; gap: 12px; justify-content: center;">
+                    <div style="display: flex; gap: var(--jpf-gap); justify-content: center;">
                         <button id="dialog-confirm-btn" class="profiles-btn btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">Confirm</button>
                         <button id="dialog-cancel-btn" class="profiles-btn btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">Cancel</button>
                     </div>
@@ -241,7 +241,7 @@
                 <div class="alert-dialog-content" style="
                     background: #181818;
                     border: 1px solid rgba(255, 255, 255, 0.1);
-                    border-radius: 12px;
+                    border-radius: var(--jpf-r-md);
                     padding: 24px;
                     max-width: 420px;
                     width: 90%;
@@ -414,6 +414,27 @@
 
         /// The avatar swatches are identical in both forms; keeping one copy means a palette
         /// change lands in both places at once.
+        /// Dims the avatar colour once a picture is set.
+        ///
+        /// The colour is the background behind the initial, so with a picture it does
+        /// nothing at all — and it was twenty-one swatches over three rows, the largest
+        /// thing on the form, sitting there inert. Dimmed rather than hidden: it starts
+        /// mattering again the moment the picture is removed, and a control that
+        /// vanishes and reappears is worse than one that fades.
+        setColorGroupInert: function (prefix, hasPicture) {
+            const group = document.getElementById(prefix + '-color-group');
+            if (!group) return;
+
+            group.classList.toggle('is-inert', !!hasPicture);
+
+            const hint = group.querySelector('[data-role="color-hint"]');
+            if (hint) {
+                hint.textContent = hasPicture
+                    ? 'Not used while a picture is set.'
+                    : 'Used as the avatar background when no picture is set.';
+            }
+        },
+
         renderColorPicker: function (selectedColor) {
             const palette = [
                 '#00A4DC', '#E50914', '#22C55E', '#EAB308', '#A855F7', '#EC4899',
@@ -438,6 +459,74 @@
 
         /// Fetches the distinct tags present in the master's libraries, for the suggestion
         /// list. Degrades to an empty list — the inputs stay usable as free text.
+        // ── Navigation ──────────────────────────────────────────────────────
+
+        /// Ticket for the screen currently being asked for.
+        ///
+        /// Opening a form fires network requests and only draws when they return.
+        /// Nothing used to stop a second navigation in the meantime, and nothing
+        /// stopped the first response drawing itself over whatever had replaced it —
+        /// so clicking Manage Profiles and then Switcher Style showed Switcher Style,
+        /// then silently replaced it with Manage Profiles seconds later.
+        ///
+        /// Every screen change takes a ticket. An async render compares its ticket
+        /// before touching the DOM and drops the response if the user has moved on.
+        _navTicket: 0,
+
+        /// Claims the screen. Call from anything that replaces the modal contents,
+        /// including synchronous renders — those are exactly what a slow form loses
+        /// the race to.
+        beginNavigation: function () {
+            return ++this._navTicket;
+        },
+
+        /// True while the ticket still owns the screen.
+        navIsCurrent: function (ticket) {
+            return ticket === this._navTicket;
+        },
+
+        // ── Shared form data ────────────────────────────────────────────────
+
+        /// Cached answer to the four requests that are the same for every profile.
+        ///
+        /// Add and Edit Profile each fired five requests and waited for all of them.
+        /// Only one — Users/{id} — is about the profile you clicked; the available
+        /// libraries, the connected devices, the library tags and the avatar library
+        /// belong to the account and were refetched in full every single time.
+        _sharedForm: null,
+
+        /// Fetches them once per gate session. Prefetched when the overlay opens, so
+        /// by the time anyone picks a profile the shared half is already in hand and
+        /// opening a form costs one request instead of five.
+        fetchSharedFormData: function (apiClient, masterState) {
+            if (this._sharedForm) return this._sharedForm;
+
+            const headers = this.getAuthHeaders(masterState.masterToken);
+            this._sharedForm = Promise.all([
+                fetch(apiClient.getUrl('plugins/profiles/libraries'), { headers })
+                    .then(res => res.json()),
+                fetch(apiClient.getUrl('plugins/profiles/devices'), { headers })
+                    .then(res => res.json()).catch(() => []),
+                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId),
+                this.fetchAvatarLibrary(apiClient, masterState.masterToken)
+            ]).then(([libraries, devices, libraryTags, avatarLibrary]) => ({
+                libraries, devices, libraryTags, avatarLibrary
+            })).catch(err => {
+                // Never cache a failure. A server that was briefly unreachable would
+                // otherwise keep every form broken until the overlay was closed.
+                this._sharedForm = null;
+                throw err;
+            });
+
+            return this._sharedForm;
+        },
+
+        /// Dropped when the overlay closes, so reopening the gate always re-reads the
+        /// server. Within one session the data does not change underneath us.
+        clearSharedFormData: function () {
+            this._sharedForm = null;
+        },
+
         fetchLibraryTags: function (apiClient, token, userId) {
             let url;
             try {
@@ -720,10 +809,15 @@
             );
 
             // ── Admin / server-management pages ─────────────────────────────────
-            // Exception: our own plugin settings page (configurationpage?name=Profiles)
-            // is the only admin-area page where the button should remain visible.
-            const isProfilesSettingsPage = hash.includes('configurationpage') &&
-                                           hash.toLowerCase().includes('name=profiles');
+            // Exception: our own plugin settings page (configurationpage?name=Bonfire) is
+            // the only admin-area page where the button should stay visible.
+            //
+            // Both spellings are accepted. The page was registered as "Profiles" until 1.5
+            // and the name is what forms this URL, so a browser sitting on the old address —
+            // a bookmark, or a tab open across the upgrade — would otherwise lose the button.
+            const isProfilesSettingsPage = hash.includes('configurationpage')
+                && (hash.toLowerCase().includes('name=bonfire')
+                    || hash.toLowerCase().includes('name=profiles'));
 
             const isDashboard = !isProfilesSettingsPage && (
                 hash.includes('dashboard')       || hash.includes('/admin')       ||
@@ -785,6 +879,21 @@
 
             this._pageRevealed = true;
             this._pendingReveal = false;
+
+            // The reload this flag was raised for has landed. Clearing it here rather than
+            // only in removeProfileOverlay() matters twice over: the session mirror is
+            // believed only while the flag is up, so leaving it set would keep a marker
+            // alive across a genuine app close; and the head script hides the page whenever
+            // it sees the flag, so a stale one cost a fade on every later hard refresh.
+            //
+            // Safe this late: validateSessionState() ran during init() and has already
+            // pulled anything it needed into the in-memory tier.
+            if (!this._reloading) {
+                try { localStorage.removeItem(this.config.switchingKey); } catch (e) { /* ignore */ }
+                // The head script has almost certainly already taken the key; this is the
+                // copy that actually outlives it.
+                try { window.__jpSwitching = 0; } catch (e) { /* ignore */ }
+            }
 
             if (window.__jpReveal) {
                 clearTimeout(window.__jpReveal);
@@ -885,56 +994,113 @@
         // The active profile lives in sessionStorage deliberately: closing the app should
         // drop back to the picker rather than leave a child profile signed in.
         //
-        // Samsung's Tizen runtime clears sessionStorage on a full reload, and a full reload
-        // is exactly how a profile switch finishes. The marker was therefore gone by the
-        // time the page came back, validateSessionState() concluded the app had been closed
-        // and reverted to the master token — the avatar changed and nothing else did
-        // (issues #15 and #16, reported independently by two people).
+        // Some runtimes throw sessionStorage away on a full reload — and a full reload is
+        // exactly how a profile switch finishes. The marker is then gone by the time the
+        // page comes back, validateSessionState() concludes the app was closed, and it
+        // reverts to the master token. On Samsung's Tizen that looked like the avatar
+        // changing and nothing else (issues #15 and #16). On Android it is worse, because
+        // the revert reloads: the reload loses the marker again, which reverts again — the
+        // picker over and over, which is what an Android reporter saw.
         //
-        // On Tizen only, the marker is mirrored into localStorage. The cost is that closing
-        // the app there leaves the profile active instead of returning to the picker. That
-        // is the safer of the two failures: the account it would otherwise revert to is the
-        // master, which is the less restricted one.
-        TIZEN_MIRROR_PREFIX: 'jpf-persist-',
+        // That was first fixed by sniffing for Tizen, which meant meeting each new runtime
+        // through a bug report. There is no sniff any more. The rule is about WHY
+        // sessionStorage is empty, which is the part that actually decides the answer:
+        //
+        //   empty because the app was closed     -> show the picker, drop the profile
+        //   empty because our own reload lost it -> put it back, keep the profile
+        //
+        // and those two are told apart by the switching flag, which is set immediately
+        // before every reload this plugin performs and at no other time.
+        //
+        // Values are also held in memory for the life of the page, so a runtime where
+        // sessionStorage does not work at all still behaves while the page lives.
+        SESSION_MIRROR_PREFIX: 'jpf-persist-',
 
-        /// True on Samsung's TV runtime, where sessionStorage does not survive a reload.
-        _isTizenRuntime: function () {
-            if (this._tizenRuntime === undefined) {
-                let detected = false;
-                try {
-                    const ua = (navigator && navigator.userAgent) || '';
-                    detected = typeof window.tizen !== 'undefined' || /tizen/i.test(ua);
-                } catch (e) { /* no navigator — assume not */ }
-                this._tizenRuntime = detected;
-            }
-            return this._tizenRuntime;
-        },
+        /// How long after our own reload the mirror is still believable. A reload takes
+        /// seconds; anything older is a new session wearing a flag nobody cleared.
+        SESSION_MIRROR_MAX_AGE_MS: 60000,
+
+        _sessionMemory: {},
 
         _sessionSet: function (key, value) {
+            this._sessionMemory[key] = value;
             try { sessionStorage.setItem(key, value); } catch (e) { /* storage blocked */ }
-            if (!this._isTizenRuntime()) return;
-            try { localStorage.setItem(this.TIZEN_MIRROR_PREFIX + key, value); } catch (e) { /* full */ }
+            try {
+                localStorage.setItem(
+                    this.SESSION_MIRROR_PREFIX + key,
+                    JSON.stringify({ v: value, t: Date.now() }));
+            } catch (e) { /* full or blocked — sessionStorage is still the primary */ }
         },
 
         _sessionGet: function (key) {
+            if (Object.prototype.hasOwnProperty.call(this._sessionMemory, key)) {
+                return this._sessionMemory[key];
+            }
+
             let value = null;
             try { value = sessionStorage.getItem(key); } catch (e) { /* storage blocked */ }
-            if (value !== null || !this._isTizenRuntime()) return value;
+            if (value !== null) {
+                this._sessionMemory[key] = value;
+                return value;
+            }
 
-            try {
-                value = localStorage.getItem(this.TIZEN_MIRROR_PREFIX + key);
-                // Put it back where the rest of the code expects to find it, so this
-                // fallback costs one read per page load rather than one per call.
-                if (value !== null) sessionStorage.setItem(key, value);
-            } catch (e) { /* unreadable — treat as absent */ }
-            return value;
+            const mirrored = this._readSessionMirror(key);
+            if (mirrored === null) return null;
+
+            // Put it back where the rest of the code expects to find it, so this costs one
+            // read per page load rather than one per call.
+            this._sessionMemory[key] = mirrored;
+            try { sessionStorage.setItem(key, mirrored); } catch (e) { /* storage blocked */ }
+            return mirrored;
+        },
+
+        /// The mirrored value, but only when this page load is the continuation of a reload
+        /// we caused, and that reload was recent. Null otherwise — which is what still makes
+        /// closing the app drop back to the picker.
+        _readSessionMirror: function (key) {
+            // The injected head script consumes this key: it runs synchronously during head
+            // parsing, while profiles.js is deferred, so by the time anything here looks the
+            // key has been gone for the whole document parse. Reading localStorage alone made
+            // this function return null every single time, which left the 1.4.6 switch-loop
+            // fix dead on arrival — the three-reload backstop was doing all the work.
+            //
+            // The head script republishes it as a window global for this reason. localStorage
+            // stays as the fallback for a page still carrying an older head script, and for
+            // any caller reached before the head script has run.
+            let switching = false;
+            try { switching = !!window.__jpSwitching; } catch (e) { /* no window */ }
+            if (!switching) {
+                try {
+                    switching = !!localStorage.getItem(this.config.switchingKey);
+                } catch (e) { return null; }
+            }
+            if (!switching) return null;
+
+            let raw = null;
+            try { raw = localStorage.getItem(this.SESSION_MIRROR_PREFIX + key); } catch (e) { return null; }
+            if (raw === null) return null;
+
+            let parsed = null;
+            try { parsed = JSON.parse(raw); } catch (e) { /* the older mirror: a bare string */ }
+
+            if (!parsed || typeof parsed !== 'object' || typeof parsed.v !== 'string') {
+                // Written by the Tizen-only mirror, which carried no timestamp. Upgrading
+                // must not sign anyone out, so the switching flag above is all it gets.
+                return raw;
+            }
+
+            if (typeof parsed.t !== 'number'
+                || Date.now() - parsed.t > this.SESSION_MIRROR_MAX_AGE_MS) {
+                return null;
+            }
+            return parsed.v;
         },
 
         _sessionRemove: function (key) {
+            delete this._sessionMemory[key];
             try { sessionStorage.removeItem(key); } catch (e) { /* storage blocked */ }
-            // Always clear the mirror, whatever the runtime says now: a stale copy left by
-            // an earlier detection would outlive every sign-out.
-            try { localStorage.removeItem(this.TIZEN_MIRROR_PREFIX + key); } catch (e) { /* ignore */ }
+            // Always clear the mirror: a stale copy would outlive every sign-out.
+            try { localStorage.removeItem(this.SESSION_MIRROR_PREFIX + key); } catch (e) { /* ignore */ }
         },
 
         /// Drops every trace of an active profile session. Used by sign-out, the login
@@ -1060,7 +1226,7 @@
             `;
 
             dialog.innerHTML = `
-                <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius:12px;
+                <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);
                             padding:24px; max-width:460px; width:90%; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
                     <h2 style="margin:0 0 12px 0; color:#fff; font-size:1.2rem; font-weight:700;">Emergency disable</h2>
                     <p style="color:rgba(255,255,255,0.7); font-size:0.9rem; line-height:1.5; margin:0 0 16px 0;">
@@ -1071,7 +1237,7 @@
                     <input type="password" id="profiles-panic-input" autocomplete="off" placeholder="Emergency code"
                            style="width:100%; box-sizing:border-box; padding:10px; font-size:1rem; margin-bottom:8px;" />
                     <div id="profiles-panic-error" style="display:none; color:#ff6b6b; font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
-                    <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:12px;">
+                    <div style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:12px;">
                         <button id="profiles-panic-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>
                         <button id="profiles-panic-submit" class="profiles-btn btn-danger" style="padding:10px 20px; font-weight:600;">Disable</button>
                     </div>
@@ -1368,15 +1534,56 @@
                         console.log("ProfilesPlugin: Master session token updated to match new valid token.");
                     }
                 } else if (currentToken !== masterState.masterToken && !this.isProfileSessionActive()) {
+                    if (!this._revertReloadAllowed()) {
+                        // Reverting has not stuck, and reverting again means reloading again,
+                        // which is what turns this into the picker over and over. Accept the
+                        // session actually in play and record it so every later check agrees.
+                        // The cost is a profile staying signed in where it would have dropped
+                        // back to the master — the safer of the two, since the master is the
+                        // less restricted account.
+                        console.warn(
+                            'ProfilesPlugin: session revert is looping; keeping the active profile instead.');
+                        this._sessionSet(this.config.activeSessionKey, currentToken);
+                        return;
+                    }
                     this.updateStoredCredentials(masterState.masterToken, masterState.masterUserId);
                     apiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
                     // Hide current page instantly so there is no visible frame
                     // between old page unloading and new page's head script running.
                     document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
+                    this._reloading = true;
                     localStorage.setItem(this.config.switchingKey, '1');
                     window.location.reload();
                 }
             }
+        },
+
+        /// Whether the revert-to-master path may reload again.
+        ///
+        /// That path exists for "the app was closed while a profile was active": put the
+        /// master token back and reload, so the picker appears. It assumes the reload fixes
+        /// the condition that triggered it. If anything makes the active marker vanish on
+        /// every load, the same decision is reached every time and the user is stuck in a
+        /// reload loop with no way out of it from inside the app.
+        ///
+        /// Three in thirty seconds is not a session being restored, it is a loop. The window
+        /// resets itself, so a reload an hour later starts from zero and no cleanup is owed.
+        _revertReloadAllowed: function () {
+            const KEY = 'jpf-revert-guard';
+            const now = Date.now();
+
+            let state = null;
+            try { state = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { /* unreadable */ }
+            if (!state || typeof state.n !== 'number' || typeof state.t !== 'number'
+                || now - state.t > 30000) {
+                state = { n: 0, t: now };
+            }
+
+            state.n += 1;
+            state.t = now;
+            try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* full */ }
+
+            return state.n <= 3;
         },
 
         handleSessionExpired: function () {
@@ -1431,6 +1638,13 @@
         /// the home screen flash-free; serving it after a save showed stale data — a freshly
         /// saved PIN still read as "No PIN" until the page was reloaded.
         fetchAndRenderProfiles: function (apiClient, masterUserId, masterToken, forceRefresh) {
+            // Recorded, not claimed: several callers have already taken a ticket and are
+            // finishing by coming back to the grid, and claiming a new one here would
+            // invalidate theirs. This only needs to know whether the screen moved on while
+            // the list was in flight — Settings, or a profile form, drawn over by a slow
+            // grid was the same race the tickets were added for.
+            const ticket = this._navTicket;
+
             if (forceRefresh) {
                 this.invalidateProfileCache();
             } else if (this.cachedProfiles && this.cachedProfiles.length) {
@@ -1457,6 +1671,7 @@
                 return res.json();
             })
             .then(profiles => {
+                if (!this.navIsCurrent(ticket)) return;
                 const normalized = this.normalizeProfiles(profiles);
                 // Deliberately NOT stored in cachedProfiles: that field is the one-shot
                 // prefetch buffer, and repopulating it here made the *next* call short-circuit
@@ -1473,6 +1688,20 @@
         showProfileOverlay: function (profiles) {
             // Always stop the inactivity timer when showing the profile selector
             this.stopInactivityTimer();
+
+            // Warm the account-wide form data now, while the user is still reading the
+            // grid. Opening a profile then costs one request rather than five, which is
+            // the difference between instant and the several-second wait that made
+            // people click a second time.
+            try {
+                const warmState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+                if (warmState && warmState.masterToken) {
+                    this.fetchSharedFormData(ApiClient, warmState).catch(() => {
+                        // A cold prefetch failing is not an error anyone needs to see;
+                        // the form will retry and report it properly if it still fails.
+                    });
+                }
+            } catch (e) { /* no master state yet — the form will fetch on demand */ }
             this._overlayMountTime = Date.now();
 
             // Returning to the grid replaces the modal contents, so any document-level
@@ -1532,8 +1761,44 @@
         ///
         /// Choices are held in memory until the form is saved, so backing out leaves
         /// nothing behind — the same contract as every other field on the form.
+        /// Greys the artwork controls on a library this profile cannot see.
+        ///
+        /// Now that the tick and the artwork sit on one row, an enabled Picture
+        /// dropdown next to an unticked library would be offering to style something
+        /// that is not there.
+        syncLibraryRowState: function (row) {
+            if (!row) return;
+            const box = row.querySelector('.library-checkbox');
+            const on = !box || box.checked;
+
+            row.querySelectorAll('.libart-mode, .libart-choose').forEach(el => {
+                el.disabled = !on;
+            });
+            row.style.opacity = on ? '' : '0.5';
+        },
+
+        /// Applies the above to every row in a container.
+        syncAllLibraryRows: function (root) {
+            const scope = root || document;
+            scope.querySelectorAll('.libart-row').forEach(r => this.syncLibraryRowState(r));
+        },
+
         initLibraryArtworkEditor: function (container, profileId) {
             const rows = Array.prototype.slice.call(container.querySelectorAll(".libart-row"));
+            const list = container.querySelector(".libart-list");
+            const artToggle = container.querySelector(".libart-toggle input");
+            const artHint = container.querySelector(".libart-explainer");
+
+            // Off is the honest default: most profiles never touch artwork, and the
+            // controls meant nothing to anyone who was only picking libraries.
+            const showArtwork = (on) => {
+                if (list) list.classList.toggle("show-artwork", on);
+                if (artHint) artHint.style.display = on ? "" : "none";
+            };
+            if (artToggle) {
+                artToggle.addEventListener("change", (e) => showArtwork(e.target.checked));
+            }
+            showArtwork(false);
             const state = {};
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || "null");
 
@@ -1555,6 +1820,9 @@
 
                 select.value = entry.mode;
                 choose.style.visibility = entry.mode === "custom" ? "visible" : "hidden";
+                // Class, not an inline style: the artwork switch hides these by rule, and an
+                // inline display would outrank it and put the placeholder back.
+                row.classList.toggle("libart-has-art", entry.mode !== "inherit");
 
                 const preview = entry.mode === "custom" ? previewUrl(entry) : "";
                 thumb.style.backgroundImage = preview ? ("url(\"" + preview + "\")") : "";
@@ -1612,6 +1880,15 @@
                         };
                         paint(row);
                     });
+
+                    // A profile that already has artwork set should not have to find the
+                    // switch to see it. Only ever turns the section on, so it cannot fold
+                    // away controls somebody has just opened by hand.
+                    const anyArt = rows.some(r => (state[r.getAttribute("data-lib")] || {}).mode !== "inherit");
+                    if (anyArt && artToggle && !artToggle.checked) {
+                        artToggle.checked = true;
+                        showArtwork(true);
+                    }
                 })
                 .catch(() => { /* nothing stored yet, or a server older than this build */ });
             }
@@ -1668,13 +1945,13 @@
                     "background:rgba(0,0,0,0.85); backdrop-filter:blur(8px);" +
                     "display:flex; align-items:center; justify-content:center; z-index:" + DIALOG_Z + ";";
                 dialog.innerHTML =
-                    '<div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius:12px;' +
+                    '<div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);' +
                     ' padding:22px; max-width:420px; width:94%; max-height:86vh; overflow:auto;">' +
                     '<h2 style="margin:0 0 14px 0; color:#fff; font-size:1.15rem; font-weight:700;">Library artwork</h2>' +
                     '<div id="profiles-libart-host"></div>' +
                     '<div id="profiles-libart-error" style="display:none; color:#ff6b6b; font-size:0.85rem;' +
                     ' font-weight:600; margin-top:8px;"></div>' +
-                    '<div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px;">' +
+                    '<div style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:16px;">' +
                     '<button id="profiles-libart-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>' +
                     '<button id="profiles-libart-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">Use picture</button>' +
                     '</div></div>';
@@ -1887,7 +2164,7 @@
             const back = surface.querySelector(
                 '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
                 '#pin-cancel-btn, #master-pin-cancel-btn, #create-cancel-btn, #edit-cancel-btn, ' +
-                '#bonfire-back-btn, #switcher-mode-back-btn, #profiles-resume-btn, #profiles-libart-cancel'
+                '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #profiles-resume-btn, #profiles-libart-cancel'
             );
             if (back) back.click();
         },
@@ -2067,6 +2344,10 @@
             const overlay = document.getElementById('profiles-gate-overlay');
             if (overlay) overlay.remove();
 
+            // Reopening the gate should re-read the server; caching only spans one
+            // session so a library added elsewhere shows up next time.
+            this.clearSharedFormData();
+
             // Tearing down the overlay must also drop the form listeners it owned.
             this.clearManagedDocumentListeners();
 
@@ -2183,6 +2464,10 @@
 
 
         renderOverlayContent: function (overlay, profiles) {
+            // Claims the screen so a form still loading in the background does not
+            // draw itself over the grid when it finally returns.
+            this.beginNavigation();
+
             const title = this.isManageMode ? "Manage Profiles" : "Who's Watching?";
             const manageBtnText = this.isManageMode ? "Done" : "Manage Profiles";
 
@@ -2193,6 +2478,10 @@
 
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
             const localMasterId = masterState ? this.normalizeGuid(masterState.masterUserId) : '';
+
+            // Same condition the two settings tiles used, so Settings shows up in exactly
+            // the cases they used to.
+            const hasLocalMaster = profiles.some(p => p.isMaster && !p.isBonfire);
 
             // Group profiles by masterUserId
             const grouped = {};
@@ -2216,8 +2505,19 @@
                 return nameA.localeCompare(nameB);
             });
 
+            // The signed-in Jellyfin user IS the active profile — switching signs in as
+            // that profile's own account. The gate never said which one that was, and the
+            // avatar-colour rings made it look as though it did.
+            const signedInId = (typeof ApiClient.getCurrentUserId === 'function')
+                ? this.normalizeGuid(ApiClient.getCurrentUserId())
+                : '';
+
             const renderCard = (p) => `
-                <div class="profile-card ${this.isManageMode ? 'manage-mode' : ''}" data-id="${p.profileUserId}" data-pin="${p.requiresPin}" tabindex="0">
+                <div class="profile-card ${this.isManageMode ? 'manage-mode' : ''}${
+                    signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' is-current' : ''
+                }" data-id="${p.profileUserId}" data-pin="${p.requiresPin}" tabindex="0"${
+                    signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' aria-current="true"' : ''
+                }>
                     <div class="profile-avatar-container">
                         ${p.isMaster ? `
                         <div class="profile-crown">
@@ -2254,6 +2554,8 @@
                     </div>
                     <div class="profile-name">
                         <span>${escapeHtml(p.profileName)}</span>
+                        ${signedInId && this.normalizeGuid(p.profileUserId) === signedInId
+                            ? '<span class="profile-current-badge">Watching now</span>' : ''}
                         ${this.isManageMode ? `
                             <span class="profile-pin-badge ${p.requiresPin ? 'locked' : 'unlocked'}">
                                 ${p.requiresPin ? 'PIN Protected' : 'No PIN'}
@@ -2290,44 +2592,32 @@
                 let cardsHtml = groupProfiles.map(p => renderCard(p)).join('');
 
                 if (isLocalGroup) {
-                    if (this.isManageMode && profiles.some(p => p.isMaster && !p.isBonfire)) {
-                        cardsHtml += `
-                            <div class="profile-card action-bonfire" tabindex="0">
-                                <div class="profile-avatar-container">
-                                    <div class="profile-avatar" style="background: linear-gradient(135deg, #ff9900 0%, #ff5500 100%); display: flex; align-items: center; justify-content: center;">
-                                        <span class="material-icons" style="font-size: 3.5rem; color: #fff;">local_fire_department</span>
-                                    </div>
-                                </div>
-                                <div class="profile-name">
-                                    <span>Bonfire Grouping</span>
-                                </div>
-                            </div>
-                            <div class="profile-card action-switcher-mode" tabindex="0">
-                                <div class="profile-avatar-container">
-                                    <div class="profile-avatar" style="background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); display: flex; align-items: center; justify-content: center;">
-                                        <span class="material-icons" style="font-size: 3.5rem; color: #fff;">switch_account</span>
-                                    </div>
-                                </div>
-                                <div class="profile-name">
-                                    <span>Switcher Style</span>
-                                </div>
-                            </div>
-                        `;
-                    }
+                    // Settings used to sit here, as two cards in the same row as people.
+                    // They are not profiles: Switcher Style is per-account and Your Bonfire
+                    // is between accounts, and neither belongs to the grid of who can watch.
+                    // They live behind Settings now — which also means the LAN-bypass toggle,
+                    // the one that can hand somebody your admin rights, is somewhere you went
+                    // on purpose rather than somewhere you can land while renaming a profile.
 
-                    if (!this.isManageMode && !atLimit) {
-                        cardsHtml += `
-                            <div class="profile-card action-add-profile" tabindex="0">
-                                <div class="profile-avatar-container">
-                                    <div class="profile-avatar add-avatar">+</div>
+                    // Manage Profiles only. The gate answers one question — who is
+                    // watching — and a card in that grid reads as a person. Adding one is
+                    // administration, and it belongs on the screen named for it, which is
+                    // one button away and already where you go to rename or delete.
+                    if (this.isManageMode) {
+                        if (!atLimit) {
+                            cardsHtml += `
+                                <div class="profile-card action-add-profile" tabindex="0">
+                                    <div class="profile-avatar-container">
+                                        <div class="profile-avatar add-avatar">+</div>
+                                    </div>
+                                    <div class="profile-name">Add Profile</div>
                                 </div>
-                                <div class="profile-name">Add Profile</div>
-                            </div>
-                        `;
-                    } else if (!this.isManageMode) {
-                        cardsHtml += `
-                            <div class="profiles-limit-notice">${subProfileCount}/${maxSubProfiles} profiles — limit reached</div>
-                        `;
+                            `;
+                        } else {
+                            cardsHtml += `
+                                <div class="profiles-limit-notice">${subProfileCount}/${maxSubProfiles} profiles — limit reached</div>
+                            `;
+                        }
                     }
                 }
 
@@ -2350,6 +2640,9 @@
                     ${sectionsHtml}
                     <div class="profiles-footer">
                         <button id="profiles-toggle-manage-btn" class="profiles-btn btn-secondary">${manageBtnText}</button>
+                        ${this.isManageMode && hasLocalMaster
+                            ? '<button id="profiles-settings-btn" class="profiles-btn btn-secondary">Settings</button>'
+                            : ''}
                         ${this._resumeState && !this.isManageMode
                             ? '<button id="profiles-resume-btn" class="profiles-btn btn-secondary">Cancel</button>'
                             : ''}
@@ -2429,12 +2722,12 @@
                 });
             }
 
-            // "Bonfire" action
-            const bonfireCard = overlay.querySelector('.action-bonfire');
-            if (bonfireCard) {
-                bonfireCard.addEventListener('click', () => {
+            // Settings: everything that is not a profile.
+            const settingsBtn = overlay.querySelector('#profiles-settings-btn');
+            if (settingsBtn) {
+                settingsBtn.addEventListener('click', () => {
                     if (this._switchLock) return;
-                    this.showBonfireModal();
+                    this.showSettingsMenu();
                 });
             }
 
@@ -2451,14 +2744,6 @@
                 this.applyPanicLinkVisibility();
             }
 
-            // "Switcher Style" action
-            const switcherModeCard = overlay.querySelector('.action-switcher-mode');
-            if (switcherModeCard) {
-                switcherModeCard.addEventListener('click', () => {
-                    if (this._switchLock) return;
-                    this.showSwitcherModeModal();
-                });
-            }
 
             // Back out of a switcher the user opened on purpose, returning to the profile
             // they were already using. Only present when there is something to return to —
@@ -2497,6 +2782,7 @@
         },
 
         promptPinEntry: function (profileId) {
+            this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
             content.innerHTML = `
                 <h1 class="profiles-title">Enter Profile PIN</h1>
@@ -2608,6 +2894,7 @@
         },
 
         promptMasterPinEntry: function (actionType, callback) {
+            this.beginNavigation();
             const masterProfile = this.currentProfiles.find(p => p.isMaster && !p.isBonfire);
             if (!masterProfile) return;
 
@@ -2744,6 +3031,37 @@
         // onError: optional callback(message) invoked on a failed switch.
         // Callers capture their own DOM references via closure so we never re-query
         // the DOM inside an async callback (which can race against overlay teardown).
+        /// Puts the picker into "working on it" while a switch is in flight.
+        ///
+        /// The switch is a round trip to the server and then a full page reload. On a phone
+        /// that is a couple of seconds during which nothing on screen changed at all, so the
+        /// only reasonable reading was that the tap had missed — and the reporter kept
+        /// tapping. _switchLock already made the extra taps harmless; it just never said so.
+        setSwitchBusy: function (profileId, busy) {
+            const overlay = document.getElementById('profiles-gate-overlay');
+            if (overlay) {
+                overlay.classList.toggle('is-switching', busy);
+                if (busy) overlay.setAttribute('aria-busy', 'true');
+                else overlay.removeAttribute('aria-busy');
+
+                // Matched by normalised id rather than an attribute selector, so a profile
+                // id can never be read as one.
+                const wanted = busy ? this.normalizeGuid(profileId) : null;
+                overlay.querySelectorAll('.profile-card').forEach(card => {
+                    const isTarget = !!wanted
+                        && this.normalizeGuid(card.getAttribute('data-id')) === wanted;
+                    card.classList.toggle('is-switching', isTarget);
+                });
+            }
+
+            // Started from a PIN prompt, the button is what the user is looking at — the
+            // card behind it may not even be on screen.
+            ['pin-submit-btn', 'master-pin-submit-btn'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.classList.toggle('is-busy', busy);
+            });
+        },
+
         executeProfileSwitch: function (profileId, pin, onError) {
             if (this._switchLock) return;
 
@@ -2752,6 +3070,7 @@
             if (!masterState) return;
 
             this._switchLock = true;
+            this.setSwitchBusy(profileId, true);
             const url = apiClient.getUrl('plugins/profiles/switch');
 
             fetch(url, {
@@ -2809,22 +3128,27 @@
                 this.updateStoredCredentials(activeProfileToken, jellyfinUserId);
                 apiClient.setAuthenticationInfo(activeProfileToken, jellyfinUserId);
 
-                // Keep the overlay visible through the reload — removing it first
-                // would expose the home screen for a frame before opacity:0 kicks in.
-                // The reload will naturally destroy the overlay on the new page.
-                // Transitioning it to solid black blends with the new page's dark state.
+                // The overlay is opaque and covers the viewport, so leaving it up is all it
+                // takes to keep the old page out of sight — and it keeps the spinner on
+                // screen for however long the reload costs. Blanking the document instead
+                // meant a phone showed several seconds of black with nothing to say the tap
+                // had registered. Only the background is calmed towards the next page.
                 const overlay = document.getElementById('profiles-gate-overlay');
                 if (overlay) {
-                    overlay.style.transition = 'background 0.12s ease';
+                    overlay.style.transition = 'background 0.2s ease';
                     overlay.style.background = '#101010';
+                } else {
+                    // Menu-mode switch with no gate on screen: nothing is covering the app,
+                    // so the old page does still have to be hidden before it repaints.
+                    document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
                 }
-                // Hide everything else instantly.
-                document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
+                this._reloading = true;
                 localStorage.setItem(this.config.switchingKey, '1');
                 window.location.reload();
             })
             .catch(err => {
                 this._switchLock = false;
+                this.setSwitchBusy(profileId, false);
                 if (err.message === 'Session expired') return;
                 if (typeof onError === 'function') {
                     // Caller has closed-over references to the DOM — no re-query needed
@@ -2995,7 +3319,7 @@
                 z-index: ${DIALOG_Z};
             `;
             dialog.innerHTML = `
-                <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius:12px;
+                <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);
                             padding:22px; max-width:340px; width:92%; box-shadow:0 10px 30px rgba(0,0,0,0.5); text-align:center;
                             user-select:none; -webkit-user-select:none;">
                     <h2 style="margin:0 0 4px 0; color:#fff; font-size:1.15rem; font-weight:700;">Position your picture</h2>
@@ -3014,7 +3338,7 @@
                     </div>
                     <input type="range" id="profiles-crop-zoom" min="1" max="4" step="0.01" value="1"
                            style="width:100%; margin:16px 0 4px 0;" aria-label="Zoom" />
-                    <div style="display:flex; gap:12px; justify-content:center; margin-top:12px;">
+                    <div style="display:flex; gap: var(--jpf-gap); justify-content:center; margin-top:12px;">
                         <button id="profiles-crop-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>
                         <button id="profiles-crop-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">Use picture</button>
                     </div>
@@ -3209,8 +3533,8 @@
             const preview = currentImage ? avatarInner(currentImage, '+', /* useThumb */ true) : '+';
 
             const libraryHtml = hasLibrary ? `
-                <div class="form-group" style="margin: 0;">
-                    <div class="form-hint" style="margin: 0 0 6px 0;">Choose one of your server's avatars</div>
+                <div class="picture-source-block">
+                    <div class="picture-source-title">From this server</div>
                     <div id="${prefix}-avatar-library" class="avatar-library-grid">
                         ${library.avatars.map(a => `
                             <button type="button" class="avatar-library-item" tabindex="0"
@@ -3227,7 +3551,8 @@
             // The upload control disappears entirely when the administrator has locked
             // avatars to the library — a disabled button people cannot use is just noise.
             const uploadHtml = library.allowCustomUploads ? `
-                <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+                <div class="picture-source-block">
+                    <div class="picture-source-title">From this device</div>
                     <label for="${prefix}-profile-image-file" id="${prefix}-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
                         <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
                         <span>Upload a picture</span>
@@ -3241,24 +3566,43 @@
                 </div>
             `;
 
-            const urlHtml = library.allowCustomUploads ? `
-                <div class="form-divider"><span>OR</span></div>
-                <div class="form-group" style="margin: 0;">
-                    <input type="text" id="${prefix}-profile-image-url" placeholder="Paste image URL" />
-                    <div class="form-hint" style="margin: 4px 0 0 0;">Linked directly, not stored on your server — and not croppable.</div>
-                </div>
-            ` : '';
+            // A pasted URL was the odd one out among the ways of setting a picture: it
+            // could not be cropped, nothing was copied onto the server, and the avatar
+            // broke the day the far end went away — with no sign here that it had. Every
+            // other path ends in a file this server owns.
 
+            // Open when there is no picture yet, because on a new profile choosing one IS
+            // the task. On a profile that already has one, the whole apparatus was sitting
+            // open for nothing.
+            const sourcesOpen = !currentImage;
+
+            // Remove is rendered here rather than by the edit form, so the two actions are
+            // the same size and sit together. It was a third-height button hanging under
+            // the row, which read as belonging to whatever came next.
             return `
                 <div class="form-group">
                     <label>Profile Picture</label>
-                    <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: 12px;">
-                        ${libraryHtml}
+                    <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: var(--jpf-gap);">
                         <div class="image-upload-row">
                             <div id="${prefix}-image-upload-preview" class="image-upload-preview" style="background-color: ${safeColor(currentColor)};">${preview}</div>
+                            <div class="image-upload-actions">
+                                <button type="button" id="${prefix}-change-picture" class="profiles-btn btn-secondary image-upload-btn picture-change-btn"
+                                        aria-expanded="${sourcesOpen}" aria-controls="${prefix}-picture-sources">
+                                    <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
+                                    <span>${currentImage ? 'Change picture' : 'Choose a picture'}</span>
+                                    <span class="material-icons picture-caret" aria-hidden="true">expand_more</span>
+                                </button>
+                                <button type="button" id="${prefix}-clear-profile-image-btn" class="profiles-btn btn-secondary image-upload-btn picture-remove-btn"
+                                        style="display: ${currentImage ? 'inline-flex' : 'none'};">
+                                    <span class="material-icons" style="font-size: 1.25rem;">delete_outline</span>
+                                    <span>Remove</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="${prefix}-picture-sources" class="picture-sources${sourcesOpen ? ' is-open' : ''}">
+                            ${libraryHtml}
                             ${uploadHtml}
                         </div>
-                        ${urlHtml}
                         <div id="${prefix}-image-error" style="display:none; color:#ff6b6b; font-size:0.82rem; font-weight:600; line-height:1.45;"></div>
                     </div>
                 </div>
@@ -3277,7 +3621,7 @@
             const errEl = container.querySelector(`#${prefix}-image-error`);
             const fileInput = container.querySelector(`#${prefix}-profile-image-file`);
             const fileLabel = container.querySelector(`#${prefix}-profile-image-label`);
-            const urlInput = container.querySelector(`#${prefix}-profile-image-url`);
+            const removeBtn = container.querySelector(`#${prefix}-clear-profile-image-btn`);
 
             const showError = (message) => {
                 if (!errEl) return;
@@ -3289,9 +3633,25 @@
                 if (!previewEl) return;
                 previewEl.style.position = 'relative';
                 previewEl.innerHTML = src ? avatarInner(src, '+', /* useThumb */ true) : '+';
+                // Removing is only an option while there is something to remove. Driven
+                // from here so it is right on the first paint too — setPreview runs once
+                // at init.
+                if (removeBtn) removeBtn.style.display = src ? 'inline-flex' : 'none';
                 if (typeof onPreviewChange === 'function') onPreviewChange(src);
             };
             setPreview(state.image);
+
+            // The ways of choosing a picture are collapsed behind one button. Every id
+            // the handlers below bind to still exists — they have only moved inside the
+            // panel — so nothing else in this function changes.
+            const sourcesEl = container.querySelector(`#${prefix}-picture-sources`);
+            const changeBtn = container.querySelector(`#${prefix}-change-picture`);
+            if (sourcesEl && changeBtn) {
+                changeBtn.addEventListener('click', () => {
+                    const open = sourcesEl.classList.toggle('is-open');
+                    changeBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                });
+            }
 
             const applyCropped = (result) => {
                 state.image = result.image;
@@ -3299,7 +3659,6 @@
                 state.libraryId = null;
                 setPreview(result.image);
                 showError('');
-                if (urlInput) urlInput.value = '';
                 if (fileInput) fileInput.value = '';
             };
 
@@ -3351,31 +3710,21 @@
                 });
             });
 
-            if (urlInput) {
-                urlInput.addEventListener('input', () => {
-                    const url = urlInput.value.trim();
-                    // A remote URL is stored as a link, so there is nothing to crop and no
-                    // thumbnail to generate — the browser scales it on render instead.
-                    state.image = url || null;
-                    state.thumb = null;
-                    state.libraryId = null;
-                    setPreview(url || null);
-                    if (fileInput) fileInput.value = '';
-                });
-            }
+            // Empty string, not null: the server reads that as "delete the picture",
+            // whereas null means "leave it alone".
+            const clearPicture = () => {
+                state.image = '';
+                state.thumb = null;
+                state.libraryId = null;
+                setPreview(null);
+                if (fileInput) fileInput.value = '';
+            };
+
+            if (removeBtn) removeBtn.addEventListener('click', clearPicture);
 
             return {
                 get: () => ({ image: state.image, thumb: state.thumb, libraryId: state.libraryId }),
-                clear: () => {
-                    // Empty string, not null: the server reads that as "delete the picture",
-                    // whereas null means "leave it alone".
-                    state.image = '';
-                    state.thumb = null;
-                    state.libraryId = null;
-                    setPreview(null);
-                    if (urlInput) urlInput.value = '';
-                    if (fileInput) fileInput.value = '';
-                },
+                clear: clearPicture,
                 setError: showError
             };
         },
@@ -3385,17 +3734,14 @@
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
             if (!masterState) return;
 
-            // Fetch libraries matching master user permissions and connected devices
-            const libUrl = apiClient.getUrl('plugins/profiles/libraries');
-            const devicesUrl = apiClient.getUrl('plugins/profiles/devices');
+            const ticket = this.beginNavigation();
 
-            Promise.all([
-                fetch(libUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
-                fetch(devicesUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()).catch(() => []),
-                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId),
-                this.fetchAvatarLibrary(apiClient, masterState.masterToken)
-            ])
+            // Everything this form needs is account-wide, so it is usually already
+            // cached from the prefetch that ran when the overlay opened.
+            this.fetchSharedFormData(apiClient, masterState)
+            .then(shared => [shared.libraries, shared.devices, shared.libraryTags, shared.avatarLibrary])
             .then(([libraries, devices, libraryTags, avatarLibrary]) => {
+                if (!this.navIsCurrent(ticket)) return;
                 const normalizedLibs = (libraries || []).map(lib => ({
                     id: lib.id || lib.Id,
                     name: lib.name || lib.Name,
@@ -3410,10 +3756,10 @@
                         <label for="create-name-input">Profile Name</label>
                         <input type="text" id="create-name-input" placeholder="e.g. Kids" required />
                     </div>
-                    <div class="form-group">
+                    <div class="form-group avatar-color-group" id="create-color-group">
                         <label>Avatar Color</label>
                         ${this.renderColorPicker('#00A4DC')}
-                        <div class="form-hint">Used as the avatar background when no picture is set.</div>
+                        <div class="form-hint" data-role="color-hint">Used as the avatar background when no picture is set.</div>
                     </div>
                     ${this.renderAvatarPicker('create', avatarLibrary, null, '#00A4DC')}
                 `;
@@ -3421,12 +3767,12 @@
                 // ── Section 2: getting into this profile ────────────────────────
                 const createSecurity = `
                     <div class="form-group">
-                        <label for="create-pin-input">PIN Code (Optional, 4-8 digits)</label>
+                        <label for="create-pin-input">PIN</label>
                         <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="Leave empty for no PIN" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     </div>
                     <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
-                            <input type="checkbox" id="create-local-bypass-checkbox" style="cursor: pointer; accent-color: #00a4dc;" />
+                            <input type="checkbox" id="create-local-bypass-checkbox" style="cursor: pointer; accent-color: var(--jpf-accent);" />
                             <span>Bypass PIN on local network (LAN)</span>
                         </label>
                         <div class="form-hint">No PIN prompt on your home network.</div>
@@ -3452,7 +3798,7 @@
                         <div class="section-inline-header">
                             <label style="margin: 0;">Enabled Libraries</label>
                             <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
-                                <input type="checkbox" id="create-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: #00a4dc;" />
+                                <input type="checkbox" id="create-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: var(--jpf-accent);" />
                                 <span>Select all</span>
                             </label>
                         </div>
@@ -3464,18 +3810,17 @@
                                 </label>
                             `).join('')}
                         </div>
-                        <div class="form-hint">If nothing is selected, this profile inherits every library your account can see.</div>
+                        <div class="form-hint">Tick nothing and this profile sees the same libraries as your account.</div>
                     </div>
                 `;
 
                 // ── Section 4: limits applied on top of the libraries above ─────
                 const createRestrictions = `
                     <div class="form-group">
-                        <label>Allowed Devices (Optional)</label>
+                        <label>Allowed Devices</label>
                         <div class="devices-dropdown-container" style="position: relative;">
                             <div id="create-devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
                                 <span id="create-devices-dropdown-selected-text">All Devices Allowed</span>
-                                <span style="font-size: 0.8rem; opacity: 0.7;">▼</span>
                             </div>
                             <div id="create-devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
                                 ${devices && devices.length > 0 ? devices.map(dev => {
@@ -3489,7 +3834,7 @@
                                     return `
                                         <div class="device-dropdown-item">
                                             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
-                                                <input type="checkbox" class="create-device-checkbox" value="${escapeHtml(deviceId)}" style="cursor: pointer; accent-color: #00a4dc; flex-shrink: 0;" />
+                                                <input type="checkbox" class="create-device-checkbox" value="${escapeHtml(deviceId)}" style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
                                                 <span style="display: flex; flex-direction: column; min-width: 0;">
                                                     <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
                                                     <span style="font-size: 0.75rem; opacity: 0.6;">${escapeHtml(client)} • Last seen ${lastSeenStr}</span>
@@ -3506,7 +3851,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="create-rating-select">Max Parental Rating Limit (Optional)</label>
+                        <label for="create-rating-select">Maximum rating</label>
                         <select id="create-rating-select">
                             <option value="">No Restrictions</option>
                             <option value="6">G / TV-G (6+)</option>
@@ -3518,12 +3863,12 @@
 
                     ${this.renderTagSuggestions('create-tag-suggestions', libraryTags)}
                     <div class="form-group">
-                        <label>Blocked Tags (Optional)</label>
+                        <label>Blocked tags</label>
                         ${this.renderTagEditor('create-blocked-tags', [], 'e.g. adults', 'create-tag-suggestions')}
                         <div class="form-hint">Hides anything with these tags. A tag on a series or library covers everything inside it.</div>
                     </div>
                     <div class="form-group">
-                        <label>Allowed Tags (Optional)</label>
+                        <label>Allowed tags</label>
                         ${this.renderTagEditor('create-allowed-tags', [], 'e.g. kids', 'create-tag-suggestions')}
                         <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items. Untagged content is hidden too.</div>
                     </div>
@@ -3531,11 +3876,15 @@
 
                 content.innerHTML = `
                     <h1 class="profiles-title">Create Profile</h1>
-                    <div class="create-profile-container">
-                        ${this.renderSection('person', 'Profile', 'Name, colour, and picture', createAppearance)}
-                        ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', createSecurity)}
-                        ${this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', createLibraries)}
-                        ${this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', createRestrictions)}
+                    <div class="create-profile-container is-two-col">
+                        <div class="form-col">
+                            ${this.renderSection('person', 'Profile', 'Name, colour, and picture', createAppearance)}
+                            ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', createSecurity)}
+                        </div>
+                        <div class="form-col">
+                            ${this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', createLibraries)}
+                            ${this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', createRestrictions)}
+                        </div>
 
                         <div id="create-error-msg" class="form-error" style="display:none;"></div>
                         <div class="pin-actions">
@@ -3560,7 +3909,9 @@
                     });
                 });
 
-                const avatarPicker = this.initAvatarPicker(content, 'create', avatarLibrary, null);
+                const avatarPicker = this.initAvatarPicker(
+                    content, 'create', avatarLibrary, null,
+                    (src) => this.setColorGroupInert('create', !!src));
 
                 // With no picture chosen, the preview shows the profile's initial — so it
                 // has to follow what is being typed into the name field.
@@ -3739,19 +4090,19 @@
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
             if (!masterState) return;
 
-            // Fetch libraries, target user details, and connected devices
-            const libUrl = apiClient.getUrl('plugins/profiles/libraries');
+            const ticket = this.beginNavigation();
+
+            // Users/{id} is the only one of the five that is about the profile you
+            // clicked. The rest come from the account-wide cache.
             const userUrl = apiClient.getUrl(`Users/${profile.profileUserId}`);
-            const devicesUrl = apiClient.getUrl('plugins/profiles/devices');
 
             Promise.all([
-                fetch(libUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
-                fetch(userUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()),
-                fetch(devicesUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json()).catch(() => []),
-                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId),
-                this.fetchAvatarLibrary(apiClient, masterState.masterToken)
+                this.fetchSharedFormData(apiClient, masterState),
+                fetch(userUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json())
             ])
+            .then(([shared, userDetails]) => [shared.libraries, userDetails, shared.devices, shared.libraryTags, shared.avatarLibrary])
             .then(([libraries, userDetails, devices, libraryTags, avatarLibrary]) => {
+                if (!this.navIsCurrent(ticket)) return;
                 const normalizedLibs = (libraries || []).map(lib => ({
                     id: lib.id || lib.Id,
                     name: lib.name || lib.Name,
@@ -3776,23 +4127,20 @@
                         <input type="text" id="edit-name-input" value="${escapeHtml(profile.profileName)}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
                         ${profile.isMaster ? `<div class="form-hint">The master profile takes its name from your Jellyfin account.</div>` : ''}
                     </div>
-                    <div class="form-group">
+                    <div class="form-group avatar-color-group" id="edit-color-group">
                         <label>Avatar Color</label>
                         ${this.renderColorPicker(profile.avatarColor)}
-                        <div class="form-hint">Used as the avatar background when no picture is set.</div>
+                        <div class="form-hint" data-role="color-hint">Used as the avatar background when no picture is set.</div>
                     </div>
                     ${this.renderAvatarPicker('edit', avatarLibrary, profile.profileImage, profile.avatarColor)}
-                    ${profile.profileImage ? `
-                        <button type="button" id="edit-clear-profile-image-btn" class="profiles-btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; align-self: flex-start; margin-top: -6px;">Remove Picture</button>
-                    ` : ''}
                 `;
 
                 // ── Section 2: getting into this profile ────────────────────────
                 const securityBody = `
                     <div class="form-group">
-                        <label for="edit-pin-input">PIN Code (Optional, 4-8 digits)</label>
-                        <div class="pin-edit-group" style="display:flex; gap:10px; flex-wrap: wrap;">
-                            <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? 'Enter a new PIN to replace the current one' : 'Leave empty for no PIN'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
+                        <label for="edit-pin-input">PIN</label>
+                        <div class="pin-edit-group" style="display:flex; gap: var(--jpf-gap); flex-wrap: wrap;">
+                            <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? 'New PIN' : 'No PIN'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
                             ${profile.hasPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">Clear PIN</button>` : ''}
                         </div>
                         <div id="edit-pin-error" class="form-error" style="display:none; margin-top:8px;"></div>
@@ -3804,7 +4152,7 @@
                     </div>
                     <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
-                            <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc;" />
+                            <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent);" />
                             <span>Bypass PIN on local network (LAN)</span>
                         </label>
                         <div class="form-hint">No PIN prompt on your home network.</div>
@@ -3828,13 +4176,20 @@
                 const librariesBody = `
                     <div class="form-group">
                         <div class="section-inline-header">
-                            <label style="margin: 0;">Enabled Libraries</label>
+                            <label style="margin: 0;">Libraries</label>
                             <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
-                                <input type="checkbox" id="edit-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: #00a4dc;" />
+                                <input type="checkbox" id="edit-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: var(--jpf-accent);" />
                                 <span>Select all</span>
                             </label>
                         </div>
-                        <div class="library-checklist">
+                        <div class="form-hint" style="margin: 0 0 8px 0;">
+                            Tick nothing and this profile sees the same libraries as your account.
+                        </div>
+                        <div class="libart-list" id="edit-library-artwork">
+                            <div class="libart-head" aria-hidden="true">
+                                <span class="libart-head-lib">Library</span>
+                                <span class="libart-head-art">Artwork</span>
+                            </div>
                             ${normalizedLibs.map(lib => {
                                 const storedFolders = profile.enabledFolders;
                                 let isChecked;
@@ -3844,43 +4199,42 @@
                                     isChecked = enableAll || !blockedFolders.some(bf => this.normalizeGuid(bf) === this.normalizeGuid(lib.id));
                                 }
                                 return `
-                                    <label class="library-check-label">
-                                        <input type="checkbox" class="library-checkbox" value="${lib.id}" ${isChecked ? 'checked' : ''} />
-                                        <span>${escapeHtml(lib.name)}</span>
-                                    </label>
+                                    <div class="libart-row" data-lib="${lib.id}">
+                                        <label class="library-check-label libart-check">
+                                            <input type="checkbox" class="library-checkbox" value="${lib.id}" ${isChecked ? 'checked' : ''} />
+                                            <span class="libart-thumb" aria-hidden="true"></span>
+                                            <span class="libart-name" title="${escapeHtml(lib.name)}">${escapeHtml(lib.name)}</span>
+                                        </label>
+                                        <select class="libart-mode" aria-label="Artwork for ${escapeHtml(lib.name)}">
+                                            <option value="inherit">Default</option>
+                                            <option value="custom">Picture</option>
+                                            <option value="none">Hidden</option>
+                                        </select>
+                                        <button type="button" class="profiles-btn btn-secondary libart-choose" style="padding:6px 12px; font-size:0.8rem;">Choose</button>
+                                    </div>
                                 `;
                             }).join('')}
                         </div>
-                        <div class="form-hint">If nothing is selected, this profile inherits every library your account can see.</div>
-                    </div>
-                    <div class="form-group">
-                        <label>Library Artwork</label>
-                        <div class="libart-list" id="edit-library-artwork">
-                            ${normalizedLibs.map(lib => `
-                                <div class="libart-row" data-lib="${lib.id}">
-                                    <span class="libart-thumb" aria-hidden="true"></span>
-                                    <span class="libart-name">${escapeHtml(lib.name)}</span>
-                                    <select class="libart-mode" aria-label="Artwork for ${escapeHtml(lib.name)}">
-                                        <option value="inherit">Default</option>
-                                        <option value="custom">Picture</option>
-                                        <option value="none">Hidden</option>
-                                    </select>
-                                    <button type="button" class="profiles-btn btn-secondary libart-choose" style="padding:6px 12px; font-size:0.8rem;">Choose</button>
-                                </div>
-                            `).join('')}
+                        <label class="library-check-label libart-toggle">
+                            <input type="checkbox" id="edit-libart-toggle" />
+                            <span>Choose the artwork on each library tile</span>
+                        </label>
+                        <div class="form-hint libart-explainer" id="edit-libart-hint" style="display: none;">
+                            A library tile takes its picture from whatever is inside the library —
+                            which can be something this profile is not allowed to open.
+                            <strong>Picture</strong> puts an image you choose on the tile instead, and
+                            <strong>Hidden</strong> leaves just the icon and the name.
                         </div>
-                        <div class="form-hint">Jellyfin builds a library tile from the items inside it, which can show something this profile cannot open. Hidden shows the icon and name.</div>
                     </div>
                 `;
 
                 // ── Section 4: limits applied on top of the libraries above ─────
                 const restrictionsBody = `
                     <div class="form-group">
-                        <label>Allowed Devices (Optional)</label>
+                        <label>Allowed Devices</label>
                         <div class="devices-dropdown-container" style="position: relative;">
                             <div id="devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
                                 <span id="devices-dropdown-selected-text">All Devices Allowed</span>
-                                <span style="font-size: 0.8rem; opacity: 0.7;">▼</span>
                             </div>
                             <div id="devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
                                 ${devices && devices.length > 0 ? devices.map(dev => {
@@ -3895,7 +4249,7 @@
                                     return `
                                         <div class="device-dropdown-item">
                                             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
-                                                <input type="checkbox" class="device-checkbox" value="${escapeHtml(deviceId)}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: #00a4dc; flex-shrink: 0;" />
+                                                <input type="checkbox" class="device-checkbox" value="${escapeHtml(deviceId)}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
                                                 <span style="display: flex; flex-direction: column; min-width: 0;">
                                                     <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
                                                     <span style="font-size: 0.75rem; opacity: 0.6;">${escapeHtml(client)} • Last seen ${lastSeenStr}</span>
@@ -3913,7 +4267,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="edit-rating-select">Max Parental Rating Limit (Optional)</label>
+                        <label for="edit-rating-select">Maximum rating</label>
                         <select id="edit-rating-select">
                             <option value="" ${maxRating === null ? 'selected' : ''}>No Restrictions</option>
                             <option value="6" ${maxRating === 6 ? 'selected' : ''}>G / TV-G (6+)</option>
@@ -3925,12 +4279,12 @@
 
                     ${this.renderTagSuggestions('edit-tag-suggestions', libraryTags)}
                     <div class="form-group">
-                        <label>Blocked Tags (Optional)</label>
+                        <label>Blocked tags</label>
                         ${this.renderTagEditor('edit-blocked-tags', profile.blockedTags || [], 'e.g. adults', 'edit-tag-suggestions')}
                         <div class="form-hint">Hides anything with these tags. A tag on a series or library covers everything inside it.</div>
                     </div>
                     <div class="form-group">
-                        <label>Allowed Tags (Optional)</label>
+                        <label>Allowed tags</label>
                         ${this.renderTagEditor('edit-allowed-tags', profile.allowedTags || [], 'e.g. kids', 'edit-tag-suggestions')}
                         <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items. Untagged content is hidden too.</div>
                     </div>
@@ -3938,11 +4292,15 @@
 
                 content.innerHTML = `
                     <h1 class="profiles-title">Edit Profile</h1>
-                    <div class="create-profile-container">
-                        ${this.renderSection('person', 'Profile', 'Name, colour, and picture', appearanceBody)}
-                        ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', securityBody)}
-                        ${isSub ? this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', librariesBody) : ''}
-                        ${isSub ? this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', restrictionsBody) : ''}
+                    <div class="create-profile-container${isSub ? ' is-two-col' : ''}">
+                        <div class="form-col">
+                            ${this.renderSection('person', 'Profile', 'Name, colour, and picture', appearanceBody)}
+                            ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', securityBody)}
+                        </div>
+                        <div class="form-col">
+                            ${isSub ? this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', librariesBody) : ''}
+                            ${isSub ? this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', restrictionsBody) : ''}
+                        </div>
 
                         <div class="profile-dialog-actions">
                             <div class="dialog-action-buttons">
@@ -3950,7 +4308,7 @@
                                 <button id="edit-cancel-btn" class="profiles-btn btn-secondary">Cancel</button>
                             </div>
                             ${isSub ? `
-                                <button id="edit-delete-btn" class="profiles-btn btn-danger">Delete Profile</button>
+                                <button id="edit-delete-btn" class="profiles-btn btn-danger-quiet">Delete Profile</button>
                             ` : ''}
                         </div>
                     </div>
@@ -3975,22 +4333,15 @@
                     });
                 });
 
-                const clearImgBtn = document.getElementById('edit-clear-profile-image-btn');
+                // Remove now lives inside the picker, next to Change picture, and shows
+                // itself from setPreview — so there is nothing left to wire here.
                 const avatarPicker = this.initAvatarPicker(
                     content, 'edit', avatarLibrary, profile.profileImage,
                     (src) => {
-                        // The Remove button only makes sense while there is a picture.
-                        if (clearImgBtn) clearImgBtn.style.display = src ? 'block' : 'none';
+                        this.setColorGroupInert('edit', !!src);
                         const preview = document.getElementById('edit-image-upload-preview');
                         if (preview && !src) preview.innerHTML = escapeHtml(profile.avatarInitial);
                     });
-
-                if (clearImgBtn) {
-                    clearImgBtn.addEventListener('click', () => {
-                        avatarPicker.clear();
-                        clearImgBtn.style.display = 'none';
-                    });
-                }
 
                 // Support D-pad Enter/Space select on color dots
                 content.addEventListener('keydown', (e) => {
@@ -4012,15 +4363,21 @@
                         libCheckboxes.forEach(cb => {
                             cb.checked = isChecked;
                         });
+                        this.syncAllLibraryRows(content);
                     });
 
                     libCheckboxes.forEach(cb => {
                         cb.addEventListener('change', () => {
                             const allChecked = Array.from(libCheckboxes).every(c => c.checked);
                             selectAllCheckbox.checked = allChecked;
+                            this.syncLibraryRowState(cb.closest('.libart-row'));
                         });
                     });
                 }
+
+                // The tick and the artwork controls share a row now, so the artwork half
+                // has to start out matching the tick rather than waiting for a change.
+                this.syncAllLibraryRows(content);
 
                 // Devices dropdown logic for edit
                 const editTrigger = document.getElementById('devices-dropdown-trigger');
@@ -4092,6 +4449,12 @@
                             })
                             .then(res => {
                                 if (res.ok) {
+                                    // The device list is part of the account-wide cache the
+                                    // forms share. Removing only the row would let the next
+                                    // form re-list the device it just deleted, and allow it
+                                    // to be ticked as permitted.
+                                    this.clearSharedFormData();
+
                                     const row = btn.closest('.device-dropdown-item');
                                     if (row) row.remove();
                                     const remaining = editList.querySelectorAll('.device-dropdown-item');
@@ -4255,6 +4618,8 @@
         },
 
         showBonfireModal: function () {
+            // Kept, so a slow render cannot draw over a screen the user moved on to.
+            const navTicket = this.beginNavigation();
             const apiClient = ApiClient;
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
             if (!masterState) return;
@@ -4263,11 +4628,11 @@
             if (!content) return;
 
             content.innerHTML = `
-                <h1 class="profiles-title">Bonfire Grouping</h1>
+                <h1 class="profiles-title">Your Bonfire</h1>
                 <div class="create-profile-container" style="max-width: 500px; width: 100%;">
                     <div id="bonfire-container" style="width: 100%; min-height: 100px; display: flex; flex-direction: column; gap: 1.5rem;">
                         <div style="display: flex; justify-content: center; padding: 20px;">
-                            <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid #00a4dc; width: 24px; height: 24px; animation: spin 1s linear infinite;"></div>
+                            <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: jpfSpin 1s linear infinite;"></div>
                         </div>
                         <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
                             <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">Back</button>
@@ -4300,7 +4665,73 @@
         /// A per-account preference rather than a server setting — some households want the
         /// Netflix-style "Who's Watching?" screen, others find it intrusive, and neither
         /// answer should be imposed on the other by whoever runs the server.
+        /// Everything that is not a profile.
+        ///
+        /// Bonfire has four scopes of setting: per profile (Edit Profile), per account
+        /// (Switcher Style), between accounts (Your Bonfire) and server-wide (the
+        /// dashboard). The middle two used to be cards in the profile grid, which is
+        /// why they needed their own gradient tiles to avoid reading as people.
+        showSettingsMenu: function () {
+            this.beginNavigation();
+
+            const content = document.querySelector('.profiles-modal-content');
+            if (!content) return;
+
+            const entry = (id, icon, title, body) => `
+                <div class="settings-menu-entry" id="${id}" tabindex="0" role="button" style="
+                    display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
+                    border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
+                    border: 2px solid rgba(255,255,255,0.08);
+                    background: rgba(255,255,255,0.02);
+                ">
+                    <span class="material-icons" style="font-size: 2rem; color: rgba(255,255,255,0.5); flex-shrink: 0;">${icon}</span>
+                    <div style="flex: 1 1 auto; min-width: 0;">
+                        <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
+                        <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
+                    </div>
+                </div>
+            `;
+
+            content.innerHTML = `
+                <h1 class="profiles-title">Settings</h1>
+                <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
+                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
+                        ${entry('settings-switcher-style', 'switch_account', 'Switcher Style',
+                            'Where you reach this screen from, and whether it opens on startup.')}
+                        ${entry('settings-your-bonfire', 'local_fire_department', 'Your Bonfire',
+                            'Share your profiles with another home, or join theirs.')}
+                    </div>
+                    <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
+                        <button id="settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">Back</button>
+                    </div>
+                </div>
+            `;
+
+            const open = (id, fn) => {
+                const el = content.querySelector('#' + id);
+                if (!el) return;
+                el.addEventListener('click', () => fn.call(this));
+                el.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+                });
+            };
+            open('settings-switcher-style', this.showSwitcherModeModal);
+            open('settings-your-bonfire', this.showBonfireModal);
+
+            const back = content.querySelector('#settings-back-btn');
+            if (back) {
+                back.addEventListener('click', () => {
+                    const st = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+                    if (st) {
+                        this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.masterToken, /* forceRefresh */ true);
+                    }
+                });
+            }
+
+        },
+
         showSwitcherModeModal: function () {
+            this.beginNavigation();
             const apiClient = ApiClient;
             const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
             if (!masterState) return;
@@ -4316,12 +4747,12 @@
             const locationOption = (value, icon, title, body) => `
                 <div class="switcher-location-option" data-location="${value}" tabindex="0" role="radio"
                      aria-checked="${prefs.location === value}" style="
-                    display: flex; gap: 14px; text-align: left; padding: 16px;
-                    border-radius: 12px; cursor: pointer; box-sizing: border-box;
-                    border: 2px solid ${prefs.location === value ? '#00a4dc' : 'rgba(255,255,255,0.08)'};
-                    background: ${prefs.location === value ? 'rgba(0,164,220,0.08)' : 'rgba(255,255,255,0.02)'};
+                    display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
+                    border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
+                    border: 2px solid ${prefs.location === value ? 'var(--jpf-accent)' : 'rgba(255,255,255,0.08)'};
+                    background: ${prefs.location === value ? 'var(--jpf-accent-a08)' : 'rgba(255,255,255,0.02)'};
                 ">
-                    <span class="material-icons" style="font-size: 2rem; color: ${prefs.location === value ? '#00a4dc' : 'rgba(255,255,255,0.5)'}; flex-shrink: 0;">${icon}</span>
+                    <span class="material-icons" style="font-size: 2rem; color: ${prefs.location === value ? 'var(--jpf-accent)' : 'rgba(255,255,255,0.5)'}; flex-shrink: 0;">${icon}</span>
                     <div style="flex: 1 1 auto; min-width: 0;">
                         <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
                         <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
@@ -4338,7 +4769,7 @@
 
                     <div class="bonfire-form-group" style="gap: 4px; text-align: left; margin-bottom: 1.5rem;">
                         <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.95rem !important; font-weight: 600 !important; position: relative !important;">
-                            <input type="checkbox" id="switcher-ask-startup" ${prefs.askOnStartup ? 'checked' : ''} style="cursor: pointer !important; accent-color: #00a4dc !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
+                            <input type="checkbox" id="switcher-ask-startup" ${prefs.askOnStartup ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                             <span>Ask "Who's watching?" on startup</span>
                         </label>
                         <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.78rem !important; position: relative !important; display: block !important;">
@@ -4347,7 +4778,7 @@
                     </div>
 
                     <div style="text-align: left; font-size: 0.95rem; font-weight: 600; margin-bottom: 10px;">Where to switch from</div>
-                    <div role="radiogroup" style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+                    <div role="radiogroup" style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
                         ${locationOption('button', 'account_circle', 'Bonfire button',
                             'A separate switcher button in the header, next to Jellyfin\'s own profile icon.')}
                         ${locationOption('menu', 'switch_account', 'Jellyfin\'s user menu',
@@ -4361,8 +4792,8 @@
                 </div>
             `;
 
-            const goBack = () => this.fetchAndRenderProfiles(
-                apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
+            // Back to Settings, which is where this was opened from.
+            const goBack = () => this.showSettingsMenu();
 
             const backBtn = content.querySelector('#switcher-mode-back-btn');
             if (backBtn) backBtn.addEventListener('click', goBack);
@@ -4467,6 +4898,11 @@
             const container = content.querySelector('#bonfire-container');
             if (!container) return;
 
+            // Whatever owns the screen right now. If anything claims it before this
+            // returns, the response is dropped rather than drawn over the newer screen —
+            // the same guard the profile forms use.
+            const ticket = this._navTicket;
+
             const statusUrl = apiClient.getUrl('plugins/profiles/bonfire/status');
             fetch(statusUrl, { headers: this.getAuthHeaders(masterToken) })
             .then(res => {
@@ -4477,9 +4913,11 @@
                 return res.json();
             })
             .then(status => {
+                if (!this.navIsCurrent(ticket)) return;
                 this.renderBonfireStatus(container, content, status, apiClient, masterToken);
             })
             .catch(err => {
+                if (!this.navIsCurrent(ticket)) return;
                 container.innerHTML = `<div style="color: #ff6b6b; font-size: 0.9rem;">Failed to load Bonfire status: ${err.message}</div>`;
             });
         },
@@ -4494,37 +4932,37 @@
             let hostSectionHtml = '';
             if (isOwner) {
                 hostSectionHtml = `
-                    <div style="display: flex; flex-direction: column; gap: 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
-                            <label style="font-size: 1.1rem; font-weight: 700; color: #ff9900; display: block; margin-bottom: 4px;">Your Hosted Bonfire</label>
+                            <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Your Hosted Bonfire</label>
                             <span style="font-size: 0.88rem; opacity: 0.75; display: block;">Share this code to invite someone to your Bonfire:</span>
-                            <div style="font-size: 2rem; font-weight: 700; color: #22c55e; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px dashed rgba(34,197,94,0.3);">${ownedCode}</div>
+                            <div style="font-size: 2rem; font-weight: 700; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 12px; border-radius: var(--jpf-r-md); border: 1px solid var(--jpf-accent-a30);">${ownedCode}</div>
                         </div>
                         
                         <div class="bonfire-form-group">
                             <label style="font-size: 1rem; font-weight: 600; color: #fff; display: block; margin-bottom: 8px;">Members (${ownedMembers.length})</label>
-                            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px;">
+                            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--jpf-r-md); padding: 8px;">
                                 ${ownedMembers.length > 0 ? ownedMembers.map(m => {
                                     const mUserId = m.userId || m.UserId;
                                     const mUsername = m.username || m.Username || 'Unknown User';
                                     return `
-                                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: 6px;">
+                                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: var(--jpf-r-sm);">
                                         <span style="font-size: 0.95rem; font-weight: 500;">${mUsername}</span>
-                                        <button type="button" class="bonfire-kick-btn" data-id="${mUserId}" style="background: #ff6b6b !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: 6px !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">Kick</button>
+                                        <button type="button" class="bonfire-kick-btn" data-id="${mUserId}" style="background: #ff6b6b !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">Kick</button>
                                     </div>
                                     `;
                                 }).join('') : '<div style="font-size: 0.9rem; opacity: 0.5; font-style: italic; text-align: center; padding: 12px;">No members joined yet.</div>'}
                             </div>
                         </div>
                         <div style="display: flex; justify-content: flex-end;">
-                            <button type="button" id="bonfire-delete-btn" class="profiles-btn btn-danger" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">Delete Group</button>
+                            <button type="button" id="bonfire-delete-btn" class="profiles-btn btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">Delete Group</button>
                         </div>
                     </div>
                 `;
             } else {
                 hostSectionHtml = `
                     <div class="bonfire-form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
-                        <label style="font-size: 1.1rem; font-weight: 700; color: #ff9900; display: block; margin-bottom: 4px;">Host a Bonfire</label>
+                        <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Host a Bonfire</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">Host your own group to share your sub-profiles with friends.</span>
                         <button type="button" id="bonfire-generate-btn" class="profiles-btn btn-primary" style="width: 100% !important; padding: 12px !important; font-weight: 600 !important; box-sizing: border-box !important; display: block !important; margin: 8px 0 !important;">Generate Join Code</button>
                     </div>
@@ -4534,24 +4972,24 @@
             let guestSectionHtml = '';
             if (isMember) {
                 guestSectionHtml = `
-                    <div style="display: flex; flex-direction: column; gap: 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
-                            <label style="font-size: 1.1rem; font-weight: 700; color: #3b82f6; display: block; margin-bottom: 4px;">Joined Bonfire</label>
+                            <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Joined Bonfire</label>
                             <span style="font-size: 0.88rem; opacity: 0.75;">You have joined a bonfire group owned by:</span>
-                            <div style="font-size: 1.25rem; font-weight: 700; color: #00a4dc; margin: 12px 0; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">${joinedOwnerName}</div>
+                            <div style="font-size: 1.25rem; font-weight: 700; color: var(--jpf-accent); margin: 12px 0; background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--jpf-r-md); border: 1px solid rgba(255,255,255,0.05); text-align: center;">${joinedOwnerName}</div>
                             <span style="font-size: 0.85rem; opacity: 0.6; display: block; margin-top: -4px;">You can access each other's profiles from the switcher grid.</span>
                         </div>
                         <div style="display: flex; justify-content: flex-end;">
-                            <button type="button" id="bonfire-leave-btn" class="profiles-btn btn-danger" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">Leave Group</button>
+                            <button type="button" id="bonfire-leave-btn" class="profiles-btn btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">Leave Group</button>
                         </div>
                     </div>
                 `;
             } else {
                 guestSectionHtml = `
                     <div class="bonfire-form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
-                        <label style="font-size: 1.1rem; font-weight: 700; color: #3b82f6; display: block; margin-bottom: 4px;">Join a Bonfire</label>
+                        <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Join a Bonfire</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">Enter a friend's Bonfire Code to join their group:</span>
-                        <div style="display: flex !important; gap: 10px !important; align-items: center !important; width: 100% !important; box-sizing: border-box !important; margin: 12px 0 !important;">
+                        <div style="display: flex !important; gap: var(--jpf-gap) !important; align-items: center !important; width: 100% !important; box-sizing: border-box !important; margin: 12px 0 !important;">
                             <input type="text" id="bonfire-join-input" placeholder="e.g. B7F8XA" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; margin: 0 !important; padding: 10px !important;" />
                             <button type="button" id="bonfire-join-btn" class="profiles-btn btn-primary" style="flex: 0 0 auto !important; padding: 0 24px !important; height: 44px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; font-weight: 600 !important; margin: 0 !important; box-sizing: border-box !important;">Join</button>
                         </div>
@@ -4578,7 +5016,7 @@
                         No PIN needed on your home network. Away from home it still is${hasPinSet ? '' : ', and until you set one your account cannot be opened remotely at all'}.
                     </div>
                     ${isAdmin ? `
-                    <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid #ff9900; border-radius: 4px; font-size: 0.75rem; line-height: 1.5; color: rgba(255,255,255,0.8);">
+                    <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid #ff9900; border-radius: var(--jpf-r-sm); font-size: 0.75rem; line-height: 1.5; color: rgba(255,255,255,0.8);">
                         <strong style="color: #ff9900;">This is an admin account.</strong> Whoever switches into it gets your admin rights.
                     </div>` : ''}
                     <div style="margin-left: 1.6rem; margin-top: 8px; font-size: 0.72rem; line-height: 1.5; opacity: 0.45;">
@@ -4588,10 +5026,10 @@
             ` : '';
 
             const settingsSectionHtml = `
-                <div class="bonfire-form-group" style="margin-top: 5px; display: flex; flex-direction: column; gap: 16px;">
+                <div class="bonfire-form-group" style="margin-top: 5px; display: flex; flex-direction: column; gap: var(--jpf-gap);">
                     <div class="bonfire-form-group" style="gap: 4px;">
                         <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
-                            <input type="checkbox" id="bonfire-hide-mine-checkbox" ${hideMine ? 'checked' : ''} style="cursor: pointer !important; accent-color: #00a4dc !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
+                            <input type="checkbox" id="bonfire-hide-mine-checkbox" ${hideMine ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                             <span>Hide my sub-profiles from others</span>
                         </label>
                         <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">Connected homes see only your master profile.</div>
@@ -4599,7 +5037,7 @@
 
                     <div class="bonfire-form-group" style="gap: 4px;">
                         <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
-                            <input type="checkbox" id="bonfire-hide-others-checkbox" ${hideOthers ? 'checked' : ''} style="cursor: pointer !important; accent-color: #00a4dc !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
+                            <input type="checkbox" id="bonfire-hide-others-checkbox" ${hideOthers ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                             <span>Hide other people's sub-profiles from me</span>
                         </label>
                         <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">You see only the master profiles of connected homes.</div>
@@ -4624,10 +5062,8 @@
             const backBtn = container.querySelector('#bonfire-back-btn');
             if (backBtn) {
                 backBtn.addEventListener('click', () => {
-                    const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
-                    if (masterState) {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
-                    }
+                    // Back to Settings, which is where this was opened from.
+                    this.showSettingsMenu();
                 });
             }
 
@@ -5536,19 +5972,171 @@
         injectStyles: function () {
             const style = document.createElement('style');
             style.innerHTML = `
+                /* ── Theme integration ───────────────────────────────────────────
+                   jellyfin-web has no colour variables of its own. The request to add
+                   them (jellyfin-web discussion #6520) is answered "planned" and nothing
+                   more, so there is no supported token to read. What every custom theme
+                   and Skin Manager *does* converge on is --accent, so read that where it
+                   exists and fall back to Jellyfin's stock blue everywhere else. A stock
+                   install renders exactly as it did before; a themed one stops having a
+                   foreign blue button sitting in its header.
+
+                   Declared on body as well as :root because a theme may set --accent on
+                   either, and a custom property resolves against the element it is
+                   declared on — reading it only at :root would silently miss every theme
+                   that sets it on body. */
+                :root, body {
+                    --jpf-accent: var(--accent, #00a4dc);
+
+                    /* Tints of the accent. These literals are what Bonfire shipped
+                       through 1.4.1 and stay as the floor, because deriving them needs
+                       colour arithmetic the older TV browsers do not have. */
+                    --jpf-accent-a08: rgba(0, 164, 220, 0.08);
+                    --jpf-accent-a18: rgba(0, 164, 220, 0.18);
+                    --jpf-accent-a30: rgba(0, 164, 220, 0.3);
+                    --jpf-accent-a40: rgba(0, 164, 220, 0.4);
+                    --jpf-accent-a45: rgba(0, 164, 220, 0.45);
+                    --jpf-accent-a50: rgba(0, 164, 220, 0.5);
+                    --jpf-accent-a60: rgba(0, 164, 220, 0.6);
+
+                    /* ── Shape and spacing ───────────────────────────────────
+                       Every screen was styled on its own, which left eight corner
+                       radii, ten container widths and four gap values across the
+                       product — so the surfaces never read as one thing. Three of
+                       each, chosen near the most common existing values.
+
+                       50% and 999px are deliberately NOT tokens: those mean "a
+                       circle" and "a pill", which are shapes rather than sizes. */
+                    --jpf-r-sm: 6px;    /* inputs, chips, small controls */
+                    --jpf-r-md: 12px;   /* buttons, cards, dialogs       */
+                    --jpf-r-lg: 20px;   /* full-screen surfaces, avatars */
+
+                    --jpf-gap: 12px;      /* controls sitting in a row */
+                    --jpf-gap-lg: 1.25rem; /* sections and button rows */
+
+                    /* Applied by the layout work rather than swapped in blind: a
+                       container width is not interchangeable the way a radius is. */
+                    --jpf-w-narrow: 420px; /* PIN and confirm dialogs   */
+                    --jpf-w-form: 560px;   /* single-column forms       */
+                    --jpf-w-wide: 960px;   /* two-column forms, the gate */
+                }
+
+                /* Where the browser can mix colours, tint the *theme's* accent rather
+                   than the hardcoded blue. color-mix is Chrome 111+, so Tizen 6
+                   (Chromium 76) and older webOS keep the literals above instead of
+                   losing the glow altogether. */
+                @supports (color: color-mix(in srgb, red 50%, transparent)) {
+                    :root, body {
+                        --jpf-accent-a08: color-mix(in srgb, var(--jpf-accent) 8%, transparent);
+                        --jpf-accent-a18: color-mix(in srgb, var(--jpf-accent) 18%, transparent);
+                        --jpf-accent-a30: color-mix(in srgb, var(--jpf-accent) 30%, transparent);
+                        --jpf-accent-a40: color-mix(in srgb, var(--jpf-accent) 40%, transparent);
+                        --jpf-accent-a45: color-mix(in srgb, var(--jpf-accent) 45%, transparent);
+                        --jpf-accent-a50: color-mix(in srgb, var(--jpf-accent) 50%, transparent);
+                        --jpf-accent-a60: color-mix(in srgb, var(--jpf-accent) 60%, transparent);
+                    }
+                }
                 /* Administrator-supplied avatar picker.
                    auto-fill rather than a fixed count so it reflows from a phone to a TV
                    without a media query, and scrolls internally instead of pushing the
                    form's buttons off screen when the library is large. */
+                .avatar-color-group {
+                    transition: opacity 0.2s ease;
+                }
+                .avatar-color-group.is-inert {
+                    opacity: 0.45;
+                }
+                /* The only thing that said this button opens a panel was aria-expanded,
+                   which is not a thing anyone can see. */
+                .picture-caret {
+                    font-size: 1.15rem !important;
+                    margin-left: -2px;
+                    opacity: 0.7;
+                    transition: transform 0.2s ease;
+                }
+                .picture-change-btn[aria-expanded="true"] .picture-caret {
+                    transform: rotate(180deg);
+                }
+                /* Held down for as long as the panel is out, so the link between the two
+                   survives the panel being scrolled past. */
+                .picture-change-btn[aria-expanded="true"] {
+                    background-color: var(--jpf-accent-a18);
+                    border-color: var(--jpf-accent-a60);
+                    color: #fff;
+                }
+                @media (prefers-reduced-motion: reduce) {
+                    .picture-caret {
+                        transition: none;
+                    }
+                }
+                /* Change picture and Remove: same class, same height, one group. */
+                .image-upload-actions {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    flex-wrap: wrap;
+                    min-width: 0;
+                }
+                .picture-remove-btn .material-icons {
+                    color: rgba(255, 107, 107, 0.85);
+                }
+                .picture-remove-btn:hover, .picture-remove-btn:focus {
+                    color: #ff8787;
+                }
+                /* Collapsed by default on a profile that already has a picture. When it
+                   opens it needs to read as one panel belonging to the button above it —
+                   loose controls stacked in the form was the part that looked unfinished. */
+                .picture-sources {
+                    display: none;
+                    flex-direction: column;
+                    gap: var(--jpf-gap);
+                    width: 100%;
+                    min-width: 0;
+                    /* Required: width:100% and padding on a content-box element add up
+                       to wider than the card. This sheet has no global box-sizing. */
+                    box-sizing: border-box;
+                    padding: 0.9rem;
+                    background: rgba(0, 0, 0, 0.18);
+                    border: 1px solid rgba(255, 255, 255, 0.09);
+                    border-radius: var(--jpf-r-md);
+                }
+                .picture-sources.is-open {
+                    display: flex;
+                }
+                .picture-source-block {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    min-width: 0;
+                }
+                /* One rule, so a server with uploads locked off does not leave a divider
+                   above nothing. */
+                .picture-source-block + .picture-source-block {
+                    border-top: 1px solid rgba(255, 255, 255, 0.08);
+                    padding-top: var(--jpf-gap);
+                }
+                .picture-source-title {
+                    font-size: 0.72rem;
+                    font-weight: 700;
+                    letter-spacing: 0.06em;
+                    text-transform: uppercase;
+                    color: rgba(255, 255, 255, 0.5);
+                }
+                /* The panel is the box now; a second one inside it was two frames deep. */
+                .picture-sources .avatar-library-grid {
+                    background: transparent;
+                    border: none;
+                    padding: 0;
+                }
                 .avatar-library-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
-                    gap: 10px;
+                    gap: var(--jpf-gap);
                     max-height: 200px;
                     overflow-y: auto;
                     padding: 4px;
                     background: rgba(0,0,0,0.15);
-                    border-radius: 10px;
+                    border-radius: var(--jpf-r-md);
                     border: 1px solid rgba(255,255,255,0.05);
                 }
                 .avatar-library-item {
@@ -5566,7 +6154,7 @@
                 }
                 .avatar-library-item:hover,
                 .avatar-library-item:focus {
-                    border-color: #00a4dc;
+                    border-color: var(--jpf-accent);
                     transform: scale(1.06);
                     outline: none;
                 }
@@ -5617,7 +6205,7 @@
                     margin-bottom: 2.5rem;
                     background: rgba(255, 255, 255, 0.015);
                     border: 1px solid rgba(255, 255, 255, 0.04);
-                    border-radius: 20px;
+                    border-radius: var(--jpf-r-lg);
                     padding: 1.75rem 2rem;
                     box-sizing: border-box;
                     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
@@ -5651,14 +6239,91 @@
                 }
                 .profiles-grid {
                     display: flex; flex-wrap: wrap; gap: 3rem; justify-content: center; width: 100%;
+                    max-width: var(--jpf-w-wide); margin: 0 auto;
                 }
+                /* Cards used to be a fixed 140px whatever the display, so on a desktop
+                   they sat in a thin band with large voids above and below, and on a TV
+                   they were small at viewing distance. clamp keeps the phone size as
+                   the floor and lets them grow with the viewport. */
                 .profile-card {
                     display: flex; flex-direction: column; align-items: center;
-                    width: 140px; cursor: pointer; position: relative;
+                    width: clamp(140px, 12vw, 210px); cursor: pointer; position: relative;
                 }
                 .profile-avatar-container {
-                    position: relative; width: 130px; height: 130px;
+                    position: relative;
+                    width: clamp(130px, 11vw, 195px);
+                    height: clamp(130px, 11vw, 195px);
                     margin-top: 15px;
+                    transition: transform 0.12s ease;
+                }
+                /* Touch has no hover, so without this the first feedback of any kind is the
+                   page changing a second or two later. */
+                .profile-card:active .profile-avatar-container {
+                    transform: scale(0.95);
+                }
+
+                @keyframes jpfSpin {
+                    to { transform: rotate(360deg); }
+                }
+                /* The chosen profile carries the spinner; everything else steps back so it
+                   is obvious which one is being opened and that the rest are not takers. */
+                #profiles-gate-overlay.is-switching .profile-card:not(.is-switching),
+                #profiles-gate-overlay.is-switching .profiles-footer,
+                #profiles-gate-overlay.is-switching .profiles-home-header {
+                    opacity: 0.3;
+                    pointer-events: none;
+                    transition: opacity 0.2s ease;
+                }
+                #profiles-gate-overlay.is-switching .profile-card.is-switching {
+                    cursor: progress;
+                }
+                .profile-card.is-switching .profile-avatar {
+                    filter: brightness(0.4);
+                    transition: filter 0.2s ease;
+                }
+                .profile-card.is-switching .profile-avatar-container::after {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    margin: auto;
+                    width: 46px;
+                    height: 46px;
+                    border-radius: 50%;
+                    border: 3px solid rgba(255, 255, 255, 0.22);
+                    border-top-color: #fff;
+                    animation: jpfSpin 0.8s linear infinite;
+                    z-index: 20;
+                    pointer-events: none;
+                }
+                /* A button that has started something and is waiting for it. The label is
+                   kept in place rather than replaced, so the button does not resize. */
+                .profiles-btn.is-busy {
+                    position: relative;
+                    color: transparent !important;
+                    pointer-events: none;
+                }
+                .profiles-btn.is-busy::after {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    margin: auto;
+                    width: 18px;
+                    height: 18px;
+                    border-radius: 50%;
+                    border: 2px solid rgba(255, 255, 255, 0.3);
+                    border-top-color: #fff;
+                    animation: jpfSpin 0.8s linear infinite;
+                }
+                /* The spinner still turns — it is the only thing reporting progress — but
+                   nothing else moves. */
+                @media (prefers-reduced-motion: reduce) {
+                    .profile-avatar-container,
+                    .profile-card.is-switching .profile-avatar {
+                        transition: none;
+                    }
+                    .profile-card:active .profile-avatar-container {
+                        transform: none;
+                    }
                 }
                 .profile-crown {
                     position: absolute; top: -20px; left: 50%;
@@ -5673,18 +6338,37 @@
                 }
                 .profile-avatar {
                     position: relative;
-                    width: 100%; height: 100%; border-radius: 20px;
+                    width: 100%; height: 100%; border-radius: var(--jpf-r-lg);
+                    /* The 3px border below is transparent, so without this the avatar
+                       colour showed through it as a ring — a blue outline around Bard's
+                       orange picture. Clipping to the padding box keeps the colour behind
+                       the initial, which is the only thing it is for, and off the border. */
+                    background-clip: padding-box;
                     display: flex; align-items: center; justify-content: center;
                     font-size: 3.5rem; font-weight: bold; text-transform: uppercase;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                     transition: transform 0.3s cubic-bezier(0.165, 0.84, 0.44, 1), box-shadow 0.3s ease, border-color 0.3s ease;
                     border: 3px solid transparent;
                 }
+                /* The one you are already in. Now that the avatar colour no longer
+                   paints the border, an accent ring means exactly one thing. */
+                .profile-card.is-current .profile-avatar {
+                    border-color: var(--jpf-accent);
+                }
+                .profile-current-badge {
+                    display: block;
+                    font-size: 0.7rem;
+                    font-weight: 600;
+                    letter-spacing: 0.04em;
+                    text-transform: uppercase;
+                    color: var(--jpf-accent);
+                    margin-top: 2px;
+                }
                 .profile-card:hover .profile-avatar,
                 .profile-card:focus .profile-avatar,
                 .profile-card:focus-within .profile-avatar {
                     transform: scale(1.08);
-                    box-shadow: 0 15px 35px rgba(0,164,220,0.4);
+                    box-shadow: 0 15px 35px var(--jpf-accent-a40);
                     border-color: rgba(255,255,255,0.8);
                 }
                 .profile-card:focus {
@@ -5721,7 +6405,7 @@
                 /* Manage Mode Overlay Icon styling */
                 .profile-avatar-overlay-wrap {
                     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-                    background: rgba(0, 0, 0, 0.65); border-radius: 20px;
+                    background: rgba(0, 0, 0, 0.65); border-radius: var(--jpf-r-lg);
                     display: flex; align-items: center; justify-content: center;
                     opacity: 0; transition: opacity 0.25s ease;
                     pointer-events: none;
@@ -5756,13 +6440,13 @@
                 }
                 #bonfire-join-input {
                     background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: 8px; padding: 10px; color: #fff; font-size: 1rem;
+                    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
                     transition: border-color 0.25s, box-shadow 0.25s;
                     position: relative !important;
                 }
                 #bonfire-join-input:focus {
-                    border-color: #00a4dc; outline: none;
-                    box-shadow: 0 0 10px rgba(0, 164, 220, 0.4);
+                    border-color: var(--jpf-accent); outline: none;
+                    box-shadow: 0 0 10px var(--jpf-accent-a40);
                 }
                 .bonfire-kick-btn:focus, .bonfire-kick-btn:hover {
                     background-color: #e64980 !important;
@@ -5771,21 +6455,25 @@
                 }
                 .profile-card.manage-mode:hover .profile-avatar {
                     transform: scale(1.08);
-                    border-color: #00a4dc;
+                    border-color: var(--jpf-accent);
                 }
 
                 /* PIN Status Badges */
                 .profile-pin-badge {
-                    font-size: 0.75rem; margin-top: 4px; padding: 2px 8px; border-radius: 12px;
+                    font-size: 0.75rem; margin-top: 4px; padding: 2px 8px; border-radius: var(--jpf-r-md);
                     font-weight: 600; display: inline-flex; align-items: center; gap: 4px;
                 }
+                /* These were inverted: "PIN Protected" in red and "No PIN" in green, so
+                   the screen called the protected state a problem and the unprotected one
+                   a success. Neither is an error, so neither gets an error colour —
+                   protected reads present, unprotected reads muted. */
                 .profile-pin-badge.locked {
-                    background: rgba(230, 0, 0, 0.15); color: #ff6b6b;
-                    border: 1px solid rgba(230, 0, 0, 0.3);
+                    background: rgba(255, 255, 255, 0.10); color: rgba(255, 255, 255, 0.88);
+                    border: 1px solid rgba(255, 255, 255, 0.20);
                 }
                 .profile-pin-badge.unlocked {
-                    background: rgba(0, 230, 0, 0.1); color: #51cf66;
-                    border: 1px solid rgba(0, 230, 0, 0.25);
+                    background: transparent; color: rgba(255, 255, 255, 0.45);
+                    border: 1px solid rgba(255, 255, 255, 0.12);
                 }
 
                 /* Floating Profiles Selector Bubble — fallback corner pill */
@@ -5827,6 +6515,20 @@
                 /* Footer and bottom buttons */
                 .profiles-footer {
                     margin-top: 4rem; width: 100%; display: flex; justify-content: center;
+                    /* Matches .pin-actions, the button row on the other gate screens. */
+                    gap: var(--jpf-gap-lg); flex-wrap: wrap;
+                }
+                /* Equal widths, so the gap between two buttons falls on the centre line.
+                   The row was already centred correctly; what read as crooked was its seam.
+                   Centring buttons of unequal width puts the gap between them off-axis, and
+                   with two buttons sitting under two equal profile cards the eye compares
+                   the two seams rather than the outer edges. Measured on the gate: cards
+                   met at 653px, buttons at 681px.
+
+                   Also stops the row resizing as labels change — it is Manage Profiles or
+                   Done, sometimes plus Settings, sometimes plus Cancel. */
+                .profiles-footer .profiles-btn {
+                    min-width: 11rem;
                 }
 
                 /* PIN Entry Form styles */
@@ -5835,7 +6537,7 @@
                 }
                 #profile-pin-input, #master-pin-input {
                     background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.15);
-                    border-radius: 12px; color: #fff; font-size: 2.5rem; text-align: center;
+                    border-radius: var(--jpf-r-md); color: #fff; font-size: 2.5rem; text-align: center;
                     padding: 12px; width: 180px; letter-spacing: 0.6rem;
                     transition: border-color 0.3s ease, box-shadow 0.3s ease;
                     -webkit-text-security: disc;
@@ -5844,8 +6546,8 @@
                     -webkit-text-security: disc;
                 }
                 #profile-pin-input:focus, #master-pin-input:focus {
-                    border-color: #00a4dc; outline: none;
-                    box-shadow: 0 0 15px rgba(0,164,220,0.3);
+                    border-color: var(--jpf-accent); outline: none;
+                    box-shadow: 0 0 15px var(--jpf-accent-a30);
                 }
                 .pin-error-text {
                     color: #ff6b6b;
@@ -5861,7 +6563,7 @@
 
                 /* Button Styling */
                 .profiles-btn {
-                    padding: 10px 24px; border: 1.5px solid transparent; border-radius: 8px;
+                    padding: 10px 24px; border: 1.5px solid transparent; border-radius: var(--jpf-r-md);
                     font-weight: 600; font-size: 1rem; cursor: pointer;
                     transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
                 }
@@ -5872,12 +6574,12 @@
                     box-shadow: none !important;
                 }
                 .btn-primary {
-                    background-color: #00a4dc; color: #fff;
+                    background-color: var(--jpf-accent); color: #fff;
                 }
                 .btn-primary:hover,
                 .btn-primary:focus {
                     background-color: #0082ad; border-color: rgba(255, 255, 255, 0.4);
-                    box-shadow: 0 0 12px rgba(0, 164, 220, 0.5); transform: translateY(-1px);
+                    box-shadow: 0 0 12px var(--jpf-accent-a50); transform: translateY(-1px);
                     outline: none;
                 }
                 .btn-secondary {
@@ -5887,30 +6589,74 @@
                 .btn-secondary:hover,
                 .btn-secondary:focus {
                     background-color: rgba(255,255,255,0.15); color: #fff;
-                    border-color: #00a4dc;
-                    box-shadow: 0 0 10px rgba(0, 164, 220, 0.4);
+                    border-color: var(--jpf-accent);
+                    box-shadow: 0 0 10px var(--jpf-accent-a40);
                     outline: none;
                 }
                 .pin-actions {
-                    display: flex; gap: 1.25rem; margin-top: 1rem;
+                    display: flex; gap: var(--jpf-gap-lg); margin-top: 1rem;
                 }
 
                 /* Profile Creation Form styles */
+                /* A column of sections. Below the breakpoint the two of these simply
+                   stack, so the phone order is unchanged: Profile, Security,
+                   Libraries, Restrictions. */
+                .form-col {
+                    display: flex; flex-direction: column; gap: 1.5rem;
+                    min-width: 0;
+                }
+
+                /* Two columns once there is room for them. Everything Bonfire drew was
+                   a phone column whatever the screen — on a desktop this form was a
+                   ~440px ribbon with the rest of the window empty, and the Save button
+                   several screens below the name field. */
+                @media (min-width: 900px) {
+                    .create-profile-container.is-two-col {
+                        max-width: var(--jpf-w-wide);
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        align-items: start;
+                        max-height: 85vh;
+                    }
+                    /* Everything that is not one of the two columns spans both of them.
+                       Naming only .profile-dialog-actions left the Create form's button row
+                       and its error line as half-width grid items under the left column. */
+                    .create-profile-container.is-two-col > *:not(.form-col) {
+                        grid-column: 1 / -1;
+                    }
+                }
+
                 .create-profile-container {
-                    width: 100%; max-width: 440px; box-sizing: border-box;
+                    width: 100%; max-width: var(--jpf-w-form); box-sizing: border-box;
                     display: flex; flex-direction: column; gap: 1.5rem;
                     background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
-                    border-radius: 20px; padding: 2rem; box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+                    border-radius: var(--jpf-r-lg); padding: 2rem; box-shadow: 0 20px 50px rgba(0,0,0,0.4);
                     text-align: left; max-height: 75vh; overflow-y: auto;
                 }
                 .profile-dialog-actions {
-                    margin-top: 1rem; display: flex; justify-content: space-between; width: 100%; gap: 10px;
+                    margin-top: 1rem; display: flex; justify-content: space-between; width: 100%; gap: var(--jpf-gap);
                 }
                 .dialog-action-buttons {
-                    display: flex; gap: 10px;
+                    display: flex; gap: var(--jpf-gap);
                 }
                 .btn-danger {
                     background: rgba(230,0,0,0.85); color:#fff; border:none;
+                }
+                /* The trigger, not the confirmation. Delete Profile and Delete Group sat
+                   beside Save as equally solid red buttons, so the destructive option
+                   carried the same weight as the safe one. btn-danger itself stays filled
+                   because it is also the Confirm button on the dialog these open, where
+                   loud red is correct — that is the moment you mean it. */
+                .btn-danger-quiet {
+                    background: transparent; color: #ff8787;
+                    border: 1.5px solid rgba(230,0,0,0.40);
+                }
+                .btn-danger-quiet:hover,
+                .btn-danger-quiet:focus {
+                    background: rgba(230,0,0,0.15);
+                    border-color: rgba(230,0,0,0.85);
+                    color: #ffa8a8;
+                    outline: none;
                 }
                 .btn-danger:hover,
                 .btn-danger:focus {
@@ -5944,7 +6690,7 @@
                     .profiles-home-section {
                         padding: 1.25rem 1rem;
                         margin-bottom: 1.5rem;
-                        border-radius: 12px;
+                        border-radius: var(--jpf-r-md);
                     }
                     .profiles-home-title {
                         font-size: 1.25rem;
@@ -5976,13 +6722,13 @@
                 .bonfire-form-group input[type="text"],
                 .form-group input[type="password"] {
                     background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: 8px; padding: 10px; color: #fff; font-size: 1rem;
+                    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
                 }
                 .form-group select {
                     background: rgba(255, 255, 255, 0.06) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
                     background-size: 20px;
                     border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: 8px; padding: 10px; color: #fff; font-size: 1rem;
+                    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
                     cursor: pointer;
                     appearance: none;
                     -webkit-appearance: none;
@@ -5994,11 +6740,11 @@
                     color: #fff;
                 }
                 .form-group input:focus, .form-group select:focus {
-                    border-color: #00a4dc; outline: none;
-                    box-shadow: 0 0 10px rgba(0, 164, 220, 0.4);
+                    border-color: var(--jpf-accent); outline: none;
+                    box-shadow: 0 0 10px var(--jpf-accent-a40);
                 }
                 .avatar-color-picker {
-                    display: flex; flex-wrap: wrap; gap: 10px;
+                    display: flex; flex-wrap: wrap; gap: var(--jpf-gap);
                 }
                 .color-dot {
                     width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
@@ -6014,42 +6760,106 @@
                     border-color: #fff; transform: scale(1.1);
                 }
                 .library-checklist {
-                    background: rgba(255,255,255,0.04); border-radius: 8px;
+                    background: rgba(255,255,255,0.04); border-radius: var(--jpf-r-md);
                     padding: 10px; display: flex; flex-direction: column; gap: 0.5rem;
                     max-height: 140px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1);
                 }
                 /* Per-library artwork rows in the edit form (issue #19). */
+                /* Deliberately no max-height and no overflow. This list used to scroll
+                   inside a form that also scrolled, next to a second list that scrolled
+                   too — three nested scroll areas, and on a D-pad no way to tell which
+                   one the remote had hold of. The dialog is the only scroller now. */
                 .libart-list {
                     display: flex;
                     flex-direction: column;
                     gap: 6px;
-                    max-height: 240px;
-                    overflow-y: auto;
+                    background: rgba(255,255,255,0.04);
+                    border: 1px solid rgba(255,255,255,0.1);
+                    border-radius: var(--jpf-r-md);
+                    padding: 8px;
+                }
+                /* Only there to say what the second column is. Hidden with the controls it
+                   labels, and out of the accessibility tree either way — a remote should
+                   not have to step through a table header to reach the libraries. */
+                .libart-head {
+                    display: none;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: var(--jpf-gap);
+                    padding: 2px 8px 6px;
+                    font-size: 0.72rem;
+                    font-weight: 700;
+                    letter-spacing: 0.06em;
+                    text-transform: uppercase;
+                    color: rgba(255, 255, 255, 0.45);
+                }
+                .libart-list.show-artwork .libart-head {
+                    display: flex;
+                }
+                /* Artwork is opt-in. Without this the row carried an empty picture slot and
+                   an unlabelled dropdown for every library on the server. */
+                .libart-thumb,
+                .libart-mode,
+                .libart-choose {
+                    display: none;
+                }
+                .libart-list.show-artwork .libart-row.libart-has-art .libart-thumb {
+                    display: flex;
+                }
+                .libart-list.show-artwork .libart-mode {
+                    display: block;
+                }
+                .libart-list.show-artwork .libart-choose {
+                    display: inline-flex;
+                }
+                .libart-toggle {
+                    margin-top: 10px !important;
+                    font-size: 0.88rem !important;
+                }
+                .libart-explainer {
+                    margin-top: 6px;
                 }
                 .libart-row {
                     display: flex;
                     align-items: center;
-                    gap: 10px;
+                    /* Wrap rather than crush the name. The row is thumb + name + mode,
+                       and in a narrow dialog the name was the only flexible part, so it
+                       ellipsised down to "3D Movi…" while the select kept its width. */
+                    flex-wrap: wrap;
+                    gap: var(--jpf-gap);
                     padding: 6px 8px;
-                    border-radius: 6px;
+                    border-radius: var(--jpf-r-sm);
                     background: rgba(255, 255, 255, 0.04);
                 }
+                /* No display here. It is hidden by the grouped rule above and shown by
+                   .libart-list.show-artwork .libart-row.libart-has-art — declaring
+                   display:flex in this block would outrank the first (same specificity,
+                   later in the sheet) and put the empty slot back on every row. */
                 .libart-thumb {
                     width: 44px;
                     height: 26px;
                     flex-shrink: 0;
-                    border-radius: 4px;
+                    order: 2;
+                    border-radius: var(--jpf-r-sm);
                     background-color: rgba(255, 255, 255, 0.08);
                     background-size: cover;
                     background-position: center;
-                    display: flex;
                     align-items: center;
                     justify-content: center;
                     font-size: 0.8rem;
                     color: rgba(255, 255, 255, 0.35);
                 }
+                /* Wraps the tick, the thumbnail and the name — the part of the row that
+                   is one target. initTVCheckboxes binds to .library-check-label, which is
+                   how a remote toggles it: Enter does not tick a native checkbox. */
+                .libart-check {
+                    flex: 1 1 220px;
+                    min-width: 0;
+                    margin-left: 0;
+                }
                 .libart-name {
-                    flex: 1;
+                    /* Enough to read a real library name before anything else gives. */
+                    flex: 1 1 auto;
                     min-width: 0;
                     overflow: hidden;
                     text-overflow: ellipsis;
@@ -6071,12 +6881,12 @@
                 .library-check-label {
                     display: flex !important; align-items: center !important; gap: 0.6rem; cursor: pointer;
                     font-size: 0.95rem; color: rgba(255,255,255,0.85);
-                    border-radius: 4px; padding: 4px 8px; margin-left: -8px;
+                    border-radius: var(--jpf-r-sm); padding: 4px 8px; margin-left: -8px;
                     transition: background 0.2s, color 0.2s;
                     position: relative !important;
                 }
                 .library-check-label input {
-                    cursor: pointer; accent-color: #00a4dc;
+                    cursor: pointer; accent-color: var(--jpf-accent);
                     position: relative !important;
                     opacity: 1 !important;
                     width: 18px !important;
@@ -6091,13 +6901,13 @@
                     outline: none;
                 }
                 .library-check-label:focus input, .library-check-label:hover input {
-                    box-shadow: 0 0 8px rgba(0, 164, 220, 0.6);
+                    box-shadow: 0 0 8px var(--jpf-accent-a60);
                 }
                 /* ── Titled sections in the create/edit forms ───────────────────── */
                 .profile-section {
                     background: rgba(255, 255, 255, 0.025);
                     border: 1px solid rgba(255, 255, 255, 0.08);
-                    border-radius: 10px;
+                    border-radius: var(--jpf-r-md);
                     padding: 1rem 1.15rem 1.15rem;
                     margin-bottom: 1.25rem;
                 }
@@ -6111,7 +6921,7 @@
                 }
                 .profile-section-icon {
                     font-size: 1.35rem;
-                    color: #00a4dc;
+                    color: var(--jpf-accent);
                     flex-shrink: 0;
                     line-height: 1.3;
                 }
@@ -6155,19 +6965,6 @@
                     margin-bottom: 0.35rem;
                 }
 
-                .form-divider {
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                    opacity: 0.5;
-                    font-size: 0.8rem;
-                    margin: 2px 0;
-                }
-                .form-divider::before, .form-divider::after {
-                    content: "";
-                    flex: 1;
-                    border-top: 1px solid rgba(255, 255, 255, 0.2);
-                }
                 .form-hint-warn {
                     color: rgba(245, 159, 0, 0.85) !important;
                 }
@@ -6178,14 +6975,14 @@
                     text-align: center;
                     padding: 8px 12px;
                     background: rgba(255, 107, 107, 0.1);
-                    border-radius: 8px;
+                    border-radius: var(--jpf-r-md);
                     border: 1px solid rgba(255, 107, 107, 0.25);
                 }
 
                 .image-upload-row {
                     display: flex;
                     align-items: center;
-                    gap: 15px;
+                    gap: var(--jpf-gap);
                     flex-wrap: wrap;
                 }
                 .image-upload-preview {
@@ -6219,7 +7016,7 @@
                 }
                 .device-delete-btn {
                     background: transparent; border: none; color: #ff6b6b;
-                    cursor: pointer; padding: 6px; border-radius: 4px;
+                    cursor: pointer; padding: 6px; border-radius: var(--jpf-r-sm);
                     display: flex; align-items: center; justify-content: center;
                     font-size: 1.1rem; flex-shrink: 0;
                     transition: background 0.2s;
@@ -6246,7 +7043,7 @@
                     .profile-section {
                         padding: 0.85rem 0.8rem 0.9rem;
                         margin-bottom: 1rem;
-                        border-radius: 8px;
+                        border-radius: var(--jpf-r-md);
                     }
                     .profile-section-body { gap: 0.95rem; }
                     .profile-section-title { font-size: 1rem; }
@@ -6258,7 +7055,7 @@
                    focused control inside a scrolling section has to scroll itself into
                    view rather than sitting behind a section header. */
                 .profile-section :focus-visible {
-                    outline: 2px solid #00a4dc;
+                    outline: 2px solid var(--jpf-accent);
                     outline-offset: 2px;
                     scroll-margin-top: 4rem;
                     scroll-margin-bottom: 4rem;
@@ -6269,7 +7066,7 @@
                 }
                 .tag-chip-list {
                     display: flex; flex-wrap: wrap; gap: 6px;
-                    background: rgba(255,255,255,0.04); border-radius: 8px;
+                    background: rgba(255,255,255,0.04); border-radius: var(--jpf-r-md);
                     border: 1px solid rgba(255,255,255,0.1);
                     padding: 8px; min-height: 40px;
                     max-height: 120px; overflow-y: auto;
@@ -6282,8 +7079,8 @@
                 }
                 .tag-chip {
                     display: inline-flex; align-items: center; gap: 6px;
-                    background: rgba(0,164,220,0.18);
-                    border: 1px solid rgba(0,164,220,0.45);
+                    background: var(--jpf-accent-a18);
+                    border: 1px solid var(--jpf-accent-a45);
                     color: #fff; border-radius: 999px;
                     padding: 3px 6px 3px 12px; font-size: 0.85rem;
                     max-width: 100%; word-break: break-word;
@@ -6343,31 +7140,40 @@
                 }
 
                 /* Devices Dropdown Styles */
+                /* Allowed Devices is the one hand-built control among native selects, and
+                   it sat directly above two of them. It cannot become a <select> — it is
+                   multi-select with checkboxes — so it borrows their exact appearance
+                   instead, chevron included, rather than carrying a text arrow. */
                 .devices-dropdown-trigger {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    padding: 10px 14px;
-                    background: rgba(0,0,0,0.2);
-                    border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 6px;
+                    background: rgba(255, 255, 255, 0.06) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
+                    background-size: 20px;
+                    border: 1px solid rgba(255,255,255,0.15);
+                    border-radius: var(--jpf-r-md);
+                    padding: 10px;
+                    padding-right: 36px;
+                    color: #fff;
+                    font-size: 1rem;
                     cursor: pointer;
                     user-select: none;
-                    font-size: 0.95rem;
                     transition: border-color 0.2s, box-shadow 0.2s;
                 }
                 .devices-dropdown-trigger:focus {
                     outline: none;
-                    border-color: #00a4dc !important;
-                    box-shadow: 0 0 10px rgba(0, 164, 220, 0.5) !important;
+                    border-color: var(--jpf-accent) !important;
+                    box-shadow: 0 0 10px var(--jpf-accent-a50) !important;
                 }
+                /* background-color, not background: the shorthand would reset the chevron
+                   that now lives in this element's background-image. */
                 .devices-dropdown-trigger:hover {
-                    background: rgba(255,255,255,0.05);
+                    background-color: rgba(255,255,255,0.05);
                 }
                 .devices-dropdown-list {
                     background: #202020;
                     border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: 6px;
+                    border-radius: var(--jpf-r-sm);
                     max-height: 250px;
                     overflow-y: auto;
                     box-shadow: 0 4px 15px rgba(0,0,0,0.5);

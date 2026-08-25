@@ -99,6 +99,25 @@ jobs:
           git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
           git checkout -B ci-manifest "origin/${BRANCH}"
 
+          # A version must live in exactly one manifest. Both files declare the same
+          # plugin GUID, so Jellyfin merges them for anyone subscribed to both and shows
+          # every duplicated version twice. That is cosmetic only while the two copies
+          # agree — and they diverge the moment a release stamps one and not the other,
+          # at which point the user is picking blind between a working entry and a
+          # placeholder checksum. Releasing 1.4.0 to stable did exactly that on
+          # 2026-08-23, because its entry was still sitting in the beta manifest too.
+          if [ "$BRANCH" = "main" ]; then OTHER_BRANCH="beta"; else OTHER_BRANCH="main"; fi
+          git fetch origin "+refs/heads/${OTHER_BRANCH}:refs/remotes/origin/${OTHER_BRANCH}"
+          OTHER_COUNT=$(git show "origin/${OTHER_BRANCH}:manifest.json" \
+            | jq --arg v "$V" '[.[0].versions[] | select(.version == $v)] | length')
+          if [ "$OTHER_COUNT" -ne 0 ]; then
+            echo "::error::${V} is also in the manifest on '${OTHER_BRANCH}'."
+            echo "::error::Only the '${BRANCH}' manifest gets a checksum here, so the other copy"
+            echo "::error::would keep its placeholder and offer users an install that fails."
+            echo "::error::Remove the ${V} entry from '${OTHER_BRANCH}' and re-run."
+            exit 1
+          fi
+
           # Fail loudly when the entry is missing. jq's map() silently matches nothing and
           # exits 0, which is how releases shipped with an all-zeros placeholder checksum
           # and could not be installed.
