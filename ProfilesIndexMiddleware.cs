@@ -147,6 +147,11 @@ namespace Jellyfin.Profiles
 
             HasSeenIndexRequest = true;
 
+            // Reset per handled request. The dashboard renders this as "the last problem",
+            // and only the success path used to clear it — so one transient failure was
+            // appended to the green banner until the server restarted.
+            LastError = null;
+
             var config = Plugin.Instance?.Configuration;
             if (!IndexInjectionModes.UsesMiddleware(config?.IndexInjectionMode))
             {
@@ -263,7 +268,6 @@ namespace Jellyfin.Profiles
             context.Response.Headers[HeaderNames.Pragma] = "no-cache";
             context.Response.Headers[HeaderNames.Expires] = "0";
 
-            LastError = null;
             LastServedUtc = DateTime.UtcNow;
             Interlocked.Increment(ref ServedCount);
 

@@ -191,12 +191,27 @@ namespace Jellyfin.Profiles
                     if (!IndexInjectionModes.PatchesFile(CurrentInjectionMode))
                     {
                         IndexPath = IndexPath ?? self.FindIndexHtml();
-                        InjectionSucceeded = ProfilesIndexMiddleware.IsRegistered;
+
+                        // Not IsRegistered: PluginServiceRegistrator sets that unconditionally,
+                        // so it is true wherever the plugin runs at all and says nothing about
+                        // whether the hook reached the pipeline. Reporting it as success meant a
+                        // green "installed and up to date" banner on a server where no script was
+                        // reaching the page. The honest signal is a request actually handled —
+                        // and anyone reading this page has already loaded the web client, so one
+                        // has been.
+                        var seen = ProfilesIndexMiddleware.HasSeenIndexRequest;
+                        var lastError = ProfilesIndexMiddleware.LastError;
+
+                        InjectionSucceeded = seen && lastError == null;
                         IsVersionStale = false;
-                        LastFailureReason = ProfilesIndexMiddleware.IsRegistered
+                        LastFailureReason = InjectionSucceeded
                             ? null
-                            : "Bonfire could not attach to Jellyfin's request pipeline, so nothing "
-                              + "is adding the client script. Switch back to patching index.html.";
+                            : seen
+                                ? "Bonfire is in the request pipeline but could not add its script "
+                                  + "to the last page it served: " + lastError
+                                : "Bonfire has not handled a request for Jellyfin's web page, so "
+                                  + "nothing is adding the client script. Switch back to patching "
+                                  + "index.html.";
                         return;
                     }
 

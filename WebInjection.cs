@@ -53,6 +53,9 @@ namespace Jellyfin.Profiles
             "<script id=\"jpf-eh\">" +
             "!function(){" +
                 "if(localStorage.getItem('jpf-sw')){" +
+                    // Handed to profiles.js, which is deferred and so cannot read the key:
+                    // this script clears it below, synchronously, during head parsing.
+                    "window.__jpSwitching=1;" +
                     "var h=document.documentElement;" +
                     "h.style.opacity='0';" +
                     "h.style.background='#101010';" +
@@ -172,16 +175,28 @@ namespace Jellyfin.Profiles
         /// <returns>True when <paramref name="result"/> differs from the input.</returns>
         internal static bool Remove(string html, out string result)
         {
-            var cleaned = HeadScriptRegex.Replace(html, string.Empty);
-            cleaned = BodyScriptRegex.Replace(cleaned, string.Empty);
+            // These patterns take the newline each fragment was inserted with, so a document
+            // we patched comes back byte for byte and NewlineOf gets the exact restoration it
+            // exists for.
+            var cleaned = HeadScriptRemovalRegex.Replace(html, string.Empty);
+            cleaned = BodyScriptRemovalRegex.Replace(cleaned, string.Empty);
 
-            // Both fragments were inserted on a line of their own, so removing them leaves a
-            // blank line behind. Tidy it up rather than letting index.html accumulate one per
-            // install/uninstall cycle.
-            cleaned = BlankLineRegex.Replace(cleaned, NewlineOf(html));
+            if (string.Equals(cleaned, html, StringComparison.Ordinal))
+            {
+                // Nothing of ours was in there, so there is nothing to restore and no reason
+                // to write. This is the important case, not an edge one: middleware-only mode
+                // is the default and calls through here on its first served page, and its
+                // whole promise is that index.html is never touched. The blank-line tidy that
+                // used to run here ran unanchored over the entire document, so it collapsed
+                // every blank line in a file it had never patched, reported that as a change,
+                // and had the caller write the file back out and log that it had removed
+                // script tags that were never there.
+                result = html;
+                return false;
+            }
 
             result = cleaned;
-            return !string.Equals(cleaned, html, StringComparison.Ordinal);
+            return true;
         }
 
         /// <summary>
@@ -197,8 +212,15 @@ namespace Jellyfin.Profiles
         private static string NewlineOf(string html)
             => html.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
 
-        private static readonly Regex BlankLineRegex = new(
-            @"(\r?\n)[ \t]*(\r?\n)",
-            RegexOptions.Compiled);
+        // Removal-only variants. Inject() must keep using the pair above: it replaces a
+        // stale fragment in place, and a pattern that swallowed the surrounding newline
+        // would glue the replacement to whatever it sits next to.
+        private static readonly Regex HeadScriptRemovalRegex = new(
+            @"(\r?\n)?<script id=""jpf-eh"">[\s\S]*?</script>",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex BodyScriptRemovalRegex = new(
+            @"<script[^>]*src=[""'][^""']*/plugins/profiles/profiles\.js[^""']*[""'][^>]*>\s*(</script>)?(\r?\n)?",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
     }
 }

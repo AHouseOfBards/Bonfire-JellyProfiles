@@ -885,6 +885,9 @@
             // pulled anything it needed into the in-memory tier.
             if (!this._reloading) {
                 try { localStorage.removeItem(this.config.switchingKey); } catch (e) { /* ignore */ }
+                // The head script has almost certainly already taken the key; this is the
+                // copy that actually outlives it.
+                try { window.__jpSwitching = 0; } catch (e) { /* ignore */ }
             }
 
             if (window.__jpReveal) {
@@ -1050,8 +1053,22 @@
         /// we caused, and that reload was recent. Null otherwise — which is what still makes
         /// closing the app drop back to the picker.
         _readSessionMirror: function (key) {
-            let switching = null;
-            try { switching = localStorage.getItem(this.config.switchingKey); } catch (e) { return null; }
+            // The injected head script consumes this key: it runs synchronously during head
+            // parsing, while profiles.js is deferred, so by the time anything here looks the
+            // key has been gone for the whole document parse. Reading localStorage alone made
+            // this function return null every single time, which left the 1.4.6 switch-loop
+            // fix dead on arrival — the three-reload backstop was doing all the work.
+            //
+            // The head script republishes it as a window global for this reason. localStorage
+            // stays as the fallback for a page still carrying an older head script, and for
+            // any caller reached before the head script has run.
+            let switching = false;
+            try { switching = !!window.__jpSwitching; } catch (e) { /* no window */ }
+            if (!switching) {
+                try {
+                    switching = !!localStorage.getItem(this.config.switchingKey);
+                } catch (e) { return null; }
+            }
             if (!switching) return null;
 
             let raw = null;
@@ -1616,6 +1633,13 @@
         /// the home screen flash-free; serving it after a save showed stale data — a freshly
         /// saved PIN still read as "No PIN" until the page was reloaded.
         fetchAndRenderProfiles: function (apiClient, masterUserId, masterToken, forceRefresh) {
+            // Recorded, not claimed: several callers have already taken a ticket and are
+            // finishing by coming back to the grid, and claiming a new one here would
+            // invalidate theirs. This only needs to know whether the screen moved on while
+            // the list was in flight — Settings, or a profile form, drawn over by a slow
+            // grid was the same race the tickets were added for.
+            const ticket = this._navTicket;
+
             if (forceRefresh) {
                 this.invalidateProfileCache();
             } else if (this.cachedProfiles && this.cachedProfiles.length) {
@@ -1642,6 +1666,7 @@
                 return res.json();
             })
             .then(profiles => {
+                if (!this.navIsCurrent(ticket)) return;
                 const normalized = this.normalizeProfiles(profiles);
                 // Deliberately NOT stored in cachedProfiles: that field is the one-shot
                 // prefetch buffer, and repopulating it here made the *next* call short-circuit
