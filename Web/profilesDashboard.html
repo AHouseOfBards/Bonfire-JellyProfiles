@@ -218,21 +218,6 @@
                     <div class="fieldDescription">The menu option adds a row to Settings instead of a second portrait.</div>
                 </div>
 
-                <h3 class="checkboxListLabel" style="margin-top:1.5em;">Client script</h3>
-                <div class="fieldDescription" style="margin-bottom:1em;">
-                    How Bonfire gets its script into Jellyfin's web client.
-                </div>
-
-                <div class="selectContainer">
-                    <label class="selectLabel" for="indexInjectionMode">Method</label>
-                    <select is="emby-select" id="indexInjectionMode">
-                        <option value="middleware">Serve it live, never touch index.html</option>
-                        <option value="both">Patch index.html, fall back to serving it live</option>
-                        <option value="file">Patch index.html only</option>
-                    </select>
-                    <div class="fieldDescription" id="indexInjectionModeHelp"></div>
-                    <div class="fieldDescription" id="middlewareStatusLine" style="margin-top:8px;"></div>
-                </div>
 
                 <div class="buttonContainer">
                     <button is="emby-button" type="submit" class="raised button-submit block">Save profile &amp; switcher settings</button>
@@ -286,6 +271,29 @@
             </div><!-- /avatars -->
 
             <div class="jpf-tab-panel" id="jpfPanelAdvanced" data-panel="advanced" role="tabpanel" hidden>
+            <div class="sectionTitleContainer" style="margin-top: 3em;">
+                <h2 class="sectionTitle">Client Script</h2>
+            </div>
+            <div class="fieldDescription" style="margin-bottom: 1em;">
+                How Bonfire gets its script into Jellyfin's web client. A working server does
+                not need this changed.
+            </div>
+
+            <div class="selectContainer">
+                <label class="selectLabel" for="indexInjectionMode">Method</label>
+                <select is="emby-select" id="indexInjectionMode">
+                    <option value="middleware">Serve it live, never touch index.html</option>
+                    <option value="both">Patch index.html, fall back to serving it live (legacy)</option>
+                    <option value="file">Patch index.html only (legacy)</option>
+                </select>
+                <div class="fieldDescription" id="indexInjectionModeHelp"></div>
+                <div class="fieldDescription" id="middlewareStatusLine" style="margin-top:8px;"></div>
+            </div>
+
+            <div class="buttonContainer" style="margin-bottom:3em;">
+                <button is="emby-button" type="button" id="saveInjectionMode" class="raised" style="max-width:280px;">Save method</button>
+            </div>
+
             <div class="sectionTitleContainer" style="margin-top: 3em;">
                 <h2 class="sectionTitle">Emergency Disable Code</h2>
             </div>
@@ -453,13 +461,13 @@
             }
 
             const INJECTION_MODE_HELP = {
-                both: 'Belt and braces: index.html is patched as well, and if that write fails the script '
-                    + 'is added to the page as it is served. Mainly for a proxy that caches index.html.',
                 middleware: 'The default. index.html is left alone, and any tags Bonfire added earlier '
                     + 'are taken back out. Nothing to re-apply after a Jellyfin update, and no write '
                     + 'permission needed.',
-                file: 'How every release up to 1.4.0 worked. Needs write access to index.html, and has to '
-                    + 'be redone after each Jellyfin update.'
+                both: 'Legacy. index.html is patched as well, and if that write fails the script is '
+                    + 'added to the page as it is served. Mainly for a proxy that caches index.html.',
+                file: 'Legacy. How every release up to 1.4.0 worked. Needs write access to index.html, '
+                    + 'and has to be redone after each Jellyfin update.'
             };
 
             function updateInjectionModeHelp(page) {
@@ -1323,9 +1331,22 @@
             document.getElementById('profilesConfigurationPage').addEventListener('pageshow', function () {
                 const page = this;
                 loadConfiguration(page);
+                // pageshow fires more than once for the same element, so this needs the same
+                // guard every other handler on this page has. Without it the help text was
+                // recomputed once per past visit.
                 const modeSelect = page.querySelector('#indexInjectionMode');
-                if (modeSelect) {
+                if (modeSelect && !modeSelect.dataset.bound) {
+                    modeSelect.dataset.bound = '1';
                     modeSelect.addEventListener('change', function () { updateInjectionModeHelp(page); });
+                }
+
+                // The method moved to Advanced, so it is no longer inside the General form and
+                // its Save button. saveConfiguration reads every field by id from the page, so
+                // it saves correctly from either tab.
+                const saveModeBtn = page.querySelector('#saveInjectionMode');
+                if (saveModeBtn && !saveModeBtn.dataset.bound) {
+                    saveModeBtn.dataset.bound = '1';
+                    saveModeBtn.addEventListener('click', function () { saveConfiguration(page); });
                 }
                 page.querySelector('form').addEventListener('submit', function (e) {
                     e.preventDefault();

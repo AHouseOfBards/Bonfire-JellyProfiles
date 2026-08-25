@@ -809,10 +809,15 @@
             );
 
             // ── Admin / server-management pages ─────────────────────────────────
-            // Exception: our own plugin settings page (configurationpage?name=Profiles)
-            // is the only admin-area page where the button should remain visible.
-            const isProfilesSettingsPage = hash.includes('configurationpage') &&
-                                           hash.toLowerCase().includes('name=profiles');
+            // Exception: our own plugin settings page (configurationpage?name=Bonfire) is
+            // the only admin-area page where the button should stay visible.
+            //
+            // Both spellings are accepted. The page was registered as "Profiles" until 1.5
+            // and the name is what forms this URL, so a browser sitting on the old address —
+            // a bookmark, or a tab open across the upgrade — would otherwise lose the button.
+            const isProfilesSettingsPage = hash.includes('configurationpage')
+                && (hash.toLowerCase().includes('name=bonfire')
+                    || hash.toLowerCase().includes('name=profiles'));
 
             const isDashboard = !isProfilesSettingsPage && (
                 hash.includes('dashboard')       || hash.includes('/admin')       ||
