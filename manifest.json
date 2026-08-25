@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\nFive faults found in a review before the next stable release.\n\n**Fixed**\n\n- On Android, the 1.4.6 fix for the profile picker coming back over and over had never actually run — the script that hides the page during a switch was clearing the marker the fix needed before the fix could read it. Switching should now take one reload rather than several.\n- Bonfire rewrote Jellyfin's `index.html` once on startup even when set never to touch it, stripping blank lines out of a file it had not patched.\n- The settings page reported **Client script is installed and up to date** whenever the plugin was loaded at all, including on a server where nothing was reaching the page.\n- A one-off problem stayed on the settings page as the last problem until Jellyfin was restarted.\n- Returning to the profile grid could draw it over a screen you had already moved on to.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.4.8/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "c9740ba5e9a9ac913aa636dc3fa6cf8b",
         "timestamp": "2026-08-25T00:00:00Z"
       },
       {
