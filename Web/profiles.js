@@ -3001,6 +3001,37 @@
         // onError: optional callback(message) invoked on a failed switch.
         // Callers capture their own DOM references via closure so we never re-query
         // the DOM inside an async callback (which can race against overlay teardown).
+        /// Puts the picker into "working on it" while a switch is in flight.
+        ///
+        /// The switch is a round trip to the server and then a full page reload. On a phone
+        /// that is a couple of seconds during which nothing on screen changed at all, so the
+        /// only reasonable reading was that the tap had missed — and the reporter kept
+        /// tapping. _switchLock already made the extra taps harmless; it just never said so.
+        setSwitchBusy: function (profileId, busy) {
+            const overlay = document.getElementById('profiles-gate-overlay');
+            if (overlay) {
+                overlay.classList.toggle('is-switching', busy);
+                if (busy) overlay.setAttribute('aria-busy', 'true');
+                else overlay.removeAttribute('aria-busy');
+
+                // Matched by normalised id rather than an attribute selector, so a profile
+                // id can never be read as one.
+                const wanted = busy ? this.normalizeGuid(profileId) : null;
+                overlay.querySelectorAll('.profile-card').forEach(card => {
+                    const isTarget = !!wanted
+                        && this.normalizeGuid(card.getAttribute('data-id')) === wanted;
+                    card.classList.toggle('is-switching', isTarget);
+                });
+            }
+
+            // Started from a PIN prompt, the button is what the user is looking at — the
+            // card behind it may not even be on screen.
+            ['pin-submit-btn', 'master-pin-submit-btn'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.classList.toggle('is-busy', busy);
+            });
+        },
+
         executeProfileSwitch: function (profileId, pin, onError) {
             if (this._switchLock) return;
 
@@ -3009,6 +3040,7 @@
             if (!masterState) return;
 
             this._switchLock = true;
+            this.setSwitchBusy(profileId, true);
             const url = apiClient.getUrl('plugins/profiles/switch');
 
             fetch(url, {
@@ -3066,23 +3098,27 @@
                 this.updateStoredCredentials(activeProfileToken, jellyfinUserId);
                 apiClient.setAuthenticationInfo(activeProfileToken, jellyfinUserId);
 
-                // Keep the overlay visible through the reload — removing it first
-                // would expose the home screen for a frame before opacity:0 kicks in.
-                // The reload will naturally destroy the overlay on the new page.
-                // Transitioning it to solid black blends with the new page's dark state.
+                // The overlay is opaque and covers the viewport, so leaving it up is all it
+                // takes to keep the old page out of sight — and it keeps the spinner on
+                // screen for however long the reload costs. Blanking the document instead
+                // meant a phone showed several seconds of black with nothing to say the tap
+                // had registered. Only the background is calmed towards the next page.
                 const overlay = document.getElementById('profiles-gate-overlay');
                 if (overlay) {
-                    overlay.style.transition = 'background 0.12s ease';
+                    overlay.style.transition = 'background 0.2s ease';
                     overlay.style.background = '#101010';
+                } else {
+                    // Menu-mode switch with no gate on screen: nothing is covering the app,
+                    // so the old page does still have to be hidden before it repaints.
+                    document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
                 }
-                // Hide everything else instantly.
-                document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
                 this._reloading = true;
                 localStorage.setItem(this.config.switchingKey, '1');
                 window.location.reload();
             })
             .catch(err => {
                 this._switchLock = false;
+                this.setSwitchBusy(profileId, false);
                 if (err.message === 'Session expired') return;
                 if (typeof onError === 'function') {
                     // Caller has closed-over references to the DOM — no re-query needed
@@ -4566,7 +4602,7 @@
                 <div class="create-profile-container" style="max-width: 500px; width: 100%;">
                     <div id="bonfire-container" style="width: 100%; min-height: 100px; display: flex; flex-direction: column; gap: 1.5rem;">
                         <div style="display: flex; justify-content: center; padding: 20px;">
-                            <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: spin 1s linear infinite;"></div>
+                            <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: jpfSpin 1s linear infinite;"></div>
                         </div>
                         <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
                             <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">Back</button>
@@ -6188,6 +6224,76 @@
                     width: clamp(130px, 11vw, 195px);
                     height: clamp(130px, 11vw, 195px);
                     margin-top: 15px;
+                    transition: transform 0.12s ease;
+                }
+                /* Touch has no hover, so without this the first feedback of any kind is the
+                   page changing a second or two later. */
+                .profile-card:active .profile-avatar-container {
+                    transform: scale(0.95);
+                }
+
+                @keyframes jpfSpin {
+                    to { transform: rotate(360deg); }
+                }
+                /* The chosen profile carries the spinner; everything else steps back so it
+                   is obvious which one is being opened and that the rest are not takers. */
+                #profiles-gate-overlay.is-switching .profile-card:not(.is-switching),
+                #profiles-gate-overlay.is-switching .profiles-footer,
+                #profiles-gate-overlay.is-switching .profiles-home-header {
+                    opacity: 0.3;
+                    pointer-events: none;
+                    transition: opacity 0.2s ease;
+                }
+                #profiles-gate-overlay.is-switching .profile-card.is-switching {
+                    cursor: progress;
+                }
+                .profile-card.is-switching .profile-avatar {
+                    filter: brightness(0.4);
+                    transition: filter 0.2s ease;
+                }
+                .profile-card.is-switching .profile-avatar-container::after {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    margin: auto;
+                    width: 46px;
+                    height: 46px;
+                    border-radius: 50%;
+                    border: 3px solid rgba(255, 255, 255, 0.22);
+                    border-top-color: #fff;
+                    animation: jpfSpin 0.8s linear infinite;
+                    z-index: 20;
+                    pointer-events: none;
+                }
+                /* A button that has started something and is waiting for it. The label is
+                   kept in place rather than replaced, so the button does not resize. */
+                .profiles-btn.is-busy {
+                    position: relative;
+                    color: transparent !important;
+                    pointer-events: none;
+                }
+                .profiles-btn.is-busy::after {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    margin: auto;
+                    width: 18px;
+                    height: 18px;
+                    border-radius: 50%;
+                    border: 2px solid rgba(255, 255, 255, 0.3);
+                    border-top-color: #fff;
+                    animation: jpfSpin 0.8s linear infinite;
+                }
+                /* The spinner still turns — it is the only thing reporting progress — but
+                   nothing else moves. */
+                @media (prefers-reduced-motion: reduce) {
+                    .profile-avatar-container,
+                    .profile-card.is-switching .profile-avatar {
+                        transition: none;
+                    }
+                    .profile-card:active .profile-avatar-container {
+                        transform: none;
+                    }
                 }
                 .profile-crown {
                     position: absolute; top: -20px; left: 50%;
