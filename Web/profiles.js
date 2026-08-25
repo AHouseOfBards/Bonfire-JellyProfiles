@@ -875,6 +875,18 @@
             this._pageRevealed = true;
             this._pendingReveal = false;
 
+            // The reload this flag was raised for has landed. Clearing it here rather than
+            // only in removeProfileOverlay() matters twice over: the session mirror is
+            // believed only while the flag is up, so leaving it set would keep a marker
+            // alive across a genuine app close; and the head script hides the page whenever
+            // it sees the flag, so a stale one cost a fade on every later hard refresh.
+            //
+            // Safe this late: validateSessionState() ran during init() and has already
+            // pulled anything it needed into the in-memory tier.
+            if (!this._reloading) {
+                try { localStorage.removeItem(this.config.switchingKey); } catch (e) { /* ignore */ }
+            }
+
             if (window.__jpReveal) {
                 clearTimeout(window.__jpReveal);
                 window.__jpReveal = null;
@@ -974,56 +986,99 @@
         // The active profile lives in sessionStorage deliberately: closing the app should
         // drop back to the picker rather than leave a child profile signed in.
         //
-        // Samsung's Tizen runtime clears sessionStorage on a full reload, and a full reload
-        // is exactly how a profile switch finishes. The marker was therefore gone by the
-        // time the page came back, validateSessionState() concluded the app had been closed
-        // and reverted to the master token — the avatar changed and nothing else did
-        // (issues #15 and #16, reported independently by two people).
+        // Some runtimes throw sessionStorage away on a full reload — and a full reload is
+        // exactly how a profile switch finishes. The marker is then gone by the time the
+        // page comes back, validateSessionState() concludes the app was closed, and it
+        // reverts to the master token. On Samsung's Tizen that looked like the avatar
+        // changing and nothing else (issues #15 and #16). On Android it is worse, because
+        // the revert reloads: the reload loses the marker again, which reverts again — the
+        // picker over and over, which is what an Android reporter saw.
         //
-        // On Tizen only, the marker is mirrored into localStorage. The cost is that closing
-        // the app there leaves the profile active instead of returning to the picker. That
-        // is the safer of the two failures: the account it would otherwise revert to is the
-        // master, which is the less restricted one.
-        TIZEN_MIRROR_PREFIX: 'jpf-persist-',
+        // That was first fixed by sniffing for Tizen, which meant meeting each new runtime
+        // through a bug report. There is no sniff any more. The rule is about WHY
+        // sessionStorage is empty, which is the part that actually decides the answer:
+        //
+        //   empty because the app was closed     -> show the picker, drop the profile
+        //   empty because our own reload lost it -> put it back, keep the profile
+        //
+        // and those two are told apart by the switching flag, which is set immediately
+        // before every reload this plugin performs and at no other time.
+        //
+        // Values are also held in memory for the life of the page, so a runtime where
+        // sessionStorage does not work at all still behaves while the page lives.
+        SESSION_MIRROR_PREFIX: 'jpf-persist-',
 
-        /// True on Samsung's TV runtime, where sessionStorage does not survive a reload.
-        _isTizenRuntime: function () {
-            if (this._tizenRuntime === undefined) {
-                let detected = false;
-                try {
-                    const ua = (navigator && navigator.userAgent) || '';
-                    detected = typeof window.tizen !== 'undefined' || /tizen/i.test(ua);
-                } catch (e) { /* no navigator — assume not */ }
-                this._tizenRuntime = detected;
-            }
-            return this._tizenRuntime;
-        },
+        /// How long after our own reload the mirror is still believable. A reload takes
+        /// seconds; anything older is a new session wearing a flag nobody cleared.
+        SESSION_MIRROR_MAX_AGE_MS: 60000,
+
+        _sessionMemory: {},
 
         _sessionSet: function (key, value) {
+            this._sessionMemory[key] = value;
             try { sessionStorage.setItem(key, value); } catch (e) { /* storage blocked */ }
-            if (!this._isTizenRuntime()) return;
-            try { localStorage.setItem(this.TIZEN_MIRROR_PREFIX + key, value); } catch (e) { /* full */ }
+            try {
+                localStorage.setItem(
+                    this.SESSION_MIRROR_PREFIX + key,
+                    JSON.stringify({ v: value, t: Date.now() }));
+            } catch (e) { /* full or blocked — sessionStorage is still the primary */ }
         },
 
         _sessionGet: function (key) {
+            if (Object.prototype.hasOwnProperty.call(this._sessionMemory, key)) {
+                return this._sessionMemory[key];
+            }
+
             let value = null;
             try { value = sessionStorage.getItem(key); } catch (e) { /* storage blocked */ }
-            if (value !== null || !this._isTizenRuntime()) return value;
+            if (value !== null) {
+                this._sessionMemory[key] = value;
+                return value;
+            }
 
-            try {
-                value = localStorage.getItem(this.TIZEN_MIRROR_PREFIX + key);
-                // Put it back where the rest of the code expects to find it, so this
-                // fallback costs one read per page load rather than one per call.
-                if (value !== null) sessionStorage.setItem(key, value);
-            } catch (e) { /* unreadable — treat as absent */ }
-            return value;
+            const mirrored = this._readSessionMirror(key);
+            if (mirrored === null) return null;
+
+            // Put it back where the rest of the code expects to find it, so this costs one
+            // read per page load rather than one per call.
+            this._sessionMemory[key] = mirrored;
+            try { sessionStorage.setItem(key, mirrored); } catch (e) { /* storage blocked */ }
+            return mirrored;
+        },
+
+        /// The mirrored value, but only when this page load is the continuation of a reload
+        /// we caused, and that reload was recent. Null otherwise — which is what still makes
+        /// closing the app drop back to the picker.
+        _readSessionMirror: function (key) {
+            let switching = null;
+            try { switching = localStorage.getItem(this.config.switchingKey); } catch (e) { return null; }
+            if (!switching) return null;
+
+            let raw = null;
+            try { raw = localStorage.getItem(this.SESSION_MIRROR_PREFIX + key); } catch (e) { return null; }
+            if (raw === null) return null;
+
+            let parsed = null;
+            try { parsed = JSON.parse(raw); } catch (e) { /* the older mirror: a bare string */ }
+
+            if (!parsed || typeof parsed !== 'object' || typeof parsed.v !== 'string') {
+                // Written by the Tizen-only mirror, which carried no timestamp. Upgrading
+                // must not sign anyone out, so the switching flag above is all it gets.
+                return raw;
+            }
+
+            if (typeof parsed.t !== 'number'
+                || Date.now() - parsed.t > this.SESSION_MIRROR_MAX_AGE_MS) {
+                return null;
+            }
+            return parsed.v;
         },
 
         _sessionRemove: function (key) {
+            delete this._sessionMemory[key];
             try { sessionStorage.removeItem(key); } catch (e) { /* storage blocked */ }
-            // Always clear the mirror, whatever the runtime says now: a stale copy left by
-            // an earlier detection would outlive every sign-out.
-            try { localStorage.removeItem(this.TIZEN_MIRROR_PREFIX + key); } catch (e) { /* ignore */ }
+            // Always clear the mirror: a stale copy would outlive every sign-out.
+            try { localStorage.removeItem(this.SESSION_MIRROR_PREFIX + key); } catch (e) { /* ignore */ }
         },
 
         /// Drops every trace of an active profile session. Used by sign-out, the login
@@ -1457,15 +1512,56 @@
                         console.log("ProfilesPlugin: Master session token updated to match new valid token.");
                     }
                 } else if (currentToken !== masterState.masterToken && !this.isProfileSessionActive()) {
+                    if (!this._revertReloadAllowed()) {
+                        // Reverting has not stuck, and reverting again means reloading again,
+                        // which is what turns this into the picker over and over. Accept the
+                        // session actually in play and record it so every later check agrees.
+                        // The cost is a profile staying signed in where it would have dropped
+                        // back to the master — the safer of the two, since the master is the
+                        // less restricted account.
+                        console.warn(
+                            'ProfilesPlugin: session revert is looping; keeping the active profile instead.');
+                        this._sessionSet(this.config.activeSessionKey, currentToken);
+                        return;
+                    }
                     this.updateStoredCredentials(masterState.masterToken, masterState.masterUserId);
                     apiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
                     // Hide current page instantly so there is no visible frame
                     // between old page unloading and new page's head script running.
                     document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
+                    this._reloading = true;
                     localStorage.setItem(this.config.switchingKey, '1');
                     window.location.reload();
                 }
             }
+        },
+
+        /// Whether the revert-to-master path may reload again.
+        ///
+        /// That path exists for "the app was closed while a profile was active": put the
+        /// master token back and reload, so the picker appears. It assumes the reload fixes
+        /// the condition that triggered it. If anything makes the active marker vanish on
+        /// every load, the same decision is reached every time and the user is stuck in a
+        /// reload loop with no way out of it from inside the app.
+        ///
+        /// Three in thirty seconds is not a session being restored, it is a loop. The window
+        /// resets itself, so a reload an hour later starts from zero and no cleanup is owed.
+        _revertReloadAllowed: function () {
+            const KEY = 'jpf-revert-guard';
+            const now = Date.now();
+
+            let state = null;
+            try { state = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { /* unreadable */ }
+            if (!state || typeof state.n !== 'number' || typeof state.t !== 'number'
+                || now - state.t > 30000) {
+                state = { n: 0, t: now };
+            }
+
+            state.n += 1;
+            state.t = now;
+            try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* full */ }
+
+            return state.n <= 3;
         },
 
         handleSessionExpired: function () {
@@ -2981,6 +3077,7 @@
                 }
                 // Hide everything else instantly.
                 document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
+                this._reloading = true;
                 localStorage.setItem(this.config.switchingKey, '1');
                 window.location.reload();
             })
