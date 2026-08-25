@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- On Android, picking a profile brought back the profile picker, over and over. The marker saying a profile is active did not survive the reload that finishes a switch, so Bonfire kept deciding the app had been closed. It no longer depends on which device you are on.\n- Entering a PIN-protected profile could drop you back to the account login. Same cause — please report it if it happens again.\n- After switching profiles, later page refreshes could sit faded out for a moment before appearing.\n\n**Changed**\n\n- If reverting to the main account ever fails repeatedly, Bonfire now keeps the profile you picked instead of reloading again. There is no longer a way to get stuck on a screen that reloads forever.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.4.6/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "c598ca00f19b9310c26006aefc13081d",
         "timestamp": "2026-08-25T00:00:00Z"
       },
       {
