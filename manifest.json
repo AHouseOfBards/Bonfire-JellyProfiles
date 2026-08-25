@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- Picking a profile showed nothing at all for the second or two it takes, so on a phone the tap read as missed. The profile you picked now shows a spinner and the rest step back, and the screen no longer goes black while it loads.\n- The loading spinner on **Your Bonfire** never actually turned.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.4.7/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "8f25a99c0545c3d318250a5e543626a8",
         "timestamp": "2026-08-25T00:00:00Z"
       },
       {
