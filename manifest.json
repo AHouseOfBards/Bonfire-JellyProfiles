@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.4.9.0",
+        "changelog": "**Beta release** — please report issues on GitHub.\n\nThe last beta before 1.5.\n\n**Changed**\n\n- The plugin is called **Bonfire** in the Jellyfin sidebar, instead of Profiles.\n- **Client script** moved from General to **Advanced** on the settings page. A working server never needs it changed.\n- Editing `index.html` is now labelled a legacy option. Serving the script live is the default and needs no file permissions.\n\n**Documentation**\n\n- The README described the old file-patching as the only method, and told anyone with a problem to grant write access to a file that no longer needs it.\n- The developer API reference now documents how the script is delivered and the `mechanism` field reporting it.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.4.9/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-08-25T00:00:00Z"
+      },
+      {
         "version": "1.4.8.0",
         "changelog": "**Beta release** — please report issues on GitHub.\n\nFive faults found in a review before the next stable release.\n\n**Fixed**\n\n- On Android, the 1.4.6 fix for the profile picker coming back over and over had never actually run — the script that hides the page during a switch was clearing the marker the fix needed before the fix could read it. Switching should now take one reload rather than several.\n- Bonfire rewrote Jellyfin's `index.html` once on startup even when set never to touch it, stripping blank lines out of a file it had not patched.\n- The settings page reported **Client script is installed and up to date** whenever the plugin was loaded at all, including on a server where nothing was reaching the page.\n- A one-off problem stayed on the settings page as the last problem until Jellyfin was restarted.\n- Returning to the profile grid could draw it over a screen you had already moved on to.",
         "targetAbi": "10.11.0.0",
