@@ -6518,6 +6518,18 @@
                     /* Matches .pin-actions, the button row on the other gate screens. */
                     gap: var(--jpf-gap-lg); flex-wrap: wrap;
                 }
+                /* Equal widths, so the gap between two buttons falls on the centre line.
+                   The row was already centred correctly; what read as crooked was its seam.
+                   Centring buttons of unequal width puts the gap between them off-axis, and
+                   with two buttons sitting under two equal profile cards the eye compares
+                   the two seams rather than the outer edges. Measured on the gate: cards
+                   met at 653px, buttons at 681px.
+
+                   Also stops the row resizing as labels change — it is Manage Profiles or
+                   Done, sometimes plus Settings, sometimes plus Cancel. */
+                .profiles-footer .profiles-btn {
+                    min-width: 11rem;
+                }
 
                 /* PIN Entry Form styles */
                 .pin-entry-container {
