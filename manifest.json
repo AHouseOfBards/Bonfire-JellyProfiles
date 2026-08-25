@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.4.5.0",
+        "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- Serving the client script live stopped other plugins from changing `index.html`. **File Transformation**, **Home Screen Sections** and **Plugin Pages** had no effect while it was switched on. Bonfire now adds its script to whatever those plugins produce, instead of answering the request itself.\n- `index.html` was served carrying the file's own cache validators, which could let a browser keep a page pointing at an old copy of the client script after a plugin update.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.4.5/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-08-24T00:00:00Z"
+      },
+      {
         "version": "1.4.4.0",
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- The plugin settings page was ignoring its own stylesheet. The new tabs came out as plain browser buttons, and the page never followed your theme's accent colour — since 1.4.2.\n- The panel for choosing a profile picture hung out past the edge of the card it belongs to.\n- Every library still showed an empty grey artwork slot with artwork switched off.\n- **Change picture** gave no sign it opens anything. It now has a chevron and stays held while the panel is open.\n\n**Changed**\n\n- The first tab on the settings page is called General. Calling it Settings inside the settings page said nothing.",
         "targetAbi": "10.11.0.0",
