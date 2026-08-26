@@ -33,6 +33,7 @@ Retrieves a list of all profiles (master and sub-profiles) accessible to the aut
     "profileName": "John",
     "avatarInitial": "J",
     "avatarColor": "#00A4DC",
+    "transparentAvatar": false,
     "requiresPin": true,
     "hasPin": true,
     "isMaster": true,
@@ -53,6 +54,7 @@ Retrieves a list of all profiles (master and sub-profiles) accessible to the aut
 | `profileName` | string | Display name of the profile. |
 | `avatarInitial` | string | Single character representing the profile avatar. |
 | `avatarColor` | string | Hex color code for the fallback avatar display. |
+| `transparentAvatar` | boolean | When true, do not paint `avatarColor` behind `profileImage`. Set for pictures that are cut out rather than rectangular, where a colour would otherwise show in the corners. Always false when there is no picture. |
 | `requiresPin` | boolean | Whether a PIN must be entered to switch to this profile **right now**. This is false when `bypassPinOnLocalNetwork` is set and the caller is on the local network, even though a PIN exists. Use this to decide whether to prompt. |
 | `hasPin` | boolean | Whether a PIN is configured on this profile at all, regardless of whether one will be prompted for. Use this — never `requiresPin` — to display PIN state in a settings or edit screen. See the note below. |
 | `isMaster` | boolean | Indicates if this is the master user account. |
@@ -288,6 +290,7 @@ Creates a new sub-profile.
 | `profileName` | string | Yes | Display name for the new profile. |
 | `pin` | string | No | Numeric PIN for the profile (4-8 digits). Pass null or omit for no PIN. |
 | `avatarColor` | string | No | Hex color code for the fallback avatar. Defaults to `#1F77B4`. |
+| `transparentAvatar` | boolean | No | Suppresses `avatarColor` behind the picture. Defaults to false. |
 | `maxParentalRating` | string | No | Maximum parental rating allowed (e.g., "6", "10", "14", "17"). Omit for no restriction. |
 | `enabledFolders` | string[] (GUIDs) | No | Array of library GUIDs accessible to this profile. Empty array denies all library access. |
 | `blockedTags` | string[] | No | Tags this profile must never see. Merged with the master's blocked tags — a sub-profile can add blocks but never remove the master's. Null or empty blocks nothing. |
@@ -340,6 +343,7 @@ Updates settings for an existing sub-profile.
 | `profileName` | string | Yes | New display name. |
 | `pin` | string | No | New numeric PIN. Pass `""` to clear the PIN. Pass `null` to leave unchanged. |
 | `avatarColor` | string | No | New hex color code. |
+| `transparentAvatar` | boolean | No | Suppresses `avatarColor` behind the picture. Omit or send `null` to leave unchanged. |
 | `maxParentalRating` | string | No | New maximum parental rating code. Pass `null` to leave unchanged. |
 | `enabledFolders` | string[] (GUIDs) | No | Updated library GUIDs. Pass `null` to leave unchanged. |
 | `blockedTags` | string[] | No | Updated blocked tags. Pass `[]` to clear, `null` to leave unchanged. Ignored for the master profile. |

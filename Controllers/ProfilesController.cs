@@ -104,6 +104,7 @@ namespace Jellyfin.Profiles.Controllers
                     ProfileName = linkedUser.Username,
                     AvatarInitial = string.IsNullOrEmpty(linkedUser.Username) ? "M" : linkedUser.Username.Substring(0, 1).ToUpper(),
                     AvatarColor = linkedMapping?.AvatarColor ?? "#00A4DC",
+                    TransparentAvatar = linkedMapping?.TransparentAvatar ?? false,
                     RequiresPin = masterRequiresPin,
                     HasPin = !string.IsNullOrEmpty(linkedMapping?.PinHash),
                     IsMaster = true,
@@ -143,6 +144,7 @@ namespace Jellyfin.Profiles.Controllers
                                 m.ProfileName,
                                 AvatarInitial = string.IsNullOrEmpty(m.ProfileName) ? "?" : m.ProfileName.Substring(0, 1).ToUpper(),
                                 m.AvatarColor,
+                                m.TransparentAvatar,
                                 RequiresPin = requiresPin,
                                 // Whether a PIN EXISTS, independent of whether one will be
                                 // asked for right now. RequiresPin goes false on the LAN when
@@ -381,6 +383,7 @@ namespace Jellyfin.Profiles.Controllers
                     ProfileName = request.ProfileName,
                     PinHash = HashPin(request.Pin),
                     AvatarColor = SanitizeAvatarColor(request.AvatarColor),
+                    TransparentAvatar = request.TransparentAvatar ?? false,
                     IsHidden = true,
                     LockoutMinutes = request.LockoutMinutes ?? 5,
                     // Store the selected libraries as the plugin's own ground truth
@@ -1370,6 +1373,13 @@ namespace Jellyfin.Profiles.Controllers
                     }
 
                     mappingEntry.AvatarColor = SanitizeAvatarColor(request.AvatarColor);
+
+                    // Null leaves it alone, so a caller that predates the field — or one
+                    // sending a partial update — cannot silently switch the background off.
+                    if (request.TransparentAvatar.HasValue)
+                    {
+                        mappingEntry.TransparentAvatar = request.TransparentAvatar.Value;
+                    }
 
                     if (!string.IsNullOrEmpty(request.AvatarLibraryId))
                     {

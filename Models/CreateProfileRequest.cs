@@ -8,6 +8,10 @@ namespace Jellyfin.Profiles.Models
         public string ProfileName { get; set; } = string.Empty;
         public string? Pin { get; set; }
         public string AvatarColor { get; set; } = "#1F77B4";
+        /// <summary>
+        /// Hides the avatar colour behind the picture. Null = false (paint the colour).
+        /// </summary>
+        public bool? TransparentAvatar { get; set; }
         public string? MaxParentalRating { get; set; }
         public List<Guid>? EnabledFolders { get; set; }
         /// <summary>Tags this profile is blocked from seeing. Null = block nothing.</summary>

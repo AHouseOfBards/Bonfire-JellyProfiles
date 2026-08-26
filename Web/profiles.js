@@ -352,6 +352,8 @@
                 profileName: pick(p, 'profileName', ''),
                 avatarInitial: pick(p, 'avatarInitial', '?'),
                 avatarColor: pick(p, 'avatarColor', '#00A4DC'),
+                // Cut-out picture: paint no colour behind it (issue #23).
+                transparentAvatar: pick(p, 'transparentAvatar', false),
                 requiresPin: pick(p, 'requiresPin', false),
                 // "A PIN exists" — distinct from requiresPin, which is false on the LAN when
                 // the bypass is enabled. Forms must use this one.
@@ -414,24 +416,36 @@
 
         /// The avatar swatches are identical in both forms; keeping one copy means a palette
         /// change lands in both places at once.
-        /// Dims the avatar colour once a picture is set.
+        /// Dims the avatar colour when it has stopped doing anything.
         ///
-        /// The colour is the background behind the initial, so with a picture it does
-        /// nothing at all — and it was twenty-one swatches over three rows, the largest
-        /// thing on the form, sitting there inert. Dimmed rather than hidden: it starts
+        /// It is twenty-one swatches over three rows, the largest thing on the form, so
+        /// leaving it at full strength when it cannot affect the avatar reads as a
+        /// control that is simply being ignored. Dimmed rather than hidden: it starts
         /// mattering again the moment the picture is removed, and a control that
         /// vanishes and reappears is worse than one that fades.
-        setColorGroupInert: function (prefix, hasPicture) {
+        ///
+        /// It used to dim whenever a picture was set, and say "Not used while a picture
+        /// is set". That was wrong, and it is how issue #23 came to be filed: the colour
+        /// is painted *behind* the picture and shows through wherever the picture is
+        /// transparent, so somebody read the hint, chose a cut-out picture, and got a
+        /// coloured square anyway. The colour is genuinely unused in one case only —
+        /// a picture with the background switched off.
+        setColorGroupInert: function (prefix, hasPicture, isTransparent) {
             const group = document.getElementById(prefix + '-color-group');
             if (!group) return;
 
-            group.classList.toggle('is-inert', !!hasPicture);
+            const unused = !!hasPicture && !!isTransparent;
+            group.classList.toggle('is-inert', unused);
 
             const hint = group.querySelector('[data-role="color-hint"]');
             if (hint) {
-                hint.textContent = hasPicture
-                    ? 'Not used while a picture is set.'
-                    : 'Used as the avatar background when no picture is set.';
+                if (unused) {
+                    hint.textContent = 'Not used while the background is transparent.';
+                } else if (hasPicture) {
+                    hint.textContent = 'Shows behind the picture, wherever it is transparent.';
+                } else {
+                    hint.textContent = 'Used as the avatar background when no picture is set.';
+                }
             }
         },
 
@@ -713,6 +727,113 @@
             setTimeout(doCheck, 200);
         },
 
+        /// True when the browser is sitting on the home screen.
+        ///
+        /// Extracted from checkRoute so reloadAtHome() can ask the same question. The two
+        /// must agree: reloadAtHome only redirects when this is false, so a route this
+        /// says is home is a route it will never try to build a URL for.
+        isHomeRoute: function () {
+            const hash = window.location.hash || '';
+            const path = window.location.pathname || '';
+
+            // Check if we are on the home screen
+            // The home screen route can be: empty, '#/', '#/home', '#/home.html', or similar.
+            // But we must NOT trigger it if we are on pages like configuration, plugins, selectserver, login, etc.
+            const isIgnoredPage = hash.includes('configuration') ||
+                                 hash.includes('plugin') ||
+                                 hash.includes('login') ||
+                                 hash.includes('selectserver') ||
+                                 path.includes('configuration') ||
+                                 path.includes('plugin') ||
+                                 path.includes('login') ||
+                                 path.includes('selectserver');
+
+            if (isIgnoredPage) return false;
+
+            // 10.11 moved the route out of the fragment and into the path, so on those
+            // builds the hash is empty on every page — and the `hash === ''` clause below
+            // was therefore answering "yes, this is home" for all of them. Whenever the
+            // path carries a route, it is the authority and the hash has nothing to say.
+            const webRoute = path.match(/^.*\/web\/(.*)$/);
+            if (webRoute) {
+                const route = webRoute[1].replace(/\/+$/, '');
+                if (route !== '' && route !== 'index.html') {
+                    return route === 'home' || route === 'home.html';
+                }
+            }
+
+            return (
+                hash === '' ||
+                hash === '#/' ||
+                hash.includes('home') ||
+                path.endsWith('/home') ||
+                path.endsWith('/home.html') ||
+                // If there is no hash and we are at /web/index.html or root
+                (!hash && (path.endsWith('index.html') || path === '/' || path === '/web/'))
+            );
+        },
+
+        /// The home screen's URL in whichever routing style this build of jellyfin-web
+        /// uses, or null when neither shape is recognisable.
+        ///
+        /// Two styles are in the wild: 10.10 and earlier keep the route in the fragment
+        /// ('/web/index.html#/home.html'), 10.11 moved it into the path ('/web/home').
+        /// Guessing wrong here means a 404 rather than a stale page, so an unrecognised
+        /// shape returns null and the caller stays put instead.
+        homeUrl: function () {
+            const loc = window.location;
+            const hash = loc.hash || '';
+
+            // Hash-routed: the document does not change, only the fragment. Whichever
+            // prefix this build uses is reused rather than guessed at.
+            if (hash.startsWith('#!/')) return loc.pathname + loc.search + '#!/home.html';
+            if (hash.startsWith('#/')) return loc.pathname + loc.search + '#/home.html';
+
+            // Path-routed: '/web/mypreferencesmenu' -> '/web/home'. Matched from '/web/'
+            // so a server hosted on a base path keeps it.
+            const m = loc.pathname.match(/^(.*\/web\/)/);
+            if (m) return m[1] + 'home';
+
+            return null;
+        },
+
+        /// Reloads onto the home screen. For every caller here the signed-in identity has
+        /// just changed, so the app must re-initialise under the new token — and the page
+        /// that was on screen belonged to the previous profile.
+        ///
+        /// Issue #22: this used to be a bare reload, which preserves the route. Switching
+        /// from the user menu therefore reloaded /web/mypreferencesmenu as the new
+        /// profile, leaving the user to find their own way home. The gate never showed it
+        /// because the gate only ever runs from home, where the two are the same thing.
+        reloadAtHome: function () {
+            // Already home: reload exactly as before. This is the path the gate uses and
+            // the one with hardware testing behind it, so it is left untouched. It also
+            // keeps homeUrl() away from the one case it could get wrong — a hash-routed
+            // build sitting at '/web/' with no fragment, where the path branch would
+            // wrongly produce '/web/home'.
+            if (this.isHomeRoute()) {
+                window.location.reload();
+                return;
+            }
+
+            const target = this.homeUrl();
+            if (target === null) {
+                window.location.reload();
+                return;
+            }
+
+            // replace() rather than assignment so Back does not return to the previous
+            // profile's page.
+            window.location.replace(target);
+
+            // A fragment-only change does not reload the document, and a full
+            // re-initialisation is the entire point of the call. Same pairing
+            // handleSessionExpired uses.
+            if (target.indexOf('#') !== -1) {
+                window.location.reload();
+            }
+        },
+
         checkRoute: function () {
             // Emergency disable: do nothing at all. This runs on a 500 ms timer, so without
             // this guard it would rebuild the gate immediately after the teardown.
@@ -720,28 +841,8 @@
 
             const hash = window.location.hash || '';
             const path = window.location.pathname || '';
-            
-            // Check if we are on the home screen
-            // The home screen route can be: empty, '#/', '#/home', '#/home.html', or similar.
-            // But we must NOT trigger it if we are on pages like configuration, plugins, selectserver, login, etc.
-            const isIgnoredPage = hash.includes('configuration') || 
-                                 hash.includes('plugin') || 
-                                 hash.includes('login') || 
-                                 hash.includes('selectserver') ||
-                                 path.includes('configuration') ||
-                                 path.includes('plugin') ||
-                                 path.includes('login') ||
-                                 path.includes('selectserver');
 
-            const isHome = !isIgnoredPage && (
-                hash === '' || 
-                hash === '#/' || 
-                hash.includes('home') || 
-                path.endsWith('/home') || 
-                path.endsWith('/home.html') ||
-                // If there is no hash and we are at /web/index.html or root
-                (!hash && (path.endsWith('index.html') || path === '/' || path === '/web/'))
-            );
+            const isHome = this.isHomeRoute();
 
             // skipReveal: set to true when we know the gate overlay is about to be shown.
             // In that case showProfileOverlay() will call _revealPage() once the overlay
@@ -1453,7 +1554,8 @@
                                     name: profile.profileName,
                                     color: profile.avatarColor || '#00A4DC',
                                     initial: profile.avatarInitial || (profile.profileName ? profile.profileName.charAt(0).toUpperCase() : 'P'),
-                                    profileImage: profile.profileImage || null
+                                    profileImage: profile.profileImage || null,
+                                    transparent: !!profile.transparentAvatar
                                 };
                                 // Store it in sessionStorage for future fast access
                                 this._sessionSet('jellyfin_profiles_active_info', JSON.stringify(info));
@@ -1553,7 +1655,10 @@
                     document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
                     this._reloading = true;
                     localStorage.setItem(this.config.switchingKey, '1');
-                    window.location.reload();
+                    // Same reasoning as the switch itself (issue #22): the signed-in
+                    // identity just changed back to the master, so the page on screen
+                    // belonged to a profile that is no longer active.
+                    this.reloadAtHome();
                 }
             }
         },
@@ -2527,7 +2632,13 @@
                             </svg>
                         </div>
                         ` : ''}
-                        <div class="profile-avatar" style="background-color: ${safeColor(p.avatarColor)}; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative;">
+                        <div class="profile-avatar${
+                            p.profileImage && p.transparentAvatar ? ' is-transparent' : ''
+                        }" style="background-color: ${
+                            p.profileImage && p.transparentAvatar ? 'transparent' : safeColor(p.avatarColor)
+                        }; overflow: ${
+                            p.profileImage && p.transparentAvatar ? 'visible' : 'hidden'
+                        }; display: flex; align-items: center; justify-content: center; position: relative;">
                             ${avatarInner(p.profileImage, p.avatarInitial, /* useThumb */ true)}
                             ${this.isManageMode ? `
                             <div class="profile-avatar-overlay-wrap">
@@ -2555,7 +2666,7 @@
                     <div class="profile-name">
                         <span>${escapeHtml(p.profileName)}</span>
                         ${signedInId && this.normalizeGuid(p.profileUserId) === signedInId
-                            ? '<span class="profile-current-badge">Watching now</span>' : ''}
+                            ? '<span class="profile-current-badge">Signed in</span>' : ''}
                         ${this.isManageMode ? `
                             <span class="profile-pin-badge ${p.requiresPin ? 'locked' : 'unlocked'}">
                                 ${p.requiresPin ? 'PIN Protected' : 'No PIN'}
@@ -3121,7 +3232,8 @@
                         name: profile.profileName,
                         color: profile.avatarColor,
                         initial: profile.avatarInitial,
-                        profileImage: profile.profileImage || null
+                        profileImage: profile.profileImage || null,
+                        transparent: !!profile.transparentAvatar
                     }));
                 }
 
@@ -3144,7 +3256,7 @@
                 }
                 this._reloading = true;
                 localStorage.setItem(this.config.switchingKey, '1');
-                window.location.reload();
+                this.reloadAtHome();
             })
             .catch(err => {
                 this._switchLock = false;
@@ -3262,34 +3374,88 @@
             };
         },
 
-        /// Renders the cropped square at `outSize` and returns it as a data URL.
-        /// PNG is used when the source has transparency — re-encoding a cut-out avatar as
-        /// JPEG would fill the transparent area with black.
-        renderCrop: function (img, viewport, crop, outSize, preferPng) {
+        /// Renders the cropped square at `outSize` onto a canvas.
+        _cropCanvas: function (img, viewport, crop, outSize) {
             const canvas = document.createElement('canvas');
             canvas.width = outSize;
             canvas.height = outSize;
             const ctx = canvas.getContext('2d');
             const k = outSize / viewport;
             ctx.drawImage(img, crop.x * k, crop.y * k, img.width * crop.zoom * k, img.height * crop.zoom * k);
+            return canvas;
+        },
+
+        /// Renders the cropped square at `outSize` and returns it as a data URL.
+        /// PNG is used when the source has transparency — re-encoding a cut-out avatar as
+        /// JPEG would fill the transparent area with black.
+        renderCrop: function (img, viewport, crop, outSize, preferPng) {
+            const canvas = this._cropCanvas(img, viewport, crop, outSize);
             return preferPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.85);
         },
 
-        /// True when any pixel is not fully opaque. Sampled at low resolution — this only
-        /// decides an output format, so an exact answer is not worth the work.
-        _hasTransparency: function (img) {
+        /// Reads an image's alpha channel at low resolution and answers the two separate
+        /// questions the picker has about it. One decode, two answers.
+        ///
+        ///   hasAlpha — is any pixel less than fully opaque? Decides PNG over JPEG, where
+        ///              a single soft pixel is enough to matter, because re-encoding a
+        ///              cut-out as JPEG fills the transparent area with black.
+        ///
+        ///   cutout   — is this shaped art rather than a rectangular photo? Decides
+        ///              whether to paint the avatar colour behind it (issue #23). This is
+        ///              a much stricter question and deliberately not the same test: an
+        ///              antialiased edge or a soft border makes hasAlpha true, and must
+        ///              not be allowed to switch somebody's background off.
+        ///
+        /// cutout reads the corners, because `object-fit: cover` means the corners are the
+        /// only place the colour is ever visible. A circular avatar has four transparent
+        /// corners; a photograph has none.
+        _alphaProfile: function (source) {
+            const out = { hasAlpha: false, cutout: false };
             try {
                 const s = 32;
                 const canvas = document.createElement('canvas');
                 canvas.width = s; canvas.height = s;
                 const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, s, s);
+                ctx.drawImage(source, 0, 0, s, s);
                 const data = ctx.getImageData(0, 0, s, s).data;
+
                 for (let i = 3; i < data.length; i += 4) {
-                    if (data[i] < 250) return true;
+                    if (data[i] < 250) { out.hasAlpha = true; break; }
                 }
-            } catch (e) { /* tainted canvas or no context — assume opaque */ }
-            return false;
+
+                // Nothing is transparent at all, so there is no shape to work around and
+                // the corner walk cannot say otherwise.
+                if (!out.hasAlpha) return out;
+
+                // A corner counts as cut away only when a whole 4x4 block of it is clear.
+                // One outermost pixel would let a single stray sample decide this.
+                const BLOCK = 4;
+                const corners = [[0, 0], [s - BLOCK, 0], [0, s - BLOCK], [s - BLOCK, s - BLOCK]];
+                let clearCorners = 0;
+
+                for (let c = 0; c < corners.length; c++) {
+                    const cx = corners[c][0];
+                    const cy = corners[c][1];
+                    let clear = true;
+                    for (let y = cy; y < cy + BLOCK && clear; y++) {
+                        for (let x = cx; x < cx + BLOCK && clear; x++) {
+                            if (data[(y * s + x) * 4 + 3] >= 16) clear = false;
+                        }
+                    }
+                    if (clear) clearCorners++;
+                }
+
+                // Three of four rather than all four: a circle with one stray opaque
+                // sample still counts, a rectangle with one rounded corner still does not.
+                out.cutout = clearCorners >= 3;
+            } catch (e) { /* tainted canvas or no context — assume an opaque photo */ }
+            return out;
+        },
+
+        /// True when any pixel is not fully opaque. Sampled at low resolution — this only
+        /// decides an output format, so an exact answer is not worth the work.
+        _hasTransparency: function (img) {
+            return this._alphaProfile(img).hasAlpha;
         },
 
         /// Opens the crop editor. Calls back with { image, thumb } data URLs, or does
@@ -3495,10 +3661,20 @@
             };
             dialog.querySelector('#profiles-crop-cancel').addEventListener('click', close);
             dialog.querySelector('#profiles-crop-save').addEventListener('click', () => {
+                const thumbCanvas = this._cropCanvas(img, VIEW, crop, this.IMAGE_THUMB_SIZE);
+
+                // Read from the cropped result, not the source. Cropping into the opaque
+                // middle of a cut-out leaves a picture with nothing transparent about it,
+                // and the background decision has to describe what will actually be shown.
+                // preferPng stays on the source, where being over-eager costs only bytes.
+                const cutout = this._alphaProfile(thumbCanvas).cutout;
+
                 const image = this.renderCrop(img, VIEW, crop, this.IMAGE_MASTER_SIZE, preferPng);
-                const thumb = this.renderCrop(img, VIEW, crop, this.IMAGE_THUMB_SIZE, preferPng);
+                const thumb = preferPng
+                    ? thumbCanvas.toDataURL('image/png')
+                    : thumbCanvas.toDataURL('image/jpeg', 0.85);
                 close();
-                onDone({ image: image, thumb: thumb });
+                onDone({ image: image, thumb: thumb, cutout: cutout });
             });
 
             setTimeout(() => view.focus(), 50);
@@ -3528,7 +3704,13 @@
         /// cannot drift — they already carried near-identical copies of the old upload UI.
         ///
         /// `prefix` namespaces the element ids ('create' or 'edit').
-        renderAvatarPicker: function (prefix, library, currentImage, currentColor) {
+        /// `transparency` opts this picker into the cut-out background choice (issue #23):
+        /// null or omitted leaves the row out entirely, which is what the library-artwork
+        /// dialog wants — it reuses this picker to choose a tile picture, where a
+        /// transparent avatar background means nothing. Otherwise { enabled: bool }.
+        renderAvatarPicker: function (prefix, library, currentImage, currentColor, transparency) {
+            const supportsTransparent = !!transparency;
+            const currentTransparent = supportsTransparent && !!transparency.enabled;
             const hasLibrary = library.avatars.length > 0;
             const preview = currentImage ? avatarInner(currentImage, '+', /* useThumb */ true) : '+';
 
@@ -3584,7 +3766,11 @@
                     <label>Profile Picture</label>
                     <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: var(--jpf-gap);">
                         <div class="image-upload-row">
-                            <div id="${prefix}-image-upload-preview" class="image-upload-preview" style="background-color: ${safeColor(currentColor)};">${preview}</div>
+                            <div id="${prefix}-image-upload-preview" class="image-upload-preview${
+                                currentImage && currentTransparent ? ' is-transparent' : ''
+                            }" style="background-color: ${
+                                currentImage && currentTransparent ? 'transparent' : safeColor(currentColor)
+                            };">${preview}</div>
                             <div class="image-upload-actions">
                                 <button type="button" id="${prefix}-change-picture" class="profiles-btn btn-secondary image-upload-btn picture-change-btn"
                                         aria-expanded="${sourcesOpen}" aria-controls="${prefix}-picture-sources">
@@ -3599,6 +3785,20 @@
                                 </button>
                             </div>
                         </div>
+                        ${supportsTransparent ? `
+                        <div id="${prefix}-transparent-row" class="picture-transparent-row"
+                             style="display: ${currentImage ? 'block' : 'none'};">
+                            <label class="library-check-label picture-transparent-toggle">
+                                <input type="checkbox" id="${prefix}-transparent-toggle"${currentTransparent ? ' checked' : ''} />
+                                <span>Transparent background</span>
+                            </label>
+                            <div class="form-hint picture-transparent-hint">
+                                For pictures that are cut out rather than rectangular. Leaves the
+                                corners clear instead of filling them with the avatar colour.
+                                Set automatically when a picture is chosen.
+                            </div>
+                        </div>
+                        ` : ''}
                         <div id="${prefix}-picture-sources" class="picture-sources${sourcesOpen ? ' is-open' : ''}">
                             ${libraryHtml}
                             ${uploadHtml}
@@ -3611,22 +3811,60 @@
 
         /// Wires the picker up. Returns an accessor for the chosen image so the caller can
         /// read it at save time without tracking the state itself.
-        initAvatarPicker: function (container, prefix, library, initialImage, onPreviewChange) {
+        /// `transparency` must match what was passed to renderAvatarPicker — see there.
+        initAvatarPicker: function (container, prefix, library, initialImage, onPreviewChange, transparency) {
+            const initialTransparent = !!transparency && !!transparency.enabled;
             // libraryId is set instead of image/thumb when the picture comes from the
             // library on a locked-down server: the server copies the file itself, which is
             // the only form of the choice it can actually verify.
-            const state = { image: initialImage || null, thumb: null, libraryId: null };
+            const state = {
+                image: initialImage || null,
+                thumb: null,
+                libraryId: null,
+                // Only meaningful while a picture is set. With no picture the colour is
+                // the entire background, so there is nothing to make transparent.
+                transparent: !!(initialImage && initialTransparent)
+            };
 
             const previewEl = container.querySelector(`#${prefix}-image-upload-preview`);
             const errEl = container.querySelector(`#${prefix}-image-error`);
             const fileInput = container.querySelector(`#${prefix}-profile-image-file`);
             const fileLabel = container.querySelector(`#${prefix}-profile-image-label`);
             const removeBtn = container.querySelector(`#${prefix}-clear-profile-image-btn`);
+            const transparentRow = container.querySelector(`#${prefix}-transparent-row`);
+            const transparentInput = container.querySelector(`#${prefix}-transparent-toggle`);
 
             const showError = (message) => {
                 if (!errEl) return;
                 errEl.textContent = message;
                 errEl.style.display = message ? 'block' : 'none';
+            };
+
+            /// The colour currently chosen on the form. Read from the DOM rather than
+            /// passed in: the two forms already keep `.active` on exactly one dot, so
+            /// this cannot drift out of step with what will be saved.
+            const currentColor = () => {
+                const active = container.querySelector('.color-dot.active');
+                return active ? safeColor(active.getAttribute('data-color')) : DEFAULT_AVATAR_COLOR;
+            };
+
+            /// Whether the colour swatches can still affect the avatar. Owned here rather
+            /// than by the two forms, because it depends on both facts this function
+            /// holds — a picture being set, and its background being switched off — and
+            /// two writers would race each other.
+            const syncColorGroup = () => {
+                this.setColorGroupInert(prefix, !!state.image, state.transparent);
+            };
+
+            /// Paints the preview to match state.transparent and keeps the checkbox in
+            /// step. Called both when detection decides and when the user overrides, so
+            /// the two can never disagree about what is stored.
+            const applyTransparency = () => {
+                if (transparentInput) transparentInput.checked = state.transparent;
+                syncColorGroup();
+                if (!previewEl) return;
+                previewEl.classList.toggle('is-transparent', state.transparent);
+                previewEl.style.backgroundColor = state.transparent ? 'transparent' : currentColor();
             };
 
             const setPreview = (src) => {
@@ -3637,9 +3875,23 @@
                 // from here so it is right on the first paint too — setPreview runs once
                 // at init.
                 if (removeBtn) removeBtn.style.display = src ? 'inline-flex' : 'none';
+                // Same for the transparency choice: it describes a picture, so it has
+                // nothing to say when there is not one.
+                if (transparentRow) transparentRow.style.display = src ? 'block' : 'none';
+                syncColorGroup();
                 if (typeof onPreviewChange === 'function') onPreviewChange(src);
             };
             setPreview(state.image);
+            applyTransparency();
+
+            if (transparentInput) {
+                // The user's answer always beats detection's. Detection only ever writes
+                // this value when a new picture arrives.
+                transparentInput.addEventListener('change', () => {
+                    state.transparent = transparentInput.checked;
+                    applyTransparency();
+                });
+            }
 
             // The ways of choosing a picture are collapsed behind one button. Every id
             // the handlers below bind to still exists — they have only moved inside the
@@ -3658,6 +3910,11 @@
                 state.thumb = result.thumb;
                 state.libraryId = null;
                 setPreview(result.image);
+                // A new picture re-answers the question, so detection wins here even if
+                // the user had overridden it for the previous one — the override was
+                // about a picture that is no longer set.
+                state.transparent = !!result.cutout;
+                applyTransparency();
                 showError('');
                 if (fileInput) fileInput.value = '';
             };
@@ -3695,6 +3952,22 @@
                         state.thumb = null;
                         state.libraryId = btn.getAttribute('data-id');
                         setPreview(state.image);
+
+                        // No crop step on this path, so there is no cropped canvas to read
+                        // and the source has to be fetched again to be sampled. Same
+                        // origin — it is our own avatar endpoint — so the canvas is not
+                        // tainted. Detection is best-effort: a failure just leaves the
+                        // colour painted, which is the old behaviour.
+                        const pickedUrl = state.image;
+                        this.loadImageFromUrl(pickedUrl)
+                            .then(img => {
+                                // The user may have picked something else while this was
+                                // in flight; a late answer must not overwrite it.
+                                if (state.image !== pickedUrl) return;
+                                state.transparent = this._alphaProfile(img).cutout;
+                                applyTransparency();
+                            })
+                            .catch(() => { /* leave the colour on */ });
                         return;
                     }
 
@@ -3716,14 +3989,23 @@
                 state.image = '';
                 state.thumb = null;
                 state.libraryId = null;
+                // With no picture the colour is the whole background. Leaving this set
+                // would save a profile whose avatar is a transparent square.
+                state.transparent = false;
                 setPreview(null);
+                applyTransparency();
                 if (fileInput) fileInput.value = '';
             };
 
             if (removeBtn) removeBtn.addEventListener('click', clearPicture);
 
             return {
-                get: () => ({ image: state.image, thumb: state.thumb, libraryId: state.libraryId }),
+                get: () => ({
+                    image: state.image,
+                    thumb: state.thumb,
+                    libraryId: state.libraryId,
+                    transparent: state.transparent
+                }),
                 clear: clearPicture,
                 setError: showError
             };
@@ -3761,7 +4043,7 @@
                         ${this.renderColorPicker('#00A4DC')}
                         <div class="form-hint" data-role="color-hint">Used as the avatar background when no picture is set.</div>
                     </div>
-                    ${this.renderAvatarPicker('create', avatarLibrary, null, '#00A4DC')}
+                    ${this.renderAvatarPicker('create', avatarLibrary, null, '#00A4DC', { enabled: false })}
                 `;
 
                 // ── Section 2: getting into this profile ────────────────────────
@@ -3909,9 +4191,10 @@
                     });
                 });
 
+                // The colour group is dimmed by the picker itself now — it depends on the
+                // transparency choice as well as on whether a picture is set.
                 const avatarPicker = this.initAvatarPicker(
-                    content, 'create', avatarLibrary, null,
-                    (src) => this.setColorGroupInert('create', !!src));
+                    content, 'create', avatarLibrary, null, null, { enabled: false });
 
                 // With no picture chosen, the preview shows the profile's initial — so it
                 // has to follow what is being typed into the name field.
@@ -4061,7 +4344,8 @@
                             allowedDeviceIds: checkedDevices,
                             profileImage: avatarPicker.get().image,
                             profileImageThumb: avatarPicker.get().thumb,
-                            avatarLibraryId: avatarPicker.get().libraryId
+                            avatarLibraryId: avatarPicker.get().libraryId,
+                            transparentAvatar: avatarPicker.get().transparent
                         })
                     })
                     .then(res => {
@@ -4132,7 +4416,7 @@
                         ${this.renderColorPicker(profile.avatarColor)}
                         <div class="form-hint" data-role="color-hint">Used as the avatar background when no picture is set.</div>
                     </div>
-                    ${this.renderAvatarPicker('edit', avatarLibrary, profile.profileImage, profile.avatarColor)}
+                    ${this.renderAvatarPicker('edit', avatarLibrary, profile.profileImage, profile.avatarColor, { enabled: !!profile.transparentAvatar })}
                 `;
 
                 // ── Section 2: getting into this profile ────────────────────────
@@ -4338,10 +4622,12 @@
                 const avatarPicker = this.initAvatarPicker(
                     content, 'edit', avatarLibrary, profile.profileImage,
                     (src) => {
-                        this.setColorGroupInert('edit', !!src);
+                        // Colour dimming is the picker's own business now; this callback
+                        // is only here to put the initial back when the picture goes.
                         const preview = document.getElementById('edit-image-upload-preview');
                         if (preview && !src) preview.innerHTML = escapeHtml(profile.avatarInitial);
-                    });
+                    },
+                    { enabled: !!profile.transparentAvatar });
 
                 // Support D-pad Enter/Space select on color dots
                 content.addEventListener('keydown', (e) => {
@@ -4580,7 +4866,8 @@
                             allowedDeviceIds: checkedDevices,
                             profileImage: avatarPicker.get().image,
                             profileImageThumb: avatarPicker.get().thumb,
-                            avatarLibraryId: avatarPicker.get().libraryId
+                            avatarLibraryId: avatarPicker.get().libraryId,
+                            transparentAvatar: avatarPicker.get().transparent
                         })
                     })
                     .then(res => {
@@ -5305,7 +5592,9 @@
             link.style.cursor = 'pointer';
 
             link.innerHTML = `
-                <div class="sidebar-profile-avatar" style="width: 24px; height: 24px; border-radius: 50%; background-color: ${color}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; flex-shrink: 0; overflow: hidden; position: relative;">
+                <div class="sidebar-profile-avatar" style="width: 24px; height: 24px; border-radius: 50%; background-color: ${
+                    activeInfo.profileImage && activeInfo.transparent ? 'transparent' : safeColor(color)
+                }; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; flex-shrink: 0; overflow: hidden; position: relative;">
                     ${avatarInner(activeInfo.profileImage, initial, /* useThumb */ true)}
                 </div>
                 <span class="sidebarLinkText">${name} (Switch)</span>
@@ -5703,7 +5992,8 @@
                                 name: currentProfile.profileName,
                                 color: currentProfile.avatarColor || '#00A4DC',
                                 initial: currentProfile.avatarInitial || (currentProfile.profileName ? currentProfile.profileName.charAt(0).toUpperCase() : 'P'),
-                                profileImage: currentProfile.profileImage || null
+                                profileImage: currentProfile.profileImage || null,
+                                transparent: !!currentProfile.transparentAvatar
                             };
                             this._sessionSet('jellyfin_profiles_active_info', JSON.stringify(info));
                         }
@@ -5791,7 +6081,9 @@
 
             const activeInfo = this.getCachedActiveProfile();
             b.innerHTML = `
-                <div class="profiles-header-avatar" style="background-color: ${safeColor(activeInfo.color)}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
+                <div class="profiles-header-avatar" style="background-color: ${
+                    activeInfo.profileImage && activeInfo.transparent ? 'transparent' : safeColor(activeInfo.color)
+                }; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
                     ${avatarInner(activeInfo.profileImage, activeInfo.initial, /* useThumb */ true)}
                 </div>
             `;
@@ -5815,7 +6107,9 @@
 
             const activeInfo = this.getCachedActiveProfile();
             b.innerHTML = `
-                <div class="profiles-header-avatar" style="background-color: ${safeColor(activeInfo.color)}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
+                <div class="profiles-header-avatar" style="background-color: ${
+                    activeInfo.profileImage && activeInfo.transparent ? 'transparent' : safeColor(activeInfo.color)
+                }; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
                     ${avatarInner(activeInfo.profileImage, activeInfo.initial, /* useThumb */ true)}
                 </div>
             `;
@@ -6086,6 +6380,18 @@
                 /* Collapsed by default on a profile that already has a picture. When it
                    opens it needs to read as one panel belonging to the button above it —
                    loose controls stacked in the form was the part that looked unfinished. */
+                /* Shown only while a picture is set — with no picture the colour is the
+                   whole background and there is nothing to make transparent. The inline
+                   display comes from renderAvatarPicker and is driven by setPreview. */
+                .picture-transparent-row {
+                    min-width: 0;
+                }
+                .picture-transparent-toggle {
+                    font-size: 0.88rem !important;
+                }
+                .picture-transparent-hint {
+                    margin-top: 4px;
+                }
                 .picture-sources {
                     display: none;
                     flex-direction: column;
@@ -6354,6 +6660,61 @@
                    paints the border, an accent ring means exactly one thing. */
                 .profile-card.is-current .profile-avatar {
                     border-color: var(--jpf-accent);
+                }
+
+                /* ── Cut-out pictures (issue #23) ────────────────────────────────
+                   A circular avatar over a coloured rounded square shows the colour
+                   in the four corners. With this on there is no colour, no clip and
+                   nothing square drawn around the picture — the picture's own alpha
+                   is the shape, so the shadow and the ring have to follow it.
+
+                   That rules out box-shadow and border, which always draw the box.
+                   drop-shadow() respects the alpha channel, so it is what both are
+                   built from below. The border is kept at transparent rather than
+                   removed, so turning this on does not shift the layout by 3px. */
+                .profile-avatar.is-transparent {
+                    background-color: transparent;
+                    border-color: transparent;
+                    box-shadow: none;
+                    overflow: visible;
+                }
+                .profile-avatar.is-transparent img {
+                    filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
+                }
+                /* Four offsets approximate a stroke around an arbitrary silhouette;
+                   CSS has no way to stroke an alpha channel directly. All static —
+                   they composite once on hover rather than every frame. */
+                .profile-card.is-current .profile-avatar.is-transparent img {
+                    filter:
+                        drop-shadow(2px 0 0 var(--jpf-accent))
+                        drop-shadow(-2px 0 0 var(--jpf-accent))
+                        drop-shadow(0 2px 0 var(--jpf-accent))
+                        drop-shadow(0 -2px 0 var(--jpf-accent))
+                        drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
+                }
+                /* These four must outrank the hover/focus block further down, which
+                   sets box-shadow and border-color on .profile-avatar. Listing the
+                   same three states keeps the specificity above it. */
+                .profile-card:hover .profile-avatar.is-transparent,
+                .profile-card:focus .profile-avatar.is-transparent,
+                .profile-card:focus-within .profile-avatar.is-transparent {
+                    box-shadow: none;
+                    border-color: transparent;
+                }
+                .profile-card:hover .profile-avatar.is-transparent img,
+                .profile-card:focus .profile-avatar.is-transparent img,
+                .profile-card:focus-within .profile-avatar.is-transparent img {
+                    filter:
+                        drop-shadow(2px 0 0 rgba(255, 255, 255, 0.85))
+                        drop-shadow(-2px 0 0 rgba(255, 255, 255, 0.85))
+                        drop-shadow(0 2px 0 rgba(255, 255, 255, 0.85))
+                        drop-shadow(0 -2px 0 rgba(255, 255, 255, 0.85))
+                        drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
+                }
+                /* The small circular renderings clip to a circle already, so they
+                   only need the colour taken off. */
+                .image-upload-preview.is-transparent {
+                    background-color: transparent;
                 }
                 .profile-current-badge {
                     display: block;
