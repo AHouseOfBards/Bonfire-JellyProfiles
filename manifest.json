@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Nothing changes for you in this build.** It exists so the next ones break less often.\n\n**Internal**\n\n- Bonfire's test suite now lives in the repository and runs on every change. It was kept outside it, which is how 1.5.2 and 1.5.3 shipped a client script that did not start.\n- Every change is now built and tested automatically before it can be merged. Previously only finished releases were.\n- A new check refuses any reference to a part of the Jellyfin page that does not exist. Writing it found ten such references already in the code — the reason the Switch Profile button has never appeared in some places.\n- Contributing and translation guides, and an issue form that asks for the two details most reports are missing.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.5.5/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "596ad761410c89c154623d9f897d0f74",
         "timestamp": "2026-08-27T00:00:00Z"
       },
       {
