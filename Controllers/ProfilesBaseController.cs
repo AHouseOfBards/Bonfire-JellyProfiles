@@ -47,6 +47,28 @@ namespace Jellyfin.Profiles.Controllers
         internal static string? AuditLogPath;
         internal static readonly object AuditLogLock = new();
 
+        /// <summary>
+        /// The one lock guarding every read-modify-write of the plugin configuration.
+        /// <para>
+        /// Twenty-six sites used to do <c>var config = Plugin.Instance?.Configuration;</c>
+        /// and then locked that instance. That is not mutual exclusion. When an administrator
+        /// saves the settings page Jellyfin calls <c>BasePlugin&lt;T&gt;.UpdateConfiguration</c>,
+        /// which assigns a <em>new</em> configuration instance — so every monitor already held
+        /// on the old object is guarding something nothing else will ever lock, while every
+        /// request arriving afterwards locks the new one. Two writers get inside at once, and
+        /// whatever the first one wrote goes away with the object it wrote to. The symptom is
+        /// a profile, device or group that was saved and simply is not there.
+        /// </para>
+        /// <para>
+        /// A static field, because controllers are transient: an instance field would hand
+        /// every request its own private lock, which is the same bug wearing a different hat.
+        /// Proven, and guarded against coming back, by <c>tests/cs/configlock</c> — it calls
+        /// the real <c>UpdateConfiguration</c> to show the instance is replaced, then walks two
+        /// threads through the old pattern and catches both inside the critical section.
+        /// </para>
+        /// </summary>
+        internal static readonly object ConfigLock = new();
+
         // ── DI fields (set by derived constructors) ─────────────────────────────────
         protected readonly IUserManager _userManager;
         protected readonly ISessionManager _sessionManager;
@@ -196,7 +218,7 @@ namespace Jellyfin.Profiles.Controllers
 
             if (IsLegacyPinHash(mapping.PinHash))
             {
-                lock (config)
+                lock (ConfigLock)
                 {
                     // Re-check inside the lock — a concurrent request may have upgraded it.
                     if (IsLegacyPinHash(mapping.PinHash))
@@ -535,7 +557,7 @@ namespace Jellyfin.Profiles.Controllers
                 ownerId = callerMapping != null ? callerMapping.MasterUserId : callerId.Value;
             }
 
-            lock (config)
+            lock (ConfigLock)
             {
                 var existing = config.KnownDevices.FirstOrDefault(d =>
                     string.Equals(d.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
@@ -620,7 +642,7 @@ namespace Jellyfin.Profiles.Controllers
         protected HashSet<Guid> GetLinkedMasterUserIds(Guid masterUserId, PluginConfiguration config)
         {
             var linked = new HashSet<Guid> { masterUserId };
-            lock (config)
+            lock (ConfigLock)
             {
                 foreach (var g in config.BonfireGroups.Where(g => g.OwnerUserId == masterUserId))
                     foreach (var id in g.MemberUserIds) linked.Add(id);
@@ -635,7 +657,7 @@ namespace Jellyfin.Profiles.Controllers
 
         protected int GetMaxProfilesForUser(Guid userId, PluginConfiguration config)
         {
-            lock (config)
+            lock (ConfigLock)
             {
                 var ov = config.UserProfileLimitOverrides?.FirstOrDefault(o => o.UserId == userId);
                 return ov?.MaxProfiles ?? config.MaxProfilesPerUser;

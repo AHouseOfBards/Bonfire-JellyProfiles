@@ -13,7 +13,7 @@ manifests and offered users a blind choice between a working entry and a broken 
 ## Before anything
 
 ```
-tests/run.sh          # 18 harnesses, ~820 assertions. Not optional.
+tests/run.sh          # 19 harnesses, ~900 assertions. Not optional.
 ```
 
 `node --check Web/profiles.js` is **necessary and not sufficient** — it passed against the

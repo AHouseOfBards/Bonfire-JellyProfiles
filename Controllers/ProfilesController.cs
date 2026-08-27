@@ -375,7 +375,7 @@ namespace Jellyfin.Profiles.Controllers
             await _userManager.UpdateConfigurationAsync(targetUser.Id, targetConfig).ConfigureAwait(false);
 
             // Add new mapping entry
-            lock (config)
+            lock (ConfigLock)
             {
                 config.Mappings.Add(new ProfileMapping
                 {
@@ -539,7 +539,7 @@ namespace Jellyfin.Profiles.Controllers
                 // Clean up static profile image if any
                 SaveProfileImage(request.ProfileId, null);
 
-                lock (config)
+                lock (ConfigLock)
                 {
                     var mappingToRemove = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
                     if (mappingToRemove != null)
@@ -776,7 +776,7 @@ namespace Jellyfin.Profiles.Controllers
                     // Persist the migration so we never need this fallback again
                     if (mapping != null)
                     {
-                        lock (config)
+                        lock (ConfigLock)
                         {
                             mapping.EnabledFolders = authorityFolders;
                             Plugin.Instance?.SaveConfiguration();
@@ -1182,7 +1182,7 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
-            lock (config)
+            lock (ConfigLock)
             {
                 var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
                 if (mapping == null) return NotFound("Profile mapping not found.");
@@ -1352,7 +1352,7 @@ namespace Jellyfin.Profiles.Controllers
                 await _userManager.UpdatePolicyAsync(targetUser.Id, targetPolicy).ConfigureAwait(false);
             }
 
-            lock (config)
+            lock (ConfigLock)
             {
                 // Fetch or create mapping for this profile inside the lock
                 var mappingEntry = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
@@ -1705,7 +1705,7 @@ namespace Jellyfin.Profiles.Controllers
             string bonfireCode;
             List<object> members;
 
-            lock (config)
+            lock (ConfigLock)
             {
                 var group = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterUserId);
                 if (group == null)
@@ -1769,7 +1769,7 @@ namespace Jellyfin.Profiles.Controllers
             Guid ownerUserId;
             bool newlyJoined = false;
 
-            lock (config)
+            lock (ConfigLock)
             {
                 var group = config.BonfireGroups.FirstOrDefault(g =>
                     string.Equals(g.BonfireCode, code, StringComparison.OrdinalIgnoreCase));
@@ -1822,7 +1822,7 @@ namespace Jellyfin.Profiles.Controllers
             if (callerMapping != null && callerMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can manage Bonfire groups.");
 
-            lock (config)
+            lock (ConfigLock)
             {
                 var group = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterId);
                 if (group == null) return BadRequest("You do not own a Bonfire group.");
@@ -1851,7 +1851,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
 
-            lock (config)
+            lock (ConfigLock)
             {
                 var joinedGroup = config.BonfireGroups.FirstOrDefault(g => g.MemberUserIds.Contains(masterId));
                 if (joinedGroup != null)
@@ -1878,7 +1878,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
 
-            lock (config)
+            lock (ConfigLock)
             {
                 var group = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterId);
                 if (group != null)
@@ -1909,7 +1909,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
                 return Unauthorized("Only the master profile can update Bonfire settings.");
 
-            lock (config)
+            lock (ConfigLock)
             {
                 var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
                 if (masterMapping == null)
@@ -2010,7 +2010,7 @@ namespace Jellyfin.Profiles.Controllers
 
             bool askOnStartup;
             string location;
-            lock (config)
+            lock (ConfigLock)
             {
                 var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
                 if (masterMapping == null)
@@ -2299,7 +2299,7 @@ namespace Jellyfin.Profiles.Controllers
                 DeleteImageFiles(LibraryArtFolder, baseName);
             }
 
-            lock (config)
+            lock (ConfigLock)
             {
                 var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
                 if (mapping == null)
@@ -2478,7 +2478,7 @@ namespace Jellyfin.Profiles.Controllers
                 .Where(id => !string.IsNullOrEmpty(id))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            lock (config)
+            lock (ConfigLock)
             {
                 var claimed = false;
                 foreach (var d in config.KnownDevices)
@@ -2494,7 +2494,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             List<KnownDevice> devices;
-            lock (config)
+            lock (ConfigLock)
             {
                 devices = ScopeDevicesToHousehold(config.KnownDevices, masterUserId, whitelistedDeviceIds);
             }
@@ -2522,7 +2522,7 @@ namespace Jellyfin.Profiles.Controllers
             if (string.IsNullOrEmpty(request.DeviceId))
                 return BadRequest("DeviceId is required.");
 
-            lock (config)
+            lock (ConfigLock)
             {
                 var toRemove = config.KnownDevices
                     .Where(d => string.Equals(d.DeviceId, request.DeviceId, StringComparison.OrdinalIgnoreCase))
@@ -2710,7 +2710,7 @@ namespace Jellyfin.Profiles.Controllers
             // Empty clears it, which is how the feature is turned back off.
             if (string.IsNullOrWhiteSpace(request.Code))
             {
-                lock (config)
+                lock (ConfigLock)
                 {
                     config.PanicCodeHash = null;
                     Plugin.Instance?.SaveConfiguration();
@@ -2729,7 +2729,7 @@ namespace Jellyfin.Profiles.Controllers
             if (code.Length > 128)
                 return BadRequest("The code is too long.");
 
-            lock (config)
+            lock (ConfigLock)
             {
                 config.PanicCodeHash = HashPin(code);
                 Plugin.Instance?.SaveConfiguration();
@@ -2854,7 +2854,7 @@ namespace Jellyfin.Profiles.Controllers
                 UploadedUtc = DateTime.UtcNow
             };
 
-            lock (config)
+            lock (ConfigLock)
             {
                 config.AvatarLibrary.Add(item);
                 Plugin.Instance?.SaveConfiguration();
@@ -2883,7 +2883,7 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
-            lock (config)
+            lock (ConfigLock)
             {
                 var item = config.AvatarLibrary.FirstOrDefault(a =>
                     string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
@@ -2923,7 +2923,7 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
-            lock (config)
+            lock (ConfigLock)
             {
                 if (request.DisallowCustomAvatarUploads.HasValue)
                     config.DisallowCustomAvatarUploads = request.DisallowCustomAvatarUploads.Value;
@@ -2952,7 +2952,7 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
-            lock (config)
+            lock (ConfigLock)
             {
                 if (request.MaxProfiles.HasValue)
                 {

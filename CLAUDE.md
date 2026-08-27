@@ -10,8 +10,8 @@ listed together so it is obvious which ones are still only a promise.
 tests/run.sh          # or tests\run.ps1 on Windows
 ```
 
-Builds the plugin (Release, `-warnaserror`) and runs all 18 harnesses — 14 JavaScript
-and 4 C#, about 820 assertions. CI runs the same command, so the desk and the pipeline
+Builds the plugin (Release, `-warnaserror`) and runs all 19 harnesses — 14 JavaScript
+and 5 C#, about 900 assertions. CI runs the same command, so the desk and the pipeline
 cannot disagree about what "the tests pass" means.
 
 `node --check Web/profiles.js` is **necessary and not sufficient.** It passed against the
@@ -138,7 +138,13 @@ Every route either calls `GetCurrentUserId()` and returns 401, or checks
 `Policy.IsAdministrator`. Seven routes are deliberately anonymous and are listed in
 `docs/developer-api.md`.
 
-**`lock (config)` does not do what it looks like.** `Plugin.Configuration` is replaced by
-Jellyfin whenever an administrator saves the plugin's settings, so a monitor taken on it
-before that save is on an orphaned object. Proven by execution. Task P2-1 replaces all 25
-sites with a single static lock — until then, do not add a twenty-sixth.
+**Never lock the configuration object.** `Plugin.Configuration` is replaced by Jellyfin
+whenever an administrator saves the plugin's settings, so a monitor taken on it before
+that save is on an orphaned object and two writers get inside at once. All 26 sites now
+take `ProfilesBaseController.ConfigLock`, a single static lock, and every
+`SaveConfiguration()` sits inside the block that made the change it is saving.
+
+*Check:* `tests/cs/configlock` calls the real `UpdateConfiguration` to show the instance is
+replaced, walks two threads through the old pattern deterministically and catches both
+inside the critical section, then names every `lock (...)` in the plugin one at a time and
+fails any taken on something other than a known static object.
