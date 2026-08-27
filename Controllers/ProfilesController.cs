@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -1493,7 +1494,7 @@ namespace Jellyfin.Profiles.Controllers
                         using var stream = assembly.GetManifestResourceStream("Jellyfin.Profiles.Web.profiles.js");
                         if (stream == null) return NotFound();
                         using var reader = new StreamReader(stream);
-                        CachedProfilesJs = reader.ReadToEnd();
+                        CachedProfilesJs = PublishLocales(reader.ReadToEnd());
                     }
                 }
             }
@@ -1516,6 +1517,131 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             return Content(CachedProfilesJs, "application/javascript");
+        }
+
+        /// <summary>
+        /// Fills in the client's list of available translations as the script is served.
+        /// <para>
+        /// profiles.js ships with an empty list and a marker comment. Rewriting it here
+        /// means the browser knows which languages exist without a request that every
+        /// English reader would also pay for, and — the point of it — without a
+        /// contributor having to edit JavaScript to register a file they just added.
+        /// </para>
+        /// <para>
+        /// A plain string replace on an exact literal, not a regex over the whole file:
+        /// this runs on the script every client loads, and the failure mode of a clever
+        /// pattern here is a corrupted script rather than a missing translation. If the
+        /// marker is ever edited away the replace simply does nothing, the list stays
+        /// empty, and every client keeps rendering English.
+        /// </para>
+        /// </summary>
+        internal static string PublishLocales(string js)
+        {
+            const string marker = "let SUPPORTED_LOCALES = []; // __BONFIRE_LOCALES__";
+
+            var codes = EmbeddedLocales.Value.OrderBy(c => c, StringComparer.Ordinal);
+            var list = string.Join(", ", codes.Select(c => "'" + c + "'"));
+
+            return js.Replace(
+                marker,
+                "let SUPPORTED_LOCALES = [" + list + "]; // __BONFIRE_LOCALES__",
+                StringComparison.Ordinal);
+        }
+
+        // ── Translations ────────────────────────────────────────────────────────────
+        // English ships inline in profiles.js — it is the fallback every client already
+        // has, so it is never requested here. This endpoint only ever serves the other
+        // languages, each embedded as its own Web/i18n/{locale}.json resource, fetched
+        // by the browser once it has decided (from navigator.languages) that it wants
+        // one.
+        //
+        // Adding a language is one JSON file in Web/i18n and nothing else: the .csproj
+        // embeds that folder by wildcard, the set below is read back out of the assembly
+        // rather than written by hand, and GetProfilesJs tells the client what it found.
+        // See docs/developer-api.md, "Adding a translation".
+
+        /// <summary>
+        /// Locale codes with a translation file embedded in the assembly, discovered from
+        /// the resource names rather than maintained as a list.
+        /// <para>
+        /// A hand-kept list is a second place to edit and therefore a place to forget: a
+        /// contributor who added the file and not the entry got a file that was shipped,
+        /// served, and never requested — working code that does nothing, with no error to
+        /// point at it.
+        /// </para>
+        /// </summary>
+        internal static IReadOnlyCollection<string> SupportedI18nLocales => EmbeddedLocales.Value;
+
+        private const string I18nResourcePrefix = "Jellyfin.Profiles.Web.i18n.";
+
+        /// <summary>A BCP-47-ish tag: "fr", "pt-BR", "zh-Hans". Deliberately narrow.</summary>
+        private static readonly System.Text.RegularExpressions.Regex LocaleCodeRegex =
+            new("^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$",
+                System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        private static readonly Lazy<HashSet<string>> EmbeddedLocales = new(() =>
+        {
+            var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // typeof(ProfilesController), not typeof(Plugin): same assembly, but naming
+            // Plugin forces its base type out of MediaBrowser.Common to load, which makes
+            // this unreachable from a test harness that has only the plugin DLL.
+            foreach (var name in typeof(ProfilesController).Assembly.GetManifestResourceNames())
+            {
+                if (!name.StartsWith(I18nResourcePrefix, StringComparison.Ordinal)) continue;
+                if (!name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) continue;
+
+                var code = name.Substring(
+                    I18nResourcePrefix.Length,
+                    name.Length - I18nResourcePrefix.Length - ".json".Length);
+
+                // The name comes from the build, not from a request, but a malformed one
+                // would still be published to every client as a locale to go and fetch.
+                if (LocaleCodeRegex.IsMatch(code)) found.Add(code);
+            }
+            return found;
+        });
+
+
+        private static readonly ConcurrentDictionary<string, string?> CachedI18nJson = new();
+
+        [HttpGet("i18n/{locale}")]
+        [Produces("application/json")]
+        public ActionResult GetI18n(string locale)
+        {
+            // profiles.js requests "fr.json"; strip the extension so the lookup key
+            // matches SupportedI18nLocales and the embedded resource name either way.
+            var code = locale.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+                ? locale[..^5]
+                : locale;
+
+            // Checked before the cache is touched, so an unknown code cannot grow the
+            // dictionary — the key would otherwise be whatever the caller sent.
+            if (!EmbeddedLocales.Value.Contains(code)) return NotFound();
+
+            // Loaded once per app lifetime, the same reasoning as CachedProfilesJs above.
+            var json = CachedI18nJson.GetOrAdd(code, key =>
+            {
+                var assembly = typeof(Plugin).Assembly;
+                using var stream = assembly.GetManifestResourceStream($"Jellyfin.Profiles.Web.i18n.{key}.json");
+                if (stream == null) return null;
+                using var reader = new StreamReader(stream);
+                return reader.ReadToEnd();
+            });
+
+            if (json == null) return NotFound();
+
+            // Same cache contract as profiles.js: the plugin version is the cache-buster,
+            // so a stale copy still picks up an updated translation within max-age.
+            var etag = "\"" + GetPluginVersion() + "-" + code + "\"";
+            Response.Headers["ETag"] = etag;
+            Response.Headers["Cache-Control"] = "public, max-age=300, must-revalidate";
+
+            if (string.Equals(Request.Headers["If-None-Match"].ToString(), etag, StringComparison.Ordinal))
+            {
+                return StatusCode(StatusCodes.Status304NotModified);
+            }
+
+            return Content(json, "application/json");
         }
 
         // ── Bonfire Codes ──────────────────────────────────────────────────────────

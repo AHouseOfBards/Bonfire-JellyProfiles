@@ -11,11 +11,39 @@ unless stated otherwise. Field names are returned camelCase.
 
 ## Authentication
 
-All API requests require a Jellyfin authorization header. Initial requests and profile management endpoints must be authenticated with the master user's token. After a profile switch, the returned active profile token must be used for subsequent API requests.
+Almost every request requires a Jellyfin authorization header. Profile management
+endpoints must be authenticated with the master user's token; after a profile switch, the
+returned active profile token is used for subsequent requests.
 
 ```http
 Authorization: MediaBrowser Client="<ClientName>", Device="<DeviceName>", DeviceId="<DeviceId>", Version="<Version>", Token="<token>"
 ```
+
+### The endpoints that do not
+
+Seven routes are reachable without a token, each because it has to work *before* anyone
+has signed in. They are listed here so an integrator does not mistake one for a hole, and
+so anyone adding a route knows this list is meant to stay this short.
+
+| Endpoint | Why it is anonymous |
+|---|---|
+| `GET /profiles.js` | Loaded by a `<script>` tag on the sign-in page itself. |
+| `GET /i18n/{locale}` | Fetched by that script, before sign-in, for the same reason. |
+| `GET /image/{profileId}` | Avatars are drawn on the profile gate, which is pre-auth. |
+| `GET /avatars/{id}` | The avatar library, same. |
+| `GET /library-art/{profileId}/{libraryId}` | Library tile artwork, same. |
+| `POST /panic` | The emergency disable. It has to work when the plugin is what is blocking the interface. Rate limited, and a wrong code and a missing one return the same error. |
+| `GET /panic-state` | Reports only whether the plugin is disabled — already visible on screen. |
+
+The image endpoints allow enumeration by GUID. That is accepted: they must be pre-auth for
+the gate to render, and a GUID is not guessable.
+
+The controller carries a class-level `[AllowAnonymous]` because the script and image
+endpoints must be reachable pre-auth and Jellyfin's authorization policy name is not part
+of the public plugin API. **Authorization is therefore hand-rolled per endpoint** — every
+other route calls `GetCurrentUserId()` and returns `401`, or checks
+`Policy.IsAdministrator`. There is no framework backstop, so a new route without a check
+is silently public.
 
 ---
 
@@ -433,6 +461,109 @@ Native clients do not need this endpoint; it exists for the browser client. It i
 The script tag written into `index.html` normally carries a `?v={version}` cache-buster. On servers where the plugin cannot rewrite `index.html` — a read-only web root, or a Windows install under `Program Files` — that query string stays pinned to an older version, so a long immutable cache would serve stale client code indefinitely.
 
 Tagging the response with the plugin version and requiring revalidation means a stale URL still picks up new code within `max-age`, while unchanged content costs only a `304`. This is why `isVersionStale` is advisory rather than an error.
+
+---
+
+## Translations
+
+The gate, the switcher, the profile forms, the PIN prompts and their errors are all
+translatable. The admin settings page is not — see *Scope* below.
+
+English is compiled into `profiles.js` as `EN_STRINGS` and is the fallback for every
+lookup. Other languages are one JSON file each under `Web/i18n/`, embedded in the plugin
+assembly and served by the endpoint below.
+
+The client picks a language from `navigator.languages`, not from any Jellyfin setting, and
+fetches at most one file. **A reader whose browser asks for English causes no request at
+all.** A missing file, a failed request or a malformed payload all leave English in place;
+nothing about translation can stop the switcher loading.
+
+Lookups fall back per key, so a file that is missing newer keys renders those keys in
+English rather than blank.
+
+### `GET /plugins/profiles/i18n/{locale}`
+
+Returns one language's strings. Unauthenticated — it is fetched before anyone signs in,
+for the same reason `profiles.js` is.
+
+`{locale}` may be given with or without a `.json` suffix. Only codes with a file embedded
+in the assembly are served; anything else is `404`, and an unknown code is rejected before
+any cache is touched.
+
+* **Response:**
+  * `200 OK`: `application/json` — a flat object of key/value strings.
+  * `304 Not Modified`: when `If-None-Match` matches the current `ETag`.
+  * `404 Not Found`: no translation for that code.
+
+| Header | Value |
+|---|---|
+| `ETag` | `"{pluginVersion}-{locale}"` |
+| `Cache-Control` | `public, max-age=300, must-revalidate` |
+
+Same caching contract as `profiles.js`, and for the same reason: the plugin version is the
+cache-buster, so an updated translation is picked up within `max-age` without a hard
+refresh.
+
+```json
+{
+  "gate.whosWatching": "Qui regarde ?",
+  "common.cancel": "Annuler",
+  "profilePage.body": "Vous regardez en tant que <strong>{name}</strong>."
+}
+```
+
+### Adding a translation
+
+**One JSON file in `Web/i18n/`. Nothing else.** The `.csproj` embeds `Web/i18n/*.json` by
+wildcard, the server discovers locale codes by reading its own embedded resource names,
+and it rewrites the client's locale list as it serves `profiles.js`. There is no list to
+register a language in, in any of the three languages this plugin is written in.
+
+1. Copy `Web/i18n/fr.json` to `Web/i18n/{code}.json`.
+2. Translate the values. **Leave the keys exactly as they are** — they are identifiers.
+3. Run `node Web/i18n/validate.js {code}` (no dependencies).
+4. `dotnet build -c Release`, restart Jellyfin, set your browser's language, open the gate.
+
+`Web/i18n/README.md` is the contributor-facing version of this, including what to do when
+a new translation does not appear.
+
+**Naming.** The filename is the locale code, matched against what the browser sends:
+`de.json`, `pt-BR.json`, `zh-Hans.json`. Two or three letters, optionally with region or
+script subtags. Matching is case-insensitive and prefers the longest match — a browser
+asking for `zh-Hans-CN` takes `zh-Hans.json` over `zh.json`, and falls back to `zh.json`
+when there is no more specific file. Use a bare language code unless regional differences
+genuinely matter.
+
+**Placeholders and markup.** Values may contain `{token}` placeholders and inline HTML
+such as `<strong>`. Both must survive translation: `t()` substitutes only the tokens its
+caller passes, so a dropped `{name}` renders a gap and an invented one renders the braces
+verbatim. These strings reach `innerHTML`, so a dropped closing tag breaks the layout
+around it. `validate.js` checks both.
+
+**Partial files are fine.** Omit a key and it renders in English. Do not ship an empty
+string for it — that renders as nothing at all.
+
+**Scope.** `Web/profilesDashboard.html` — the admin settings page — is deliberately English
+only. It is read by whoever runs the server, its wording changes with almost every
+release, and much of it is diagnostics and copy-pasteable shell commands.
+
+**Length.** These strings sit on buttons and in a grid that has to stay usable on a
+television at three metres, navigated by a D-pad. A translation much longer than the
+English is worth checking in a narrow window before submitting.
+
+### Reading the available languages
+
+There is no endpoint listing them, deliberately — it would be a request every English
+reader also paid for. The list is written into `profiles.js` as it is served:
+
+```js
+let SUPPORTED_LOCALES = ['fr']; // __BONFIRE_LOCALES__
+```
+
+The file on disk carries an empty list and that marker comment. If you consume
+`profiles.js` directly, read that line; if you are looking for what a given server has,
+request a locale and treat `404` as "not available".
+
 
 ---
 
@@ -915,6 +1046,19 @@ useless exactly when it is needed.
 The disable flag lives in memory and is never persisted — a flag that survived a restart could
 leave a server stuck in a state whose own settings page is the thing you need it to reach.
 
+### `GET /plugins/profiles/panic-state`
+Whether the plugin is currently shut down by the emergency disable.
+
+Unauthenticated, and deliberately so: `profiles.js` reads it before anyone has signed in,
+which is the situation the emergency disable exists for. It reveals only whether the
+plugin is running — already obvious to anyone looking at the screen — and never whether a
+code is configured. Served `no-store`, because a cached answer here would outlive the
+condition it describes.
+
+```json
+{ "disabled": false }
+```
+
 ### `GET /plugins/profiles/admin/panic-status`
 **Administrators only.** The code itself is stored as a PBKDF2 hash and is never returned.
 
@@ -989,6 +1133,7 @@ Retrieves all user profile mappings configured on the server.
 ```json
 {
   "mode": "middleware",
+  "restartRequired": false,
   "middlewareRegistered": true,
   "middlewareActive": true,
   "middlewareServed": 42,
@@ -1000,7 +1145,8 @@ Retrieves all user profile mappings configured on the server.
 | Field | Type | Description |
 | --- | --- | --- |
 | `mode` | string | `middleware`, `both` or `file`. See **Client Script**. |
-| `middlewareRegistered` | boolean | The pipeline hook was registered at startup. Always true wherever the plugin loads, so it does **not** indicate the hook is working. |
+| `restartRequired` | boolean | This build was installed or updated after Jellyfin started, so its pipeline hook was never registered and cannot be until the server restarts. Treat as "not finished installing", not as a failure — the previously loaded build usually keeps serving, so the switcher still works. Suppress any injection warning while this is true. |
+| `middlewareRegistered` | boolean | The pipeline hook was registered, which happens once per plugin during server startup. False means this build was loaded afterwards — see `restartRequired`. True does **not** mean the hook is working; use `middlewareActive` for that. |
 | `middlewareActive` | boolean | The hook has handled at least one request for the web page. This is the signal that it is live. |
 | `middlewareServed` | number | Pages served with the tags added, since the server started. |
 | `middlewareLastServedUtc` | string \| null | When the last one was served. |
