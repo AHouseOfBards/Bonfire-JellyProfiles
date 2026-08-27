@@ -1085,6 +1085,9 @@ namespace Jellyfin.Profiles.Controllers
             return new
             {
                 Mode = IndexInjectionModes.Normalize(Plugin.Instance?.Configuration?.IndexInjectionMode),
+                // Installed or updated on a running server, so this build's pipeline hook
+                // was never registered and cannot be until Jellyfin restarts (issue #25).
+                RestartRequired = ProfilesBootstrapTask.RestartRequired,
                 MiddlewareRegistered = ProfilesIndexMiddleware.IsRegistered,
                 MiddlewareActive = ProfilesIndexMiddleware.HasSeenIndexRequest,
                 MiddlewareServed = ProfilesIndexMiddleware.ServedCountValue,

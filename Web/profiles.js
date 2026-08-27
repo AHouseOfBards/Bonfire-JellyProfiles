@@ -1650,6 +1650,15 @@
                     }
                     this.updateStoredCredentials(masterState.masterToken, masterState.masterUserId);
                     apiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
+
+                    // The cached "who is active" record survives this reload, and nothing
+                    // here was clearing it — so the header avatar went on naming the
+                    // profile we just reverted away from while the gate, which reads the
+                    // signed-in user from ApiClient, correctly showed the master. Two
+                    // places disagreeing about who you are is worse than either being
+                    // wrong. The active-token key is already absent (it is what put us in
+                    // this branch), so this only clears the stale name and picture.
+                    this.clearProfileSession();
                     // Hide current page instantly so there is no visible frame
                     // between old page unloading and new page's head script running.
                     document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
@@ -3704,10 +3713,38 @@
         /// cannot drift — they already carried near-identical copies of the old upload UI.
         ///
         /// `prefix` namespaces the element ids ('create' or 'edit').
+        /// The cut-out background choice (issue #23).
+        ///
+        /// Rendered by the form rather than by renderAvatarPicker, and placed directly under
+        /// the name field: it decides what happens to the avatar *colour*, so sitting below
+        /// the picture panel put the whole picture row between it and the swatches it
+        /// governs. initAvatarPicker still owns the wiring and finds it by id wherever the
+        /// form has put it.
+        ///
+        /// Hidden until a picture is set — with no picture the colour is the entire
+        /// background and there is nothing to switch off. The library-artwork dialog reuses
+        /// the picker and simply never calls this.
+        renderTransparentToggle: function (prefix, currentImage, currentTransparent) {
+            return `
+                <div id="${prefix}-transparent-row" class="form-group picture-transparent-row"
+                     style="display: ${currentImage ? 'block' : 'none'};">
+                    <label class="library-check-label picture-transparent-toggle">
+                        <input type="checkbox" id="${prefix}-transparent-toggle"${currentTransparent ? ' checked' : ''} />
+                        <span>No background</span>
+                    </label>
+                    <div class="form-hint picture-transparent-hint">
+                        For pictures that are cut out rather than rectangular. Leaves the corners
+                        clear instead of filling them with the avatar colour. Set automatically
+                        when a picture is chosen.
+                    </div>
+                </div>
+            `;
+        },
+
         /// `transparency` opts this picker into the cut-out background choice (issue #23):
-        /// null or omitted leaves the row out entirely, which is what the library-artwork
-        /// dialog wants — it reuses this picker to choose a tile picture, where a
-        /// transparent avatar background means nothing. Otherwise { enabled: bool }.
+        /// null or omitted means the form is not offering it, which is what the
+        /// library-artwork dialog wants — it reuses this picker to choose a tile picture,
+        /// where a transparent avatar background means nothing. Otherwise { enabled: bool }.
         renderAvatarPicker: function (prefix, library, currentImage, currentColor, transparency) {
             const supportsTransparent = !!transparency;
             const currentTransparent = supportsTransparent && !!transparency.enabled;
@@ -3785,20 +3822,6 @@
                                 </button>
                             </div>
                         </div>
-                        ${supportsTransparent ? `
-                        <div id="${prefix}-transparent-row" class="picture-transparent-row"
-                             style="display: ${currentImage ? 'block' : 'none'};">
-                            <label class="library-check-label picture-transparent-toggle">
-                                <input type="checkbox" id="${prefix}-transparent-toggle"${currentTransparent ? ' checked' : ''} />
-                                <span>Transparent background</span>
-                            </label>
-                            <div class="form-hint picture-transparent-hint">
-                                For pictures that are cut out rather than rectangular. Leaves the
-                                corners clear instead of filling them with the avatar colour.
-                                Set automatically when a picture is chosen.
-                            </div>
-                        </div>
-                        ` : ''}
                         <div id="${prefix}-picture-sources" class="picture-sources${sourcesOpen ? ' is-open' : ''}">
                             ${libraryHtml}
                             ${uploadHtml}
@@ -4038,6 +4061,7 @@
                         <label for="create-name-input">Profile Name</label>
                         <input type="text" id="create-name-input" placeholder="e.g. Kids" required />
                     </div>
+                    ${this.renderTransparentToggle('create', null, false)}
                     <div class="form-group avatar-color-group" id="create-color-group">
                         <label>Avatar Color</label>
                         ${this.renderColorPicker('#00A4DC')}
@@ -4411,6 +4435,7 @@
                         <input type="text" id="edit-name-input" value="${escapeHtml(profile.profileName)}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
                         ${profile.isMaster ? `<div class="form-hint">The master profile takes its name from your Jellyfin account.</div>` : ''}
                     </div>
+                    ${this.renderTransparentToggle('edit', profile.profileImage, !!profile.transparentAvatar)}
                     <div class="form-group avatar-color-group" id="edit-color-group">
                         <label>Avatar Color</label>
                         ${this.renderColorPicker(profile.avatarColor)}
@@ -6678,6 +6703,25 @@
                     box-shadow: none;
                     overflow: visible;
                 }
+                /* The rule above is two classes; `.profile-card.is-current .profile-avatar`
+                   is three, so it won and painted the accent border as a rounded square
+                   around a circular picture — while the silhouette outline drew a second
+                   ring inside it. Two highlights on one avatar, which is what was
+                   reported. Every state that touches border-color or box-shadow on
+                   .profile-avatar therefore needs an .is-transparent counterpart at equal
+                   or higher specificity; they are kept together here so the next one
+                   added is hard to miss. */
+                .profile-card.is-current .profile-avatar.is-transparent {
+                    border-color: transparent;
+                    box-shadow: none;
+                }
+                /* Manage mode dropped a dark rounded-square scrim over the picture, which
+                   is a third square on something deliberately not square. The pencil
+                   carries its own drop-shadow and reads fine without it, and the hover
+                   silhouette already says the card is live. */
+                .profile-avatar.is-transparent .profile-avatar-overlay-wrap {
+                    background: transparent;
+                }
                 .profile-avatar.is-transparent img {
                     filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
                 }
@@ -6817,6 +6861,12 @@
                 .profile-card.manage-mode:hover .profile-avatar {
                     transform: scale(1.08);
                     border-color: var(--jpf-accent);
+                }
+                /* The fourth state that paints a border on .profile-avatar, and the one
+                   that actually fires while Manage Profiles is open. See the note by
+                   .profile-card.is-current .profile-avatar.is-transparent. */
+                .profile-card.manage-mode:hover .profile-avatar.is-transparent {
+                    border-color: transparent;
                 }
 
                 /* PIN Status Badges */

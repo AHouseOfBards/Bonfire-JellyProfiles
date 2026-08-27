@@ -139,11 +139,35 @@ namespace Jellyfin.Profiles
         // self-reference lets the admin endpoints re-evaluate (and retry) on demand.
         /// <summary>
         /// Which mechanism is supposed to be adding the script tags. Falls back to
-        /// <see cref="IndexInjectionModes.Both"/> when the plugin instance is not up yet,
-        /// which keeps a cold start behaving exactly as it did before 1.4.1.
+        /// <see cref="IndexInjectionModes.Middleware"/> when the plugin instance is not up
+        /// yet, because the fallback must never be a mode that writes to index.html: an
+        /// administrator who has said "do not touch my file" would otherwise have it
+        /// patched during any window where the configuration is unreadable.
         /// </summary>
         private static string CurrentInjectionMode =>
             IndexInjectionModes.Normalize(Plugin.Instance?.Configuration?.IndexInjectionMode);
+
+        /// <summary>
+        /// True when this copy of the plugin was loaded after Jellyfin had already started,
+        /// which is what happens when a plugin is installed or updated on a running server.
+        /// <para>
+        /// Jellyfin calls <c>RegisterServices</c> on every plugin during host startup, and
+        /// that is the only place the pipeline hook can be added — an
+        /// <see cref="Microsoft.AspNetCore.Hosting.IStartupFilter"/> registered later has
+        /// nothing left to filter. So an assembly that is answering requests while its own
+        /// <see cref="ProfilesIndexMiddleware.IsRegistered"/> is still false was loaded too
+        /// late, and its middleware will not serve anything until the server restarts.
+        /// </para>
+        /// <para>
+        /// Issue #25: this state looked exactly like a permissions failure. The old build's
+        /// middleware is usually still in the pipeline, so the switcher keeps working while
+        /// the settings page reports that injection failed and tells the administrator to
+        /// chmod a file that has nothing to do with it. The fix is a restart, and only a
+        /// real one — Jellyfin's own Restart button does not restart the process on most
+        /// container images.
+        /// </para>
+        /// </summary>
+        internal static bool RestartRequired => !ProfilesIndexMiddleware.IsRegistered;
 
         private static ProfilesBootstrapTask? _current;
         private static readonly object PatchLock = new();
@@ -178,6 +202,23 @@ namespace Jellyfin.Profiles
         /// </summary>
         internal static void RefreshInjectionStatus()
         {
+            // Loaded after startup: nothing this copy reports about the pipeline can be
+            // true yet, and the flags below would otherwise keep whatever they happened to
+            // hold — for a fresh assembly, the `false` a static bool starts life with.
+            // That false is what raised a permissions warning on servers whose only
+            // problem was a pending restart.
+            if (RestartRequired)
+            {
+                InjectionSucceeded = false;
+                IsVersionStale = false;
+                LastFailureReason =
+                    "Bonfire has been installed or updated since Jellyfin started, so this "
+                    + "version is not serving the client script yet. Restart Jellyfin to "
+                    + "finish. On Docker restart the container — Jellyfin's own Restart "
+                    + "button does not restart the process on most images.";
+                return;
+            }
+
             var self = _current;
             if (self == null) return;
 
@@ -647,7 +688,14 @@ namespace Jellyfin.Profiles
         private void TryUnpatchIndex()
         {
             IndexPath = FindIndexHtml();
-            InjectionSucceeded = ProfilesIndexMiddleware.IsRegistered;
+            // Not IsRegistered — RegisterServices sets that unconditionally, so it is true
+            // wherever the plugin loads and says nothing about whether the hook reached the
+            // pipeline. This is the same dishonest signal RefreshInjectionStatus stopped
+            // using in 1.4.8; it was left behind here. At startup nothing has been served
+            // yet, so this is false until the dashboard recomputes — which it always does
+            // before reading it.
+            InjectionSucceeded = ProfilesIndexMiddleware.HasSeenIndexRequest
+                && ProfilesIndexMiddleware.LastError == null;
             IsVersionStale = false;
             LastFailureReason = null;
 

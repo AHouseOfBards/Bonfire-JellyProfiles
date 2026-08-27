@@ -82,18 +82,36 @@
 </style>
     <div data-role="content">
         <div class="content-primary">
+            <!-- Installed or updated while Jellyfin was running. The pipeline hook can only
+                 be added at startup, so this build is not serving anything yet — while the
+                 previous build usually still is, which is why the switcher keeps working.
+                 Nothing is wrong with the file or its permissions, so this must not be the
+                 failure banner (issue #25). -->
+            <div id="restartRequiredContainer" style="display:none; background:rgba(245,159,0,0.12); border:1px solid rgba(245,159,0,0.35); border-radius:6px; padding:14px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#ffc078;">
+                <strong style="display:block; margin-bottom:6px; font-weight:700;">↻ Restart Jellyfin to finish updating Bonfire</strong>
+                Bonfire has been installed or updated since Jellyfin started. The new version cannot
+                serve the client script until the server restarts — until then the previous version
+                keeps running, so profiles will still work.
+                <div style="margin-top:10px; padding:10px 12px; background:rgba(0,0,0,0.25); border-radius:4px; font-size:0.9rem;">
+                    <strong>On Docker, restart the container.</strong> Jellyfin's own <em>Restart</em>
+                    button does not restart the process on most container images, so the notice stays
+                    until the container comes back.
+                </div>
+            </div>
             <div id="injectionWarningContainer" style="display:none; background:rgba(230,73,128,0.12); border:1px solid rgba(230,73,128,0.35); border-radius:6px; padding:14px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#ff6b6b;">
                 <strong style="display:block; margin-bottom:6px; font-weight:700; color:#ff8787;">⚠️ Client Script Auto-Injection Failed</strong>
-                The plugin was unable to automatically modify Jellyfin's <code>index.html</code>.
-                Without this script, the "Who's Watching?" profile gate and switcher will not load.
+                <span id="injectionFailureHeadline">The plugin was unable to automatically modify Jellyfin's <code>index.html</code>.
+                Without this script, the "Who's Watching?" profile gate and switcher will not load.</span>
                 <div id="injectionFailureReason" style="display:none; margin-top:10px; padding:10px 12px; background:rgba(0,0,0,0.25); border-radius:4px; font-size:0.9rem;"></div>
+                <span class="injectionFileFix">
                 <br>
                 <strong>How to fix:</strong>
                 Run the command for your platform, then click <strong>Re-check Now</strong> below — no Jellyfin restart needed.
-                <div class="detectedAccountRow" style="display:none; margin-top:8px; font-size:0.9rem; opacity:0.85;">
+                </span>
+                <div class="detectedAccountRow" id="injectionFailureAccountRow" style="display:none; margin-top:8px; font-size:0.9rem; opacity:0.85;">
                     Jellyfin is running as <code class="detectedAccount"></code>, and the command below grants access to exactly that account.
                 </div>
-                <ul style="margin: 6px 0 0 0; padding-left: 20px;">
+                <ul class="injectionFileFix" style="margin: 6px 0 0 0; padding-left: 20px;">
                     <li style="margin-bottom:10px;">
                         <strong>Linux (Native):</strong>
                         <br><code id="linuxChownCmd" class="linuxChownCmd">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code>
@@ -526,10 +544,18 @@
                 const isStale = field(result, 'isVersionStale');
                 const reason = field(result, 'failureReason');
 
+                const mech = field(result, 'mechanism');
+                const mode = mech ? field(mech, 'mode') : null;
+
+                // Installed or updated on a running server. Not a failure and not something
+                // a command can fix, so it gets its own banner and suppresses the other two
+                // (issue #25).
+                const restartRequired = mech ? field(mech, 'restartRequired') === true : false;
+
                 // Only treat an explicit false as failure — a missing field must never
                 // produce a false-positive warning.
-                const failed = (succeeded === false);
-                let stale = (!failed && isStale === true);
+                const failed = !restartRequired && (succeeded === false);
+                let stale = (!restartRequired && !failed && isStale === true);
 
                 const ver = field(result, 'pluginVersion');
 
@@ -565,9 +591,14 @@
                     }
                 }
 
+                const restartContainer = page.querySelector('#restartRequiredContainer');
+                if (restartContainer) restartContainer.style.display = restartRequired ? 'block' : 'none';
+
                 if (warningContainer) warningContainer.style.display = failed ? 'block' : 'none';
                 if (staleContainer) staleContainer.style.display = stale ? 'block' : 'none';
-                if (okContainer) okContainer.style.display = (!failed && !stale) ? 'block' : 'none';
+                if (okContainer) okContainer.style.display = (!restartRequired && !failed && !stale) ? 'block' : 'none';
+
+                const patchesFile = (mode === 'file' || mode === 'both');
 
                 const failReasonEl = page.querySelector('#injectionFailureReason');
                 if (failReasonEl) {
@@ -624,6 +655,28 @@
                     page.querySelectorAll('.detectedAccountRow').forEach(function(el) {
                         el.style.display = account ? 'block' : 'none';
                     });
+                }
+
+                // The failure banner is written entirely around patching index.html, down
+                // to the chown commands. In middleware mode the file is deliberately left
+                // alone, so every word of that is wrong advice — and it was being handed to
+                // people whose only problem was a pending restart (issue #25). Runs last so
+                // it wins over the command-filling block above, which shows the account row
+                // whenever an account was detected.
+                const hideFileFix = failed && !patchesFile;
+                page.querySelectorAll('.injectionFileFix').forEach(function (el) {
+                    el.style.display = hideFileFix ? 'none' : '';
+                });
+                const failAccountRow = page.querySelector('#injectionFailureAccountRow');
+                if (failAccountRow && hideFileFix) failAccountRow.style.display = 'none';
+
+                const headlineEl = page.querySelector('#injectionFailureHeadline');
+                if (headlineEl) {
+                    headlineEl.textContent = patchesFile
+                        ? 'The plugin was unable to automatically modify Jellyfin’s index.html. '
+                          + 'Without this script, the "Who’s Watching?" profile gate and switcher will not load.'
+                        : 'Bonfire is set to serve the client script live, and it is not reaching '
+                          + 'the page. index.html is not involved, so there is nothing to change on disk.';
                 }
             }
 
