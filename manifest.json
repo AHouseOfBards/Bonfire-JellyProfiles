@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Update from 1.5.2 or 1.5.3.** The switcher did not run at all on those two builds. 1.5.0 and 1.5.1 are unaffected.\n\n**Fixed**\n\n- The profile screen appeared unstyled, as coloured bars stretched across the page. (#23, #16)\n- A TV remote could not select anything on the profile screen. (#16)\n- Switcher settings, library artwork and the Ctrl+Shift+B emergency shortcut all stopped working.\n- One failed step during startup no longer stops the rest from running.\n\n**Changed**\n\n- The developer API link no longer promises platform notes the document does not contain.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.5.4/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "b63265aeacf63467873b5f9f8f7f7ce2",
         "timestamp": "2026-08-27T00:00:00Z"
       },
       {
