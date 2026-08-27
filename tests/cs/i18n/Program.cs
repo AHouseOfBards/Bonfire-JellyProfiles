@@ -115,11 +115,20 @@ if (publish != null)
     var count = real.Split(marker).Length - 1;
     Ok("profiles.js carries the marker exactly once (found " + count + ")", count == 1);
 
+    // Built from what is actually embedded, not hardcoded to one language. This asserted
+    // ['fr'] literally until Polish arrived, at which point adding a single JSON file
+    // broke the build — which is precisely the promise the rest of this harness exists to
+    // defend. A test for "adding a language is one file" must not itself need editing
+    // when a language is added.
+    var expected = "let SUPPORTED_LOCALES = ["
+        + string.Join(", ", discovered.OrderBy(c => c, StringComparer.Ordinal).Select(c => "'" + c + "'"))
+        + "]";
+
     var served = (string)publish.Invoke(null, new object[] { real });
-    Ok("the served script advertises French",
-       served.Contains("let SUPPORTED_LOCALES = ['fr']", StringComparison.Ordinal));
+    Ok("the served script advertises every embedded locale (" + expected + ")",
+       served.Contains(expected, StringComparison.Ordinal));
     Ok("and is otherwise byte-identical",
-       served.Replace("let SUPPORTED_LOCALES = ['fr']; // __BONFIRE_LOCALES__", marker) == real);
+       served.Replace(expected + "; // __BONFIRE_LOCALES__", marker) == real);
 }
 
 Console.WriteLine();
