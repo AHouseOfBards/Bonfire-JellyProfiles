@@ -1,0 +1,21 @@
+# Normalise to LF in the repository; check out however the platform prefers.
+* text=auto
+
+# These must be LF wherever they land. A shell script with CRLF fails on Linux with
+# "bad interpreter", and tests/run.sh is what CI invokes — so a contributor whose git
+# is configured differently would break the pipeline and not be able to see why.
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# PowerShell is happy either way, but keep it stable so diffs stay readable.
+*.ps1 text eol=crlf
+
+# Never touched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.dll binary
