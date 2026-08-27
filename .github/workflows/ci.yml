@@ -27,18 +27,16 @@ jobs:
         with:
           node-version: '20'
 
-      # The repo builds clean today; keep it that way rather than letting warnings
-      # accumulate until nobody reads them.
-      - name: Build (Release, warnings are errors)
-        run: dotnet build -c Release -warnaserror
-
-      # Necessary but NOT sufficient — this passed against the 1.5.2 defect. The startup
-      # test below is what actually catches that class of bug.
+      # Necessary but NOT sufficient — this passed against the 1.5.2 defect, which was
+      # valid JavaScript that threw on the first call. tests/run.sh is what catches that.
       - name: Syntax check the client script
         run: node --check Web/profiles.js
 
-      - name: Client script starts up
-        run: node tests/js/inject.test.js
+      # Builds the plugin (Release, -warnaserror) and runs all 17 harnesses: 13 JS and
+      # 4 C#, ~737 assertions. Same command a maintainer runs locally, so CI and the
+      # desk cannot disagree about what "the tests pass" means.
+      - name: Run the test suite
+        run: bash tests/run.sh
 
       # Contributors are told to run this before opening a PR (Web/i18n/README.md).
       # Nothing enforced it, so the first person to forget shipped a broken catalogue.

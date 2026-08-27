@@ -31,10 +31,16 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- The SDK globs **/*.cs, so anything under these would be compiled into the plugin.
+       tests\ holds four standalone harness projects; without this the plugin build picks
+       up their Program.cs files and fails on duplicate assembly attributes. -->
   <ItemGroup>
     <Compile Remove="scratch\**" />
     <EmbeddedResource Remove="scratch\**" />
     <None Remove="scratch\**" />
+    <Compile Remove="tests\**" />
+    <EmbeddedResource Remove="tests\**" />
+    <None Remove="tests\**" />
   </ItemGroup>
 
   <ItemGroup>
