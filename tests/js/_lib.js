@@ -78,9 +78,47 @@ function extractCss(src) {
     return css;
 }
 
+/**
+ * The source of one named function declaration, brace-matched from its opening `{`.
+ *
+ * For running a single function out of a file that is otherwise one big IIFE, where
+ * evaluating the whole thing would need the entire page and every global it touches.
+ * THROWS on a miss, for the same reason extractCss does: a harness handed '' still runs
+ * and still reports most of its assertions as passing.
+ *
+ * Brace counting, not a parser. It is fooled by a brace inside a string or a comment,
+ * so the result is checked for balance by the caller evaluating it — a truncated
+ * function is a syntax error, not a silent wrong answer.
+ */
+function extractFunction(src, name) {
+    const re = new RegExp('function\\s+' + name + '\\s*\\(');
+    const m = re.exec(src);
+    if (!m) throw new Error('extractFunction: no function named ' + name);
+
+    const open = src.indexOf('{', m.index);
+    if (open === -1) throw new Error('extractFunction: no body for ' + name);
+
+    let depth = 0;
+    for (let i = open; i < src.length; i++) {
+        if (src[i] === '{') depth++;
+        else if (src[i] === '}') {
+            depth--;
+            if (depth === 0) return src.slice(m.index, i + 1);
+        }
+    }
+    throw new Error('extractFunction: unterminated body for ' + name);
+}
+
+/** The inline <script> block of the dashboard page. */
+function dashboardScript(html) {
+    const m = html.match(/<script type="text\/javascript">([\s\S]*?)<\/script>/);
+    if (!m) throw new Error('dashboardScript: no script block found');
+    return m[1];
+}
+
 module.exports = {
     ROOT,
     profilesPath, dashboardPath, i18nDir,
     readProfiles, readDashboard,
-    extractCss
+    extractCss, extractFunction, dashboardScript
 };

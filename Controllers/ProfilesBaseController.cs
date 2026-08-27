@@ -666,6 +666,24 @@ namespace Jellyfin.Profiles.Controllers
 
         protected const int MaxProfileImageBytes = 2 * 1024 * 1024;
 
+        // Bounds for both the server-wide limit and the per-account override. The lower bound
+        // was already checked in one place and not the other; the upper bound was checked
+        // nowhere, so the settings page happily saved 2,000,000,000 and the gate then tried to
+        // lay out that many tiles. Anything above about a dozen is already past what the
+        // "Who's Watching?" screen can show without scrolling on a TV.
+        protected const int MinProfilesPerUser = 1;
+        protected const int MaxProfilesPerUserLimit = 20;
+
+        /// <summary>
+        /// Null when <paramref name="value"/> is within bounds, otherwise the message to
+        /// return. Says what the bound is: "must be between 1 and 20" tells an administrator
+        /// what to type next, where "invalid value" sends them back to the documentation.
+        /// </summary>
+        protected static string? ValidateProfileLimit(int value) =>
+            value < MinProfilesPerUser || value > MaxProfilesPerUserLimit
+                ? $"Maximum profiles must be between {MinProfilesPerUser} and {MaxProfilesPerUserLimit}."
+                : null;
+
         /// <summary>
         /// Minimum length of the emergency disable code. It is submitted without any
         /// authentication, so length is doing the work that a login would normally do; the

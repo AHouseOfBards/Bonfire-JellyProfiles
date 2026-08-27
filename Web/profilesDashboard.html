@@ -202,7 +202,7 @@
                 
                 <div class="inputContainer">
                     <label class="inputLabel" for="maxProfiles">Maximum Profiles Per User</label>
-                    <input is="emby-input" type="number" id="maxProfiles" min="1" max="10" required />
+                    <input is="emby-input" type="number" id="maxProfiles" min="1" max="20" required />
                     <div class="fieldDescription">Default 5.</div>
                 </div>
 
@@ -1361,23 +1361,46 @@
                 });
             }
 
+            // Sends only the six settings this page owns.
+            //
+            // This used to GET the whole PluginConfiguration, change six fields on the copy,
+            // and PUT all of it back — carrying every profile mapping, known device, Bonfire
+            // group, avatar library entry and the emergency-disable hash along with it.
+            // Anything that changed while the page was open was overwritten with the state
+            // from before it changed: a profile someone created five minutes ago vanished the
+            // moment an administrator pressed Save, silently, with nothing in the log tying
+            // the two together. The window is as wide as the page has been open.
+            //
+            // POST admin/settings takes the six fields and mutates them in place, so there is
+            // nothing else in the request to lose.
             function saveConfiguration(page) {
-                Dashboard.showLoadingMsg();
-                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
-                    config.MaxProfilesPerUser = parseInt(page.querySelector('#maxProfiles').value, 10) || 5;
-                    config.RequireMasterPinForCreation = page.querySelector('#requireMasterPin').checked;
-                    config.DisallowCustomAvatarUploads = page.querySelector('#disallowCustomAvatars').checked;
-                    config.DefaultAskOnStartup = page.querySelector('#defaultAskOnStartup').checked;
-                    config.DefaultSwitcherLocation = page.querySelector('#defaultSwitcherLocation').value === 'menu' ? 'menu' : 'button';
-                    config.IndexInjectionMode = page.querySelector('#indexInjectionMode').value;
+                // parseInt('-4', 10) is -4, which is truthy, so `|| 5` never caught a negative
+                // — it only caught the empty box. The server rejects out-of-range values too;
+                // clamping here means the common case gets a saved setting rather than an error.
+                const typed = parseInt(page.querySelector('#maxProfiles').value, 10);
+                const maxProfiles = Number.isFinite(typed) ? Math.min(20, Math.max(1, typed)) : 5;
+                page.querySelector('#maxProfiles').value = maxProfiles;
 
-                    ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
-                        Dashboard.processPluginConfigurationUpdateResult(result);
-                    }).catch(function (err) {
-                        console.error("Failed to update plugin configuration:", err);
-                        Dashboard.hideLoadingMsg();
-                        Dashboard.alert({ message: 'Failed to save settings.', title: 'Error' });
-                    });
+                Dashboard.showLoadingMsg();
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('plugins/profiles/admin/settings'),
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        maxProfilesPerUser: maxProfiles,
+                        requireMasterPinForCreation: page.querySelector('#requireMasterPin').checked,
+                        disallowCustomAvatarUploads: page.querySelector('#disallowCustomAvatars').checked,
+                        defaultAskOnStartup: page.querySelector('#defaultAskOnStartup').checked,
+                        defaultSwitcherLocation: page.querySelector('#defaultSwitcherLocation').value === 'menu' ? 'menu' : 'button',
+                        indexInjectionMode: page.querySelector('#indexInjectionMode').value
+                    })
+                }).then(function () {
+                    Dashboard.hideLoadingMsg();
+                    Dashboard.alert({ message: 'Settings saved.', title: 'Bonfire' });
+                }).catch(function (err) {
+                    console.error('Failed to save settings:', err);
+                    Dashboard.hideLoadingMsg();
+                    Dashboard.alert({ message: 'Failed to save settings.', title: 'Error' });
                 });
             }
 

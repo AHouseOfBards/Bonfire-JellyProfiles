@@ -124,10 +124,10 @@ dropped HTML tags), and CI runs it.
 | --- | --- |
 | `Web/profiles.js` | The client script. One ~8,000-line IIFE; a split is planned. |
 | `Web/profilesDashboard.html` | Admin page, with its JavaScript inline. |
-| `Controllers/` | `ProfilesController` (41 routes) over `ProfilesBaseController`. |
+| `Controllers/` | `ProfilesController` (42 routes) over `ProfilesBaseController`. |
 | `tests/js/`, `tests/cs/` | The harnesses. `_lib.js` holds shared plumbing. |
 | `tests/upstream-selectors.json` | What every injection selector was verified against. |
-| `docs/developer-api.md` | The API reference. All 41 routes; keep it that way. |
+| `docs/developer-api.md` | The API reference. All 42 routes; keep it that way. |
 
 ## Two things that are easy to get wrong
 

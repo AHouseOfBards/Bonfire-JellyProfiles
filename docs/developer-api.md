@@ -1080,6 +1080,44 @@ login, since `POST /panic` has no credentials of its own.
 
 ## Admin API
 
+### `POST /plugins/profiles/admin/settings`
+Saves the six server-wide settings the plugin's settings page owns.
+
+Every field is optional and only the fields present in the request are changed. Use this
+rather than Jellyfin's generic `POST /Plugins/{id}/Configuration`: that endpoint replaces
+the whole plugin configuration document, so a profile, device, group or avatar added
+between reading it and writing it back is silently reverted.
+
+* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
+* **Request Body:**
+```json
+{
+  "maxProfilesPerUser": 5,
+  "requireMasterPinForCreation": true,
+  "disallowCustomAvatarUploads": false,
+  "defaultAskOnStartup": true,
+  "defaultSwitcherLocation": "button",
+  "indexInjectionMode": "middleware"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `maxProfilesPerUser` | integer | No | Server-wide profile limit. 1–20. |
+| `requireMasterPinForCreation` | boolean | No | Require the account's PIN before creating a profile. |
+| `disallowCustomAvatarUploads` | boolean | No | Restrict profile pictures to the avatar library. |
+| `defaultAskOnStartup` | boolean | No | Default for accounts that have not chosen: show the gate on startup. |
+| `defaultSwitcherLocation` | string | No | `button` or `menu`. |
+| `indexInjectionMode` | string | No | `file`, `middleware` or `both`. |
+
+* **Response:** `200 OK` on success.
+
+* **Error Responses:**
+  * `400 Bad Request`: A field is out of range or not one of its permitted values. The
+    message names the bound or the permitted values. Nothing is applied — a request with
+    one bad field is rejected whole.
+  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
+
 ### `GET /plugins/profiles/admin/mappings`
 Retrieves all user profile mappings configured on the server.
 
@@ -1236,12 +1274,12 @@ Overrides the maximum number of profiles a master user is allowed to create.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `userId` | string (GUID) | Yes | The user ID of the master account to override. |
-| `maxProfiles` | integer | No | The custom maximum profiles limit. Pass null to remove override. |
+| `maxProfiles` | integer | No | The custom limit, 1–20. Pass null to remove the override. |
 
 * **Response:** `200 OK` on success.
 
 * **Error Responses:**
-  * `400 Bad Request`: Maximum profiles must be at least 1, or plugin configuration missing.
+  * `400 Bad Request`: Maximum profiles must be between 1 and 20, or plugin configuration missing.
   * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
 
 ### `GET /plugins/profiles/admin/audit-logs`

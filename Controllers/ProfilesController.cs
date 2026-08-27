@@ -2933,6 +2933,86 @@ namespace Jellyfin.Profiles.Controllers
             return Ok();
         }
 
+        /// <summary>
+        /// Saves the six server-wide settings the plugin's settings page owns.
+        /// </summary>
+        /// <remarks>
+        /// This exists because the settings page used to save through Jellyfin's generic
+        /// plugin-configuration API: GET the entire PluginConfiguration, change six fields on
+        /// the copy in the browser, PUT the whole thing back. Everything else in that document
+        /// — every profile mapping, every known device, every Bonfire group, the avatar
+        /// library and the emergency-disable hash — went along for the ride. A profile created
+        /// while the settings page sat open was reverted the moment an administrator pressed
+        /// Save, with no error and nothing in the log to connect the two.
+        ///
+        /// It also happened to be the one call that made Jellyfin replace the configuration
+        /// instance, which is what orphaned every lock taken on it. Both problems have the
+        /// same cure: send the six fields, mutate in place under ConfigLock.
+        /// </remarks>
+        [HttpPost("admin/settings")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public ActionResult UpdateAdminSettings([FromBody] AdminSettingsRequest request)
+        {
+            var adminError = RequireAdministrator("change plugin settings");
+            if (adminError != null) return adminError;
+
+            if (request == null) return BadRequest("No settings were sent.");
+
+            // Validate everything before touching anything, so a request with one bad field
+            // is rejected whole rather than half-applied.
+            if (request.MaxProfilesPerUser.HasValue)
+            {
+                var limitError = ValidateProfileLimit(request.MaxProfilesPerUser.Value);
+                if (limitError != null) return BadRequest(limitError);
+            }
+
+            // Normalize() silently falls back to a default, which is right when reading a
+            // configuration written by an older version and wrong when an administrator is
+            // telling us what they want: saving "middleware" because they typed something
+            // unrecognised looks like the setting did not take.
+            if (request.DefaultSwitcherLocation != null
+                && !string.Equals(request.DefaultSwitcherLocation, SwitcherLocations.Button, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(request.DefaultSwitcherLocation, SwitcherLocations.Menu, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest($"Switcher location must be '{SwitcherLocations.Button}' or '{SwitcherLocations.Menu}'.");
+            }
+
+            if (request.IndexInjectionMode != null
+                && !string.Equals(request.IndexInjectionMode, IndexInjectionModes.File, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(request.IndexInjectionMode, IndexInjectionModes.Middleware, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(request.IndexInjectionMode, IndexInjectionModes.Both, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest($"Injection method must be '{IndexInjectionModes.File}', "
+                                + $"'{IndexInjectionModes.Middleware}' or '{IndexInjectionModes.Both}'.");
+            }
+
+            lock (ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (config == null) return BadRequest("Plugin configuration missing.");
+
+                if (request.MaxProfilesPerUser.HasValue)
+                    config.MaxProfilesPerUser = request.MaxProfilesPerUser.Value;
+                if (request.RequireMasterPinForCreation.HasValue)
+                    config.RequireMasterPinForCreation = request.RequireMasterPinForCreation.Value;
+                if (request.DisallowCustomAvatarUploads.HasValue)
+                    config.DisallowCustomAvatarUploads = request.DisallowCustomAvatarUploads.Value;
+                if (request.DefaultAskOnStartup.HasValue)
+                    config.DefaultAskOnStartup = request.DefaultAskOnStartup.Value;
+                if (request.DefaultSwitcherLocation != null)
+                    config.DefaultSwitcherLocation = SwitcherLocations.Normalize(request.DefaultSwitcherLocation);
+                if (request.IndexInjectionMode != null)
+                    config.IndexInjectionMode = IndexInjectionModes.Normalize(request.IndexInjectionMode);
+
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            _logger.LogInformation("ProfilesPlugin: Plugin settings updated by an administrator.");
+            return Ok();
+        }
+
         [HttpPost("admin/set-profile-limit")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -2949,6 +3029,15 @@ namespace Jellyfin.Profiles.Controllers
             if (!callerDto.Policy.IsAdministrator)
                 return Unauthorized("Only administrators can update profile limits.");
 
+            // Checked before the lock, and against both bounds. This used to test only
+            // `< 1`, so an override of two billion was accepted and then handed to the gate
+            // as the number of tiles to lay out.
+            if (request.MaxProfiles.HasValue)
+            {
+                var limitError = ValidateProfileLimit(request.MaxProfiles.Value);
+                if (limitError != null) return BadRequest(limitError);
+            }
+
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
@@ -2956,9 +3045,6 @@ namespace Jellyfin.Profiles.Controllers
             {
                 if (request.MaxProfiles.HasValue)
                 {
-                    if (request.MaxProfiles.Value < 1)
-                        return BadRequest("Maximum profiles must be at least 1.");
-
                     var existing = config.UserProfileLimitOverrides.FirstOrDefault(o => o.UserId == request.UserId);
                     if (existing != null)
                         existing.MaxProfiles = request.MaxProfiles.Value;
