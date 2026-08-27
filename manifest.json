@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.5.3.0",
+        "changelog": "**Beta release** — please report issues on GitHub.\n\n**Bonfire speaks French.** Translation support, contributed by [BryanSmee](https://github.com/BryanSmee), with a complete French translation.\n\n**Added**\n\n- Everything a household member sees — the profile gate, the switcher, the profile forms, PIN prompts and their errors — is translated. Your browser's language is used; no setting to change.\n- English is built in, so nothing is downloaded and nothing changes for English readers.\n- Adding a language is one JSON file in `Web/i18n`. See `Web/i18n/README.md`.\n\n**Fixed**\n\n- A cut-out profile picture was hard to see as the selected one on a TV: the outline had become thinner than the one it replaced, and the pencil in Manage Profiles could disappear against a pale picture.\n- A long profile name or PIN badge could spill outside its card.\n\n**Documentation**\n\n- The developer API reference now documents every endpoint, lists the seven that are deliberately reachable without a token, and corrects two statements that were no longer true.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.5.3/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-08-27T00:00:00Z"
+      },
+      {
         "version": "1.5.2.0",
         "changelog": "**Beta release** — please report issues on GitHub.\n\nFollow-ups to 1.5.1.\n\n**Fixed**\n\n- After updating the plugin, the settings page said it could not modify `index.html` and asked for file permissions — on servers set to serve the script live, where that file is deliberately left alone. A newly installed or updated build cannot attach to Jellyfin until the server restarts, so that is what it says now. On Docker that means restarting the container: Jellyfin's own Restart button does not restart the process. (#25)\n- A cut-out profile picture was highlighted twice at once — a square ring around a round picture, with the outline that follows the picture inside it. Every state that draws a ring now knows about cut-outs. (#23)\n- Manage Profiles laid a dark square panel over cut-out pictures. (#23)\n- Switching back to the account owner left the top-bar avatar showing the profile you had just left. (#23)\n\n**Changed**\n\n- **Transparent background** is now **No background**, and sits directly under the profile name next to the colour it controls, rather than below the picture. (#23)",
         "targetAbi": "10.11.0.0",
