@@ -1,0 +1,46 @@
+name: CI
+
+# Until now the only workflow here ran on tags, so a pull request got no build, no syntax
+# check and no translation check at all. 1.5.2 shipped a client script that threw on
+# startup and nothing noticed, because the file was still valid JavaScript.
+on:
+  pull_request:
+  push:
+    branches: [main, beta]
+
+jobs:
+  check:
+    name: Build and verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # The repo builds clean today; keep it that way rather than letting warnings
+      # accumulate until nobody reads them.
+      - name: Build (Release, warnings are errors)
+        run: dotnet build -c Release -warnaserror
+
+      # Necessary but NOT sufficient — this passed against the 1.5.2 defect. The startup
+      # test below is what actually catches that class of bug.
+      - name: Syntax check the client script
+        run: node --check Web/profiles.js
+
+      - name: Client script starts up
+        run: node tests/js/inject.test.js
+
+      # Contributors are told to run this before opening a PR (Web/i18n/README.md).
+      # Nothing enforced it, so the first person to forget shipped a broken catalogue.
+      - name: Validate translations
+        run: node Web/i18n/validate.js

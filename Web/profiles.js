@@ -972,6 +972,25 @@
                 .filter(tag => tag);
         },
 
+        /// Runs one startup step, and refuses to let it take the rest of init() with it.
+        ///
+        /// 1.5.2 shipped a stray backtick inside the stylesheet template literal in
+        /// injectStyles. The file still parsed — it was valid JavaScript, just not what
+        /// anyone meant — so the syntax check passed and it went out. At runtime
+        /// injectStyles threw, and because init() called these bare, the nine steps after
+        /// it never ran: no focus trap, so a remote could not reach the gate; no switcher
+        /// preferences; no panic shortcut, which is the escape hatch for exactly this;
+        /// no session validation. bindEvents had already run, so the route poll kept
+        /// raising an unstyled gate and the plugin looked alive while almost nothing
+        /// worked. A broken stylesheet should cost styling and nothing else.
+        _step: function (name, fn) {
+            try {
+                fn();
+            } catch (e) {
+                console.error('ProfilesPlugin: startup step "' + name + '" failed.', e);
+            }
+        },
+
         init: function () {
             if (typeof ApiClient === 'undefined') {
                 // If ApiClient is not defined yet, wait for it
@@ -986,28 +1005,32 @@
             // translated string — fetchAndRenderProfiles awaits it just before drawing
             // the gate for the first time, which is the only render early enough to
             // matter.
-            this._i18nReady = loadLocale();
-            this.bindEvents();
-            this.injectStyles();
+            this._step('loadLocale', () => { this._i18nReady = loadLocale(); });
+            // fetchAndRenderProfiles awaits this before the first gate render, so it has to
+            // be a promise even if the step above failed.
+            if (!this._i18nReady) this._i18nReady = Promise.resolve();
+
+            this._step('bindEvents', () => this.bindEvents());
+            this._step('injectStyles', () => this.injectStyles());
             // Kicked off before the first route check so the gate decision is usually made
             // with the real answer in hand rather than the cached one.
             // Before any Jellyfin view renders: the cached rules have to be in the document
             // by the time the first library card paints, or the artwork this profile is not
             // meant to see gets a frame on screen.
-            this.applyCachedLibraryArtwork();
-            this.loadLibraryArtwork();
-            this.loadSwitcherPrefs();
-            this.bindPanicShortcut();
+            this._step('applyCachedLibraryArtwork', () => this.applyCachedLibraryArtwork());
+            this._step('loadLibraryArtwork', () => this.loadLibraryArtwork());
+            this._step('loadSwitcherPrefs', () => this.loadSwitcherPrefs());
+            this._step('bindPanicShortcut', () => this.bindPanicShortcut());
             // Bound once for the life of the page. It resolves the active Bonfire screen on
             // every event and does nothing when there is none, so it covers the gate, the
             // PIN prompt, the profile forms and every dialog without per-screen wiring.
-            this._bindOverlayFocusTrap();
+            this._step('_bindOverlayFocusTrap', () => this._bindOverlayFocusTrap());
             // Before validateSessionState, which can trigger a reload of its own.
-            this.checkPersistedPanic();
+            this._step('checkPersistedPanic', () => this.checkPersistedPanic());
             if (this._panicDisabled) return;
-            this.validateSessionState();
+            this._step('validateSessionState', () => this.validateSessionState());
             // If the user refreshes while a profile is active, restart the inactivity timer
-            setTimeout(() => this.initLockoutTimer(), 800);
+            setTimeout(() => this._step('initLockoutTimer', () => this.initLockoutTimer()), 800);
         },
 
         bindEvents: function () {
@@ -6611,8 +6634,15 @@
         },
 
         injectStyles: function () {
+            // Idempotent: a second evaluation of this script (a re-injected tag, a client
+            // that loads it twice) would otherwise append a second full copy of the sheet.
+            if (document.getElementById('jpf-styles')) return;
+
             const style = document.createElement('style');
-            style.innerHTML = `
+            style.id = 'jpf-styles';
+            // textContent, not innerHTML. A <style> element's contents are CSS, not markup,
+            // so HTML-parsing them buys nothing and can only misread the text.
+            style.textContent = `
                 /* ── Theme integration ───────────────────────────────────────────
                    jellyfin-web has no colour variables of its own. The request to add
                    them (jellyfin-web discussion #6520) is answered "planned" and nothing
@@ -7025,8 +7055,8 @@
                     box-shadow: none;
                     overflow: visible;
                 }
-                /* The rule above is two classes; `.profile-card.is-current .profile-avatar`
-                   is three, so it won and painted the accent border as a rounded square
+                /* The rule above is two classes; the is-current rule below started life
+                   at three, so it won and painted the accent border as a rounded square
                    around a circular picture — while the silhouette outline drew a second
                    ring inside it. Two highlights on one avatar, which is what was
                    reported. Every state that touches border-color or box-shadow on

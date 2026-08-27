@@ -172,7 +172,9 @@ Building a native app or custom Jellyfin client?
 
 📄 **[Developer API Reference](docs/developer-api.md)**
 
-Covers all endpoints, request/response schemas, the session lifecycle, silent PIN verification, inactivity lockout, and platform-specific implementation notes for tvOS, Android, Roku, Tizen, webOS, Xbox, PS4/PS5, and Electron.
+All 41 endpoints with their request and response schemas, the seven routes that work without a token and why each one has to, profile switching and PIN verification, the Bonfire sharing rules, and how to add a translation.
+
+For which clients the switcher can appear on at all, see [Client Compatibility](#client-compatibility) above — the plugin injects a script into your server's web client, so that is a question about the app, not about the API.
 
 ---
 
