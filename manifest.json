@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.5.2.0",
+        "changelog": "**Beta release** — please report issues on GitHub.\n\nFollow-ups to 1.5.1.\n\n**Fixed**\n\n- After updating the plugin, the settings page said it could not modify `index.html` and asked for file permissions — on servers set to serve the script live, where that file is deliberately left alone. A newly installed or updated build cannot attach to Jellyfin until the server restarts, so that is what it says now. On Docker that means restarting the container: Jellyfin's own Restart button does not restart the process. (#25)\n- A cut-out profile picture was highlighted twice at once — a square ring around a round picture, with the outline that follows the picture inside it. Every state that draws a ring now knows about cut-outs. (#23)\n- Manage Profiles laid a dark square panel over cut-out pictures. (#23)\n- Switching back to the account owner left the top-bar avatar showing the profile you had just left. (#23)\n\n**Changed**\n\n- **Transparent background** is now **No background**, and sits directly under the profile name next to the colour it controls, rather than below the picture. (#23)",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.5.2/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-08-27T00:00:00Z"
+      },
+      {
         "version": "1.5.1.0",
         "changelog": "**Beta release** — please report issues on GitHub.\n\nThree reports from the 1.5.0 release.\n\n**Fixed**\n\n- Switching profiles from the user menu left you on the settings page as the new profile. It now takes you to the home screen. (#22)\n- On Jellyfin 10.11, Bonfire treated every page as the home screen. The route moved out of the address bar's `#` fragment and into the path, and Bonfire was still reading the fragment.\n\n**Changed**\n\n- The label under the profile you are signed in as read **Watching now**, which looked like somebody else was watching something. It now reads **Signed in**. (#24)\n- Profile pictures that are cut out rather than rectangular no longer get the avatar colour behind them, so the corners stay clear and the outline follows the picture. Set automatically when you choose a picture, with a **Transparent background** switch to correct it either way. (#23)\n- The avatar colour said it was unused once a picture was set. It is painted behind the picture, and now says so.",
         "targetAbi": "10.11.0.0",
