@@ -1,11 +1,29 @@
 using System;
 using System.Reflection;
 
+// Locate the repository root by walking up from this binary until the plugin's project
+// file appears. This was a hardcoded absolute path, so these harnesses could only run on
+// one machine — they failed on the first CI run.
+static string RepoRoot()
+{
+    var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+    while (d != null && !System.IO.File.Exists(System.IO.Path.Combine(d.FullName, "Jellyfin.Profiles.csproj")))
+        d = d.Parent;
+    if (d == null) throw new InvalidOperationException("Could not find the repository root.");
+    return d.FullName;
+}
+static string RepoPath(params string[] parts)
+{
+    var all = new System.Collections.Generic.List<string> { RepoRoot() };
+    all.AddRange(parts);
+    return System.IO.Path.Combine(all.ToArray());
+}
+
 // Exercises the pure decision helpers against the compiled plugin:
 //   - the cross-account (Bonfire) switch matrix         — issue #13
 //   - switcher-preference resolution and migration      — issues #8 / #14
 
-var asm = Assembly.LoadFrom(@"d:\JellyfinProfiles\bin\Release\net9.0\Jellyfin.Profiles.dll");
+var asm = Assembly.LoadFrom(RepoPath("bin", "Release", "net9.0", "Jellyfin.Profiles.dll"));
 var baseType = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController", true);
 var mappingType = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);
 var locType = asm.GetType("Jellyfin.Profiles.Configuration.SwitcherLocations", true);

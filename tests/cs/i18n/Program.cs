@@ -3,6 +3,24 @@ using System.Collections;
 using System.Linq;
 using System.Reflection;
 
+// Locate the repository root by walking up from this binary until the plugin's project
+// file appears. This was a hardcoded absolute path, so these harnesses could only run on
+// one machine — they failed on the first CI run.
+static string RepoRoot()
+{
+    var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+    while (d != null && !System.IO.File.Exists(System.IO.Path.Combine(d.FullName, "Jellyfin.Profiles.csproj")))
+        d = d.Parent;
+    if (d == null) throw new InvalidOperationException("Could not find the repository root.");
+    return d.FullName;
+}
+static string RepoPath(params string[] parts)
+{
+    var all = new System.Collections.Generic.List<string> { RepoRoot() };
+    all.AddRange(parts);
+    return System.IO.Path.Combine(all.ToArray());
+}
+
 // The server half of translations, against the compiled plugin:
 //   - locale codes are discovered from embedded resources, not a hand-kept list
 //   - the client's locale list is filled in as profiles.js is served
@@ -10,7 +28,7 @@ using System.Reflection;
 // The point of both is that adding a language is one JSON file. A regression here is
 // silent — the file ships, the endpoint serves it, and no browser ever asks for it.
 
-var dll = @"d:\JellyfinProfiles\bin\Release\net9.0\Jellyfin.Profiles.dll";
+var dll = RepoPath("bin", "Release", "net9.0", "Jellyfin.Profiles.dll");
 var asm = Assembly.LoadFrom(dll);
 var ctrl = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesController", true);
 
@@ -38,7 +56,7 @@ var embedded = resources
     .ToArray();
 
 var onDisk = System.IO.Directory
-    .GetFiles(@"d:\JellyfinProfiles\Web\i18n", "*.json")
+    .GetFiles(RepoPath("Web", "i18n"), "*.json")
     .Select(System.IO.Path.GetFileNameWithoutExtension)
     .OrderBy(c => c, StringComparer.Ordinal)
     .ToArray();
@@ -93,7 +111,7 @@ if (publish != null)
 
     // The real script has to carry the marker exactly once, or the client is handed an
     // empty list and silently renders English for everyone.
-    var real = System.IO.File.ReadAllText(@"d:\JellyfinProfiles\Web\profiles.js");
+    var real = System.IO.File.ReadAllText(RepoPath("Web", "profiles.js"));
     var count = real.Split(marker).Length - 1;
     Ok("profiles.js carries the marker exactly once (found " + count + ")", count == 1);
 

@@ -2,6 +2,24 @@ using System;
 using System.Reflection;
 using System.Text.RegularExpressions;
 
+// Locate the repository root by walking up from this binary until the plugin's project
+// file appears. This was a hardcoded absolute path, so these harnesses could only run on
+// one machine — they failed on the first CI run.
+static string RepoRoot()
+{
+    var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+    while (d != null && !System.IO.File.Exists(System.IO.Path.Combine(d.FullName, "Jellyfin.Profiles.csproj")))
+        d = d.Parent;
+    if (d == null) throw new InvalidOperationException("Could not find the repository root.");
+    return d.FullName;
+}
+static string RepoPath(params string[] parts)
+{
+    var all = new System.Collections.Generic.List<string> { RepoRoot() };
+    all.AddRange(parts);
+    return System.IO.Path.Combine(all.ToArray());
+}
+
 // Exercises the 1.4.1 injection path against the compiled plugin:
 //   - WebInjection.Inject / Remove / IsFullyInjected  — the shared HTML surgery
 //   - IndexInjectionModes                             — which mechanism is live
@@ -11,7 +29,7 @@ using System.Text.RegularExpressions;
 // middleware can both act on the same document, and the failure mode is two copies of
 // profiles.js at different versions, which means two gates fighting each other.
 
-var asm = Assembly.LoadFrom(@"d:\JellyfinProfiles\bin\Release\net9.0\Jellyfin.Profiles.dll");
+var asm = Assembly.LoadFrom(RepoPath("bin", "Release", "net9.0", "Jellyfin.Profiles.dll"));
 var wi = asm.GetType("Jellyfin.Profiles.WebInjection", true);
 var modes = asm.GetType("Jellyfin.Profiles.Configuration.IndexInjectionModes", true);
 var mw = asm.GetType("Jellyfin.Profiles.ProfilesIndexMiddleware", true);

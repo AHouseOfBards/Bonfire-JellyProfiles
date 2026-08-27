@@ -28,9 +28,17 @@ const scriptBody = html.slice(
 try { new vm.Script(scriptBody, { filename: 'dashboard-inline' }); ok(true, 'dashboard script parses'); }
 catch (e) { fails.push('dashboard script parses: ' + e.message); }
 
-// Line endings: one CR per LF, no doubled CR. A '\r\r\n' parses but breaks every
-// later anchor in the file.
-ok(count(js, '\r\n') === count(js, '\n'), 'profiles.js has no bare LF');
+// Line endings: consistent, and no doubled CR. A '\r\r\n' parses but breaks every
+// later anchor in the file, which is the real hazard here — a scripted edit writing the
+// wrong ending into a file that used the other one.
+//
+// Consistency, not CRLF specifically: this used to assert every LF was part of a CRLF,
+// which is true on a Windows checkout and false on Linux, so it failed the first time CI
+// ran on ubuntu. Which ending a checkout gets is git's business now — see .gitattributes.
+const pureCrlf = count(js, '\r\n') === count(js, '\n');
+const pureLf = count(js, '\r') === 0;
+ok(pureCrlf || pureLf, 'profiles.js line endings are consistent (mixed: '
+    + count(js, '\r\n') + ' CRLF of ' + count(js, '\n') + ' LF)');
 ok(count(js, '\r\r') === 0, 'profiles.js has no doubled CR');
 ok(count(html, '\r\r') === 0, 'dashboard has no doubled CR');
 
