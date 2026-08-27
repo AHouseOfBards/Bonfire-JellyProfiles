@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -1503,6 +1504,58 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             return Content(CachedProfilesJs, "application/javascript");
+        }
+
+        // ── Translations ────────────────────────────────────────────────────────────
+        // English ships inline in profiles.js — it is the fallback every client already
+        // has, so it is never requested here. This endpoint only ever serves the other
+        // languages, each embedded as its own Web/i18n/{locale}.json resource, fetched
+        // by the browser once it has decided (from navigator.languages) that it wants
+        // one. Adding a language is a JSON file plus one entry in SupportedI18nLocales —
+        // nothing here has to change.
+
+        /// <summary>Locale codes with a translation file embedded in the assembly.</summary>
+        private static readonly HashSet<string> SupportedI18nLocales =
+            new(StringComparer.OrdinalIgnoreCase) { "fr" };
+
+        private static readonly ConcurrentDictionary<string, string?> CachedI18nJson = new();
+
+        [HttpGet("i18n/{locale}")]
+        [Produces("application/json")]
+        public ActionResult GetI18n(string locale)
+        {
+            // profiles.js requests "fr.json"; strip the extension so the lookup key
+            // matches SupportedI18nLocales and the embedded resource name either way.
+            var code = locale.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+                ? locale[..^5]
+                : locale;
+
+            if (!SupportedI18nLocales.Contains(code)) return NotFound();
+
+            // Loaded once per app lifetime, the same reasoning as CachedProfilesJs above.
+            var json = CachedI18nJson.GetOrAdd(code, key =>
+            {
+                var assembly = typeof(Plugin).Assembly;
+                using var stream = assembly.GetManifestResourceStream($"Jellyfin.Profiles.Web.i18n.{key}.json");
+                if (stream == null) return null;
+                using var reader = new StreamReader(stream);
+                return reader.ReadToEnd();
+            });
+
+            if (json == null) return NotFound();
+
+            // Same cache contract as profiles.js: the plugin version is the cache-buster,
+            // so a stale copy still picks up an updated translation within max-age.
+            var etag = "\"" + GetPluginVersion() + "-" + code + "\"";
+            Response.Headers["ETag"] = etag;
+            Response.Headers["Cache-Control"] = "public, max-age=300, must-revalidate";
+
+            if (string.Equals(Request.Headers["If-None-Match"].ToString(), etag, StringComparison.Ordinal))
+            {
+                return StatusCode(StatusCodes.Status304NotModified);
+            }
+
+            return Content(json, "application/json");
         }
 
         // ── Bonfire Codes ──────────────────────────────────────────────────────────

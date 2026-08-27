@@ -40,6 +40,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Web/profilesDashboard.html" />
     <EmbeddedResource Include="Web/profiles.js" />
+    <EmbeddedResource Include="Web/i18n/*.json" />
   </ItemGroup>
 
 </Project>

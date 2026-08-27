@@ -89,6 +89,303 @@
     const OVERLAY_Z = 99999;
     const DIALOG_Z = OVERLAY_Z + 10;
 
+    // ── Internationalisation ────────────────────────────────────────────────────
+    // English lives inline, as the single dependency-free fallback every client can
+    // render immediately — no fetch, no flash of untranslated text, works even if the
+    // server is briefly unreachable. Every other language is a JSON file the server
+    // hands out from Web/i18n/, fetched once and only for a visitor whose browser
+    // actually asks for it: nobody pays for a translation they will not read.
+    //
+    // To add a language: drop Web/i18n/<code>.json next to fr.json (same keys, only
+    // the values change), embed it in the .csproj beside the others, and add the code
+    // to SUPPORTED_LOCALES below.
+    const SUPPORTED_LOCALES = ['fr'];
+
+    const EN_STRINGS = {
+        'common.cancel': 'Cancel',
+        'common.confirm': 'Confirm',
+        'common.back': 'Back',
+        'common.done': 'Done',
+        'common.save': 'Save',
+        'common.ok': 'OK',
+        'common.remove': 'Remove',
+        'common.add': 'Add',
+        'common.selectAll': 'Select all',
+        'common.create': 'Create',
+        'common.join': 'Join',
+        'common.submit': 'Submit',
+        'common.unlock': 'Unlock',
+        'common.settings': 'Settings',
+
+        'gate.whosWatching': "Who's Watching?",
+        'gate.manageProfiles': 'Manage Profiles',
+        'gate.watchingNow': 'Watching now',
+        'gate.pinProtected': 'PIN Protected',
+        'gate.noPin': 'No PIN',
+        'gate.addProfile': 'Add Profile',
+        'gate.yourBonfire': 'Your Bonfire',
+        'gate.guest': 'Guest',
+        'gate.bonfireOf': "{name}'s Bonfire",
+        'gate.limitReached': '{count}/{max} profiles — limit reached',
+        'gate.cantGetPast': "Can't get past this screen?",
+        'gate.bonfireProfile': 'Bonfire Profile',
+
+        'pin.enterProfilePin': 'Enter Profile PIN',
+        'pin.enterMasterPin': 'Enter Master PIN',
+        'pin.incorrectPin': 'Incorrect PIN. Please try again.',
+        'pin.incorrectMasterPin': 'Incorrect Master PIN. Please try again.',
+
+        'avatar.positionYourPicture': 'Position your picture',
+        'avatar.dragOrArrows': 'Drag or arrows to move, slider to zoom. Press OK when it looks right.',
+        'avatar.usePicture': 'Use picture',
+        'avatar.fromThisServer': 'From this server',
+        'avatar.fromThisDevice': 'From this device',
+        'avatar.uploadPicture': 'Upload a picture',
+        'avatar.uploadHint': 'JPEG, PNG, WebP or GIF. You can position and zoom it after choosing.',
+        'avatar.adminLimited': 'Your server administrator has limited profile pictures to the set above.',
+        'avatar.profilePicture': 'Profile Picture',
+        'avatar.changePicture': 'Change picture',
+        'avatar.choosePicture': 'Choose a picture',
+        'avatar.avatarLabel': 'Avatar',
+        'avatar.zoom': 'Zoom',
+        'avatar.chooseFirst': 'Choose a picture first.',
+        'avatar.libraryArtworkTitle': 'Library artwork',
+
+        'errors.error': 'Error',
+        'errors.validationError': 'Validation Error',
+        'errors.unauthorized': 'Unauthorized',
+        'errors.failedDeleteDevice': 'Failed to delete device.',
+        'errors.withMessage': 'Error: {message}',
+        'errors.savingProfile': 'Error saving profile: {message}',
+        'errors.loadProfileDetails': 'Failed to load profile details: {message}',
+        'errors.failedDeleteProfile': 'Failed to delete profile',
+        'errors.deletingProfile': 'Error deleting profile: {message}',
+        'errors.couldNotSaveArtwork': 'Could not save the artwork.',
+        'errors.couldNotSaveThat': 'Could not save that.',
+        'errors.heicUnsupported': "HEIC photos aren't supported. Export the photo as JPEG first.",
+        'errors.svgUnsupported': "SVG images aren't supported. Use a JPEG, PNG, WebP or GIF.",
+        'errors.imageTooLarge': 'That image is over 25 MB. Use a smaller one.',
+        'errors.fileUnreadable': 'That file could not be read.',
+        'errors.imageEmpty': 'That image appears to be empty.',
+        'errors.imageFormatUnsupported': "That image format isn't supported. Save it as a JPEG or PNG first.",
+        'errors.imageLoadFailed': 'That image could not be loaded.',
+
+        'profileForm.profileName': 'Profile Name',
+        'profileForm.namePlaceholder': 'e.g. Kids',
+        'profileForm.masterNameHint': 'The master profile takes its name from your Jellyfin account.',
+        'profileForm.avatarColor': 'Avatar Color',
+        'profileForm.colorHintNoPicture': 'Used as the avatar background when no picture is set.',
+        'profileForm.colorHintHasPicture': 'Not used while a picture is set.',
+        'profileForm.pin': 'PIN',
+        'profileForm.pinPlaceholderEmpty': 'Leave empty for no PIN',
+        'profileForm.pinPlaceholderNew': 'New PIN',
+        'profileForm.pinPlaceholderNone': 'No PIN',
+        'profileForm.pinPlaceholderUnprotected': 'Unprotected',
+        'profileForm.clearPin': 'Clear PIN',
+        'profileForm.pinIsSetHint': '🔒 <strong>A PIN is set.</strong> Leave blank to keep it, type a new one to replace it, or use Clear PIN.',
+        'profileForm.noPinSetHint': 'No PIN set. This profile can be opened by anyone who can reach the switcher.',
+        'profileForm.bypassPinLan': 'Bypass PIN on local network (LAN)',
+        'profileForm.bypassPinHint': 'No PIN prompt on your home network.',
+        'profileForm.autoLock': 'Auto-lock after inactivity',
+        'profileForm.autoLockHintCreate': 'Only applies when this profile has a PIN set.',
+        'profileForm.autoLockHintEdit': 'Only applies when a PIN is set on this profile.',
+        'profileForm.lockoutNever': 'Never',
+        'profileForm.lockout1Min': '1 minute',
+        'profileForm.lockout5Min': '5 minutes',
+        'profileForm.lockout5MinDefault': '5 minutes (default)',
+        'profileForm.lockout10Min': '10 minutes',
+        'profileForm.lockout20Min': '20 minutes',
+        'profileForm.lockout30Min': '30 minutes',
+        'profileForm.lockout1Hour': '1 hour',
+        'profileForm.enabledLibraries': 'Enabled Libraries',
+        'profileForm.libraries': 'Libraries',
+        'profileForm.librariesInheritHint': 'Tick nothing and this profile sees the same libraries as your account.',
+        'profileForm.libraryHeader': 'Library',
+        'profileForm.artworkHeader': 'Artwork',
+        'profileForm.artworkForAria': 'Artwork for {name}',
+        'profileForm.removeTagAria': 'Remove tag {tag}',
+        'profileForm.artworkDefault': 'Default',
+        'profileForm.artworkPicture': 'Picture',
+        'profileForm.artworkHidden': 'Hidden',
+        'profileForm.artworkChoose': 'Choose',
+        'profileForm.artworkToggleLabel': 'Choose the artwork on each library tile',
+        'profileForm.artworkExplainer': 'A library tile takes its picture from whatever is inside the library — which can be something this profile is not allowed to open. <strong>Picture</strong> puts an image you choose on the tile instead, and <strong>Hidden</strong> leaves just the icon and the name.',
+        'profileForm.allowedDevices': 'Allowed Devices',
+        'profileForm.allDevicesAllowed': 'All Devices Allowed',
+        'profileForm.oneDeviceAllowed': '1 Device Allowed',
+        'profileForm.devicesAllowed': '{count} Devices Allowed',
+        'profileForm.noDevicesYet': 'No devices found for your account yet',
+        'profileForm.noDevicesConnected': 'No connected devices found',
+        'profileForm.devicesHint': 'If no devices are selected, this profile can be accessed from any device.',
+        'profileForm.unknownDevice': 'Unknown Device',
+        'profileForm.unknownClient': 'Unknown Client',
+        'profileForm.unknown': 'Unknown',
+        'profileForm.deviceLastSeen': '{client} • Last seen {date}',
+        'profileForm.forgetDevice': 'Forget this device',
+        'profileForm.forgetDeviceAria': 'Forget {name}',
+        'profileForm.maximumRating': 'Maximum rating',
+        'profileForm.noRestrictions': 'No Restrictions',
+        'profileForm.ratingG': 'G / TV-G (6+)',
+        'profileForm.ratingPG': 'PG / TV-PG (10+)',
+        'profileForm.ratingPG13': 'PG-13 / TV-14 (14+)',
+        'profileForm.ratingR': 'R / TV-MA (17+)',
+        'profileForm.blockedTags': 'Blocked tags',
+        'profileForm.blockedTagsHint': 'Hides anything with these tags. A tag on a series or library covers everything inside it.',
+        'profileForm.allowedTags': 'Allowed tags',
+        'profileForm.allowedTagsHint': '⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items. Untagged content is hidden too.',
+        'profileForm.tagPlaceholderAdults': 'e.g. adults',
+        'profileForm.tagPlaceholderKids': 'e.g. kids',
+        'profileForm.createTitle': 'Create Profile',
+        'profileForm.editTitle': 'Edit Profile',
+        'profileForm.sectionProfileTitle': 'Profile',
+        'profileForm.sectionProfileSubtitle': 'Name, colour, and picture',
+        'profileForm.sectionSecurityTitle': 'Security',
+        'profileForm.sectionSecuritySubtitle': 'PIN protection and automatic locking',
+        'profileForm.sectionLibrariesSubtitle': 'Which libraries this profile can browse',
+        'profileForm.sectionRestrictionsTitle': 'Content & Device Restrictions',
+        'profileForm.sectionRestrictionsSubtitle': 'Limits applied on top of the libraries above',
+        'profileForm.deleteProfile': 'Delete Profile',
+        'profileForm.nameRequired': 'Profile name is required.',
+        'profileForm.pinMustBeDigits': 'A PIN can only contain digits.',
+        'profileForm.pinLengthCreate': 'PIN must be 4–8 digits.',
+        'profileForm.pinLengthEdit': 'A PIN must be 4-8 digits — you entered {count}.',
+        'profileForm.deleteConfirmMessage': 'Are you sure you want to delete profile "{name}" and its underlying user account? This action is irreversible.',
+        'profileForm.deleteDeviceTitle': 'Delete Device History',
+        'profileForm.deleteDeviceMessage': 'Remove this device? Any access restrictions for it go too.',
+
+        'panic.emergencyDisable': 'Emergency disable',
+        'panic.dialogBody': "Enter the code your server administrator set. This shuts the Bonfire switcher off until Jellyfin is restarted — the profile gate disappears and this account is used as-is. It does not unlock anyone else's profile.",
+        'panic.emergencyCodePlaceholder': 'Emergency code',
+        'panic.disable': 'Disable',
+        'panic.checking': 'Checking…',
+        'panic.tooManyAttempts': 'Too many attempts. Try again in an hour, or restart Jellyfin.',
+        'panic.incorrectCode': 'Incorrect code.',
+        'panic.disabledTitle': 'Bonfire disabled',
+        'panic.disabledBody': 'The switcher is off until Jellyfin restarts. Reload the page if anything still looks wrong.',
+
+        'settings.title': 'Settings',
+        'settings.switcherStyleTitle': 'Switcher Style',
+        'settings.switcherStyleBody': 'Where you reach this screen from, and whether it opens on startup.',
+        'settings.yourBonfireTitle': 'Your Bonfire',
+        'settings.yourBonfireBody': 'Share your profiles with another home, or join theirs.',
+
+        'switcher.title': 'Switcher Style',
+        'switcher.intro': 'How you reach this screen. Applies to your account on every device.',
+        'switcher.askOnStartup': 'Ask "Who\'s watching?" on startup',
+        'switcher.askOnStartupHint': 'Shown once when the app opens — not every time you return to the home screen.',
+        'switcher.whereToSwitchFrom': 'Where to switch from',
+        'switcher.bonfireButtonTitle': 'Bonfire button',
+        'switcher.bonfireButtonBody': "A separate switcher button in the header, next to Jellyfin's own profile icon.",
+        'switcher.menuTitle': "Jellyfin's user menu",
+        'switcher.menuBody': 'Adds "Switch Profile" above Sign out in Jellyfin\'s own menu, and to your profile page. Removes the second header icon.',
+        'switcher.switchProfile': 'Switch Profile',
+        'switcher.switchProfileSuffix': '{name} (Switch)',
+
+        'bonfire.yourBonfireTitle': 'Your Bonfire',
+        'bonfire.hostedTitle': 'Your Hosted Bonfire',
+        'bonfire.shareCode': 'Share this code to invite someone to your Bonfire:',
+        'bonfire.members': 'Members ({count})',
+        'bonfire.kick': 'Kick',
+        'bonfire.noMembersYet': 'No members joined yet.',
+        'bonfire.deleteGroup': 'Delete Group',
+        'bonfire.hostTitle': 'Host a Bonfire',
+        'bonfire.hostBody': 'Host your own group to share your sub-profiles with friends.',
+        'bonfire.generateJoinCode': 'Generate Join Code',
+        'bonfire.generating': 'Generating…',
+        'bonfire.joinedTitle': 'Joined Bonfire',
+        'bonfire.joinedOwnedBy': 'You have joined a bonfire group owned by:',
+        'bonfire.accessEachOther': "You can access each other's profiles from the switcher grid.",
+        'bonfire.leaveGroup': 'Leave Group',
+        'bonfire.joinTitle': 'Join a Bonfire',
+        'bonfire.joinBody': "Enter a friend's Bonfire Code to join their group:",
+        'bonfire.joinCodePlaceholder': 'e.g. B7F8XA',
+        'bonfire.joining': 'Joining…',
+        'bonfire.pleaseEnterCode': 'Please enter a 6-character code.',
+        'bonfire.tooManyJoinAttempts': 'Too many failed attempts. Try again in 15 minutes.',
+        'bonfire.failedToJoin': 'Failed to join group.',
+        'bonfire.leaveCurrentTitle': 'Leave your current Bonfire?',
+        'bonfire.leaveCurrentBody': 'Joining this Bonfire removes you from your current one.',
+        'bonfire.kickConfirmTitle': 'Kick Member',
+        'bonfire.kickConfirmBody': 'Are you sure you want to kick this user from your Bonfire group?',
+        'bonfire.failedKick': 'Failed to kick member.',
+        'bonfire.deleteGroupConfirmTitle': 'Delete Group',
+        'bonfire.deleteGroupConfirmBody': 'Delete your Bonfire? Members are disconnected and drop out of your switcher.',
+        'bonfire.failedDeleteGroup': 'Failed to delete group.',
+        'bonfire.leaveGroupConfirmTitle': 'Leave Group',
+        'bonfire.leaveGroupConfirmBody': 'Leave this Bonfire? You will stop sharing switchers.',
+        'bonfire.failedLeaveGroup': 'Failed to leave group.',
+        'bonfire.failedGenerateCode': 'Failed to generate code: {message}',
+        'bonfire.failedLoadStatus': 'Failed to load Bonfire status: {message}',
+        'bonfire.unknownUser': 'Unknown User',
+        'bonfire.hideMine': 'Hide my sub-profiles from others',
+        'bonfire.hideMineHint': 'Connected homes see only your master profile.',
+        'bonfire.hideOthers': "Hide other people's sub-profiles from me",
+        'bonfire.hideOthersHint': 'You see only the master profiles of connected homes.',
+        'bonfire.lanSwitchLabel': 'Let my Bonfire switch into my account on this network',
+        'bonfire.lanSwitchHint': 'No PIN needed on your home network. Away from home it still is{extra}.',
+        'bonfire.lanSwitchHintExtra': ', and until you set one your account cannot be opened remotely at all',
+        'bonfire.adminAccountWarning': 'This is an admin account.',
+        'bonfire.adminAccountWarningBody': 'Whoever switches into it gets your admin rights.',
+        'bonfire.proxyHint': 'Behind a reverse proxy, check Networking → Known Proxies first, or everyone looks local.',
+        'bonfire.allowHouseholdTitle': 'Allow household switching?',
+        'bonfire.allowHouseholdBody': 'Anyone in your Bonfire can open your account on your home network without your PIN.',
+
+        'profilePage.title': 'Bonfire Profiles',
+        'profilePage.body': 'Currently watching as <strong>{name}</strong>. Switch to another profile in your household without signing out.',
+        'profilePage.thisAccount': 'this account',
+    };
+
+    /// The active language's strings. Starts out equal to EN_STRINGS — every lookup
+    /// already resolves correctly before loadLocale() has done anything — and is
+    /// swapped wholesale, never merged, once a translation arrives: a partial file
+    /// would otherwise leave a stale mix of two languages on screen.
+    let activeStrings = EN_STRINGS;
+
+    /// Looks up `key`, filling in `{token}` placeholders from `vars`. Falls back to the
+    /// English string, then to the key itself, so a translation file missing a newer
+    /// key degrades to English rather than showing nothing.
+    ///
+    /// `vars` values are interpolated as-is: pass already-escaped HTML for anything
+    /// that ends up in a template destined for innerHTML, exactly as callers already do
+    /// for user-supplied text like profile and device names.
+    function t(key, vars) {
+        let str = (activeStrings && activeStrings[key]) || EN_STRINGS[key] || key;
+        if (vars) {
+            Object.keys(vars).forEach(k => {
+                str = str.split('{' + k + '}').join(vars[k]);
+            });
+        }
+        return str;
+    }
+
+    /// First of the browser's preferred languages that this plugin ships a translation
+    /// for for, or null to stay on English.
+    function detectLocale() {
+        const langs = (navigator.languages && navigator.languages.length)
+            ? navigator.languages : [navigator.language || ''];
+        for (const lang of langs) {
+            const code = (lang || '').slice(0, 2).toLowerCase();
+            if (SUPPORTED_LOCALES.includes(code)) return code;
+        }
+        return null;
+    }
+
+    /// Fetches the detected locale's strings and swaps them in. Always resolves —
+    /// nothing here is worth failing startup over. No detected/supported locale, a
+    /// missing file, or a network error all leave English active, which is already
+    /// what `activeStrings` is until this resolves.
+    function loadLocale() {
+        const locale = detectLocale();
+        if (!locale) return Promise.resolve();
+
+        return fetch(pluginUrl('/plugins/profiles/i18n/' + locale + '.json'))
+            .then(res => res.ok ? res.json() : null)
+            .then(strings => {
+                if (strings && typeof strings === 'object') activeStrings = strings;
+            })
+            .catch(() => { /* stay on English */ });
+    }
+
     const ProfilesPlugin = {
         config: {
             masterStorageKey: 'jellyfin_profiles_master_state',
@@ -170,8 +467,8 @@
                     <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
                     <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
                     <div style="display: flex; gap: var(--jpf-gap); justify-content: center;">
-                        <button id="dialog-confirm-btn" class="profiles-btn btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">Confirm</button>
-                        <button id="dialog-cancel-btn" class="profiles-btn btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">Cancel</button>
+                        <button id="dialog-confirm-btn" class="profiles-btn btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.confirm')}</button>
+                        <button id="dialog-cancel-btn" class="profiles-btn btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.cancel')}</button>
                     </div>
                 </div>
             `;
@@ -251,7 +548,7 @@
                     <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
                     <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
                     <div style="display: flex; justify-content: center;">
-                        <button id="dialog-close-btn" class="profiles-btn btn-primary" style="padding: 10px 24px; font-weight: 600; min-width: 120px;">OK</button>
+                        <button id="dialog-close-btn" class="profiles-btn btn-primary" style="padding: 10px 24px; font-weight: 600; min-width: 120px;">${t('common.ok')}</button>
                     </div>
                 </div>
             `;
@@ -430,8 +727,8 @@
             const hint = group.querySelector('[data-role="color-hint"]');
             if (hint) {
                 hint.textContent = hasPicture
-                    ? 'Not used while a picture is set.'
-                    : 'Used as the avatar background when no picture is set.';
+                    ? t('profileForm.colorHintHasPicture')
+                    : t('profileForm.colorHintNoPicture');
             }
         },
 
@@ -538,29 +835,29 @@
                 .then(res => res.ok ? res.json() : null)
                 .then(data => {
                     const tags = (data && (data.Tags || data.tags)) || [];
-                    return Array.from(new Set(tags.filter(t => t)))
+                    return Array.from(new Set(tags.filter(tag => tag)))
                         .sort((a, b) => a.localeCompare(b));
                 })
                 .catch(() => []);
         },
 
         renderTagSuggestions: function (id, tags) {
-            return `<datalist id="${id}">${(tags || []).map(t => `<option value="${escapeHtml(t)}"></option>`).join('')}</datalist>`;
+            return `<datalist id="${id}">${(tags || []).map(tag => `<option value="${escapeHtml(tag)}"></option>`).join('')}</datalist>`;
         },
 
         renderTagChip: function (tag) {
             const safe = escapeHtml(tag);
-            return `<span class="tag-chip" data-tag="${safe}"><span>${safe}</span><button type="button" class="tag-chip-remove" tabindex="0" aria-label="Remove tag ${safe}">×</button></span>`;
+            return `<span class="tag-chip" data-tag="${safe}"><span>${safe}</span><button type="button" class="tag-chip-remove" tabindex="0" aria-label="${t('profileForm.removeTagAria', { tag: safe })}">×</button></span>`;
         },
 
         renderTagEditor: function (id, tags, placeholder, suggestionsId) {
-            const chips = (tags || []).map(t => this.renderTagChip(t)).join('');
+            const chips = (tags || []).map(tag => this.renderTagChip(tag)).join('');
             return `
                 <div class="tag-editor" id="${id}">
                     <div class="tag-chip-list" ${(tags || []).length ? '' : 'data-empty="true"'}>${chips}</div>
                     <div class="tag-input-row">
                         <input type="text" class="tag-input" placeholder="${escapeHtml(placeholder)}" list="${suggestionsId}" autocomplete="off" />
-                        <button type="button" class="profiles-btn btn-secondary tag-add-btn">Add</button>
+                        <button type="button" class="profiles-btn btn-secondary tag-add-btn">${t('common.add')}</button>
                     </div>
                 </div>
             `;
@@ -626,7 +923,7 @@
             if (!editor) return [];
             return Array.from(editor.querySelectorAll('.tag-chip'))
                 .map(chip => chip.getAttribute('data-tag'))
-                .filter(t => t);
+                .filter(tag => tag);
         },
 
         init: function () {
@@ -639,6 +936,11 @@
             // We gate _revealPage() on this event so we never fade in to a blank shell.
             this._viewShowFired = false;
             this._pendingReveal = false;
+            // Kicked off now so it usually finishes before anyone actually needs a
+            // translated string — fetchAndRenderProfiles awaits it just before drawing
+            // the gate for the first time, which is the only render early enough to
+            // matter.
+            this._i18nReady = loadLocale();
             this.bindEvents();
             this.injectStyles();
             // Kicked off before the first route check so the gate decision is usually made
@@ -1228,18 +1530,16 @@
             dialog.innerHTML = `
                 <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);
                             padding:24px; max-width:460px; width:90%; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
-                    <h2 style="margin:0 0 12px 0; color:#fff; font-size:1.2rem; font-weight:700;">Emergency disable</h2>
+                    <h2 style="margin:0 0 12px 0; color:#fff; font-size:1.2rem; font-weight:700;">${t('panic.emergencyDisable')}</h2>
                     <p style="color:rgba(255,255,255,0.7); font-size:0.9rem; line-height:1.5; margin:0 0 16px 0;">
-                        Enter the code your server administrator set. This shuts the Bonfire switcher off
-                        until Jellyfin is restarted — the profile gate disappears and this account is used
-                        as-is. It does not unlock anyone else's profile.
+                        ${t('panic.dialogBody')}
                     </p>
-                    <input type="password" id="profiles-panic-input" autocomplete="off" placeholder="Emergency code"
+                    <input type="password" id="profiles-panic-input" autocomplete="off" placeholder="${t('panic.emergencyCodePlaceholder')}"
                            style="width:100%; box-sizing:border-box; padding:10px; font-size:1rem; margin-bottom:8px;" />
                     <div id="profiles-panic-error" style="display:none; color:#ff6b6b; font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
                     <div style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:12px;">
-                        <button id="profiles-panic-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>
-                        <button id="profiles-panic-submit" class="profiles-btn btn-danger" style="padding:10px 20px; font-weight:600;">Disable</button>
+                        <button id="profiles-panic-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
+                        <button id="profiles-panic-submit" class="profiles-btn btn-danger" style="padding:10px 20px; font-weight:600;">${t('panic.disable')}</button>
                     </div>
                 </div>
             `;
@@ -1258,7 +1558,7 @@
                 if (!code) return;
 
                 submitBtn.disabled = true;
-                submitBtn.textContent = 'Checking…';
+                submitBtn.textContent = t('panic.checking');
                 errDiv.style.display = 'none';
 
                 fetch(ApiClient.getUrl('plugins/profiles/panic'), {
@@ -1273,18 +1573,17 @@
                         // reload a page they cannot use would not help.
                         close();
                         this.applyPanicDisable(/* persist */ true);
-                        this.showAlert('Bonfire disabled',
-                            'The switcher is off until Jellyfin restarts. Reload the page if anything still looks wrong.');
+                        this.showAlert(t('panic.disabledTitle'), t('panic.disabledBody'));
                         return;
                     }
-                    if (res.status === 429) throw new Error('Too many attempts. Try again in an hour, or restart Jellyfin.');
-                    throw new Error('Incorrect code.');
+                    if (res.status === 429) throw new Error(t('panic.tooManyAttempts'));
+                    throw new Error(t('panic.incorrectCode'));
                 })
                 .catch(err => {
-                    errDiv.textContent = err.message || 'Incorrect code.';
+                    errDiv.textContent = err.message || t('panic.incorrectCode');
                     errDiv.style.display = 'block';
                     submitBtn.disabled = false;
-                    submitBtn.textContent = 'Disable';
+                    submitBtn.textContent = t('panic.disable');
                 });
             };
 
@@ -1651,7 +1950,7 @@
                 // Consume the prefetch exactly once, then drop it.
                 const profiles = this.cachedProfiles;
                 this.invalidateProfileCache();
-                this.showProfileOverlay(profiles);
+                (this._i18nReady || Promise.resolve()).then(() => this.showProfileOverlay(profiles));
                 return;
             }
 
@@ -1677,7 +1976,7 @@
                 // prefetch buffer, and repopulating it here made the *next* call short-circuit
                 // to data that was already stale.
                 localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
-                this.showProfileOverlay(normalized);
+                return (this._i18nReady || Promise.resolve()).then(() => this.showProfileOverlay(normalized));
             })
             .catch(err => {
                 console.error("Failed to load sub-profiles:", err);
@@ -1919,7 +2218,7 @@
                                 masterPin: this.masterPin
                             })
                         }).then(res => {
-                            if (!res.ok) return res.text().then(t => { throw new Error(t || "Could not save the artwork."); });
+                            if (!res.ok) return res.text().then(body => { throw new Error(body || t('errors.couldNotSaveArtwork')); });
                             entry.dirty = false;
                         });
                     }), Promise.resolve());
@@ -1947,13 +2246,13 @@
                 dialog.innerHTML =
                     '<div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);' +
                     ' padding:22px; max-width:420px; width:94%; max-height:86vh; overflow:auto;">' +
-                    '<h2 style="margin:0 0 14px 0; color:#fff; font-size:1.15rem; font-weight:700;">Library artwork</h2>' +
+                    '<h2 style="margin:0 0 14px 0; color:#fff; font-size:1.15rem; font-weight:700;">' + t('avatar.libraryArtworkTitle') + '</h2>' +
                     '<div id="profiles-libart-host"></div>' +
                     '<div id="profiles-libart-error" style="display:none; color:#ff6b6b; font-size:0.85rem;' +
                     ' font-weight:600; margin-top:8px;"></div>' +
                     '<div style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:16px;">' +
-                    '<button id="profiles-libart-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>' +
-                    '<button id="profiles-libart-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">Use picture</button>' +
+                    '<button id="profiles-libart-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">' + t('common.cancel') + '</button>' +
+                    '<button id="profiles-libart-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">' + t('avatar.usePicture') + '</button>' +
                     '</div></div>';
                 document.body.appendChild(dialog);
 
@@ -1967,7 +2266,7 @@
                     const picked = picker.get();
                     if (!picked.image && !picked.libraryId) {
                         const err = dialog.querySelector("#profiles-libart-error");
-                        err.textContent = "Choose a picture first.";
+                        err.textContent = t('avatar.chooseFirst');
                         err.style.display = "block";
                         return;
                     }
@@ -2468,8 +2767,8 @@
             // draw itself over the grid when it finally returns.
             this.beginNavigation();
 
-            const title = this.isManageMode ? "Manage Profiles" : "Who's Watching?";
-            const manageBtnText = this.isManageMode ? "Done" : "Manage Profiles";
+            const title = this.isManageMode ? t('gate.manageProfiles') : t('gate.whosWatching');
+            const manageBtnText = this.isManageMode ? t('common.done') : t('gate.manageProfiles');
 
             const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
             const maxSubProfiles = masterProfile ? masterProfile.maxSubProfiles : 5;
@@ -2547,7 +2846,7 @@
                         </div>
                         ` : ''}
                         ${p.isBonfire ? `
-                        <div class="profile-bonfire-indicator" title="Bonfire Profile">
+                        <div class="profile-bonfire-indicator" title="${t('gate.bonfireProfile')}">
                             <span class="material-icons" style="font-size: 1.15rem; color: #fff;">local_fire_department</span>
                         </div>
                         ` : ''}
@@ -2555,10 +2854,10 @@
                     <div class="profile-name">
                         <span>${escapeHtml(p.profileName)}</span>
                         ${signedInId && this.normalizeGuid(p.profileUserId) === signedInId
-                            ? '<span class="profile-current-badge">Watching now</span>' : ''}
+                            ? `<span class="profile-current-badge">${t('gate.watchingNow')}</span>` : ''}
                         ${this.isManageMode ? `
                             <span class="profile-pin-badge ${p.requiresPin ? 'locked' : 'unlocked'}">
-                                ${p.requiresPin ? 'PIN Protected' : 'No PIN'}
+                                ${p.requiresPin ? t('gate.pinProtected') : t('gate.noPin')}
                             </span>
                         ` : ''}
                     </div>
@@ -2579,12 +2878,12 @@
                 // warm flame colour; linked ones are tinted by .bonfire-icon-color so the two
                 // remain distinguishable at a glance.
                 if (isLocalGroup) {
-                    headerTitle = "Your Bonfire";
+                    headerTitle = t('gate.yourBonfire');
                     headerIcon = "local_fire_department";
                 } else {
                     const masterProfileForGroup = groupProfiles.find(p => p.isMaster);
-                    const groupName = masterProfileForGroup ? escapeHtml(masterProfileForGroup.profileName) : "Guest";
-                    headerTitle = `${groupName}'s Bonfire`;
+                    const groupName = masterProfileForGroup ? escapeHtml(masterProfileForGroup.profileName) : t('gate.guest');
+                    headerTitle = t('gate.bonfireOf', { name: groupName });
                     headerIcon = "local_fire_department";
                     isBonfireIcon = true;
                 }
@@ -2610,12 +2909,12 @@
                                     <div class="profile-avatar-container">
                                         <div class="profile-avatar add-avatar">+</div>
                                     </div>
-                                    <div class="profile-name">Add Profile</div>
+                                    <div class="profile-name">${t('gate.addProfile')}</div>
                                 </div>
                             `;
                         } else {
                             cardsHtml += `
-                                <div class="profiles-limit-notice">${subProfileCount}/${maxSubProfiles} profiles — limit reached</div>
+                                <div class="profiles-limit-notice">${t('gate.limitReached', { count: subProfileCount, max: maxSubProfiles })}</div>
                             `;
                         }
                     }
@@ -2641,10 +2940,10 @@
                     <div class="profiles-footer">
                         <button id="profiles-toggle-manage-btn" class="profiles-btn btn-secondary">${manageBtnText}</button>
                         ${this.isManageMode && hasLocalMaster
-                            ? '<button id="profiles-settings-btn" class="profiles-btn btn-secondary">Settings</button>'
+                            ? `<button id="profiles-settings-btn" class="profiles-btn btn-secondary">${t('common.settings')}</button>`
                             : ''}
                         ${this._resumeState && !this.isManageMode
-                            ? '<button id="profiles-resume-btn" class="profiles-btn btn-secondary">Cancel</button>'
+                            ? `<button id="profiles-resume-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>`
                             : ''}
                     </div>
                     <!-- Deliberately plain and dim. It has to be reachable by D-pad, because
@@ -2654,7 +2953,7 @@
                     <button id="profiles-panic-link" tabindex="0" style="
                         display: none; background: none; border: none; color: rgba(255,255,255,0.28);
                         font-size: 0.72rem; margin-top: 1.5rem; cursor: pointer;
-                        text-decoration: underline; padding: 6px 10px;">Can't get past this screen?</button>
+                        text-decoration: underline; padding: 6px 10px;">${t('gate.cantGetPast')}</button>
                 </div>
             `;
 
@@ -2785,13 +3084,13 @@
             this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
             content.innerHTML = `
-                <h1 class="profiles-title">Enter Profile PIN</h1>
+                <h1 class="profiles-title">${t('pin.enterProfilePin')}</h1>
                 <div class="pin-entry-container">
                     <input type="text" id="profile-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
                     <div id="pin-error-msg" style="display:none; color:#ff6b6b; font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions">
-                        <button id="pin-submit-btn" class="profiles-btn btn-primary">Unlock</button>
-                        <button id="pin-cancel-btn" class="profiles-btn btn-secondary">Back</button>
+                        <button id="pin-submit-btn" class="profiles-btn btn-primary">${t('common.unlock')}</button>
+                        <button id="pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.back')}</button>
                     </div>
                 </div>
             `;
@@ -2809,7 +3108,7 @@
                 switchInProgress = false;
                 pinInput.style.borderColor = '#ff6b6b';
                 pinInput.style.boxShadow = '0 0 15px rgba(255,107,107,0.5)';
-                errorMsg.textContent = msg || 'Incorrect PIN. Please try again.';
+                errorMsg.textContent = msg || t('pin.incorrectPin');
                 errorMsg.style.display = 'block';
                 pinInput.value = '';
                 // setTimeout avoids re-triggering the 'input' clearError listener on refocus
@@ -2900,13 +3199,13 @@
 
             const content = document.querySelector('.profiles-modal-content');
             content.innerHTML = `
-                <h1 class="profiles-title">Enter Master PIN</h1>
+                <h1 class="profiles-title">${t('pin.enterMasterPin')}</h1>
                 <div class="pin-entry-container">
                     <input type="text" id="master-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
                     <div id="master-pin-error-msg" style="display:none; color:#ff6b6b; font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions">
-                        <button id="master-pin-submit-btn" class="profiles-btn btn-primary">Submit</button>
-                        <button id="master-pin-cancel-btn" class="profiles-btn btn-secondary">Cancel</button>
+                        <button id="master-pin-submit-btn" class="profiles-btn btn-primary">${t('common.submit')}</button>
+                        <button id="master-pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                     </div>
                 </div>
             `;
@@ -2922,7 +3221,7 @@
                 verified = false;
                 pinInput.style.borderColor = '#ff6b6b';
                 pinInput.style.boxShadow = '0 0 15px rgba(255,107,107,0.5)';
-                errorMsg.textContent = msg || 'Incorrect PIN. Please try again.';
+                errorMsg.textContent = msg || t('pin.incorrectPin');
                 errorMsg.style.display = 'block';
                 pinInput.value = '';
                 setTimeout(() => pinInput.focus(), 0);
@@ -3002,7 +3301,7 @@
                     }
                     if (!res.ok) {
                         return res.text().then(text => {
-                            throw new Error(text || 'Incorrect Master PIN. Please try again.');
+                            throw new Error(text || t('pin.incorrectMasterPin'));
                         });
                     }
                     this.masterPin = pin;
@@ -3012,7 +3311,7 @@
                 .catch(err => {
                     verifyInProgress = false;
                     if (err.message !== 'Session expired') {
-                        showPinError(err.message || 'Incorrect Master PIN. Please try again.');
+                        showPinError(err.message || t('pin.incorrectMasterPin'));
                     }
                 });
             };
@@ -3093,7 +3392,7 @@
                             this.handleSessionExpired();
                             throw new Error('Session expired');
                         }
-                        throw new Error(body || 'Incorrect PIN. Please try again.');
+                        throw new Error(body || t('pin.incorrectPin'));
                     });
                 }
                 return res.json();
@@ -3152,7 +3451,7 @@
                 if (err.message === 'Session expired') return;
                 if (typeof onError === 'function') {
                     // Caller has closed-over references to the DOM — no re-query needed
-                    onError(err.message || 'Incorrect PIN. Please try again.');
+                    onError(err.message || t('pin.incorrectPin'));
                 } else {
                     // Fallback: no PIN screen is currently shown (e.g. direct card tap without PIN prompt)
                     this.isManageMode = false;
@@ -3184,17 +3483,17 @@
             // can decode it. Elsewhere the canvas load simply fails, so without this the
             // user gets silence and no idea why.
             if (type.includes('heic') || type.includes('heif') || /\.hei[cf]$/.test(name)) {
-                return 'HEIC photos aren\'t supported. Export the photo as JPEG first.';
+                return t('errors.heicUnsupported');
             }
 
             // SVG can carry script, and these files are served back from the server's own
             // origin. Not worth it for an avatar.
             if (type.includes('svg') || /\.svgz?$/.test(name)) {
-                return 'SVG images aren\'t supported. Use a JPEG, PNG, WebP or GIF.';
+                return t('errors.svgUnsupported');
             }
 
             if (file.size > 25 * 1024 * 1024) {
-                return 'That image is over 25 MB. Use a smaller one.';
+                return t('errors.imageTooLarge');
             }
 
             return null;
@@ -3207,20 +3506,19 @@
                 if (reason) { reject(new Error(reason)); return; }
 
                 const reader = new FileReader();
-                reader.onerror = () => reject(new Error('That file could not be read.'));
+                reader.onerror = () => reject(new Error(t('errors.fileUnreadable')));
                 reader.onload = (event) => {
                     const img = new Image();
                     img.onload = () => {
                         if (!img.width || !img.height) {
-                            reject(new Error('That image appears to be empty.'));
+                            reject(new Error(t('errors.imageEmpty')));
                             return;
                         }
                         resolve(img);
                     };
                     // Reached for any format this browser cannot decode — including a HEIC
                     // that slipped past the check above with an empty MIME type.
-                    img.onerror = () => reject(new Error(
-                        'That image format isn\'t supported. Save it as a JPEG or PNG first.'));
+                    img.onerror = () => reject(new Error(t('errors.imageFormatUnsupported')));
                     img.src = event.target.result;
                 };
                 reader.readAsDataURL(file);
@@ -3236,7 +3534,7 @@
             return new Promise((resolve, reject) => {
                 const img = new Image();
                 img.onload = () => resolve(img);
-                img.onerror = () => reject(new Error('That image could not be loaded.'));
+                img.onerror = () => reject(new Error(t('errors.imageLoadFailed')));
                 try {
                     if (new URL(resolved, window.location.href).origin !== window.location.origin) {
                         img.crossOrigin = 'anonymous';
@@ -3322,9 +3620,9 @@
                 <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);
                             padding:22px; max-width:340px; width:92%; box-shadow:0 10px 30px rgba(0,0,0,0.5); text-align:center;
                             user-select:none; -webkit-user-select:none;">
-                    <h2 style="margin:0 0 4px 0; color:#fff; font-size:1.15rem; font-weight:700;">Position your picture</h2>
+                    <h2 style="margin:0 0 4px 0; color:#fff; font-size:1.15rem; font-weight:700;">${t('avatar.positionYourPicture')}</h2>
                     <p style="color:rgba(255,255,255,0.55); font-size:0.78rem; margin:0 0 14px 0;">
-                        Drag or arrows to move, slider to zoom. Press OK when it looks right.
+                        ${t('avatar.dragOrArrows')}
                     </p>
                     <!-- data-profiles-own-keys marks the arrows as this element's own, so
                          the focus trap leaves them for panning. It is on the view and not
@@ -3337,10 +3635,10 @@
                                 style="display:block; width:${VIEW}px; height:${VIEW}px;"></canvas>
                     </div>
                     <input type="range" id="profiles-crop-zoom" min="1" max="4" step="0.01" value="1"
-                           style="width:100%; margin:16px 0 4px 0;" aria-label="Zoom" />
+                           style="width:100%; margin:16px 0 4px 0;" aria-label="${t('avatar.zoom')}" />
                     <div style="display:flex; gap: var(--jpf-gap); justify-content:center; margin-top:12px;">
-                        <button id="profiles-crop-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>
-                        <button id="profiles-crop-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">Use picture</button>
+                        <button id="profiles-crop-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
+                        <button id="profiles-crop-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">${t('avatar.usePicture')}</button>
                     </div>
                 </div>
             `;
@@ -3534,13 +3832,13 @@
 
             const libraryHtml = hasLibrary ? `
                 <div class="picture-source-block">
-                    <div class="picture-source-title">From this server</div>
+                    <div class="picture-source-title">${t('avatar.fromThisServer')}</div>
                     <div id="${prefix}-avatar-library" class="avatar-library-grid">
                         ${library.avatars.map(a => `
                             <button type="button" class="avatar-library-item" tabindex="0"
                                     data-id="${escapeHtml(a.id)}" data-url="${escapeHtml(a.url)}"
                                     title="${escapeHtml(a.displayName)}"
-                                    aria-label="${escapeHtml(a.displayName || 'Avatar')}">
+                                    aria-label="${escapeHtml(a.displayName) || t('avatar.avatarLabel')}">
                                 <img src="${safeImageSrc(a.thumbUrl)}" alt="" loading="lazy" />
                             </button>
                         `).join('')}
@@ -3552,17 +3850,17 @@
             // avatars to the library — a disabled button people cannot use is just noise.
             const uploadHtml = library.allowCustomUploads ? `
                 <div class="picture-source-block">
-                    <div class="picture-source-title">From this device</div>
+                    <div class="picture-source-title">${t('avatar.fromThisDevice')}</div>
                     <label for="${prefix}-profile-image-file" id="${prefix}-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
                         <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
-                        <span>Upload a picture</span>
+                        <span>${t('avatar.uploadPicture')}</span>
                     </label>
                     <input type="file" id="${prefix}-profile-image-file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" style="display: none;" />
-                    <div class="form-hint" style="margin: 0;">JPEG, PNG, WebP or GIF. You can position and zoom it after choosing.</div>
+                    <div class="form-hint" style="margin: 0;">${t('avatar.uploadHint')}</div>
                 </div>
             ` : `
                 <div class="form-hint" style="margin: 0; min-width: 0;">
-                    Your server administrator has limited profile pictures to the set above.
+                    ${t('avatar.adminLimited')}
                 </div>
             `;
 
@@ -3581,7 +3879,7 @@
             // the row, which read as belonging to whatever came next.
             return `
                 <div class="form-group">
-                    <label>Profile Picture</label>
+                    <label>${t('avatar.profilePicture')}</label>
                     <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: var(--jpf-gap);">
                         <div class="image-upload-row">
                             <div id="${prefix}-image-upload-preview" class="image-upload-preview" style="background-color: ${safeColor(currentColor)};">${preview}</div>
@@ -3589,13 +3887,13 @@
                                 <button type="button" id="${prefix}-change-picture" class="profiles-btn btn-secondary image-upload-btn picture-change-btn"
                                         aria-expanded="${sourcesOpen}" aria-controls="${prefix}-picture-sources">
                                     <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
-                                    <span>${currentImage ? 'Change picture' : 'Choose a picture'}</span>
+                                    <span>${currentImage ? t('avatar.changePicture') : t('avatar.choosePicture')}</span>
                                     <span class="material-icons picture-caret" aria-hidden="true">expand_more</span>
                                 </button>
                                 <button type="button" id="${prefix}-clear-profile-image-btn" class="profiles-btn btn-secondary image-upload-btn picture-remove-btn"
                                         style="display: ${currentImage ? 'inline-flex' : 'none'};">
                                     <span class="material-icons" style="font-size: 1.25rem;">delete_outline</span>
-                                    <span>Remove</span>
+                                    <span>${t('common.remove')}</span>
                                 </button>
                             </div>
                         </div>
@@ -3753,13 +4051,13 @@
                 // ── Section 1: who this profile is ──────────────────────────────
                 const createAppearance = `
                     <div class="form-group">
-                        <label for="create-name-input">Profile Name</label>
-                        <input type="text" id="create-name-input" placeholder="e.g. Kids" required />
+                        <label for="create-name-input">${t('profileForm.profileName')}</label>
+                        <input type="text" id="create-name-input" placeholder="${t('profileForm.namePlaceholder')}" required />
                     </div>
                     <div class="form-group avatar-color-group" id="create-color-group">
-                        <label>Avatar Color</label>
+                        <label>${t('profileForm.avatarColor')}</label>
                         ${this.renderColorPicker('#00A4DC')}
-                        <div class="form-hint" data-role="color-hint">Used as the avatar background when no picture is set.</div>
+                        <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
                     </div>
                     ${this.renderAvatarPicker('create', avatarLibrary, null, '#00A4DC')}
                 `;
@@ -3767,28 +4065,28 @@
                 // ── Section 2: getting into this profile ────────────────────────
                 const createSecurity = `
                     <div class="form-group">
-                        <label for="create-pin-input">PIN</label>
-                        <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="Leave empty for no PIN" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                        <label for="create-pin-input">${t('profileForm.pin')}</label>
+                        <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${t('profileForm.pinPlaceholderEmpty')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     </div>
                     <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
                             <input type="checkbox" id="create-local-bypass-checkbox" style="cursor: pointer; accent-color: var(--jpf-accent);" />
-                            <span>Bypass PIN on local network (LAN)</span>
+                            <span>${t('profileForm.bypassPinLan')}</span>
                         </label>
-                        <div class="form-hint">No PIN prompt on your home network.</div>
+                        <div class="form-hint">${t('profileForm.bypassPinHint')}</div>
                     </div>
                     <div class="form-group">
-                        <label for="create-lockout-select">Auto-lock after inactivity</label>
+                        <label for="create-lockout-select">${t('profileForm.autoLock')}</label>
                         <select id="create-lockout-select">
-                            <option value="0">Never</option>
-                            <option value="1">1 minute</option>
-                            <option value="5" selected>5 minutes (default)</option>
-                            <option value="10">10 minutes</option>
-                            <option value="20">20 minutes</option>
-                            <option value="30">30 minutes</option>
-                            <option value="60">1 hour</option>
+                            <option value="0">${t('profileForm.lockoutNever')}</option>
+                            <option value="1">${t('profileForm.lockout1Min')}</option>
+                            <option value="5" selected>${t('profileForm.lockout5MinDefault')}</option>
+                            <option value="10">${t('profileForm.lockout10Min')}</option>
+                            <option value="20">${t('profileForm.lockout20Min')}</option>
+                            <option value="30">${t('profileForm.lockout30Min')}</option>
+                            <option value="60">${t('profileForm.lockout1Hour')}</option>
                         </select>
-                        <div class="form-hint">Only applies when this profile has a PIN set.</div>
+                        <div class="form-hint">${t('profileForm.autoLockHintCreate')}</div>
                     </div>
                 `;
 
@@ -3796,10 +4094,10 @@
                 const createLibraries = `
                     <div class="form-group">
                         <div class="section-inline-header">
-                            <label style="margin: 0;">Enabled Libraries</label>
+                            <label style="margin: 0;">${t('profileForm.enabledLibraries')}</label>
                             <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
                                 <input type="checkbox" id="create-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: var(--jpf-accent);" />
-                                <span>Select all</span>
+                                <span>${t('common.selectAll')}</span>
                             </label>
                         </div>
                         <div class="library-checklist">
@@ -3810,86 +4108,86 @@
                                 </label>
                             `).join('')}
                         </div>
-                        <div class="form-hint">Tick nothing and this profile sees the same libraries as your account.</div>
+                        <div class="form-hint">${t('profileForm.librariesInheritHint')}</div>
                     </div>
                 `;
 
                 // ── Section 4: limits applied on top of the libraries above ─────
                 const createRestrictions = `
                     <div class="form-group">
-                        <label>Allowed Devices</label>
+                        <label>${t('profileForm.allowedDevices')}</label>
                         <div class="devices-dropdown-container" style="position: relative;">
                             <div id="create-devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
-                                <span id="create-devices-dropdown-selected-text">All Devices Allowed</span>
+                                <span id="create-devices-dropdown-selected-text">${t('profileForm.allDevicesAllowed')}</span>
                             </div>
                             <div id="create-devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
                                 ${devices && devices.length > 0 ? devices.map(dev => {
                                     const deviceId = dev.deviceId || dev.DeviceId || '';
-                                    const deviceName = dev.deviceName || dev.DeviceName || 'Unknown Device';
-                                    const client = dev.client || dev.Client || 'Unknown Client';
+                                    const deviceName = dev.deviceName || dev.DeviceName || t('profileForm.unknownDevice');
+                                    const client = dev.client || dev.Client || t('profileForm.unknownClient');
                                     const lastSeen = dev.lastSeen || dev.LastSeen;
                                     const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
                                     const lastSeenStr = (lastSeenDate && lastSeenDate.getFullYear() > 1)
-                                        ? lastSeenDate.toLocaleDateString() : 'Unknown';
+                                        ? lastSeenDate.toLocaleDateString() : t('profileForm.unknown');
                                     return `
                                         <div class="device-dropdown-item">
                                             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
                                                 <input type="checkbox" class="create-device-checkbox" value="${escapeHtml(deviceId)}" style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
                                                 <span style="display: flex; flex-direction: column; min-width: 0;">
                                                     <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
-                                                    <span style="font-size: 0.75rem; opacity: 0.6;">${escapeHtml(client)} • Last seen ${lastSeenStr}</span>
+                                                    <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: lastSeenStr })}</span>
                                                 </span>
                                             </label>
                                         </div>
                                     `;
                                 }).join('') : `
-                                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">No devices found for your account yet</div>
+                                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">${t('profileForm.noDevicesYet')}</div>
                                 `}
                             </div>
                         </div>
-                        <div class="form-hint">If no devices are selected, this profile can be accessed from any device.</div>
+                        <div class="form-hint">${t('profileForm.devicesHint')}</div>
                     </div>
 
                     <div class="form-group">
-                        <label for="create-rating-select">Maximum rating</label>
+                        <label for="create-rating-select">${t('profileForm.maximumRating')}</label>
                         <select id="create-rating-select">
-                            <option value="">No Restrictions</option>
-                            <option value="6">G / TV-G (6+)</option>
-                            <option value="10">PG / TV-PG (10+)</option>
-                            <option value="14">PG-13 / TV-14 (14+)</option>
-                            <option value="17">R / TV-MA (17+)</option>
+                            <option value="">${t('profileForm.noRestrictions')}</option>
+                            <option value="6">${t('profileForm.ratingG')}</option>
+                            <option value="10">${t('profileForm.ratingPG')}</option>
+                            <option value="14">${t('profileForm.ratingPG13')}</option>
+                            <option value="17">${t('profileForm.ratingR')}</option>
                         </select>
                     </div>
 
                     ${this.renderTagSuggestions('create-tag-suggestions', libraryTags)}
                     <div class="form-group">
-                        <label>Blocked tags</label>
-                        ${this.renderTagEditor('create-blocked-tags', [], 'e.g. adults', 'create-tag-suggestions')}
-                        <div class="form-hint">Hides anything with these tags. A tag on a series or library covers everything inside it.</div>
+                        <label>${t('profileForm.blockedTags')}</label>
+                        ${this.renderTagEditor('create-blocked-tags', [], t('profileForm.tagPlaceholderAdults'), 'create-tag-suggestions')}
+                        <div class="form-hint">${t('profileForm.blockedTagsHint')}</div>
                     </div>
                     <div class="form-group">
-                        <label>Allowed tags</label>
-                        ${this.renderTagEditor('create-allowed-tags', [], 'e.g. kids', 'create-tag-suggestions')}
-                        <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items. Untagged content is hidden too.</div>
+                        <label>${t('profileForm.allowedTags')}</label>
+                        ${this.renderTagEditor('create-allowed-tags', [], t('profileForm.tagPlaceholderKids'), 'create-tag-suggestions')}
+                        <div class="form-hint form-hint-warn">${t('profileForm.allowedTagsHint')}</div>
                     </div>
                 `;
 
                 content.innerHTML = `
-                    <h1 class="profiles-title">Create Profile</h1>
+                    <h1 class="profiles-title">${t('profileForm.createTitle')}</h1>
                     <div class="create-profile-container is-two-col">
                         <div class="form-col">
-                            ${this.renderSection('person', 'Profile', 'Name, colour, and picture', createAppearance)}
-                            ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', createSecurity)}
+                            ${this.renderSection('person', t('profileForm.sectionProfileTitle'), t('profileForm.sectionProfileSubtitle'), createAppearance)}
+                            ${this.renderSection('lock', t('profileForm.sectionSecurityTitle'), t('profileForm.sectionSecuritySubtitle'), createSecurity)}
                         </div>
                         <div class="form-col">
-                            ${this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', createLibraries)}
-                            ${this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', createRestrictions)}
+                            ${this.renderSection('video_library', t('profileForm.libraries'), t('profileForm.sectionLibrariesSubtitle'), createLibraries)}
+                            ${this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), createRestrictions)}
                         </div>
 
                         <div id="create-error-msg" class="form-error" style="display:none;"></div>
                         <div class="pin-actions">
-                            <button id="create-submit-btn" class="profiles-btn btn-primary">Create</button>
-                            <button id="create-cancel-btn" class="profiles-btn btn-secondary">Cancel</button>
+                            <button id="create-submit-btn" class="profiles-btn btn-primary">${t('common.create')}</button>
+                            <button id="create-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                         </div>
                     </div>
                 `;
@@ -3992,11 +4290,11 @@
                     const txt = document.getElementById('create-devices-dropdown-selected-text');
                     if (txt) {
                         if (checked.length === 0) {
-                            txt.textContent = 'All Devices Allowed';
+                            txt.textContent = t('profileForm.allDevicesAllowed');
                         } else if (checked.length === 1) {
-                            txt.textContent = '1 Device Allowed';
+                            txt.textContent = t('profileForm.oneDeviceAllowed');
                         } else {
-                            txt.textContent = `${checked.length} Devices Allowed`;
+                            txt.textContent = t('profileForm.devicesAllowed', { count: checked.length });
                         }
                     }
                 };
@@ -4028,12 +4326,12 @@
                     };
 
                     if (!name) {
-                        showCreateError('Profile name is required.');
+                        showCreateError(t('profileForm.nameRequired'));
                         return;
                     }
 
                     if (pin && (pin.length < 4 || pin.length > 8 || !/^\d+$/.test(pin))) {
-                        showCreateError('PIN must be 4–8 digits.');
+                        showCreateError(t('profileForm.pinLengthCreate'));
                         return;
                     }
 
@@ -4123,14 +4421,14 @@
                 // ── Section 1: who this profile is ──────────────────────────────
                 const appearanceBody = `
                     <div class="form-group">
-                        <label for="edit-name-input">Profile Name</label>
+                        <label for="edit-name-input">${t('profileForm.profileName')}</label>
                         <input type="text" id="edit-name-input" value="${escapeHtml(profile.profileName)}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
-                        ${profile.isMaster ? `<div class="form-hint">The master profile takes its name from your Jellyfin account.</div>` : ''}
+                        ${profile.isMaster ? `<div class="form-hint">${t('profileForm.masterNameHint')}</div>` : ''}
                     </div>
                     <div class="form-group avatar-color-group" id="edit-color-group">
-                        <label>Avatar Color</label>
+                        <label>${t('profileForm.avatarColor')}</label>
                         ${this.renderColorPicker(profile.avatarColor)}
-                        <div class="form-hint" data-role="color-hint">Used as the avatar background when no picture is set.</div>
+                        <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
                     </div>
                     ${this.renderAvatarPicker('edit', avatarLibrary, profile.profileImage, profile.avatarColor)}
                 `;
@@ -4138,37 +4436,37 @@
                 // ── Section 2: getting into this profile ────────────────────────
                 const securityBody = `
                     <div class="form-group">
-                        <label for="edit-pin-input">PIN</label>
+                        <label for="edit-pin-input">${t('profileForm.pin')}</label>
                         <div class="pin-edit-group" style="display:flex; gap: var(--jpf-gap); flex-wrap: wrap;">
-                            <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? 'New PIN' : 'No PIN'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
-                            ${profile.hasPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">Clear PIN</button>` : ''}
+                            <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? t('profileForm.pinPlaceholderNew') : t('profileForm.pinPlaceholderNone')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
+                            ${profile.hasPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">${t('profileForm.clearPin')}</button>` : ''}
                         </div>
                         <div id="edit-pin-error" class="form-error" style="display:none; margin-top:8px;"></div>
                         <div class="form-hint">
                             ${profile.hasPin
-                                ? '🔒 <strong>A PIN is set.</strong> Leave blank to keep it, type a new one to replace it, or use Clear PIN.'
-                                : 'No PIN set. This profile can be opened by anyone who can reach the switcher.'}
+                                ? t('profileForm.pinIsSetHint')
+                                : t('profileForm.noPinSetHint')}
                         </div>
                     </div>
                     <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
                             <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent);" />
-                            <span>Bypass PIN on local network (LAN)</span>
+                            <span>${t('profileForm.bypassPinLan')}</span>
                         </label>
-                        <div class="form-hint">No PIN prompt on your home network.</div>
+                        <div class="form-hint">${t('profileForm.bypassPinHint')}</div>
                     </div>
                     <div class="form-group">
-                        <label for="edit-lockout-select">Auto-lock after inactivity</label>
+                        <label for="edit-lockout-select">${t('profileForm.autoLock')}</label>
                         <select id="edit-lockout-select">
-                            <option value="0" ${currentLockout === 0 ? 'selected' : ''}>Never</option>
-                            <option value="1" ${currentLockout === 1 ? 'selected' : ''}>1 minute</option>
-                            <option value="5" ${currentLockout === 5 ? 'selected' : ''}>5 minutes</option>
-                            <option value="10" ${currentLockout === 10 ? 'selected' : ''}>10 minutes</option>
-                            <option value="20" ${currentLockout === 20 ? 'selected' : ''}>20 minutes</option>
-                            <option value="30" ${currentLockout === 30 ? 'selected' : ''}>30 minutes</option>
-                            <option value="60" ${currentLockout === 60 ? 'selected' : ''}>1 hour</option>
+                            <option value="0" ${currentLockout === 0 ? 'selected' : ''}>${t('profileForm.lockoutNever')}</option>
+                            <option value="1" ${currentLockout === 1 ? 'selected' : ''}>${t('profileForm.lockout1Min')}</option>
+                            <option value="5" ${currentLockout === 5 ? 'selected' : ''}>${t('profileForm.lockout5Min')}</option>
+                            <option value="10" ${currentLockout === 10 ? 'selected' : ''}>${t('profileForm.lockout10Min')}</option>
+                            <option value="20" ${currentLockout === 20 ? 'selected' : ''}>${t('profileForm.lockout20Min')}</option>
+                            <option value="30" ${currentLockout === 30 ? 'selected' : ''}>${t('profileForm.lockout30Min')}</option>
+                            <option value="60" ${currentLockout === 60 ? 'selected' : ''}>${t('profileForm.lockout1Hour')}</option>
                         </select>
-                        <div class="form-hint">Only applies when a PIN is set on this profile.</div>
+                        <div class="form-hint">${t('profileForm.autoLockHintEdit')}</div>
                     </div>
                 `;
 
@@ -4176,19 +4474,19 @@
                 const librariesBody = `
                     <div class="form-group">
                         <div class="section-inline-header">
-                            <label style="margin: 0;">Libraries</label>
+                            <label style="margin: 0;">${t('profileForm.libraries')}</label>
                             <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
                                 <input type="checkbox" id="edit-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: var(--jpf-accent);" />
-                                <span>Select all</span>
+                                <span>${t('common.selectAll')}</span>
                             </label>
                         </div>
                         <div class="form-hint" style="margin: 0 0 8px 0;">
-                            Tick nothing and this profile sees the same libraries as your account.
+                            ${t('profileForm.librariesInheritHint')}
                         </div>
                         <div class="libart-list" id="edit-library-artwork">
                             <div class="libart-head" aria-hidden="true">
-                                <span class="libart-head-lib">Library</span>
-                                <span class="libart-head-art">Artwork</span>
+                                <span class="libart-head-lib">${t('profileForm.libraryHeader')}</span>
+                                <span class="libart-head-art">${t('profileForm.artworkHeader')}</span>
                             </div>
                             ${normalizedLibs.map(lib => {
                                 const storedFolders = profile.enabledFolders;
@@ -4205,25 +4503,22 @@
                                             <span class="libart-thumb" aria-hidden="true"></span>
                                             <span class="libart-name" title="${escapeHtml(lib.name)}">${escapeHtml(lib.name)}</span>
                                         </label>
-                                        <select class="libart-mode" aria-label="Artwork for ${escapeHtml(lib.name)}">
-                                            <option value="inherit">Default</option>
-                                            <option value="custom">Picture</option>
-                                            <option value="none">Hidden</option>
+                                        <select class="libart-mode" aria-label="${t('profileForm.artworkForAria', { name: escapeHtml(lib.name) })}">
+                                            <option value="inherit">${t('profileForm.artworkDefault')}</option>
+                                            <option value="custom">${t('profileForm.artworkPicture')}</option>
+                                            <option value="none">${t('profileForm.artworkHidden')}</option>
                                         </select>
-                                        <button type="button" class="profiles-btn btn-secondary libart-choose" style="padding:6px 12px; font-size:0.8rem;">Choose</button>
+                                        <button type="button" class="profiles-btn btn-secondary libart-choose" style="padding:6px 12px; font-size:0.8rem;">${t('profileForm.artworkChoose')}</button>
                                     </div>
                                 `;
                             }).join('')}
                         </div>
                         <label class="library-check-label libart-toggle">
                             <input type="checkbox" id="edit-libart-toggle" />
-                            <span>Choose the artwork on each library tile</span>
+                            <span>${t('profileForm.artworkToggleLabel')}</span>
                         </label>
                         <div class="form-hint libart-explainer" id="edit-libart-hint" style="display: none;">
-                            A library tile takes its picture from whatever is inside the library —
-                            which can be something this profile is not allowed to open.
-                            <strong>Picture</strong> puts an image you choose on the tile instead, and
-                            <strong>Hidden</strong> leaves just the icon and the name.
+                            ${t('profileForm.artworkExplainer')}
                         </div>
                     </div>
                 `;
@@ -4231,20 +4526,20 @@
                 // ── Section 4: limits applied on top of the libraries above ─────
                 const restrictionsBody = `
                     <div class="form-group">
-                        <label>Allowed Devices</label>
+                        <label>${t('profileForm.allowedDevices')}</label>
                         <div class="devices-dropdown-container" style="position: relative;">
                             <div id="devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
-                                <span id="devices-dropdown-selected-text">All Devices Allowed</span>
+                                <span id="devices-dropdown-selected-text">${t('profileForm.allDevicesAllowed')}</span>
                             </div>
                             <div id="devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
                                 ${devices && devices.length > 0 ? devices.map(dev => {
                                     const deviceId = dev.deviceId || dev.DeviceId || '';
-                                    const deviceName = dev.deviceName || dev.DeviceName || 'Unknown Device';
-                                    const client = dev.client || dev.Client || 'Unknown Client';
+                                    const deviceName = dev.deviceName || dev.DeviceName || t('profileForm.unknownDevice');
+                                    const client = dev.client || dev.Client || t('profileForm.unknownClient');
                                     const lastSeen = dev.lastSeen || dev.LastSeen;
                                     const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
                                     const lastSeenStr = (lastSeenDate && lastSeenDate.getFullYear() > 1)
-                                        ? lastSeenDate.toLocaleDateString() : 'Unknown';
+                                        ? lastSeenDate.toLocaleDateString() : t('profileForm.unknown');
                                     const isChecked = profile.allowedDeviceIds && (profile.allowedDeviceIds.includes(deviceId) || (dev.DeviceId && profile.allowedDeviceIds.includes(dev.DeviceId)));
                                     return `
                                         <div class="device-dropdown-item">
@@ -4252,63 +4547,63 @@
                                                 <input type="checkbox" class="device-checkbox" value="${escapeHtml(deviceId)}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
                                                 <span style="display: flex; flex-direction: column; min-width: 0;">
                                                     <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
-                                                    <span style="font-size: 0.75rem; opacity: 0.6;">${escapeHtml(client)} • Last seen ${lastSeenStr}</span>
+                                                    <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: lastSeenStr })}</span>
                                                 </span>
                                             </label>
-                                            <button type="button" class="device-delete-btn" data-id="${escapeHtml(deviceId)}" title="Forget this device" aria-label="Forget ${escapeHtml(deviceName)}">🗑️</button>
+                                            <button type="button" class="device-delete-btn" data-id="${escapeHtml(deviceId)}" title="${t('profileForm.forgetDevice')}" aria-label="${t('profileForm.forgetDeviceAria', { name: escapeHtml(deviceName) })}">🗑️</button>
                                         </div>
                                     `;
                                 }).join('') : `
-                                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">No devices found for your account yet</div>
+                                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">${t('profileForm.noDevicesYet')}</div>
                                 `}
                             </div>
                         </div>
-                        <div class="form-hint">If no devices are selected, this profile can be accessed from any device.</div>
+                        <div class="form-hint">${t('profileForm.devicesHint')}</div>
                     </div>
 
                     <div class="form-group">
-                        <label for="edit-rating-select">Maximum rating</label>
+                        <label for="edit-rating-select">${t('profileForm.maximumRating')}</label>
                         <select id="edit-rating-select">
-                            <option value="" ${maxRating === null ? 'selected' : ''}>No Restrictions</option>
-                            <option value="6" ${maxRating === 6 ? 'selected' : ''}>G / TV-G (6+)</option>
-                            <option value="10" ${maxRating === 10 ? 'selected' : ''}>PG / TV-PG (10+)</option>
-                            <option value="14" ${maxRating === 14 ? 'selected' : ''}>PG-13 / TV-14 (14+)</option>
-                            <option value="17" ${maxRating === 17 ? 'selected' : ''}>R / TV-MA (17+)</option>
+                            <option value="" ${maxRating === null ? 'selected' : ''}>${t('profileForm.noRestrictions')}</option>
+                            <option value="6" ${maxRating === 6 ? 'selected' : ''}>${t('profileForm.ratingG')}</option>
+                            <option value="10" ${maxRating === 10 ? 'selected' : ''}>${t('profileForm.ratingPG')}</option>
+                            <option value="14" ${maxRating === 14 ? 'selected' : ''}>${t('profileForm.ratingPG13')}</option>
+                            <option value="17" ${maxRating === 17 ? 'selected' : ''}>${t('profileForm.ratingR')}</option>
                         </select>
                     </div>
 
                     ${this.renderTagSuggestions('edit-tag-suggestions', libraryTags)}
                     <div class="form-group">
-                        <label>Blocked tags</label>
-                        ${this.renderTagEditor('edit-blocked-tags', profile.blockedTags || [], 'e.g. adults', 'edit-tag-suggestions')}
-                        <div class="form-hint">Hides anything with these tags. A tag on a series or library covers everything inside it.</div>
+                        <label>${t('profileForm.blockedTags')}</label>
+                        ${this.renderTagEditor('edit-blocked-tags', profile.blockedTags || [], t('profileForm.tagPlaceholderAdults'), 'edit-tag-suggestions')}
+                        <div class="form-hint">${t('profileForm.blockedTagsHint')}</div>
                     </div>
                     <div class="form-group">
-                        <label>Allowed tags</label>
-                        ${this.renderTagEditor('edit-allowed-tags', profile.allowedTags || [], 'e.g. kids', 'edit-tag-suggestions')}
-                        <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items. Untagged content is hidden too.</div>
+                        <label>${t('profileForm.allowedTags')}</label>
+                        ${this.renderTagEditor('edit-allowed-tags', profile.allowedTags || [], t('profileForm.tagPlaceholderKids'), 'edit-tag-suggestions')}
+                        <div class="form-hint form-hint-warn">${t('profileForm.allowedTagsHint')}</div>
                     </div>
                 `;
 
                 content.innerHTML = `
-                    <h1 class="profiles-title">Edit Profile</h1>
+                    <h1 class="profiles-title">${t('profileForm.editTitle')}</h1>
                     <div class="create-profile-container${isSub ? ' is-two-col' : ''}">
                         <div class="form-col">
-                            ${this.renderSection('person', 'Profile', 'Name, colour, and picture', appearanceBody)}
-                            ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', securityBody)}
+                            ${this.renderSection('person', t('profileForm.sectionProfileTitle'), t('profileForm.sectionProfileSubtitle'), appearanceBody)}
+                            ${this.renderSection('lock', t('profileForm.sectionSecurityTitle'), t('profileForm.sectionSecuritySubtitle'), securityBody)}
                         </div>
                         <div class="form-col">
-                            ${isSub ? this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', librariesBody) : ''}
-                            ${isSub ? this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', restrictionsBody) : ''}
+                            ${isSub ? this.renderSection('video_library', t('profileForm.libraries'), t('profileForm.sectionLibrariesSubtitle'), librariesBody) : ''}
+                            ${isSub ? this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), restrictionsBody) : ''}
                         </div>
 
                         <div class="profile-dialog-actions">
                             <div class="dialog-action-buttons">
-                                <button id="edit-submit-btn" class="profiles-btn btn-primary">Save</button>
-                                <button id="edit-cancel-btn" class="profiles-btn btn-secondary">Cancel</button>
+                                <button id="edit-submit-btn" class="profiles-btn btn-primary">${t('common.save')}</button>
+                                <button id="edit-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                             </div>
                             ${isSub ? `
-                                <button id="edit-delete-btn" class="profiles-btn btn-danger-quiet">Delete Profile</button>
+                                <button id="edit-delete-btn" class="profiles-btn btn-danger-quiet">${t('profileForm.deleteProfile')}</button>
                             ` : ''}
                         </div>
                     </div>
@@ -4418,11 +4713,11 @@
                     const txt = document.getElementById('devices-dropdown-selected-text');
                     if (txt) {
                         if (checked.length === 0) {
-                            txt.textContent = 'All Devices Allowed';
+                            txt.textContent = t('profileForm.allDevicesAllowed');
                         } else if (checked.length === 1) {
-                            txt.textContent = '1 Device Allowed';
+                            txt.textContent = t('profileForm.oneDeviceAllowed');
                         } else {
-                            txt.textContent = `${checked.length} Devices Allowed`;
+                            txt.textContent = t('profileForm.devicesAllowed', { count: checked.length });
                         }
                     }
                 };
@@ -4437,7 +4732,7 @@
                         e.preventDefault();
                         e.stopPropagation();
                         const devId = btn.getAttribute('data-id');
-                        this.showConfirmDialog('Delete Device History', 'Remove this device? Any access restrictions for it go too.', () => {
+                        this.showConfirmDialog(t('profileForm.deleteDeviceTitle'), t('profileForm.deleteDeviceMessage'), () => {
                             const delDevUrl = apiClient.getUrl('plugins/profiles/devices/delete');
                             fetch(delDevUrl, {
                                 method: 'POST',
@@ -4459,14 +4754,14 @@
                                     if (row) row.remove();
                                     const remaining = editList.querySelectorAll('.device-dropdown-item');
                                     if (remaining.length === 0) {
-                                        editList.innerHTML = '<div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">No connected devices found</div>';
+                                        editList.innerHTML = '<div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">' + t('profileForm.noDevicesConnected') + '</div>';
                                     }
                                     updateSelectedText();
                                 } else {
-                                    this.showAlert('Error', 'Failed to delete device.');
+                                    this.showAlert(t('errors.error'), t('errors.failedDeleteDevice'));
                                 }
                             })
-                            .catch(err => this.showAlert('Error', 'Error: ' + err.message));
+                            .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
                         });
                     });
                 });
@@ -4479,7 +4774,7 @@
                         e.preventDefault();
                         isPinCleared = true;
                         document.getElementById('edit-pin-input').value = '';
-                        document.getElementById('edit-pin-input').placeholder = 'Unprotected';
+                        document.getElementById('edit-pin-input').placeholder = t('profileForm.pinPlaceholderUnprotected');
                         clearPinBtn.style.display = 'none';
                     });
                 }
@@ -4539,7 +4834,7 @@
                     if (pinInputEl) pinInputEl.style.borderColor = '';
 
                     if (!name) {
-                        this.showAlert("Validation Error", "Profile name is required.");
+                        this.showAlert(t('errors.validationError'), t('profileForm.nameRequired'));
                         return;
                     }
 
@@ -4548,11 +4843,11 @@
                         pin = ''; // Tells backend to clear the PIN
                     } else if (pinVal) {
                         if (!/^\d+$/.test(pinVal)) {
-                            showPinError('A PIN can only contain digits.');
+                            showPinError(t('profileForm.pinMustBeDigits'));
                             return;
                         }
                         if (pinVal.length < 4 || pinVal.length > 8) {
-                            showPinError(`A PIN must be 4-8 digits — you entered ${pinVal.length}.`);
+                            showPinError(t('profileForm.pinLengthEdit', { count: pinVal.length }));
                             return;
                         }
                         pin = pinVal;
@@ -4591,14 +4886,14 @@
                             this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
                         });
                     })
-                    .catch(err => this.showAlert("Error", "Error saving profile: " + err.message));
+                    .catch(err => this.showAlert(t('errors.error'), t('errors.savingProfile', { message: err.message })));
                 });
 
                 // Delete handler
                 const delBtn = document.getElementById('edit-delete-btn');
                 if (delBtn) {
                     delBtn.addEventListener('click', () => {
-                        this.showConfirmDialog('Delete Profile', `Are you sure you want to delete profile "${escapeHtml(profile.profileName)}" and its underlying user account? This action is irreversible.`, () => {
+                        this.showConfirmDialog(t('profileForm.deleteProfile'), t('profileForm.deleteConfirmMessage', { name: escapeHtml(profile.profileName) }), () => {
                             this.executeProfileDeletion(profile.profileUserId);
                         });
                     });
@@ -4612,7 +4907,7 @@
                 this.initTagEditors(content);
             })
             .catch(err => {
-                this.showAlert("Error", "Failed to load profile details: " + err.message);
+                this.showAlert(t('errors.error'), t('errors.loadProfileDetails', { message: err.message }));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
             });
         },
@@ -4628,14 +4923,14 @@
             if (!content) return;
 
             content.innerHTML = `
-                <h1 class="profiles-title">Your Bonfire</h1>
+                <h1 class="profiles-title">${t('bonfire.yourBonfireTitle')}</h1>
                 <div class="create-profile-container" style="max-width: 500px; width: 100%;">
                     <div id="bonfire-container" style="width: 100%; min-height: 100px; display: flex; flex-direction: column; gap: 1.5rem;">
                         <div style="display: flex; justify-content: center; padding: 20px;">
                             <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: jpfSpin 1s linear infinite;"></div>
                         </div>
                         <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
-                            <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">Back</button>
+                            <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
                         </div>
                     </div>
                 </div>
@@ -4693,16 +4988,16 @@
             `;
 
             content.innerHTML = `
-                <h1 class="profiles-title">Settings</h1>
+                <h1 class="profiles-title">${t('settings.title')}</h1>
                 <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
                     <div style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
-                        ${entry('settings-switcher-style', 'switch_account', 'Switcher Style',
-                            'Where you reach this screen from, and whether it opens on startup.')}
-                        ${entry('settings-your-bonfire', 'local_fire_department', 'Your Bonfire',
-                            'Share your profiles with another home, or join theirs.')}
+                        ${entry('settings-switcher-style', 'switch_account', t('settings.switcherStyleTitle'),
+                            t('settings.switcherStyleBody'))}
+                        ${entry('settings-your-bonfire', 'local_fire_department', t('settings.yourBonfireTitle'),
+                            t('settings.yourBonfireBody'))}
                     </div>
                     <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
-                        <button id="settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">Back</button>
+                        <button id="settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.back')}</button>
                     </div>
                 </div>
             `;
@@ -4761,33 +5056,33 @@
             `;
 
             content.innerHTML = `
-                <h1 class="profiles-title">Switcher Style</h1>
+                <h1 class="profiles-title">${t('switcher.title')}</h1>
                 <div class="create-profile-container" style="max-width: 560px; width: 100%;">
                     <p style="opacity: 0.75; font-size: 0.9rem; line-height: 1.5; margin: 0 0 1.5rem 0; text-align: left;">
-                        How you reach this screen. Applies to your account on every device.
+                        ${t('switcher.intro')}
                     </p>
 
                     <div class="bonfire-form-group" style="gap: 4px; text-align: left; margin-bottom: 1.5rem;">
                         <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.95rem !important; font-weight: 600 !important; position: relative !important;">
                             <input type="checkbox" id="switcher-ask-startup" ${prefs.askOnStartup ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
-                            <span>Ask "Who's watching?" on startup</span>
+                            <span>${t('switcher.askOnStartup')}</span>
                         </label>
                         <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.78rem !important; position: relative !important; display: block !important;">
-                            Shown once when the app opens — not every time you return to the home screen.
+                            ${t('switcher.askOnStartupHint')}
                         </div>
                     </div>
 
-                    <div style="text-align: left; font-size: 0.95rem; font-weight: 600; margin-bottom: 10px;">Where to switch from</div>
+                    <div style="text-align: left; font-size: 0.95rem; font-weight: 600; margin-bottom: 10px;">${t('switcher.whereToSwitchFrom')}</div>
                     <div role="radiogroup" style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
-                        ${locationOption('button', 'account_circle', 'Bonfire button',
-                            'A separate switcher button in the header, next to Jellyfin\'s own profile icon.')}
-                        ${locationOption('menu', 'switch_account', 'Jellyfin\'s user menu',
-                            'Adds "Switch Profile" above Sign out in Jellyfin\'s own menu, and to your profile page. Removes the second header icon.')}
+                        ${locationOption('button', 'account_circle', t('switcher.bonfireButtonTitle'),
+                            t('switcher.bonfireButtonBody'))}
+                        ${locationOption('menu', 'switch_account', t('switcher.menuTitle'),
+                            t('switcher.menuBody'))}
                     </div>
 
                     <div id="switcher-mode-error" style="display: none; color: #ff6b6b; font-size: 0.85rem; font-weight: 600; margin-top: 12px;"></div>
                     <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
-                        <button id="switcher-mode-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">Done</button>
+                        <button id="switcher-mode-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
                     </div>
                 </div>
             `;
@@ -4811,7 +5106,7 @@
                     },
                     body: JSON.stringify({ askOnStartup: askOnStartup, switcherLocation: location })
                 })
-                .then(res => res.ok ? res.json() : Promise.reject(new Error('Could not save that.')))
+                .then(res => res.ok ? res.json() : Promise.reject(new Error(t('errors.couldNotSaveThat'))))
                 .then(saved => {
                     const ask = (saved.askOnStartup !== undefined ? saved.askOnStartup : saved.AskOnStartup) === true;
                     const loc = (saved.switcherLocation || saved.SwitcherLocation) === 'menu' ? 'menu' : 'button';
@@ -4819,7 +5114,7 @@
                     return { askOnStartup: ask, location: loc };
                 })
                 .catch(err => {
-                    errDiv.textContent = err.message || 'Could not save that.';
+                    errDiv.textContent = err.message || t('errors.couldNotSaveThat');
                     errDiv.style.display = 'block';
                     return null;
                 });
@@ -4888,10 +5183,10 @@
                 })
             })
             .then(res => {
-                if (!res.ok) throw new Error("Failed to delete profile");
+                if (!res.ok) throw new Error(t('errors.failedDeleteProfile'));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
             })
-            .catch(err => this.showAlert("Error", "Error deleting profile: " + err.message));
+            .catch(err => this.showAlert(t('errors.error'), t('errors.deletingProfile', { message: err.message })));
         },
 
         loadBonfireStatus: function (content, apiClient, masterToken) {
@@ -4908,7 +5203,7 @@
             .then(res => {
                 if (res.status === 401) {
                     this.handleSessionExpired();
-                    throw new Error('Unauthorized');
+                    throw new Error(t('errors.unauthorized'));
                 }
                 return res.json();
             })
@@ -4918,7 +5213,7 @@
             })
             .catch(err => {
                 if (!this.navIsCurrent(ticket)) return;
-                container.innerHTML = `<div style="color: #ff6b6b; font-size: 0.9rem;">Failed to load Bonfire status: ${err.message}</div>`;
+                container.innerHTML = `<div style="color: #ff6b6b; font-size: 0.9rem;">${t('bonfire.failedLoadStatus', { message: err.message })}</div>`;
             });
         },
 
@@ -4934,37 +5229,37 @@
                 hostSectionHtml = `
                     <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
-                            <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Your Hosted Bonfire</label>
-                            <span style="font-size: 0.88rem; opacity: 0.75; display: block;">Share this code to invite someone to your Bonfire:</span>
+                            <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.hostedTitle')}</label>
+                            <span style="font-size: 0.88rem; opacity: 0.75; display: block;">${t('bonfire.shareCode')}</span>
                             <div style="font-size: 2rem; font-weight: 700; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 12px; border-radius: var(--jpf-r-md); border: 1px solid var(--jpf-accent-a30);">${ownedCode}</div>
                         </div>
-                        
+
                         <div class="bonfire-form-group">
-                            <label style="font-size: 1rem; font-weight: 600; color: #fff; display: block; margin-bottom: 8px;">Members (${ownedMembers.length})</label>
+                            <label style="font-size: 1rem; font-weight: 600; color: #fff; display: block; margin-bottom: 8px;">${t('bonfire.members', { count: ownedMembers.length })}</label>
                             <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--jpf-r-md); padding: 8px;">
                                 ${ownedMembers.length > 0 ? ownedMembers.map(m => {
                                     const mUserId = m.userId || m.UserId;
-                                    const mUsername = m.username || m.Username || 'Unknown User';
+                                    const mUsername = m.username || m.Username || t('bonfire.unknownUser');
                                     return `
                                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: var(--jpf-r-sm);">
                                         <span style="font-size: 0.95rem; font-weight: 500;">${mUsername}</span>
-                                        <button type="button" class="bonfire-kick-btn" data-id="${mUserId}" style="background: #ff6b6b !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">Kick</button>
+                                        <button type="button" class="bonfire-kick-btn" data-id="${mUserId}" style="background: #ff6b6b !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">${t('bonfire.kick')}</button>
                                     </div>
                                     `;
-                                }).join('') : '<div style="font-size: 0.9rem; opacity: 0.5; font-style: italic; text-align: center; padding: 12px;">No members joined yet.</div>'}
+                                }).join('') : '<div style="font-size: 0.9rem; opacity: 0.5; font-style: italic; text-align: center; padding: 12px;">' + t('bonfire.noMembersYet') + '</div>'}
                             </div>
                         </div>
                         <div style="display: flex; justify-content: flex-end;">
-                            <button type="button" id="bonfire-delete-btn" class="profiles-btn btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">Delete Group</button>
+                            <button type="button" id="bonfire-delete-btn" class="profiles-btn btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">${t('bonfire.deleteGroup')}</button>
                         </div>
                     </div>
                 `;
             } else {
                 hostSectionHtml = `
                     <div class="bonfire-form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
-                        <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Host a Bonfire</label>
-                        <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">Host your own group to share your sub-profiles with friends.</span>
-                        <button type="button" id="bonfire-generate-btn" class="profiles-btn btn-primary" style="width: 100% !important; padding: 12px !important; font-weight: 600 !important; box-sizing: border-box !important; display: block !important; margin: 8px 0 !important;">Generate Join Code</button>
+                        <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.hostTitle')}</label>
+                        <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">${t('bonfire.hostBody')}</span>
+                        <button type="button" id="bonfire-generate-btn" class="profiles-btn btn-primary" style="width: 100% !important; padding: 12px !important; font-weight: 600 !important; box-sizing: border-box !important; display: block !important; margin: 8px 0 !important;">${t('bonfire.generateJoinCode')}</button>
                     </div>
                 `;
             }
@@ -4974,24 +5269,24 @@
                 guestSectionHtml = `
                     <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
-                            <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Joined Bonfire</label>
-                            <span style="font-size: 0.88rem; opacity: 0.75;">You have joined a bonfire group owned by:</span>
+                            <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.joinedTitle')}</label>
+                            <span style="font-size: 0.88rem; opacity: 0.75;">${t('bonfire.joinedOwnedBy')}</span>
                             <div style="font-size: 1.25rem; font-weight: 700; color: var(--jpf-accent); margin: 12px 0; background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--jpf-r-md); border: 1px solid rgba(255,255,255,0.05); text-align: center;">${joinedOwnerName}</div>
-                            <span style="font-size: 0.85rem; opacity: 0.6; display: block; margin-top: -4px;">You can access each other's profiles from the switcher grid.</span>
+                            <span style="font-size: 0.85rem; opacity: 0.6; display: block; margin-top: -4px;">${t('bonfire.accessEachOther')}</span>
                         </div>
                         <div style="display: flex; justify-content: flex-end;">
-                            <button type="button" id="bonfire-leave-btn" class="profiles-btn btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">Leave Group</button>
+                            <button type="button" id="bonfire-leave-btn" class="profiles-btn btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">${t('bonfire.leaveGroup')}</button>
                         </div>
                     </div>
                 `;
             } else {
                 guestSectionHtml = `
                     <div class="bonfire-form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
-                        <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Join a Bonfire</label>
-                        <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">Enter a friend's Bonfire Code to join their group:</span>
+                        <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.joinTitle')}</label>
+                        <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">${t('bonfire.joinBody')}</span>
                         <div style="display: flex !important; gap: var(--jpf-gap) !important; align-items: center !important; width: 100% !important; box-sizing: border-box !important; margin: 12px 0 !important;">
-                            <input type="text" id="bonfire-join-input" placeholder="e.g. B7F8XA" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; margin: 0 !important; padding: 10px !important;" />
-                            <button type="button" id="bonfire-join-btn" class="profiles-btn btn-primary" style="flex: 0 0 auto !important; padding: 0 24px !important; height: 44px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; font-weight: 600 !important; margin: 0 !important; box-sizing: border-box !important;">Join</button>
+                            <input type="text" id="bonfire-join-input" placeholder="${t('bonfire.joinCodePlaceholder')}" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; margin: 0 !important; padding: 10px !important;" />
+                            <button type="button" id="bonfire-join-btn" class="profiles-btn btn-primary" style="flex: 0 0 auto !important; padding: 0 24px !important; height: 44px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; font-weight: 600 !important; margin: 0 !important; box-sizing: border-box !important;">${t('common.join')}</button>
                         </div>
                         <div id="bonfire-join-error" style="display: none; color: #ff6b6b; font-size: 0.85rem; font-weight: 600; margin-top: 8px; text-align: center;"></div>
                     </div>
@@ -5010,17 +5305,17 @@
                 <div class="bonfire-form-group" style="gap: 4px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
                     <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
                         <input type="checkbox" id="bonfire-lan-bypass-checkbox" ${lanBypass ? 'checked' : ''} style="cursor: pointer !important; accent-color: #ff9900 !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
-                        <span>Let my Bonfire switch into my account on this network</span>
+                        <span>${t('bonfire.lanSwitchLabel')}</span>
                     </label>
                     <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">
-                        No PIN needed on your home network. Away from home it still is${hasPinSet ? '' : ', and until you set one your account cannot be opened remotely at all'}.
+                        ${t('bonfire.lanSwitchHint', { extra: hasPinSet ? '' : t('bonfire.lanSwitchHintExtra') })}
                     </div>
                     ${isAdmin ? `
                     <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid #ff9900; border-radius: var(--jpf-r-sm); font-size: 0.75rem; line-height: 1.5; color: rgba(255,255,255,0.8);">
-                        <strong style="color: #ff9900;">This is an admin account.</strong> Whoever switches into it gets your admin rights.
+                        <strong style="color: #ff9900;">${t('bonfire.adminAccountWarning')}</strong> ${t('bonfire.adminAccountWarningBody')}
                     </div>` : ''}
                     <div style="margin-left: 1.6rem; margin-top: 8px; font-size: 0.72rem; line-height: 1.5; opacity: 0.45;">
-                        Behind a reverse proxy, check Networking → Known Proxies first, or everyone looks local.
+                        ${t('bonfire.proxyHint')}
                     </div>
                 </div>
             ` : '';
@@ -5030,17 +5325,17 @@
                     <div class="bonfire-form-group" style="gap: 4px;">
                         <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
                             <input type="checkbox" id="bonfire-hide-mine-checkbox" ${hideMine ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
-                            <span>Hide my sub-profiles from others</span>
+                            <span>${t('bonfire.hideMine')}</span>
                         </label>
-                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">Connected homes see only your master profile.</div>
+                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">${t('bonfire.hideMineHint')}</div>
                     </div>
 
                     <div class="bonfire-form-group" style="gap: 4px;">
                         <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
                             <input type="checkbox" id="bonfire-hide-others-checkbox" ${hideOthers ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
-                            <span>Hide other people's sub-profiles from me</span>
+                            <span>${t('bonfire.hideOthers')}</span>
                         </label>
-                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">You see only the master profiles of connected homes.</div>
+                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">${t('bonfire.hideOthersHint')}</div>
                     </div>
 
                     ${lanBypassSectionHtml}
@@ -5053,7 +5348,7 @@
                     ${guestSectionHtml}
                     ${settingsSectionHtml}
                     <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
-                        <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">Back</button>
+                        <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
                     </div>
                 </div>
             `;
@@ -5071,7 +5366,7 @@
             container.querySelectorAll('.bonfire-kick-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const mId = btn.getAttribute('data-id');
-                    this.showConfirmDialog('Kick Member', 'Are you sure you want to kick this user from your Bonfire group?', () => {
+                    this.showConfirmDialog(t('bonfire.kickConfirmTitle'), t('bonfire.kickConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/kick'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) },
@@ -5079,9 +5374,9 @@
                         })
                         .then(res => {
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
-                            else this.showAlert('Error', 'Failed to kick member.');
+                            else this.showAlert(t('errors.error'), t('bonfire.failedKick'));
                         })
-                        .catch(err => this.showAlert('Error', 'Error: ' + err.message));
+                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
                     });
                 });
             });
@@ -5090,16 +5385,16 @@
             const deleteBtn = container.querySelector('#bonfire-delete-btn');
             if (deleteBtn) {
                 deleteBtn.addEventListener('click', () => {
-                    this.showConfirmDialog('Delete Group', 'Delete your Bonfire? Members are disconnected and drop out of your switcher.', () => {
+                    this.showConfirmDialog(t('bonfire.deleteGroupConfirmTitle'), t('bonfire.deleteGroupConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/delete-group'), {
                             method: 'POST',
                             headers: this.getAuthHeaders(masterToken)
                         })
                         .then(res => {
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
-                            else this.showAlert('Error', 'Failed to delete group.');
+                            else this.showAlert(t('errors.error'), t('bonfire.failedDeleteGroup'));
                         })
-                        .catch(err => this.showAlert('Error', 'Error: ' + err.message));
+                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
                     });
                 });
             }
@@ -5108,16 +5403,16 @@
             const leaveBtn = container.querySelector('#bonfire-leave-btn');
             if (leaveBtn) {
                 leaveBtn.addEventListener('click', () => {
-                    this.showConfirmDialog('Leave Group', 'Leave this Bonfire? You will stop sharing switchers.', () => {
+                    this.showConfirmDialog(t('bonfire.leaveGroupConfirmTitle'), t('bonfire.leaveGroupConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/leave'), {
                             method: 'POST',
                             headers: this.getAuthHeaders(masterToken)
                         })
                         .then(res => {
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
-                            else this.showAlert('Error', 'Failed to leave group.');
+                            else this.showAlert(t('errors.error'), t('bonfire.failedLeaveGroup'));
                         })
-                        .catch(err => this.showAlert('Error', 'Error: ' + err.message));
+                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
                     });
                 });
             }
@@ -5128,7 +5423,7 @@
                 generateBtn.addEventListener('click', () => {
                     // Disable immediately to prevent double-fire on slow connections
                     generateBtn.disabled = true;
-                    generateBtn.textContent = 'Generating…';
+                    generateBtn.textContent = t('bonfire.generating');
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/generate'), {
                         method: 'POST',
                         headers: masterToken ? this.getAuthHeaders(masterToken) : {}
@@ -5139,8 +5434,8 @@
                     })
                     .catch(err => {
                         generateBtn.disabled = false;
-                        generateBtn.textContent = 'Generate Join Code';
-                        this.showAlert('Error', 'Failed to generate code: ' + err.message);
+                        generateBtn.textContent = t('bonfire.generateJoinCode');
+                        this.showAlert(t('errors.error'), t('bonfire.failedGenerateCode', { message: err.message }));
                     });
                 });
             }
@@ -5154,7 +5449,7 @@
                     const code = joinInput.value.trim();
                     errDiv.style.display = 'none';
                     if (!code || code.length !== 6) {
-                        errDiv.textContent = 'Please enter a 6-character code.';
+                        errDiv.textContent = t('bonfire.pleaseEnterCode');
                         errDiv.style.display = 'block';
                         return;
                     }
@@ -5162,8 +5457,8 @@
                     // drops the current one. Confirm first rather than surprising the user.
                     if (isMember) {
                         this.showConfirmDialog(
-                            'Leave your current Bonfire?',
-                            'Joining this Bonfire removes you from your current one.',
+                            t('bonfire.leaveCurrentTitle'),
+                            t('bonfire.leaveCurrentBody'),
                             () => submitJoin(code));
                         return;
                     }
@@ -5174,7 +5469,7 @@
                     errDiv.style.display = 'none';
                     // Disable to prevent double-submit; re-enable on all error paths
                     joinBtn.disabled = true;
-                    joinBtn.textContent = 'Joining…';
+                    joinBtn.textContent = t('bonfire.joining');
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/join'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) },
@@ -5182,20 +5477,20 @@
                     })
                     .then(res => {
                         if (res.status === 429) {
-                            errDiv.textContent = 'Too many failed attempts. Try again in 15 minutes.';
+                            errDiv.textContent = t('bonfire.tooManyJoinAttempts');
                             errDiv.style.display = 'block';
                             joinBtn.disabled = false;
-                            joinBtn.textContent = 'Join';
+                            joinBtn.textContent = t('common.join');
                             return;
                         }
                         if (!res.ok) return res.text().then(text => { throw new Error(text); });
                         this.loadBonfireStatus(content, apiClient, masterToken);
                     })
                     .catch(err => {
-                        errDiv.textContent = err.message || 'Failed to join group.';
+                        errDiv.textContent = err.message || t('bonfire.failedToJoin');
                         errDiv.style.display = 'block';
                         joinBtn.disabled = false;
-                        joinBtn.textContent = 'Join';
+                        joinBtn.textContent = t('common.join');
                     });
                 };
 
@@ -5256,12 +5551,12 @@
                     }
 
                     const adminLine = isAdmin
-                        ? '<br><br><strong style="color:#ff9900;">This is an admin account.</strong> Whoever switches into it gets your admin rights.'
+                        ? `<br><br><strong style="color:#ff9900;">${t('bonfire.adminAccountWarning')}</strong> ${t('bonfire.adminAccountWarningBody')}`
                         : '';
 
                     this.showConfirmDialog(
-                        'Allow household switching?',
-                        'Anyone in your Bonfire can open your account on your home network without your PIN.' + adminLine,
+                        t('bonfire.allowHouseholdTitle'),
+                        t('bonfire.allowHouseholdBody') + adminLine,
                         () => saveSettings(),
                         () => { lanBypassCb.checked = false; }
                     );
@@ -5308,7 +5603,7 @@
                 <div class="sidebar-profile-avatar" style="width: 24px; height: 24px; border-radius: 50%; background-color: ${color}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; flex-shrink: 0; overflow: hidden; position: relative;">
                     ${avatarInner(activeInfo.profileImage, initial, /* useThumb */ true)}
                 </div>
-                <span class="sidebarLinkText">${name} (Switch)</span>
+                <span class="sidebarLinkText">${t('switcher.switchProfileSuffix', { name: name })}</span>
             `;
 
             link.addEventListener('click', (e) => {
@@ -5410,8 +5705,8 @@
             }
 
             const label = entry.querySelector('.MuiListItemText-primary') || entry.querySelector('.MuiListItemText-root');
-            if (label) label.textContent = 'Switch Profile';
-            else entry.textContent = 'Switch Profile';
+            if (label) label.textContent = t('switcher.switchProfile');
+            else entry.textContent = t('switcher.switchProfile');
 
             entry.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -5473,8 +5768,8 @@
             }
 
             const label = entry.querySelector('.listItemBodyText');
-            if (label) label.textContent = 'Switch Profile';
-            else entry.textContent = 'Switch Profile';
+            if (label) label.textContent = t('switcher.switchProfile');
+            else entry.textContent = t('switcher.switchProfile');
 
             entry.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -5521,14 +5816,13 @@
             section.innerHTML = `
                 <h2 class="sectionTitle" style="display:flex; align-items:center; gap:0.4em;">
                     <span class="material-icons local_fire_department" aria-hidden="true" style="color:#ff9900;"></span>
-                    Bonfire Profiles
+                    ${t('profilePage.title')}
                 </h2>
                 <p style="opacity:0.7; margin:0 0 1em 0; line-height:1.5;">
-                    Currently watching as <strong>${escapeHtml(activeInfo.name || 'this account')}</strong>.
-                    Switch to another profile in your household without signing out.
+                    ${t('profilePage.body', { name: escapeHtml(activeInfo.name) || t('profilePage.thisAccount') })}
                 </p>
                 <button is="emby-button" type="button" id="profiles-userprofile-switch-btn" class="raised button-submit block">
-                    <span>Switch Profile</span>
+                    <span>${t('switcher.switchProfile')}</span>
                 </button>
             `;
 
@@ -5786,8 +6080,8 @@
             // `.focusable`). A bare <button> qualifies on paper; carrying the class as well
             // costs nothing and is what every other header control does.
             b.className = 'paper-icon-button-light headerButton focusable';
-            b.title = 'Switch Profile';
-            b.setAttribute('aria-label', 'Switch Profile');
+            b.title = t('switcher.switchProfile');
+            b.setAttribute('aria-label', t('switcher.switchProfile'));
 
             const activeInfo = this.getCachedActiveProfile();
             b.innerHTML = `
@@ -5803,8 +6097,8 @@
             const b = document.createElement('button');
             b.id = 'profiles-floating-bubble';
             b.className = 'profiles-floating-fallback focusable';
-            b.title = 'Switch Profile';
-            b.setAttribute('aria-label', 'Switch Profile');
+            b.title = t('switcher.switchProfile');
+            b.setAttribute('aria-label', t('switcher.switchProfile'));
 
             // Set initial position dynamically
             const pos = this._findBestFallbackPosition();
