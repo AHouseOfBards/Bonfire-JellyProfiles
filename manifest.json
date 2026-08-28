@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- A profile, device or Bonfire group you had just saved could silently not be there.\n- Anything added while the plugin's settings page was open was undone when an administrator pressed Save.\n- A Bonfire switch could show a setting the server never accepted, with nothing on screen to say the save had failed.\n- Switching profiles on a light theme flashed a black screen.\n- A switch that went wrong left the screen blank for four seconds. It is now under two.\n- A language could stop loading until Jellyfin was restarted, dropping everyone back to English.\n- Device “last seen” dates reset every time Jellyfin restarted, and the device list never dropped hardware nobody uses any more.\n- The maximum profiles box accepted a negative number, and nothing enforced an upper limit.\n\n**Changed**\n\n- The “restart to finish updating” notice now names the version running and the version waiting, so you can tell whether your restart worked. (#25)\n\n**Added**\n\n- Polish, contributed by danis101. (#26)",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.5.6/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "42ab7dd04b9ea32e665245184794f3b5",
         "timestamp": "2026-08-28T00:00:00Z"
       },
       {
