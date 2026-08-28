@@ -10,8 +10,8 @@ listed together so it is obvious which ones are still only a promise.
 tests/run.sh          # or tests\run.ps1 on Windows
 ```
 
-Builds the plugin (Release, `-warnaserror`) and runs all 19 harnesses — 14 JavaScript
-and 5 C#, about 900 assertions. CI runs the same command, so the desk and the pipeline
+Builds the plugin (Release, `-warnaserror`) and runs all 24 harnesses — 18 JavaScript
+and 6 C#, about 1,100 assertions. CI runs the same command, so the desk and the pipeline
 cannot disagree about what "the tests pass" means.
 
 `node --check Web/profiles.js` is **necessary and not sufficient.** It passed against the
@@ -148,3 +148,11 @@ take `ProfilesBaseController.ConfigLock`, a single static lock, and every
 replaced, walks two threads through the old pattern deterministically and catches both
 inside the critical section, then names every `lock (...)` in the plugin one at a time and
 fails any taken on something other than a known static object.
+
+**Still open, from the same defect:** 26 of those sites read
+`var config = Plugin.Instance?.Configuration;` *before* taking the lock, so a swap between
+the read and the lock leaves them mutating the orphan. The lock now holds, but the
+reference can be stale. The dashboard no longer triggers it — `POST admin/settings` mutates
+in place — but Jellyfin's own `POST /Plugins/{id}/Configuration` still can. Read the
+configuration **inside** the lock in anything new; `UpdateAdminSettings` is the shape to
+copy. Tracked as P2-25.
