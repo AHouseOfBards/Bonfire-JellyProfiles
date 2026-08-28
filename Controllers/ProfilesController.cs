@@ -2228,7 +2228,7 @@ namespace Jellyfin.Profiles.Controllers
             var info = new FileInfo(file);
             if (info.Length > MaxScanFileBytes) return BadRequest("That image is too large to import.");
 
-            return File(System.IO.File.ReadAllBytes(file), ContentTypeForExtension(extension));
+            return ImageFileResult(file, ContentTypeForExtension(extension));
         }
 
         // ── Library tile artwork (GitHub issue #19) ────────────────────────────────
@@ -2430,7 +2430,7 @@ namespace Jellyfin.Profiles.Controllers
                 return NotFound();
             }
 
-            return File(System.IO.File.ReadAllBytes(found.Value.Path), found.Value.ContentType);
+            return ImageFileResult(found.Value.Path, found.Value.ContentType);
         }
 
         /// <summary>
@@ -2635,7 +2635,7 @@ namespace Jellyfin.Profiles.Controllers
             // No redirect for externally hosted images: this endpoint is anonymous, so
             // forwarding to a stored URL would turn it into an open redirect. Clients render
             // http(s) avatars straight from the URL in the profile list instead.
-            return File(System.IO.File.ReadAllBytes(found.Value.Path), found.Value.ContentType);
+            return ImageFileResult(found.Value.Path, found.Value.ContentType);
         }
 
         // ── Emergency disable ──────────────────────────────────────────────────────
@@ -2855,7 +2855,7 @@ namespace Jellyfin.Profiles.Controllers
                 return NotFound();
             }
 
-            return File(System.IO.File.ReadAllBytes(found.Value.Path), found.Value.ContentType);
+            return ImageFileResult(found.Value.Path, found.Value.ContentType);
         }
 
         // ── Admin Endpoints ────────────────────────────────────────────────────────

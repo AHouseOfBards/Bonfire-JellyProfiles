@@ -581,7 +581,24 @@ Serves the custom profile picture file for the specified profile.
   * `size`: optional query. Pass `thumb` for the small variant.
 * **Response:**
   * `200 OK`: Binary image file (JPEG, PNG, WebP, or GIF).
+  * `304 Not Modified`: when `If-None-Match` or `If-Modified-Since` matches.
   * `404 Not Found`: Profile or image not found, or the profile's picture is an externally hosted URL.
+
+**Caching.** All four image endpoints — this one, `avatars/{id}`,
+`library-art/{p}/{l}` and `admin/avatars/scan/file` — send:
+
+| Header | Value |
+|---|---|
+| `Cache-Control` | `private, max-age=3600` |
+| `ETag` | `"{length:x}-{lastWriteUtcTicks:x}"`, strong |
+| `Last-Modified` | the file's last-write time |
+
+`private` because these are one household's faces and the endpoints are anonymous, so a
+shared proxy must not keep them. The validator is the file's length and modification time
+rather than a hash of its contents: it changes whenever the image does, without reading
+the file to decide whether to read the file. Send `If-None-Match` — the gate is redrawn on
+every page load, so a client that does not will re-download every avatar in the household
+each time.
 
 This endpoint is intentionally unauthenticated: the URL is consumed directly as an image source and browsers do not send the `Authorization` header on image requests. This matches how Jellyfin serves its own user images, and the content is a low-sensitivity avatar.
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -751,6 +752,55 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         protected const int MaxProfileImageBytes = 2 * 1024 * 1024;
+
+        /// <summary>
+        /// Streams an image from disk with a cache validator.
+        /// <para>
+        /// All four image endpoints did <c>File(System.IO.File.ReadAllBytes(path), type)</c>
+        /// — the whole file onto the managed heap, per image, per request. The profile gate
+        /// renders every avatar in the household at once, so opening it allocated all of
+        /// them together; a 2 MB picture goes straight to the large object heap, which is
+        /// not compacted by default. <c>PhysicalFile</c> hands the path to the server's
+        /// <c>SendFileAsync</c>, which streams it without the copy.
+        /// </para>
+        /// <para>
+        /// The validator is length plus last-write time rather than a hash of the content:
+        /// hashing would mean reading the whole file to avoid reading the whole file. It
+        /// changes whenever the image does, which is what a validator has to do. With it,
+        /// a browser that already has the picture gets a 304 and no body at all — and these
+        /// are re-requested constantly, because the gate is drawn on every page load.
+        /// </para>
+        /// <para>
+        /// <c>private</c>, not <c>public</c>: the endpoints are anonymous so the gate can
+        /// render before sign-in, but the images are one household's faces and have no
+        /// business in a shared proxy cache.
+        /// </para>
+        /// </summary>
+        protected ActionResult ImageFileResult(string path, string contentType)
+        {
+            FileInfo info;
+            try
+            {
+                info = new FileInfo(path);
+                if (!info.Exists) return NotFound();
+            }
+            catch (Exception ex)
+            {
+                // Deleted between being found and being served, or unreadable.
+                _logger.LogWarning(ex, "ProfilesPlugin: Could not stat image {Path}.", path);
+                return NotFound();
+            }
+
+            var etag = new Microsoft.Net.Http.Headers.EntityTagHeaderValue(
+                "\"" + info.Length.ToString("x", CultureInfo.InvariantCulture)
+                + "-" + info.LastWriteTimeUtc.Ticks.ToString("x", CultureInfo.InvariantCulture) + "\"");
+
+            Response.Headers["Cache-Control"] = "private, max-age=3600";
+
+            // This overload answers If-None-Match and If-Modified-Since itself, so the 304
+            // is handled by the framework rather than by a branch here that could drift.
+            return PhysicalFile(path, contentType, info.LastWriteTimeUtc, etag);
+        }
 
         // Bounds for both the server-wide limit and the per-account override. The lower bound
         // was already checked in one place and not the other; the upper bound was checked
