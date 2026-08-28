@@ -35,6 +35,26 @@ function tokens(selector) {
         .map(t => t.slice(1)))];
 }
 
+/**
+ * True when `token` appears in `body` as a complete class or id, not merely as a
+ * substring of a longer one.
+ *
+ * This was `body.indexOf(token) === -1`, and it reported `.navMenu` as present in
+ * jellyfin-web because `navMenuOption` contains those seven characters. There is no bare
+ * `navMenu` class in 10.11 — only `navMenuOption`, `navMenuOptionText`,
+ * `navMenuOptionIcon` and `navMenuOption-selected` — so `injectSidebarLink` had a
+ * selector recorded as verified that has never matched anything.
+ *
+ * A class name ends at any character that cannot appear in one, so requiring
+ * non-`[\w-]` on both sides is the whole fix. It is the same failure the rest of this
+ * repository keeps finding: the check answered a coarser question ("do these characters
+ * occur") than the one anybody cared about ("does this selector match").
+ */
+function hasToken(body, token) {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp('(?<![\\w-])' + escaped + '(?![\\w-])').test(body);
+}
+
 (async () => {
     const ledger = JSON.parse(fs.readFileSync(LEDGER, 'utf8'));
     const upstream = ledger.selectors.filter(e => e.status === 'upstream');
@@ -54,7 +74,7 @@ function tokens(selector) {
             console.log('  ?  ' + e.selector.padEnd(30) + ' could not fetch ' + e.source);
             continue;
         }
-        const missing = tokens(e.selector).filter(t => body.indexOf(t) === -1);
+        const missing = tokens(e.selector).filter(t => !hasToken(body, t));
         if (missing.length) {
             broken.push({ e, missing });
             console.log('  X  ' + e.selector.padEnd(30) + ' no longer in ' + e.source

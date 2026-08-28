@@ -32,10 +32,16 @@ function ok(cond, label, detail) {
 
 // ── which functions reach outside our own markup ────────────────────────────
 const INJECTION_FNS = [
-    'injectSidebarLink', 'syncUserMenuEntry', 'syncPreferencesMenuEntry',
+    'syncUserMenuEntry', 'syncPreferencesMenuEntry',
     'injectProfilePageSection', '_findHeaderContainer', '_findGeometricHeaderAnchor',
     '_insertBeforeUserBtn', 'closeUserMenu', 'monitorAndHideShadowProfiles',
-    'applyUsersHide'
+    'applyUsersHide',
+    // checkRoute was missed when this list was written, on the reading that it only
+    // classifies the route. It also runs the playback-OSD query — four selectors aimed
+    // squarely at jellyfin-web, in the hottest path in the client, with nothing tracking
+    // them. Two of the six it used to carry were unqualified attribute-substring
+    // selectors that walked the whole document twice a second.
+    'checkRoute'
 ];
 
 const src = L.readProfiles();

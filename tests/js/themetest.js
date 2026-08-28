@@ -156,7 +156,46 @@ for (const t of ['--jpf-r-sm: 6px', '--jpf-r-md: 12px', '--jpf-r-lg: 20px',
 check('no literal px radius survives',
     (CSS.match(/border-radius: ?\d+px/g) || []).filter(m => !m.includes('999')).length, 0);
 // 50% and 999px are shapes, not sizes, and must NOT have been tokenised.
-check('circles kept their 50%', (SRC.match(/border-radius: ?50%/g) || []).length, 15);
+//
+// A bare expected count used to sit here, and deleting one dead function that happened to
+// carry an inline `border-radius: 50%` failed it — reporting a tokenisation regression
+// when nothing had been tokenised. A count answers "how many" when the question is "did
+// any circle become a token"; it fails on a deletion and, worse, would stay green if one
+// circle were tokenised while another was added.
+//
+// Checked as a floor plus a rule instead: circles still exist in quantity, and no
+// element that should be round carries a radius token.
+// Named, not counted. Each of these is round because being round is what it means — a
+// lock badge, a colour swatch, a spinner. If one is tokenised its name disappears from
+// this list and the failure says which. A total cannot: it fails when a dead rule is
+// deleted (which is how this was found), and stays green when one circle is tokenised
+// while another is added.
+const circleSelectors = (function () {
+    const out = [];
+    const re = /border-radius: ?50%/g;
+    let m;
+    while ((m = re.exec(SRC)) !== null) {
+        const before = SRC.slice(Math.max(0, m.index - 900), m.index);
+        const sels = before.match(/([.#][A-Za-z][\w .:#>()-]*?)\s*\{/g) || [];
+        out.push(sels.length ? sels[sels.length - 1].replace(/\s*\{$/, '').trim() : '(inline)');
+    }
+    return out;
+})();
+
+for (const sel of [
+    '.avatar-library-item',
+    '.profile-card.is-switching .profile-avatar-container::after',
+    '.profiles-btn.is-busy::after',
+    '.profile-avatar.is-transparent .profile-avatar-overlay-svg',
+    '.profile-lock-indicator',
+    '.profile-bonfire-indicator',
+    '#profiles-floating-bubble.profiles-floating-fallback',
+    '.color-dot',
+    '.image-upload-preview',
+    '.tag-chip-remove'
+]) {
+    check(sel + ' is still a circle', circleSelectors.includes(sel), true);
+}
 check('the pill kept its 999px', (SRC.match(/border-radius: ?999px/g) || []).length, 1);
 
 console.log();

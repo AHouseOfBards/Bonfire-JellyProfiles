@@ -1091,7 +1091,33 @@
             // Fix #8: 500ms interval is sufficient since viewshow/popstate/hashchange
             // already cover all SPA navigation. The poll is only a safety net for rare
             // DOM-mutation scenarios (e.g., video OSD).
-            setInterval(doCheck, 500);
+            //
+            // It backs off to 2 s once playback starts. There is nothing for the plugin to
+            // do during playback — the gate is not raised, the bubble is hidden, and the
+            // menus are not on screen — and that is exactly when the device has least
+            // headroom: a TV decoding 4K is the weakest hardware in the house doing the
+            // hardest thing it ever does. Four times fewer wake-ups for work that has no
+            // effect.
+            //
+            // Not stopped outright. The tick is also what notices playback *ending* on a
+            // client whose URL does not change, and a poll that switched itself off would
+            // then need something else to switch it back on. 2 s is a quarter of a second
+            // of latency on the bubble reappearing, which nobody can see.
+            this._tickMs = 500;
+            const arm = () => {
+                clearInterval(this._routeTimer);
+                this._routeTimer = setInterval(() => {
+                    doCheck();
+                    // _lastRouteType is set by checkRoute, so this reads the classification
+                    // that has just been made rather than repeating the work to get it.
+                    const want = this._lastRouteType === 'videoosd' ? 2000 : 500;
+                    if (want !== this._tickMs) {
+                        this._tickMs = want;
+                        arm();
+                    }
+                }, this._tickMs);
+            };
+            arm();
 
             // Initial check on load
             setTimeout(doCheck, 200);
@@ -1274,9 +1300,20 @@
 
             // ── Active player: DOM-based detection (catches delayed URL updates) ──
             // The OSD element appears in the DOM the moment playback starts.
+            // Class selectors only. This list carried [class*="videoOsd"] and
+            // [class*="osdBottom"] as well, and an unqualified attribute-substring
+            // selector cannot use the class index — the engine walks every element in the
+            // document and tests each one. That ran twice a second, for the life of the
+            // page, on every device, including the weakest hardware in the house *during
+            // playback*, which is the one moment it has least to spare.
+            //
+            // They also never matched anything the three explicit names beside them did
+            // not already match: .videoOsdBottom is itself the element [class*="videoOsd"]
+            // was reaching for. Verified against jellyfin-web 10.11 —
+            // src/controllers/playback/video/index.html — and recorded in
+            // tests/upstream-selectors.json.
             const hasOsdDom = !!document.querySelector(
-                '.videoOsdBottom, .osdControls, .upNextContainer, ' +
-                '[class*="videoOsd"], [class*="osdBottom"], .btnExitVideo'
+                '.videoOsdBottom, .osdControls, .upNextContainer, .btnExitVideo'
             );
 
             // ── Admin / server-management pages ─────────────────────────────────
@@ -1331,8 +1368,6 @@
             // revealing now would show a blank page during the profile fetch.
             if (!skipReveal) this._revealPage();
 
-            // Inject sidebar link fallbacks for TV D-pad targeting
-            this.injectSidebarLink();
         },
 
         // Smoothly fades the page back in after a profile switch.
@@ -1677,6 +1712,9 @@
             this.removeProfileOverlay();
             const bubble = document.getElementById('profiles-floating-bubble');
             if (bubble) bubble.remove();
+            // The drawer link injectSidebarLink used to add. Kept in the teardown, and
+            // only here: a browser that ran an older build in this tab may still have one
+            // in the page, and the emergency disable has to leave nothing of ours behind.
             const sidebarLink = document.getElementById('profiles-sidebar-link');
             if (sidebarLink) sidebarLink.remove();
             const menuItem = document.getElementById('profiles-user-menu-item');
@@ -3008,7 +3046,6 @@
             this.interceptHomeAndShowProfiles();
         },
 
-
         renderOverlayContent: function (overlay, profiles) {
             // Claims the screen so a form still loading in the background does not
             // draw itself over the grid when it finally returns.
@@ -3295,7 +3332,6 @@
                 });
                 this.applyPanicLinkVisibility();
             }
-
 
             // Back out of a switcher the user opened on purpose, returning to the profile
             // they were already using. Only present when there is something to return to —
@@ -5223,7 +5259,6 @@
                 }
 
 
-
                 // Save handler
                 document.getElementById('edit-submit-btn').addEventListener('click', () => {
                     const name = document.getElementById('edit-name-input').value.trim();
@@ -6081,62 +6116,6 @@
             }, 100);
         },
 
-        injectSidebarLink: function () {
-            const existingLink = document.getElementById('profiles-sidebar-link');
-            if (existingLink) {
-                // Already injected and configured. No need to touch it!
-                return;
-            }
-
-            const activeInfo = this.getCachedActiveProfile();
-            const initial = activeInfo.initial;
-            const color = activeInfo.color;
-            const name = activeInfo.name;
-
-            const container = document.querySelector('.sidebar-nav') || 
-                              document.querySelector('.navMenu') || 
-                              document.getElementById('menuItems');
-            if (!container) return;
-
-            const link = document.createElement('a');
-            link.id = 'profiles-sidebar-link';
-            link.href = '#';
-            link.className = 'sidebarLink navMenu-link';
-            link.setAttribute('tabindex', '0');
-            link.style.display = 'flex';
-            link.style.alignItems = 'center';
-            link.style.gap = '10px';
-            link.style.cursor = 'pointer';
-
-            link.innerHTML = `
-                <div class="sidebar-profile-avatar" style="width: 24px; height: 24px; border-radius: 50%; background-color: ${
-                    activeInfo.profileImage && activeInfo.transparent ? 'transparent' : safeColor(color)
-                }; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; flex-shrink: 0; overflow: hidden; position: relative;">
-                    ${avatarInner(activeInfo.profileImage, initial, /* useThumb */ true)}
-                </div>
-                <span class="sidebarLinkText">${t('switcher.switchProfileSuffix', { name: name })}</span>
-            `;
-
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const drawer = document.querySelector('.drawer-open');
-                if (drawer) {
-                    const mask = document.querySelector('.appdrawer-mask');
-                    if (mask) mask.click();
-                }
-                this.handleBubbleClick();
-            });
-
-            link.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    link.click();
-                }
-            });
-
-            container.appendChild(link);
-        },
 
         // ── Native-mode entry points ───────────────────────────────────────────────
         // Native mode drops the forced gate, so the switcher has to be reachable from
@@ -6164,14 +6143,21 @@
         /// idempotent — React re-renders the menu freely, so this runs from checkRoute
         /// rather than trying to catch every rebuild.
         syncUserMenuEntry: function () {
+            // Cheap guard first, for the same reason as syncPreferencesMenuEntry: this runs
+            // from the route poll, and in button mode the only reason to touch the menu is
+            // to remove a row a previous menu-mode session left behind.
+            const menuMode = this.isMenuLocation();
+            if (!menuMode && !this._userEntryPlaced) return;
+
             const menu = document.querySelector(this.USER_MENU_SELECTOR);
             if (!menu) return;
 
             const existing = menu.querySelector('#profiles-user-menu-item');
 
-            if (!this.isMenuLocation()) {
+            if (!menuMode) {
                 // Location switched back to the floating button — take the row out again.
                 if (existing) existing.remove();
+                this._userEntryPlaced = false;
                 return;
             }
             if (existing && menu.contains(existing)) return;
@@ -6232,6 +6218,7 @@
             });
 
             signOut.parentNode.insertBefore(entry, signOut);
+            this._userEntryPlaced = true;
         },
 
         /// Re-asserts the "Switch Profile" row on the Settings page (#/mypreferencesmenu),
@@ -6241,6 +6228,15 @@
         /// Source of truth: src/apps/legacy/routes/user/settings/index.tsx, page id
         /// myPreferencesMenuPage. The row goes in the "User" section above Sign out.
         syncPreferencesMenuEntry: function () {
+            // Cheap guard first. This runs from the route poll, so in button mode — the
+            // default — it used to query the document and read offsetParent (which forces
+            // layout) twice a second purely to discover it had nothing to do. Reading a
+            // cached preference costs nothing, and the only reason to look at the page in
+            // button mode is to take away a row a previous menu-mode session left behind,
+            // which _prefsEntryPlaced already knows about.
+            const menuMode = this.isMenuLocation();
+            if (!menuMode && !this._prefsEntryPlaced) return;
+
             // Jellyfin keeps previous views in the DOM, so match the visible one or the
             // row lands on a page nobody is looking at.
             const page = Array.from(document.querySelectorAll('#myPreferencesMenuPage'))
@@ -6249,8 +6245,9 @@
 
             const existing = page.querySelector('#profiles-preferences-menu-item');
 
-            if (!this.isMenuLocation()) {
+            if (!menuMode) {
                 if (existing) existing.remove();
+                this._prefsEntryPlaced = false;
                 return;
             }
             if (existing) return;
@@ -6292,6 +6289,7 @@
             });
 
             signOut.parentNode.insertBefore(entry, signOut);
+            this._prefsEntryPlaced = true;
         },
 
         /// Closes the MUI menu. Our cloned row has no React handler, so nothing would
@@ -6671,7 +6669,6 @@
                 container.appendChild(bubble);
             }
         },
-
 
         /// Opens the profile selector over whatever page the user is on.
         ///
