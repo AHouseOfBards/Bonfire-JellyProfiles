@@ -562,20 +562,45 @@ namespace Jellyfin.Profiles.Controllers
                 var existing = config.KnownDevices.FirstOrDefault(d =>
                     string.Equals(d.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
 
+                var now = DateTime.UtcNow;
+                var save = false;
+
                 if (existing != null)
                 {
-                    // Update in-memory only — LastSeen is informational and does not need
-                    // to trigger a full PluginConfiguration.xml rewrite on every request.
-                    existing.LastSeen = DateTime.UtcNow;
+                    existing.LastSeen = now;
                     existing.DeviceName = deviceName ?? existing.DeviceName;
                     existing.Client = client ?? existing.Client;
 
+                    // LastSeen was in-memory only, to keep a full PluginConfiguration.xml
+                    // rewrite off every request. The cost was that it never survived a
+                    // restart: the device list came back ordered by whenever each record was
+                    // first written, and "last seen" showed a date from before the restart —
+                    // so the column an administrator uses to decide what to revoke was
+                    // reliably wrong after every server update.
+                    //
+                    // Written at most once an hour per device instead. That is far finer than
+                    // the "unseen for 180 days" question the value is actually used to answer,
+                    // and it is one write an hour rather than one a request.
+                    //
+                    // Throttled against when it was last *persisted*, not last seen: LastSeen
+                    // is bumped in memory on every request, so comparing against it would
+                    // never reach an hour on a device that is in regular use — which is every
+                    // device this matters for.
+                    var lastWrite = DevicePersistedAt.TryGetValue(existing.DeviceId, out var at)
+                        ? at
+                        : DateTime.MinValue;
+                    if (now - lastWrite >= DeviceLastSeenWriteInterval)
+                    {
+                        DevicePersistedAt[existing.DeviceId] = now;
+                        save = true;
+                    }
+
                     // Claim ownership for records written before MasterUserId existed. This is
-                    // the one case worth persisting, so the migration happens exactly once.
+                    // the one case worth persisting immediately, so it happens exactly once.
                     if (existing.MasterUserId == Guid.Empty && ownerId != Guid.Empty)
                     {
                         existing.MasterUserId = ownerId;
-                        Plugin.Instance?.SaveConfiguration();
+                        save = true;
                     }
                 }
                 else
@@ -586,12 +611,73 @@ namespace Jellyfin.Profiles.Controllers
                         DeviceId = deviceId,
                         DeviceName = deviceName ?? "Unknown Device",
                         Client = client ?? "Unknown Client",
-                        LastSeen = DateTime.UtcNow,
+                        LastSeen = now,
                         MasterUserId = ownerId
                     });
-                    Plugin.Instance?.SaveConfiguration();
+                    DevicePersistedAt[deviceId] = now;
+                    save = true;
                 }
+
+                // Only while we are writing anyway, and at most once a day. KnownDevices is a
+                // single server-wide list that only ever grew: every phone that ever hit the
+                // server stayed in it forever, and the device picker is a list an administrator
+                // has to read.
+                if (save) save |= PruneStaleDevices(config, now);
+
+                if (save) Plugin.Instance?.SaveConfiguration();
             }
+        }
+
+        // ── Device housekeeping ─────────────────────────────────────────────────────
+
+        /// <summary>When each device's LastSeen was last written to disk. See RecordDeviceActivity.</summary>
+        private static readonly ConcurrentDictionary<string, DateTime> DevicePersistedAt = new();
+
+        private static readonly TimeSpan DeviceLastSeenWriteInterval = TimeSpan.FromHours(1);
+
+        /// <summary>How long a device may go unseen before it is dropped from the picker.</summary>
+        private static readonly TimeSpan DeviceRetention = TimeSpan.FromDays(180);
+
+        private static DateTime _lastDevicePrune = DateTime.MinValue;
+
+        /// <summary>
+        /// Drops devices nobody has used for <see cref="DeviceRetention"/>, unless some profile
+        /// still names them. True when anything was removed.
+        /// <para>
+        /// A device on a whitelist is kept however old it is: removing it would silently widen
+        /// that profile's access, because an empty <c>AllowedDeviceIds</c> means "any device".
+        /// Tidying a list must never turn a restriction off.
+        /// </para>
+        /// <para>Caller must hold <see cref="ConfigLock"/>.</para>
+        /// </summary>
+        private bool PruneStaleDevices(PluginConfiguration config, DateTime now)
+        {
+            if (now - _lastDevicePrune < TimeSpan.FromDays(1)) return false;
+            _lastDevicePrune = now;
+
+            var removed = RemoveStaleDevices(config, now);
+            if (removed > 0)
+            {
+                _logger.LogInformation(
+                    "ProfilesPlugin: Dropped {Count} device(s) unseen for {Days} days.",
+                    removed, (int)DeviceRetention.TotalDays);
+            }
+            return removed > 0;
+        }
+
+        /// <summary>
+        /// The pruning itself, with no throttle and no logger, so it can be driven directly by
+        /// a harness. Returns how many records were removed. Caller must hold ConfigLock.
+        /// </summary>
+        internal static int RemoveStaleDevices(PluginConfiguration config, DateTime now)
+        {
+            var whitelisted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var m in config.Mappings)
+                foreach (var id in m.AllowedDeviceIds)
+                    if (!string.IsNullOrEmpty(id)) whitelisted.Add(id);
+
+            return config.KnownDevices.RemoveAll(d =>
+                now - d.LastSeen > DeviceRetention && !whitelisted.Contains(d.DeviceId));
         }
 
         /// <summary>
