@@ -334,6 +334,8 @@
         'bonfire.lanSwitchLabel': 'Let my Bonfire switch into my account on this network',
         'bonfire.lanSwitchHint': 'No PIN needed on your home network. Away from home it still is{extra}.',
         'bonfire.lanSwitchHintExtra': ', and until you set one your account cannot be opened remotely at all',
+        'bonfire.settingsSaved': 'Saved.',
+        'bonfire.settingsSaveFailed': 'Could not save. Nothing was changed.',
         'bonfire.adminAccountWarning': 'This is an admin account.',
         'bonfire.adminAccountWarningBody': 'Whoever switches into it gets your admin rights.',
         'bonfire.proxyHint': 'Behind a reverse proxy, check Networking → Known Proxies first, or everyone looks local.',
@@ -5702,6 +5704,15 @@
                     </div>
 
                     ${lanBypassSectionHtml}
+
+                    <!-- Saving these is a fetch that can fail. Without somewhere to say so,
+                         a failure left the box sitting in its new position with the server
+                         still holding the old value — the one case where that matters is the
+                         LAN bypass, where the box can read "on" while nobody can actually
+                         switch in, or the reverse. aria-live so a screen reader hears it
+                         without the focus having to move. -->
+                    <div id="bonfire-settings-status" role="status" aria-live="polite"
+                         style="display: none; margin-left: 1.6rem; font-size: 0.78rem; line-height: 1.4;"></div>
                 </div>
             `;
 
@@ -5869,11 +5880,42 @@
             const hideOthersCb = container.querySelector('#bonfire-hide-others-checkbox');
             const lanBypassCb = container.querySelector('#bonfire-lan-bypass-checkbox');
             let _settingsDebounceTimer = null;
+            const statusDiv = container.querySelector('#bonfire-settings-status');
+
+            // The last state the server acknowledged. A failed save is reverted to this, so
+            // the boxes always show what is actually stored rather than what was attempted.
+            // Seeded from the values this panel was rendered with, which came from the server.
+            const lastSaved = {
+                hideMine: hideMineCb ? hideMineCb.checked : false,
+                hideOthers: hideOthersCb ? hideOthersCb.checked : false,
+                lanBypass: lanBypassCb ? lanBypassCb.checked : false
+            };
+
+            const settingsBoxes = [hideMineCb, hideOthersCb, lanBypassCb].filter(Boolean);
+
+            const setStatus = (message, ok) => {
+                if (!statusDiv) return;
+                statusDiv.textContent = message;
+                statusDiv.style.color = ok ? 'var(--jpf-accent)' : '#ff6b6b';
+                statusDiv.style.display = 'block';
+                statusDiv.style.opacity = ok ? '0.75' : '1';
+            };
+
+            let _statusClearTimer = null;
+            const flashSaved = () => {
+                setStatus(t('bonfire.settingsSaved'), true);
+                clearTimeout(_statusClearTimer);
+                _statusClearTimer = setTimeout(() => {
+                    if (statusDiv) statusDiv.style.display = 'none';
+                }, 2500);
+            };
+
             const saveSettings = () => {
                 clearTimeout(_settingsDebounceTimer);
                 _settingsDebounceTimer = setTimeout(() => {
                     const hideMineVal = hideMineCb ? hideMineCb.checked : false;
                     const hideOthersVal = hideOthersCb ? hideOthersCb.checked : false;
+                    const lanBypassVal = lanBypassCb ? lanBypassCb.checked : false;
 
                     const body = {
                         hideMySubProfilesFromOthers: hideMineVal,
@@ -5882,7 +5924,15 @@
                     // Omitted rather than sent as false when the toggle is not on screen, so a
                     // standalone account saving the hide flags cannot clear a setting it never
                     // rendered. The server treats a missing value as "leave alone".
-                    if (lanBypassCb) body.allowHouseholdLanBypass = lanBypassCb.checked;
+                    if (lanBypassCb) body.allowHouseholdLanBypass = lanBypassVal;
+
+                    // Locked while the request is in flight. Toggling again mid-save would
+                    // queue a second write whose result arrives in whatever order the network
+                    // decides, and a revert would then restore a state neither click asked for.
+                    settingsBoxes.forEach(cb => { cb.disabled = true; });
+                    clearTimeout(_statusClearTimer);
+
+                    const finish = () => { settingsBoxes.forEach(cb => { cb.disabled = false; }); };
 
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/settings'), {
                         method: 'POST',
@@ -5893,9 +5943,26 @@
                         body: JSON.stringify(body)
                     })
                     .then(res => {
-                        if (!res.ok) console.error('Failed to save Bonfire settings.');
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        lastSaved.hideMine = hideMineVal;
+                        lastSaved.hideOthers = hideOthersVal;
+                        lastSaved.lanBypass = lanBypassVal;
+                        finish();
+                        flashSaved();
                     })
-                    .catch(err => console.error('Error saving Bonfire settings:', err));
+                    .catch(err => {
+                        // This used to be a console.error and nothing else. The box stayed
+                        // where the user put it while the server still held the old value —
+                        // and for the LAN bypass that means the panel can read "household
+                        // switching allowed" when it is not, or the other way round. Whichever
+                        // way it lands, the person believes a security setting that is not true.
+                        console.error('Error saving Bonfire settings:', err);
+                        if (hideMineCb) hideMineCb.checked = lastSaved.hideMine;
+                        if (hideOthersCb) hideOthersCb.checked = lastSaved.hideOthers;
+                        if (lanBypassCb) lanBypassCb.checked = lastSaved.lanBypass;
+                        finish();
+                        setStatus(t('bonfire.settingsSaveFailed'), false);
+                    });
                 }, 300);
             };
 
@@ -5921,7 +5988,7 @@
                         t('bonfire.allowHouseholdTitle'),
                         t('bonfire.allowHouseholdBody') + adminLine,
                         () => saveSettings(),
-                        () => { lanBypassCb.checked = false; }
+                        () => { lanBypassCb.checked = lastSaved.lanBypass; }
                     );
                 });
             }

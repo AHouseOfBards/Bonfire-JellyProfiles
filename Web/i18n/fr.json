@@ -215,6 +215,8 @@
   "bonfire.lanSwitchLabel": "Laisser mon Bonfire basculer vers mon compte sur ce réseau",
   "bonfire.lanSwitchHint": "Aucun code PIN requis sur votre réseau domestique. En dehors, il le reste toujours{extra}.",
   "bonfire.lanSwitchHintExtra": ", et tant que vous n'en définissez pas un, votre compte ne peut pas du tout être ouvert à distance",
+  "bonfire.settingsSaved": "Enregistré.",
+  "bonfire.settingsSaveFailed": "Échec de l'enregistrement. Rien n'a été modifié.",
   "bonfire.adminAccountWarning": "Ce compte est administrateur.",
   "bonfire.adminAccountWarningBody": "Quiconque bascule dessus obtient vos droits d'administration.",
   "bonfire.proxyHint": "Derrière un proxy inverse, vérifiez d'abord Réseau → Proxys de confiance, sinon tout le monde semble local.",

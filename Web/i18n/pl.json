@@ -215,6 +215,8 @@
   "bonfire.lanSwitchLabel": "Pozwól mojemu Bonfire przełączać się na moje konto w tej sieci",
   "bonfire.lanSwitchHint": "Kod PIN nie jest wymagany w Twojej sieci domowej. Poza nią jest wymagany{extra}.",
   "bonfire.lanSwitchHintExtra": ", a dopóki go nie ustawisz, Twoje konto nie będzie mogło być otwierane zdalnie",
+  "bonfire.settingsSaved": "Zapisano.",
+  "bonfire.settingsSaveFailed": "Nie udało się zapisać. Nic nie zostało zmienione.",
   "bonfire.adminAccountWarning": "To jest konto administratora.",
   "bonfire.adminAccountWarningBody": "Każdy, kto się na nie przełączy, uzyska Twoje uprawnienia administracyjne.",
   "bonfire.proxyHint": "W przypadku korzystania z reverse proxy należy wpierw sprawdzić ustawienie: Sieć → Zaufane proxy. W przeciwnym razie każdy użytkownik będzie traktowany jako lokalny.",
