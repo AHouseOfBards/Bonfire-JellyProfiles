@@ -287,5 +287,95 @@ Console.WriteLine("── What the middleware answers ────────�
 }
 
 Console.WriteLine();
+Console.WriteLine("-- Which version is running, and which one is waiting (issue #25) --");
+{
+    // "A restart is required" on its own is unfalsifiable from the reader's side. An
+    // administrator who has already restarted — or who pressed Jellyfin's own Restart
+    // button, which on most Docker images does not restart the process — cannot tell a
+    // stale banner from a live one. Two version numbers can be checked against what they
+    // just did. Jellyfin keeps every installed version in its own {Name}_{Version} folder
+    // and loads one of them, so the answer is in the folder names.
+    var task = asm.GetType("Jellyfin.Profiles.ProfilesBootstrapTask", true);
+    var newestBeside = task.GetMethod("NewestVersionBeside",
+        System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic
+        | System.Reflection.BindingFlags.Public);
+
+    Check("the version scan is reachable", newestBeside != null, true);
+
+    if (newestBeside != null)
+    {
+        string? Scan(string dir) => (string?)newestBeside.Invoke(null, new object[] { dir });
+
+        var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
+            "bonfire-versions-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            void Folder(string name) => System.IO.Directory.CreateDirectory(
+                System.IO.Path.Combine(root, name));
+
+            Folder("Bonfire_1.5.4.0");
+            Folder("Bonfire_1.5.6.0");
+            Folder("Bonfire_1.5.10.0");   // must beat 1.5.6 — string ordering would not
+            Folder("Bonfire_not-a-version");
+            Folder("SomeOtherPlugin_9.9.9.0");
+            Folder("Bonfire");           // no version suffix at all
+
+            var running = System.IO.Path.Combine(root, "Bonfire_1.5.4.0");
+
+            Check("finds the newest sibling", Scan(running), "1.5.10.0");
+            Check("compares numerically, not as text (1.5.10 beats 1.5.6)",
+                  Scan(running) != "1.5.6.0", true);
+
+            // Another plugin's folders must not be read as ours. The prefix comes from the
+            // folder we are in, so this is really a test that it is not matching loosely.
+            var other = System.IO.Path.Combine(root, "SomeOtherPlugin_9.9.9.0");
+            Check("another plugin's versions are not ours", Scan(other), "9.9.9.0");
+
+            // Not a plugin folder: a harness, or a single-file publish. Nothing to compare
+            // against is not an error, and must not be reported as "no newer version".
+            Check("a directory with no version suffix yields nothing",
+                  Scan(System.IO.Path.Combine(root, "Bonfire")), null);
+            Check("a directory that does not exist yields nothing",
+                  Scan(System.IO.Path.Combine(root, "nope_1.0.0.0")), null);
+            Check("null yields nothing", Scan(null), null);
+        }
+        finally
+        {
+            try { System.IO.Directory.Delete(root, true); } catch { }
+        }
+    }
+
+    var find = task.GetMethod("FindInstalledVersions",
+        System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic
+        | System.Reflection.BindingFlags.Public);
+    Check("the pair the dashboard reports is reachable", find != null, true);
+
+    if (find != null)
+    {
+        var pair = find.Invoke(null, null);
+        var runningVersion = (string)pair.GetType().GetField("Item1").GetValue(pair);
+        Check("it reports a running version", !string.IsNullOrWhiteSpace(runningVersion), true);
+        Check("which is this build's informational version, label and all",
+              runningVersion,
+              System.Reflection.CustomAttributeExtensions
+                  .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(asm)
+                  ?.InformationalVersion);
+    }
+
+    // A newer version installed and a newer version *not* installed are different answers
+    // from "cannot tell". Returning false for the third would tell an administrator their
+    // restart is done when nothing knows whether it is.
+    var newer = task.GetMethod("NewerVersionInstalled",
+        System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic
+        | System.Reflection.BindingFlags.Public);
+    Check("the comparison is reachable", newer != null, true);
+    if (newer != null)
+    {
+        Check("running outside a plugin folder answers \"cannot tell\", not \"no\"",
+              newer.Invoke(null, null), null);
+    }
+}
+
+Console.WriteLine();
 Console.WriteLine($"{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;

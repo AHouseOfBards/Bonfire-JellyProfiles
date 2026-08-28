@@ -1176,6 +1176,9 @@ Retrieves all user profile mappings configured on the server.
 {
   "mode": "middleware",
   "restartRequired": false,
+  "runningVersion": "1.5.6-beta",
+  "newestInstalledVersion": "1.5.6.0",
+  "newerVersionInstalled": false,
   "middlewareRegistered": true,
   "middlewareActive": true,
   "middlewareServed": 42,
@@ -1188,6 +1191,9 @@ Retrieves all user profile mappings configured on the server.
 | --- | --- | --- |
 | `mode` | string | `middleware`, `both` or `file`. See **Client Script**. |
 | `restartRequired` | boolean | This build was installed or updated after Jellyfin started, so its pipeline hook was never registered and cannot be until the server restarts. Treat as "not finished installing", not as a failure — the previously loaded build usually keeps serving, so the switcher still works. Suppress any injection warning while this is true. |
+| `runningVersion` | string | The version actually executing, informational label and all. |
+| `newestInstalledVersion` | string \| null | The highest version present on disk. Jellyfin installs each into its own folder and loads one of them, so this differs from `runningVersion` exactly while an update is waiting for a restart. Null when the plugin was not loaded from a plugin folder and there is nothing to compare against. |
+| `newerVersionInstalled` | boolean \| null | Whether `newestInstalledVersion` is higher than `runningVersion`. **Null means "cannot tell"**, which is not the same as `false` — do not render it as "up to date". |
 | `middlewareRegistered` | boolean | The pipeline hook was registered, which happens once per plugin during server startup. False means this build was loaded afterwards — see `restartRequired`. True does **not** mean the hook is working; use `middlewareActive` for that. |
 | `middlewareActive` | boolean | The hook has handled at least one request for the web page. This is the signal that it is live. |
 | `middlewareServed` | number | Pages served with the tags added, since the server started. |

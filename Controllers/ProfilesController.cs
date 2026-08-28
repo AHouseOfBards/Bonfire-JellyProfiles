@@ -1083,12 +1083,20 @@ namespace Jellyfin.Profiles.Controllers
         /// </summary>
         private static object DescribeInjectionMechanism()
         {
+            var (runningVersion, newestInstalled) = ProfilesBootstrapTask.FindInstalledVersions();
+
             return new
             {
                 Mode = IndexInjectionModes.Normalize(Plugin.Instance?.Configuration?.IndexInjectionMode),
                 // Installed or updated on a running server, so this build's pipeline hook
                 // was never registered and cannot be until Jellyfin restarts (issue #25).
                 RestartRequired = ProfilesBootstrapTask.RestartRequired,
+                // Both versions, so "restart required" is something the reader can check
+                // rather than something they have to believe. They differ exactly when a
+                // newer copy is on disk waiting for the process to come back.
+                RunningVersion = runningVersion,
+                NewestInstalledVersion = newestInstalled,
+                NewerVersionInstalled = ProfilesBootstrapTask.NewerVersionInstalled(),
                 MiddlewareRegistered = ProfilesIndexMiddleware.IsRegistered,
                 MiddlewareActive = ProfilesIndexMiddleware.HasSeenIndexRequest,
                 MiddlewareServed = ProfilesIndexMiddleware.ServedCountValue,

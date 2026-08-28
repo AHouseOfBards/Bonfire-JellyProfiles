@@ -92,6 +92,12 @@
                 Bonfire has been installed or updated since Jellyfin started. The new version cannot
                 serve the client script until the server restarts — until then the previous version
                 keeps running, so profiles will still work.
+                <!-- Filled in from the mechanism's runningVersion / newestInstalledVersion. The
+                     banner used to assert a restart was needed and stop there, which the reader
+                     had no way to check: someone who has already restarted, or who pressed
+                     Jellyfin's Restart button on a Docker image where it does not restart the
+                     process, sees the same words either way. Two numbers can be checked. -->
+                <div id="restartVersions" style="display:none; margin-top:8px; font-weight:600;"></div>
                 <div style="margin-top:10px; padding:10px 12px; background:rgba(0,0,0,0.25); border-radius:4px; font-size:0.9rem;">
                     <strong>On Docker, restart the container.</strong> Jellyfin's own <em>Restart</em>
                     button does not restart the process on most container images, so the notice stays
@@ -593,6 +599,24 @@
 
                 const restartContainer = page.querySelector('#restartRequiredContainer');
                 if (restartContainer) restartContainer.style.display = restartRequired ? 'block' : 'none';
+
+                // Name both versions, so "restart required" is checkable rather than a claim.
+                // Hidden when the two cannot be compared — running from somewhere that is not
+                // a plugin folder — because inventing a comparison would be worse than saying
+                // nothing (issue #25).
+                const restartVersions = page.querySelector('#restartVersions');
+                if (restartVersions) {
+                    const runningVer = mech ? field(mech, 'runningVersion') : null;
+                    const newestVer = mech ? field(mech, 'newestInstalledVersion') : null;
+                    if (restartRequired && runningVer && newestVer && newestVer !== runningVer) {
+                        restartVersions.textContent =
+                            'Running ' + runningVer + '. Version ' + newestVer
+                            + ' is installed and starts once the server process restarts.';
+                        restartVersions.style.display = 'block';
+                    } else {
+                        restartVersions.style.display = 'none';
+                    }
+                }
 
                 if (warningContainer) warningContainer.style.display = failed ? 'block' : 'none';
                 if (staleContainer) staleContainer.style.display = stale ? 'block' : 'none';

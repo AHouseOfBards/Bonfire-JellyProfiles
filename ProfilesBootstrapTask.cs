@@ -169,6 +169,110 @@ namespace Jellyfin.Profiles
         /// </summary>
         internal static bool RestartRequired => !ProfilesIndexMiddleware.IsRegistered;
 
+        /// <summary>
+        /// The version of this plugin that is <b>running</b>, and the newest version present
+        /// on disk. They differ exactly when Bonfire has been installed or updated on a
+        /// server that has not restarted since.
+        /// <para>
+        /// Issue #25: the dashboard said a restart was required and left it there. An
+        /// administrator who has already restarted — or who restarted the wrong thing, which
+        /// on Docker is Jellyfin's own Restart button on most images — has no way to tell a
+        /// stale message from a real one. Two version numbers are checkable: if the running
+        /// version is already the newest installed, the message is wrong and the reader can
+        /// see that for themselves.
+        /// </para>
+        /// <para>
+        /// Read off the folder names, because that is where the answer is. Jellyfin installs
+        /// each version into its own <c>{Name}_{Version}</c> directory and loads exactly one
+        /// of them; the rest sit there until it restarts. The prefix is taken from the folder
+        /// this assembly was loaded from rather than hardcoded — the same reasoning as
+        /// CleanupOldDlls, where a hardcoded "Bonfire" would never have matched.
+        /// </para>
+        /// </summary>
+        internal static (string Running, string? NewestInstalled) FindInstalledVersions()
+        {
+            var running = System.Reflection.CustomAttributeExtensions
+                .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(
+                    typeof(ProfilesBootstrapTask).Assembly)
+                ?.InformationalVersion;
+            if (!string.IsNullOrWhiteSpace(running))
+            {
+                var plus = running.IndexOf('+');
+                if (plus > 0) running = running.Substring(0, plus);
+            }
+            else
+            {
+                running = typeof(ProfilesBootstrapTask).Assembly.GetName().Version?.ToString();
+            }
+            running ??= "unknown";
+
+            var dir = Path.GetDirectoryName(typeof(ProfilesBootstrapTask).Assembly.Location);
+            return (running, NewestVersionBeside(dir));
+        }
+
+        /// <summary>
+        /// The highest version among the sibling plugin folders of <paramref name="ownDirectory"/>,
+        /// or null when there is nothing to compare against — which includes being loaded from
+        /// somewhere that is not a plugin folder at all, such as a test harness or a
+        /// single-file publish. That is not an error.
+        /// <para>
+        /// Takes the directory rather than reading its own assembly location, so it can be
+        /// driven against a directory laid out on purpose. The interesting cases here — a
+        /// folder that is not ours, a version suffix that will not parse, several versions
+        /// side by side — never occur in the one directory the harness happens to run from.
+        /// </para>
+        /// </summary>
+        internal static string? NewestVersionBeside(string? ownDirectory)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(ownDirectory) || !Directory.Exists(ownDirectory)) return null;
+
+                var here = new DirectoryInfo(ownDirectory);
+                var parent = here.Parent;
+                var underscore = here.Name.LastIndexOf('_');
+                if (parent == null || underscore <= 0) return null;
+
+                // "Bonfire_" — taken from the folder we are in rather than hardcoded, the
+                // same reasoning as CleanupOldDlls: a literal "Bonfire" would stop matching
+                // the day the plugin is renamed, and stop matching silently.
+                var prefix = here.Name.Substring(0, underscore + 1);
+
+                Version? newest = null;
+                foreach (var sibling in parent.GetDirectories(prefix + "*"))
+                {
+                    var suffix = sibling.Name.Substring(prefix.Length);
+                    if (Version.TryParse(suffix, out var v) && (newest == null || v > newest))
+                        newest = v;
+                }
+
+                return newest?.ToString();
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// True when a newer version than the running one is sitting on disk waiting for a
+        /// restart. Null when the versions cannot be compared, which is not the same as false.
+        /// </summary>
+        internal static bool? NewerVersionInstalled()
+        {
+            var (running, newest) = FindInstalledVersions();
+            if (newest == null) return null;
+
+            // The running version may carry a pre-release label ("1.5.6-beta") while the
+            // folder name never does, so compare on the numeric part only.
+            var dash = running.IndexOf('-');
+            var numeric = dash > 0 ? running.Substring(0, dash) : running;
+            if (!Version.TryParse(numeric, out var mine) || !Version.TryParse(newest, out var theirs))
+                return null;
+
+            return theirs > mine;
+        }
+
         private static ProfilesBootstrapTask? _current;
         private static readonly object PatchLock = new();
 
@@ -211,8 +315,21 @@ namespace Jellyfin.Profiles
             {
                 InjectionSucceeded = false;
                 IsVersionStale = false;
+
+                // Named versions rather than "a restart is required" on its own (issue #25).
+                // An administrator who has already restarted, or who pressed Jellyfin's own
+                // Restart button on a Docker image where it does not restart the process,
+                // could not tell a stale message from a live one. "Running 1.5.3, 1.5.4 is
+                // installed" is checkable against what they just did.
+                var (running, newest) = FindInstalledVersions();
+                var versions = newest != null && newest != running
+                    ? $"Running {running}. Version {newest} is installed and starts once the "
+                      + "server process restarts. "
+                    : $"Running {running}. ";
+
                 LastFailureReason =
-                    "Bonfire has been installed or updated since Jellyfin started, so this "
+                    versions
+                    + "Bonfire has been installed or updated since Jellyfin started, so this "
                     + "version is not serving the client script yet. Restart Jellyfin to "
                     + "finish. On Docker restart the container — Jellyfin's own Restart "
                     + "button does not restart the process on most images.";
