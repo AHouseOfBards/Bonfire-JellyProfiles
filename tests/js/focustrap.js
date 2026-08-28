@@ -151,7 +151,20 @@ check('hidden and disabled controls are skipped', focused, 'vis2');
 console.log('\nActive surface');
 console.log('--------------');
 
+// The trap no longer resolves surfaces with one querySelectorAll: dialogs are found by
+// class and the gate by id, so a full document walk on every keystroke became two index
+// lookups. Modelled the same way here, in document order, so this still exercises the
+// real lookup rather than a shape it no longer has.
 function withSurfaces(list) {
+    const dialogs = list.filter(el => el.id !== 'profiles-gate-overlay');
+    const gate = list.find(el => el.id === 'profiles-gate-overlay') || null;
+    sandbox.document.getElementsByClassName = cls =>
+        (cls === PP.TRAP_SURFACE_CLASS ? dialogs : []);
+    sandbox.document.getElementById = id =>
+        (id === 'profiles-gate-overlay' ? gate : null);
+    // The old single-query shape is still served, so this file can be pointed at an
+    // earlier client and reach the cost section below — which is where the difference
+    // actually shows — instead of falling over on a null surface first.
     sandbox.document.querySelectorAll = sel =>
         (sel === PP.TRAP_SURFACE_SELECTOR ? list : []);
 }
@@ -455,6 +468,45 @@ resumeTest.resumePreviousProfile();
 check('resume does nothing a second time',
     sandbox.sessionStorage.getItem(PP.config.activeSessionKey), null);
 check('resume does not re-remove the overlay', overlayRemoved.length, 1);
+
+// ── What it costs when Bonfire is not on screen ─────────────────────────────
+//
+// The trap binds once and stays bound, resolving the surface on every keydown and
+// focusin *in the whole application*. That is a deliberate design — lifecycle
+// bookkeeping is what leaks — but it means the cost of "nothing of ours is open" is
+// paid on every keystroke a person makes anywhere in Jellyfin, including typing in the
+// search box.
+//
+// It used to resolve '#profiles-gate-overlay, [id^="profiles-"][id$="-dialog"]'. Two
+// unqualified attribute selectors: the engine cannot index either, so every keystroke
+// walked every element in the page.
+console.log('\nCost when nothing of ours is open');
+console.log('---------------------------------');
+
+let docWideQueries = 0;
+const seenSelectors = [];
+sandbox.document.querySelectorAll = sel => { docWideQueries++; seenSelectors.push(sel); return []; };
+sandbox.document.querySelector = sel => { docWideQueries++; seenSelectors.push(sel); return null; };
+
+let classLookups = 0, idLookups = 0;
+sandbox.document.getElementsByClassName = () => { classLookups++; return []; };
+sandbox.document.getElementById = () => { idLookups++; return null; };
+
+for (let i = 0; i < 50; i++) PP._activeTrapSurface();
+
+check('50 keystrokes run no document-wide query'
+    + (seenSelectors.length ? ' — ran: ' + [...new Set(seenSelectors)].join(' | ') : ''),
+    docWideQueries, 0);
+check('they are index lookups instead (class)', classLookups, 50);
+check('and the gate by id when no dialog is open', idLookups, 50);
+
+// The selector must stay index-friendly. An attribute-substring selector creeping back
+// in would restore the walk without changing any of the counts above, because those are
+// measured through stubs.
+check('the surface selector uses no unindexable attribute match',
+    /\[[a-z-]+\s*[*^$~|]?=/.test(PP.TRAP_SURFACE_SELECTOR), false);
+check('and every dialog is marked with the class it looks for',
+    (L.readProfiles().match(/jpf-trap-surface/g) || []).length >= 6, true);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

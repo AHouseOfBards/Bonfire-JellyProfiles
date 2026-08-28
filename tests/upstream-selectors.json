@@ -269,6 +269,11 @@
       "status": "upstream",
       "source": "src/scripts/libraryMenu.js",
       "note": "The rounded-avatar variant: \"headerButton headerButtonRight paper-icon-button-light headerUserButtonRound\"."
+    },
+    {
+      "selector": ".jpf-trap-surface",
+      "status": "ours",
+      "note": "Added to every dialog Bonfire builds. Replaced [id^=\"profiles-\"][id$=\"-dialog\"] in TRAP_SURFACE_SELECTOR: two unqualified attribute selectors that walked the whole document on every keydown and focusin anywhere in Jellyfin. A class keeps the property that made the id pattern attractive — it travels with the element, so there is no lifecycle bookkeeping to get wrong."
     }
   ]
 }

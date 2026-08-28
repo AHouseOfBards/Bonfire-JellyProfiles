@@ -482,6 +482,7 @@
         showConfirmDialog: function (title, message, onConfirm, onCancel) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-confirm-dialog';
+            dialog.classList.add('jpf-trap-surface');
             dialog.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -563,6 +564,7 @@
         showAlert: function (title, message, onClose) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-alert-dialog';
+            dialog.classList.add('jpf-trap-surface');
             dialog.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -1794,6 +1796,7 @@
 
             const dialog = document.createElement('div');
             dialog.id = 'profiles-panic-dialog';
+            dialog.classList.add('jpf-trap-surface');
             dialog.style.cssText = `
                 position: fixed; top: 0; left: 0; right: 0; bottom: 0;
                 background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
@@ -2531,6 +2534,7 @@
 
                 const dialog = document.createElement("div");
                 dialog.id = "profiles-libart-dialog";
+                dialog.classList.add("jpf-trap-surface");
                 dialog.style.cssText =
                     "position:fixed; top:0; left:0; right:0; bottom:0;" +
                     "background:rgba(0,0,0,0.85); backdrop-filter:blur(8px);" +
@@ -2713,22 +2717,57 @@
 
         /// Selector for the surfaces we trap focus inside: the gate overlay and any of our
         /// own dialogs (confirm, alert, crop, panic), all of which sit above the page.
-        TRAP_SURFACE_SELECTOR: '#profiles-gate-overlay, [id^="profiles-"][id$="-dialog"]',
+        /// Every dialog gets this class as it is built. It replaced
+        /// `[id^="profiles-"][id$="-dialog"]`, which is two unqualified attribute
+        /// selectors: the engine cannot use an index for either, so resolving them meant
+        /// walking every element in the document — and this runs on every keydown and
+        /// focusin *in the whole application*, so typing in Jellyfin's own search box
+        /// walked the page once per keystroke.
+        ///
+        /// A class keeps the property that made the id pattern attractive: it travels with
+        /// the element, so removing the dialog removes it from the set with no bookkeeping
+        /// to get wrong. See the note above about lifecycle bookkeeping being what leaks.
+        TRAP_SURFACE_CLASS: 'jpf-trap-surface',
+
+        TRAP_SURFACE_SELECTOR: '#profiles-gate-overlay, .jpf-trap-surface',
 
         /// The surface the remote should currently be confined to, or null when Bonfire
         /// has nothing on screen. Dialogs render above the gate, and the last one in the
         /// DOM is the topmost, so document order picks the right one.
         _activeTrapSurface: function () {
-            const surfaces = document.querySelectorAll(this.TRAP_SURFACE_SELECTOR);
-            if (!surfaces.length) return null;
+            // Class first, id second. Dialogs render above the gate, so the last dialog in
+            // document order is the topmost surface; with none open, the gate is. On the
+            // far more common path — nothing of ours on screen — this is one class-index
+            // lookup that comes back empty, where it used to be a full document walk on
+            // every keystroke anywhere in the application.
+            //
+            // The answer is identical to the querySelectorAll version it replaces,
+            // including the case that looks like an oversight: a topmost surface that has
+            // already detached disarms the trap rather than falling back to the gate
+            // underneath. That is existing behaviour with a test on it, and this change is
+            // about how the surface is found, not about what counts as one.
+            const dialogs = document.getElementsByClassName(this.TRAP_SURFACE_CLASS);
+            const last = dialogs.length
+                ? dialogs[dialogs.length - 1]
+                : document.getElementById('profiles-gate-overlay');
+            if (!last) return null;
 
-            const last = surfaces[surfaces.length - 1];
             // A dialog mid-fade still counts; one already detached does not.
             return last.isConnected === false ? null : last;
         },
 
         /// Everything inside a surface a remote can land on. Hidden elements are left out:
         /// the overlay swaps between a grid and a form, and the old one lingers.
+        ///
+        /// The offsetParent read below was flagged as forcing layout once per element
+        /// inside a focus handler. It does not: layout is invalidated by writes, and this
+        /// filter only reads, so the whole loop costs one layout however many controls a
+        /// surface has. Spatial navigation needs geometry anyway.
+        ///
+        /// `checkVisibility()` is the tidy replacement and is **not an option here**. It
+        /// needs Chrome 105; the TVs this has to work on are Chrome 68 (webOS 5) and
+        /// Chrome 76 (Tizen 6.0), so it would throw on exactly the devices the focus trap
+        /// exists for — and a remote is the one input with no way to escape a broken trap.
         _overlayFocusables: function (root) {
             return Array.prototype.filter.call(
                 root.querySelectorAll('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])'),
@@ -3964,6 +4003,7 @@
 
             const dialog = document.createElement('div');
             dialog.id = 'profiles-crop-dialog';
+            dialog.classList.add('jpf-trap-surface');
             dialog.style.cssText = `
                 position: fixed; top: 0; left: 0; right: 0; bottom: 0;
                 background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
