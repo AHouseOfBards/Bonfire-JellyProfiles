@@ -160,8 +160,15 @@ console.log('── The screen is not blanked for the length of a reload ──�
 // The overlay is opaque and covers the viewport, so it alone hides the old page. Blanking
 // the document as well is what made the phone show seconds of black with no spinner.
 const reloadRegion = body.slice(body.indexOf('updateStoredCredentials(activeProfileToken'));
-const blankAt = reloadRegion.indexOf("documentElement.style.cssText = 'opacity:0");
+// Located by shape, not by a fixed literal. This was an indexOf for
+// "documentElement.style.cssText = 'opacity:0" and stopped matching the moment the
+// colour became a concatenation rather than a constant — reporting the blanking as
+// having moved out of the else branch when it had not moved at all. Same mistake
+// _lib.js was written to stop: match the shape, and fail loudly if it is not there.
+const blankMatch = /documentElement\.style\.cssText\s*=\s*'opacity:0/.exec(reloadRegion);
+const blankAt = blankMatch ? blankMatch.index : -1;
 const elseAt = reloadRegion.indexOf('} else {');
+ok('the blanking is still findable at all', blankAt > 0);
 ok('the document is only blanked when there is no overlay to do it',
     blankAt > 0 && elseAt > 0 && elseAt < blankAt);
 

@@ -1,6 +1,13 @@
 (function () {
     'use strict';
 
+    // Told to the inline head script, which is the only other piece of the plugin that
+    // runs on a page load. This tag is deferred, so it has finished evaluating before
+    // DOMContentLoaded — meaning the absence of this flag at that point is proof the
+    // script never loaded, and the head script can stop holding the page hidden for
+    // something that is not coming.
+    try { window.__jpLoaded = 1; } catch (e) { /* no window: reading the file, not running it */ }
+
     function escapeHtml(str) {
         if (!str) return '';
         return String(str)
@@ -427,6 +434,10 @@
             // Key set before window.location.reload() so the early-hide
             // inline head script can suppress the page flash on the next load.
             switchingKey: 'jpf-sw',
+            // The background colour and colour-scheme of the page being left, written
+            // alongside switchingKey and read by the head script on the next load. See
+            // _captureLeavingBackground.
+            backgroundKey: 'jpf-bg',
             // Set when the emergency disable succeeds. profiles.js is served with a
             // five-minute cache, so a reload inside that window can re-run this very script
             // from cache — the marker is what stops it coming back to life.
@@ -1327,6 +1338,66 @@
         // Smoothly fades the page back in after a profile switch.
         // Guards on _viewShowFired to ensure React has rendered the view before we
         // expose it — otherwise a blank white shell flashes for a moment.
+        /**
+         * Records the colour the page is currently painted in, so the next load can hold
+         * that colour while it renders instead of a hardcoded one.
+         *
+         * The head script used to set background:#101010 and color-scheme:dark
+         * unconditionally. Jellyfin ships light themes and lets a user pick any of them,
+         * so on every one of those a profile switch flashed a full-screen black rectangle
+         * — the exact flash the head script exists to prevent, just in the other
+         * direction. It also forced dark form controls and scrollbars for that moment.
+         *
+         * Read here rather than guessed there, because here is the one place the answer is
+         * knowable: the page is fully rendered, the theme stylesheet has applied, and
+         * whatever the user is looking at is what we should keep showing.
+         *
+         * Returns the colour, so the caller can paint with it immediately as well.
+         */
+        _captureLeavingBackground: function () {
+            let colour = '';
+            try {
+                // The body carries the theme colour in Jellyfin's stylesheets; when it is
+                // transparent the colour is on <html> behind it, so ask that instead.
+                const fromBody = getComputedStyle(document.body || document.documentElement).backgroundColor;
+                colour = this._isSeeThrough(fromBody)
+                    ? getComputedStyle(document.documentElement).backgroundColor
+                    : fromBody;
+            } catch (e) { /* fall through to the default */ }
+
+            if (!colour || this._isSeeThrough(colour)) colour = '#101010';
+
+            // The scheme has to match the colour or the browser paints dark scrollbars and
+            // form controls over a light page for the length of the switch.
+            const scheme = this._isLightColour(colour) ? 'light' : 'dark';
+
+            try {
+                localStorage.setItem(this.config.backgroundKey, colour + '|' + scheme);
+            } catch (e) { /* private mode: the head script falls back on its own */ }
+
+            return colour;
+        },
+
+        /** True for a colour that is missing or fully transparent. */
+        _isSeeThrough: function (colour) {
+            if (!colour) return true;
+            if (colour === 'transparent') return true;
+            const m = /^rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*0*\.?0*\s*\)$/.exec(colour);
+            return !!m;
+        },
+
+        /**
+         * Relative luminance, so "which colour-scheme is this" is decided by the colour
+         * itself rather than by a list of theme names that would need updating whenever
+         * Jellyfin adds one.
+         */
+        _isLightColour: function (colour) {
+            const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/.exec(colour);
+            if (!m) return false;
+            const r = parseFloat(m[1]), g = parseFloat(m[2]), b = parseFloat(m[3]);
+            return (0.2126 * r + 0.7152 * g + 0.0722 * b) > 128;
+        },
+
         _revealPage: function () {
             if (this._pageRevealed || !document.documentElement.style.opacity) return;
 
@@ -2017,7 +2088,12 @@
                     this.clearProfileSession();
                     // Hide current page instantly so there is no visible frame
                     // between old page unloading and new page's head script running.
-                    document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
+                    // Held in the colour the page is already painted in, not a fixed
+                    // dark one — see _captureLeavingBackground.
+                    const leavingBg = this._captureLeavingBackground();
+                    document.documentElement.style.cssText =
+                        'opacity:0;background:' + leavingBg + ';color-scheme:'
+                        + (this._isLightColour(leavingBg) ? 'light' : 'dark');
                     this._reloading = true;
                     localStorage.setItem(this.config.switchingKey, '1');
                     // Same reasoning as the switch itself (issue #22): the signed-in
@@ -3610,14 +3686,17 @@
                 // screen for however long the reload costs. Blanking the document instead
                 // meant a phone showed several seconds of black with nothing to say the tap
                 // had registered. Only the background is calmed towards the next page.
+                const leavingBg = this._captureLeavingBackground();
                 const overlay = document.getElementById('profiles-gate-overlay');
                 if (overlay) {
                     overlay.style.transition = 'background 0.2s ease';
-                    overlay.style.background = '#101010';
+                    overlay.style.background = leavingBg;
                 } else {
                     // Menu-mode switch with no gate on screen: nothing is covering the app,
                     // so the old page does still have to be hidden before it repaints.
-                    document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
+                    document.documentElement.style.cssText =
+                        'opacity:0;background:' + leavingBg + ';color-scheme:'
+                        + (this._isLightColour(leavingBg) ? 'light' : 'dark');
                 }
                 this._reloading = true;
                 localStorage.setItem(this.config.switchingKey, '1');

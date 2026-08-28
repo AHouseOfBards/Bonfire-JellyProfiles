@@ -47,26 +47,51 @@ namespace Jellyfin.Profiles
         /// before React renders. Reads the switching flag set by profiles.js before each
         /// window.location.reload() and hides the html element instantly to prevent the
         /// flash-of-content during profile switches.
-        /// A 4-second failsafe restores visibility if profiles.js fails to load.
+        /// <para>
+        /// The colour it holds is read from <c>jpf-bg</c>, which profiles.js writes from the
+        /// page being left. It used to be a hardcoded <c>#101010</c> with
+        /// <c>color-scheme:dark</c>, so on any of Jellyfin's light themes a switch flashed a
+        /// full-screen black rectangle — the very flash this script exists to prevent, in the
+        /// other direction — and forced dark scrollbars and form controls while it did.
+        /// </para>
+        /// <para>
+        /// Two failsafes restore visibility if the reveal never comes. The timeout was four
+        /// seconds, which on a television is indistinguishable from a crash; it is 1.5 now.
+        /// The second is exact rather than timed: profiles.js sets <c>window.__jpLoaded</c>
+        /// as it evaluates, and being a deferred script it has finished before
+        /// DOMContentLoaded — so the flag missing at that point is proof the script never
+        /// loaded, and there is nothing left to wait for.
+        /// </para>
         /// </summary>
         internal const string HeadScript =
             "<script id=\"jpf-eh\">" +
             "!function(){" +
-                "if(localStorage.getItem('jpf-sw')){" +
-                    // Handed to profiles.js, which is deferred and so cannot read the key:
-                    // this script clears it below, synchronously, during head parsing.
-                    "window.__jpSwitching=1;" +
-                    "var h=document.documentElement;" +
-                    "h.style.opacity='0';" +
-                    "h.style.background='#101010';" +
-                    "h.style.colorScheme='dark';" +
-                    "window.__jpReveal=setTimeout(function(){" +
-                        "h.style.opacity='';" +
-                        "h.style.background='';" +
-                        "h.style.colorScheme='';" +
-                    "},4e3);" +
-                    "localStorage.removeItem('jpf-sw');" +
-                "}" +
+                "if(!localStorage.getItem('jpf-sw'))return;" +
+                // Handed to profiles.js, which is deferred and so cannot read the key:
+                // this script clears it below, synchronously, during head parsing.
+                "window.__jpSwitching=1;" +
+                "var h=document.documentElement;" +
+                "var v=(localStorage.getItem('jpf-bg')||'').split('|');" +
+                "var b=v[0]||'';" +
+                // Only a colour is ever written into the style property. Same-origin
+                // storage is not a threat boundary, but a value that is not a colour would
+                // paint nothing and leave the page hidden until a failsafe fires.
+                "if(!/^(#[0-9a-fA-F]{3,8}|rgba?\\([\\d\\s.,%]+\\))$/.test(b))b='#101010';" +
+                "var s=v[1]==='light'?'light':'dark';" +
+                "h.style.opacity='0';" +
+                "h.style.background=b;" +
+                "h.style.colorScheme=s;" +
+                "var r=function(){" +
+                    "h.style.opacity='';" +
+                    "h.style.background='';" +
+                    "h.style.colorScheme='';" +
+                    "window.__jpReveal=null;" +
+                "};" +
+                "window.__jpReveal=setTimeout(r,1.5e3);" +
+                "document.addEventListener('DOMContentLoaded',function(){" +
+                    "if(!window.__jpLoaded&&window.__jpReveal){clearTimeout(window.__jpReveal);r();}" +
+                "});" +
+                "localStorage.removeItem('jpf-sw');" +
             "}();" +
             "</script>";
 
