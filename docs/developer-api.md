@@ -494,6 +494,10 @@ any cache is touched.
   * `200 OK`: `application/json` — a flat object of key/value strings.
   * `304 Not Modified`: when `If-None-Match` matches the current `ETag`.
   * `404 Not Found`: no translation for that code.
+  * `503 Service Unavailable`: the code is one the server advertises, but the file could
+    not be read. Retryable — a failed read is never cached, so the next request tries
+    again. A client should fall back to English and carry on rather than give up on the
+    language.
 
 | Header | Value |
 |---|---|

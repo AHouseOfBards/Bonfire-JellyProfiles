@@ -132,6 +132,62 @@ if (publish != null)
 }
 
 Console.WriteLine();
+Console.WriteLine("── A failed read is not remembered ─────────────────────────────");
+
+// The loader was GetOrAdd with a factory returning null on failure, and GetOrAdd stores
+// what the factory returns — so one empty read put a permanent null in the dictionary and
+// that language was gone until the server restarted. Because t() falls back per key, the
+// visible symptom was the interface quietly reverting to English.
+//
+// Driven directly rather than through the endpoint: the failure is a caching contract,
+// and asserting it through an HTTP round trip would need the whole DI graph to say
+// something the loader can say on its own.
+// The trap itself, shown rather than described. Pointing this harness at the old build
+// only proves the method did not exist yet, which says nothing about whether the bug was
+// real; this says it was. GetOrAdd stores what the factory returns, null included, and
+// there is then no way to tell a cached failure from a cached answer.
+var trap = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
+trap.GetOrAdd("fr", _ => null);
+Ok("GetOrAdd caches a null the factory returned — the mechanism behind the bug "
+   + "(key present: " + trap.ContainsKey("fr") + ")",
+   trap.ContainsKey("fr") && trap["fr"] == null);
+
+var readLocale = ctrl.GetMethod("ReadLocaleJson", Flags);
+Ok("the loader is reachable", readLocale != null);
+
+var cachedCodes = ctrl.GetProperty("CachedLocaleCodes", Flags);
+Ok("so is what it has cached", cachedCodes != null);
+
+if (readLocale != null && cachedCodes != null)
+{
+    string[] Cached() => ((IEnumerable)cachedCodes.GetValue(null)).Cast<string>().ToArray();
+
+    // A code with no embedded resource stands in for a read that comes back empty.
+    const string missing = "zz-nonexistent";
+    var first = readLocale.Invoke(null, new object[] { missing, null });
+    Ok("a read that comes back empty returns null", first == null);
+    Ok("and is NOT cached, so the next request tries again "
+       + "(cached: " + string.Join(", ", Cached().DefaultIfEmpty("nothing")) + ")",
+       !Cached().Contains(missing, StringComparer.Ordinal));
+
+    var second = readLocale.Invoke(null, new object[] { missing, null });
+    Ok("asking twice still returns null rather than a cached one", second == null);
+    Ok("and still has not been cached", !Cached().Contains(missing, StringComparer.Ordinal));
+
+    // A real one, to show the cache is doing its job rather than being switched off.
+    if (embedded.Length > 0)
+    {
+        var real = embedded[0];
+        var content = readLocale.Invoke(null, new object[] { real, null });
+        Ok(real + " reads back as content", content is string s && s.Length > 0);
+        Ok("and IS cached", Cached().Contains(real, StringComparer.Ordinal));
+
+        var again = readLocale.Invoke(null, new object[] { real, null });
+        Ok("a second read returns the same content", Equals(again, content));
+    }
+}
+
+Console.WriteLine();
 Console.WriteLine("── Every embedded file is readable and complete ────────────────");
 
 foreach (var code in embedded)

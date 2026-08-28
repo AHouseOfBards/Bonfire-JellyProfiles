@@ -10,6 +10,14 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
+  <!-- Needed at runtime, not just to compile: invoking ReadLocaleJson reaches
+       typeof(Plugin), and loading that type loads its BasePlugin base from
+       MediaBrowser.Common. The plugin itself excludes these at runtime because the server
+       supplies them; a harness has no server. -->
+  <ItemGroup>
+    <PackageReference Include="Jellyfin.Common" Version="10.11.5" />
+    <PackageReference Include="Jellyfin.Model" Version="10.11.5" />
+  </ItemGroup>
   <ItemGroup>
     <Reference Include="Jellyfin.Profiles">
       <HintPath>$(MSBuildThisFileDirectory)..\..\..\bin\Release\net9.0\Jellyfin.Profiles.dll</HintPath>

@@ -1604,6 +1604,52 @@ namespace Jellyfin.Profiles.Controllers
 
         private static readonly ConcurrentDictionary<string, string?> CachedI18nJson = new();
 
+        /// <summary>
+        /// The embedded translation for <paramref name="code"/>, or null if it could not be
+        /// read. Loaded once per app lifetime, the same reasoning as CachedProfilesJs — but
+        /// <b>only a successful read is remembered</b>.
+        /// <para>
+        /// This was <c>GetOrAdd</c> with a factory that returned null on failure, and GetOrAdd
+        /// stores whatever the factory returns. One read that came back empty, for any reason,
+        /// put a permanent null in the dictionary: every later request for that language took
+        /// the cached null and answered without going near the assembly again. The language
+        /// was gone until the server restarted, and because <c>t()</c> falls back to English
+        /// per key, what a household saw was the interface quietly reverting to English with
+        /// nothing logged to say why.
+        /// </para>
+        /// <para>
+        /// A read that throws is not cached either — that is precisely the transient case that
+        /// has to be retried rather than remembered.
+        /// </para>
+        /// </summary>
+        internal static string? ReadLocaleJson(string code, ILogger? logger = null)
+        {
+            if (CachedI18nJson.TryGetValue(code, out var cached) && cached != null) return cached;
+
+            string? json = null;
+            try
+            {
+                var assembly = typeof(Plugin).Assembly;
+                using var stream = assembly.GetManifestResourceStream($"Jellyfin.Profiles.Web.i18n.{code}.json");
+                if (stream != null)
+                {
+                    using var reader = new StreamReader(stream);
+                    json = reader.ReadToEnd();
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "ProfilesPlugin: Could not read the {Locale} translation.", code);
+                return null;
+            }
+
+            if (json != null) CachedI18nJson[code] = json;
+            return json;
+        }
+
+        /// <summary>Cached locale codes. For the harness — nothing in the plugin needs it.</summary>
+        internal static IReadOnlyCollection<string> CachedLocaleCodes => CachedI18nJson.Keys.ToArray();
+
         [HttpGet("i18n/{locale}")]
         [Produces("application/json")]
         public ActionResult GetI18n(string locale)
@@ -1618,17 +1664,18 @@ namespace Jellyfin.Profiles.Controllers
             // dictionary — the key would otherwise be whatever the caller sent.
             if (!EmbeddedLocales.Value.Contains(code)) return NotFound();
 
-            // Loaded once per app lifetime, the same reasoning as CachedProfilesJs above.
-            var json = CachedI18nJson.GetOrAdd(code, key =>
-            {
-                var assembly = typeof(Plugin).Assembly;
-                using var stream = assembly.GetManifestResourceStream($"Jellyfin.Profiles.Web.i18n.{key}.json");
-                if (stream == null) return null;
-                using var reader = new StreamReader(stream);
-                return reader.ReadToEnd();
-            });
+            var json = ReadLocaleJson(code, _logger);
 
-            if (json == null) return NotFound();
+            if (json == null)
+            {
+                // The code is in EmbeddedLocales, so the file is in the assembly and this is a
+                // read that failed rather than a language nobody added. 503 says "ask again";
+                // 404 would tell the client to stop asking.
+                _logger.LogWarning(
+                    "ProfilesPlugin: The {Locale} translation is embedded but could not be read; "
+                    + "the client will fall back to English and retry.", code);
+                return StatusCode(StatusCodes.Status503ServiceUnavailable);
+            }
 
             // Same cache contract as profiles.js: the plugin version is the cache-buster,
             // so a stale copy still picks up an updated translation within max-age.
