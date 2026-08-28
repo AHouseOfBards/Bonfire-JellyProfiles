@@ -10,8 +10,8 @@ listed together so it is obvious which ones are still only a promise.
 tests/run.sh          # or tests\run.ps1 on Windows
 ```
 
-Builds the plugin (Release, `-warnaserror`) and runs all 24 harnesses — 18 JavaScript
-and 6 C#, about 1,100 assertions. CI runs the same command, so the desk and the pipeline
+Builds the plugin (Release, `-warnaserror`) and runs all 26 harnesses — 19 JavaScript
+and 7 C#, about 1,300 assertions. CI runs the same command, so the desk and the pipeline
 cannot disagree about what "the tests pass" means.
 
 `node --check Web/profiles.js` is **necessary and not sufficient.** It passed against the
@@ -38,8 +38,15 @@ curl -sL https://raw.githubusercontent.com/jellyfin/jellyfin-web/release-10.11.z
 *Check:* `tests/js/selectors.test.js` fails on any selector used by an injection function
 that is not recorded in `tests/upstream-selectors.json`, with the file it was verified in.
 `tests/js/selectors.verify.js` re-checks that ledger against upstream (needs network, not
-part of CI). Ten selectors currently in the code exist nowhere in jellyfin-web; they are
-recorded as `dead` and tracked, which is what stopped them being discovered a fourth time.
+part of CI). Twelve dead selectors have been removed from the code; one is left and
+tracked.
+
+**The ledger is only as good as its matcher, and it has been wrong twice.**
+`selectors.verify.js` grepped for the token as a substring, so `.navMenu` "verified"
+against `navMenuOption` — an entry whose own note said it was not a container class sat
+marked `upstream` for weeks. And `selectors.test.js` read one string literal per query
+call, so a selector written as `'a, b, ' + 'c, d'` had half of it silently unexamined.
+Both are fixed. If you add a way to write a selector, check the extractor still sees it.
 
 **A new harness must FAIL against the build carrying the bug before it is allowed to
 pass.** Every JS harness takes the source path as `argv[2]` precisely so it can be pointed
@@ -148,6 +155,17 @@ take `ProfilesBaseController.ConfigLock`, a single static lock, and every
 replaced, walks two threads through the old pattern deterministically and catches both
 inside the critical section, then names every `lock (...)` in the plugin one at a time and
 fails any taken on something other than a known static object.
+
+**The route poll runs on every page, twice a second, forever.** Nothing may be added to
+`checkRoute` — or to anything it calls — that is not needed on *every* tick. It reached 14
+document queries a tick, two of them full-document walks, because each addition looked
+cheap on its own. Guard on a cached value before querying the DOM, and cache anything the
+page settles on. An unqualified attribute selector (`[class*="x"]`) can never use an index
+and always walks the whole document; there is one left in the client and it is in a path
+that runs rarely.
+
+*Check:* `tests/js/routetick.js` counts the DOM work of 100 unchanged ticks and names each
+selector that survives, in both button and menu mode, with and without an active profile.
 
 **Still open, from the same defect:** 26 of those sites read
 `var config = Plugin.Instance?.Configuration;` *before* taking the lock, so a swap between
