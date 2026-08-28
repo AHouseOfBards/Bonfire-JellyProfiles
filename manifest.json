@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Changed**\n\n- The Switch Profile button now sits next to your account icon in the header, instead of at the end of the row.\n- Bonfire does far less work in the background — most noticeable on a TV, and it steps back further while something is playing.\n\n**Fixed**\n\n- The profile screen re-downloaded every profile picture on every page load. Your browser keeps them now.\n- The drawer link that never appeared has been removed.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.5.7/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "de03bf9fd5ba247da40a14b326fb4251",
         "timestamp": "2026-08-28T00:00:00Z"
       },
       {
