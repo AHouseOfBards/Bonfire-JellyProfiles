@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.5.6.0",
+        "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- A profile, device or Bonfire group you had just saved could silently not be there.\n- Anything added while the plugin's settings page was open was undone when an administrator pressed Save.\n- A Bonfire switch could show a setting the server never accepted, with nothing on screen to say the save had failed.\n- Switching profiles on a light theme flashed a black screen.\n- A switch that went wrong left the screen blank for four seconds. It is now under two.\n- A language could stop loading until Jellyfin was restarted, dropping everyone back to English.\n- Device “last seen” dates reset every time Jellyfin restarted, and the device list never dropped hardware nobody uses any more.\n- The maximum profiles box accepted a negative number, and nothing enforced an upper limit.\n\n**Changed**\n\n- The “restart to finish updating” notice now names the version running and the version waiting, so you can tell whether your restart worked. (#25)\n\n**Added**\n\n- Polish, contributed by danis101. (#26)",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.5.6/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-08-28T00:00:00Z"
+      },
+      {
         "version": "1.5.5.0",
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Nothing changes for you in this build.** It exists so the next ones break less often.\n\n**Internal**\n\n- Bonfire's test suite now lives in the repository and runs on every change. It was kept outside it, which is how 1.5.2 and 1.5.3 shipped a client script that did not start.\n- Every change is now built and tested automatically before it can be merged. Previously only finished releases were.\n- A new check refuses any reference to a part of the Jellyfin page that does not exist. Writing it found ten such references already in the code — the reason the Switch Profile button has never appeared in some places.\n- Contributing and translation guides, and an issue form that asks for the two details most reports are missing.",
         "targetAbi": "10.11.0.0",

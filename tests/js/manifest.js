@@ -85,13 +85,37 @@ if (collisions === 0) ok('every version has its own artefact', true);
 
 console.log('\n── Every entry is installable ──────────────────────────────────');
 
-// Enumerated one version at a time. A "all checksums look fine" aggregate is exactly the
+// Exactly one entry may still carry the "0" placeholder: the release being prepared right
+// now. The workflow stamps the real checksum when the tag is pushed, so between adding the
+// entry and tagging it, the placeholder is the correct content — and refusing it here
+// would make CI red on every release commit.
+//
+// Pinned to the version in the csproj rather than "the newest entry", so it cannot drift
+// into a general excuse. Any other placeholder is the bug that made two releases
+// uninstallable.
+const csproj = fs.readFileSync(path.join(L.ROOT, 'Jellyfin.Profiles.csproj'), 'utf8');
+const inFlight = (/<Version>([^<]+)<\/Version>/.exec(csproj) || [])[1];
+ok('the csproj names a version to release (' + (inFlight || 'none found') + ')', !!inFlight);
+
+const pending = inFlight ? inFlight + '.0' : null;
+
+// Enumerated one version at a time. An "all checksums look fine" aggregate is exactly the
 // shape of check that let two uninstallable releases through.
+let placeholders = 0;
 versions.forEach(function (v) {
     const sum = String(v.checksum || '');
-    ok(v.version + ' has a real checksum, not the placeholder',
-       /^[0-9a-f]{32}$/i.test(sum) && !/^0+$/.test(sum));
+    const real = /^[0-9a-f]{32}$/i.test(sum) && !/^0+$/.test(sum);
+
+    if (!real && v.version === pending) {
+        placeholders++;
+        console.log('  note  ' + v.version + ' still has the placeholder — this is the '
+                    + 'release being prepared; the workflow stamps it on tag push');
+        return;
+    }
+    ok(v.version + ' has a real checksum, not the placeholder', real);
 });
+
+ok('at most one entry is waiting to be stamped (' + placeholders + ')', placeholders <= 1);
 
 versions.forEach(function (v) {
     ok(v.version + ' points its sourceUrl at its own tag',
