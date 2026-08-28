@@ -231,54 +231,6 @@
       "note": "ElegantFin and similar."
     },
     {
-      "selector": ".headerRightButtons",
-      "status": "dead",
-      "trackedBy": "P3-2",
-      "note": "_findHeaderContainer Strategy A."
-    },
-    {
-      "selector": ".headerSelfView",
-      "status": "dead",
-      "trackedBy": "P3-2",
-      "note": "_findHeaderContainer Strategy A."
-    },
-    {
-      "selector": ".headerButtons-right",
-      "status": "dead",
-      "trackedBy": "P3-2",
-      "note": "_findHeaderContainer Strategy A."
-    },
-    {
-      "selector": ".viewHeaderRight",
-      "status": "dead",
-      "trackedBy": "P3-2",
-      "note": "_findHeaderContainer Strategy A."
-    },
-    {
-      "selector": ".skinHeader-rightButtons",
-      "status": "dead",
-      "trackedBy": "P3-2",
-      "note": "_findHeaderContainer Strategy A. Note .skinHeader itself IS upstream; this hyphenated variant is not."
-    },
-    {
-      "selector": ".btnCurrentUser",
-      "status": "dead",
-      "trackedBy": "P3-2",
-      "note": "_findHeaderContainer Strategy B."
-    },
-    {
-      "selector": ".headerButtonUser",
-      "status": "dead",
-      "trackedBy": "P3-2",
-      "note": "_findHeaderContainer Strategy B."
-    },
-    {
-      "selector": ".headerButton-user",
-      "status": "dead",
-      "trackedBy": "P3-2",
-      "note": "_findHeaderContainer Strategy B."
-    },
-    {
       "selector": ".videoOsdBottom",
       "status": "upstream",
       "source": "src/controllers/playback/video/index.html",
@@ -299,6 +251,24 @@
       "status": "dead",
       "note": "Playback detection in checkRoute. Not in the video controller, its markup, its stylesheet, or the html video player. Harmless where it is — one more class in a list the engine resolves from the class index — but it is not doing anything.",
       "trackedBy": "P3-2"
+    },
+    {
+      "selector": ".headerButton:not(#profiles-floating-bubble)",
+      "status": "upstream",
+      "source": "src/scripts/libraryMenu.js",
+      "note": "Strategy B in _searchForHeaderContainer. Every header button upstream carries the bare headerButton class alongside its specific one — \"headerCastButton castButton headerButton headerButtonRight\" — so this matches the same elements [class*=\"headerButton\"] did while letting the engine use the class index instead of walking the document."
+    },
+    {
+      "selector": ".headerUserButton",
+      "status": "upstream",
+      "source": "src/scripts/libraryMenu.js",
+      "note": "The account button in Jellyfin’s header. _insertBeforeUserBtn asked for .headerButton-user, .btnCurrentUser and .headerButtonUser, none of which exists, so it always fell through to lastElementChild and never once inserted before the user button it is named for."
+    },
+    {
+      "selector": ".headerUserButtonRound",
+      "status": "upstream",
+      "source": "src/scripts/libraryMenu.js",
+      "note": "The rounded-avatar variant: \"headerButton headerButtonRight paper-icon-button-light headerUserButtonRound\"."
     }
   ]
 }

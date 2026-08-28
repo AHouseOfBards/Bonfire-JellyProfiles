@@ -33,7 +33,8 @@ function ok(cond, label, detail) {
 // ── which functions reach outside our own markup ────────────────────────────
 const INJECTION_FNS = [
     'syncUserMenuEntry', 'syncPreferencesMenuEntry',
-    'injectProfilePageSection', '_findHeaderContainer', '_findGeometricHeaderAnchor',
+    'injectProfilePageSection', '_findHeaderContainer', '_searchForHeaderContainer',
+    '_findGeometricHeaderAnchor',
     '_insertBeforeUserBtn', 'closeUserMenu', 'monitorAndHideShadowProfiles',
     'applyUsersHide',
     // checkRoute was missed when this list was written, on the reading that it only
@@ -87,14 +88,56 @@ function note(sel, fn) {
     used.get(sel).add(fn);
 }
 
+/**
+ * The selector argument of a query call, including one written as several string
+ * literals joined by `+`.
+ *
+ * This used to be a single `(['"])([\s\S]*?)\1` capture, which stops at the first
+ * literal. _findHeaderContainer's Strategy B is written across three lines:
+ *
+ *     document.querySelector(
+ *         '.btnCurrentUser, .headerButtonUser, .headerButton-user, ' +
+ *         '.btnCast, .headerButton-cast, ' +
+ *         '[class*="headerButton"]:not(#profiles-floating-bubble)'
+ *     );
+ *
+ * so only the first three of its six selectors were ever extracted — and the ledger
+ * cannot flag what it is never shown. The two it missed included an unqualified
+ * attribute-substring selector, which is the exact kind this file exists to find.
+ */
+function queryArguments(body) {
+    const out = [];
+    const call = /(?:querySelector(?:All)?|closest|matches)\(\s*/g;
+    let m;
+    while ((m = call.exec(body)) !== null) {
+        let i = m.index + m[0].length;
+        let joined = '';
+        for (;;) {
+            const quote = body[i];
+            if (quote !== '"' && quote !== "'") break;
+            let j = i + 1, lit = '';
+            while (j < body.length && body[j] !== quote) {
+                if (body[j] === '\\') { lit += body[j + 1]; j += 2; continue; }
+                lit += body[j]; j++;
+            }
+            joined += lit;
+            i = j + 1;
+            // Only a `+` continues the same selector; anything else ends the argument.
+            const rest = /^\s*\+\s*/.exec(body.slice(i));
+            if (!rest) break;
+            i += rest[0].length;
+        }
+        if (joined) out.push(joined);
+    }
+    return out;
+}
+
 for (const fn of INJECTION_FNS) {
     const body = methodBody(fn);
     if (body === null) continue;   // deleted, e.g. by P3-2
-    const re = /(?:querySelector(?:All)?|closest|matches)\(\s*(['"])([\s\S]*?)\1/g;
-    let m;
-    while ((m = re.exec(body)) !== null) {
-        splitSelectorList(m[2]).forEach(s => note(s, fn));
-    }
+    queryArguments(body).forEach(arg => {
+        splitSelectorList(arg).forEach(s => note(s, fn));
+    });
 }
 // Selector constants used by the same code.
 const constRe = /(?:USER_MENU_SELECTOR|TRAP_SURFACE_SELECTOR):\s*(['"])([\s\S]*?)\1/g;

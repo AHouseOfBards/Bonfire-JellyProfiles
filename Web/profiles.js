@@ -1063,6 +1063,13 @@
             window.addEventListener('popstate', doCheck);
             window.addEventListener('hashchange', doCheck);
 
+            // The corner-pill fallback is placed by geometry, so its position is stale
+            // only when the viewport changes — a rotation on a phone, a window resize.
+            // Marking it here is what lets the route tick stop recomputing it.
+            ['resize', 'orientationchange'].forEach(evt => {
+                window.addEventListener(evt, () => { this._fallbackPosDirty = true; });
+            });
+
             // Intercept history.pushState / replaceState (React-router style navigation)
             ['pushState', 'replaceState'].forEach(method => {
                 const orig = history[method];
@@ -6424,7 +6431,30 @@
                 // If no named container matched (e.g. a custom Skin Manager theme),
                 // find the rightmost visible button in the top 80px of the viewport
                 // and insert next to it.  Works for ANY theme regardless of class names.
-                const anchor = this._findGeometricHeaderAnchor();
+                // Cached like the header container, and for a sharper reason: this walks
+                // every button and link in the document and reads getBoundingClientRect on
+                // each one, which forces layout. Running it twice a second was the most
+                // expensive thing the plugin did, and it only ever runs on themes where no
+                // named container matched — so the worst case fell on the people already
+                // worst served. Re-found when it leaves the page or the viewport changes.
+                if (this._geoAnchor && !document.contains(this._geoAnchor)) {
+                    this._geoAnchor = null;
+                }
+                //
+                // A failed search backs off for the same three seconds the named search
+                // does. Without it, a page with no buttons at all in the top 80px — which
+                // is where this ends up — would re-run the whole walk on every tick
+                // forever, having already established there is nothing to find.
+                const geoNow = Date.now();
+                const geoStale = !this._geoSearchedAt || geoNow - this._geoSearchedAt >= 3000;
+                if (!this._geoAnchor && (geoStale || this._fallbackPosDirty)) {
+                    this._geoSearchedAt = geoNow;
+                    this._geoAnchor = this._findGeometricHeaderAnchor();
+                } else if (this._fallbackPosDirty) {
+                    this._geoSearchedAt = geoNow;
+                    this._geoAnchor = this._findGeometricHeaderAnchor();
+                }
+                const anchor = this._geoAnchor;
                 if (anchor) {
                     if (bubble && bubble.classList.contains('profiles-floating-fallback')) {
                         bubble.remove();
@@ -6455,16 +6485,27 @@
                         bubble = this._buildFallbackBubble();
                         document.documentElement.appendChild(bubble);
                         this.attachBubbleClickHandler(bubble);
+                        // _buildFallbackBubble positions it as it builds it, so it starts
+                        // clean rather than asking for the same computation twice.
+                        this._fallbackPosDirty = false;
                     }
                 }
             }
 
-            if (bubble && bubble.classList.contains('profiles-floating-fallback')) {
+            if (bubble && bubble.classList.contains('profiles-floating-fallback')
+                && this._fallbackPosDirty !== false) {
+                // Where the corner pill goes depends on the viewport, not on the route.
+                // This ran on every tick — a document-wide button query plus several
+                // elementFromPoint calls, each one forcing layout — twice a second, on
+                // precisely the themes where the header search had already failed and was
+                // therefore costing the most. Recomputed when the pill is built and when
+                // the viewport changes, which is when the answer can actually differ.
                 const pos = this._findBestFallbackPosition();
                 bubble.style.top = pos.top;
                 bubble.style.bottom = pos.bottom;
                 bubble.style.left = pos.left;
                 bubble.style.right = pos.right;
+                this._fallbackPosDirty = false;
             }
 
             this._bubbleShow(bubble);
@@ -6522,22 +6563,66 @@
 
         // ── Header-container detection ───────────────────────────────────────────
 
+        /**
+         * The container the floating switcher button is placed in.
+         *
+         * Cached, because this is reached from evaluateFloatingBubbleVisibility on every
+         * route tick while a profile is active — which is essentially always — and the
+         * header is built once per page. It was re-running the entire search twice a
+         * second to arrive at the same answer: six document queries on a stock install and
+         * ten on a theme where nothing matched, two of them full-document walks.
+         * tests/js/routetick.js measures it.
+         *
+         * The cache is invalidated by the element leaving the document, which is what
+         * React rebuilding the header looks like from out here.
+         */
         _findHeaderContainer: function () {
-            // Strategy A: explicit Jellyfin class names (fast path)
-            const byClass =
-                document.querySelector('.headerRightButtons') ||
-                document.querySelector('.headerSelfView') ||
-                document.querySelector('.skinHeader-rightButtons') ||
-                document.querySelector('.headerButtons-right') ||
-                document.querySelector('.headerRight') ||
-                document.querySelector('.viewHeaderRight');
+            if (this._headerContainer && document.contains(this._headerContainer)) {
+                return this._headerContainer;
+            }
+
+            // A failed search is remembered too, briefly. Caching only successes would
+            // leave the full cost in place on exactly the themes where no strategy
+            // matches — the case that was already the most expensive. Three seconds is
+            // far below the time anyone takes to notice a missing button, and far above
+            // a React re-render.
+            const now = Date.now();
+            if (this._headerContainer === null
+                && this._headerSearchedAt
+                && now - this._headerSearchedAt < 3000) {
+                return null;
+            }
+            this._headerSearchedAt = now;
+
+            this._headerContainer = this._searchForHeaderContainer();
+            return this._headerContainer;
+        },
+
+        _searchForHeaderContainer: function () {
+            // Strategy A: Jellyfin's own right-hand button container.
+            //
+            // Five other class names were tried before this one — .headerRightButtons,
+            // .headerSelfView, .skinHeader-rightButtons, .headerButtons-right and
+            // .viewHeaderRight. Every one is absent from jellyfin-web 10.11, so on a
+            // stock install the browser resolved five selectors that could not match
+            // before reaching the one that does. They are recorded in
+            // tests/upstream-selectors.json.
+            const byClass = document.querySelector('.headerRight');
             if (byClass) return byClass;
 
-            // Strategy B: parent of any known Jellyfin icon button
+            // Strategy B: the parent of a header button. A theme that renames the
+            // container usually keeps Jellyfin's own buttons inside it.
+            //
+            // .headerButton rather than [class*="headerButton"]: every header button
+            // upstream carries the bare class alongside its specific one
+            // (headerCastButton castButton headerButton headerButtonRight), so the plain
+            // class selector matches exactly the same elements while letting the engine
+            // use the class index instead of walking the document. .btnCurrentUser,
+            // .headerButtonUser, .headerButton-user, .btnCast and .headerButton-cast were
+            // also tried here and none of them exists upstream either — the cast button
+            // is .headerCastButton.
             const knownBtn = document.querySelector(
-                '.btnCurrentUser, .headerButtonUser, .headerButton-user, ' +
-                '.btnCast, .headerButton-cast, ' +
-                '[class*="headerButton"]:not(#profiles-floating-bubble)'
+                '.headerButton:not(#profiles-floating-bubble)'
             );
             if (knownBtn) return knownBtn.parentElement;
 
@@ -6548,20 +6633,30 @@
             const skinHeader = document.querySelector(
                 '.skinHeader, .jellyfinHeader, [class*="skinHeader"], [class*="topBar"]'
             );
-            if (skinHeader) {
-                const children = skinHeader.querySelectorAll('div, nav, ul, span');
-                let best = null, bestCount = 0;
-                for (const el of children) {
-                    const btns = el.querySelectorAll('button, a[role="button"]');
-                    if (btns.length > bestCount && btns.length >= 2) {
-                        bestCount = btns.length;
-                        best = el;
-                    }
+            if (!skinHeader) return null;
+
+            // Two queries, not one per candidate. This used to ask for every div, nav, ul
+            // and span under the header and then run a second query *inside each one*, so
+            // the same buttons were counted once for every ancestor they had. Counting
+            // upwards from each button gives the identical answer in one pass.
+            const counts = new Map();
+            for (const btn of skinHeader.querySelectorAll('button, a[role="button"]')) {
+                for (let el = btn.parentElement; el && el !== skinHeader; el = el.parentElement) {
+                    counts.set(el, (counts.get(el) || 0) + 1);
                 }
-                return best;
             }
 
-            return null;
+            // Walked in document order, and ties go to the first — the same result the
+            // nested version produced, since it iterated the same node list.
+            let best = null, bestCount = 0;
+            for (const el of skinHeader.querySelectorAll('div, nav, ul, span')) {
+                const n = counts.get(el) || 0;
+                if (n > bestCount && n >= 2) {
+                    bestCount = n;
+                    best = el;
+                }
+            }
+            return best;
         },
 
         // Finds the rightmost visible button within the top 80px of the viewport.
@@ -6660,8 +6755,15 @@
 
         // Inserts bubble before the user-account button, or appends if not found.
         _insertBeforeUserBtn: function (container, bubble) {
+            // .headerUserButton is the real class. This asked for .headerButton-user,
+            // .btnCurrentUser and .headerButtonUser, none of which exists in jellyfin-web,
+            // so the query never matched and the function has always fallen through to
+            // lastElementChild — placing the switcher at the end of the header rather than
+            // beside the account icon it is named for. Verified in
+            // src/scripts/libraryMenu.js: "headerButton headerButtonRight headerUserButton"
+            // and the headerUserButtonRound variant.
             const userBtn =
-                container.querySelector('.headerButton-user, .btnCurrentUser, .headerButtonUser') ||
+                container.querySelector('.headerUserButton, .headerUserButtonRound') ||
                 container.lastElementChild;
             if (userBtn) {
                 userBtn.parentNode.insertBefore(bubble, userBtn);

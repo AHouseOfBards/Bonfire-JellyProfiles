@@ -54,20 +54,31 @@ function build(opts) {
     const storageKeys = [];
     const timers = [];
 
-    function makeClassList() {
-        const set = new Set();
+    function makeClassList(set) {
+        set = set || new Set();
         return {
             add: c => set.add(c), remove: c => set.delete(c),
             contains: c => set.has(c),
             toggle: (c, f) => { const on = f === undefined ? !set.has(c) : !!f;
-                                if (on) set.add(c); else set.delete(c); return on; }
+                                if (on) set.add(c); else set.delete(c); return on; },
+            _set: set
         };
     }
 
     function makeEl() {
+        // className and classList have to share one set. The plugin assigns
+        // `b.className = 'profiles-floating-fallback focusable'` and then asks
+        // `classList.contains(...)` later — with them separate, the answer was always
+        // false and the measurement was of a state the browser is never in.
+        const classes = new Set();
         const el = {
             style: {}, attrs: {}, children: [],
-            classList: makeClassList(),
+            classList: makeClassList(classes),
+            get className() { return [...classes].join(' '); },
+            set className(v) {
+                classes.clear();
+                String(v || '').split(/\s+/).filter(Boolean).forEach(c => classes.add(c));
+            },
             addEventListener() {}, removeEventListener() {},
             appendChild() {}, remove() {}, click() {}, focus() {},
             getAttribute: k => (k in el.attrs ? el.attrs[k] : null),
@@ -79,12 +90,21 @@ function build(opts) {
             querySelector: () => null,
             querySelectorAll: () => [],
             get offsetParent() { counts.offsetParent++; return null; },
+            getBoundingClientRect: () => ({ top: 0, left: 0, right: 0, bottom: 0,
+                                            width: 0, height: 0 }),
+            dataset: {},
             textContent: '', innerHTML: ''
         };
         return el;
     }
 
     const store = Object.assign({}, opts.storage || {});
+
+    // Elements the code appends, keyed by id. Without this getElementById returns null
+    // forever, so anything the plugin creates once and then reuses looks absent on every
+    // tick and is rebuilt — which measures a state no browser is ever in.
+    const byId = {};
+    function adopt(el) { if (el && el.id) byId[el.id] = el; return el; }
 
     const sandbox = {
         console: { log() {}, warn() {}, error() {} },
@@ -102,6 +122,8 @@ function build(opts) {
             setItem() {}, removeItem() {}
         },
         navigator: { userAgent: 'Mozilla/5.0 (Windows NT 10.0)', language: 'en' },
+        innerWidth: 1920, innerHeight: 1080,
+        requestAnimationFrame: fn => { timers.push({ fn: fn, ms: 16 }); return timers.length; },
         setTimeout: (fn, ms) => { timers.push({ fn: fn, ms: ms }); return timers.length; },
         clearTimeout: id => { if (timers[id - 1]) timers[id - 1].cancelled = true; },
         setInterval: (fn, ms) => { timers.push({ fn: fn, ms: ms, repeating: true });
@@ -118,14 +140,18 @@ function build(opts) {
             addEventListener() {}, removeEventListener() {},
             querySelector: sel => { counts.querySelector++; selectors.push(sel); return null; },
             querySelectorAll: sel => { counts.querySelectorAll++; selectors.push(sel); return []; },
-            getElementById: () => { counts.getElementById++; return null; },
+            getElementById: id => { counts.getElementById++; return byId[id] || null; },
+            // Forces layout in a real browser, so it is counted like offsetParent.
+            elementFromPoint: () => { counts.offsetParent++; return null; },
             createElement: () => makeEl(),
             head: { appendChild() {} },
             body: makeEl(),
             documentElement: {
                 style: { cssText: '', opacity: '', removeProperty() {}, setProperty() {} },
-                classList: makeClassList()
-            }
+                classList: makeClassList(),
+                appendChild: adopt, contains: () => true
+            },
+            contains: () => true
         },
         ApiClient: {
             getCurrentUserId: () => '8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a',
@@ -241,6 +267,56 @@ Object.keys(bySelector).forEach(function (sel) {
     ok('"' + sel.slice(0, 44) + '" runs ' + (bySelector[sel] / TICKS).toFixed(1)
        + ' times a tick, and should run 1.0', bySelector[sel] === TICKS);
 });
+
+console.log('\n── With a profile actually active, which is the normal case ────');
+
+// The measurement above has no active profile session, and that turns out to matter a
+// great deal: evaluateFloatingBubbleVisibility returns early without one, so the header
+// search underneath it never runs. A household using this plugin is signed into a profile
+// essentially all the time, so the numbers that count are these.
+const live = build({});
+live.plugin._switcherPrefs = { askOnStartup: false, location: 'button' };
+live.plugin._panicLinkAvailable = false;
+live.plugin._libraryArtLoaded = true;
+live.plugin.isProfileSessionActive = () => true;
+live.plugin.checkRoute();
+live.reset();
+for (let i = 0; i < 20; i++) live.plugin.checkRoute();
+
+const liveSels = {};
+live.selectors.forEach(function (s) { liveSels[s] = (liveSels[s] || 0) + 1; });
+const liveWalks = Object.keys(liveSels).filter(isFullWalk);
+const liveTotal = (live.counts.querySelector + live.counts.querySelectorAll) / 20;
+
+console.log('  per tick with a profile active: ' + liveTotal.toFixed(1) + ' document queries');
+Object.keys(liveSels).sort().forEach(function (s) {
+    console.log('    ' + (isFullWalk(s) ? 'WALK  ' : '      ')
+                + (liveSels[s] / 20).toFixed(1) + '  ' + s.slice(0, 84));
+});
+
+ok('no full-document walk while a profile is active'
+   + (liveWalks.length ? ' — found: ' + liveWalks.join(' | ').slice(0, 110) : ''),
+   liveWalks.length === 0);
+
+// Every selector here is one the browser resolves twice a second for the whole session.
+// A selector that cannot match anything is pure cost, and there were five of them in the
+// header search alone.
+// One: the OSD watch. Everything else the bubble needs — the header container, the
+// geometric anchor, the corner pill's position — is settled once and re-derived only
+// when the page or the viewport says it has changed. Against 1.5.6 this was ten, two of
+// them full-document walks.
+ok('a tick with a profile active runs one document query, the OSD watch ('
+   + liveTotal.toFixed(1) + ')', liveTotal <= 1);
+
+// The searches must still happen when their answer can have changed, or the button
+// quietly stops appearing on any page that rebuilds its header.
+live.plugin._headerContainer = null;
+live.plugin._headerSearchedAt = 0;
+live.reset();
+live.plugin.checkRoute();
+ok('a detached header is searched for again ('
+   + (live.counts.querySelector + live.counts.querySelectorAll) + ' queries)',
+   live.counts.querySelector + live.counts.querySelectorAll > 1);
 
 console.log('\n── Menu mode still gets its rows re-asserted ───────────────────');
 

@@ -29,9 +29,17 @@ function get(url) {
         .catch(() => null);
 }
 
-/** Class and id tokens worth grepping for, without their leading . or #. */
+/**
+ * Class and id tokens worth grepping for, without their leading . or #.
+ *
+ * `:not(...)` arguments are stripped first. What sits inside one is what the selector
+ * excludes, and here that is almost always an element of ours — `.headerButton:not(
+ * #profiles-floating-bubble)` was reported as broken upstream because jellyfin-web quite
+ * correctly contains no id of ours.
+ */
 function tokens(selector) {
-    return [...new Set((selector.match(/[.#]([A-Za-z][\w-]*)/g) || [])
+    const matchable = selector.replace(/:not\([^)]*\)/g, '');
+    return [...new Set((matchable.match(/[.#]([A-Za-z][\w-]*)/g) || [])
         .map(t => t.slice(1)))];
 }
 
