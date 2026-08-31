@@ -51,8 +51,10 @@ try {
         Write-Host '-- JavaScript ------------------------------------------------'
         # _lib.js is shared plumbing. *.verify.js needs the network and refreshes what the
         # offline checks compare against — it is a maintenance tool, not a gate.
+        # *.scan.js surveys the source and prints what it finds; it asserts nothing and
+        # always exits 0, so counting it would add a harness that can never go red.
         Get-ChildItem (Join-Path $root 'tests\js\*.js') |
-            Where-Object { $_.Name -notlike '_*' -and $_.Name -notlike '*.verify.js' } |
+            Where-Object { $_.Name -notlike '_*' -and $_.Name -notlike '*.verify.js' -and $_.Name -notlike '*.scan.js' } |
             ForEach-Object {
                 $p = $_.FullName
                 Invoke-Harness ($_.BaseName) { node $p }

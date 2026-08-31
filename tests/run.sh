@@ -49,10 +49,12 @@ if [ "$WHICH" = "all" ] || [ "$WHICH" = "js" ]; then
     echo "── JavaScript ─────────────────────────────────────────────────"
     # _lib.js is shared plumbing. *.verify.js needs the network and refreshes what the
     # offline checks compare against — it is a maintenance tool, not a gate.
+    # *.scan.js surveys the source and prints what it finds; it asserts nothing and
+    # always exits 0, so counting it would add a harness that can never go red.
     for f in tests/js/*.js; do
         base="$(basename "$f")"
         [ "${base#_}" != "$base" ] && continue
-        case "$base" in *.verify.js) continue ;; esac
+        case "$base" in *.verify.js|*.scan.js) continue ;; esac
         run "${base%.js}" node "$f"
     done
     echo

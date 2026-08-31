@@ -1006,6 +1006,106 @@
             }
         },
 
+        /// Upstream's TV test, copied so the two cannot disagree.
+        ///
+        /// From jellyfin-web src/scripts/browser.js isTv(), which is the function behind
+        /// browser.tv and therefore behind layoutManager's own auto-detection. Its own
+        /// first comment is "This is going to be really difficult to get right", which is
+        /// why this is a copy rather than something reasoned out afresh.
+        ///
+        /// `web0s` is spelt with a ZERO. That is upstream's spelling because it is what
+        /// LG actually puts in the user agent, and writing the letter O here would miss
+        /// every webOS set silently.
+        _uaLooksLikeTv: function (ua) {
+            const s = String(ua || '').toLowerCase();
+            // The Oculus browser carries samsungbrowser in its UA and is a headset.
+            if (s.indexOf('oculusbrowser') !== -1) return false;
+            return s.indexOf('tv') !== -1
+                || s.indexOf('samsungbrowser') !== -1
+                || s.indexOf('viera') !== -1
+                || s.indexOf('titanos') !== -1
+                || s.indexOf('netcast') !== -1
+                || s.indexOf('web0s') !== -1;
+        },
+
+        /// Does this browser lay out flex containers with `gap`?
+        ///
+        /// Chrome 84. webOS 5 (the LG CX) is Chromium 68 and Tizen 6.0 is 76, so on both
+        /// of the televisions this plugin has open issues from, every `gap` on a flex
+        /// container is ignored and the spacing between children is simply gone.
+        ///
+        /// Measured, not asked. `@supports (gap: 1px)` answers TRUE on Chromium 68,
+        /// because grid gap shipped in 66 and the query cannot tell the two layout modes
+        /// apart — so the obvious feature query returns yes on exactly the devices where
+        /// flex gap does nothing. Two empty children in a column box with a 1px row-gap
+        /// make the box 1px tall where it works and 0 where it does not.
+        _supportsFlexGap: function () {
+            if (this._flexGapOk !== undefined) return this._flexGapOk;
+            if (!document.body) return true;   // too early to tell; assume modern
+            let probe;
+            try {
+                probe = document.createElement('div');
+                probe.style.cssText = 'display:flex;flex-direction:column;row-gap:1px;'
+                    + 'position:absolute;visibility:hidden;pointer-events:none';
+                probe.appendChild(document.createElement('div'));
+                probe.appendChild(document.createElement('div'));
+                document.body.appendChild(probe);
+                this._flexGapOk = probe.scrollHeight === 1;
+            } catch (e) {
+                this._flexGapOk = true;
+            } finally {
+                if (probe && probe.parentNode) probe.parentNode.removeChild(probe);
+            }
+            return this._flexGapOk;
+        },
+
+        /// Puts `jpf-tv` and `jpf-no-flex-gap` on <html>, so the stylesheet can size for
+        /// a screen three metres away and can replace flex gaps the device ignores.
+        ///
+        /// The plan said to read `layoutManager.tv`. It cannot be read: layoutManager is
+        /// an ES module default export in jellyfin-web and is never placed on window.
+        /// What it does do is write `layout-tv` / `layout-mobile` / `layout-desktop` onto
+        /// document.documentElement (src/components/layoutManager.js, setLayout), so that
+        /// class is the supported signal — and it is strictly better than sniffing,
+        /// because it also honours a layout the user has forced in Display settings. A
+        /// desktop set to TV mode gets TV sizing, which sniffing would never give it.
+        ///
+        /// The UA is only the fallback, for the two moments the class is not there yet:
+        /// a cold load where we run before layoutManager.init(), and the pre-sign-in gate.
+        ///
+        /// Re-run on class changes rather than on a timer. layoutManager can switch mode
+        /// at runtime and fires 'modechange', but that event is on the module object we
+        /// cannot reach; the class attribute it writes is observable, costs nothing when
+        /// nothing changes, and is not the route poll's business.
+        applyDeviceClasses: function () {
+            const root = document.documentElement;
+            if (!root) return;
+
+            // Writes only on an actual change. The observer below watches the very
+            // attribute this touches, and a write that changes nothing would still be a
+            // mutation record and a second pass through here on every unrelated class
+            // change Jellyfin makes.
+            const apply = () => {
+                const isTv = root.classList.contains('layout-tv')
+                    || (!root.classList.contains('layout-mobile')
+                        && !root.classList.contains('layout-desktop')
+                        && this._uaLooksLikeTv(navigator.userAgent));
+                if (isTv !== root.classList.contains('jpf-tv')) {
+                    root.classList.toggle('jpf-tv', isTv);
+                }
+            };
+
+            apply();
+            root.classList.toggle('jpf-no-flex-gap', !this._supportsFlexGap());
+
+            if (this._deviceClassObserver || typeof MutationObserver === 'undefined') return;
+            this._deviceClassObserver = new MutationObserver(() => apply());
+            this._deviceClassObserver.observe(root, {
+                attributes: true,
+                attributeFilter: ['class'],
+            });
+        },
+
         init: function () {
             if (typeof ApiClient === 'undefined') {
                 // If ApiClient is not defined yet, wait for it
@@ -1026,6 +1126,9 @@
             if (!this._i18nReady) this._i18nReady = Promise.resolve();
 
             this._step('bindEvents', () => this.bindEvents());
+            // Before injectStyles, so the sheet's .jpf-tv and .jpf-no-flex-gap rules match
+            // on the first paint rather than after a reflow the viewer can see.
+            this._step('applyDeviceClasses', () => this.applyDeviceClasses());
             this._step('injectStyles', () => this.injectStyles());
             // Kicked off before the first route check so the gate decision is usually made
             // with the real answer in hand rather than the cached one.
@@ -7213,13 +7316,24 @@
                    they sat in a thin band with large voids above and below, and on a TV
                    they were small at viewing distance. clamp keeps the phone size as
                    the floor and lets them grow with the viewport. */
+                /* Each clamp is preceded by the plain value it falls back to. clamp() is
+                   Chrome 79; webOS 5 is 68 and Tizen 6.0 is 76, so on both of the sets
+                   in the open issues the clamped declaration is dropped — and without a
+                   preceding one the card would have no width at all, which is a large
+                   part of what "colour bars stretched across the screen" was. The floor
+                   is used rather than the ceiling because it is the value that was
+                   shipping before clamp went in; TVs get their real size from .jpf-tv
+                   below, which is a plain px value for exactly this reason. */
                 .profile-card {
                     display: flex; flex-direction: column; align-items: center;
+                    width: 140px;
                     width: clamp(140px, 12vw, 210px); cursor: pointer; position: relative;
                 }
                 .profile-avatar-container {
                     position: relative;
+                    width: 130px;
                     width: clamp(130px, 11vw, 195px);
+                    height: 130px;
                     height: clamp(130px, 11vw, 195px);
                     margin-top: 15px;
                     transition: transform 0.12s ease;
@@ -7252,7 +7366,16 @@
                 .profile-card.is-switching .profile-avatar-container::after {
                     content: '';
                     position: absolute;
-                    inset: 0;
+                    /* Longhand rather than the inset shorthand, which is Chrome 87;
+                       webOS 5 is 68 and Tizen 6.0 is 76, and a declaration they cannot
+                       parse is dropped — leaving this spinner with no offsets at all,
+                       so it collapses into the top-left corner of the avatar instead of
+                       centring over it. The whole point of it is to show a switch is
+                       under way on a device where nothing else moves. */
+                    top: 0;
+                    right: 0;
+                    bottom: 0;
+                    left: 0;
                     margin: auto;
                     width: 46px;
                     height: 46px;
@@ -7273,7 +7396,14 @@
                 .profiles-btn.is-busy::after {
                     content: '';
                     position: absolute;
-                    inset: 0;
+                    /* Longhand for the same reason as the switch spinner above: the
+                       inset shorthand is Chrome 87 and both television baselines drop
+                       it, which would leave every busy button's spinner stuck in its
+                       corner. */
+                    top: 0;
+                    right: 0;
+                    bottom: 0;
+                    left: 0;
                     margin: auto;
                     width: 18px;
                     height: 18px;
@@ -7712,6 +7842,32 @@
                 .profile-dialog-actions {
                     margin-top: 1rem; display: flex; justify-content: space-between; width: 100%; gap: var(--jpf-gap);
                 }
+                /* Save used to scroll out of sight. This form is capped at 75vh and
+                   scrolls inside itself, so on a phone — and in the single-column
+                   layout — the button row sat below the fold. With a mouse you scroll
+                   to it without thinking; with a remote there is nothing to flick, so
+                   the form simply could not be finished (RDB-2).
+
+                   Scoped to the scrolling container on purpose: sticky positions
+                   against the nearest scrolling ancestor, and this row only ever
+                   appears inside that one. position: sticky is Chrome 56, so it holds
+                   on both television baselines.
+
+                   The negative margins pull the bar out through the container's 2rem
+                   padding so its backdrop spans the full width, and the backdrop has
+                   to be opaque — the container's own background is
+                   rgba(255,255,255,0.03), which would let the fields scroll visibly
+                   through the buttons. The literal matches the overlay's own dark
+                   gradient, which is hardcoded here too rather than themed. */
+                .create-profile-container > .profile-dialog-actions {
+                    position: sticky;
+                    bottom: 0;
+                    z-index: 2;
+                    margin: 1rem -2rem -2rem;
+                    padding: 1rem 2rem;
+                    background: #1b1b28;
+                    border-top: 1px solid rgba(255,255,255,0.08);
+                }
                 .dialog-action-buttons {
                     display: flex; gap: var(--jpf-gap);
                 }
@@ -8130,6 +8286,27 @@
                 /* TV / D-pad: the focus ring must be obvious from across a room, and a
                    focused control inside a scrolling section has to scroll itself into
                    view rather than sitting behind a section header. */
+                /* The plan asked only that this rule be standalone so that dropping it
+                   is harmless. It is standalone — but dropping it is NOT harmless, and
+                   checking the shape rather than the consequence nearly let that
+                   through. :focus-visible is Chrome 86, so webOS 5 (68) and Tizen 6.0
+                   (76) discard the whole rule as an unparseable selector. The one rule
+                   written for televisions was the one televisions could not see.
+
+                   So: a plain :focus carries the ring on old browsers, and the
+                   :not(:focus-visible) rule takes it back off for pointer focus on
+                   browsers new enough to tell the difference. That second rule is
+                   itself dropped by the old parsers, which is exactly what makes the
+                   pair safe — each browser reads only the half it understands. */
+                .profile-section :focus {
+                    outline: 2px solid var(--jpf-accent);
+                    outline-offset: 2px;
+                    scroll-margin-top: 4rem;
+                    scroll-margin-bottom: 4rem;
+                }
+                .profile-section :focus:not(:focus-visible) {
+                    outline: none;
+                }
                 .profile-section :focus-visible {
                     outline: 2px solid var(--jpf-accent);
                     outline-offset: 2px;
@@ -8268,6 +8445,193 @@
                 .device-delete-btn:focus {
                     outline: none;
                     background: rgba(255,107,107,0.2) !important;
+                }
+
+                /* ── The Chromium 68 baseline ─────────────────────────────────────
+                   webOS 5 (the LG CX in issue #16) is Chromium 68 and Tizen 6.0 is 76.
+                   Everything below is here because a declaration those two cannot parse
+                   is dropped silently, and a *rule* they cannot parse is dropped whole.
+
+                   The pattern is the one the color-mix block at the top already uses:
+                   state the old way first, or guard the new way with @supports. Do not
+                   reach for a JavaScript check when the cascade can answer it. */
+
+                /* aspect-ratio is Chrome 88, and without it these tiles have no height
+                   at all — the avatar library collapses to an empty strip. The old
+                   padding-top trick needs the image taken out of flow, so it is guarded
+                   rather than layered: on a modern browser none of this applies. */
+                @supports not (aspect-ratio: 1 / 1) {
+                    .avatar-library-item {
+                        position: relative;
+                        height: 0;
+                        padding-top: 100%;
+                    }
+                    .avatar-library-item img {
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                    }
+                }
+
+                /* ── Flex gap, replaced with margins where it does nothing ────────
+                   Flex gap is Chrome 84. On both television baselines every gap on a
+                   flex container is ignored and the children sit flush against each
+                   other — 34 containers of it, which is most of why the gate looked
+                   like bars rather than cards.
+
+                   Gated on a measured class, not on @supports. A feature query for
+                   gap answers TRUE on Chromium 68, because grid gap shipped in 66 and
+                   the query cannot tell the two layout modes apart — so the obvious
+                   guard says yes on exactly the devices where flex gap does nothing.
+                   See _supportsFlexGap, which measures a probe instead.
+
+                   Three shapes, and the third is the awkward one:
+                     column        margin-top on every child but the first
+                     row           margin-left on every child but the first
+                     row + wrap    half the gap on both sides of every child
+
+                   Wrapping containers get symmetric half-margins rather than a single
+                   trailing margin, because .profiles-grid is centred: a trailing margin
+                   would push every row off-centre by half a gap. The cost is half a gap
+                   of padding at the container edges, which is invisible next to what it
+                   replaces. */
+                .jpf-no-flex-gap .picture-sources > * + * { margin-top: var(--jpf-gap); }
+                .jpf-no-flex-gap .picture-source-block > * + * { margin-top: 8px; }
+                .jpf-no-flex-gap .profile-name > * + * { margin-top: 4px; }
+                .jpf-no-flex-gap .pin-entry-container > * + * { margin-top: 2rem; }
+                .jpf-no-flex-gap .form-col > * + * { margin-top: 1.5rem; }
+                .jpf-no-flex-gap .create-profile-container > * + * { margin-top: 1.5rem; }
+                .jpf-no-flex-gap .form-group > * + * { margin-top: 0.5rem; }
+                .jpf-no-flex-gap .bonfire-form-group > * + * { margin-top: 0.5rem; }
+                .jpf-no-flex-gap .library-checklist > * + * { margin-top: 0.5rem; }
+                .jpf-no-flex-gap .libart-list > * + * { margin-top: 6px; }
+                .jpf-no-flex-gap .profile-section-heading > * + * { margin-top: 2px; }
+                .jpf-no-flex-gap .profile-section-body > * + * { margin-top: 1.1rem; }
+                .jpf-no-flex-gap .tag-editor > * + * { margin-top: 8px; }
+
+                .jpf-no-flex-gap .profiles-home-header > * + * { margin-left: 0.75rem; }
+                .jpf-no-flex-gap .profile-pin-badge > * + * { margin-left: 4px; }
+                .jpf-no-flex-gap .pin-actions > * + * { margin-left: var(--jpf-gap-lg); }
+                .jpf-no-flex-gap .profile-dialog-actions > * + * { margin-left: var(--jpf-gap); }
+                .jpf-no-flex-gap .dialog-action-buttons > * + * { margin-left: var(--jpf-gap); }
+                .jpf-no-flex-gap .libart-head > * + * { margin-left: var(--jpf-gap); }
+                .jpf-no-flex-gap .library-check-label > * + * { margin-left: 0.6rem; }
+                .jpf-no-flex-gap .profile-section-header > * + * { margin-left: 0.7rem; }
+                .jpf-no-flex-gap .image-upload-btn > * + * { margin-left: 8px; }
+                .jpf-no-flex-gap .device-dropdown-item > * + * { margin-left: 8px; }
+                .jpf-no-flex-gap .tag-chip > * + * { margin-left: 6px; }
+                .jpf-no-flex-gap .tag-input-row > * + * { margin-left: 8px; }
+
+                .jpf-no-flex-gap .image-upload-actions > * { margin: 0 4px 8px; }
+                .jpf-no-flex-gap .profiles-grid > * { margin: 0 1.5rem 3rem; }
+                .jpf-no-flex-gap .profiles-footer > * {
+                    margin: 0 calc(var(--jpf-gap-lg) / 2) var(--jpf-gap-lg);
+                }
+                .jpf-no-flex-gap .avatar-color-picker > * {
+                    margin: 0 calc(var(--jpf-gap) / 2) var(--jpf-gap);
+                }
+                .jpf-no-flex-gap .libart-row > * {
+                    margin: 0 calc(var(--jpf-gap) / 2) var(--jpf-gap);
+                }
+                .jpf-no-flex-gap .section-inline-header > * { margin: 0 0.25rem 0.5rem; }
+                .jpf-no-flex-gap .image-upload-row > * {
+                    margin: 0 calc(var(--jpf-gap) / 2) var(--jpf-gap);
+                }
+                .jpf-no-flex-gap .tag-chip-list > * { margin: 0 3px 6px; }
+
+                /* The two gap values that change inside a media query need their
+                   fallbacks changed with them, and .profile-dialog-actions also turns
+                   into a column there — so its margin has to move axis, not just size.
+                   Missing this would leave the dialog buttons stacked and touching on a
+                   narrow screen, which is the one place the Save button already had to
+                   be rescued (see the sticky rule below). */
+                @media (max-width: 480px) {
+                    .jpf-no-flex-gap .profiles-grid > * { margin: 0 0.75rem 1.5rem; }
+                    .jpf-no-flex-gap .profile-dialog-actions > * + * {
+                        margin-left: 0;
+                        margin-top: var(--jpf-gap);
+                    }
+                }
+                @media (max-width: 600px) {
+                    .jpf-no-flex-gap .profile-section-body > * + * { margin-top: 0.95rem; }
+                }
+
+                /* ── Television ───────────────────────────────────────────────────
+                   Applied when <html> carries jpf-tv; see applyDeviceClasses for how
+                   that is decided. The largest breakpoint in this sheet is
+                   min-width: 900px, so before this a 1920px television at three metres
+                   was handed exactly the layout of a monitor at sixty centimetres.
+
+                   Plain pixel values, deliberately. This block exists for Chromium 68
+                   and 76, which drop clamp() — sizing the television with the one
+                   feature the television cannot parse would be the same mistake twice.
+
+                   It is last in the sheet and every selector carries .jpf-tv, so it
+                   outranks the rules it overrides on both specificity and order. A
+                   rule that is present but outranked has shipped here before. */
+                .jpf-tv, .jpf-tv body {
+                    /* Declared on body too, because the base tokens at the top of this
+                       sheet are set on the selector list :root, body — and a
+                       declaration on body beats one on html for everything inside it.
+                       Setting these on html alone would change nothing at all. */
+                    --jpf-gap: 20px;
+                    --jpf-gap-lg: 2rem;
+                }
+                .jpf-tv .profile-card {
+                    width: 300px;
+                }
+                .jpf-tv .profile-avatar-container {
+                    width: 280px;
+                    height: 280px;
+                }
+                .jpf-tv .profiles-grid {
+                    gap: 4rem;
+                }
+                .jpf-no-flex-gap.jpf-tv .profiles-grid > * {
+                    margin: 0 2rem 4rem;
+                }
+                .jpf-tv .profiles-title {
+                    font-size: 4rem;
+                    margin-bottom: 4rem;
+                }
+                .jpf-tv .profile-name {
+                    font-size: 1.75rem;
+                    margin-top: 1.5rem;
+                }
+                .jpf-tv .profiles-btn {
+                    font-size: 1.5rem;
+                    padding: 16px 36px;
+                }
+                .jpf-tv .profile-section-title {
+                    font-size: 1.6rem;
+                }
+                .jpf-tv .profile-section-body {
+                    gap: 1.8rem;
+                }
+                .jpf-tv .profile-section {
+                    padding: 1.6rem 1.5rem;
+                }
+                /* Thicker and further out. At three metres a 2px outline sitting 2px
+                   from the control is not findable, and finding the focused control is
+                   the entire navigation model on a remote. */
+                .jpf-tv .profile-section :focus,
+                .jpf-tv .profile-card:focus,
+                .jpf-tv .profiles-btn:focus {
+                    outline: 4px solid var(--jpf-accent);
+                    outline-offset: 4px;
+                }
+                /* Kept in a rule of its own, and this is not tidiness. One unparseable
+                   selector invalidates the entire comma-separated list — there is no
+                   forgiveness before :is() — so folding this into the list above would
+                   have deleted the thick television focus ring on precisely the two
+                   television browsers it was written for, while looking correct
+                   everywhere it was tested. The plan warned about this in P4-11 and I
+                   still wrote it the wrong way first; cssbaseline.js now fails on it. */
+                .jpf-tv .profile-section :focus-visible {
+                    outline: 4px solid var(--jpf-accent);
+                    outline-offset: 4px;
                 }
             `;
             document.head.appendChild(style);
