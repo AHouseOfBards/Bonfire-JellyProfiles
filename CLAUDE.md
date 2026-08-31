@@ -10,8 +10,8 @@ listed together so it is obvious which ones are still only a promise.
 tests/run.sh          # or tests\run.ps1 on Windows
 ```
 
-Builds the plugin (Release, `-warnaserror`) and runs all 29 harnesses — 21 JavaScript
-and 8 C#, about 1,250 assertions. CI runs the same command, so the desk and the pipeline
+Builds the plugin (Release, `-warnaserror`) and runs all 32 harnesses — 24 JavaScript
+and 8 C#, about 1,350 assertions. CI runs the same command, so the desk and the pipeline
 cannot disagree about what "the tests pass" means.
 
 A `*.scan.js` file is a survey, not a gate: it prints what it finds and always exits 0,
@@ -133,12 +133,14 @@ dropped HTML tags), and CI runs it.
 
 | Path | |
 | --- | --- |
-| `Web/profiles.js` | The client script. One ~8,000-line IIFE; a split is planned. |
+| `Web/profiles.js` | The client script. One ~7,000-line IIFE; a module split is planned. |
+| `Web/styles.css` | The stylesheet. A real file, spliced into the script as it is served — see `PublishStyles`. It was a template literal inside `injectStyles` until 1.5.9, which is how a stray backtick shipped two dead releases. |
 | `Web/profilesDashboard.html` | Admin page, with its JavaScript inline. |
 | `Controllers/` | `ProfilesController` (42 routes) over `ProfilesBaseController`. |
 | `tests/js/`, `tests/cs/` | The harnesses. `_lib.js` holds shared plumbing. |
 | `tests/upstream-selectors.json` | What every injection selector was verified against. |
-| `docs/developer-api.md` | The API reference. All 42 routes; keep it that way. |
+| `docs/developer-api.md` | The API reference. All 42 routes; `tests/js/apidocs.js` fails if that stops being true, or if a documented authorisation level is not the one enforced. |
+| `TROUBLESHOOTING.md` | Support answers, including the index.html one. |
 
 ## Two things that are easy to get wrong
 

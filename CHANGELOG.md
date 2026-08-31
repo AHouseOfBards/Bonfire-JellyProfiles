@@ -9,6 +9,20 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.5.9  — 2026-08-31
+
+**Beta release** — please report issues on GitHub.
+
+**Changed**
+
+- Mostly internal. The stylesheet moved into a file of its own, which removes the fault that made 1.5.2 and 1.5.3 fail to start at all.
+- The Add and Edit profile forms are built from shared pieces now, so a fix to one is a fix to both.
+
+**Added**
+
+- TROUBLESHOOTING.md, which answers the most common report first: Bonfire does not edit index.html by default, so a file with no plugin tags in it is a healthy install.
+- The developer API reference now opens with a table of all 42 endpoints, and lists error codes and rate limits.
+
 ## 1.5.8  — 2026-08-31
 
 **Beta release** — please report issues on GitHub.
