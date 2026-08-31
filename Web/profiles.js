@@ -943,6 +943,139 @@
             `;
         },
 
+        /// The allowed-devices dropdown, shared by the Add and Edit profile forms.
+        ///
+        /// These two forms were built by two functions that had been copied from each
+        /// other and then edited apart: 213 identical lines, ten runs of six or more.
+        /// The copies had already drifted — a fix to one was a fix to one — and the
+        /// duplicated *comments* were the clearest sign of it, the same sentence about
+        /// sending null rather than an empty array sitting verbatim in both.
+        ///
+        /// Four things actually differ between the modes, and they are all here:
+        ///   - create prefixes its element ids, because both forms can be in the
+        ///     document at once and duplicate ids would make getElementById a coin toss;
+        ///   - the checkbox class follows the same prefix, since the handlers query it;
+        ///   - only edit has a profile to read existing selections from;
+        ///   - only edit offers Forget, because a device cannot be stale for a profile
+        ///     that does not exist yet.
+        renderDeviceDropdown: function (mode, devices, profile) {
+            const isEdit = mode === 'edit';
+            const p = isEdit ? '' : 'create-';
+            const boxClass = isEdit ? 'device-checkbox' : 'create-device-checkbox';
+
+            const items = (devices && devices.length > 0)
+                ? devices.map(dev => {
+                    const deviceId = dev.deviceId || dev.DeviceId || '';
+                    const deviceName = dev.deviceName || dev.DeviceName || t('profileForm.unknownDevice');
+                    const client = dev.client || dev.Client || t('profileForm.unknownClient');
+                    const lastSeen = dev.lastSeen || dev.LastSeen;
+                    const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
+                    // Year 1 is what an unset DateTime serialises to; showing "01/01/0001"
+                    // reads as a bug rather than as "we have never seen this device".
+                    const lastSeenStr = (lastSeenDate && lastSeenDate.getFullYear() > 1)
+                        ? lastSeenDate.toLocaleDateString() : t('profileForm.unknown');
+                    // Both spellings, because the list can come from the plugin's own
+                    // camelCase JSON or straight off a Jellyfin DTO.
+                    const isChecked = isEdit && profile && profile.allowedDeviceIds
+                        && (profile.allowedDeviceIds.includes(deviceId)
+                            || (dev.DeviceId && profile.allowedDeviceIds.includes(dev.DeviceId)));
+                    const forget = isEdit
+                        ? `<button type="button" class="device-delete-btn" data-id="${escapeHtml(deviceId)}" title="${t('profileForm.forgetDevice')}" aria-label="${t('profileForm.forgetDeviceAria', { name: escapeHtml(deviceName) })}">🗑️</button>`
+                        : '';
+                    return `
+                        <div class="device-dropdown-item">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
+                                <input type="checkbox" class="${boxClass}" value="${escapeHtml(deviceId)}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
+                                <span style="display: flex; flex-direction: column; min-width: 0;">
+                                    <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
+                                    <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: lastSeenStr })}</span>
+                                </span>
+                            </label>
+                            ${forget}
+                        </div>
+                    `;
+                }).join('')
+                : `
+                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">${t('profileForm.noDevicesYet')}</div>
+                `;
+
+            return `
+                <div class="form-group">
+                    <label>${t('profileForm.allowedDevices')}</label>
+                    <div class="devices-dropdown-container" style="position: relative;">
+                        <div id="${p}devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
+                            <span id="${p}devices-dropdown-selected-text">${t('profileForm.allDevicesAllowed')}</span>
+                        </div>
+                        <div id="${p}devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
+                            ${items}
+                        </div>
+                    </div>
+                    <div class="form-hint">${t('profileForm.devicesHint')}</div>
+                </div>
+            `;
+        },
+
+        /// The maximum-rating select, shared by both profile forms.
+        ///
+        /// The five options and their numeric values were written out twice; a rating
+        /// added to one copy would silently not exist in the other. Only the id prefix
+        /// and which option is preselected differ.
+        ///
+        /// `maxRating` is compared with ===, so it must already be a number or null.
+        /// Passing the raw string from a form control would preselect nothing and
+        /// quietly reset the profile's rating on the next save.
+        renderRatingSelect: function (mode, maxRating) {
+            const id = mode + '-rating-select';
+            const opts = [
+                ['', 'profileForm.noRestrictions'],
+                ['6', 'profileForm.ratingG'],
+                ['10', 'profileForm.ratingPG'],
+                ['14', 'profileForm.ratingPG13'],
+                ['17', 'profileForm.ratingR'],
+            ].map(([value, key]) => {
+                const current = value === '' ? maxRating === null || maxRating === undefined
+                    : maxRating === Number(value);
+                return `<option value="${value}" ${current ? 'selected' : ''}>${t(key)}</option>`;
+            }).join('\n                            ');
+
+            return `
+                <div class="form-group">
+                    <label for="${id}">${t('profileForm.maximumRating')}</label>
+                    <select id="${id}">
+                            ${opts}
+                    </select>
+                </div>
+            `;
+        },
+
+        /// Blocked and allowed tag editors, shared by both profile forms.
+        ///
+        /// Only the id prefix and the starting tags differ: a new profile begins with
+        /// none, an existing one with whatever it has. The allowed-tags hint carries
+        /// form-hint-warn because an allow-list is subtractive — naming one tag hides
+        /// everything without it — and that warning existing in only one of two copies
+        /// is exactly the drift this merge is for.
+        renderTagSection: function (mode, libraryTags, profile) {
+            const p = mode + '-';
+            const suggestions = p + 'tag-suggestions';
+            const blocked = (profile && profile.blockedTags) || [];
+            const allowed = (profile && profile.allowedTags) || [];
+
+            return `
+                ${this.renderTagSuggestions(suggestions, libraryTags)}
+                <div class="form-group">
+                    <label>${t('profileForm.blockedTags')}</label>
+                    ${this.renderTagEditor(p + 'blocked-tags', blocked, t('profileForm.tagPlaceholderAdults'), suggestions)}
+                    <div class="form-hint">${t('profileForm.blockedTagsHint')}</div>
+                </div>
+                <div class="form-group">
+                    <label>${t('profileForm.allowedTags')}</label>
+                    ${this.renderTagEditor(p + 'allowed-tags', allowed, t('profileForm.tagPlaceholderKids'), suggestions)}
+                    <div class="form-hint form-hint-warn">${t('profileForm.allowedTagsHint')}</div>
+                </div>
+            `;
+        },
+
         initTagEditors: function (container) {
             container.querySelectorAll('.tag-editor').forEach(editor => {
                 if (editor._tagInit) return;
@@ -4759,62 +4892,10 @@
 
                 // ── Section 4: limits applied on top of the libraries above ─────
                 const createRestrictions = `
-                    <div class="form-group">
-                        <label>${t('profileForm.allowedDevices')}</label>
-                        <div class="devices-dropdown-container" style="position: relative;">
-                            <div id="create-devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
-                                <span id="create-devices-dropdown-selected-text">${t('profileForm.allDevicesAllowed')}</span>
-                            </div>
-                            <div id="create-devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
-                                ${devices && devices.length > 0 ? devices.map(dev => {
-                                    const deviceId = dev.deviceId || dev.DeviceId || '';
-                                    const deviceName = dev.deviceName || dev.DeviceName || t('profileForm.unknownDevice');
-                                    const client = dev.client || dev.Client || t('profileForm.unknownClient');
-                                    const lastSeen = dev.lastSeen || dev.LastSeen;
-                                    const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
-                                    const lastSeenStr = (lastSeenDate && lastSeenDate.getFullYear() > 1)
-                                        ? lastSeenDate.toLocaleDateString() : t('profileForm.unknown');
-                                    return `
-                                        <div class="device-dropdown-item">
-                                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
-                                                <input type="checkbox" class="create-device-checkbox" value="${escapeHtml(deviceId)}" style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
-                                                <span style="display: flex; flex-direction: column; min-width: 0;">
-                                                    <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
-                                                    <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: lastSeenStr })}</span>
-                                                </span>
-                                            </label>
-                                        </div>
-                                    `;
-                                }).join('') : `
-                                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">${t('profileForm.noDevicesYet')}</div>
-                                `}
-                            </div>
-                        </div>
-                        <div class="form-hint">${t('profileForm.devicesHint')}</div>
-                    </div>
+                    ${this.renderDeviceDropdown('create', devices, null)}
 
-                    <div class="form-group">
-                        <label for="create-rating-select">${t('profileForm.maximumRating')}</label>
-                        <select id="create-rating-select">
-                            <option value="">${t('profileForm.noRestrictions')}</option>
-                            <option value="6">${t('profileForm.ratingG')}</option>
-                            <option value="10">${t('profileForm.ratingPG')}</option>
-                            <option value="14">${t('profileForm.ratingPG13')}</option>
-                            <option value="17">${t('profileForm.ratingR')}</option>
-                        </select>
-                    </div>
-
-                    ${this.renderTagSuggestions('create-tag-suggestions', libraryTags)}
-                    <div class="form-group">
-                        <label>${t('profileForm.blockedTags')}</label>
-                        ${this.renderTagEditor('create-blocked-tags', [], t('profileForm.tagPlaceholderAdults'), 'create-tag-suggestions')}
-                        <div class="form-hint">${t('profileForm.blockedTagsHint')}</div>
-                    </div>
-                    <div class="form-group">
-                        <label>${t('profileForm.allowedTags')}</label>
-                        ${this.renderTagEditor('create-allowed-tags', [], t('profileForm.tagPlaceholderKids'), 'create-tag-suggestions')}
-                        <div class="form-hint form-hint-warn">${t('profileForm.allowedTagsHint')}</div>
-                    </div>
+                    ${this.renderRatingSelect('create', null)}
+                    ${this.renderTagSection('create', libraryTags, null)}
                 `;
 
                 content.innerHTML = `
@@ -5173,64 +5254,10 @@
 
                 // ── Section 4: limits applied on top of the libraries above ─────
                 const restrictionsBody = `
-                    <div class="form-group">
-                        <label>${t('profileForm.allowedDevices')}</label>
-                        <div class="devices-dropdown-container" style="position: relative;">
-                            <div id="devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
-                                <span id="devices-dropdown-selected-text">${t('profileForm.allDevicesAllowed')}</span>
-                            </div>
-                            <div id="devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
-                                ${devices && devices.length > 0 ? devices.map(dev => {
-                                    const deviceId = dev.deviceId || dev.DeviceId || '';
-                                    const deviceName = dev.deviceName || dev.DeviceName || t('profileForm.unknownDevice');
-                                    const client = dev.client || dev.Client || t('profileForm.unknownClient');
-                                    const lastSeen = dev.lastSeen || dev.LastSeen;
-                                    const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
-                                    const lastSeenStr = (lastSeenDate && lastSeenDate.getFullYear() > 1)
-                                        ? lastSeenDate.toLocaleDateString() : t('profileForm.unknown');
-                                    const isChecked = profile.allowedDeviceIds && (profile.allowedDeviceIds.includes(deviceId) || (dev.DeviceId && profile.allowedDeviceIds.includes(dev.DeviceId)));
-                                    return `
-                                        <div class="device-dropdown-item">
-                                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
-                                                <input type="checkbox" class="device-checkbox" value="${escapeHtml(deviceId)}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
-                                                <span style="display: flex; flex-direction: column; min-width: 0;">
-                                                    <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
-                                                    <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: lastSeenStr })}</span>
-                                                </span>
-                                            </label>
-                                            <button type="button" class="device-delete-btn" data-id="${escapeHtml(deviceId)}" title="${t('profileForm.forgetDevice')}" aria-label="${t('profileForm.forgetDeviceAria', { name: escapeHtml(deviceName) })}">🗑️</button>
-                                        </div>
-                                    `;
-                                }).join('') : `
-                                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">${t('profileForm.noDevicesYet')}</div>
-                                `}
-                            </div>
-                        </div>
-                        <div class="form-hint">${t('profileForm.devicesHint')}</div>
-                    </div>
+                    ${this.renderDeviceDropdown('edit', devices, profile)}
 
-                    <div class="form-group">
-                        <label for="edit-rating-select">${t('profileForm.maximumRating')}</label>
-                        <select id="edit-rating-select">
-                            <option value="" ${maxRating === null ? 'selected' : ''}>${t('profileForm.noRestrictions')}</option>
-                            <option value="6" ${maxRating === 6 ? 'selected' : ''}>${t('profileForm.ratingG')}</option>
-                            <option value="10" ${maxRating === 10 ? 'selected' : ''}>${t('profileForm.ratingPG')}</option>
-                            <option value="14" ${maxRating === 14 ? 'selected' : ''}>${t('profileForm.ratingPG13')}</option>
-                            <option value="17" ${maxRating === 17 ? 'selected' : ''}>${t('profileForm.ratingR')}</option>
-                        </select>
-                    </div>
-
-                    ${this.renderTagSuggestions('edit-tag-suggestions', libraryTags)}
-                    <div class="form-group">
-                        <label>${t('profileForm.blockedTags')}</label>
-                        ${this.renderTagEditor('edit-blocked-tags', profile.blockedTags || [], t('profileForm.tagPlaceholderAdults'), 'edit-tag-suggestions')}
-                        <div class="form-hint">${t('profileForm.blockedTagsHint')}</div>
-                    </div>
-                    <div class="form-group">
-                        <label>${t('profileForm.allowedTags')}</label>
-                        ${this.renderTagEditor('edit-allowed-tags', profile.allowedTags || [], t('profileForm.tagPlaceholderKids'), 'edit-tag-suggestions')}
-                        <div class="form-hint form-hint-warn">${t('profileForm.allowedTagsHint')}</div>
-                    </div>
+                    ${this.renderRatingSelect('edit', maxRating)}
+                    ${this.renderTagSection('edit', libraryTags, profile)}
                 `;
 
                 content.innerHTML = `
