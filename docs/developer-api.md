@@ -49,6 +49,11 @@ is not the one the code enforces.
 | `GET /plugins/profiles/admin/mappings` | admin | Every profile on the server, for the dashboard. |
 | `POST /plugins/profiles/admin/retry-injection` | admin | Re-attempt the client-script injection. |
 | `POST /plugins/profiles/admin/reset-pin` | admin | Clear a profile’s PIN. |
+| `POST /plugins/profiles/admin/cleanup-orphans` | admin | Find, and optionally remove, records pointing at deleted users. |
+| `GET /plugins/profiles/admin/sessions` | admin | Live sessions, with the household each belongs to. |
+| `POST /plugins/profiles/admin/sessions/sign-out` | admin | Revoke one device's token. |
+| `GET /plugins/profiles/admin/config/export` | admin | The whole configuration as JSON. |
+| `POST /plugins/profiles/admin/config/import` | admin | Replace the configuration with an export. |
 | `POST /plugins/profiles/update` | user | Change a sub-profile’s settings. |
 | `GET /plugins/profiles/profiles.js` | anon | The client script itself. |
 | `GET /plugins/profiles/i18n/{locale}` | anon | One translation file. |
@@ -69,6 +74,8 @@ is not the one the code enforces.
 | `GET /plugins/profiles/library-art/{profileId}/{libraryId}` | anon | One library tile image. |
 | `GET /plugins/profiles/devices` | user | Devices seen on the caller’s account. |
 | `POST /plugins/profiles/devices/delete` | user | Forget one. |
+| `POST /plugins/profiles/devices/merge` | user | Fold two records for one machine into one. |
+| `POST /plugins/profiles/devices/rename` | user | Give a device a name that sticks. |
 | `GET /plugins/profiles/image/{profileId}` | anon | A profile picture. |
 | `POST /plugins/profiles/panic` | anon | Emergency disable, with the code. |
 | `GET /plugins/profiles/panic-state` | anon | Whether the plugin is disabled. |
@@ -850,6 +857,79 @@ Deletes a device from the known devices log.
 | `deviceId` | string | Yes | The device ID to remove. |
 
 * **Response:** `200 OK` on success.
+* **Response `400 Bad Request`:** the device is the only one some profile is allowed on. The
+  body names those profiles. Forgetting it would leave their `allowedDeviceIds` empty, and an
+  empty list means *any* device — so the request is refused rather than silently widening the
+  restriction. Allow another device for those profiles first, or clear their list deliberately.
+
+---
+
+### `POST /plugins/profiles/devices/merge`
+
+**Authorisation:** signed-in user; must be the master account, and must own both devices.
+
+Folds one device record into another, for the case no client-supplied identifier can detect:
+**one physical machine holding two device IDs.**
+
+jellyfin-web stores its device ID in `localStorage` (`_deviceId2`), which is scoped to the
+origin — so reaching the same server as `http://192.168.1.10:8096` and as
+`https://jellyfin.example.com` produces two devices for one computer. A new browser profile,
+cleared site data, or a reinstalled app do the same. Nothing in the request distinguishes that
+from two genuinely different machines, and merging two that are actually different would widen
+a whitelist, so the plugin never merges on its own.
+
+* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
+* **Request Body:**
+```json
+{
+  "fromDeviceId": "57bfa7e8d35f492b950bf93c9d747a11",
+  "intoDeviceId": "9c1e04b7a8f34d2ab6e5107d3f8c22ee"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `fromDeviceId` | string | Yes | The record to drop. |
+| `intoDeviceId` | string | Yes | The record to keep. |
+
+Every profile allowed on `fromDeviceId` becomes allowed on `intoDeviceId`. The new ID is added
+**before** the old one is removed, so no whitelist passes through empty — an empty list would
+mean "any device" to anything reading it mid-operation. The surviving record keeps the more
+recent `lastSeen` and takes a real name over a placeholder.
+
+* **Response:** `200 OK` on success.
+* **Response `400 Bad Request`:** either ID is unknown, they are the same device, or one of
+  them is not recorded against the calling account. The last case is a scoping check, not a
+  formality: the device log is server-wide, so without it one account could fold another
+  household's device into its own and inherit its whitelist entries.
+
+---
+
+### `POST /plugins/profiles/devices/rename`
+
+**Authorisation:** signed-in user; must be the master account, and must own the device.
+
+Renames a device in the picker. The name **sticks**: the record is flagged as
+custom-named, so the next request from that device does not overwrite it with whatever the
+client reports. Without that the rename would last until the device's next page load, which
+makes it useless for its actual purpose — telling apart two records that are one machine.
+
+* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
+* **Request Body:**
+```json
+{
+  "deviceId": "57bfa7e8d35f492b950bf93c9d747a11",
+  "deviceName": "Living room TV"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `deviceId` | string | Yes | The device to rename. |
+| `deviceName` | string | Yes | The new name. Trimmed, and truncated to 64 characters. |
+
+* **Response:** `200 OK` on success.
+* **Response `400 Bad Request`:** unknown device, or a blank name.
 
 ---
 
@@ -1504,6 +1584,179 @@ Removes the PIN requirement from the specified profile.
 * **Error Responses:**
   * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
   * `404 Not Found`: Profile mapping not found.
+
+### `POST /plugins/profiles/admin/cleanup-orphans`
+
+**Authorisation:** administrator.
+
+Finds plugin records that point at Jellyfin users who no longer exist, and — only when asked
+twice — removes them.
+
+A profile deleted through Jellyfin's own user administration rather than through Bonfire leaves
+its mapping behind, and nothing else ever collects it. The leftovers are not inert: a mapping
+still counts against its master's profile limit and still appears in the household's device
+scoping, and a sub-profile whose **master** was deleted is unreachable and unremovable from the
+interface.
+
+* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
+* **Query:** `apply` (boolean, default `false`)
+
+`apply=false` reports and changes nothing. Call it first — this deletes configuration and there
+is no undo.
+
+* **Response `200 OK`** (dry run):
+```json
+{
+  "applied": false,
+  "orphans": [
+    {
+      "profileUserId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
+      "masterUserId": "5f2c8a11-9d34-4e1b-8a77-1c0b6d2e4f90",
+      "profileName": "Sam",
+      "reason": "the profile's Jellyfin user was deleted"
+    }
+  ],
+  "deadGroups": [],
+  "deadMembers": []
+}
+```
+
+* **Response `200 OK`** (`apply=true`):
+```json
+{ "applied": true, "removedMappings": 1, "removedGroups": 0, "removedMembers": 0 }
+```
+
+**Devices are never touched by this.** A device outliving the profile that used it is normal —
+the hardware is still in the house — and removing one that another profile still names would
+empty that profile's `allowedDeviceIds`, which means *any* device. Device housekeeping has its
+own rules.
+
+* **Error Responses:**
+  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
+
+### `GET /plugins/profiles/admin/sessions`
+
+**Authorisation:** administrator.
+
+Every live Jellyfin session, annotated with the Bonfire household it belongs to.
+
+Jellyfin's own Devices page lists these too, but as bare usernames with no notion that half of
+them are sub-profiles of one account — and sub-profiles are hidden users, so that page reads as
+a list of strangers.
+
+* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
+* **Response `200 OK`:**
+```json
+[
+  {
+    "sessionId": "8a1c...",
+    "userId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
+    "username": "Sam",
+    "masterUsername": "Dad",
+    "isSubProfile": true,
+    "deviceId": "57bfa7e8d35f492b950bf93c9d747a11",
+    "deviceName": "Living room TV",
+    "client": "Jellyfin Android",
+    "appVersion": "2.6.3",
+    "lastActivity": "2026-08-31T18:04:11Z",
+    "remoteEndPoint": "192.168.1.44",
+    "nowPlaying": "The Great British Bake Off"
+  }
+]
+```
+
+`masterUsername` is `null` for a plain Jellyfin account Bonfire knows nothing about. Sessions
+are ordered most recently active first.
+
+### `POST /plugins/profiles/admin/sessions/sign-out`
+
+**Authorisation:** administrator.
+
+Signs one device out, revoking its token.
+
+* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
+* **Request Body:**
+```json
+{
+  "userId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
+  "deviceId": "57bfa7e8d35f492b950bf93c9d747a11"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `userId` | string (GUID) | Yes | Whose session to end. |
+| `deviceId` | string | Yes | Which device to end it on. |
+
+**Both are required, and that is the point.** A device id alone would sign every profile on that
+television out at once; a Jellyfin token belongs to a (user, device) pair, and this ends exactly
+one of them.
+
+* **Response:** `200 OK` — `{ "signedOut": 1 }`
+* **Response `400 Bad Request`:** either field missing, or no such session.
+
+### `GET /plugins/profiles/admin/config/export`
+
+**Authorisation:** administrator.
+
+The whole plugin configuration as JSON, wrapped with the plugin version and a timestamp.
+
+Every profile, PIN, Bonfire, device whitelist and avatar record lives in one
+`PluginConfiguration.xml` with nothing behind it.
+
+> **The export contains PIN hashes.** They are PBKDF2-SHA256 with a per-PIN salt, so the file is
+> no more sensitive than the configuration it came from — but it is exactly as sensitive as that,
+> and unlike the configuration it is a file that can be copied somewhere careless. A backup that
+> cannot restore a working PIN would not be a backup, so they are included deliberately.
+
+* **Response `200 OK`:**
+```json
+{
+  "exportedUtc": "2026-08-31T18:04:11Z",
+  "pluginVersion": "1.5.10.0",
+  "configuration": { "MaxProfilesPerUser": 5, "Mappings": [], "KnownDevices": [] }
+}
+```
+
+### `POST /plugins/profiles/admin/config/import`
+
+**Authorisation:** administrator.
+
+Replaces the configuration with a previously exported one. The body is the `configuration`
+object — the export wrapper is accepted by the dashboard, which unwraps it before sending.
+
+**All-or-nothing per section, deliberately.** A merge *within* a section would have to decide
+what to do about a profile that exists in both copies with a different PIN, different libraries
+and a different master, and every answer to that is a guess about what the administrator meant.
+So each section the file carries replaces the corresponding one wholesale.
+
+**A section the file does not carry is left alone**, and this is a safety property rather than a
+convenience. `PluginConfiguration` initialises every list it owns, so a body that fails to bind
+arrives as a *pristine default* rather than as null — it does not throw, and a naive import would
+write that emptiness over every profile, device and Bonfire while reporting success. Properties
+are therefore read off the JSON explicitly, and **property names are matched without regard to
+case**, so a file that has round-tripped through another tool and come back camelCased is still
+understood rather than silently treated as empty.
+
+A body carrying none of `Mappings`, `KnownDevices`, `BonfireGroups` or `AvatarLibrary` is refused
+outright: it is not a Bonfire configuration, whatever else it is.
+
+Mappings naming Jellyfin users this server does not have are **dropped, not imported**, so
+restoring onto a different server produces a smaller consistent configuration rather than a set of
+orphans. They are named in the response, because silently discarding somebody's profile is worse
+than refusing outright.
+
+* **Response `200 OK`:**
+```json
+{
+  "mappings": 4,
+  "droppedMappings": ["Sam"],
+  "devices": 7,
+  "bonfires": 1
+}
+```
+
+* **Response `400 Bad Request`:** the body is not a JSON object, or carries none of the expected sections. Nothing is changed.
 
 ### `POST /plugins/profiles/admin/retry-injection`
 
