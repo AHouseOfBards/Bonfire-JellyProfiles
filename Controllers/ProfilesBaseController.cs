@@ -70,6 +70,54 @@ namespace Jellyfin.Profiles.Controllers
         /// </summary>
         internal static readonly object ConfigLock = new();
 
+        /// <summary>
+        /// Should a switch to <paramref name="targetUserId"/> rewrite that account's policy
+        /// from its master's? True only for a genuine sub-profile.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Issue #27. The switch path inherits streaming limits, tag filters and the enabled
+        /// library list from a profile's master account, which is right for a sub-profile and
+        /// catastrophic for anything else. It was gated only on
+        /// <c>targetUser.Id != callerMasterUserId</c>, so a Bonfire switch into somebody
+        /// else's *main* account ran it too — and there, with no mapping, the code took the
+        /// target to be its own master.
+        /// </para>
+        /// <para>
+        /// What that did to a real account, permanently, on every switch: a main user
+        /// normally has <c>EnableAllFolders = true</c> and an EMPTY <c>EnabledFolders</c>,
+        /// because Jellyfin stores "all" as the flag rather than as a list. The legacy branch
+        /// read that empty list as the authoritative set, intersected it with itself, then
+        /// wrote <c>EnableAllFolders = false</c> with an empty list and every folder blocked.
+        /// The reporter's words: "that user's library access is cleared", and a prompt to ask
+        /// the administrator to create a library. It also set <c>IsAdministrator = false</c>
+        /// and <c>IsHidden = true</c>, so a switch into an admin quietly demoted them.
+        /// </para>
+        /// <para>
+        /// Their sub-profiles went with it: each one intersects its own list against the
+        /// master's accessible folders, and the master now had none.
+        /// </para>
+        /// <para>
+        /// A master's own self-mapping is excluded as well as a missing one. Both mean the
+        /// target is a real Jellyfin account that owns its policy; there is nothing above it
+        /// to inherit from, and treating it as its own master is exactly the bug.
+        /// </para>
+        /// </remarks>
+        internal static bool ShouldInheritMasterPolicy(
+            ProfileMapping? mapping, Guid targetUserId, Guid callerMasterUserId)
+        {
+            // No mapping: a main Jellyfin account reached through a Bonfire link.
+            if (mapping == null) return false;
+
+            // A master's self-mapping. It is its own master, so there is nothing to inherit.
+            if (mapping.ProfileUserId == mapping.MasterUserId) return false;
+
+            // Switching back to the caller's own master account.
+            if (targetUserId == callerMasterUserId) return false;
+
+            return true;
+        }
+
         // ── DI fields (set by derived constructors) ─────────────────────────────────
         protected readonly IUserManager _userManager;
         protected readonly ISessionManager _sessionManager;

@@ -713,7 +713,11 @@ namespace Jellyfin.Profiles.Controllers
             // Inherit/synchronize streaming policies and configurations from master user dynamically during switch
             var targetMasterUserId = mapping != null ? mapping.MasterUserId : request.ProfileId;
             var masterUser = _userManager.GetUserById(targetMasterUserId);
-            if (masterUser != null && targetUser.Id != callerMasterUserId)
+
+            // Only a genuine sub-profile inherits. See ShouldInheritMasterPolicy for what
+            // this block did to a main account when it ran there (issue #27): it cleared the
+            // account's library access permanently, demoted an administrator, and hid them.
+            if (masterUser != null && ShouldInheritMasterPolicy(mapping, targetUser.Id, callerMasterUserId))
             {
                 var masterUserDto = _userManager.GetUserDto(masterUser, string.Empty);
                 var masterPolicy = masterUserDto.Policy;
