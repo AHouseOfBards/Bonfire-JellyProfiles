@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- Switching to someone's main profile in a Bonfire wiped that person's library access, and their sub-profiles' access with it. If this has happened to you, re-tick their libraries in Jellyfin's user settings after updating. [#27]\n- Switching into an administrator's account quietly removed their admin rights and hid them from the login screen. [#27]\n- On a TV the profile cards had no size, the spacing between them was gone, and the focus outline never appeared — so nothing looked selectable. [#16]\n- Save could sit below the bottom of the profile form with no way to reach it on a remote.\n\n**Changed**\n\n- Bonfire now knows it is on a television, and makes the profile pictures, text and focus outline large enough to use from across a room.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.5.8/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "2892848ba93676511ba8578674a5866a",
         "timestamp": "2026-08-31T00:00:00Z"
       },
       {
