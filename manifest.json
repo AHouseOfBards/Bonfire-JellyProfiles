@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.5.12.0",
+        "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- The allowed-devices list showed several rows that read exactly the same, so there was no way to tell which one to tick.\n- Devices recorded before the last update could show a name like \"Pixel+8\". Existing names are repaired.\n\n**Added**\n\n- \"Tidy up duplicates\" in the device list. One browser makes a new device every time its site data is cleared, and this merges those back together — a profile allowed on any of them stays allowed.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.5.12/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-08-31T00:00:00Z"
+      },
+      {
         "version": "1.5.11.0",
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- On a TV, picking a profile changed the name at the top but left you in your main account — same libraries, same Continue Watching, same Next Up. If the page cannot be rebuilt after switching, Bonfire now says so instead of leaving you on the wrong account. [#16]",
         "targetAbi": "10.11.0.0",
