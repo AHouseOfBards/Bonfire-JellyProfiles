@@ -1671,30 +1671,24 @@
         /// account. A page that is genuinely unloading never reaches the timer.
         RELOAD_ESCALATE_MS: 1200,
 
-        /// Reloads the page, and — this is the part that is new — checks that the reload
-        /// actually happened.
+        /// Reloads the page, and checks that the reload happened.
         ///
-        /// By the time this is called a switch is already complete everywhere except the
-        /// screen: the profile's token is in localStorage and in ApiClient, and the only
-        /// thing left is for the document to be torn down and rebuilt under the new
-        /// identity. If that does not happen, jellyfin-web keeps rendering the page it
-        /// already built for the *previous* profile — its home sections, its Continue
-        /// Watching, its Next Up — while the header avatar shows the profile that was
-        /// picked, because Bonfire redraws that itself.
+        /// By the time this runs the switch is complete everywhere except the screen: the
+        /// profile's token is in localStorage and in ApiClient, and all that is left is for
+        /// the document to be rebuilt under the new identity. If that does not happen,
+        /// jellyfin-web goes on rendering the page it built for the *previous* profile —
+        /// its home sections, its Continue Watching, its Next Up — while the header shows
+        /// the profile that was picked, because Bonfire draws that part itself.
         ///
         /// Reported on Samsung Tizen as "it lets you pick a profile, but nothing changes
-        /// once you load in". Every other explanation was ruled out first: the credentials
-        /// are written correctly, the server issues a valid token, and Jellyfin does not
-        /// revoke the master's session when a second user authenticates on the same
-        /// device. What is left is the reload, and `location.reload()` is not equally
-        /// reliable everywhere this runs — the bundled television clients serve
-        /// jellyfin-web from a local file:// origin, which is exactly where it has been
-        /// seen to do nothing at all.
+        /// once you load in". The credentials, the token and the server were all ruled out
+        /// first; what was left is that `location.reload()` is not reliable everywhere this
+        /// runs. The bundled television clients serve jellyfin-web from a local file://
+        /// origin, which is where it has been seen to do nothing at all.
         ///
-        /// So each step is a genuinely different mechanism rather than a retry of the same
-        /// one, and the last of them is honest about having failed. Showing a child the
-        /// parent's Continue Watching is not a cosmetic bug, so silence is not an option
-        /// here: if the page cannot be rebuilt, say so.
+        /// So each step is a different mechanism rather than a retry of the same one. The
+        /// last rung says so out loud: showing a child the parent's Continue Watching while
+        /// they believe it is theirs is worse than admitting the reload failed.
         _reloadWithFallback: function (target) {
             const step = (n) => {
                 try {

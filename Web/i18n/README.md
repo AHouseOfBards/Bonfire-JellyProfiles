@@ -40,7 +40,11 @@ node Web/i18n/validate.js de
 ```
 
 No dependencies, any recent Node. It reports missing keys, keys that do not exist,
-broken placeholders, and broken HTML. Run it before opening the pull request.
+broken placeholders and broken HTML. Run it before opening the pull request.
+
+It also checks two things that are ours rather than yours, so a red run may not be your
+file: an English string nobody uses (a translator would be working for nothing), and
+user-facing text in the stylesheet, which `t()` cannot reach at all.
 
 **4. Build and look at it.** Set your browser's preferred language and open the profile
 gate. If your language does not appear, see *It is not showing up* below.

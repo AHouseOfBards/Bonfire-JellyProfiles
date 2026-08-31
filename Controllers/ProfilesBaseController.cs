@@ -102,8 +102,8 @@ namespace Jellyfin.Profiles.Controllers
         /// </para>
         /// <para>
         /// A master's own self-mapping is excluded as well as a missing one. Both mean the
-        /// target is a real Jellyfin account that owns its policy; there is nothing above it
-        /// to inherit from, and treating it as its own master is exactly the bug.
+        /// target is a real Jellyfin account that owns its policy, with nothing above it to
+        /// inherit from.
         /// </para>
         /// </remarks>
         internal static bool ShouldInheritMasterPolicy(
@@ -182,9 +182,7 @@ namespace Jellyfin.Profiles.Controllers
         /// was a profile restricted to a device that then could not be reached from any
         /// device at all.
         /// </para>
-        /// <para>
-        /// The three fixes, each of which is a real client:
-        /// </para>
+        /// <para>Three fixes, each one a client that really sends what it describes:</para>
         /// <list type="number">
         /// <item><description><c>X-Emby-Authorization</c> is still sent instead of
         /// <c>Authorization</c> by a number of clients, and Jellyfin itself accepts either
@@ -1043,14 +1041,8 @@ namespace Jellyfin.Profiles.Controllers
         /// allowed the old device now allows the new one, and the old record is dropped.
         /// Returns false when there was nothing to merge. Caller must hold ConfigLock.
         /// <para>
-        /// This exists because one physical device does not have one id. Jellyfin's web client
-        /// keeps its device id in <c>localStorage</c> under <c>_deviceId2</c>, which is per
-        /// origin — so reaching the same server as <c>http://192.168.1.10:8096</c> and as
-        /// <c>https://jellyfin.example.com</c> produces two device ids for one computer, as
-        /// does a new browser profile, cleared site data, or a reinstalled app. Nothing in the
-        /// header tells us those are the same machine, and guessing would be worse than
-        /// asking: merging two devices that are genuinely different would widen a whitelist.
-        /// So the plugin groups the likely pairs and an administrator confirms.
+        /// Why one machine ends up with several records at all is explained on
+        /// <see cref="GroupLikelyDuplicates"/>, which is what finds them.
         /// </para>
         /// <para>
         /// The merge is deliberately additive on the whitelist. <paramref name="intoId"/> is
@@ -1110,12 +1102,17 @@ namespace Jellyfin.Profiles.Controllers
         /// Groups devices that are almost certainly one machine, so an administrator can
         /// merge them in one action instead of one pair at a time.
         /// <para>
-        /// The evidence is stronger than it looks. A jellyfin-web device id is
+        /// One machine has several records because jellyfin-web keeps its device id in
+        /// <c>localStorage</c> under <c>_deviceId2</c>, which is per origin: reaching the
+        /// same server by LAN address and by domain name mints two, as does a new browser
+        /// profile, cleared site data, or a reinstalled app.
+        /// </para>
+        /// <para>
+        /// The evidence for grouping them is stronger than it looks. That id is
         /// <c>btoa(navigator.userAgent + '|' + Date.now())</c>, so two ids sharing a long
-        /// prefix are two ids whose <em>user agents are byte-identical</em> — the same
-        /// browser at the same version on the same operating system. Add the same client
-        /// and the same reported name and the case is about as good as a client-supplied
-        /// identifier can make it.
+        /// prefix have <em>byte-identical user agents</em> — the same browser at the same
+        /// version on the same operating system. Add the same client and reported name and
+        /// the case is as good as a client-supplied identifier can make it.
         /// </para>
         /// <para>
         /// It is still only a suggestion, and nothing here merges on its own. Two people

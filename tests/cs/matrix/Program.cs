@@ -356,8 +356,8 @@ Console.WriteLine("Configuration import: absence is not emptiness");
         Check("an absent property is not invented",
             Has("{\"Mappings\":[]}", "KnownDevices"), false);
 
-        // The whole point: an export that round-trips through another tool arrives
-        // camelCased, and binding by exact case would call it an empty configuration.
+        // An export that round-trips through another tool arrives camelCased, and binding
+        // by exact case would call it an empty configuration.
         Check("camelCase is matched",
             Has("{\"mappings\":[]}", "Mappings"), true);
         Check("SCREAMING case is matched",

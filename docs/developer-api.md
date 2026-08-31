@@ -628,7 +628,7 @@ There is no endpoint listing them, deliberately — it would be a request every 
 reader also paid for. The list is written into `profiles.js` as it is served:
 
 ```js
-let SUPPORTED_LOCALES = ['fr']; // __BONFIRE_LOCALES__
+let SUPPORTED_LOCALES = ['fr', 'pl']; // __BONFIRE_LOCALES__
 ```
 
 The file on disk carries an empty list and that marker comment. If you consume
