@@ -10,8 +10,8 @@ listed together so it is obvious which ones are still only a promise.
 tests/run.sh          # or tests\run.ps1 on Windows
 ```
 
-Builds the plugin (Release, `-warnaserror`) and runs all 33 harnesses — 24 JavaScript
-and 9 C#, about 1,400 assertions. CI runs the same command, so the desk and the pipeline
+Builds the plugin (Release, `-warnaserror`) and runs all 34 harnesses — 25 JavaScript
+and 9 C#, about 1,450 assertions. CI runs the same command, so the desk and the pipeline
 cannot disagree about what "the tests pass" means.
 
 A `*.scan.js` file is a survey, not a gate: it prints what it finds and always exits 0,

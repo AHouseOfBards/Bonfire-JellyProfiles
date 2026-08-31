@@ -234,5 +234,7 @@
   "profileForm.mergeDeviceMessage": "Les deux n'en font plus qu'un. Tout profil autorisé sur l'un reste autorisé.",
   "errors.failedRenameDevice": "Échec du renommage de l'appareil.",
   "errors.failedMergeDevice": "Échec de la fusion des appareils.",
-  "profileForm.noTags": "Aucune étiquette — ce filtre est désactivé"
+  "profileForm.noTags": "Aucune étiquette — ce filtre est désactivé",
+  "switcher.reloadFailedTitle": "Presque",
+  "switcher.reloadFailedBody": "Fermez puis rouvrez l’application pour terminer le changement de profil."
 }

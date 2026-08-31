@@ -326,6 +326,8 @@
         'switcher.menuTitle': "Jellyfin's user menu",
         'switcher.menuBody': 'Adds "Switch Profile" above Sign out in Jellyfin\'s own menu, and to your profile page. Removes the second header icon.',
         'switcher.switchProfile': 'Switch Profile',
+        'switcher.reloadFailedTitle': 'Almost there',
+        'switcher.reloadFailedBody': 'Close and reopen the app to finish switching profiles.',
 
         'bonfire.yourBonfireTitle': 'Your Bonfire',
         'bonfire.hostedTitle': 'Your Hosted Bonfire',
@@ -1651,26 +1653,100 @@
             // build sitting at '/web/' with no fragment, where the path branch would
             // wrongly produce '/web/home'.
             if (this.isHomeRoute()) {
-                window.location.reload();
+                this._reloadWithFallback(null);
                 return;
             }
 
-            const target = this.homeUrl();
-            if (target === null) {
-                window.location.reload();
-                return;
-            }
+            this._reloadWithFallback(this.homeUrl());
+        },
 
-            // replace() rather than assignment so Back does not return to the previous
-            // profile's page.
-            window.location.replace(target);
+        /// How long to wait before deciding a navigation attempt did not take.
+        ///
+        /// Long enough that a slow television is not interrupted mid-teardown, short
+        /// enough that somebody who tapped a profile is not left staring at the wrong
+        /// account. A page that is genuinely unloading never reaches the timer.
+        RELOAD_ESCALATE_MS: 1200,
 
-            // A fragment-only change does not reload the document, and a full
-            // re-initialisation is the entire point of the call. Same pairing
-            // handleSessionExpired uses.
-            if (target.indexOf('#') !== -1) {
-                window.location.reload();
-            }
+        /// Reloads the page, and — this is the part that is new — checks that the reload
+        /// actually happened.
+        ///
+        /// By the time this is called a switch is already complete everywhere except the
+        /// screen: the profile's token is in localStorage and in ApiClient, and the only
+        /// thing left is for the document to be torn down and rebuilt under the new
+        /// identity. If that does not happen, jellyfin-web keeps rendering the page it
+        /// already built for the *previous* profile — its home sections, its Continue
+        /// Watching, its Next Up — while the header avatar shows the profile that was
+        /// picked, because Bonfire redraws that itself.
+        ///
+        /// Reported on Samsung Tizen as "it lets you pick a profile, but nothing changes
+        /// once you load in". Every other explanation was ruled out first: the credentials
+        /// are written correctly, the server issues a valid token, and Jellyfin does not
+        /// revoke the master's session when a second user authenticates on the same
+        /// device. What is left is the reload, and `location.reload()` is not equally
+        /// reliable everywhere this runs — the bundled television clients serve
+        /// jellyfin-web from a local file:// origin, which is exactly where it has been
+        /// seen to do nothing at all.
+        ///
+        /// So each step is a genuinely different mechanism rather than a retry of the same
+        /// one, and the last of them is honest about having failed. Showing a child the
+        /// parent's Continue Watching is not a cosmetic bug, so silence is not an option
+        /// here: if the page cannot be rebuilt, say so.
+        _reloadWithFallback: function (target) {
+            const step = (n) => {
+                try {
+                    if (n === 0) {
+                        if (target) {
+                            // replace() rather than assignment so Back does not return to
+                            // the previous profile's page.
+                            window.location.replace(target);
+                            // A fragment-only change does not reload the document, and a
+                            // full re-initialisation is the entire point of the call.
+                            if (target.indexOf('#') !== -1) window.location.reload();
+                        } else {
+                            window.location.reload();
+                        }
+                    } else if (n === 1) {
+                        // Assignment, not replace(): a different code path in the browser,
+                        // which is the only reason to try it at all.
+                        window.location.href = target || window.location.href;
+                    } else if (n === 2) {
+                        // Force a cache-busting navigation. Some webviews treat a reload
+                        // of an identical URL as a no-op but will honour a changed query.
+                        const url = target || window.location.href;
+                        const sep = url.indexOf('?') === -1 ? '?' : '&';
+                        const bust = url.indexOf('#') === -1
+                            ? url + sep + 'jpf=' + Date.now()
+                            : url.replace('#', sep + 'jpf=' + Date.now() + '#');
+                        window.location.href = bust;
+                    } else {
+                        this._reloadFailed();
+                        return;
+                    }
+                } catch (e) {
+                    // A blocked navigation must not stop the ladder.
+                }
+                this._reloadTimer = setTimeout(() => step(n + 1), this.RELOAD_ESCALATE_MS);
+            };
+            step(0);
+        },
+
+        /// Nothing rebuilt the page, so the profile that was chosen is signed in but the
+        /// screen still belongs to whoever was there before. Reveal the page and say so —
+        /// the alternative is leaving somebody looking at another person's library and
+        /// believing it is their own.
+        _reloadFailed: function () {
+            this._reloading = false;
+            try { localStorage.removeItem(this.config.switchingKey); } catch (e) { /* ignore */ }
+
+            // The switch hid the page behind an opaque overlay, or behind the head
+            // script's opacity:0. Either would leave this message invisible.
+            document.documentElement.style.removeProperty('opacity');
+            document.documentElement.style.removeProperty('background');
+            const overlay = document.getElementById('profiles-gate-overlay');
+            if (overlay) overlay.remove();
+
+            console.error('ProfilesPlugin: the page could not be reloaded after switching.');
+            this.showAlert(t('switcher.reloadFailedTitle'), t('switcher.reloadFailedBody'));
         },
 
         checkRoute: function () {
