@@ -10,9 +10,13 @@ listed together so it is obvious which ones are still only a promise.
 tests/run.sh          # or tests\run.ps1 on Windows
 ```
 
-Builds the plugin (Release, `-warnaserror`) and runs all 26 harnesses — 19 JavaScript
-and 7 C#, about 1,300 assertions. CI runs the same command, so the desk and the pipeline
+Builds the plugin (Release, `-warnaserror`) and runs all 29 harnesses — 21 JavaScript
+and 8 C#, about 1,250 assertions. CI runs the same command, so the desk and the pipeline
 cannot disagree about what "the tests pass" means.
+
+A `*.scan.js` file is a survey, not a gate: it prints what it finds and always exits 0,
+so the runner skips it alongside `*.verify.js`. Counting one would add a harness that can
+never go red.
 
 `node --check Web/profiles.js` is **necessary and not sufficient.** It passed against the
 defect that made 1.5.2 and 1.5.3-beta dead on arrival: a stray backtick inside the

@@ -9,6 +9,21 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.5.8  — 2026-08-31
+
+**Beta release** — please report issues on GitHub.
+
+**Fixed**
+
+- Switching to someone's main profile in a Bonfire wiped that person's library access, and their sub-profiles' access with it. If this has happened to you, re-tick their libraries in Jellyfin's user settings after updating. [#27]
+- Switching into an administrator's account quietly removed their admin rights and hid them from the login screen. [#27]
+- On a TV the profile cards had no size, the spacing between them was gone, and the focus outline never appeared — so nothing looked selectable. [#16]
+- Save could sit below the bottom of the profile form with no way to reach it on a remote.
+
+**Changed**
+
+- Bonfire now knows it is on a television, and makes the profile pictures, text and focus outline large enough to use from across a room.
+
 ## 1.5.7  — 2026-08-28
 
 **Beta release** — please report issues on GitHub.
