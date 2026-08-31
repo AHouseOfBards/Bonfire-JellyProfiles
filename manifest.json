@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- Restricting a profile to specific devices could lock it out of every device, including the ones you picked. [#16]\n- The profile switcher said you were signed in as your main profile even while a sub-profile was in use.\n- One computer could appear several times in the device list, and devices that sent no name all read as \"Unknown Device\".\n- Forgetting a profile's only allowed device silently made that profile available everywhere. It is refused now, and says which profiles are in the way.\n- \"Try again in 15 minutes\" after too many wrong PINs. It now tells you the wait it is actually enforcing, which is usually far less.\n\n**Added**\n\n- Rename a device, or tell Bonfire that two entries are the same machine. Reaching your server by local address and by domain name creates two devices, and nothing in the request can tell that from two different computers.\n- The audit log can be filtered by name and date, and downloaded.\n- A list of everyone signed in, with the household each profile belongs to, and a way to sign one device out.\n- Export and import the plugin's configuration, so there is a copy of your profiles and PINs somewhere other than one file.\n\n**Changed**\n\n- The interface reads correctly on light Jellyfin themes, where separators and muted text used to be invisible.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.5.10/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "42222e2dfed15f2e46e383f11706a7db",
         "timestamp": "2026-08-31T00:00:00Z"
       },
       {
