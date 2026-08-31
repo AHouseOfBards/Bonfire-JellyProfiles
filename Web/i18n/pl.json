@@ -171,7 +171,6 @@
   "switcher.menuTitle": "Menu użytkownika Jellyfin",
   "switcher.menuBody": "Dodaje opcję „Zmień profil” nad „Wyloguj się” w menu Jellyfin oraz na stronie profilu. Usuwa drugą ikonę z nagłówka.",
   "switcher.switchProfile": "Zmień profil",
-  "switcher.switchProfileSuffix": "{name} (Zmień)",
   "bonfire.yourBonfireTitle": "Twoje Bonfire",
   "bonfire.hostedTitle": "Twoje hostowane Bonfire",
   "bonfire.shareCode": "Udostępnij ten kod, aby zaprosić kogoś do dołączenia do Twojego Bonfire:",
@@ -224,5 +223,16 @@
   "bonfire.allowHouseholdBody": "Każdy z Twojego Bonfire może otworzyć Twoje konto w Twojej sieci domowej bez podawania kodu PIN.",
   "profilePage.title": "Profile Bonfire",
   "profilePage.body": "Obecnie oglądasz jako <strong>{name}</strong>. Zmień profil w swoim gospodarstwie domowym bez wylogowywania się.",
-  "profilePage.thisAccount": "to konto"
+  "profilePage.thisAccount": "to konto",
+  "profileForm.renameDevice": "Zmień nazwę tego urządzenia",
+  "profileForm.renameDeviceAria": "Zmień nazwę {name}",
+  "profileForm.renameDeviceTitle": "Zmiana nazwy urządzenia",
+  "profileForm.renameDeviceLabel": "Nazwa",
+  "profileForm.mergeDevice": "To jest to samo urządzenie co…",
+  "profileForm.mergeDeviceAria": "Oznacz {name} jako to samo urządzenie co inne",
+  "profileForm.mergeDeviceTitle": "To samo urządzenie?",
+  "profileForm.mergeDeviceMessage": "Oba staną się jednym urządzeniem. Każdy profil dozwolony na którymkolwiek pozostaje dozwolony.",
+  "errors.failedRenameDevice": "Nie udało się zmienić nazwy urządzenia.",
+  "errors.failedMergeDevice": "Nie udało się scalić urządzeń.",
+  "profileForm.noTags": "Brak tagów — ten filtr jest wyłączony"
 }

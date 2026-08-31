@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <AssemblyName>devicerestrictionsharness</AssemblyName>
+    <RootNamespace>devicerestrictionsharness</RootNamespace>
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Jellyfin.Common" Version="10.11.5" />
+    <PackageReference Include="Jellyfin.Model" Version="10.11.5" />
+  </ItemGroup>
+  <!-- Deliberately NO <Reference> to Jellyfin.Profiles. Everything here goes through
+       reflection on a path chosen at run time, and a project reference would put a copy
+       of the plugin in this harness's output directory: Assembly.LoadFrom then returns
+       that already-loaded copy instead of the file it was handed, because the identity
+       matches. The harness passed against a build carrying the bug for exactly that
+       reason, which is the failure mode BONFIRE_DLL exists to rule out. -->
+</Project>

@@ -166,6 +166,74 @@ for (const file of files) {
     console.log('');
 }
 
+// ── Strings nobody will ever see ────────────────────────────────────────────
+//
+// A key defined in EN_STRINGS but referenced nowhere else is dead: it renders in no
+// interface, and every translator who fills it in has done that work for nothing.
+// `switcher.switchProfileSuffix` was exactly this — added with the French translation,
+// its only caller removed by the route-poll work three releases later, and translated
+// into two languages in between.
+//
+// Counted as a bare quoted literal rather than as t('key'), because several keys are
+// legitimately reached through a table (the parental-rating options are a list of
+// [value, key] pairs) and a t()-only scan would call all of those dead too.
+{
+    const profilesJs = fs.readFileSync(PROFILES_JS, 'utf8');
+    const defined = [...profilesJs.matchAll(/^\s{8}'([a-zA-Z0-9_.]+)':/gm)].map(m => m[1]);
+    const dead = defined.filter(k => {
+        const literal = "'" + k + "'";
+        let count = 0, at = 0;
+        while ((at = profilesJs.indexOf(literal, at)) !== -1) { count++; at += literal.length; }
+        return count < 2;   // the definition itself is the first
+    });
+
+    if (dead.length) {
+        bad++;
+        console.log('✗ EN_STRINGS  (' + dead.length + ' key(s) defined but never used)');
+        dead.forEach(k => console.log('    ' + k));
+        console.log('    Remove them, or use them — a translator cannot tell the difference.');
+        console.log('');
+    } else {
+        console.log('✓ EN_STRINGS  (every key is referenced)');
+        console.log('');
+    }
+}
+
+// ── Copy that cannot reach t() at all ───────────────────────────────────────
+//
+// A `content:` string in the stylesheet is user-facing text with no route to a
+// translation file: t() cannot reach it, so a Polish household read one English
+// sentence in the middle of an otherwise translated form. There was exactly one —
+// the tag list's empty state — and it is now `content: attr(data-empty-label)`
+// with the label set from t().
+//
+// This is the check that stops a second one appearing. `content: ''` and
+// `content: ""` are decorative pseudo-elements and are fine; anything with a
+// character in it is copy.
+const stylesPath = path.join(__dirname, '..', 'styles.css');
+if (fs.existsSync(stylesPath)) {
+    const css = fs.readFileSync(stylesPath, 'utf8');
+    const literals = [];
+    const re = /content:\s*(['"])((?:(?!\1)[^\\]|\\.)*)\1/g;
+    let m;
+    while ((m = re.exec(css)) !== null) {
+        if (m[2].length) {
+            const line = css.slice(0, m.index).split('\n').length;
+            literals.push('styles.css:' + line + '  content: ' + m[1] + m[2] + m[1]);
+        }
+    }
+    if (literals.length) {
+        bad++;
+        console.log('✗ styles.css  (untranslatable copy in content:)');
+        literals.forEach(l => console.log('    ' + l));
+        console.log('    Use content: attr(data-…) and set the attribute from t().');
+        console.log('');
+    } else {
+        console.log('✓ styles.css  (no untranslatable copy)');
+        console.log('');
+    }
+}
+
 if (bad) {
     console.log(bad + ' file(s) need attention.');
     process.exit(1);

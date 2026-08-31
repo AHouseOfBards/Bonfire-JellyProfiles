@@ -42,6 +42,54 @@
     --jpf-accent-a50: rgba(0, 164, 220, 0.5);
     --jpf-accent-a60: rgba(0, 164, 220, 0.6);
 
+    /* == Neutral surfaces, borders and text ==================
+       Thirty distinct white alphas and ten black ones were in
+       this file, seven of them between 0.02 and 0.08 where no
+       eye can tell them apart. They are three surface levels,
+       three border weights and three text weights; everything
+       else was drift. Each level is a step you can actually
+       see, so a hover still reads as a hover.
+
+       Alpha rather than opaque colour on purpose: these sit on
+       whatever background the active Jellyfin theme paints, and
+       an opaque grey would fight it. */
+    --jpf-surface-1: rgba(255, 255, 255, 0.03);
+    --jpf-surface-2: rgba(255, 255, 255, 0.06);
+    --jpf-surface-3: rgba(255, 255, 255, 0.11);
+
+    --jpf-border-1: rgba(255, 255, 255, 0.08);
+    --jpf-border-2: rgba(255, 255, 255, 0.15);
+    --jpf-border-3: rgba(255, 255, 255, 0.26);
+
+    --jpf-text-1: rgba(255, 255, 255, 0.92);
+    --jpf-text-2: rgba(255, 255, 255, 0.68);
+    --jpf-text-3: rgba(255, 255, 255, 0.45);
+
+    /* Shadows and scrims are black, so they keep their own scale. */
+    --jpf-shadow-1: rgba(0, 0, 0, 0.2);
+    --jpf-shadow-2: rgba(0, 0, 0, 0.4);
+    --jpf-shadow-3: rgba(0, 0, 0, 0.55);
+    --jpf-scrim: rgba(0, 0, 0, 0.62);
+
+    /* == Danger and warning =================================
+       Five reds and three ambers were in use. Three of the reds
+       turned out to be states of one another and two were not
+       danger at all, so they are named rather than merged: the
+       bonfire flame gradient is a brand colour that happens to
+       be orange, and collapsing it into "warning" would have
+       made every Bonfire badge look like an error.
+
+       Open Color red-5/red-4 and pink-7, which is what the rest
+       of this file already uses. */
+    --jpf-danger: #ff6b6b;        /* errors, destructive actions   */
+    --jpf-danger-quiet: #ff8787;  /* outline button on transparent */
+    --jpf-danger-deep: #e64980;   /* hover for a filled danger btn */
+
+    --jpf-warn: #ff9900;          /* warnings, and the flame       */
+    --jpf-flame-deep: #ff5500;    /* far stop of the flame gradient only */
+
+
+
     /* ── Shape and spacing ───────────────────────────────────
        Every screen was styled on its own, which left eight corner
        radii, ten container widths and four gap values across the
@@ -63,6 +111,54 @@
     --jpf-w-form: 560px;   /* single-column forms       */
     --jpf-w-wide: 960px;   /* two-column forms, the gate */
 }
+
+/* ── The same set again, for a light background ──────────────────────────────
+   Every neutral above is white at a low alpha, which is correct on Jellyfin's
+   dark themes and invisible on its light ones: a separator at
+   rgba(255,255,255,.08) over white is white. The gate, the forms and the
+   dialogs all lost their edges, and muted text washed out to near-nothing.
+
+   Only the tokens are redefined; not one rule below repeats itself, which is
+   the whole reason for having them.
+
+   prefers-color-scheme is the OS setting, not Jellyfin's theme picker — the
+   two can disagree, and there is no supported way to read the second from a
+   plugin (jellyfin-web sets no class or attribute that names the active
+   theme). So this catches the common case, someone on a light desktop using a
+   light Jellyfin theme, and cannot catch a light theme chosen on a dark
+   desktop. Preferred over guessing from a computed background colour, which
+   is read before the theme's stylesheet has necessarily applied. */
+@media (prefers-color-scheme: light) {
+    :root, body {
+        --jpf-surface-1: rgba(0, 0, 0, 0.03);
+        --jpf-surface-2: rgba(0, 0, 0, 0.06);
+        --jpf-surface-3: rgba(0, 0, 0, 0.11);
+
+        --jpf-border-1: rgba(0, 0, 0, 0.10);
+        --jpf-border-2: rgba(0, 0, 0, 0.18);
+        --jpf-border-3: rgba(0, 0, 0, 0.30);
+
+        --jpf-text-1: rgba(0, 0, 0, 0.88);
+        --jpf-text-2: rgba(0, 0, 0, 0.66);
+        --jpf-text-3: rgba(0, 0, 0, 0.48);
+
+        /* Shadows go lighter, not darker: the same black at the same alpha
+           reads as a smudge on white. */
+        --jpf-shadow-1: rgba(0, 0, 0, 0.10);
+        --jpf-shadow-2: rgba(0, 0, 0, 0.16);
+        --jpf-shadow-3: rgba(0, 0, 0, 0.22);
+        /* The scrim stays dark. It exists to cover the page during a switch,
+           and a pale one would show the old page through it. */
+
+        /* Open Color red-7/red-6 and orange-8: the -5 reds are legible on a
+           dark ground and far too pale on a white one. */
+        --jpf-danger: #e03131;
+        --jpf-danger-quiet: #f03e3e;
+        --jpf-danger-deep: #c2255c;
+        --jpf-warn: #e8590c;
+    }
+}
+
 
 /* Where the browser can mix colours, tint the *theme's* accent rather
    than the hardcoded blue. color-mix is Chrome 111+, so Tizen 6
@@ -124,7 +220,7 @@
     color: rgba(255, 107, 107, 0.85);
 }
 .picture-remove-btn:hover, .picture-remove-btn:focus {
-    color: #ff8787;
+    color: var(--jpf-danger-quiet);
 }
 /* Collapsed by default on a profile that already has a picture. When it
    opens it needs to read as one panel belonging to the button above it —
@@ -151,8 +247,8 @@
        to wider than the card. This sheet has no global box-sizing. */
     box-sizing: border-box;
     padding: 0.9rem;
-    background: rgba(0, 0, 0, 0.18);
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: var(--jpf-shadow-1);
+    border: 1px solid var(--jpf-border-1);
     border-radius: var(--jpf-r-md);
 }
 .picture-sources.is-open {
@@ -167,7 +263,7 @@
 /* One rule, so a server with uploads locked off does not leave a divider
    above nothing. */
 .picture-source-block + .picture-source-block {
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid var(--jpf-border-1);
     padding-top: var(--jpf-gap);
 }
 .picture-source-title {
@@ -175,7 +271,7 @@
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--jpf-text-3);
 }
 /* The panel is the box now; a second one inside it was two frames deep. */
 .picture-sources .avatar-library-grid {
@@ -190,9 +286,9 @@
     max-height: 200px;
     overflow-y: auto;
     padding: 4px;
-    background: rgba(0,0,0,0.15);
+    background: var(--jpf-shadow-1);
     border-radius: var(--jpf-r-md);
-    border: 1px solid rgba(255,255,255,0.05);
+    border: 1px solid var(--jpf-border-1);
 }
 .avatar-library-item {
     aspect-ratio: 1 / 1;
@@ -200,7 +296,7 @@
     border: 2px solid transparent;
     border-radius: 50%;
     overflow: hidden;
-    background: rgba(255,255,255,0.04);
+    background: var(--jpf-surface-2);
     cursor: pointer;
     transition: border-color 0.15s ease, transform 0.15s ease;
 }
@@ -258,12 +354,12 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-home-section {
     width: 100%;
     margin-bottom: 2.5rem;
-    background: rgba(255, 255, 255, 0.015);
-    border: 1px solid rgba(255, 255, 255, 0.04);
+    background: var(--jpf-surface-1);
+    border: 1px solid var(--jpf-border-1);
     border-radius: var(--jpf-r-lg);
     padding: 1.75rem 2rem;
     box-sizing: border-box;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 10px 30px var(--jpf-shadow-1);
     text-align: left;
 }
 .profiles-home-header {
@@ -272,18 +368,18 @@ body.profiles-no-scroll [id*="spinner"] {
     gap: 0.75rem;
     margin-bottom: 1.75rem;
     padding-bottom: 0.75rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--jpf-border-1);
 }
 /* Your own Bonfire: a warm amber flame. */
 .profiles-home-icon {
     font-size: 1.8rem;
-    color: #ff9900;
+    color: var(--jpf-warn);
     text-shadow: 0 2px 10px rgba(255, 153, 0, 0.35);
 }
 /* A linked household's Bonfire: deeper ember, so the two read as different
    groups without needing a second glyph. */
 .profiles-home-icon.bonfire-icon-color {
-    color: #ff5500;
+    color: var(--jpf-flame-deep);
     text-shadow: 0 2px 10px rgba(255, 85, 0, 0.3);
 }
 .profiles-home-title {
@@ -364,7 +460,7 @@ body.profiles-no-scroll [id*="spinner"] {
     width: 46px;
     height: 46px;
     border-radius: 50%;
-    border: 3px solid rgba(255, 255, 255, 0.22);
+    border: 3px solid var(--jpf-border-3);
     border-top-color: #fff;
     animation: jpfSpin 0.8s linear infinite;
     z-index: 20;
@@ -392,7 +488,7 @@ body.profiles-no-scroll [id*="spinner"] {
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    border: 2px solid var(--jpf-border-3);
     border-top-color: #fff;
     animation: jpfSpin 0.8s linear infinite;
 }
@@ -428,7 +524,7 @@ body.profiles-no-scroll [id*="spinner"] {
     background-clip: padding-box;
     display: flex; align-items: center; justify-content: center;
     font-size: 3.5rem; font-weight: bold; text-transform: uppercase;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 30px var(--jpf-shadow-3);
     transition: transform 0.3s cubic-bezier(0.165, 0.84, 0.44, 1), box-shadow 0.3s ease, border-color 0.3s ease;
     border: 3px solid transparent;
 }
@@ -478,7 +574,7 @@ body.profiles-no-scroll [id*="spinner"] {
    one. A disc behind the icon restores the contrast and stays round, which
    is the whole point of not drawing the square. */
 .profile-avatar.is-transparent .profile-avatar-overlay-svg {
-    background: rgba(0, 0, 0, 0.62);
+    background: var(--jpf-scrim);
     border-radius: 50%;
     padding: 10px;
     box-sizing: content-box;
@@ -548,14 +644,14 @@ body.profiles-no-scroll [id*="spinner"] {
     outline: none;
 }
 .add-avatar {
-    border: 3px dashed rgba(255,255,255,0.25);
-    background: rgba(255,255,255,0.02) !important; color: rgba(255,255,255,0.4);
+    border: 3px dashed var(--jpf-border-3);
+    background: var(--jpf-surface-1) !important; color: var(--jpf-text-3);
 }
 .profile-card:hover .add-avatar,
 .profile-card:focus .add-avatar,
 .profile-card:focus-within .add-avatar {
     border-color: rgba(255,255,255,0.8); color: #fff;
-    background: rgba(255,255,255,0.05) !important;
+    background: var(--jpf-surface-2) !important;
 }
 .profile-name {
     margin-top: 1rem; font-size: 1.25rem; font-weight: 500;
@@ -571,7 +667,7 @@ body.profiles-no-scroll [id*="spinner"] {
     overflow-wrap: break-word;
 }
 .profiles-limit-notice {
-    font-size: 0.85rem; color: rgba(255,255,255,0.35);
+    font-size: 0.85rem; color: var(--jpf-text-3);
     font-style: italic; align-self: center; padding: 1rem 0;
     width: 140px; text-align: center;
 }
@@ -585,7 +681,7 @@ body.profiles-no-scroll [id*="spinner"] {
 /* Manage Mode Overlay Icon styling */
 .profile-avatar-overlay-wrap {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.65); border-radius: var(--jpf-r-lg);
+    background: var(--jpf-scrim); border-radius: var(--jpf-r-lg);
     display: flex; align-items: center; justify-content: center;
     opacity: 0; transition: opacity 0.25s ease;
     pointer-events: none;
@@ -603,23 +699,23 @@ body.profiles-no-scroll [id*="spinner"] {
     width: 32px; height: 32px; display: flex;
     align-items: center; justify-content: center;
     pointer-events: none;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.55);
-    border: 1.5px solid rgba(255,255,255,0.2);
+    box-shadow: 0 4px 10px var(--jpf-shadow-3);
+    border: 1.5px solid var(--jpf-border-3);
     z-index: 10;
 }
 .profile-bonfire-indicator {
     position: absolute; top: 8px; left: 8px;
-    background: linear-gradient(135deg, #ff9900 0%, #ff5500 100%);
+    background: linear-gradient(135deg, var(--jpf-warn) 0%, var(--jpf-flame-deep) 100%);
     border-radius: 50%;
     width: 32px; height: 32px; display: flex;
     align-items: center; justify-content: center;
     pointer-events: none;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.55);
-    border: 1.5px solid rgba(255,255,255,0.2);
+    box-shadow: 0 4px 10px var(--jpf-shadow-3);
+    border: 1.5px solid var(--jpf-border-3);
     z-index: 10;
 }
 #bonfire-join-input {
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+    background: var(--jpf-surface-2); border: 1px solid var(--jpf-border-2);
     border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
     transition: border-color 0.25s, box-shadow 0.25s;
     position: relative !important;
@@ -629,7 +725,7 @@ body.profiles-no-scroll [id*="spinner"] {
     box-shadow: 0 0 10px var(--jpf-accent-a40);
 }
 .bonfire-kick-btn:focus, .bonfire-kick-btn:hover {
-    background-color: #e64980 !important;
+    background-color: var(--jpf-danger-deep) !important;
     outline: none;
     box-shadow: 0 0 10px rgba(255, 107, 107, 0.4);
 }
@@ -658,12 +754,12 @@ body.profiles-no-scroll [id*="spinner"] {
    a success. Neither is an error, so neither gets an error colour —
    protected reads present, unprotected reads muted. */
 .profile-pin-badge.locked {
-    background: rgba(255, 255, 255, 0.10); color: rgba(255, 255, 255, 0.88);
-    border: 1px solid rgba(255, 255, 255, 0.20);
+    background: var(--jpf-surface-3); color: var(--jpf-text-1);
+    border: 1px solid var(--jpf-border-3);
 }
 .profile-pin-badge.unlocked {
-    background: transparent; color: rgba(255, 255, 255, 0.45);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: transparent; color: var(--jpf-text-3);
+    border: 1px solid var(--jpf-border-1);
 }
 
 /* Floating Profiles Selector Bubble — fallback corner pill */
@@ -676,7 +772,7 @@ body.profiles-no-scroll [id*="spinner"] {
     color: #fff; padding: 0; border-radius: 50%;
     cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    box-shadow: 0 4px 16px var(--jpf-shadow-2);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     border: none;
     width: 40px; height: 40px;
@@ -684,7 +780,7 @@ body.profiles-no-scroll [id*="spinner"] {
 #profiles-floating-bubble.profiles-floating-fallback:hover,
 #profiles-floating-bubble.profiles-floating-fallback:focus {
     transform: scale(1.08) translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+    box-shadow: 0 8px 20px var(--jpf-shadow-3);
     outline: none;
 }
 
@@ -726,7 +822,7 @@ body.profiles-no-scroll [id*="spinner"] {
     display: flex; flex-direction: column; align-items: center; gap: 2rem;
 }
 #profile-pin-input, #master-pin-input {
-    background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.15);
+    background: var(--jpf-surface-2); border: 2px solid var(--jpf-border-2);
     border-radius: var(--jpf-r-md); color: #fff; font-size: 2.5rem; text-align: center;
     padding: 12px; width: 180px; letter-spacing: 0.6rem;
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
@@ -740,14 +836,14 @@ body.profiles-no-scroll [id*="spinner"] {
     box-shadow: 0 0 15px var(--jpf-accent-a30);
 }
 .pin-error-text {
-    color: #ff6b6b;
+    color: var(--jpf-danger);
     font-size: 0.95rem;
     font-weight: 500;
     margin-top: -10px;
     text-align: center;
 }
 .pin-input-error {
-    border-color: #ff6b6b !important;
+    border-color: var(--jpf-danger) !important;
     box-shadow: 0 0 15px rgba(255, 107, 107, 0.4) !important;
 }
 
@@ -773,12 +869,12 @@ body.profiles-no-scroll [id*="spinner"] {
     outline: none;
 }
 .btn-secondary {
-    background-color: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7);
-    border: 1px solid rgba(255,255,255,0.15);
+    background-color: var(--jpf-surface-3); color: var(--jpf-text-2);
+    border: 1px solid var(--jpf-border-2);
 }
 .btn-secondary:hover,
 .btn-secondary:focus {
-    background-color: rgba(255,255,255,0.15); color: #fff;
+    background-color: var(--jpf-border-2); color: #fff;
     border-color: var(--jpf-accent);
     box-shadow: 0 0 10px var(--jpf-accent-a40);
     outline: none;
@@ -819,8 +915,8 @@ body.profiles-no-scroll [id*="spinner"] {
 .create-profile-container {
     width: 100%; max-width: var(--jpf-w-form); box-sizing: border-box;
     display: flex; flex-direction: column; gap: 1.5rem;
-    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
-    border-radius: var(--jpf-r-lg); padding: 2rem; box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+    background: var(--jpf-surface-1); border: 1px solid var(--jpf-border-1);
+    border-radius: var(--jpf-r-lg); padding: 2rem; box-shadow: 0 20px 50px var(--jpf-shadow-2);
     text-align: left; max-height: 75vh; overflow-y: auto;
 }
 .profile-dialog-actions {
@@ -850,7 +946,7 @@ body.profiles-no-scroll [id*="spinner"] {
     margin: 1rem -2rem -2rem;
     padding: 1rem 2rem;
     background: #1b1b28;
-    border-top: 1px solid rgba(255,255,255,0.08);
+    border-top: 1px solid var(--jpf-border-1);
 }
 .dialog-action-buttons {
     display: flex; gap: var(--jpf-gap);
@@ -864,14 +960,14 @@ body.profiles-no-scroll [id*="spinner"] {
    because it is also the Confirm button on the dialog these open, where
    loud red is correct — that is the moment you mean it. */
 .btn-danger-quiet {
-    background: transparent; color: #ff8787;
+    background: transparent; color: var(--jpf-danger-quiet);
     border: 1.5px solid rgba(230,0,0,0.40);
 }
 .btn-danger-quiet:hover,
 .btn-danger-quiet:focus {
     background: rgba(230,0,0,0.15);
     border-color: rgba(230,0,0,0.85);
-    color: #ffa8a8;
+    color: var(--jpf-danger);
     outline: none;
 }
 .btn-danger:hover,
@@ -932,18 +1028,18 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .form-group label,
 .bonfire-form-group label {
-    font-size: 0.9rem; font-weight: 600; color: rgba(255,255,255,0.6);
+    font-size: 0.9rem; font-weight: 600; color: var(--jpf-text-2);
 }
 .form-group input[type="text"],
 .bonfire-form-group input[type="text"],
 .form-group input[type="password"] {
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+    background: var(--jpf-surface-2); border: 1px solid var(--jpf-border-2);
     border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
 }
 .form-group select {
-    background: rgba(255, 255, 255, 0.06) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
+    background: var(--jpf-surface-2) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
     background-size: 20px;
-    border: 1px solid rgba(255,255,255,0.15);
+    border: 1px solid var(--jpf-border-2);
     border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
     cursor: pointer;
     appearance: none;
@@ -976,9 +1072,9 @@ body.profiles-no-scroll [id*="spinner"] {
     border-color: #fff; transform: scale(1.1);
 }
 .library-checklist {
-    background: rgba(255,255,255,0.04); border-radius: var(--jpf-r-md);
+    background: var(--jpf-surface-2); border-radius: var(--jpf-r-md);
     padding: 10px; display: flex; flex-direction: column; gap: 0.5rem;
-    max-height: 140px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1);
+    max-height: 140px; overflow-y: auto; border: 1px solid var(--jpf-border-1);
 }
 /* Per-library artwork rows in the edit form (issue #19). */
 /* Deliberately no max-height and no overflow. This list used to scroll
@@ -989,8 +1085,8 @@ body.profiles-no-scroll [id*="spinner"] {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: var(--jpf-surface-2);
+    border: 1px solid var(--jpf-border-1);
     border-radius: var(--jpf-r-md);
     padding: 8px;
 }
@@ -1007,7 +1103,7 @@ body.profiles-no-scroll [id*="spinner"] {
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--jpf-text-3);
 }
 .libart-list.show-artwork .libart-head {
     display: flex;
@@ -1045,7 +1141,7 @@ body.profiles-no-scroll [id*="spinner"] {
     gap: var(--jpf-gap);
     padding: 6px 8px;
     border-radius: var(--jpf-r-sm);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--jpf-surface-2);
 }
 /* No display here. It is hidden by the grouped rule above and shown by
    .libart-list.show-artwork .libart-row.libart-has-art — declaring
@@ -1057,13 +1153,13 @@ body.profiles-no-scroll [id*="spinner"] {
     flex-shrink: 0;
     order: 2;
     border-radius: var(--jpf-r-sm);
-    background-color: rgba(255, 255, 255, 0.08);
+    background-color: var(--jpf-surface-3);
     background-size: cover;
     background-position: center;
     align-items: center;
     justify-content: center;
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.35);
+    color: var(--jpf-text-3);
 }
 /* Wraps the tick, the thumbnail and the name — the part of the row that
    is one target. initTVCheckboxes binds to .library-check-label, which is
@@ -1096,7 +1192,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .library-check-label {
     display: flex !important; align-items: center !important; gap: 0.6rem; cursor: pointer;
-    font-size: 0.95rem; color: rgba(255,255,255,0.85);
+    font-size: 0.95rem; color: var(--jpf-text-1);
     border-radius: var(--jpf-r-sm); padding: 4px 8px; margin-left: -8px;
     transition: background 0.2s, color 0.2s;
     position: relative !important;
@@ -1112,7 +1208,7 @@ body.profiles-no-scroll [id*="spinner"] {
     flex-shrink: 0 !important;
 }
 .library-check-label:focus, .library-check-label:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--jpf-surface-2);
     color: #fff;
     outline: none;
 }
@@ -1121,8 +1217,8 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 /* ── Titled sections in the create/edit forms ───────────────────── */
 .profile-section {
-    background: rgba(255, 255, 255, 0.025);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--jpf-surface-1);
+    border: 1px solid var(--jpf-border-1);
     border-radius: var(--jpf-r-md);
     padding: 1rem 1.15rem 1.15rem;
     margin-bottom: 1.25rem;
@@ -1133,7 +1229,7 @@ body.profiles-no-scroll [id*="spinner"] {
     gap: 0.7rem;
     padding-bottom: 0.75rem;
     margin-bottom: 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--jpf-border-1);
 }
 .profile-section-icon {
     font-size: 1.35rem;
@@ -1156,7 +1252,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .profile-section-subtitle {
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--jpf-text-3);
     line-height: 1.35;
 }
 .profile-section-body {
@@ -1185,7 +1281,7 @@ body.profiles-no-scroll [id*="spinner"] {
     color: rgba(245, 159, 0, 0.85) !important;
 }
 .form-error {
-    color: #ff6b6b;
+    color: var(--jpf-danger);
     font-size: 0.88rem;
     font-weight: 600;
     text-align: center;
@@ -1208,7 +1304,7 @@ body.profiles-no-scroll [id*="spinner"] {
     display: flex; align-items: center; justify-content: center;
     font-size: 1.8rem; font-weight: bold; text-transform: uppercase;
     overflow: hidden;
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    border: 2px solid var(--jpf-border-3);
     flex-shrink: 0;
 }
 .image-upload-btn {
@@ -1222,16 +1318,8 @@ body.profiles-no-scroll [id*="spinner"] {
     align-self: flex-start;
 }
 
-.device-dropdown-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 8px 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
 .device-delete-btn {
-    background: transparent; border: none; color: #ff6b6b;
+    background: transparent; border: none; color: var(--jpf-danger);
     cursor: pointer; padding: 6px; border-radius: var(--jpf-r-sm);
     display: flex; align-items: center; justify-content: center;
     font-size: 1.1rem; flex-shrink: 0;
@@ -1243,14 +1331,16 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 
 /* The dropdown is absolutely positioned so it overlays following fields
-   instead of pushing the form around when it opens. */
+   instead of pushing the form around when it opens.
+   Its colours and max-height are set in the single .devices-dropdown-list block
+   further down; this one carries only the positioning. Both used to set
+   max-height and overflow-y at the same specificity, so the 240px here never
+   applied. */
 .devices-dropdown-list {
     position: absolute;
     top: 100%; left: 0; right: 0;
     z-index: 10000;
     margin-top: 4px;
-    max-height: 240px;
-    overflow-y: auto;
 }
 
 /* Phones: reclaim horizontal space and stop the section chrome from
@@ -1303,15 +1393,20 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .tag-chip-list {
     display: flex; flex-wrap: wrap; gap: 6px;
-    background: rgba(255,255,255,0.04); border-radius: var(--jpf-r-md);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: var(--jpf-surface-2); border-radius: var(--jpf-r-md);
+    border: 1px solid var(--jpf-border-1);
     padding: 8px; min-height: 40px;
     max-height: 120px; overflow-y: auto;
     align-content: flex-start;
 }
+/* The label is an attribute, not a string in here. It was the one piece of
+   user-facing copy in the product that could not be translated: CSS content
+   is not reachable from t(), so a Polish household read one English sentence
+   in the middle of a translated form. validate.js now fails on any content:
+   string literal in this file, so a second one cannot appear. */
 .tag-chip-list[data-empty="true"]::before {
-    content: "No tags — this filter is off";
-    font-size: 0.8rem; color: rgba(255,255,255,0.35);
+    content: attr(data-empty-label);
+    font-size: 0.8rem; color: var(--jpf-text-3);
     align-self: center;
 }
 .tag-chip {
@@ -1323,14 +1418,14 @@ body.profiles-no-scroll [id*="spinner"] {
     max-width: 100%; word-break: break-word;
 }
 .tag-chip-remove {
-    background: transparent; border: none; color: rgba(255,255,255,0.7);
+    background: transparent; border: none; color: var(--jpf-text-2);
     cursor: pointer; font-size: 1rem; line-height: 1;
     padding: 0; width: 18px; height: 18px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     transition: background 0.2s, color 0.2s;
 }
 .tag-chip-remove:hover, .tag-chip-remove:focus {
-    background: rgba(255,255,255,0.18); color: #fff; outline: none;
+    background: var(--jpf-border-3); color: #fff; outline: none;
 }
 .tag-input-row {
     display: flex; gap: 8px;
@@ -1343,7 +1438,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .form-hint {
     font-size: 0.78rem;
-    color: rgba(255,255,255,0.4);
+    color: var(--jpf-text-3);
     margin-top: -0.2rem;
     text-align: left;
     position: relative !important;
@@ -1385,9 +1480,9 @@ body.profiles-no-scroll [id*="spinner"] {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: rgba(255, 255, 255, 0.06) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
+    background: var(--jpf-surface-2) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
     background-size: 20px;
-    border: 1px solid rgba(255,255,255,0.15);
+    border: 1px solid var(--jpf-border-2);
     border-radius: var(--jpf-r-md);
     padding: 10px;
     padding-right: 36px;
@@ -1405,26 +1500,32 @@ body.profiles-no-scroll [id*="spinner"] {
 /* background-color, not background: the shorthand would reset the chevron
    that now lives in this element's background-image. */
 .devices-dropdown-trigger:hover {
-    background-color: rgba(255,255,255,0.05);
+    background-color: var(--jpf-surface-2);
 }
 .devices-dropdown-list {
     background: #202020;
-    border: 1px solid rgba(255,255,255,0.15);
+    border: 1px solid var(--jpf-border-2);
     border-radius: var(--jpf-r-sm);
     max-height: 250px;
     overflow-y: auto;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 15px var(--jpf-shadow-3);
 }
 .device-dropdown-item {
     display: flex;
     align-items: center;
+    /* gap, not margins on the children: this row holds a label and up to three
+       action buttons (rename, merge, forget), and the count changes with the
+       mode. Declared here rather than in a second block for the same selector,
+       which is where it used to live -- see the note on the positioning rule
+       above. A margin fallback for Chromium 68 is in the flex-gap section. */
+    gap: 8px;
     justify-content: space-between;
     padding: 8px 12px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid var(--jpf-border-1);
     transition: background 0.2s;
 }
 .device-dropdown-item:hover, .device-dropdown-item:focus-within {
-    background: rgba(255,255,255,0.03);
+    background: var(--jpf-surface-1);
 }
 .device-delete-btn:focus {
     outline: none;

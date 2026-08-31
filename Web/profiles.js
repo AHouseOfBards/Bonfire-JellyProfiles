@@ -188,6 +188,8 @@
         'errors.validationError': 'Validation Error',
         'errors.unauthorized': 'Unauthorized',
         'errors.failedDeleteDevice': 'Failed to delete device.',
+        'errors.failedRenameDevice': 'Failed to rename device.',
+        'errors.failedMergeDevice': 'Failed to merge devices.',
         'errors.withMessage': 'Error: {message}',
         'errors.savingProfile': 'Error saving profile: {message}',
         'errors.loadProfileDetails': 'Failed to load profile details: {message}',
@@ -254,11 +256,20 @@
         'profileForm.noDevicesConnected': 'No connected devices found',
         'profileForm.devicesHint': 'If no devices are selected, this profile can be accessed from any device.',
         'profileForm.unknownDevice': 'Unknown Device',
+        'profileForm.noTags': 'No tags — this filter is off',
         'profileForm.unknownClient': 'Unknown Client',
         'profileForm.unknown': 'Unknown',
         'profileForm.deviceLastSeen': '{client} • Last seen {date}',
         'profileForm.forgetDevice': 'Forget this device',
         'profileForm.forgetDeviceAria': 'Forget {name}',
+        'profileForm.renameDevice': 'Rename this device',
+        'profileForm.renameDeviceAria': 'Rename {name}',
+        'profileForm.renameDeviceTitle': 'Rename device',
+        'profileForm.renameDeviceLabel': 'Name',
+        'profileForm.mergeDevice': 'This is the same device as…',
+        'profileForm.mergeDeviceAria': 'Mark {name} as the same device as another',
+        'profileForm.mergeDeviceTitle': 'Same device?',
+        'profileForm.mergeDeviceMessage': 'These two become one device. Any profile allowed on either one stays allowed.',
         'profileForm.maximumRating': 'Maximum rating',
         'profileForm.noRestrictions': 'No Restrictions',
         'profileForm.ratingG': 'G / TV-G (6+)',
@@ -315,7 +326,6 @@
         'switcher.menuTitle': "Jellyfin's user menu",
         'switcher.menuBody': 'Adds "Switch Profile" above Sign out in Jellyfin\'s own menu, and to your profile page. Removes the second header icon.',
         'switcher.switchProfile': 'Switch Profile',
-        'switcher.switchProfileSuffix': '{name} (Switch)',
 
         'bonfire.yourBonfireTitle': 'Your Bonfire',
         'bonfire.hostedTitle': 'Your Hosted Bonfire',
@@ -496,6 +506,156 @@
             return {
                 'Authorization': `MediaBrowser Client="${client}", Device="${device}", DeviceId="${deviceId}", Version="${version}", Token="${token}"`
             };
+        },
+
+        /// A one-field dialog. Used where a value has to be typed rather than chosen, which
+        /// so far is renaming a device.
+        ///
+        /// Not window.prompt(): it is blocked in several of the environments this runs in
+        /// (and silently returns null in a WebView), it cannot be reached with a D-pad on a
+        /// television, and it renders outside the focus trap the rest of the overlay lives
+        /// inside. The input is focused and selected on open so a rename is type-and-enter.
+        showPromptDialog: function (title, label, initialValue, onSubmit) {
+            const dialog = document.createElement('div');
+            dialog.id = 'profiles-prompt-dialog';
+            dialog.classList.add('jpf-trap-surface');
+            dialog.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.82);
+                backdrop-filter: blur(8px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: ${DIALOG_Z};
+                opacity: 0;
+                transition: opacity 0.15s ease-out;
+            `;
+
+            dialog.innerHTML = `
+                <div class="prompt-dialog-content" style="
+                    background: #181818;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: var(--jpf-r-md);
+                    padding: 24px;
+                    max-width: 420px;
+                    width: 90%;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                ">
+                    <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <label for="profiles-prompt-input" style="display: block; color: rgba(255,255,255,0.7); font-size: 0.85rem; margin-bottom: 6px;">${escapeHtml(label)}</label>
+                    <input id="profiles-prompt-input" type="text" maxlength="64" value="${escapeHtml(initialValue || '')}" style="width: 100%; box-sizing: border-box; margin-bottom: 20px;" />
+                    <div style="display: flex; gap: var(--jpf-gap); justify-content: flex-end;">
+                        <button id="prompt-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
+                        <button id="prompt-save-btn" type="button" class="profiles-btn btn-primary">${t('common.save')}</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(dialog);
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                dialog.style.opacity = '1';
+            }));
+
+            const close = () => {
+                dialog.style.opacity = '0';
+                setTimeout(() => dialog.remove(), 160);
+            };
+
+            const input = dialog.querySelector('#profiles-prompt-input');
+            const submit = () => {
+                const value = (input.value || '').trim();
+                if (!value) return;
+                close();
+                if (typeof onSubmit === 'function') onSubmit(value);
+            };
+
+            dialog.querySelector('#prompt-cancel-btn').addEventListener('click', close);
+            dialog.querySelector('#prompt-save-btn').addEventListener('click', submit);
+
+            dialog.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') { e.preventDefault(); close(); }
+                else if (e.key === 'Enter') { e.preventDefault(); submit(); }
+            });
+
+            input.focus();
+            input.select();
+        },
+
+        /// A dialog that asks which one. `options` is [{ id, name }]; the chosen id is
+        /// handed back. Built on a real <select> so a television's D-pad and a phone's
+        /// native picker both work without any focus handling of our own.
+        showSelectDialog: function (title, message, options, onSubmit) {
+            const dialog = document.createElement('div');
+            dialog.id = 'profiles-select-dialog';
+            dialog.classList.add('jpf-trap-surface');
+            dialog.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.82);
+                backdrop-filter: blur(8px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: ${DIALOG_Z};
+                opacity: 0;
+                transition: opacity 0.15s ease-out;
+            `;
+
+            const choices = options.map(o =>
+                `<option value="${escapeHtml(o.id)}">${escapeHtml(o.name)}</option>`).join('');
+
+            dialog.innerHTML = `
+                <div class="select-dialog-content" style="
+                    background: #181818;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: var(--jpf-r-md);
+                    padding: 24px;
+                    max-width: 420px;
+                    width: 90%;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                ">
+                    <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 16px;">${escapeHtml(message)}</p>
+                    <select id="profiles-select-input" style="width: 100%; box-sizing: border-box; margin-bottom: 20px;">
+                        ${choices}
+                    </select>
+                    <div style="display: flex; gap: var(--jpf-gap); justify-content: flex-end;">
+                        <button id="select-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
+                        <button id="select-confirm-btn" type="button" class="profiles-btn btn-primary">${t('common.ok')}</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(dialog);
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                dialog.style.opacity = '1';
+            }));
+
+            const close = () => {
+                dialog.style.opacity = '0';
+                setTimeout(() => dialog.remove(), 160);
+            };
+
+            const select = dialog.querySelector('#profiles-select-input');
+            dialog.querySelector('#select-cancel-btn').addEventListener('click', close);
+            dialog.querySelector('#select-confirm-btn').addEventListener('click', () => {
+                const value = select.value;
+                close();
+                if (value && typeof onSubmit === 'function') onSubmit(value);
+            });
+
+            dialog.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') { e.preventDefault(); close(); }
+            });
+
+            select.focus();
         },
 
         showConfirmDialog: function (title, message, onConfirm, onCancel) {
@@ -714,7 +874,7 @@
                 profileUserId: pick(p, 'profileUserId', null),
                 profileName: pick(p, 'profileName', ''),
                 avatarInitial: pick(p, 'avatarInitial', '?'),
-                avatarColor: pick(p, 'avatarColor', '#00A4DC'),
+                avatarColor: pick(p, 'avatarColor', DEFAULT_AVATAR_COLOR),
                 // Cut-out picture: paint no colour behind it (issue #23).
                 transparentAvatar: pick(p, 'transparentAvatar', false),
                 requiresPin: pick(p, 'requiresPin', false),
@@ -934,7 +1094,7 @@
             const chips = (tags || []).map(tag => this.renderTagChip(tag)).join('');
             return `
                 <div class="tag-editor" id="${id}">
-                    <div class="tag-chip-list" ${(tags || []).length ? '' : 'data-empty="true"'}>${chips}</div>
+                    <div class="tag-chip-list" data-empty-label="${escapeHtml(t('profileForm.noTags'))}" ${(tags || []).length ? '' : 'data-empty="true"'}>${chips}</div>
                     <div class="tag-input-row">
                         <input type="text" class="tag-input" placeholder="${escapeHtml(placeholder)}" list="${suggestionsId}" autocomplete="off" />
                         <button type="button" class="profiles-btn btn-secondary tag-add-btn">${t('common.add')}</button>
@@ -979,19 +1139,33 @@
                     const isChecked = isEdit && profile && profile.allowedDeviceIds
                         && (profile.allowedDeviceIds.includes(deviceId)
                             || (dev.DeviceId && profile.allowedDeviceIds.includes(dev.DeviceId)));
-                    const forget = isEdit
-                        ? `<button type="button" class="device-delete-btn" data-id="${escapeHtml(deviceId)}" title="${t('profileForm.forgetDevice')}" aria-label="${t('profileForm.forgetDeviceAria', { name: escapeHtml(deviceName) })}">🗑️</button>`
+                    // Housekeeping actions belong to the edit form only: the create form is
+                    // listing devices to tick, and a half-made profile is the wrong place to
+                    // be reorganising the household's hardware.
+                    //
+                    // Rename and merge are here because one machine does not have one device
+                    // id. jellyfin-web keeps its id in localStorage, which is per origin, so
+                    // reaching the server by LAN address and by domain name produces two
+                    // devices for one computer — as does a new browser profile or a reinstall.
+                    // Nothing in the request can tell those apart from two real machines, so
+                    // the plugin will not guess: merging two that are genuinely different
+                    // would widen a whitelist. Renaming is what makes them tellable apart in
+                    // the first place, and the name sticks — see KnownDevice.NameIsCustom.
+                    const actions = isEdit
+                        ? `<button type="button" class="device-rename-btn" data-id="${escapeHtml(deviceId)}" data-name="${escapeHtml(deviceName)}" title="${t('profileForm.renameDevice')}" aria-label="${t('profileForm.renameDeviceAria', { name: escapeHtml(deviceName) })}">✏️</button>
+                           <button type="button" class="device-merge-btn" data-id="${escapeHtml(deviceId)}" data-name="${escapeHtml(deviceName)}" title="${t('profileForm.mergeDevice')}" aria-label="${t('profileForm.mergeDeviceAria', { name: escapeHtml(deviceName) })}">⇄</button>
+                           <button type="button" class="device-delete-btn" data-id="${escapeHtml(deviceId)}" title="${t('profileForm.forgetDevice')}" aria-label="${t('profileForm.forgetDeviceAria', { name: escapeHtml(deviceName) })}">🗑️</button>`
                         : '';
                     return `
-                        <div class="device-dropdown-item">
+                        <div class="device-dropdown-item" data-device-id="${escapeHtml(deviceId)}">
                             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
                                 <input type="checkbox" class="${boxClass}" value="${escapeHtml(deviceId)}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
                                 <span style="display: flex; flex-direction: column; min-width: 0;">
-                                    <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
+                                    <span class="device-row-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
                                     <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: lastSeenStr })}</span>
                                 </span>
                             </label>
-                            ${forget}
+                            ${actions}
                         </div>
                     `;
                 }).join('')
@@ -1090,6 +1264,9 @@
                     if (chipList.querySelector('.tag-chip')) {
                         chipList.removeAttribute('data-empty');
                     } else {
+                        // Set here too: a list that starts non-empty carries no label, and
+                        // removing its last chip would otherwise show an empty grey box.
+                        chipList.setAttribute('data-empty-label', t('profileForm.noTags'));
                         chipList.setAttribute('data-empty', 'true');
                     }
                 };
@@ -2070,7 +2247,7 @@
                     </p>
                     <input type="password" id="profiles-panic-input" autocomplete="off" placeholder="${t('panic.emergencyCodePlaceholder')}"
                            style="width:100%; box-sizing:border-box; padding:10px; font-size:1rem; margin-bottom:8px;" />
-                    <div id="profiles-panic-error" style="display:none; color:#ff6b6b; font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
+                    <div id="profiles-panic-error" style="display:none; color:var(--jpf-danger); font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
                     <div style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:12px;">
                         <button id="profiles-panic-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
                         <button id="profiles-panic-submit" class="profiles-btn btn-danger" style="padding:10px 20px; font-weight:600;">${t('panic.disable')}</button>
@@ -2284,7 +2461,7 @@
                             if (profile) {
                                 const info = {
                                     name: profile.profileName,
-                                    color: profile.avatarColor || '#00A4DC',
+                                    color: profile.avatarColor || DEFAULT_AVATAR_COLOR,
                                     initial: profile.avatarInitial || (profile.profileName ? profile.profileName.charAt(0).toUpperCase() : 'P'),
                                     profileImage: profile.profileImage || null,
                                     transparent: !!profile.transparentAvatar
@@ -2313,7 +2490,7 @@
             }
             return {
                 name: fallbackName,
-                color: '#00A4DC',
+                color: DEFAULT_AVATAR_COLOR,
                 initial: fallbackInitial,
                 profileImage: null
             };
@@ -2801,7 +2978,7 @@
                     ' padding:22px; max-width:420px; width:94%; max-height:86vh; overflow:auto;">' +
                     '<h2 style="margin:0 0 14px 0; color:#fff; font-size:1.15rem; font-weight:700;">' + t('avatar.libraryArtworkTitle') + '</h2>' +
                     '<div id="profiles-libart-host"></div>' +
-                    '<div id="profiles-libart-error" style="display:none; color:#ff6b6b; font-size:0.85rem;' +
+                    '<div id="profiles-libart-error" style="display:none; color:var(--jpf-danger); font-size:0.85rem;' +
                     ' font-weight:600; margin-top:8px;"></div>' +
                     '<div style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:16px;">' +
                     '<button id="profiles-libart-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">' + t('common.cancel') + '</button>' +
@@ -2810,7 +2987,7 @@
                 document.body.appendChild(dialog);
 
                 const host = dialog.querySelector("#profiles-libart-host");
-                host.innerHTML = this.renderAvatarPicker("libart", library, null, "#00A4DC");
+                host.innerHTML = this.renderAvatarPicker("libart", library, null, DEFAULT_AVATAR_COLOR);
                 const picker = this.initAvatarPicker(host, "libart", library, null, () => {});
 
                 const close = () => dialog.remove();
@@ -3394,9 +3571,23 @@
             // The signed-in Jellyfin user IS the active profile — switching signs in as
             // that profile's own account. The gate never said which one that was, and the
             // avatar-colour rings made it look as though it did.
-            const signedInId = (typeof ApiClient.getCurrentUserId === 'function')
-                ? this.normalizeGuid(ApiClient.getCurrentUserId())
-                : '';
+            //
+            // But ApiClient is not the authority when the picker was opened from the header
+            // bubble. handleBubbleClick puts the *master's* credentials back before listing,
+            // because a sub-profile's token cannot see its siblings — so by the time this
+            // renders, getCurrentUserId() is the master on every platform, and the badge
+            // sat on the master's card however long you had been using a profile. Reported
+            // as "the switcher says I am signed in as my main profile"; it is this, not a
+            // switch that failed. _resumeState is the profile that was active a moment ago
+            // and is what the badge means, so it wins when it is set.
+            const resumed = this._resumeState && !this._resumeState.closeOnly
+                ? this._resumeState.userId
+                : null;
+            const signedInId = resumed
+                ? this.normalizeGuid(resumed)
+                : ((typeof ApiClient.getCurrentUserId === 'function')
+                    ? this.normalizeGuid(ApiClient.getCurrentUserId())
+                    : '');
 
             const renderCard = (p) => `
                 <div class="profile-card ${this.isManageMode ? 'manage-mode' : ''}${
@@ -3407,7 +3598,7 @@
                     <div class="profile-avatar-container">
                         ${p.isMaster ? `
                         <div class="profile-crown">
-                            <svg viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px; color: #ffb800; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.55));">
+                            <svg viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px; color: var(--jpf-warn); filter: drop-shadow(0 2px 5px rgba(0,0,0,0.55));">
                                 <path d="M5 16h14a1 1 0 0 0 1-.76l2.89-10.12a.5.5 0 0 0-.74-.53l-5.6 3.73-4.11-6.17a.5.5 0 0 0-.88 0L7.45 8.32 1.85 4.59a.5.5 0 0 0-.74.53L4 15.24a1 1 0 0 0 1 .76z"/>
                                 <rect x="4" y="18" width="16" height="2" rx="1"/>
                             </svg>
@@ -3679,7 +3870,7 @@
                 <h1 class="profiles-title">${t('pin.enterProfilePin')}</h1>
                 <div class="pin-entry-container">
                     <input type="text" id="profile-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
-                    <div id="pin-error-msg" style="display:none; color:#ff6b6b; font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
+                    <div id="pin-error-msg" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions">
                         <button id="pin-submit-btn" class="profiles-btn btn-primary">${t('common.unlock')}</button>
                         <button id="pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.back')}</button>
@@ -3698,7 +3889,7 @@
 
             const showPinError = (msg) => {
                 switchInProgress = false;
-                pinInput.style.borderColor = '#ff6b6b';
+                pinInput.style.borderColor = 'var(--jpf-danger)';
                 pinInput.style.boxShadow = '0 0 15px rgba(255,107,107,0.5)';
                 errorMsg.textContent = msg || t('pin.incorrectPin');
                 errorMsg.style.display = 'block';
@@ -3794,7 +3985,7 @@
                 <h1 class="profiles-title">${t('pin.enterMasterPin')}</h1>
                 <div class="pin-entry-container">
                     <input type="text" id="master-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
-                    <div id="master-pin-error-msg" style="display:none; color:#ff6b6b; font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
+                    <div id="master-pin-error-msg" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions">
                         <button id="master-pin-submit-btn" class="profiles-btn btn-primary">${t('common.submit')}</button>
                         <button id="master-pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
@@ -3811,7 +4002,7 @@
 
             const showPinError = (msg) => {
                 verified = false;
-                pinInput.style.borderColor = '#ff6b6b';
+                pinInput.style.borderColor = 'var(--jpf-danger)';
                 pinInput.style.boxShadow = '0 0 15px rgba(255,107,107,0.5)';
                 errorMsg.textContent = msg || t('pin.incorrectPin');
                 errorMsg.style.display = 'block';
@@ -4596,7 +4787,7 @@
                             ${libraryHtml}
                             ${uploadHtml}
                         </div>
-                        <div id="${prefix}-image-error" style="display:none; color:#ff6b6b; font-size:0.82rem; font-weight:600; line-height:1.45;"></div>
+                        <div id="${prefix}-image-error" style="display:none; color:var(--jpf-danger); font-size:0.82rem; font-weight:600; line-height:1.45;"></div>
                     </div>
                 </div>
             `;
@@ -4834,10 +5025,10 @@
                     ${this.renderTransparentToggle('create', null, false)}
                     <div class="form-group avatar-color-group" id="create-color-group">
                         <label>${t('profileForm.avatarColor')}</label>
-                        ${this.renderColorPicker('#00A4DC')}
+                        ${this.renderColorPicker(DEFAULT_AVATAR_COLOR)}
                         <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
                     </div>
-                    ${this.renderAvatarPicker('create', avatarLibrary, null, '#00A4DC', { enabled: false })}
+                    ${this.renderAvatarPicker('create', avatarLibrary, null, DEFAULT_AVATAR_COLOR, { enabled: false })}
                 `;
 
                 // ── Section 2: getting into this profile ────────────────────────
@@ -4920,7 +5111,7 @@
 
                 // Color selector interaction
                 const dots = content.querySelectorAll('.color-dot');
-                let selectedColor = '#00A4DC';
+                let selectedColor = DEFAULT_AVATAR_COLOR;
                 dots.forEach(dot => {
                     dot.addEventListener('click', () => {
                         dots.forEach(d => d.classList.remove('active'));
@@ -5286,7 +5477,7 @@
 
                 // Setup active color dot selection
                 const dots = content.querySelectorAll('.color-dot');
-                let selectedColor = profile.avatarColor || '#00A4DC';
+                let selectedColor = profile.avatarColor || DEFAULT_AVATAR_COLOR;
                 dots.forEach(dot => {
                     const color = dot.getAttribute('data-color');
                     if (color.toLowerCase() === selectedColor.toLowerCase()) {
@@ -5434,12 +5625,91 @@
                                         editList.innerHTML = '<div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">' + t('profileForm.noDevicesConnected') + '</div>';
                                     }
                                     updateSelectedText();
-                                } else {
-                                    this.showAlert(t('errors.error'), t('errors.failedDeleteDevice'));
+                                    return null;
                                 }
+                                // The server refuses this when the device is the only one a
+                                // profile is allowed on, and says which profiles those are —
+                                // forgetting it would empty their whitelist, and an empty
+                                // whitelist means "any device". Showing the generic failure
+                                // instead threw that away and left the administrator with a
+                                // button that just did not work.
+                                return res.text().then(body => {
+                                    this.showAlert(
+                                        t('errors.error'),
+                                        (body && body.trim()) || t('errors.failedDeleteDevice'));
+                                });
                             })
                             .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
                         });
+                    });
+                });
+
+                // ── Renaming and merging ────────────────────────────────────────────
+                //
+                // Both post and then re-open the form, rather than patching the row in
+                // place: a merge changes which devices exist and which of them this profile
+                // is allowed on, and the checkbox states are rebuilt from that. Patching
+                // would leave the ticks describing a list that no longer exists.
+                const deviceAction = (path, body, failKey) => {
+                    fetch(apiClient.getUrl('plugins/profiles/devices/' + path), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...this.getAuthHeaders(masterState.masterToken)
+                        },
+                        body: JSON.stringify(body)
+                    })
+                    .then(res => {
+                        if (res.ok) {
+                            this.clearSharedFormData();
+                            this.showEditProfileModal(profile);
+                            return null;
+                        }
+                        return res.text().then(text => {
+                            this.showAlert(t('errors.error'), (text && text.trim()) || t(failKey));
+                        });
+                    })
+                    .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
+                };
+
+                content.querySelectorAll('.device-rename-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.showPromptDialog(
+                            t('profileForm.renameDeviceTitle'),
+                            t('profileForm.renameDeviceLabel'),
+                            btn.getAttribute('data-name'),
+                            (name) => deviceAction(
+                                'rename',
+                                { deviceId: btn.getAttribute('data-id'), deviceName: name },
+                                'errors.failedRenameDevice'));
+                    });
+                });
+
+                content.querySelectorAll('.device-merge-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        const fromId = btn.getAttribute('data-id');
+                        const others = Array.from(content.querySelectorAll('.device-dropdown-item'))
+                            .map(row => ({
+                                id: row.getAttribute('data-device-id'),
+                                name: (row.querySelector('.device-row-name') || {}).textContent || ''
+                            }))
+                            .filter(d => d.id && d.id !== fromId);
+
+                        if (others.length === 0) return;
+
+                        this.showSelectDialog(
+                            t('profileForm.mergeDeviceTitle'),
+                            t('profileForm.mergeDeviceMessage'),
+                            others,
+                            (intoId) => deviceAction(
+                                'merge',
+                                { fromDeviceId: fromId, intoDeviceId: intoId },
+                                'errors.failedMergeDevice'));
                     });
                 });
 
@@ -5501,7 +5771,7 @@
                         }
                         const input = document.getElementById('edit-pin-input');
                         if (input) {
-                            input.style.borderColor = '#ff6b6b';
+                            input.style.borderColor = 'var(--jpf-danger)';
                             input.focus();
                         }
                     };
@@ -5757,7 +6027,7 @@
                             t('switcher.menuBody'))}
                     </div>
 
-                    <div id="switcher-mode-error" style="display: none; color: #ff6b6b; font-size: 0.85rem; font-weight: 600; margin-top: 12px;"></div>
+                    <div id="switcher-mode-error" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 12px;"></div>
                     <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
                         <button id="switcher-mode-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
                     </div>
@@ -5890,7 +6160,7 @@
             })
             .catch(err => {
                 if (!this.navIsCurrent(ticket)) return;
-                container.innerHTML = `<div style="color: #ff6b6b; font-size: 0.9rem;">${t('bonfire.failedLoadStatus', { message: err.message })}</div>`;
+                container.innerHTML = `<div style="color: var(--jpf-danger); font-size: 0.9rem;">${t('bonfire.failedLoadStatus', { message: err.message })}</div>`;
             });
         },
 
@@ -5920,7 +6190,7 @@
                                     return `
                                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: var(--jpf-r-sm);">
                                         <span style="font-size: 0.95rem; font-weight: 500;">${mUsername}</span>
-                                        <button type="button" class="bonfire-kick-btn" data-id="${mUserId}" style="background: #ff6b6b !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">${t('bonfire.kick')}</button>
+                                        <button type="button" class="bonfire-kick-btn" data-id="${mUserId}" style="background: var(--jpf-danger) !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">${t('bonfire.kick')}</button>
                                     </div>
                                     `;
                                 }).join('') : '<div style="font-size: 0.9rem; opacity: 0.5; font-style: italic; text-align: center; padding: 12px;">' + t('bonfire.noMembersYet') + '</div>'}
@@ -5965,7 +6235,7 @@
                             <input type="text" id="bonfire-join-input" placeholder="${t('bonfire.joinCodePlaceholder')}" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; margin: 0 !important; padding: 10px !important;" />
                             <button type="button" id="bonfire-join-btn" class="profiles-btn btn-primary" style="flex: 0 0 auto !important; padding: 0 24px !important; height: 44px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; font-weight: 600 !important; margin: 0 !important; box-sizing: border-box !important;">${t('common.join')}</button>
                         </div>
-                        <div id="bonfire-join-error" style="display: none; color: #ff6b6b; font-size: 0.85rem; font-weight: 600; margin-top: 8px; text-align: center;"></div>
+                        <div id="bonfire-join-error" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 8px; text-align: center;"></div>
                     </div>
                 `;
             }
@@ -5981,15 +6251,15 @@
             const lanBypassSectionHtml = (isOwner || isMember) ? `
                 <div class="bonfire-form-group" style="gap: 4px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
                     <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
-                        <input type="checkbox" id="bonfire-lan-bypass-checkbox" ${lanBypass ? 'checked' : ''} style="cursor: pointer !important; accent-color: #ff9900 !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
+                        <input type="checkbox" id="bonfire-lan-bypass-checkbox" ${lanBypass ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-warn) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                         <span>${t('bonfire.lanSwitchLabel')}</span>
                     </label>
                     <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">
                         ${t('bonfire.lanSwitchHint', { extra: hasPinSet ? '' : t('bonfire.lanSwitchHintExtra') })}
                     </div>
                     ${isAdmin ? `
-                    <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid #ff9900; border-radius: var(--jpf-r-sm); font-size: 0.75rem; line-height: 1.5; color: rgba(255,255,255,0.8);">
-                        <strong style="color: #ff9900;">${t('bonfire.adminAccountWarning')}</strong> ${t('bonfire.adminAccountWarningBody')}
+                    <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid var(--jpf-warn); border-radius: var(--jpf-r-sm); font-size: 0.75rem; line-height: 1.5; color: rgba(255,255,255,0.8);">
+                        <strong style="color: var(--jpf-warn);">${t('bonfire.adminAccountWarning')}</strong> ${t('bonfire.adminAccountWarningBody')}
                     </div>` : ''}
                     <div style="margin-left: 1.6rem; margin-top: 8px; font-size: 0.72rem; line-height: 1.5; opacity: 0.45;">
                         ${t('bonfire.proxyHint')}
@@ -6208,7 +6478,7 @@
             const setStatus = (message, ok) => {
                 if (!statusDiv) return;
                 statusDiv.textContent = message;
-                statusDiv.style.color = ok ? 'var(--jpf-accent)' : '#ff6b6b';
+                statusDiv.style.color = ok ? 'var(--jpf-accent)' : 'var(--jpf-danger)';
                 statusDiv.style.display = 'block';
                 statusDiv.style.opacity = ok ? '0.75' : '1';
             };
@@ -6293,7 +6563,7 @@
                     }
 
                     const adminLine = isAdmin
-                        ? `<br><br><strong style="color:#ff9900;">${t('bonfire.adminAccountWarning')}</strong> ${t('bonfire.adminAccountWarningBody')}`
+                        ? `<br><br><strong style="color:var(--jpf-warn);">${t('bonfire.adminAccountWarning')}</strong> ${t('bonfire.adminAccountWarningBody')}`
                         : '';
 
                     this.showConfirmDialog(
@@ -6522,7 +6792,7 @@
             section.style.cssText = 'margin: 2em 0; max-width: 44em;';
             section.innerHTML = `
                 <h2 class="sectionTitle" style="display:flex; align-items:center; gap:0.4em;">
-                    <span class="material-icons local_fire_department" aria-hidden="true" style="color:#ff9900;"></span>
+                    <span class="material-icons local_fire_department" aria-hidden="true" style="color:var(--jpf-warn);"></span>
                     ${t('profilePage.title')}
                 </h2>
                 <p style="opacity:0.7; margin:0 0 1em 0; line-height:1.5;">
@@ -6736,7 +7006,7 @@
                         if (currentProfile) {
                             const info = {
                                 name: currentProfile.profileName,
-                                color: currentProfile.avatarColor || '#00A4DC',
+                                color: currentProfile.avatarColor || DEFAULT_AVATAR_COLOR,
                                 initial: currentProfile.avatarInitial || (currentProfile.profileName ? currentProfile.profileName.charAt(0).toUpperCase() : 'P'),
                                 profileImage: currentProfile.profileImage || null,
                                 transparent: !!currentProfile.transparentAvatar

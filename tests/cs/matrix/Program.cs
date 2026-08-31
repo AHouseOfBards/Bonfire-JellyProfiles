@@ -254,6 +254,141 @@ Console.WriteLine("--------------------------------------");
     Check("bad base64 REJECTED", ExtensionFor("data:image/png;base64,!!!not-base64!!!"), null);
 }
 
+// ── The rate limit says how long the wait actually is ───────────────────────
+//
+// Every 429 used to end "please try again in 15 minutes". Fifteen is the width of the
+// window, not the wait: the limiter slides, freeing a slot when its oldest counted
+// attempt ages out, so somebody who mistyped a PIN five times over a quarter of an hour
+// is usually about a minute from another go. The old number was not a safe over-estimate
+// either — it was a different quantity that happened to be printed where a wait belonged.
+Console.WriteLine();
+Console.WriteLine("Rate limit: the wait quoted is the wait enforced");
+{
+    var rlType = asm.GetType("Jellyfin.Profiles.Controllers.RateLimiter", true);
+    const BindingFlags Any = BindingFlags.Static | BindingFlags.Instance
+                           | BindingFlags.NonPublic | BindingFlags.Public;
+
+    var ctor = rlType.GetConstructor(Any, null, new[] { typeof(int), typeof(int) }, null);
+    var isLimited = rlType.GetMethod("IsRateLimited", Any);
+    var record = rlType.GetMethod("RecordFailure", Any);
+    var retryAfter = rlType.GetMethod("RetryAfter", Any);
+    var describe = rlType.GetMethod("DescribeWait", Any);
+
+    if (ctor == null || retryAfter == null || describe == null)
+    {
+        fail++;
+        Console.WriteLine("  FAIL  RateLimiter.RetryAfter/DescribeWait do not exist");
+    }
+    else
+    {
+        // 3 attempts per 15 minutes, so the third failure is the one that locks.
+        var limiter = ctor.Invoke(new object[] { 3, 15 });
+
+        Check("not limited before the threshold", (bool)isLimited.Invoke(limiter, new object[] { "ip" }), false);
+        Check("and nothing to wait for", (TimeSpan)retryAfter.Invoke(limiter, new object[] { "ip" }), TimeSpan.Zero);
+
+        for (var i = 0; i < 3; i++) record.Invoke(limiter, new object[] { "ip" });
+
+        Check("limited at the threshold", (bool)isLimited.Invoke(limiter, new object[] { "ip" }), true);
+
+        var wait = (TimeSpan)retryAfter.Invoke(limiter, new object[] { "ip" });
+        // All three attempts were a moment ago, so the wait is the full window minus
+        // that moment — just under fifteen minutes, and never more.
+        Check("the wait is inside the window", wait > TimeSpan.FromMinutes(14) && wait <= TimeSpan.FromMinutes(15), true);
+
+        // The point of the whole change: the number is derived, not the constant 15.
+        Check("the wait is not simply the window", wait != TimeSpan.FromMinutes(15), true);
+
+        Check("an unknown caller waits for nothing",
+            (TimeSpan)retryAfter.Invoke(limiter, new object[] { "someone-else" }), TimeSpan.Zero);
+
+        // How it reads. "in 0 minutes" was the failure mode worth naming.
+        Check("under a minute reads in seconds",
+            (string)describe.Invoke(null, new object[] { TimeSpan.FromSeconds(40) }), "in 40 seconds");
+        Check("a whole minute reads as one",
+            (string)describe.Invoke(null, new object[] { TimeSpan.FromSeconds(60) }), "in a minute");
+        Check("minutes round up rather than down",
+            (string)describe.Invoke(null, new object[] { TimeSpan.FromSeconds(61) }), "in 2 minutes");
+        Check("nothing left to wait is never \"0 minutes\"",
+            (string)describe.Invoke(null, new object[] { TimeSpan.Zero }), "in a moment");
+    }
+}
+
+// ── A configuration import must not be able to wipe the server ──────────────
+//
+// PluginConfiguration initialises every list it owns to an empty list. So a body that
+// fails to bind does not arrive as null and does not throw: it arrives as a pristine
+// default, and an import that writes it field by field would replace every profile,
+// device and Bonfire with nothing while reporting success. A camelCase file, a
+// truncated download, or an object from any other tool would all do it.
+//
+// The endpoint therefore reads properties off the JSON explicitly and case-insensitively,
+// so "the file did not contain this" is distinguishable from "the file contained an
+// empty list". These assertions are on that distinction.
+Console.WriteLine();
+Console.WriteLine("Configuration import: absence is not emptiness");
+{
+    const BindingFlags Any = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
+    var tryProp = baseType.GetMethod("TryProperty", Any);
+    var read = baseType.GetMethod("Read", Any);
+
+    if (tryProp == null || read == null)
+    {
+        fail++;
+        Console.WriteLine("  FAIL  TryProperty/Read do not exist — an import can still wipe the configuration");
+    }
+    else
+    {
+        object[] Args(string json, string name)
+        {
+            var doc = System.Text.Json.JsonDocument.Parse(json);
+            return new object[] { doc.RootElement, name, null };
+        }
+
+        bool Has(string json, string name)
+        {
+            var args = Args(json, name);
+            return (bool)tryProp.Invoke(null, args);
+        }
+
+        Check("a present property is found",
+            Has("{\"Mappings\":[]}", "Mappings"), true);
+        Check("an absent property is not invented",
+            Has("{\"Mappings\":[]}", "KnownDevices"), false);
+
+        // The whole point: an export that round-trips through another tool arrives
+        // camelCased, and binding by exact case would call it an empty configuration.
+        Check("camelCase is matched",
+            Has("{\"mappings\":[]}", "Mappings"), true);
+        Check("SCREAMING case is matched",
+            Has("{\"MAPPINGS\":[]}", "Mappings"), true);
+
+        // An empty list is present. That is a real instruction — "this household has no
+        // profiles" — and must not be confused with the file not mentioning them.
+        Check("an empty list still counts as present",
+            Has("{\"Mappings\":[]}", "Mappings"), true);
+
+        Check("a non-object body has no properties",
+            Has("[1,2,3]", "Mappings"), false);
+        Check("a string body has no properties",
+            Has("\"nonsense\"", "Mappings"), false);
+
+        // Read<T> must swallow malformed input rather than throwing out of the endpoint.
+        var cfgType = asm.GetType("Jellyfin.Profiles.Configuration.PluginConfiguration", true);
+        var readCfg = read.MakeGenericMethod(cfgType);
+        var good = System.Text.Json.JsonDocument.Parse("{\"MaxProfilesPerUser\":9}").RootElement;
+        var parsed = readCfg.Invoke(null, new object[] { good });
+        Check("a well-formed configuration reads back",
+            parsed == null ? -1 : (int)cfgType.GetProperty("MaxProfilesPerUser").GetValue(parsed), 9);
+
+        var wrong = System.Text.Json.JsonDocument.Parse("{\"MaxProfilesPerUser\":\"not a number\"}").RootElement;
+        object bad = "threw";
+        try { bad = readCfg.Invoke(null, new object[] { wrong }); }
+        catch (TargetInvocationException) { bad = "threw"; }
+        Check("a malformed value returns null instead of throwing", bad, null);
+    }
+}
+
 Console.WriteLine();
 Console.WriteLine($"{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;

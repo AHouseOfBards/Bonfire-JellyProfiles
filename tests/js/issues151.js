@@ -574,8 +574,19 @@ ok('the PIN badge is bounded by the card too', /max-width:\s*100%/.test(badgeRul
 
 // Manage mode: taking the scrim away also took away what the white pencil was legible
 // against. On a pale cut-out it would otherwise vanish.
-ok('the manage-mode pencil keeps a backing it can be seen against',
-    /\.profile-avatar\.is-transparent \.profile-avatar-overlay-svg \{[^}]*background:\s*rgba\(0, 0, 0/.test(src));
+// Resolved, not spelled: P6 moved that literal onto --jpf-scrim, and matching the
+// spelling would fail for a token holding exactly the right colour while passing for
+// one redefined to transparent. What has to be true is that the backing is dark and
+// substantially opaque, whatever it is written as.
+ok('the manage-mode pencil keeps a backing it can be seen against', (() => {
+    const m = /\.profile-avatar\.is-transparent \.profile-avatar-overlay-svg \{([^}]*)\}/.exec(src);
+    if (!m) return false;
+    const bg = /background:\s*([^;]+);/.exec(m[1]);
+    if (!bg) return false;
+    const value = L.resolveCssValue(src, bg[1].trim());
+    return /rgba?\(\s*(?:0|1?\d|2[0-5])\s*,\s*(?:0|1?\d|2[0-5])\s*,/.test(value)
+        && L.alphaOf(value) >= 0.5;
+})());
 ok('and that backing is round, not the square that was removed',
     /\.profile-avatar\.is-transparent \.profile-avatar-overlay-svg \{[^}]*border-radius:\s*50%/.test(src));
 

@@ -217,6 +217,18 @@ if (P) {
     ok(steps.length >= 10, 'init() routes its startup calls through _step()',
         'found ' + steps.length + ' _step() calls, expected at least 10');
 
+    // Library artwork (issue #19) has never been seen working by anybody, and its two
+    // startup calls were among the nine the 1.5.2 backtick killed — so for two releases
+    // the feature could not have run at all, whatever its own harness said about rule
+    // generation. tests/js/libartest.js calls those functions directly and so cannot
+    // notice if init() stops reaching them; a count of steps would not notice either.
+    // These name them.
+    ['applyCachedLibraryArtwork', 'loadLibraryArtwork'].forEach(name => {
+        ok(steps.includes(name),
+            'init() still runs ' + name + '() — library artwork reaches the page',
+            'init() steps are: ' + steps.join(', '));
+    });
+
     steps.forEach(name => {
         if (name === 'loadLocale') return;          // a closure function, not a method
         if (name === 'injectStyles') return;        // covered above, and already appended

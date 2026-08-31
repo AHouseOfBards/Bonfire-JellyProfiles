@@ -10,6 +10,12 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
+  <!-- PluginConfiguration derives from BasePluginConfiguration in MediaBrowser.Model,
+       so reflecting on it needs the model assembly present at run time. -->
+  <ItemGroup>
+    <PackageReference Include="Jellyfin.Common" Version="10.11.5" />
+    <PackageReference Include="Jellyfin.Model" Version="10.11.5" />
+  </ItemGroup>
   <ItemGroup>
     <Reference Include="Jellyfin.Profiles">
       <HintPath>$(MSBuildThisFileDirectory)..\..\..\bin\Release\net9.0\Jellyfin.Profiles.dll</HintPath>

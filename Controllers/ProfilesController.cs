@@ -13,6 +13,8 @@ using Jellyfin.Profiles.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Jellyfin.Data.Queries;
+using MediaBrowser.Controller.Devices;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Net;
 using MediaBrowser.Controller.Session;
@@ -33,10 +35,11 @@ namespace Jellyfin.Profiles.Controllers
         public ProfilesController(
             IUserManager userManager,
             ISessionManager sessionManager,
+            IDeviceManager deviceManager,
             ILibraryManager libraryManager,
             INetworkManager networkManager,
             ILogger<ProfilesController> logger)
-            : base(userManager, sessionManager, libraryManager, networkManager, logger)
+            : base(userManager, sessionManager, deviceManager, libraryManager, networkManager, logger)
         {
         }
 
@@ -656,13 +659,14 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // Enforce device restrictions for sub-profiles
-            if (mapping != null && mapping.ProfileUserId != mapping.MasterUserId && mapping.AllowedDeviceIds != null && mapping.AllowedDeviceIds.Count > 0)
+            var deviceAccess = EvaluateDeviceRestriction(
+                mapping, GetAuthorizationParameter("DeviceId"), config.KnownDevices);
+            if (deviceAccess != DeviceAccess.NotRestricted && deviceAccess != DeviceAccess.Allowed)
             {
-                var targetDeviceId = GetAuthorizationParameter("DeviceId");
-                if (string.IsNullOrEmpty(targetDeviceId) || !mapping.AllowedDeviceIds.Any(id => string.Equals(id, targetDeviceId, StringComparison.OrdinalIgnoreCase)))
-                {
-                    return BadRequest("This profile is not allowed on this device.");
-                }
+                _logger.LogWarning(
+                    "ProfilesPlugin: device check refused a switch into {ProfileId} ({Reason}).",
+                    request.ProfileId, deviceAccess);
+                return BadRequest(DeviceAccessMessage(deviceAccess));
             }
 
             var rateLimitKey = $"{ip}_{request.ProfileId}";
@@ -692,7 +696,7 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     if (RateLimiter.Pin.IsRateLimited(rateLimitKey))
                     {
-                        return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
+                        return TooManyAttempts(RateLimiter.Pin, rateLimitKey, "Too many failed PIN attempts.");
                     }
 
                     // mapping is non-null here — pinHashToCheck came from it.
@@ -916,13 +920,14 @@ namespace Jellyfin.Profiles.Controllers
 
             // Enforce device restrictions for sub-profiles
             var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
-            if (mapping != null && mapping.ProfileUserId != mapping.MasterUserId && mapping.AllowedDeviceIds != null && mapping.AllowedDeviceIds.Count > 0)
+            var deviceAccess = EvaluateDeviceRestriction(
+                mapping, GetAuthorizationParameter("DeviceId"), config.KnownDevices);
+            if (deviceAccess != DeviceAccess.NotRestricted && deviceAccess != DeviceAccess.Allowed)
             {
-                var deviceId = GetAuthorizationParameter("DeviceId");
-                if (string.IsNullOrEmpty(deviceId) || !mapping.AllowedDeviceIds.Any(id => string.Equals(id, deviceId, StringComparison.OrdinalIgnoreCase)))
-                {
-                    return BadRequest("This profile is not allowed on this device.");
-                }
+                _logger.LogWarning(
+                    "ProfilesPlugin: device check refused a PIN verification for {ProfileId} ({Reason}).",
+                    request.ProfileId, deviceAccess);
+                return BadRequest(DeviceAccessMessage(deviceAccess));
             }
 
             var remoteIp = HttpContext.Connection.RemoteIpAddress;
@@ -946,7 +951,7 @@ namespace Jellyfin.Profiles.Controllers
                     {
                         if (RateLimiter.Pin.IsRateLimited(rateLimitKey))
                         {
-                            return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
+                            return TooManyAttempts(RateLimiter.Pin, rateLimitKey, "Too many failed PIN attempts.");
                         }
 
                         // masterMapping is non-null here — pinHash came from it.
@@ -974,7 +979,7 @@ namespace Jellyfin.Profiles.Controllers
                     {
                         if (RateLimiter.Pin.IsRateLimited(rateLimitKey))
                         {
-                            return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed PIN attempts. Please try again in 15 minutes.");
+                            return TooManyAttempts(RateLimiter.Pin, rateLimitKey, "Too many failed PIN attempts.");
                         }
 
                         if (!VerifyPinAndUpgrade(request.Pin, mapping, config))
@@ -1207,6 +1212,381 @@ namespace Jellyfin.Profiles.Controllers
         }
 
 
+
+        /// <summary>
+        /// Lists, and optionally removes, plugin state that points at Jellyfin users who no
+        /// longer exist.
+        /// <para>
+        /// A profile deleted through Jellyfin's own user administration rather than through
+        /// Bonfire leaves its mapping behind, and nothing ever collects it. The leftovers are
+        /// not inert: a mapping still counts against its master's profile limit, still appears
+        /// in the household's device-scoping set, and still names its master — so a sub-profile
+        /// whose <em>master</em> was deleted is an orphan that can never be reached or removed
+        /// from the interface.
+        /// </para>
+        /// <para>
+        /// <c>apply=false</c> is the default deliberately. This deletes configuration and the
+        /// administrator should see the list first; the dashboard shows what would go and asks
+        /// before sending the second call.
+        /// </para>
+        /// </summary>
+        [HttpPost("admin/cleanup-orphans")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult CleanupOrphans([FromQuery] bool apply = false)
+        {
+            var adminError = RequireAdministrator("clean up orphaned profiles");
+            if (adminError != null) return adminError;
+
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            // Resolved once, outside the lock: GetUserById is a database read per call and
+            // the set is small. Doing it inside would hold the lock across all of them.
+            bool Exists(Guid id) => id != Guid.Empty && _userManager.GetUserById(id) != null;
+
+            lock (ConfigLock)
+            {
+                var orphans = config.Mappings
+                    .Where(m => !Exists(m.ProfileUserId) || !Exists(m.MasterUserId))
+                    .Select(m => new
+                    {
+                        profileUserId = m.ProfileUserId,
+                        masterUserId = m.MasterUserId,
+                        profileName = m.ProfileName,
+                        reason = !Exists(m.ProfileUserId)
+                            ? "the profile's Jellyfin user was deleted"
+                            : "the master account was deleted"
+                    })
+                    .ToList();
+
+                // Bonfire groups outlive their owner the same way.
+                var deadGroups = config.BonfireGroups
+                    .Where(g => !Exists(g.OwnerUserId))
+                    .Select(g => new { groupId = g.GroupId, code = g.BonfireCode })
+                    .ToList();
+
+                // A group whose owner is alive can still list members who are not.
+                var deadMembers = config.BonfireGroups
+                    .SelectMany(g => (g.MemberUserIds ?? new List<Guid>())
+                        .Where(id => !Exists(id))
+                        .Select(id => new { groupId = g.GroupId, userId = id }))
+                    .ToList();
+
+                if (!apply)
+                {
+                    return Ok(new { applied = false, orphans, deadGroups, deadMembers });
+                }
+
+                var orphanIds = orphans.Select(o => o.profileUserId).ToHashSet();
+                config.Mappings.RemoveAll(m => orphanIds.Contains(m.ProfileUserId)
+                                               && (!Exists(m.ProfileUserId) || !Exists(m.MasterUserId)));
+
+                var deadGroupIds = deadGroups.Select(g => g.groupId).ToHashSet(StringComparer.Ordinal);
+                config.BonfireGroups.RemoveAll(g => deadGroupIds.Contains(g.GroupId));
+
+                foreach (var g in config.BonfireGroups)
+                {
+                    g.MemberUserIds?.RemoveAll(id => !Exists(id));
+                }
+
+                // Devices are NOT touched here. A device outliving the profile that used it is
+                // normal — the hardware is still in the house — and dropping one that some
+                // other profile still names would empty that whitelist, which means "any
+                // device". Device housekeeping has its own rules; see RemoveStaleDevices.
+                Plugin.Instance?.SaveConfiguration();
+
+                return Ok(new
+                {
+                    applied = true,
+                    removedMappings = orphans.Count,
+                    removedGroups = deadGroups.Count,
+                    removedMembers = deadMembers.Count
+                });
+            }
+        }
+
+        /// <summary>
+        /// Live Jellyfin sessions belonging to Bonfire profiles, so an administrator can see
+        /// who is signed in where.
+        /// <para>
+        /// Jellyfin's own Devices page lists these too, but it lists them as bare usernames
+        /// with no idea that half of them are sub-profiles of one household — and sub-profiles
+        /// are hidden users, so the page reads as a list of strangers. Here each session is
+        /// named against the account it belongs to.
+        /// </para>
+        /// </summary>
+        [HttpGet("admin/sessions")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult GetProfileSessions()
+        {
+            var adminError = RequireAdministrator("view profile sessions");
+            if (adminError != null) return adminError;
+
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            List<ProfileMapping> mappings;
+            lock (ConfigLock)
+            {
+                mappings = config.Mappings.ToList();
+            }
+
+            var byProfile = mappings.ToDictionary(m => m.ProfileUserId, m => m);
+
+            var sessions = _sessionManager.Sessions
+                .Where(s => s.UserId != Guid.Empty)
+                .Select(s =>
+                {
+                    byProfile.TryGetValue(s.UserId, out var mapping);
+                    var isSubProfile = mapping != null && mapping.ProfileUserId != mapping.MasterUserId;
+                    var master = mapping == null
+                        ? null
+                        : _userManager.GetUserById(mapping.MasterUserId);
+
+                    return new
+                    {
+                        sessionId = s.Id,
+                        userId = s.UserId,
+                        username = s.UserName,
+                        // Null for a plain Jellyfin account that Bonfire knows nothing about.
+                        // The dashboard groups on this, so it has to say "not ours" rather
+                        // than quietly attributing the session to somebody.
+                        masterUsername = isSubProfile ? master?.Username : null,
+                        isSubProfile,
+                        deviceId = s.DeviceId,
+                        deviceName = s.DeviceName,
+                        client = s.Client,
+                        appVersion = s.ApplicationVersion,
+                        lastActivity = s.LastActivityDate,
+                        remoteEndPoint = s.RemoteEndPoint,
+                        nowPlaying = s.NowPlayingItem?.Name
+                    };
+                })
+                .OrderByDescending(s => s.lastActivity)
+                .ToList();
+
+            return Ok(sessions);
+        }
+
+        /// <summary>
+        /// Signs one device out, revoking its token.
+        /// <para>
+        /// Routed through <c>IDeviceManager</c> rather than <c>ISessionManager.Logout</c>:
+        /// a <c>SessionInfo</c> does not carry its access token, so the device row for that
+        /// (user, device) pair is what identifies the credential to revoke. Both are required
+        /// — a device id alone would sign every profile on that television out at once, and
+        /// the point of this is to end one session.
+        /// </para>
+        /// </summary>
+        [HttpPost("admin/sessions/sign-out")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<ActionResult> SignOutSession([FromBody] SignOutSessionRequest request)
+        {
+            var adminError = RequireAdministrator("sign a session out");
+            if (adminError != null) return adminError;
+
+            if (request == null || string.IsNullOrWhiteSpace(request.DeviceId) || request.UserId == Guid.Empty)
+                return BadRequest("Both userId and deviceId are required.");
+
+            var devices = _deviceManager.GetDevices(new DeviceQuery
+            {
+                DeviceId = request.DeviceId,
+                UserId = request.UserId
+            }).Items;
+
+            if (devices.Count == 0) return BadRequest("No such session.");
+
+            foreach (var device in devices)
+            {
+                await _sessionManager.Logout(device).ConfigureAwait(false);
+            }
+
+            _logger.LogInformation(
+                "ProfilesPlugin: administrator signed out {UserId} on device {DeviceId}.",
+                request.UserId, request.DeviceId);
+
+            return Ok(new { signedOut = devices.Count });
+        }
+
+        /// <summary>
+        /// The whole plugin configuration as JSON, for keeping a copy of.
+        /// <para>
+        /// Every profile, PIN, Bonfire, device whitelist and avatar record lives in one
+        /// <c>PluginConfiguration.xml</c> with nothing behind it. A bad save, a disk problem
+        /// or an experiment gone wrong flattens the household's entire setup, and rebuilding
+        /// it by hand means knowing every PIN and every library tick that was ever set.
+        /// </para>
+        /// <para>
+        /// PIN hashes are included, because a backup that cannot restore a working PIN is not
+        /// a backup. They are PBKDF2-SHA256 with a per-PIN salt, so the file is no more
+        /// sensitive than the configuration it came from — but it is exactly as sensitive as
+        /// that, and it is a file an administrator can now put somewhere careless. Said plainly
+        /// in the dashboard rather than left to be discovered.
+        /// </para>
+        /// </summary>
+        [HttpGet("admin/config/export")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult ExportConfiguration()
+        {
+            var adminError = RequireAdministrator("export the configuration");
+            if (adminError != null) return adminError;
+
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            lock (ConfigLock)
+            {
+                return Ok(new
+                {
+                    exportedUtc = DateTime.UtcNow,
+                    pluginVersion = Plugin.Instance?.Version?.ToString() ?? "unknown",
+                    configuration = config
+                });
+            }
+        }
+
+        /// <summary>
+        /// Replaces the plugin configuration with a previously exported one.
+        /// <para>
+        /// Deliberately all-or-nothing. A merge would have to decide what to do about a
+        /// profile that exists in both copies with different PINs, different libraries and a
+        /// different master, and every answer to that is a guess about what the administrator
+        /// meant. Replacing is the thing they asked for and the thing they can predict.
+        /// </para>
+        /// <para>
+        /// What it will not do is leave Jellyfin's own users half-attached: the import drops
+        /// any mapping naming a user this server does not have, so restoring a backup onto a
+        /// different server produces a smaller, consistent configuration rather than a set of
+        /// orphans. Those are reported back, because silently dropping somebody's profile is
+        /// worse than refusing.
+        /// </para>
+        /// </summary>
+        [HttpPost("admin/config/import")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult ImportConfiguration([FromBody] JsonElement body)
+        {
+            var adminError = RequireAdministrator("import a configuration");
+            if (adminError != null) return adminError;
+
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            // Bound as a JsonElement rather than straight to PluginConfiguration, and this is
+            // the most important line in the endpoint.
+            //
+            // PluginConfiguration initialises every one of its lists to an empty list. So a
+            // body that fails to bind — a file whose properties are camelCase when the
+            // serialiser wants PascalCase, a truncated download, an object from some other
+            // tool — does not arrive as null and does not throw. It arrives as a pristine
+            // default configuration, and every field below then writes that emptiness over
+            // the real one. The administrator would have seen "Imported 0 profile(s)" and
+            // lost the household.
+            //
+            // Reading the properties explicitly, case-insensitively, means "the file did not
+            // contain this" is distinguishable from "the file contained an empty list", which
+            // is the distinction the typed binding threw away.
+            if (body.ValueKind != JsonValueKind.Object)
+                return BadRequest("No configuration in the request body.");
+
+            // The export wrapper is accepted as well as a bare configuration: editing an
+            // export and pasting back the inner object is the obvious thing to do with it.
+            var root = body;
+            if (TryProperty(body, "configuration", out var inner) && inner.ValueKind == JsonValueKind.Object)
+                root = inner;
+
+            // At least one list this plugin owns must actually be present. Anything else is
+            // not a Bonfire configuration, whatever it is.
+            var recognised = new[] { "Mappings", "KnownDevices", "BonfireGroups", "AvatarLibrary" }
+                .Count(name => TryProperty(root, name, out _));
+            if (recognised == 0)
+            {
+                return BadRequest(
+                    "That file does not look like a Bonfire configuration — it has none of the "
+                    + "expected sections. Nothing was changed.");
+            }
+
+            var incoming = Read<PluginConfiguration>(root) ?? new PluginConfiguration();
+
+            // Anything absent from the file keeps its current value rather than being reset,
+            // so a partial or older export cannot silently clear a setting it predates.
+            var hasMappings = TryProperty(root, "Mappings", out _);
+            var hasDevices = TryProperty(root, "KnownDevices", out _);
+            var hasGroups = TryProperty(root, "BonfireGroups", out _);
+            var hasAvatars = TryProperty(root, "AvatarLibrary", out _);
+            var hasLimits = TryProperty(root, "UserProfileLimitOverrides", out _);
+
+            bool Exists(Guid id) => id != Guid.Empty && _userManager.GetUserById(id) != null;
+
+            var droppedMappings = new List<string>();
+
+            lock (ConfigLock)
+            {
+                var mappings = (incoming.Mappings ?? new List<ProfileMapping>())
+                    .Where(m =>
+                    {
+                        var ok = Exists(m.ProfileUserId) && Exists(m.MasterUserId);
+                        if (!ok) droppedMappings.Add(string.IsNullOrEmpty(m.ProfileName)
+                            ? m.ProfileUserId.ToString()
+                            : m.ProfileName);
+                        return ok;
+                    })
+                    .ToList();
+
+                var groups = (incoming.BonfireGroups ?? new List<BonfireGroup>())
+                    .Where(g => Exists(g.OwnerUserId))
+                    .ToList();
+                foreach (var g in groups)
+                {
+                    g.MemberUserIds?.RemoveAll(id => !Exists(id));
+                }
+
+                // Written field by field onto the live object rather than swapping the
+                // reference. Jellyfin replaces Plugin.Configuration on its own whenever an
+                // administrator saves the settings page, so anything holding the old
+                // reference would be writing to an orphan — the same reason every write in
+                // this plugin happens inside ConfigLock. This is the shape UpdateAdminSettings
+                // uses.
+                // Each section is written only if the file actually carried it. A default
+                // value from a failed or partial bind must never overwrite a real one.
+                if (hasMappings) config.Mappings = mappings;
+                if (hasGroups) config.BonfireGroups = groups;
+                if (hasDevices) config.KnownDevices = incoming.KnownDevices;
+                if (hasLimits) config.UserProfileLimitOverrides = incoming.UserProfileLimitOverrides;
+                if (hasAvatars) config.AvatarLibrary = incoming.AvatarLibrary;
+
+                if (TryProperty(root, "MaxProfilesPerUser", out _))
+                    config.MaxProfilesPerUser = incoming.MaxProfilesPerUser;
+                if (TryProperty(root, "RequireMasterPinForCreation", out _))
+                    config.RequireMasterPinForCreation = incoming.RequireMasterPinForCreation;
+                if (TryProperty(root, "DisallowCustomAvatarUploads", out _))
+                    config.DisallowCustomAvatarUploads = incoming.DisallowCustomAvatarUploads;
+                if (TryProperty(root, "DefaultAskOnStartup", out _))
+                    config.DefaultAskOnStartup = incoming.DefaultAskOnStartup;
+                if (TryProperty(root, "DefaultSwitcherLocation", out _))
+                    config.DefaultSwitcherLocation = incoming.DefaultSwitcherLocation;
+                if (TryProperty(root, "IndexInjectionMode", out _))
+                    config.IndexInjectionMode = incoming.IndexInjectionMode;
+                if (TryProperty(root, "PanicCodeHash", out _))
+                    config.PanicCodeHash = incoming.PanicCodeHash;
+
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            return Ok(new
+            {
+                mappings = (incoming.Mappings ?? new List<ProfileMapping>()).Count - droppedMappings.Count,
+                droppedMappings,
+                devices = (incoming.KnownDevices ?? new List<KnownDevice>()).Count,
+                bonfires = (incoming.BonfireGroups ?? new List<BonfireGroup>()).Count
+            });
+        }
 
         [HttpPost("update")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -1865,7 +2245,7 @@ namespace Jellyfin.Profiles.Controllers
 
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
             if (RateLimiter.Bonfire.IsRateLimited(ip))
-                return StatusCode(StatusCodes.Status429TooManyRequests, "Too many failed attempts. Please try again in 15 minutes.");
+                return TooManyAttempts(RateLimiter.Bonfire, ip, "Too many failed attempts.");
 
             var code = request.Code?.Trim().ToUpperInvariant();
             if (string.IsNullOrEmpty(code) || code.Length != 6)
@@ -2604,10 +2984,26 @@ namespace Jellyfin.Profiles.Controllers
             List<KnownDevice> devices;
             lock (ConfigLock)
             {
-                devices = ScopeDevicesToHousehold(config.KnownDevices, masterUserId, whitelistedDeviceIds);
+                // Copied out under the lock before the names are touched: the scoping step
+                // synthesises records for whitelisted devices that are no longer in the list,
+                // and DisambiguateDeviceNames writes to what it is handed. Renaming the live
+                // configuration objects would persist a display decision as if it were the
+                // device's real name, and the next request would then disambiguate the
+                // already-disambiguated name.
+                devices = ScopeDevicesToHousehold(config.KnownDevices, masterUserId, whitelistedDeviceIds)
+                    .Select(d => new KnownDevice
+                    {
+                        DeviceId = d.DeviceId,
+                        DeviceName = d.DeviceName,
+                        Client = d.Client,
+                        LastSeen = d.LastSeen,
+                        MasterUserId = d.MasterUserId,
+                        NameIsCustom = d.NameIsCustom
+                    })
+                    .ToList();
             }
 
-            return Ok(devices);
+            return Ok(DisambiguateDeviceNames(devices));
         }
 
         [HttpPost("devices/delete")]
@@ -2632,6 +3028,24 @@ namespace Jellyfin.Profiles.Controllers
 
             lock (ConfigLock)
             {
+                // Forgetting a device also drops it from every whitelist that named it, and an
+                // empty whitelist means "any device". So forgetting the only device a profile
+                // was restricted to would silently make that profile available everywhere —
+                // the exact widening RemoveStaleDevices is written to avoid, arrived at by a
+                // different route. Refuse and say which profiles are in the way; the
+                // administrator can loosen or re-point them deliberately.
+                var wouldUnrestrict = ProfilesLeftUnrestrictedBy(config, new[] { request.DeviceId });
+                if (wouldUnrestrict.Count > 0)
+                {
+                    var names = wouldUnrestrict
+                        .Select(id => _userManager.GetUserById(id)?.Username ?? id.ToString())
+                        .ToList();
+                    return BadRequest(
+                        "This is the only device allowed for "
+                        + string.Join(", ", names)
+                        + ". Allow another device for those profiles first, or clear their device list.");
+                }
+
                 var toRemove = config.KnownDevices
                     .Where(d => string.Equals(d.DeviceId, request.DeviceId, StringComparison.OrdinalIgnoreCase))
                     .ToList();
@@ -2642,6 +3056,101 @@ namespace Jellyfin.Profiles.Controllers
                     mapping.AllowedDeviceIds?.RemoveAll(id =>
                         string.Equals(id, request.DeviceId, StringComparison.OrdinalIgnoreCase));
 
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            return Ok();
+        }
+
+        /// <summary>
+        /// Folds one device record into another, for the case the device list cannot detect on
+        /// its own: one physical machine holding two device ids.
+        /// <para>
+        /// Jellyfin's web client stores its device id in <c>localStorage</c>, which is scoped
+        /// to the origin — so one computer reaching the server by LAN address and by domain
+        /// name is two devices as far as any client-supplied id can tell, and so is a new
+        /// browser profile or a reinstalled app. Nothing in the request distinguishes that
+        /// from two genuinely different machines, and guessing wrong widens a whitelist, so
+        /// the plugin will not merge on its own. This is the administrator saying so.
+        /// </para>
+        /// </summary>
+        [HttpPost("devices/merge")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult MergeDevices([FromBody] MergeDevicesRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterId = currentUserIdVal.Value;
+
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
+            if (currentMapping != null && currentMapping.MasterUserId != masterId)
+                return Unauthorized("Only the master profile can merge devices.");
+
+            if (string.IsNullOrWhiteSpace(request.FromDeviceId) || string.IsNullOrWhiteSpace(request.IntoDeviceId))
+                return BadRequest("Both devices are required.");
+
+            lock (ConfigLock)
+            {
+                // Ownership is checked against the household, not just "is an administrator":
+                // KnownDevices is one server-wide list, so without this one account could fold
+                // another household's device into its own and inherit its whitelist entries.
+                var owned = config.KnownDevices.Where(d =>
+                    (string.Equals(d.DeviceId, request.FromDeviceId, StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(d.DeviceId, request.IntoDeviceId, StringComparison.OrdinalIgnoreCase))
+                    && d.MasterUserId == masterId).ToList();
+
+                if (owned.Count != 2)
+                    return BadRequest("Both devices must be ones this account has used.");
+
+                if (!MergeDeviceRecords(config, request.FromDeviceId, request.IntoDeviceId))
+                    return BadRequest("Those devices could not be merged.");
+
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            return Ok();
+        }
+
+        /// <summary>
+        /// Renames a device in the picker. The name sticks: see <c>KnownDevice.NameIsCustom</c>.
+        /// </summary>
+        [HttpPost("devices/rename")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult RenameDevice([FromBody] RenameDeviceRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterId = currentUserIdVal.Value;
+
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
+            if (currentMapping != null && currentMapping.MasterUserId != masterId)
+                return Unauthorized("Only the master profile can rename devices.");
+
+            var name = request.DeviceName?.Trim();
+            if (string.IsNullOrWhiteSpace(request.DeviceId)) return BadRequest("DeviceId is required.");
+            if (string.IsNullOrWhiteSpace(name)) return BadRequest("A name is required.");
+            if (name.Length > 64) name = name.Substring(0, 64);
+
+            lock (ConfigLock)
+            {
+                var device = config.KnownDevices.FirstOrDefault(d =>
+                    string.Equals(d.DeviceId, request.DeviceId, StringComparison.OrdinalIgnoreCase)
+                    && d.MasterUserId == masterId);
+
+                if (device == null) return BadRequest("Unknown device.");
+
+                device.DeviceName = name;
+                device.NameIsCustom = true;
                 Plugin.Instance?.SaveConfiguration();
             }
 

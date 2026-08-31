@@ -179,9 +179,48 @@ function dashboardScript(html) {
     return m[1];
 }
 
+/**
+ * Resolves a CSS value through the --jpf-* custom properties, so a check can assert
+ * what a rule *paints* rather than how it is spelled.
+ *
+ * Written because P6 moved thirty white-alpha literals onto nine tokens and four
+ * assertions went red without a single rendered pixel changing — they were matching
+ * `rgba(0, 0, 0, 0.62)` against `var(--jpf-scrim)`. Spelling is the weaker question:
+ * it passes for a token redefined to the wrong colour, and fails for a literal that
+ * is exactly right. Resolving asks what the assertion meant to ask.
+ *
+ * Only the floor definitions count — the first `:root, body` block. A token
+ * redefined under @supports or @media is deliberately ignored, because the floor is
+ * what the oldest television renders and is the value worth pinning.
+ */
+function resolveCssValue(css, value, depth) {
+    depth = depth || 0;
+    if (depth > 8 || value.indexOf('var(') === -1) return value;
+
+    const start = css.indexOf(':root, body {');
+    const floor = start === -1 ? '' : css.slice(start, css.indexOf('}', start));
+
+    const resolved = value.replace(
+        /var\(\s*(--jpf-[a-z0-9-]+)\s*(?:,[^()]*)?\)/g,
+        (whole, name) => {
+            const m = floor.match(new RegExp(name + '\\s*:\\s*([^;]+);'));
+            return m ? m[1].trim() : whole;
+        });
+
+    // No progress means the token is undefined; returning stops an infinite descent.
+    return resolved === value ? resolved : resolveCssValue(css, resolved, depth + 1);
+}
+
+/** The alpha of an rgba() value, or 1 when it carries none. */
+function alphaOf(value) {
+    const m = /rgba?\([^)]*?,\s*([0-9.]+)\s*\)/.exec(value);
+    return m ? parseFloat(m[1]) : 1;
+}
+
 module.exports = {
     ROOT,
     profilesPath, dashboardPath, i18nDir,
     readProfiles, readDashboard,
-    extractCss, extractFunction, dashboardScript, stylesPath, readClientBundle, readSourceAndStyles
+    extractCss, extractFunction, dashboardScript, stylesPath, readClientBundle, readSourceAndStyles,
+    resolveCssValue, alphaOf
 };

@@ -110,6 +110,18 @@ namespace Jellyfin.Profiles.Configuration
         /// </para>
         /// </summary>
         public Guid MasterUserId { get; set; }
+
+        /// <summary>
+        /// True once an administrator has renamed this device by hand, which stops the name
+        /// being overwritten by whatever the client sends on its next request.
+        /// <para>
+        /// Without this the rename is pointless: the device reports "Chrome" on every call,
+        /// so a name typed in the picker survives until the next page load. Renaming is the
+        /// only way to tell apart two records that are genuinely one computer reached at two
+        /// addresses, so it has to stick.
+        /// </para>
+        /// </summary>
+        public bool NameIsCustom { get; set; }
     }
 
     public class BonfireGroup

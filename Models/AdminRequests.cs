@@ -7,6 +7,22 @@ namespace Jellyfin.Profiles.Models
         public string DeviceId { get; set; } = string.Empty;
     }
 
+    /// <summary>Folds <see cref="FromDeviceId"/> into <see cref="IntoDeviceId"/>.</summary>
+    public class MergeDevicesRequest
+    {
+        /// <summary>The record to drop. Its whitelist entries move to the other device.</summary>
+        public string FromDeviceId { get; set; } = string.Empty;
+
+        /// <summary>The record to keep.</summary>
+        public string IntoDeviceId { get; set; } = string.Empty;
+    }
+
+    public class RenameDeviceRequest
+    {
+        public string DeviceId { get; set; } = string.Empty;
+        public string DeviceName { get; set; } = string.Empty;
+    }
+
     public class SetProfileLimitRequest
     {
         public Guid UserId { get; set; }
@@ -32,5 +48,12 @@ namespace Jellyfin.Profiles.Models
         public bool? DefaultAskOnStartup { get; set; }
         public string? DefaultSwitcherLocation { get; set; }
         public string? IndexInjectionMode { get; set; }
+    }
+
+    /// <summary>Identifies one signed-in device belonging to one user.</summary>
+    public class SignOutSessionRequest
+    {
+        public Guid UserId { get; set; }
+        public string DeviceId { get; set; } = string.Empty;
     }
 }

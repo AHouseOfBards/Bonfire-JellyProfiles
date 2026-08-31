@@ -40,8 +40,42 @@ check('--jpf-accent is defined', /--jpf-accent:\s*var\(--accent,\s*#00a4dc\)/.te
 check('declared on :root AND body', /:root,\s*body\s*\{/.test(DEFS), true);
 // Reading --accent only at :root would miss every theme that sets it on body,
 // because a custom property resolves against the element declaring it.
-check('two declaring blocks (floor + @supports)',
-    (DEFS.match(/:root,\s*body\s*\{/g) || []).length, 2);
+// Three now, not two: P6 added a third that redefines the neutral tokens for a light
+// background, because every one of them is white at a low alpha and a separator at
+// rgba(255,255,255,.08) over white is white. Counting alone would pass for any third
+// block, so the block is named as well.
+check('three declaring blocks (floor + @supports + light)',
+    (CSS.match(/:root,\s*body\s*\{/g) || []).length, 3);
+check('and the third is the light-scheme redefinition',
+    /@media \(prefers-color-scheme: light\)\s*\{\s*:root,\s*body\s*\{/.test(CSS), true);
+// The point of that block is that it redefines tokens and repeats no rules — if it
+// starts restating selectors, the tokens have stopped earning their keep. Brace-matched
+// rather than sliced at the first "\n}", which finds the end of the inner rule.
+const LIGHT_BLOCK = (() => {
+    const i = CSS.indexOf('@media (prefers-color-scheme: light)');
+    if (i === -1) return '';
+    let depth = 0;
+    for (let j = CSS.indexOf('{', i); j < CSS.length; j++) {
+        if (CSS[j] === '{') depth++;
+        else if (CSS[j] === '}' && --depth === 0) return CSS.slice(i, j + 1);
+    }
+    return '';
+})();
+check('the light block only redefines tokens', (() => {
+    if (!LIGHT_BLOCK) return false;
+    // Every selector inside it, i.e. every run of text ending in '{' after the @media.
+    const inner = LIGHT_BLOCK.slice(LIGHT_BLOCK.indexOf('{') + 1);
+    const selectors = (inner.match(/([^{}]+)\{/g) || []).map(x => x.slice(0, -1).trim());
+    return selectors.length === 1 && selectors[0] === ':root, body';
+})(), true);
+check('and it redefines the neutrals, not just one of them',
+    ['--jpf-surface-1', '--jpf-border-1', '--jpf-text-1', '--jpf-danger', '--jpf-warn']
+        .every(tk => LIGHT_BLOCK.includes(tk + ':')), true);
+// Black over a light ground, not the white that made them invisible.
+check('the light neutrals are black alphas',
+    /--jpf-surface-1:\s*rgba\(0, 0, 0/.test(LIGHT_BLOCK)
+    && /--jpf-border-1:\s*rgba\(0, 0, 0/.test(LIGHT_BLOCK)
+    && /--jpf-text-1:\s*rgba\(0, 0, 0/.test(LIGHT_BLOCK), true);
 check('falls back to Jellyfin stock blue', DEFS.includes('var(--accent, #00a4dc)'), true);
 
 console.log();
@@ -83,7 +117,16 @@ console.log();
 console.log('── Avatar swatches stay literal data ─────────────────────────');
 // A profile's avatar colour is stored in configuration and compared as a
 // string. It must never become a var() reference.
-check('palette entries untouched', (SRC.match(/#00A4DC/g) || []).length, 11);
+// Counting every #00A4DC in the file answered a coarser question than the one that
+// matters, and went red when P6 put DEFAULT_AVATAR_COLOR at the nine sites that had
+// repeated the literal — none of which is a swatch. What must stay literal is the
+// palette itself, so that is what is checked.
+check('the palette is literal hex and holds no var()', (() => {
+    const m = /const palette = \[([\s\S]*?)\];/.exec(SRC);
+    if (!m) return false;
+    const entries = m[1].match(/'#[0-9A-Fa-f]{6}'/g) || [];
+    return entries.length === 18 && m[1].indexOf('var(') === -1;
+})(), true);
 check('DEFAULT_AVATAR_COLOR is still a colour',
     /const DEFAULT_AVATAR_COLOR = '#00A4DC';/.test(SRC), true);
 check('the palette array is still literals',
@@ -101,9 +144,18 @@ const unlockedRule = unlocked.slice(0, unlocked.indexOf('}'));
 
 check('protected is not red', /230,\s*0,\s*0|#ff6b6b/.test(lockedRule), false);
 check('unprotected is not green', /0,\s*230,\s*0|#51cf66/.test(unlockedRule), false);
-check('protected reads more present than unprotected',
-    lockedRule.includes('rgba(255, 255, 255, 0.88)')
-    && unlockedRule.includes('rgba(255, 255, 255, 0.45)'), true);
+// Resolved rather than spelled: both are var(--jpf-text-*) since P6, and the claim
+// was never about the literal. What is asserted is the relationship — the protected
+// pill has to sit higher on the text scale than the unprotected one, whatever the
+// tokens are set to.
+check('protected reads more present than unprotected', (() => {
+    const lockedColor = /(?:^|[^-])color:\s*([^;]+);/.exec(lockedRule);
+    const unlockedColor = /(?:^|[^-])color:\s*([^;]+);/.exec(unlockedRule);
+    if (!lockedColor || !unlockedColor) return false;
+    const a = L.alphaOf(L.resolveCssValue(CSS, lockedColor[1].trim()));
+    const b = L.alphaOf(L.resolveCssValue(CSS, unlockedColor[1].trim()));
+    return a > b;
+})(), true);
 
 console.log();
 console.log('── Destructive triggers are quieter than confirmations ───────');
@@ -144,8 +196,17 @@ for (const h of ['Your Hosted Bonfire', 'Join a Bonfire', 'Host a Bonfire', 'Joi
     check(h + ' is plain', re.test(SRC), false);
 }
 // The admin warning rail and the flame keep their amber — those are semantic.
-check('the admin warning keeps its caution colour',
-    SRC.includes('border-left: 3px solid #ff9900'), true);
+check('the admin warning keeps its caution colour', (() => {
+    const m = /border-left: 3px solid ([^;"]+)/.exec(SRC);
+    if (!m) return false;
+    const v = L.resolveCssValue(CSS, m[1].trim()).toLowerCase();
+    // Amber: red at full, green around two thirds, no blue. Asserting the band rather
+    // than the exact hex, so re-tuning the token is allowed and turning it grey is not.
+    const hex = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/.exec(v);
+    if (!hex) return false;
+    const [r, g, b] = hex.slice(1).map(h => parseInt(h, 16));
+    return r > 200 && g > 60 && g < 200 && b < 60;
+})(), true);
 
 console.log();
 console.log('── Shape and spacing are tokenised ───────────────────────────');

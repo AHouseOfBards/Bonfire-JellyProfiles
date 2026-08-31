@@ -171,7 +171,6 @@
   "switcher.menuTitle": "Menu utilisateur de Jellyfin",
   "switcher.menuBody": "Ajoute « Changer de profil » au-dessus de « Déconnexion » dans le menu de Jellyfin, et sur votre page de profil. Supprime la seconde icône d'en-tête.",
   "switcher.switchProfile": "Changer de profil",
-  "switcher.switchProfileSuffix": "{name} (Changer)",
   "bonfire.yourBonfireTitle": "Votre Bonfire",
   "bonfire.hostedTitle": "Votre Bonfire hébergé",
   "bonfire.shareCode": "Partagez ce code pour inviter quelqu'un à rejoindre votre Bonfire :",
@@ -224,5 +223,16 @@
   "bonfire.allowHouseholdBody": "Toute personne de votre Bonfire peut ouvrir votre compte sur votre réseau domestique sans votre code PIN.",
   "profilePage.title": "Profils Bonfire",
   "profilePage.body": "Vous regardez actuellement en tant que <strong>{name}</strong>. Changez de profil au sein de votre foyer sans vous déconnecter.",
-  "profilePage.thisAccount": "ce compte"
+  "profilePage.thisAccount": "ce compte",
+  "profileForm.renameDevice": "Renommer cet appareil",
+  "profileForm.renameDeviceAria": "Renommer {name}",
+  "profileForm.renameDeviceTitle": "Renommer l'appareil",
+  "profileForm.renameDeviceLabel": "Nom",
+  "profileForm.mergeDevice": "C'est le même appareil que…",
+  "profileForm.mergeDeviceAria": "Indiquer que {name} est le même appareil qu'un autre",
+  "profileForm.mergeDeviceTitle": "Même appareil ?",
+  "profileForm.mergeDeviceMessage": "Les deux n'en font plus qu'un. Tout profil autorisé sur l'un reste autorisé.",
+  "errors.failedRenameDevice": "Échec du renommage de l'appareil.",
+  "errors.failedMergeDevice": "Échec de la fusion des appareils.",
+  "profileForm.noTags": "Aucune étiquette — ce filtre est désactivé"
 }
