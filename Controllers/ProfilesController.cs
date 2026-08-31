@@ -1506,7 +1506,7 @@ namespace Jellyfin.Profiles.Controllers
                         using var stream = assembly.GetManifestResourceStream("Jellyfin.Profiles.Web.profiles.js");
                         if (stream == null) return NotFound();
                         using var reader = new StreamReader(stream);
-                        CachedProfilesJs = PublishLocales(reader.ReadToEnd());
+                        CachedProfilesJs = PublishStyles(PublishLocales(reader.ReadToEnd()));
                     }
                 }
             }
@@ -1583,6 +1583,55 @@ namespace Jellyfin.Profiles.Controllers
         /// </para>
         /// </summary>
         internal static IReadOnlyCollection<string> SupportedI18nLocales => EmbeddedLocales.Value;
+
+        /// <summary>
+        /// Splices <c>Web/styles.css</c> into the served script.
+        /// <para>
+        /// The stylesheet used to be a 1,400-line template literal inside
+        /// <c>injectStyles</c>. In 1.5.2 a code comment in it contained two backticks; they
+        /// closed and reopened the literal, the file stayed valid JavaScript so
+        /// <c>node --check</c> passed, and at runtime <c>injectStyles</c> threw three calls
+        /// into <c>init()</c> and took the nine steps after it down. 1.5.2 and 1.5.3-beta
+        /// shipped dead. The stylesheet is a real .css file now, so there is no host string
+        /// left for its contents to terminate.
+        /// </para>
+        /// <para>
+        /// Encoded as a JSON string literal rather than interpolated. That is what makes the
+        /// guarantee hold in both directions: JSON escaping is total, so a quote, a
+        /// backslash, a newline or a backtick in the CSS is data, not syntax. The default
+        /// encoder also escapes every non-ASCII character to <c>\uXXXX</c>, which
+        /// incidentally removes U+2028 and U+2029 — legal in a JavaScript string only since
+        /// ES2019, and a syntax error on the Chromium 68 televisions this has to run on.
+        /// </para>
+        /// <para>
+        /// Same shape as <see cref="PublishLocales"/>: a plain replace on an exact literal.
+        /// If the marker is ever edited away this does nothing and the plugin renders
+        /// unstyled — loud and immediate, unlike a literal that truncates in silence.
+        /// </para>
+        /// </summary>
+        internal static string PublishStyles(string js)
+        {
+            const string marker = "let BONFIRE_STYLES = \"\"; // __BONFIRE_STYLES__";
+
+            var css = EmbeddedStyles.Value;
+            if (css == null) return js;
+
+            return js.Replace(
+                marker,
+                "let BONFIRE_STYLES = " + System.Text.Json.JsonSerializer.Serialize(css)
+                    + "; // __BONFIRE_STYLES__",
+                StringComparison.Ordinal);
+        }
+
+        /// <summary>The stylesheet, read once. Null when the resource is missing.</summary>
+        private static readonly Lazy<string?> EmbeddedStyles = new(() =>
+        {
+            using var stream = typeof(ProfilesController).Assembly
+                .GetManifestResourceStream("Jellyfin.Profiles.Web.styles.css");
+            if (stream == null) return null;
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd();
+        });
 
         private const string I18nResourcePrefix = "Jellyfin.Profiles.Web.i18n.";
 

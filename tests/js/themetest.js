@@ -10,7 +10,9 @@
 
 const fs = require('fs');
 const L = require('./_lib');
-const SRC = fs.readFileSync(L.profilesPath(), 'utf8');
+// Source plus stylesheet as plain text — this harness searches it for CSS as well as
+// JS. Not the served bundle, where the CSS is JSON-encoded and unsearchable.
+const SRC = L.readSourceAndStyles(fs.readFileSync(L.profilesPath(), 'utf8'));
 
 let pass = 0, fail = 0;
 function check(name, actual, expected) {

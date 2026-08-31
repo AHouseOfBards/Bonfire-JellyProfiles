@@ -78,10 +78,15 @@ console.log('── the sheet parses into rules at all ────────�
 // dead rule was deleted, reporting a regression where there was none. This only needs
 // to catch "the parser returned nothing useful".
 ok('rules found', rules.length > 100, rules.length + ' rules');
-ok('stylesheet is the whole thing, not a truncated literal', css.length > 60000,
+// A floor against an empty or partial sheet. It was 60,000 when the CSS lived inside a
+// template literal; de-indenting it into Web/styles.css removed ~25,000 characters of
+// leading whitespace, so the real size is ~58,700.
+ok('stylesheet is the whole thing, not an empty splice', css.length > 40000,
     css.length + ' chars');
-// A stray backtick ends the literal early and everything after it silently vanishes.
-// That defect shipped twice, and I reproduced it twice more while writing this phase.
+// Kept, but it is now a courtesy rather than a guard. A stray backtick used to end the
+// stylesheet literal early and silently delete everything after it — that shipped twice,
+// and I reproduced it twice more while writing P4. In a .css file a backtick is just a
+// character, so this only flags one left behind by a bad merge.
 ok('no backtick anywhere in the stylesheet', css.indexOf('`') === -1);
 
 /* ── 1. a selector no old parser understands takes its whole rule with it ───── */

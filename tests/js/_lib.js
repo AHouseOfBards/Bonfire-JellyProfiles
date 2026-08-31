@@ -51,29 +51,50 @@ function readDashboard() {
     return fs.readFileSync(dashboardPath(), 'utf8');
 }
 
+/** Web/styles.css, the stylesheet as a real file. */
+function stylesPath() {
+    return path.join(ROOT, 'Web', 'styles.css');
+}
+
 /**
- * The injected stylesheet, as text.
+ * The stylesheet.
  *
- * Found by matching the assignment inside injectStyles rather than a fixed property
- * name, and it THROWS on a miss. A harness that silently receives '' still runs and
- * still reports most of its assertions as passing, which is how a one-word change went
- * unnoticed across four files.
+ * It is a real file now (Web/styles.css), spliced into the served script by
+ * ProfilesController.PublishStyles. Before that it was a 1,400-line template literal
+ * inside injectStyles, and this function used to have to find it by shape and guard
+ * against it being truncated by a stray backtick — the defect that shipped 1.5.2 and
+ * 1.5.3-beta dead. None of that is reachable any more; a .css file has no host string
+ * to terminate.
+ *
+ * `src` is still accepted and still honoured, for one reason: every harness takes the
+ * source path as argv[2] so it can be pointed at an older checkout to prove it fails
+ * there. In those builds the CSS really is inside the script, so when the argument
+ * looks like the old shape it is parsed the old way. Drop this only when nothing needs
+ * to bisect against a pre-1.5.9 build.
  */
 function extractCss(src) {
-    const at = src.indexOf('injectStyles: function');
-    if (at === -1) throw new Error('extractCss: injectStyles not found in the source');
+    if (typeof src === 'string' && src.indexOf('injectStyles: function') !== -1) {
+        const at = src.indexOf('injectStyles: function');
+        const m = /style\.(innerHTML|textContent)\s*=\s*`/.exec(src.slice(at));
+        if (m) {
+            const open = at + m.index + m[0].length;
+            const close = src.indexOf('`;', open);
+            if (close === -1) throw new Error('extractCss: unterminated stylesheet literal');
+            const css = src.slice(open, close);
+            if (css.length < 1000) {
+                throw new Error('extractCss: got only ' + css.length + ' characters — the '
+                    + 'literal is probably being ended early by a stray backtick');
+            }
+            return css;
+        }
+        // Falls through: a current build has injectStyles but no literal to find.
+    }
 
-    const m = /style\.(innerHTML|textContent)\s*=\s*`/.exec(src.slice(at));
-    if (!m) throw new Error('extractCss: no stylesheet assignment found inside injectStyles');
-
-    const open = at + m.index + m[0].length;
-    const close = src.indexOf('`;', open);
-    if (close === -1) throw new Error('extractCss: unterminated stylesheet literal');
-
-    const css = src.slice(open, close);
+    const css = fs.readFileSync(stylesPath(), 'utf8');
+    // THROWS on a miss for the same reason the old version did: a harness handed ''
+    // still runs and still reports most of its assertions as passing.
     if (css.length < 1000) {
-        throw new Error('extractCss: got only ' + css.length + ' characters — the literal '
-            + 'is probably being ended early by a stray backtick');
+        throw new Error('extractCss: Web/styles.css is only ' + css.length + ' characters');
     }
     return css;
 }
@@ -109,6 +130,48 @@ function extractFunction(src, name) {
     throw new Error('extractFunction: unterminated body for ' + name);
 }
 
+/**
+ * The script as the browser actually receives it: profiles.js with the stylesheet
+ * spliced in, exactly as ProfilesController.PublishStyles does it.
+ *
+ * Use this anywhere a harness asserts about "the shipped client" — evaluating the
+ * startup path, or searching for a CSS selector. Reading Web/profiles.js alone stopped
+ * being that when the stylesheet moved to its own file; four harnesses were searching
+ * the script text for CSS rules and silently found none.
+ *
+ * The encoding mirrors the server's: JSON, so a quote or a backslash in the CSS is
+ * data. If the two ever disagree the harnesses are testing a file nobody is served,
+ * so tests/js/bundle.js checks this function against the C# one.
+ */
+function readClientBundle(src) {
+    const js = typeof src === 'string' ? src : readProfiles();
+    const marker = 'let BONFIRE_STYLES = ""; // __BONFIRE_STYLES__';
+    if (js.indexOf(marker) === -1) return js;   // an older build, CSS still inline
+    return js.replace(
+        marker,
+        'let BONFIRE_STYLES = ' + JSON.stringify(extractCss()) + '; // __BONFIRE_STYLES__');
+}
+
+/**
+ * The script and the stylesheet as plain text, concatenated.
+ *
+ * For harnesses that SEARCH the source rather than run it. Do not use readClientBundle
+ * for that: there the CSS is a JSON-encoded string literal, so a double quote inside a
+ * selector is the two characters backslash-quote and a newline is backslash-n. A
+ * search for `[aria-expanded="true"]` finds nothing, and reads as the rule being
+ * missing rather than the search being wrong — which is exactly how three uitest
+ * assertions failed on the day the stylesheet moved.
+ *
+ * Run it, use readClientBundle. Read it, use this.
+ */
+function readSourceAndStyles(src) {
+    const js = typeof src === 'string' ? src : readProfiles();
+    // An older checkout still has the CSS inline; appending it again would double
+    // every rule and quietly break any "declared exactly once" assertion.
+    if (js.indexOf('let BONFIRE_STYLES = ""; // __BONFIRE_STYLES__') === -1) return js;
+    return js + '\n\n' + extractCss();
+}
+
 /** The inline <script> block of the dashboard page. */
 function dashboardScript(html) {
     const m = html.match(/<script type="text\/javascript">([\s\S]*?)<\/script>/);
@@ -120,5 +183,5 @@ module.exports = {
     ROOT,
     profilesPath, dashboardPath, i18nDir,
     readProfiles, readDashboard,
-    extractCss, extractFunction, dashboardScript
+    extractCss, extractFunction, dashboardScript, stylesPath, readClientBundle, readSourceAndStyles
 };

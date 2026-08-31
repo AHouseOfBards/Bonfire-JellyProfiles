@@ -20,7 +20,9 @@ function ok(name, cond) {
 
 const SRC_PATH = L.profilesPath();
 const REPO = process.argv[3] || '.';
-let src = fs.readFileSync(SRC_PATH, 'utf8');
+// The bundle, not the bare file: this harness both EVALUATES the script and searches
+// it for CSS rules, and the stylesheet is Web/styles.css now.
+let src = L.readClientBundle(fs.readFileSync(SRC_PATH, 'utf8'));
 
 const INIT = 'ProfilesPlugin.init();';
 if (src.split(INIT).length - 1 !== 1) {
@@ -360,11 +362,27 @@ ok('and stops clipping so the outline can show',
 // would rather than merely asserting a rule is present — uitest.js was green for
 // three releases on rules that were being overridden.
 function ruleBody(selector) {
-    const i = src.indexOf('\n                ' + selector + ' {');
+    // Anchored on a line start plus any indentation, rather than on exactly sixteen
+    // spaces. The stylesheet used to live inside a template literal, so every rule
+    // carried the indentation of the JavaScript around it; it is Web/styles.css now
+    // and carries none. A locator that encodes formatting stops working the moment
+    // the formatting moves, and it fails by finding nothing — which reads as "the
+    // rule is missing" rather than "the locator is wrong".
+    //
+    // It also reads the CSS itself rather than `src`. In the bundle the stylesheet is
+    // a JSON-encoded string, so its newlines are the two characters backslash-n and a
+    // search for a real line break finds nothing. A CSS lookup belongs in the CSS.
+    const css = L.extractCss(src);
+    const needle = '\n' + selector + ' {';
+    let i = css.indexOf(needle);
+    if (i === -1) {
+        // The indented form, for an older checkout where the CSS is still inline.
+        i = css.indexOf('\n                ' + selector + ' {');
+    }
     if (i === -1) return null;
-    const start = src.indexOf('{', i);
-    const end = src.indexOf('}', start);
-    return src.slice(start + 1, end);
+    const start = css.indexOf('{', i);
+    const end = css.indexOf('}', start);
+    return css.slice(start + 1, end);
 }
 
 const transparentRule = ruleBody('.profile-avatar.is-transparent');

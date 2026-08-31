@@ -15,11 +15,21 @@ function has(hay, needle, label) { ok(hay.indexOf(needle) >= 0, label); }
 function hasnt(hay, needle, label) { ok(hay.indexOf(needle) < 0, label); }
 function count(hay, needle) { return hay.split(needle).length - 1; }
 
-const js = L.readProfiles();
+// Source plus stylesheet, as plain text. This harness searches for CSS selectors as
+// well as JavaScript, and the stylesheet is Web/styles.css now. Not the served bundle:
+// there the CSS is JSON-encoded, so a selector containing a double quote would never
+// be found.
+const js = L.readSourceAndStyles();
 const html = L.readDashboard();
 
+// The script on its own. Two assertions below are about the FILE — that it parses as
+// JavaScript, and that its line endings are uniform — and neither is true of `js`,
+// which has the stylesheet concatenated onto it for searching. Asserting those against
+// the concatenation reports a CSS rule as a JavaScript syntax error.
+const jsOnly = L.readProfiles();
+
 // ── Both files still parse ─────────────────────────────────────────────────
-try { new vm.Script(js, { filename: 'profiles.js' }); ok(true, 'profiles.js parses'); }
+try { new vm.Script(jsOnly, { filename: 'profiles.js' }); ok(true, 'profiles.js parses'); }
 catch (e) { fails.push('profiles.js parses: ' + e.message); }
 
 const scriptBody = html.slice(
@@ -35,8 +45,8 @@ catch (e) { fails.push('dashboard script parses: ' + e.message); }
 // Consistency, not CRLF specifically: this used to assert every LF was part of a CRLF,
 // which is true on a Windows checkout and false on Linux, so it failed the first time CI
 // ran on ubuntu. Which ending a checkout gets is git's business now — see .gitattributes.
-const pureCrlf = count(js, '\r\n') === count(js, '\n');
-const pureLf = count(js, '\r') === 0;
+const pureCrlf = count(jsOnly, '\r\n') === count(jsOnly, '\n');
+const pureLf = count(jsOnly, '\r') === 0;
 ok(pureCrlf || pureLf, 'profiles.js line endings are consistent (mixed: '
     + count(js, '\r\n') + ' CRLF of ' + count(js, '\n') + ' LF)');
 ok(count(js, '\r\r') === 0, 'profiles.js has no doubled CR');

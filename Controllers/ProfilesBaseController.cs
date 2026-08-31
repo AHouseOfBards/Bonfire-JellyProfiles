@@ -450,7 +450,9 @@ namespace Jellyfin.Profiles.Controllers
             {
                 if (AuditLogPath != null) return AuditLogPath;
 
-                // Fix #4: guard against Plugin.Instance being null on first call
+                // Plugin.Instance can still be null the first time this is reached, before
+                // the plugin has finished constructing. Without this guard the audit log
+                // path throws on the very first request rather than degrading.
                 var instance = Plugin.Instance;
                 if (instance == null)
                 {

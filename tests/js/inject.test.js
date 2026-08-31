@@ -143,7 +143,12 @@ function loadPlugin(source) {
 }
 
 // ── run ─────────────────────────────────────────────────────────────────────
-const source = fs.readFileSync(SRC, 'utf8');
+//
+// The bundle, exactly as the server sends it: profiles.js with Web/styles.css spliced
+// into BONFIRE_STYLES. This harness EXECUTES the startup path, so it has to run what a
+// browser runs — the file on its own now carries an empty stylesheet by design, and
+// asserting against that would test a script nobody is served.
+const source = require('./_lib').readClientBundle(fs.readFileSync(SRC, 'utf8'));
 installDom();
 
 let P = null;
@@ -170,11 +175,16 @@ if (P) {
 
     if (sheet) {
         const css = sheet.textContent || sheet.innerHTML || '';
-        // 60,000 is comfortably under the real size (~68,500) and far above anything a
-        // truncated literal would leave behind. Asserting only "not empty" would have
-        // passed against a sheet cut off at the first stray backtick.
-        ok(css.length > 60000, 'the stylesheet is a full sheet, not a truncated one',
-            'got ' + css.length + ' characters, expected > 60000');
+        // A floor, and the reason for it has changed. It used to guard against a literal
+        // cut off at the first stray backtick — the defect that shipped 1.5.2 dead — and
+        // 60,000 sat just under the inline sheet's ~68,500. The stylesheet is a real .css
+        // file now and cannot be truncated that way, and de-indenting it out of the
+        // JavaScript took ~25,000 characters of leading whitespace off, so the true size
+        // is ~58,700. What the floor still catches is the splice failing: the marker
+        // edited away, styles.css missing from the build, an empty resource. All of those
+        // leave a sheet of a few hundred characters at most.
+        ok(css.length > 40000, 'the stylesheet is a full sheet, not an empty splice',
+            'got ' + css.length + ' characters, expected > 40000');
         ok(sheet.id === 'jpf-styles', 'the style element carries id="jpf-styles"',
             'got id="' + sheet.id + '"');
 
