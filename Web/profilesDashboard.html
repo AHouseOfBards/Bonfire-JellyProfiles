@@ -79,6 +79,274 @@
     #profilesConfigurationPage .jpf-tab-panel > .sectionTitleContainer:first-child {
         margin-top: 0 !important;
     }
+
+    /* The number box beside each account, in the Accounts table.
+       It carried six stacked !important declarations inline, which is what you
+       write when you have lost an argument with a stylesheet you cannot see. The
+       opponent is emby-input: `is="emby-input"` upgrades the element and
+       jellyfin-web's own rules then set width, height, padding and margin. An
+       id-scoped selector outranks all of them on specificity alone, so none of
+       the !importants were ever doing work that this rule does not do — and
+       leaving them meant the next person could not override the box at all. */
+    #profilesConfigurationPage .user-limit-input {
+        width: 60px;
+        height: 28px;
+        padding: 2px 6px;
+        font-size: 0.85rem;
+        margin: 0;
+        box-sizing: border-box;
+    }
+
+    /* Audit log controls. Classes rather than inline style attributes: this page
+       had 112 of those and they are being retired, not added to. */
+    #profilesConfigurationPage .jpf-audit-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 12px;
+        margin-bottom: 1em;
+    }
+    #profilesConfigurationPage .jpf-audit-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    #profilesConfigurationPage .jpf-audit-field label {
+        font-size: 0.8rem;
+        opacity: 0.7;
+    }
+    #profilesConfigurationPage .jpf-audit-field input {
+        margin: 0;
+        box-sizing: border-box;
+    }
+    #profilesConfigurationPage .jpf-audit-filter input { width: 220px; }
+    #profilesConfigurationPage .jpf-audit-count {
+        font-size: 0.85rem;
+        opacity: 0.7;
+        margin-bottom: 1em;
+    }
+    #profilesConfigurationPage .jpf-audit-row {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        padding: 12px 15px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    /* space-between distributes nothing once the row is narrow, which ran the
+       timestamp straight into the address: "12:09:28 PMIP: 127.0.0.1". */
+    #profilesConfigurationPage .jpf-audit-meta {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 4px 16px;
+        font-size: 0.85rem;
+        opacity: 0.5;
+        margin-bottom: 4px;
+    }
+    #profilesConfigurationPage .jpf-audit-what { font-size: 0.95rem; color: #fff; }
+    #profilesConfigurationPage .jpf-audit-where {
+        font-size: 0.85rem;
+        opacity: 0.7;
+        margin-top: 2px;
+    }
+
+    #profilesConfigurationPage .jpf-session-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 16px;
+        width: 100%;
+        padding: 12px 15px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    #profilesConfigurationPage .jpf-session-main { flex: 1 1 260px; min-width: 0; }
+    #profilesConfigurationPage .jpf-session-who { font-size: 0.95rem; color: #fff; }
+    #profilesConfigurationPage .jpf-session-where {
+        font-size: 0.85rem;
+        opacity: 0.7;
+        margin-top: 2px;
+    }
+    #profilesConfigurationPage .jpf-session-tag {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: var(--jpf-accent-a12);
+        opacity: 0.9;
+    }
+    #profilesConfigurationPage .jpf-backup-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 1em;
+    }
+
+    /* == A vocabulary for this page ==========================================
+       This file carried 132 inline style attributes across 55 distinct values,
+       most of them variations on the same handful of ideas: a notice box, a
+       small status line, a spacing tweak. Five of the boxes were amber and no
+       two of them were the same amber.
+
+       They are consolidated rather than transcribed. Turning 55 values into 55
+       single-use classes would move the problem into the stylesheet and make it
+       harder to read; what follows is the set the page actually needed. Where a
+       colour has shifted slightly, that is the consolidation doing its job.
+
+       Note on display:none. The boxes below are shown and hidden from script by
+       assigning to style.display, which is inline and therefore beats these
+       rules in the cascade either way. Nothing in this page sets
+       style.display = '' (checked), which is the one pattern that would break
+       against a class-supplied `display: none`. */
+
+    #profilesConfigurationPage .jpf-hidden { display: none; }
+
+    /* Notice boxes. One shape, four meanings. */
+    #profilesConfigurationPage .jpf-note {
+        border: 1px solid var(--jpf-accent-a35);
+        background: var(--jpf-accent-a12);
+        border-radius: 6px;
+        padding: 14px 18px;
+        margin-bottom: 2em;
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+    #profilesConfigurationPage .jpf-note-warn {
+        background: rgba(245, 159, 0, 0.12);
+        border-color: rgba(245, 159, 0, 0.35);
+        color: #ffc078;
+    }
+    #profilesConfigurationPage .jpf-note-error {
+        background: rgba(230, 73, 128, 0.12);
+        border-color: rgba(230, 73, 128, 0.35);
+        color: #ff6b6b;
+    }
+    #profilesConfigurationPage .jpf-note-ok {
+        background: rgba(81, 207, 102, 0.12);
+        border-color: rgba(81, 207, 102, 0.35);
+        color: #51cf66;
+    }
+    /* Quieter than .jpf-note-warn: used where the box is advisory rather than a
+       problem, such as the beta channel notice. */
+    #profilesConfigurationPage .jpf-note-soft {
+        background: rgba(245, 159, 0, 0.10);
+        border-color: rgba(245, 159, 0, 0.35);
+        margin-bottom: 1.5em;
+        padding: 12px 18px;
+        font-size: 0.92rem;
+    }
+
+    /* The inset panel inside a notice that carries the raw reason. */
+    #profilesConfigurationPage .jpf-note-detail {
+        margin-top: 10px;
+        padding: 10px 12px;
+        background: rgba(0, 0, 0, 0.25);
+        border-radius: 4px;
+        font-size: 0.9rem;
+    }
+    #profilesConfigurationPage .jpf-note-title {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 700;
+    }
+
+    /* Small status lines under a control. */
+    #profilesConfigurationPage .jpf-status {
+        font-size: 0.88rem;
+        font-weight: 600;
+        margin-top: 8px;
+    }
+    #profilesConfigurationPage .jpf-status-quiet {
+        font-weight: 400;
+        opacity: 0.75;
+    }
+    #profilesConfigurationPage .jpf-status-error {
+        color: #ff6b6b;
+        line-height: 1.6;
+    }
+    #profilesConfigurationPage .jpf-subtle {
+        font-size: 0.9rem;
+        opacity: 0.85;
+    }
+
+    #profilesConfigurationPage .jpf-pill {
+        font-size: 0.85em;
+        font-weight: 600;
+        opacity: 0.8;
+        background: rgba(255, 255, 255, 0.08);
+        padding: 3px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    #profilesConfigurationPage .jpf-narrow { max-width: 280px; }
+    #profilesConfigurationPage .jpf-form-narrow { max-width: 520px; }
+    #profilesConfigurationPage .jpf-scroll-list {
+        max-height: 300px;
+        overflow-y: auto;
+        background: rgba(0, 0, 0, 0.15);
+    }
+
+    /* Spacing. Named for the rhythm of the page rather than for their values,
+       so changing the rhythm is one edit. */
+    #profilesConfigurationPage .jpf-section { margin-top: 3em; }
+    #profilesConfigurationPage .jpf-lede { margin-bottom: 1em; }
+    #profilesConfigurationPage .jpf-block-end { margin-bottom: 3em; }
+
+    /* The rest of the vocabulary. Layout that belongs to one element still gets
+       a name -- .jpf-avatar-grid says what it is, where a repeated
+       grid-template-columns in the markup said only how. */
+    #profilesConfigurationPage .jpf-sublist { margin: 6px 0 0 0; padding-left: 20px; }
+    #profilesConfigurationPage .jpf-label-block { display: block; margin-bottom: 6px; }
+    #profilesConfigurationPage .jpf-quiet { opacity: 0.85; }
+    #profilesConfigurationPage .jpf-result { font-size: 0.88rem; }
+    #profilesConfigurationPage .jpf-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    #profilesConfigurationPage .jpf-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    #profilesConfigurationPage .jpf-avatar-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: 14px;
+        margin-bottom: 3em;
+    }
+    /* The two coloured badges on the version chip: one for a build that will not
+       run, one for a build that is merely out of date. */
+    #profilesConfigurationPage .jpf-badge-bad { background: #d23f3f; color: #fff; }
+    #profilesConfigurationPage .jpf-badge-stale { background: #f59f00; color: #1a1a1a; }
+    #profilesConfigurationPage .jpf-btn-quiet {
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.75);
+    }
+    #profilesConfigurationPage .jpf-link-warn { color: #ffc078; text-decoration: underline; }
+
+    /* Classes for the rows this page builds in script. Only the repeated ones:
+       a structural style that appears once, inside the template of the row it
+       belongs to, is clearer where it is than behind a name used nowhere else. */
+    #profilesConfigurationPage .jpf-list-pad { padding: 15px; }
+    #profilesConfigurationPage .jpf-error { color: #ff6b6b; }
+    #profilesConfigurationPage .jpf-dim { opacity: 0.8; }
+    #profilesConfigurationPage .jpf-divider { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+    #profilesConfigurationPage .jpf-grow { flex: 1; min-width: 0; }
+
+    /* Spacing that appears more than once. Named for the step rather than the
+       pixel count, so the rhythm of the page is one edit rather than a search. */
+    #profilesConfigurationPage .jpf-mt-1 { margin-top: 8px; }
+    #profilesConfigurationPage .jpf-mt-2 { margin-top: 12px; }
+    #profilesConfigurationPage .jpf-mt-3 { margin-top: 14px; }
+    #profilesConfigurationPage .jpf-mb-0 { margin-bottom: 4px; }
+    #profilesConfigurationPage .jpf-mb-1 { margin-bottom: 8px; }
+    #profilesConfigurationPage .jpf-mb-2 { margin-bottom: 10px; }
+    /* A notice box that is a single line of text does not need the full padding. */
+    #profilesConfigurationPage .jpf-note-tight { padding: 12px 18px; }
 </style>
     <div data-role="content">
         <div class="content-primary">
@@ -87,8 +355,8 @@
                  previous build usually still is, which is why the switcher keeps working.
                  Nothing is wrong with the file or its permissions, so this must not be the
                  failure banner (issue #25). -->
-            <div id="restartRequiredContainer" style="display:none; background:rgba(245,159,0,0.12); border:1px solid rgba(245,159,0,0.35); border-radius:6px; padding:14px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#ffc078;">
-                <strong style="display:block; margin-bottom:6px; font-weight:700;">↻ Restart Jellyfin to finish updating Bonfire</strong>
+            <div class="jpf-hidden jpf-note jpf-note-warn" id="restartRequiredContainer">
+                <strong class="jpf-note-title">↻ Restart Jellyfin to finish updating Bonfire</strong>
                 Bonfire has been installed or updated since Jellyfin started. The new version cannot
                 serve the client script until the server restarts — until then the previous version
                 keeps running, so profiles will still work.
@@ -97,34 +365,34 @@
                      had no way to check: someone who has already restarted, or who pressed
                      Jellyfin's Restart button on a Docker image where it does not restart the
                      process, sees the same words either way. Two numbers can be checked. -->
-                <div id="restartVersions" style="display:none; margin-top:8px; font-weight:600;"></div>
-                <div style="margin-top:10px; padding:10px 12px; background:rgba(0,0,0,0.25); border-radius:4px; font-size:0.9rem;">
+                <div class="jpf-hidden jpf-status" id="restartVersions"></div>
+                <div class="jpf-note-detail">
                     <strong>On Docker, restart the container.</strong> Jellyfin's own <em>Restart</em>
                     button does not restart the process on most container images, so the notice stays
                     until the container comes back.
                 </div>
             </div>
-            <div id="injectionWarningContainer" style="display:none; background:rgba(230,73,128,0.12); border:1px solid rgba(230,73,128,0.35); border-radius:6px; padding:14px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#ff6b6b;">
-                <strong style="display:block; margin-bottom:6px; font-weight:700; color:#ff8787;">⚠️ Client Script Auto-Injection Failed</strong>
+            <div class="jpf-hidden jpf-note jpf-note-error" id="injectionWarningContainer">
+                <strong class="jpf-note-title" style="color:#ff8787;">⚠️ Client Script Auto-Injection Failed</strong>
                 <span id="injectionFailureHeadline">The plugin was unable to automatically modify Jellyfin's <code>index.html</code>.
                 Without this script, the "Who's Watching?" profile gate and switcher will not load.</span>
-                <div id="injectionFailureReason" style="display:none; margin-top:10px; padding:10px 12px; background:rgba(0,0,0,0.25); border-radius:4px; font-size:0.9rem;"></div>
+                <div class="jpf-hidden jpf-note-detail" id="injectionFailureReason"></div>
                 <span class="injectionFileFix">
                 <br>
                 <strong>How to fix:</strong>
                 Run the command for your platform, then click <strong>Re-check Now</strong> below — no Jellyfin restart needed.
                 </span>
-                <div class="detectedAccountRow" id="injectionFailureAccountRow" style="display:none; margin-top:8px; font-size:0.9rem; opacity:0.85;">
+                <div class="detectedAccountRow jpf-hidden jpf-subtle jpf-mt-1" id="injectionFailureAccountRow">
                     Jellyfin is running as <code class="detectedAccount"></code>, and the command below grants access to exactly that account.
                 </div>
-                <ul class="injectionFileFix" style="margin: 6px 0 0 0; padding-left: 20px;">
-                    <li style="margin-bottom:10px;">
+                <ul class="injectionFileFix jpf-sublist">
+                    <li class="jpf-mb-2">
                         <strong>Linux (Native):</strong>
                         <br><code id="linuxChownCmd" class="linuxChownCmd">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code>
                         <br><code id="linuxChmodCmd" class="linuxChmodCmd">sudo chmod 664 /usr/share/jellyfin/web/index.html</code>
                         <br><span style="font-size:0.85em; opacity:0.8;">After Jellyfin restarts and injects the script, you can optionally restore the original permissions with <code>chmod 644</code>.</span>
                     </li>
-                    <li style="margin-bottom:10px;">
+                    <li class="jpf-mb-2">
                         <strong>Docker (Run on host):</strong>
                         <br><code id="dockerChownCmd" class="dockerChownCmd">docker exec -u root &lt;container-name&gt; chown jellyfin:jellyfin /jellyfin/jellyfin-web/index.html</code>
                         <br><code id="dockerChmodCmd" class="dockerChmodCmd">docker exec -u root &lt;container-name&gt; chmod 664 /jellyfin/jellyfin-web/index.html</code>
@@ -134,50 +402,50 @@
                         <br><code id="windowsFixCmd" class="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "Users:(M)" /grant "NT AUTHORITY\NetworkService:(M)"</code>
                     </li>
                 </ul>
-                <div style="margin-top:14px;">
-                    <button type="button" is="emby-button" class="raised retryInjectionBtn" style="background:#d23f3f; color:#fff;">Re-check Now</button>
-                    <span class="retryInjectionStatus" style="margin-left:10px; font-size:0.9rem; opacity:0.85;"></span>
+                <div class="jpf-mt-3">
+                    <button type="button" is="emby-button" class="raised retryInjectionBtn jpf-badge-bad">Re-check Now</button>
+                    <span class="retryInjectionStatus jpf-subtle" style="margin-left:10px;"></span>
                 </div>
             </div>
 
-            <div id="staleVersionWarningContainer" style="display:none; background:rgba(245,159,0,0.12); border:1px solid rgba(245,159,0,0.35); border-radius:6px; padding:14px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#f59f00;">
-                <strong style="display:block; margin-bottom:6px; font-weight:700; color:#ffc078;">⚡ Optional — Client Script Tag Not Up To Date</strong>
+            <div class="jpf-hidden jpf-note jpf-note-warn" id="staleVersionWarningContainer">
+                <strong class="jpf-note-title" style="color:#ffc078;">⚡ Optional — Client Script Tag Not Up To Date</strong>
                 <strong>Nothing is broken.</strong> The profile switcher is running normally; this only affects how quickly browsers notice a new client script after a plugin update, and they work that out by themselves within about five minutes.
-                <div id="staleReason" style="display:none; margin-top:10px; padding:10px 12px; background:rgba(0,0,0,0.25); border-radius:4px; font-size:0.9rem;"></div>
+                <div class="jpf-hidden jpf-note-detail" id="staleReason"></div>
                 <br>
                 <strong>What to do:</strong>
-                <ul style="margin: 6px 0 0 0; padding-left: 20px;">
-                    <li style="margin-bottom:8px;">
+                <ul class="jpf-sublist">
+                    <li class="jpf-mb-1">
                         <strong>If new features (like tag filtering) do not appear:</strong> Perform a hard refresh in your browser (<strong>Ctrl + Shift + R</strong> or <strong>Cmd + Shift + R</strong>) to clear cached scripts.
                     </li>
                     <li>
                         <strong>To allow automatic script tag updates on future releases:</strong> Grant write permissions on <code>index.html</code>:
-                        <div class="detectedAccountRow" style="display:none; margin:6px 0; font-size:0.9rem; opacity:0.85;">
+                        <div class="detectedAccountRow jpf-hidden jpf-subtle" style="margin:6px 0;">
                             Jellyfin is running as <code class="detectedAccount"></code> — the command below grants access to exactly that account.
                         </div>
-                        <ul style="margin: 6px 0 0 0; padding-left: 20px;">
-                            <li style="margin-bottom:4px;"><strong>Linux (Native):</strong> <code class="linuxChownCmd">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code> | <code class="linuxChmodCmd">sudo chmod 664 /usr/share/jellyfin/web/index.html</code></li>
-                            <li style="margin-bottom:4px;"><strong>Docker:</strong> <code class="dockerChownCmd">docker exec -u root &lt;container-name&gt; chown jellyfin:jellyfin /jellyfin/jellyfin-web/index.html</code> | <code class="dockerChmodCmd">docker exec -u root &lt;container-name&gt; chmod 664 /jellyfin/jellyfin-web/index.html</code></li>
+                        <ul class="jpf-sublist">
+                            <li class="jpf-mb-0"><strong>Linux (Native):</strong> <code class="linuxChownCmd">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code> | <code class="linuxChmodCmd">sudo chmod 664 /usr/share/jellyfin/web/index.html</code></li>
+                            <li class="jpf-mb-0"><strong>Docker:</strong> <code class="dockerChownCmd">docker exec -u root &lt;container-name&gt; chown jellyfin:jellyfin /jellyfin/jellyfin-web/index.html</code> | <code class="dockerChmodCmd">docker exec -u root &lt;container-name&gt; chmod 664 /jellyfin/jellyfin-web/index.html</code></li>
                             <li><strong>Windows:</strong> <code class="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "Users:(M)" /grant "NT AUTHORITY\NetworkService:(M)"</code></li>
                         </ul>
                     </li>
                 </ul>
-                <div style="margin-top:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                    <button type="button" is="emby-button" class="raised retryInjectionBtn" style="background:#f59f00; color:#1a1a1a;">Re-check Now</button>
-                    <button type="button" is="emby-button" id="dismissStaleBtn" class="raised" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.75);">Dismiss until next update</button>
-                    <span class="retryInjectionStatus" style="font-size:0.9rem; opacity:0.85;"></span>
+                <div class="jpf-actions jpf-mt-3">
+                    <button type="button" is="emby-button" class="raised retryInjectionBtn jpf-badge-stale">Re-check Now</button>
+                    <button type="button" is="emby-button" id="dismissStaleBtn" class="raised jpf-btn-quiet">Dismiss until next update</button>
+                    <span class="retryInjectionStatus jpf-subtle"></span>
                 </div>
             </div>
 
-            <div id="betaNoticeContainer" style="display:none; background:rgba(245,159,0,0.10); border:1px solid rgba(245,159,0,0.35); border-radius:6px; padding:12px 18px; margin-bottom:2em; font-size:0.95rem; line-height:1.6; color:#ffc078;">
+            <div class="jpf-hidden jpf-note jpf-note-warn jpf-note-tight" id="betaNoticeContainer">
                 <strong>🧪 You are running a pre-release build.</strong>
                 <span style="opacity:0.9;">Features may change and bugs are more likely than in a stable release. If something looks wrong, please
-                <a href="https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues" target="_blank" rel="noopener noreferrer" style="color:#ffc078; text-decoration:underline;">open an issue on GitHub</a>.</span>
+                <a class="jpf-link-warn" href="https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues" target="_blank" rel="noopener noreferrer">open an issue on GitHub</a>.</span>
             </div>
 
-            <div id="injectionOkContainer" style="display:none; background:rgba(81,207,102,0.12); border:1px solid rgba(81,207,102,0.35); border-radius:6px; padding:12px 18px; margin-bottom:2em; font-size:0.95rem; color:#51cf66;">
+            <div class="jpf-hidden jpf-note jpf-note-ok jpf-note-tight" id="injectionOkContainer">
                 <strong>✅ Client script is installed and up to date.</strong>
-                <span style="opacity:0.85;">The profile switcher will load for all users.</span>
+                <span class="jpf-quiet">The profile switcher will load for all users.</span>
             </div>
 
             <!-- Above the tabs on purpose: the banners above this line report whether the
@@ -193,14 +461,14 @@
 
             <div class="jpf-tab-panel" id="jpfPanelGeneral" data-panel="general" role="tabpanel" hidden>
             <form id="profilesConfigurationForm">
-                <div class="sectionTitleContainer" style="display:flex; align-items:center; justify-content:space-between;">
+                <div class="sectionTitleContainer jpf-row">
                     <h2 class="sectionTitle">Bonfire Settings</h2>
                     <!-- Filled in from the server's own version; no hardcoded literal to go stale. -->
-                    <span id="pluginVersionBadge" style="font-size:0.85em; font-weight:600; opacity:0.8; background:rgba(255,255,255,0.08); padding:3px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12);">…</span>
+                    <span class="jpf-pill" id="pluginVersionBadge">…</span>
                 </div>
 
-                <div style="background:var(--jpf-accent-a12,rgba(0,164,220,0.12));border:1px solid var(--jpf-accent-a35,rgba(0,164,220,0.35));border-radius:6px;padding:14px 18px;margin-bottom:2em;font-size:0.95rem;line-height:1.6;">
-                    <strong style="display:block;margin-bottom:6px;">&#9432;&nbsp; Where to manage profiles</strong>
+                <div class="jpf-note">
+                    <strong class="jpf-label-block">&#9432;&nbsp; Where to manage profiles</strong>
                     Profiles are managed from the Jellyfin home screen — look for the
                     <strong>Switch Profile</strong> button in the top bar. This page sets the
                     server-wide limits.
@@ -221,7 +489,7 @@
                 </div>
 
                 <h3 class="checkboxListLabel" style="margin-top:1.5em;">Switcher defaults</h3>
-                <div class="fieldDescription" style="margin-bottom:1em;">
+                <div class="fieldDescription jpf-lede">
                     What new accounts get. Anyone who picks their own setting keeps it.
                 </div>
 
@@ -250,15 +518,15 @@
             </div><!-- /general -->
 
             <div class="jpf-tab-panel" id="jpfPanelAvatars" data-panel="avatars" role="tabpanel" hidden>
-            <div class="sectionTitleContainer" style="margin-top: 3em;">
+            <div class="sectionTitleContainer jpf-section">
                 <h2 class="sectionTitle">Avatar Library</h2>
             </div>
-            <div class="fieldDescription" style="margin-bottom: 1em;">
+            <div class="fieldDescription jpf-lede">
                 Pictures anyone on this server can pick as their profile picture. On a TV this is the only
                 way to set one — there is no file browser to upload from.
             </div>
 
-            <div id="avatarMissingWarning" style="display:none; background:rgba(255,153,0,0.10); border:1px solid rgba(255,153,0,0.35); border-radius:6px; padding:12px 18px; margin-bottom:1.5em; font-size:0.92rem; line-height:1.6;">
+            <div class="jpf-hidden jpf-note jpf-note-soft" id="avatarMissingWarning">
                 <!-- Filled in when a profile or library entry points at a file that is gone -->
             </div>
 
@@ -273,32 +541,32 @@
             </div>
 
             <div style="margin: 1em 0;">
-                <button is="emby-button" type="button" id="avatarUploadBtn" class="raised" style="max-width:280px;">Upload avatars</button>
-                <input type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" style="display:none;" />
-                <button is="emby-button" type="button" id="avatarFolderBtn" class="raised" style="max-width:280px; margin-left:8px;">Upload a folder</button>
-                <input type="file" id="avatarFolderInput" webkitdirectory directory multiple style="display:none;" />
+                <button is="emby-button" type="button" id="avatarUploadBtn" class="raised jpf-narrow">Upload avatars</button>
+                <input class="jpf-hidden" type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" />
+                <button is="emby-button" type="button" id="avatarFolderBtn" class="raised jpf-narrow" style="margin-left:8px;">Upload a folder</button>
+                <input class="jpf-hidden" type="file" id="avatarFolderInput" webkitdirectory directory multiple />
                 <div class="fieldDescription">JPEG, PNG, WebP or GIF. Pick several files or a whole folder; they are squared and resized automatically.</div>
-                <div class="inputContainer" style="margin-top:1em; max-width:520px;">
+                <div class="inputContainer jpf-form-narrow" style="margin-top:1em;">
                     <label class="inputLabel" for="avatarScanPath">Or import a folder from the server</label>
                     <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" />
                     <div class="fieldDescription">A path on the server, not on this computer. Pictures are copied in; the folder is left alone.</div>
                 </div>
-                <button is="emby-button" type="button" id="avatarScanBtn" class="raised" style="max-width:280px;">Import from folder</button>
+                <button is="emby-button" type="button" id="avatarScanBtn" class="raised jpf-narrow">Import from folder</button>
 
-                <div id="avatarUploadStatus" style="display:none; font-size:0.88rem; opacity:0.75; margin-top:8px;"></div>
-                <div id="avatarUploadError" style="display:none; color:#ff6b6b; font-size:0.88rem; font-weight:600; margin-top:8px; line-height:1.6;"></div>
+                <div class="jpf-hidden jpf-status jpf-status-quiet" id="avatarUploadStatus"></div>
+                <div class="jpf-hidden jpf-status jpf-status-error" id="avatarUploadError"></div>
             </div>
 
-            <div id="avatarLibraryGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:14px; margin-bottom:3em;">
+            <div class="jpf-avatar-grid" id="avatarLibraryGrid">
                 <!-- Library avatars rendered here -->
             </div>
             </div><!-- /avatars -->
 
             <div class="jpf-tab-panel" id="jpfPanelAdvanced" data-panel="advanced" role="tabpanel" hidden>
-            <div class="sectionTitleContainer" style="margin-top: 3em;">
+            <div class="sectionTitleContainer jpf-section">
                 <h2 class="sectionTitle">Client Script</h2>
             </div>
-            <div class="fieldDescription" style="margin-bottom: 1em;">
+            <div class="fieldDescription jpf-lede">
                 How Bonfire gets its script into Jellyfin's web client. A working server does
                 not need this changed.
             </div>
@@ -311,18 +579,38 @@
                     <option value="file">Patch index.html only (legacy)</option>
                 </select>
                 <div class="fieldDescription" id="indexInjectionModeHelp"></div>
-                <div class="fieldDescription" id="middlewareStatusLine" style="margin-top:8px;"></div>
+                <div class="fieldDescription jpf-mt-1" id="middlewareStatusLine"></div>
             </div>
 
-            <div class="buttonContainer" style="margin-bottom:3em;">
-                <button is="emby-button" type="button" id="saveInjectionMode" class="raised" style="max-width:280px;">Save method</button>
+            <div class="buttonContainer jpf-block-end">
+                <button is="emby-button" type="button" id="saveInjectionMode" class="raised jpf-narrow">Save method</button>
             </div>
 
-            <div class="sectionTitleContainer" style="margin-top: 3em;">
+            <div class="sectionTitleContainer jpf-section">
+                <h2 class="sectionTitle">Backup</h2>
+            </div>
+            <div class="fieldDescription jpf-lede">
+                Every profile, PIN, Bonfire, device list and avatar record lives in one
+                configuration file with nothing behind it. Export writes a copy you can keep;
+                import replaces everything with that copy. <strong>The file contains PIN
+                hashes</strong> &mdash; they are salted and slow to attack, but treat the file as
+                you would the configuration itself.
+            </div>
+            <div class="jpf-backup-row">
+                <button is="emby-button" type="button" id="exportConfigBtn" class="raised">
+                    <span>Export configuration</span>
+                </button>
+                <button is="emby-button" type="button" id="importConfigBtn" class="raised">
+                    <span>Import configuration</span>
+                </button>
+                <input type="file" id="importConfigFile" accept="application/json,.json" hidden />
+            </div>
+            <div class="jpf-result" id="backupResult" style="margin-bottom:2em;"></div>
+            <div class="sectionTitleContainer jpf-section">
                 <h2 class="sectionTitle">Emergency Disable Code</h2>
             </div>
-            <div style="background:rgba(255,153,0,0.10);border:1px solid rgba(255,153,0,0.35);border-radius:6px;padding:14px 18px;margin-bottom:1.5em;font-size:0.94rem;line-height:1.65;">
-                <strong style="display:block;margin-bottom:6px;">&#9888;&nbsp; Read this before turning it on</strong>
+            <div class="jpf-note jpf-note-soft" style="padding:14px 18px;font-size:0.94rem;">
+                <strong class="jpf-label-block">&#9888;&nbsp; Read this before turning it on</strong>
                 Entering this code shuts Bonfire down until Jellyfin restarts — for when the plugin
                 breaks badly enough to block this page.
                 <br><br>
@@ -333,7 +621,7 @@
                 No password is asked for, so make it long.
             </div>
 
-            <div id="panicStatusLine" class="fieldDescription" style="margin-bottom:1em;">…</div>
+            <div id="panicStatusLine" class="fieldDescription jpf-lede">…</div>
 
             <div class="inputContainer">
                 <label class="inputLabel" for="panicCodeInput">Emergency disable code</label>
@@ -343,33 +631,81 @@
                     somewhere off this server.
                 </div>
             </div>
-            <div style="margin-bottom:3em;">
-                <button is="emby-button" type="button" id="savePanicCode" class="raised block" style="max-width:280px;">Save code</button>
-                <div id="panicCodeResult" style="display:none; font-size:0.88rem; font-weight:600; margin-top:8px;"></div>
+            <div class="jpf-block-end">
+                <button is="emby-button" type="button" id="savePanicCode" class="raised block jpf-narrow">Save code</button>
+                <div class="jpf-hidden jpf-status" id="panicCodeResult"></div>
             </div>
             </div><!-- /advanced -->
 
             <div class="jpf-tab-panel" id="jpfPanelAccounts" data-panel="accounts" role="tabpanel" hidden>
-            <div class="sectionTitleContainer" style="margin-top: 3em;">
+            <div class="sectionTitleContainer jpf-section">
                 <h2 class="sectionTitle">Accounts &amp; Profiles</h2>
             </div>
-            <div class="fieldDescription" style="margin-bottom: 1em;">
+            <div class="fieldDescription jpf-lede">
                 Every master account on the server. Expand an account to see the sub-profiles belonging to it.
                 Administrators can reset the PIN of any account or profile.
             </div>
-            <div class="paperList" id="masterUsersList" style="margin-bottom: 3em;">
+            <div class="paperList jpf-block-end" id="masterUsersList">
                 <!-- Master accounts, each with its sub-profiles nested inside -->
             </div>
+            <div class="sectionTitleContainer" style="margin-top: 2em;">
+                <h2 class="sectionTitle">Orphaned Profiles</h2>
+            </div>
+            <div class="fieldDescription jpf-lede">
+                A profile deleted through Jellyfin's user administration rather than through Bonfire
+                leaves its record behind. Those records still count against a household's profile
+                limit, and a sub-profile whose master was deleted cannot be reached or removed from
+                the interface at all. Scanning changes nothing.
+            </div>
+            <button is="emby-button" type="button" id="scanOrphansBtn" class="raised">
+                <span>Scan for orphans</span>
+            </button>
+            <div class="jpf-result jpf-mt-2" id="orphansResult"></div>
+
+            <div class="sectionTitleContainer jpf-section">
+                <h2 class="sectionTitle">Signed-in Devices</h2>
+            </div>
+            <div class="fieldDescription jpf-lede">
+                Every live session on the server, with the household each sub-profile belongs to.
+                Jellyfin's own Devices page lists these as bare usernames, and sub-profiles are
+                hidden users there, so they read as strangers.
+            </div>
+            <button is="emby-button" type="button" id="refreshSessionsBtn" class="raised">
+                <span>Refresh</span>
+            </button>
+            <div class="paperList jpf-block-end jpf-mt-2" id="profileSessionsList"></div>
             </div><!-- /accounts -->
 
             <div class="jpf-tab-panel" id="jpfPanelActivity" data-panel="activity" role="tabpanel" hidden>
-            <div class="sectionTitleContainer" style="margin-top: 3em;">
+            <div class="sectionTitleContainer jpf-section">
                 <h2 class="sectionTitle">Profile Switch Audit Logs</h2>
             </div>
-            <div class="fieldDescription" style="margin-bottom: 1em;">
-                Displays the 1,000 most recent profile switching events on the server.
+            <div class="fieldDescription jpf-lede">
+                The 1,000 most recent profile switching events on the server. Filtering happens
+                in the page, so it never re-reads the log.
             </div>
-            <div class="paperList" id="auditLogsList" style="margin-bottom: 3em; max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.15);">
+            <div class="jpf-audit-controls">
+                <div class="jpf-audit-field jpf-audit-filter">
+                    <label for="auditFilter">Account or profile</label>
+                    <input is="emby-input" type="search" id="auditFilter" placeholder="Any name" />
+                </div>
+                <div class="jpf-audit-field">
+                    <label for="auditFrom">From</label>
+                    <input is="emby-input" type="date" id="auditFrom" />
+                </div>
+                <div class="jpf-audit-field">
+                    <label for="auditTo">To</label>
+                    <input is="emby-input" type="date" id="auditTo" />
+                </div>
+                <button is="emby-button" type="button" id="auditClear" class="raised">
+                    <span>Clear</span>
+                </button>
+                <button is="emby-button" type="button" id="auditDownload" class="raised">
+                    <span>Download JSON</span>
+                </button>
+            </div>
+            <div class="jpf-audit-count" id="auditCount"></div>
+            <div class="paperList jpf-block-end jpf-scroll-list" id="auditLogsList">
                 <!-- Audit logs dynamically loaded here -->
             </div>
             </div><!-- /activity -->
@@ -741,6 +1077,74 @@
                     });
             }
 
+
+            // ── Orphaned profiles ───────────────────────────────────────────────
+            // Two calls on purpose. The first is a dry run that only reports; the second
+            // deletes. This removes configuration and there is no undo, so the
+            // administrator sees the list and confirms it before anything goes.
+            function renderOrphans(page, data) {
+                const box = page.querySelector('#orphansResult');
+                const total = data.orphans.length + data.deadGroups.length + data.deadMembers.length;
+                if (!total) {
+                    box.innerHTML = '<span style="opacity:.7;">Nothing orphaned. Every profile and Bonfire still points at a Jellyfin user that exists.</span>';
+                    return;
+                }
+                let html = '<div style="margin-bottom:8px;">Found ' + total + ' record(s) pointing at deleted users:</div><ul style="margin:0 0 12px 1.2em;">';
+                data.orphans.forEach(function (o) {
+                    html += '<li>' + (o.profileName || '(unnamed profile)') + ' — ' + o.reason + '</li>';
+                });
+                data.deadGroups.forEach(function (g) {
+                    html += '<li>Bonfire ' + g.code + ' — its owner was deleted</li>';
+                });
+                if (data.deadMembers.length) {
+                    html += '<li>' + data.deadMembers.length + ' Bonfire membership(s) naming deleted accounts</li>';
+                }
+                html += '</ul><button is="emby-button" type="button" id="applyOrphansBtn" class="raised"><span>Remove these ' + total + ' record(s)</span></button>';
+                box.innerHTML = html;
+
+                page.querySelector('#applyOrphansBtn').addEventListener('click', function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('plugins/profiles/admin/cleanup-orphans', { apply: true }),
+                        dataType: 'json'
+                    }).then(function (res) {
+                        Dashboard.hideLoadingMsg();
+                        box.innerHTML = '<span class="jpf-dim">Removed ' + res.removedMappings
+                            + ' profile record(s), ' + res.removedGroups + ' Bonfire(s) and '
+                            + res.removedMembers + ' membership(s). Devices were left alone.</span>';
+                        loadMappings(page);
+                    }, function () {
+                        Dashboard.hideLoadingMsg();
+                        box.innerHTML = '<span class="jpf-error">Cleanup failed.</span>';
+                    });
+                });
+            }
+
+            function bindOrphanScan(page) {
+                const btn = page.querySelector('#scanOrphansBtn');
+                // pageshow fires more than once for the same element; without this guard a
+                // second visit would run the scan twice per click, like every other handler
+                // on this page learned the hard way.
+                if (!btn || btn.dataset.bound) return;
+                btn.dataset.bound = '1';
+                btn.addEventListener('click', function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('plugins/profiles/admin/cleanup-orphans'),
+                        dataType: 'json'
+                    }).then(function (res) {
+                        Dashboard.hideLoadingMsg();
+                        renderOrphans(page, res);
+                    }, function () {
+                        Dashboard.hideLoadingMsg();
+                        page.querySelector('#orphansResult').innerHTML =
+                            '<span class="jpf-error">Scan failed.</span>';
+                    });
+                });
+            }
+
             function loadMappings(page) {
                 const url = ApiClient.getUrl('plugins/profiles/admin/mappings');
                 ApiClient.getJSON(url).then(function (result) {
@@ -783,7 +1187,7 @@
                         const reqPin = field(s, 'requiresPin') === true;
                         return '<div class="listItem" style="display:flex; align-items:center; padding:10px 15px 10px 28px; border-top:1px solid rgba(255,255,255,0.05);">' +
                                '<span class="material-icons" style="font-size:1.1rem; opacity:0.35; margin-right:10px;">subdirectory_arrow_right</span>' +
-                               '<div class="listItemBody" style="flex:1; min-width:0;">' +
+                               '<div class="listItemBody jpf-grow">' +
                                '<div class="listItemBodyText" style="font-weight:600; color:#fff;">' + pName + '</div>' +
                                '<div class="listItemBodyText secondary" style="font-size:0.85rem; opacity:0.75; margin-top:2px;">Status: ' + pinStatusHtml(reqPin) + '</div>' +
                                '</div>' +
@@ -792,7 +1196,7 @@
                     }
 
                     if (masterUsers.length === 0) {
-                        masterContainer.innerHTML = '<div class="listItem" style="padding:15px;"><div class="listItemBody">No master accounts found.</div></div>';
+                        masterContainer.innerHTML = '<div class="listItem jpf-list-pad"><div class="listItemBody">No master accounts found.</div></div>';
                     } else {
                         masterContainer.innerHTML = masterUsers.map(function (m) {
                             const pName = escapeHtml(field(m, 'profileName') || '');
@@ -805,7 +1209,7 @@
                             const overrideControl =
                                 '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
                                 '<span style="font-size:0.85rem; opacity:0.6;">Limit</span>' +
-                                '<input is="emby-input" type="number" class="user-limit-input" data-id="' + pId + '" min="1" max="20" value="' + maxProfiles + '" style="width:60px !important; height:28px !important; padding:2px 6px !important; font-size:0.85rem !important; margin:0 !important; box-sizing:border-box !important;" />' +
+                                '<input is="emby-input" type="number" class="user-limit-input" data-id="' + pId + '" min="1" max="20" value="' + maxProfiles + '" />' +
                                 '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + pId + '" style="padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">Set</button>' +
                                 (limitOverride !== null && limitOverride !== undefined
                                     ? '<button type="button" class="raised button-mini clear-limit-btn" data-id="' + pId + '" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.15); padding:3px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer;">Reset</button>'
@@ -834,7 +1238,7 @@
                             // One line per account. This used to be a stacked block roughly
                             // 125px tall carrying two values, so a dozen accounts meant a very
                             // long scroll for what is a table's worth of data.
-                            return '<div class="listItem-group" style="border-bottom:1px solid rgba(255,255,255,0.08);">' +
+                            return '<div class="listItem-group jpf-divider">' +
                                    '<div class="listItem" style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:10px 15px;">' +
                                    '<div style="flex:1 1 220px; min-width:0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
                                    '<span style="font-weight:600; font-size:1rem; color:#fff;">' + pName + '</span>' +
@@ -860,9 +1264,9 @@
                     });
                     if (orphans.length > 0) {
                         masterContainer.insertAdjacentHTML('beforeend',
-                            '<div class="listItem-group" style="border-bottom:1px solid rgba(255,255,255,0.08);">' +
+                            '<div class="listItem-group jpf-divider">' +
                             '<div class="listItem" style="display:flex; align-items:flex-start; padding:15px;">' +
-                            '<div class="listItemBody" style="flex:1; min-width:0;">' +
+                            '<div class="listItemBody jpf-grow">' +
                             '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#ffc078;">⚠️ Unlinked sub-profiles</div>' +
                             '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">' +
                             'These profiles point at a master account that no longer exists.' +
@@ -921,42 +1325,314 @@
                 });
             }
 
+            // -- Audit log -------------------------------------------------------
+            //
+            // A thousand rows went into a 300-pixel scrolling div with no search at all, so
+            // the only way to answer "when did Sam last switch" was to scroll. The whole log
+            // is already in the response, so filtering, the date range and the export all
+            // happen here - no new endpoint, and no re-read per keystroke.
+            let auditEntries = [];
+
+            // Both spellings: the list can arrive as the plugin's camelCase JSON or straight
+            // off a PascalCase DTO, and this page has been bitten by assuming one of them.
+            function auditField(log, name) {
+                const lower = name.charAt(0).toLowerCase() + name.slice(1);
+                return log[name] || log[lower] || '';
+            }
+
+            function auditMatches(log, term, from, to) {
+                if (term) {
+                    // Both username fields, which is what an administrator is looking for:
+                    // "who switched" and "into what".
+                    const hay = (auditField(log, 'MasterUsername') + ' ' +
+                                 auditField(log, 'TargetUsername')).toLowerCase();
+                    if (hay.indexOf(term) === -1) return false;
+                }
+                if (from || to) {
+                    const when = new Date(auditField(log, 'Timestamp'));
+                    if (isNaN(when.getTime())) return false;
+                    // The To box means "including that day", so it is compared against the
+                    // end of it. Comparing against midnight silently excluded today, which
+                    // is the range people pick most often.
+                    if (from && when < from) return false;
+                    if (to && when > to) return false;
+                }
+                return true;
+            }
+
+            function auditVisible(page) {
+                const term = (page.querySelector('#auditFilter').value || '').trim().toLowerCase();
+                const fromRaw = page.querySelector('#auditFrom').value;
+                const toRaw = page.querySelector('#auditTo').value;
+                const from = fromRaw ? new Date(fromRaw + 'T00:00:00') : null;
+                const to = toRaw ? new Date(toRaw + 'T23:59:59.999') : null;
+                return {
+                    filtered: !!(term || from || to),
+                    rows: auditEntries.filter(function (log) {
+                        return auditMatches(log, term, from, to);
+                    })
+                };
+            }
+
+            function renderAuditLogs(page) {
+                const container = page.querySelector('#auditLogsList');
+                const countBox = page.querySelector('#auditCount');
+                if (!container) return;
+
+                const view = auditVisible(page);
+
+                if (countBox) {
+                    countBox.textContent = view.filtered
+                        ? 'Showing ' + view.rows.length + ' of ' + auditEntries.length + ' events.'
+                        : auditEntries.length + ' event(s).';
+                }
+
+                if (!auditEntries.length) {
+                    container.innerHTML = '<div class="listItem jpf-list-pad"><div class="listItemBody">No profile switch events recorded yet.</div></div>';
+                    return;
+                }
+                if (!view.rows.length) {
+                    container.innerHTML = '<div class="listItem jpf-list-pad"><div class="listItemBody">No events match this filter.</div></div>';
+                    return;
+                }
+
+                container.innerHTML = view.rows.map(function (log) {
+                    const dateStr = new Date(auditField(log, 'Timestamp')).toLocaleString();
+                    const master = auditField(log, 'MasterUsername') || 'Unknown';
+                    const target = auditField(log, 'TargetUsername') || 'Unknown';
+                    const device = auditField(log, 'DeviceName') || 'Unknown Device';
+                    const client = auditField(log, 'Client') || 'Unknown Client';
+                    const ip = auditField(log, 'IpAddress') || 'Unknown IP';
+
+                    return '<div class="listItem jpf-audit-row">' +
+                           '<div class="jpf-audit-meta">' +
+                           '<span>' + dateStr + '</span>' +
+                           '<span>IP: ' + ip + '</span>' +
+                           '</div>' +
+                           '<div class="jpf-audit-what">' +
+                           'Master <strong>' + master + '</strong> switched to profile <strong>' + target + '</strong>' +
+                           '</div>' +
+                           '<div class="jpf-audit-where">' +
+                           'Device: ' + device + ' (' + client + ')' +
+                           '</div>' +
+                           '</div>';
+                }).join('');
+            }
+
+            function downloadAuditLogs(page) {
+                // What is on screen, not the whole log. An administrator who has narrowed to
+                // one account and then exports everything has been handed the wrong file.
+                const rows = auditVisible(page).rows;
+                const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'bonfire-audit-' + new Date().toISOString().slice(0, 10) + '.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                // Revoked on the next tick: revoking synchronously after click() cancels the
+                // download in some browsers before they have read the blob.
+                setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+            }
+
+            function bindAuditControls(page) {
+                const filter = page.querySelector('#auditFilter');
+                // pageshow fires more than once for the same element; every handler on this
+                // page is guarded for that reason and these are no different.
+                if (!filter || filter.dataset.bound) return;
+                filter.dataset.bound = '1';
+
+                ['#auditFilter', '#auditFrom', '#auditTo'].forEach(function (sel) {
+                    const el = page.querySelector(sel);
+                    if (el) el.addEventListener('input', function () { renderAuditLogs(page); });
+                });
+                page.querySelector('#auditClear').addEventListener('click', function () {
+                    page.querySelector('#auditFilter').value = '';
+                    page.querySelector('#auditFrom').value = '';
+                    page.querySelector('#auditTo').value = '';
+                    renderAuditLogs(page);
+                });
+                page.querySelector('#auditDownload').addEventListener('click', function () {
+                    downloadAuditLogs(page);
+                });
+            }
+
+            // -- Signed-in devices -----------------------------------------------
+            function loadProfileSessions(page) {
+                const container = page.querySelector('#profileSessionsList');
+                if (!container) return;
+
+                ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/admin/sessions'))
+                    .then(function (sessions) {
+                        if (!sessions || !sessions.length) {
+                            container.innerHTML = '<div class="listItem jpf-list-pad"><div class="listItemBody">Nobody is signed in right now.</div></div>';
+                            return;
+                        }
+                        container.innerHTML = sessions.map(function (s) {
+                            const who = s.isSubProfile
+                                ? s.username + ' <span class="jpf-session-tag">profile of ' + (s.masterUsername || 'unknown') + '</span>'
+                                : s.username;
+                            const playing = s.nowPlaying ? ' &middot; playing ' + s.nowPlaying : '';
+                            const seen = s.lastActivity ? new Date(s.lastActivity).toLocaleString() : 'unknown';
+                            return '<div class="listItem jpf-session-row">' +
+                                   '<div class="jpf-session-main">' +
+                                   '<div class="jpf-session-who">' + who + '</div>' +
+                                   '<div class="jpf-session-where">' +
+                                   (s.deviceName || 'Unknown device') + ' (' + (s.client || 'unknown client') + ')' +
+                                   ' &middot; last seen ' + seen + playing +
+                                   '</div></div>' +
+                                   '<button is="emby-button" type="button" class="raised jpf-signout-btn"' +
+                                   ' data-user="' + s.userId + '" data-device="' + s.deviceId + '"' +
+                                   ' data-name="' + s.username + '"><span>Sign out</span></button>' +
+                                   '</div>';
+                        }).join('');
+
+                        container.querySelectorAll('.jpf-signout-btn').forEach(function (btn) {
+                            btn.addEventListener('click', function () {
+                                // Signing somebody out interrupts whatever they are watching,
+                                // and the administrator is often not in the same room.
+                                Dashboard.confirm(
+                                    'Sign ' + btn.getAttribute('data-name') + ' out of this device?',
+                                    'Sign out'
+                                ).then(function () {
+                                    Dashboard.showLoadingMsg();
+                                    ApiClient.ajax({
+                                        type: 'POST',
+                                        url: ApiClient.getUrl('plugins/profiles/admin/sessions/sign-out'),
+                                        data: JSON.stringify({
+                                            userId: btn.getAttribute('data-user'),
+                                            deviceId: btn.getAttribute('data-device')
+                                        }),
+                                        contentType: 'application/json'
+                                    }).then(function () {
+                                        Dashboard.hideLoadingMsg();
+                                        loadProfileSessions(page);
+                                    }, function () {
+                                        Dashboard.hideLoadingMsg();
+                                        Dashboard.alert({
+                                            title: 'Sign out failed',
+                                            message: 'That session could not be signed out.'
+                                        });
+                                    });
+                                });
+                            });
+                        });
+                    })
+                    .catch(function () {
+                        container.innerHTML = '<div class="listItem jpf-list-pad jpf-error"><div class="listItemBody">Could not load sessions.</div></div>';
+                    });
+            }
+
+            // -- Backup ----------------------------------------------------------
+            function bindBackup(page) {
+                const exportBtn = page.querySelector('#exportConfigBtn');
+                // pageshow fires more than once for the same element.
+                if (!exportBtn || exportBtn.dataset.bound) return;
+                exportBtn.dataset.bound = '1';
+
+                const box = page.querySelector('#backupResult');
+
+                exportBtn.addEventListener('click', function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/admin/config/export'))
+                        .then(function (data) {
+                            Dashboard.hideLoadingMsg();
+                            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'bonfire-config-' + new Date().toISOString().slice(0, 10) + '.json';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+                            box.innerHTML = '<span class="jpf-dim">Exported. Keep it somewhere you would keep a password.</span>';
+                        }, function () {
+                            Dashboard.hideLoadingMsg();
+                            box.innerHTML = '<span class="jpf-error">Export failed.</span>';
+                        });
+                });
+
+                const file = page.querySelector('#importConfigFile');
+                page.querySelector('#importConfigBtn').addEventListener('click', function () {
+                    file.value = '';
+                    file.click();
+                });
+
+                file.addEventListener('change', function () {
+                    const chosen = file.files && file.files[0];
+                    if (!chosen) return;
+
+                    const reader = new FileReader();
+                    reader.onload = function () {
+                        let parsed;
+                        try {
+                            parsed = JSON.parse(reader.result);
+                        } catch (e) {
+                            box.innerHTML = '<span class="jpf-error">That file is not valid JSON.</span>';
+                            return;
+                        }
+                        // Accepts the export wrapper or a bare configuration, because the
+                        // obvious thing to do with an export is edit it and paste back the
+                        // inner object.
+                        const config = parsed.configuration || parsed;
+                        if (!config || typeof config !== 'object' || !('Mappings' in config || 'mappings' in config)) {
+                            box.innerHTML = '<span class="jpf-error">That does not look like a Bonfire export.</span>';
+                            return;
+                        }
+
+                        Dashboard.confirm(
+                            'This replaces every profile, PIN, Bonfire and device list with the contents of that file. It cannot be undone.',
+                            'Import configuration'
+                        ).then(function () {
+                            Dashboard.showLoadingMsg();
+                            ApiClient.ajax({
+                                type: 'POST',
+                                url: ApiClient.getUrl('plugins/profiles/admin/config/import'),
+                                data: JSON.stringify(config),
+                                contentType: 'application/json',
+                                dataType: 'json'
+                            }).then(function (res) {
+                                Dashboard.hideLoadingMsg();
+                                let msg = 'Imported ' + res.mappings + ' profile(s), '
+                                    + res.devices + ' device(s) and ' + res.bonfires + ' Bonfire(s).';
+                                if (res.droppedMappings && res.droppedMappings.length) {
+                                    msg += ' Skipped ' + res.droppedMappings.length
+                                        + ' profile(s) naming Jellyfin users this server does not have: '
+                                        + res.droppedMappings.join(', ') + '.';
+                                }
+                                box.innerHTML = '<span class="jpf-dim">' + msg + '</span>';
+                                loadConfiguration(page);
+                                loadMappings(page);
+                            }, function () {
+                                Dashboard.hideLoadingMsg();
+                                box.innerHTML = '<span class="jpf-error">Import failed. Nothing was changed.</span>';
+                            });
+                        });
+                    };
+                    reader.readAsText(chosen);
+                });
+            }
+
+            function bindSessions(page) {
+                const btn = page.querySelector('#refreshSessionsBtn');
+                if (!btn || btn.dataset.bound) return;
+                btn.dataset.bound = '1';
+                btn.addEventListener('click', function () { loadProfileSessions(page); });
+            }
+
             function loadAuditLogs(page) {
                 const container = page.querySelector('#auditLogsList');
                 if (!container) return;
 
                 const url = ApiClient.getUrl('plugins/profiles/admin/audit-logs');
                 ApiClient.getJSON(url).then(function (logs) {
-                    if (!logs || logs.length === 0) {
-                        container.innerHTML = '<div class="listItem" style="padding:15px;"><div class="listItemBody">No profile switch events recorded yet.</div></div>';
-                    } else {
-                        container.innerHTML = logs.map(function (log) {
-                            const dateStr = new Date(log.Timestamp || log.timestamp).toLocaleString();
-                            const master = log.MasterUsername || log.masterUsername || 'Unknown';
-                            const target = log.TargetUsername || log.targetUsername || 'Unknown';
-                            const device = log.DeviceName || log.deviceName || 'Unknown Device';
-                            const client = log.Client || log.client || 'Unknown Client';
-                            const ip = log.IpAddress || log.ipAddress || 'Unknown IP';
-
-                            return '<div class="listItem" style="display:flex; flex-direction:column; width:100%; padding:12px 15px; border-bottom:1px solid rgba(255,255,255,0.06);">' +
-                                   // space-between distributes nothing once the row is narrow, which ran
-                                   // the timestamp straight into the address: "12:09:28 PMIP: 127.0.0.1".
-                                   '<div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 16px; font-size:0.85rem; opacity:0.5; margin-bottom:4px;">' +
-                                   '<span>' + dateStr + '</span>' +
-                                   '<span>IP: ' + ip + '</span>' +
-                                   '</div>' +
-                                   '<div style="font-size:0.95rem; color:#fff;">' +
-                                   'Master <strong>' + master + '</strong> switched to profile <strong>' + target + '</strong>' +
-                                   '</div>' +
-                                   '<div style="font-size:0.85rem; opacity:0.7; margin-top:2px;">' +
-                                   'Device: ' + device + ' (' + client + ')' +
-                                   '</div>' +
-                                   '</div>';
-                        }).join('');
-                    }
+                    auditEntries = logs || [];
+                    renderAuditLogs(page);
                 }).catch(function (err) {
                     console.error("Failed to load audit logs:", err);
-                    container.innerHTML = '<div class="listItem" style="padding:15px; color:#ff6b6b;"><div class="listItemBody">Error loading audit logs.</div></div>';
+                    container.innerHTML = '<div class="listItem jpf-list-pad jpf-error"><div class="listItemBody">Error loading audit logs.</div></div>';
                 });
             }
 
@@ -1454,6 +2130,11 @@
                     return false;
                 });
                 initTabs(page);
+                bindOrphanScan(page);
+                bindAuditControls(page);
+                bindSessions(page);
+                bindBackup(page);
+                loadProfileSessions(page);
 
                 // pageshow can fire more than once for the same element, so guard against
                 // stacking duplicate handlers that would fire several retries per click.
