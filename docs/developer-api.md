@@ -9,19 +9,186 @@ unless stated otherwise. Field names are returned camelCase.
 
 ---
 
+## Contents
+
+- [All routes](#all-routes) — every endpoint in one table
+- [Authentication](#authentication) — how authorisation works, and the seven public routes
+- [Errors](#errors) — status codes, and what an error body actually looks like
+- [Rate limits](#rate-limits)
+- [Stability](#stability) — what is guaranteed, and what may change
+- [Profiles API](#profiles-api)
+- [Client Script](#client-script)
+- [Translations](#translations)
+- [Images API](#images-api)
+- [Library Artwork API](#library-artwork-api)
+- [Devices API](#devices-api)
+- [Bonfire API](#bonfire-api)
+- [Preferences API](#preferences-api)
+- [Avatar Library API](#avatar-library-api)
+- [Emergency Disable API](#emergency-disable-api)
+- [Admin API](#admin-api)
+
+## All routes
+
+Every route the plugin exposes. **Auth** is what the endpoint enforces, not what it
+ought to: `anon` means reachable with no token at all.
+
+This table is generated from `ProfilesController` and checked by
+`tests/js/apidocs.js`, which fails the build if a route is added without an entry, if
+an entry names a route that no longer exists, or if a documented authorisation level
+is not the one the code enforces.
+
+| Route | Auth | Purpose |
+|---|---|---|
+| `GET /plugins/profiles/list` | user | Every profile the caller may switch to, for the gate. |
+| `GET /plugins/profiles/libraries` | user | Libraries the caller can grant to a sub-profile. |
+| `POST /plugins/profiles/create` | admin | Create a sub-profile under the caller. |
+| `POST /plugins/profiles/delete` | user | Delete one of the caller’s sub-profiles. |
+| `POST /plugins/profiles/switch` | admin | Switch to a profile and return a session. |
+| `POST /plugins/profiles/verify-pin` | user | Check a PIN without switching. |
+| `GET /plugins/profiles/admin/mappings` | admin | Every profile on the server, for the dashboard. |
+| `POST /plugins/profiles/admin/retry-injection` | admin | Re-attempt the client-script injection. |
+| `POST /plugins/profiles/admin/reset-pin` | admin | Clear a profile’s PIN. |
+| `POST /plugins/profiles/update` | user | Change a sub-profile’s settings. |
+| `GET /plugins/profiles/profiles.js` | anon | The client script itself. |
+| `GET /plugins/profiles/i18n/{locale}` | anon | One translation file. |
+| `GET /plugins/profiles/bonfire/status` | admin | The caller’s Bonfire group and its members. |
+| `POST /plugins/profiles/bonfire/generate` | user | Mint a join code. |
+| `POST /plugins/profiles/bonfire/join` | user | Join a group with a code. |
+| `POST /plugins/profiles/bonfire/kick` | user | Remove a member from the caller’s group. |
+| `POST /plugins/profiles/bonfire/leave` | user | Leave the group the caller is in. |
+| `POST /plugins/profiles/bonfire/delete-group` | user | Delete the caller’s own group. |
+| `POST /plugins/profiles/bonfire/settings` | user | Change the caller’s Bonfire options. |
+| `GET /plugins/profiles/preferences` | user | The caller’s switcher preferences. |
+| `POST /plugins/profiles/preferences` | user | Change them. |
+| `GET /plugins/profiles/admin/avatars/scan` | admin | List importable images in a server folder. |
+| `GET /plugins/profiles/admin/avatars/scan/file` | admin | Read one of those images. |
+| `GET /plugins/profiles/library-artwork` | user | The caller’s library artwork rules. |
+| `GET /plugins/profiles/library-artwork/{profileId}` | user | One profile’s rules. |
+| `POST /plugins/profiles/library-artwork` | user | Set them. |
+| `GET /plugins/profiles/library-art/{profileId}/{libraryId}` | anon | One library tile image. |
+| `GET /plugins/profiles/devices` | user | Devices seen on the caller’s account. |
+| `POST /plugins/profiles/devices/delete` | user | Forget one. |
+| `GET /plugins/profiles/image/{profileId}` | anon | A profile picture. |
+| `POST /plugins/profiles/panic` | anon | Emergency disable, with the code. |
+| `GET /plugins/profiles/panic-state` | anon | Whether the plugin is disabled. |
+| `GET /plugins/profiles/admin/panic-status` | admin | Whether a panic code is configured. |
+| `POST /plugins/profiles/admin/panic-code` | admin | Set or clear the panic code. |
+| `GET /plugins/profiles/avatars` | user | The shared avatar library. |
+| `GET /plugins/profiles/avatars/{id}` | anon | One library avatar image. |
+| `POST /plugins/profiles/admin/avatars` | admin | Add an image to the library. |
+| `DELETE /plugins/profiles/admin/avatars/{id}` | admin | Remove one. |
+| `POST /plugins/profiles/admin/avatars/settings` | admin | Change avatar-library options. |
+| `POST /plugins/profiles/admin/settings` | admin | Change the plugin’s settings. |
+| `POST /plugins/profiles/admin/set-profile-limit` | admin | Change the per-user profile cap. |
+| `GET /plugins/profiles/admin/audit-logs` | admin | Read the audit log. |
+
+## Errors
+
+Status codes are used consistently across every endpoint.
+
+| Code | Meaning | When |
+|---|---|---|
+| `200` | Success | Includes operations that changed nothing, such as forgetting a device that was already gone. |
+| `400` | The request was understood and rejected | A malformed body, a PIN that is not 4–8 digits, a profile limit outside 1–20, an invalid Bonfire code. |
+| `401` | Not signed in | No usable `Jellyfin-UserId` claim. Every non-anonymous route returns this rather than `403` when there is no token at all. |
+| `403` | Signed in, but not permitted | Administrator-only routes reached by a normal user, and switching to a profile outside the caller's household. |
+| `404` | Not found | An unknown profile or image id. Also returned instead of a redirect when a profile picture is an external URL. |
+| `429` | Rate limited | See below. |
+| `500` | Unhandled | A bug. The response body is Jellyfin's, not the plugin's. |
+
+### What an error body looks like
+
+**Most error responses are a bare string, not JSON.** `BadRequest("Invalid PIN code.")`
+serialises as a quoted string, and a client that calls `response.json()` and reads
+`.message` gets `undefined` rather than the reason. Read the body as text and show it
+directly; it is written to be shown to a person.
+
+```
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain; charset=utf-8
+
+Invalid PIN code.
+```
+
+Endpoints that return structured data on success still return a bare string on failure.
+The two are told apart by the status code, never by the shape of the body.
+
+## Rate limits
+
+Three limiters, each keyed on the caller's IP address. Exceeding one returns `429` and
+does not count as an attempt, so a client cannot extend its own lockout by retrying.
+
+| Limiter | Endpoint | Attempts | Window |
+|---|---|---|---|
+| Bonfire | `POST /plugins/profiles/bonfire/join` | 3 | 15 minutes |
+| PIN | `POST /plugins/profiles/switch`, `POST /plugins/profiles/verify-pin` | 5 | 15 minutes |
+| panic | `POST /plugins/profiles/panic` | 5 | 60 minutes |
+
+A successful attempt resets that limiter for the address. The panic limiter is checked
+**before** the code is compared, so a wrong code and a missing one are indistinguishable
+from the outside.
+
+## Stability
+
+This API exists for the plugin's own client, and is documented because other people
+have built against it anyway. What that means in practice:
+
+- **Fields documented here are guaranteed** for the current major version. A field will
+  not change type or meaning without the version changing.
+- **Ignore fields you do not recognise.** New ones are added in minor releases, and a
+  client that rejects unknown fields will break on an upgrade that breaks nothing else.
+- **Do not depend on field order**, or on the absence of a field.
+- **Routes are not removed within a major version.** A route that is being retired keeps
+  working and is marked deprecated here first.
+- **Request bodies accept more than they require.** Optional fields left out keep their
+  stored value; this is how an older cached copy of `profiles.js` keeps working after
+  the server is updated, and it is deliberate.
+
 ## Authentication
 
-All API requests require a Jellyfin authorization header. Initial requests and profile management endpoints must be authenticated with the master user's token. After a profile switch, the returned active profile token must be used for subsequent API requests.
+Almost every request requires a Jellyfin authorization header. Profile management
+endpoints must be authenticated with the master user's token; after a profile switch, the
+returned active profile token is used for subsequent requests.
 
 ```http
 Authorization: MediaBrowser Client="<ClientName>", Device="<DeviceName>", DeviceId="<DeviceId>", Version="<Version>", Token="<token>"
 ```
+
+#### The endpoints that do not
+
+Seven routes are reachable without a token, each because it has to work *before* anyone
+has signed in. They are listed here so an integrator does not mistake one for a hole, and
+so anyone adding a route knows this list is meant to stay this short.
+
+| Endpoint | Why it is anonymous |
+|---|---|
+| `GET /profiles.js` | Loaded by a `<script>` tag on the sign-in page itself. |
+| `GET /i18n/{locale}` | Fetched by that script, before sign-in, for the same reason. |
+| `GET /image/{profileId}` | Avatars are drawn on the profile gate, which is pre-auth. |
+| `GET /avatars/{id}` | The avatar library, same. |
+| `GET /library-art/{profileId}/{libraryId}` | Library tile artwork, same. |
+| `POST /panic` | The emergency disable. It has to work when the plugin is what is blocking the interface. Rate limited, and a wrong code and a missing one return the same error. |
+| `GET /panic-state` | Reports only whether the plugin is disabled — already visible on screen. |
+
+The image endpoints allow enumeration by GUID. That is accepted: they must be pre-auth for
+the gate to render, and a GUID is not guessable.
+
+The controller carries a class-level `[AllowAnonymous]` because the script and image
+endpoints must be reachable pre-auth and Jellyfin's authorization policy name is not part
+of the public plugin API. **Authorization is therefore hand-rolled per endpoint** — every
+other route calls `GetCurrentUserId()` and returns `401`, or checks
+`Policy.IsAdministrator`. There is no framework backstop, so a new route without a check
+is silently public.
 
 ---
 
 ## Profiles API
 
 ### `GET /plugins/profiles/list`
+
+**Authorisation:** signed-in user.
+
 Retrieves a list of all profiles (master and sub-profiles) accessible to the authenticated master session.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -33,6 +200,7 @@ Retrieves a list of all profiles (master and sub-profiles) accessible to the aut
     "profileName": "John",
     "avatarInitial": "J",
     "avatarColor": "#00A4DC",
+    "transparentAvatar": false,
     "requiresPin": true,
     "hasPin": true,
     "isMaster": true,
@@ -53,6 +221,7 @@ Retrieves a list of all profiles (master and sub-profiles) accessible to the aut
 | `profileName` | string | Display name of the profile. |
 | `avatarInitial` | string | Single character representing the profile avatar. |
 | `avatarColor` | string | Hex color code for the fallback avatar display. |
+| `transparentAvatar` | boolean | When true, do not paint `avatarColor` behind `profileImage`. Set for pictures that are cut out rather than rectangular, where a colour would otherwise show in the corners. Always false when there is no picture. |
 | `requiresPin` | boolean | Whether a PIN must be entered to switch to this profile **right now**. This is false when `bypassPinOnLocalNetwork` is set and the caller is on the local network, even though a PIN exists. Use this to decide whether to prompt. |
 | `hasPin` | boolean | Whether a PIN is configured on this profile at all, regardless of whether one will be prompted for. Use this — never `requiresPin` — to display PIN state in a settings or edit screen. See the note below. |
 | `isMaster` | boolean | Indicates if this is the master user account. |
@@ -79,6 +248,9 @@ Retrieves a list of all profiles (master and sub-profiles) accessible to the aut
 > client can show *that* a PIN exists but never the PIN itself.
 
 ### `POST /plugins/profiles/switch`
+
+**Authorisation:** administrator.
+
 Authenticates a profile selection and returns a scoped session token. Rate limited to 5 failed attempts in 15 minutes.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -135,110 +307,10 @@ Authenticates a profile selection and returns a scoped session token. Rate limit
 > failure to create the target's session surfaced as a `401`, and clients that read it as session
 > expiry signed the user out of an account that was working fine (issue #15).
 
-### `GET /plugins/profiles/admin/avatars/scan`
-Lists the pictures in a folder on the server, for importing a prepared set into the avatar
-library. Administrator only. Added in 1.4.0.
-
-* **Query:** `path` — a folder path as the *server* sees it.
-* **Response `200 OK`:** `{ "folder": "/config/avatars", "truncated": false, "files": [{ "name": "kid.png", "size": 20481 }] }`
-
-Only extensions the plugin can store are listed, and at most 200 files; `truncated` says when
-there were more.
-
-### `GET /plugins/profiles/admin/avatars/scan/file`
-Returns one file from a scanned folder. Administrator only.
-
-* **Query:** `path` — the folder; `name` — the file, a bare name with no separators.
-
-> **Why the client reads the bytes.** The plugin has no server-side image library and keeps
-> it that way — every resize in Bonfire happens on a canvas in the browser. A folder import
-> therefore lists on the server, reads each file through this endpoint, resizes it in the
-> page, and posts the result to `POST /admin/avatars` like any other upload. The server never
-> decodes an image, and one code path produces every stored avatar.
-
-### `GET /plugins/profiles/library-artwork`
-Returns the calling profile's library tile artwork choices. Added in 1.4.0.
-
-* **Headers:** `Authorization: MediaBrowser Token="<token>"`
-* **Response `200 OK`:**
-
-```json
-[
-  {
-    "libraryId": "f137a2dd21bbc1b99aa5c0f6bf02a805",
-    "mode": "custom",
-    "url": "/plugins/profiles/library-art/<profileId>/<libraryId>?v=638..."
-  }
-]
-```
-
-| Field | Type | Description |
-|---|---|---|
-| `libraryId` | string (GUID) | The library the choice applies to. |
-| `mode` | string | `custom` (use `url`) or `none` (show no artwork). `inherit` is never returned — it is the default and is stored as absence. |
-| `url` | string | Path to the stored picture, or null unless the mode is `custom`. |
-
-> **Why a client has to do this.** Jellyfin builds one image per library and caches it on
-> the folder (`CollectionFolderImageProvider`, a collage of up to eight random items). The
-> query behind it has no user attached, so the artwork cannot respect who is asking: a
-> profile restricted to children's films still gets a tile drawn from whatever else lives
-> in the library. There is no per-user image for the server to hand out, so a client that
-> wants this has to substitute it. The bundled `profiles.js` does it with one `!important`
-> stylesheet rule per library, keyed on the `data-id` jellyfin-web puts on every card.
-
-The same list is included in the `POST /switch` response as `libraryArtwork`, so a client
-can apply the incoming profile's choices before it reloads rather than after — fetching
-afterwards leaves a window in which the restricted artwork is on screen.
-
-### `GET /plugins/profiles/library-artwork/{profileId}`
-The same list for another profile. Master-only, like every other profile setting.
-
-  * `401 Unauthorized`: Caller is not the master of that profile.
-
-### `POST /plugins/profiles/library-artwork`
-Sets or clears one profile's artwork for one library.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Body:**
-
-```json
-{
-  "profileId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a",
-  "libraryId": "f137a2dd21bbc1b99aa5c0f6bf02a805",
-  "mode": "custom",
-  "image": "data:image/jpeg;base64,...",
-  "thumb": "data:image/jpeg;base64,...",
-  "avatarLibraryId": null,
-  "masterPin": "1234"
-}
-```
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `profileId` | string (GUID) | Yes | The profile whose view is being changed. |
-| `libraryId` | string (GUID) | Yes | Must be a library Jellyfin currently knows about. |
-| `mode` | string | Yes | `inherit`, `custom` or `none`. Unrecognised values normalise to `inherit`. |
-| `image` | string | No | Full-size picture as a data URL. Only read when the mode is `custom`. |
-| `thumb` | string | No | Small rendering of the same picture. |
-| `avatarLibraryId` | string | No | Use a picture from the administrator's avatar library instead of `image`. Copied server-side, which is what makes "only allow avatars from this library" enforceable. |
-| `masterPin` | string | No | Required when the master account has a PIN. |
-
-`inherit` and `none` both delete any stored picture for that pair. Sending `custom` with
-neither `image` nor `avatarLibraryId` keeps whatever is already stored, and is refused if
-nothing is.
-
-  * `400 Bad Request`: Unknown library, invalid master PIN, an image that could not be
-    stored, or `custom` with no picture available.
-  * `401 Unauthorized`: Caller is not the master of that profile.
-
-### `GET /plugins/profiles/library-art/{profileId}/{libraryId}`
-Serves a stored picture. Unauthenticated, like the other image routes, and serves only
-pairs the configuration currently lists as `custom` — a file left behind by an earlier
-choice stops being reachable.
-
-* **Query:** `size=thumb` for the small rendering.
-
 ### `POST /plugins/profiles/verify-pin`
+
+**Authorisation:** signed-in user.
+
 Validates a profile PIN without switching the active session. Rate limited to 5 failed attempts in 15 minutes.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -262,6 +334,9 @@ Validates a profile PIN without switching the active session. Rate limited to 5 
   * `429 Too Many Requests`: PIN authentication rate limit exceeded (5 failed attempts per 15 minutes).
 
 ### `POST /plugins/profiles/create`
+
+**Authorisation:** administrator.
+
 Creates a new sub-profile.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -288,6 +363,7 @@ Creates a new sub-profile.
 | `profileName` | string | Yes | Display name for the new profile. |
 | `pin` | string | No | Numeric PIN for the profile (4-8 digits). Pass null or omit for no PIN. |
 | `avatarColor` | string | No | Hex color code for the fallback avatar. Defaults to `#1F77B4`. |
+| `transparentAvatar` | boolean | No | Suppresses `avatarColor` behind the picture. Defaults to false. |
 | `maxParentalRating` | string | No | Maximum parental rating allowed (e.g., "6", "10", "14", "17"). Omit for no restriction. |
 | `enabledFolders` | string[] (GUIDs) | No | Array of library GUIDs accessible to this profile. Empty array denies all library access. |
 | `blockedTags` | string[] | No | Tags this profile must never see. Merged with the master's blocked tags — a sub-profile can add blocks but never remove the master's. Null or empty blocks nothing. |
@@ -312,6 +388,9 @@ Creates a new sub-profile.
 | `profileName` | string | Display name of the new profile. |
 
 ### `POST /plugins/profiles/update`
+
+**Authorisation:** signed-in user.
+
 Updates settings for an existing sub-profile.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -340,6 +419,7 @@ Updates settings for an existing sub-profile.
 | `profileName` | string | Yes | New display name. |
 | `pin` | string | No | New numeric PIN. Pass `""` to clear the PIN. Pass `null` to leave unchanged. |
 | `avatarColor` | string | No | New hex color code. |
+| `transparentAvatar` | boolean | No | Suppresses `avatarColor` behind the picture. Omit or send `null` to leave unchanged. |
 | `maxParentalRating` | string | No | New maximum parental rating code. Pass `null` to leave unchanged. |
 | `enabledFolders` | string[] (GUIDs) | No | Updated library GUIDs. Pass `null` to leave unchanged. |
 | `blockedTags` | string[] | No | Updated blocked tags. Pass `[]` to clear, `null` to leave unchanged. Ignored for the master profile. |
@@ -353,6 +433,9 @@ Updates settings for an existing sub-profile.
 * **Response:** `200 OK` on success.
 
 ### `POST /plugins/profiles/delete`
+
+**Authorisation:** signed-in user.
+
 Permanently deletes a sub-profile and its underlying Jellyfin account.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -372,6 +455,9 @@ Permanently deletes a sub-profile and its underlying Jellyfin account.
 * **Response:** `200 OK` on success.
 
 ### `GET /plugins/profiles/libraries`
+
+**Authorisation:** signed-in user.
+
 Retrieves media library folders visible to the master user.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -413,6 +499,9 @@ A client that supplies its own copy of the web client — a Tizen `.wgt`, for ex
 not served by any of them and must bundle the script itself.
 
 ### `GET /plugins/profiles/profiles.js`
+
+**Authorisation:** anonymous.
+
 Serves the web client script. Unauthenticated — it is loaded by a `<script>` tag in Jellyfin's `index.html`.
 
 Native clients do not need this endpoint; it exists for the browser client. It is documented because its caching behaviour interacts with the injection status reported by the admin endpoints.
@@ -432,9 +521,121 @@ Tagging the response with the plugin version and requiring revalidation means a 
 
 ---
 
+## Translations
+
+The gate, the switcher, the profile forms, the PIN prompts and their errors are all
+translatable. The admin settings page is not — see *Scope* below.
+
+English is compiled into `profiles.js` as `EN_STRINGS` and is the fallback for every
+lookup. Other languages are one JSON file each under `Web/i18n/`, embedded in the plugin
+assembly and served by the endpoint below.
+
+The client picks a language from `navigator.languages`, not from any Jellyfin setting, and
+fetches at most one file. **A reader whose browser asks for English causes no request at
+all.** A missing file, a failed request or a malformed payload all leave English in place;
+nothing about translation can stop the switcher loading.
+
+Lookups fall back per key, so a file that is missing newer keys renders those keys in
+English rather than blank.
+
+### `GET /plugins/profiles/i18n/{locale}`
+
+**Authorisation:** anonymous.
+
+Returns one language's strings. Unauthenticated — it is fetched before anyone signs in,
+for the same reason `profiles.js` is.
+
+`{locale}` may be given with or without a `.json` suffix. Only codes with a file embedded
+in the assembly are served; anything else is `404`, and an unknown code is rejected before
+any cache is touched.
+
+* **Response:**
+  * `200 OK`: `application/json` — a flat object of key/value strings.
+  * `304 Not Modified`: when `If-None-Match` matches the current `ETag`.
+  * `404 Not Found`: no translation for that code.
+  * `503 Service Unavailable`: the code is one the server advertises, but the file could
+    not be read. Retryable — a failed read is never cached, so the next request tries
+    again. A client should fall back to English and carry on rather than give up on the
+    language.
+
+| Header | Value |
+|---|---|
+| `ETag` | `"{pluginVersion}-{locale}"` |
+| `Cache-Control` | `public, max-age=300, must-revalidate` |
+
+Same caching contract as `profiles.js`, and for the same reason: the plugin version is the
+cache-buster, so an updated translation is picked up within `max-age` without a hard
+refresh.
+
+```json
+{
+  "gate.whosWatching": "Qui regarde ?",
+  "common.cancel": "Annuler",
+  "profilePage.body": "Vous regardez en tant que <strong>{name}</strong>."
+}
+```
+
+#### Adding a translation
+
+**One JSON file in `Web/i18n/`. Nothing else.** The `.csproj` embeds `Web/i18n/*.json` by
+wildcard, the server discovers locale codes by reading its own embedded resource names,
+and it rewrites the client's locale list as it serves `profiles.js`. There is no list to
+register a language in, in any of the three languages this plugin is written in.
+
+1. Copy `Web/i18n/fr.json` to `Web/i18n/{code}.json`.
+2. Translate the values. **Leave the keys exactly as they are** — they are identifiers.
+3. Run `node Web/i18n/validate.js {code}` (no dependencies).
+4. `dotnet build -c Release`, restart Jellyfin, set your browser's language, open the gate.
+
+`Web/i18n/README.md` is the contributor-facing version of this, including what to do when
+a new translation does not appear.
+
+**Naming.** The filename is the locale code, matched against what the browser sends:
+`de.json`, `pt-BR.json`, `zh-Hans.json`. Two or three letters, optionally with region or
+script subtags. Matching is case-insensitive and prefers the longest match — a browser
+asking for `zh-Hans-CN` takes `zh-Hans.json` over `zh.json`, and falls back to `zh.json`
+when there is no more specific file. Use a bare language code unless regional differences
+genuinely matter.
+
+**Placeholders and markup.** Values may contain `{token}` placeholders and inline HTML
+such as `<strong>`. Both must survive translation: `t()` substitutes only the tokens its
+caller passes, so a dropped `{name}` renders a gap and an invented one renders the braces
+verbatim. These strings reach `innerHTML`, so a dropped closing tag breaks the layout
+around it. `validate.js` checks both.
+
+**Partial files are fine.** Omit a key and it renders in English. Do not ship an empty
+string for it — that renders as nothing at all.
+
+**Scope.** `Web/profilesDashboard.html` — the admin settings page — is deliberately English
+only. It is read by whoever runs the server, its wording changes with almost every
+release, and much of it is diagnostics and copy-pasteable shell commands.
+
+**Length.** These strings sit on buttons and in a grid that has to stay usable on a
+television at three metres, navigated by a D-pad. A translation much longer than the
+English is worth checking in a narrow window before submitting.
+
+#### Reading the available languages
+
+There is no endpoint listing them, deliberately — it would be a request every English
+reader also paid for. The list is written into `profiles.js` as it is served:
+
+```js
+let SUPPORTED_LOCALES = ['fr']; // __BONFIRE_LOCALES__
+```
+
+The file on disk carries an empty list and that marker comment. If you consume
+`profiles.js` directly, read that line; if you are looking for what a given server has,
+request a locale and treat `404` as "not available".
+
+
+---
+
 ## Images API
 
 ### `GET /plugins/profiles/image/{profileId}`
+
+**Authorisation:** anonymous.
+
 Serves the custom profile picture file for the specified profile.
 
 * **Parameters:**
@@ -442,7 +643,24 @@ Serves the custom profile picture file for the specified profile.
   * `size`: optional query. Pass `thumb` for the small variant.
 * **Response:**
   * `200 OK`: Binary image file (JPEG, PNG, WebP, or GIF).
+  * `304 Not Modified`: when `If-None-Match` or `If-Modified-Since` matches.
   * `404 Not Found`: Profile or image not found, or the profile's picture is an externally hosted URL.
+
+**Caching.** All four image endpoints — this one, `avatars/{id}`,
+`library-art/{p}/{l}` and `admin/avatars/scan/file` — send:
+
+| Header | Value |
+|---|---|
+| `Cache-Control` | `private, max-age=3600` |
+| `ETag` | `"{length:x}-{lastWriteUtcTicks:x}"`, strong |
+| `Last-Modified` | the file's last-write time |
+
+`private` because these are one household's faces and the endpoints are anonymous, so a
+shared proxy must not keep them. The validator is the file's length and modification time
+rather than a hash of its contents: it changes whenever the image does, without reading
+the file to decide whether to read the file. Send `If-None-Match` — the gate is redrawn on
+every page load, so a client that does not will re-download every avatar in the household
+each time.
 
 This endpoint is intentionally unauthenticated: the URL is consumed directly as an image source and browsers do not send the `Authorization` header on image requests. This matches how Jellyfin serves its own user images, and the content is a low-sensitivity avatar.
 
@@ -454,7 +672,7 @@ It serves **locally stored images only**. When a profile's picture is an externa
 > thumbnail was stored (an image saved before this existed, or a client that sent only the
 > master) the full-size file is served instead, so the parameter is always safe to pass.
 
-### Uploading a picture
+#### Uploading a picture
 
 `POST /create` and `POST /update` accept the picture in `profileImage` and, optionally, its
 small rendering in `profileImageThumb`. Both are `data:image/…;base64,…` payloads capped at
@@ -470,9 +688,111 @@ file. Those have no thumbnail variant and are returned unchanged in `/list`.
 
 ---
 
+## Library Artwork API
+
+Per-profile artwork for library tiles (issue #19). These four lived under
+**Profiles API**, which is where a reader would never look for them.
+
+### `GET /plugins/profiles/library-artwork`
+
+**Authorisation:** signed-in user.
+
+Returns the calling profile's library tile artwork choices. Added in 1.4.0.
+
+* **Headers:** `Authorization: MediaBrowser Token="<token>"`
+* **Response `200 OK`:**
+
+```json
+[
+  {
+    "libraryId": "f137a2dd21bbc1b99aa5c0f6bf02a805",
+    "mode": "custom",
+    "url": "/plugins/profiles/library-art/<profileId>/<libraryId>?v=638..."
+  }
+]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `libraryId` | string (GUID) | The library the choice applies to. |
+| `mode` | string | `custom` (use `url`) or `none` (show no artwork). `inherit` is never returned — it is the default and is stored as absence. |
+| `url` | string | Path to the stored picture, or null unless the mode is `custom`. |
+
+> **Why a client has to do this.** Jellyfin builds one image per library and caches it on
+> the folder (`CollectionFolderImageProvider`, a collage of up to eight random items). The
+> query behind it has no user attached, so the artwork cannot respect who is asking: a
+> profile restricted to children's films still gets a tile drawn from whatever else lives
+> in the library. There is no per-user image for the server to hand out, so a client that
+> wants this has to substitute it. The bundled `profiles.js` does it with one `!important`
+> stylesheet rule per library, keyed on the `data-id` jellyfin-web puts on every card.
+
+The same list is included in the `POST /switch` response as `libraryArtwork`, so a client
+can apply the incoming profile's choices before it reloads rather than after — fetching
+afterwards leaves a window in which the restricted artwork is on screen.
+
+### `GET /plugins/profiles/library-artwork/{profileId}`
+
+**Authorisation:** signed-in user.
+
+The same list for another profile. Master-only, like every other profile setting.
+
+  * `401 Unauthorized`: Caller is not the master of that profile.
+
+### `POST /plugins/profiles/library-artwork`
+
+**Authorisation:** signed-in user.
+
+Sets or clears one profile's artwork for one library.
+
+* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
+* **Body:**
+
+```json
+{
+  "profileId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a",
+  "libraryId": "f137a2dd21bbc1b99aa5c0f6bf02a805",
+  "mode": "custom",
+  "image": "data:image/jpeg;base64,...",
+  "thumb": "data:image/jpeg;base64,...",
+  "avatarLibraryId": null,
+  "masterPin": "1234"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `profileId` | string (GUID) | Yes | The profile whose view is being changed. |
+| `libraryId` | string (GUID) | Yes | Must be a library Jellyfin currently knows about. |
+| `mode` | string | Yes | `inherit`, `custom` or `none`. Unrecognised values normalise to `inherit`. |
+| `image` | string | No | Full-size picture as a data URL. Only read when the mode is `custom`. |
+| `thumb` | string | No | Small rendering of the same picture. |
+| `avatarLibraryId` | string | No | Use a picture from the administrator's avatar library instead of `image`. Copied server-side, which is what makes "only allow avatars from this library" enforceable. |
+| `masterPin` | string | No | Required when the master account has a PIN. |
+
+`inherit` and `none` both delete any stored picture for that pair. Sending `custom` with
+neither `image` nor `avatarLibraryId` keeps whatever is already stored, and is refused if
+nothing is.
+
+  * `400 Bad Request`: Unknown library, invalid master PIN, an image that could not be
+    stored, or `custom` with no picture available.
+  * `401 Unauthorized`: Caller is not the master of that profile.
+
+### `GET /plugins/profiles/library-art/{profileId}/{libraryId}`
+
+**Authorisation:** anonymous.
+
+Serves a stored picture. Unauthenticated, like the other image routes, and serves only
+pairs the configuration currently lists as `custom` — a file left behind by an earlier
+choice stops being reachable.
+
+* **Query:** `size=thumb` for the small rendering.
+
 ## Devices API
 
 ### `GET /plugins/profiles/devices`
+
+**Authorisation:** signed-in user.
+
 Retrieves the devices belonging to the caller's household, for populating an allowed-devices picker.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -512,6 +832,9 @@ Retrieves the devices belonging to the caller's household, for populating an all
 > render every returned entry, or preserve unknown IDs when submitting.
 
 ### `POST /plugins/profiles/devices/delete`
+
+**Authorisation:** signed-in user.
+
 Deletes a device from the known devices log.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -533,6 +856,9 @@ Deletes a device from the known devices log.
 ## Bonfire API
 
 ### `GET /plugins/profiles/bonfire/status`
+
+**Authorisation:** administrator.
+
 Retrieves the bonfire group status and visibility settings for the caller.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -573,6 +899,9 @@ Retrieves the bonfire group status and visibility settings for the caller.
 | `hasPin` | boolean | Whether the caller's master account has a PIN configured. |
 
 ### `POST /plugins/profiles/bonfire/settings`
+
+**Authorisation:** signed-in user.
+
 Updates the visibility preferences for sharing profiles in Bonfire crossover homes.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -613,6 +942,9 @@ Updates the visibility preferences for sharing profiles in Bonfire crossover hom
 > the setting by posting the two hide flags alone.
 
 ### `POST /plugins/profiles/bonfire/generate`
+
+**Authorisation:** signed-in user.
+
 Generates a new 6-character alphanumeric bonfire join code.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -632,6 +964,9 @@ Generates a new 6-character alphanumeric bonfire join code.
 | `members` | array | List of group members. |
 
 ### `POST /plugins/profiles/bonfire/join`
+
+**Authorisation:** signed-in user.
+
 Joins a target group using its 6-character code. Rate limited to 3 failed attempts in 15 minutes.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -665,6 +1000,9 @@ Joins a target group using its 6-character code. Rate limited to 3 failed attemp
   * `429 Too Many Requests`: Join rate limit exceeded (3 failed attempts per 15 minutes).
 
 ### `POST /plugins/profiles/bonfire/kick`
+
+**Authorisation:** signed-in user.
+
 Kicks a guest master user from the owned bonfire group.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -682,12 +1020,18 @@ Kicks a guest master user from the owned bonfire group.
 * **Response:** `200 OK` on success.
 
 ### `POST /plugins/profiles/bonfire/leave`
+
+**Authorisation:** signed-in user.
+
 Leaves the currently joined bonfire group.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
 * **Response:** `200 OK` on success.
 
 ### `POST /plugins/profiles/bonfire/delete-group`
+
+**Authorisation:** signed-in user.
+
 Dissolves the owned bonfire group. All member associations are removed.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -702,6 +1046,9 @@ administrator cannot set them on someone else's behalf, and each household's ans
 only to its own accounts.
 
 ### `GET /plugins/profiles/preferences`
+
+**Authorisation:** signed-in user.
+
 Returns the calling account's switcher preferences.
 
 * **Headers:** `Authorization: MediaBrowser Token="<token>"`
@@ -756,6 +1103,9 @@ inheriting the previous one's choice.
 > by either newer field present in the same request.
 
 ### `POST /plugins/profiles/preferences`
+
+**Authorisation:** signed-in user.
+
 Updates the calling account's switcher preferences.
 
 * **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
@@ -791,6 +1141,9 @@ Choosing one **copies** it to the profile rather than referencing it, so each us
 same picture differently and removing a library entry cannot break profiles already using it.
 
 ### `GET /plugins/profiles/avatars`
+
+**Authorisation:** signed-in user.
+
 Lists the available avatars. Any authenticated user may call this.
 
 * **Response `200 OK`:**
@@ -818,6 +1171,9 @@ Lists the available avatars. Any authenticated user may call this.
 | `avatars[].thumbUrl` | string | Small variant — use this in grids. |
 
 ### `GET /plugins/profiles/avatars/{id}`
+
+**Authorisation:** anonymous.
+
 Serves a library image. Unauthenticated, for the same reason as `/image/{profileId}`: it is
 rendered as an `<img src>` and browsers do not attach the Authorization header to image
 requests. Returns `404` if the id is unknown or its file is missing.
@@ -827,6 +1183,9 @@ requests. Returns `404` if the id is unknown or its file is missing.
 | `size=thumb` | Serves the small variant, falling back to the full-size image if no thumbnail was stored. |
 
 ### `POST /plugins/profiles/admin/avatars`
+
+**Authorisation:** administrator.
+
 Adds an image to the library. **Administrators only.**
 
 ```json
@@ -843,7 +1202,7 @@ Adds an image to the library. **Administrators only.**
 | `thumb` | string | No | Small rendering. When absent the full-size image is served in its place — that costs bandwidth but never breaks the picture. |
 | `displayName` | string | No | Trimmed to 60 characters. Defaults to `"Avatar"`. |
 
-### Setting a profile's picture from the library
+#### Setting a profile's picture from the library
 
 `POST /create` and `POST /update` accept **`avatarLibraryId`**, which takes precedence over
 `profileImage`. The server copies the library file to the profile byte for byte — nothing is
@@ -867,10 +1226,16 @@ and posts them as `profileImage`, so each user can frame the same picture differ
 > server's own origin and SVG can carry script.
 
 ### `DELETE /plugins/profiles/admin/avatars/{id}`
+
+**Authorisation:** administrator.
+
 Removes a library entry and its files. **Administrators only.** Profiles created from it keep
 their own copy and are unaffected.
 
 ### `POST /plugins/profiles/admin/avatars/settings`
+
+**Authorisation:** administrator.
+
 **Administrators only.**
 
 | Field | Type | Required | Description |
@@ -878,6 +1243,33 @@ their own copy and are unaffected.
 | `disallowCustomAvatarUploads` | boolean | No | When true, profile pictures may only come from the library. Omit to leave unchanged. |
 
 ---
+
+### `GET /plugins/profiles/admin/avatars/scan`
+
+**Authorisation:** administrator.
+
+Lists the pictures in a folder on the server, for importing a prepared set into the avatar
+library. Administrator only. Added in 1.4.0.
+
+* **Query:** `path` — a folder path as the *server* sees it.
+* **Response `200 OK`:** `{ "folder": "/config/avatars", "truncated": false, "files": [{ "name": "kid.png", "size": 20481 }] }`
+
+Only extensions the plugin can store are listed, and at most 200 files; `truncated` says when
+there were more.
+
+### `GET /plugins/profiles/admin/avatars/scan/file`
+
+**Authorisation:** administrator.
+
+Returns one file from a scanned folder. Administrator only.
+
+* **Query:** `path` — the folder; `name` — the file, a bare name with no separators.
+
+> **Why the client reads the bytes.** The plugin has no server-side image library and keeps
+> it that way — every resize in Bonfire happens on a canvas in the browser. A folder import
+> therefore lists on the server, reads each file through this endpoint, resizes it in the
+> page, and posts the result to `POST /admin/avatars` like any other upload. The server never
+> decodes an image, and one code path produces every stored avatar.
 
 ## Emergency Disable API
 
@@ -890,6 +1282,9 @@ An escape hatch for when the plugin itself is what is making the interface unusa
 > that account's library without being asked to pick a profile.
 
 ### `POST /plugins/profiles/panic`
+
+**Authorisation:** anonymous.
+
 Validates the emergency code and, on success, disables the plugin's client script until the
 server restarts. `/plugins/profiles/profiles.js` then serves an inert script that tears down
 any overlay a previously loaded copy left behind.
@@ -911,7 +1306,26 @@ useless exactly when it is needed.
 The disable flag lives in memory and is never persisted — a flag that survived a restart could
 leave a server stuck in a state whose own settings page is the thing you need it to reach.
 
+### `GET /plugins/profiles/panic-state`
+
+**Authorisation:** anonymous.
+
+Whether the plugin is currently shut down by the emergency disable.
+
+Unauthenticated, and deliberately so: `profiles.js` reads it before anyone has signed in,
+which is the situation the emergency disable exists for. It reveals only whether the
+plugin is running — already obvious to anyone looking at the screen — and never whether a
+code is configured. Served `no-store`, because a cached answer here would outlive the
+condition it describes.
+
+```json
+{ "disabled": false }
+```
+
 ### `GET /plugins/profiles/admin/panic-status`
+
+**Authorisation:** administrator.
+
 **Administrators only.** The code itself is stored as a PBKDF2 hash and is never returned.
 
 ```json
@@ -919,6 +1333,9 @@ leave a server stuck in a state whose own settings page is the thing you need it
 ```
 
 ### `POST /plugins/profiles/admin/panic-code`
+
+**Authorisation:** administrator.
+
 **Administrators only.** Sets or clears the code.
 
 | Field | Type | Description |
@@ -932,7 +1349,51 @@ login, since `POST /panic` has no credentials of its own.
 
 ## Admin API
 
+### `POST /plugins/profiles/admin/settings`
+
+**Authorisation:** administrator.
+
+Saves the six server-wide settings the plugin's settings page owns.
+
+Every field is optional and only the fields present in the request are changed. Use this
+rather than Jellyfin's generic `POST /Plugins/{id}/Configuration`: that endpoint replaces
+the whole plugin configuration document, so a profile, device, group or avatar added
+between reading it and writing it back is silently reverted.
+
+* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
+* **Request Body:**
+```json
+{
+  "maxProfilesPerUser": 5,
+  "requireMasterPinForCreation": true,
+  "disallowCustomAvatarUploads": false,
+  "defaultAskOnStartup": true,
+  "defaultSwitcherLocation": "button",
+  "indexInjectionMode": "middleware"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `maxProfilesPerUser` | integer | No | Server-wide profile limit. 1–20. |
+| `requireMasterPinForCreation` | boolean | No | Require the account's PIN before creating a profile. |
+| `disallowCustomAvatarUploads` | boolean | No | Restrict profile pictures to the avatar library. |
+| `defaultAskOnStartup` | boolean | No | Default for accounts that have not chosen: show the gate on startup. |
+| `defaultSwitcherLocation` | string | No | `button` or `menu`. |
+| `indexInjectionMode` | string | No | `file`, `middleware` or `both`. |
+
+* **Response:** `200 OK` on success.
+
+* **Error Responses:**
+  * `400 Bad Request`: A field is out of range or not one of its permitted values. The
+    message names the bound or the permitted values. Nothing is applied — a request with
+    one bad field is rejected whole.
+  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
+
 ### `GET /plugins/profiles/admin/mappings`
+
+**Authorisation:** administrator.
+
 Retrieves all user profile mappings configured on the server.
 
 * **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
@@ -985,6 +1446,10 @@ Retrieves all user profile mappings configured on the server.
 ```json
 {
   "mode": "middleware",
+  "restartRequired": false,
+  "runningVersion": "1.5.6-beta",
+  "newestInstalledVersion": "1.5.6.0",
+  "newerVersionInstalled": false,
   "middlewareRegistered": true,
   "middlewareActive": true,
   "middlewareServed": 42,
@@ -996,7 +1461,11 @@ Retrieves all user profile mappings configured on the server.
 | Field | Type | Description |
 | --- | --- | --- |
 | `mode` | string | `middleware`, `both` or `file`. See **Client Script**. |
-| `middlewareRegistered` | boolean | The pipeline hook was registered at startup. Always true wherever the plugin loads, so it does **not** indicate the hook is working. |
+| `restartRequired` | boolean | This build was installed or updated after Jellyfin started, so its pipeline hook was never registered and cannot be until the server restarts. Treat as "not finished installing", not as a failure — the previously loaded build usually keeps serving, so the switcher still works. Suppress any injection warning while this is true. |
+| `runningVersion` | string | The version actually executing, informational label and all. |
+| `newestInstalledVersion` | string \| null | The highest version present on disk. Jellyfin installs each into its own folder and loads one of them, so this differs from `runningVersion` exactly while an update is waiting for a restart. Null when the plugin was not loaded from a plugin folder and there is nothing to compare against. |
+| `newerVersionInstalled` | boolean \| null | Whether `newestInstalledVersion` is higher than `runningVersion`. **Null means "cannot tell"**, which is not the same as `false` — do not render it as "up to date". |
+| `middlewareRegistered` | boolean | The pipeline hook was registered, which happens once per plugin during server startup. False means this build was loaded afterwards — see `restartRequired`. True does **not** mean the hook is working; use `middlewareActive` for that. |
 | `middlewareActive` | boolean | The hook has handled at least one request for the web page. This is the signal that it is live. |
 | `middlewareServed` | number | Pages served with the tags added, since the server started. |
 | `middlewareLastServedUtc` | string \| null | When the last one was served. |
@@ -1013,6 +1482,9 @@ fields reflect the file as it is now rather than as it was at server startup.
   * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
 
 ### `POST /plugins/profiles/admin/reset-pin`
+
+**Authorisation:** administrator.
+
 Removes the PIN requirement from the specified profile.
 
 * **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
@@ -1034,6 +1506,9 @@ Removes the PIN requirement from the specified profile.
   * `404 Not Found`: Profile mapping not found.
 
 ### `POST /plugins/profiles/admin/retry-injection`
+
+**Authorisation:** administrator.
+
 Re-runs the on-disk injection into Jellyfin's `index.html` and returns the resulting status.
 Lets an administrator apply a file-permission fix and confirm it worked without restarting
 the server.
@@ -1072,6 +1547,9 @@ permission command.
   * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
 
 ### `POST /plugins/profiles/admin/set-profile-limit`
+
+**Authorisation:** administrator.
+
 Overrides the maximum number of profiles a master user is allowed to create.
 
 * **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
@@ -1086,15 +1564,18 @@ Overrides the maximum number of profiles a master user is allowed to create.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `userId` | string (GUID) | Yes | The user ID of the master account to override. |
-| `maxProfiles` | integer | No | The custom maximum profiles limit. Pass null to remove override. |
+| `maxProfiles` | integer | No | The custom limit, 1–20. Pass null to remove the override. |
 
 * **Response:** `200 OK` on success.
 
 * **Error Responses:**
-  * `400 Bad Request`: Maximum profiles must be at least 1, or plugin configuration missing.
+  * `400 Bad Request`: Maximum profiles must be between 1 and 20, or plugin configuration missing.
   * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
 
 ### `GET /plugins/profiles/admin/audit-logs`
+
+**Authorisation:** administrator.
+
 Retrieves recent profile switching event logs.
 
 * **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`

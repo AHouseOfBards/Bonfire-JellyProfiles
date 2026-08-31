@@ -16,6 +16,17 @@ Most people want the stable channel. Add the beta URL only if you are testing
 pre-release builds or need a specific point release — and add it **as well as** the
 stable one, never on its own, or you will stop being offered stable releases.
 
+## What you are agreeing to
+
+> [!WARNING]
+> **Beta builds are unfinished and features in them may be broken.** They exist so new work can be tested before it reaches everyone, which means:
+>
+> * A feature may not work at all, may work differently from its description, or may disappear in the next build.
+> * Settings introduced in a beta can change shape before release. Reverting to a stable build afterwards may leave those settings behind or reset them.
+> * The profile switcher itself can break. If that happens the plugin can make the Jellyfin web interface hard to use — see the **Emergency disable code** under *Known Limitations* in the [README](README.md) before you rely on a beta on a machine you need working.
+>
+> Please do report what you find on [GitHub Issues](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues) — that is what the channel is for. Just don't put a beta on a server your household depends on that evening.
+
 ## How to use the beta channel
 
 In Jellyfin: **Dashboard → Plugins → Repositories → ＋**, then paste the beta URL
