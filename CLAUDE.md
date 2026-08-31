@@ -136,10 +136,10 @@ dropped HTML tags), and CI runs it.
 | `Web/profiles.js` | The client script. One ~7,000-line IIFE; a module split is planned. |
 | `Web/styles.css` | The stylesheet. A real file, spliced into the script as it is served — see `PublishStyles`. It was a template literal inside `injectStyles` until 1.5.9, which is how a stray backtick shipped two dead releases. |
 | `Web/profilesDashboard.html` | Admin page, with its JavaScript inline. |
-| `Controllers/` | `ProfilesController` (49 routes) over `ProfilesBaseController`. |
+| `Controllers/` | `ProfilesController` (50 routes) over `ProfilesBaseController`. |
 | `tests/js/`, `tests/cs/` | The harnesses. `_lib.js` holds shared plumbing. |
 | `tests/upstream-selectors.json` | What every injection selector was verified against. |
-| `docs/developer-api.md` | The API reference. All 49 routes; `tests/js/apidocs.js` fails if that stops being true, or if a documented authorisation level is not the one enforced. |
+| `docs/developer-api.md` | The API reference. All 50 routes; `tests/js/apidocs.js` fails if that stops being true, or if a documented authorisation level is not the one enforced. |
 | `TROUBLESHOOTING.md` | Support answers, including the index.html one. |
 
 ## Two things that are easy to get wrong

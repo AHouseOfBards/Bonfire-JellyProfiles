@@ -35,10 +35,15 @@ static string RepoRoot()
 
 int pass = 0;
 var fails = new List<string>();
-void Ok(string name, bool cond)
+void Ok(string name, bool cond, string detail = null)
 {
     if (cond) { pass++; Console.WriteLine("  PASS  " + name); }
-    else { fails.Add(name); Console.WriteLine("  FAIL  " + name); }
+    else
+    {
+        fails.Add(name);
+        Console.WriteLine("  FAIL  " + name);
+        if (!string.IsNullOrEmpty(detail)) Console.WriteLine("        " + detail);
+    }
 }
 
 var dll = Environment.GetEnvironmentVariable("BONFIRE_DLL");
@@ -70,6 +75,7 @@ var evaluate = M("EvaluateDeviceRestriction");
 var unrestricted = M("ProfilesLeftUnrestrictedBy");
 var merge = M("MergeDeviceRecords");
 var disambiguate = M("DisambiguateDeviceNames");
+var decodeLegacy = M("DecodeLegacyDeviceName");
 
 object Device(string id, string name, string client, Guid owner)
 {
@@ -363,6 +369,51 @@ if (disambiguate != null)
     var blank = Labels(Device("hhhhhh88", "", "", master));
     Ok("a device with neither name nor client still says something",
        !string.IsNullOrWhiteSpace(blank[0]));
+
+    // The shape a jellyfin-web device id actually has. generateDeviceId() is
+    // btoa(navigator.userAgent + '|' + Date.now()), so every id one browser ever mints
+    // begins with the same forty-odd characters -- the base64 of its user agent -- and
+    // the timestamps end in zeros, so the tails collide too. Taking a fragment from
+    // either end produced four rows all reading "Chrome (TW96aW)", which is base64 for
+    // "Mozil". Reported from a real device picker, with a screenshot.
+    const string UaPrefix = "TW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMCkg";
+    var realistic = Labels(
+        Device(UaPrefix + "MTc1NjYwMDAwMDAwMA", "Chrome", "Jellyfin Web", master),
+        Device(UaPrefix + "MTc1NzIwMDAwMDAwMA", "Chrome", "Jellyfin Web", master),
+        Device(UaPrefix + "MTc1ODgwMDAwMDAwMA", "Chrome", "Jellyfin Web", master));
+
+    Ok("ids sharing a long prefix still produce three different rows",
+       realistic.Distinct().Count() == 3,
+       string.Join(" | ", realistic));
+    Ok("and the fragment is taken from where they differ, not from the front",
+       realistic.All(n => !n.Contains("TW96aW")),
+       string.Join(" | ", realistic));
+
+    // The picker is read by a person, so the fragment has to be short enough to scan.
+    Ok("the fragment stays short",
+       realistic.All(n => n.Length <= "Chrome".Length + 12),
+       string.Join(" | ", realistic));
+}
+
+// ── Names recorded before the parser was fixed ──────────────────────────────
+if (decodeLegacy != null)
+{
+    Console.WriteLine();
+    Console.WriteLine("-- Stored names repair themselves ------------------------------");
+
+    string D(string name) => (string)decodeLegacy.Invoke(null, new object[] { name });
+
+    // "Pixel+8" is a URL-encoded space, stored when the header parser returned values
+    // verbatim. It stays wrong until that phone next contacts the server, which for a
+    // whitelisted device can be months.
+    Ok("a plus that was a space is decoded", D("Pixel+8") == "Pixel 8");
+    Ok("a percent escape is decoded", D("Xbox%20One") == "Xbox One");
+
+    // And a name somebody actually typed must survive intact.
+    Ok("a real plus in a real name is left alone", D("Pixel 8 Pro+") == "Pixel 8 Pro+");
+    Ok("an ordinary name is untouched", D("Living room TV") == "Living room TV");
+    Ok("an empty name stays empty", D("") == "");
+    Ok("null is handled", D(null) == "");
 }
 
 Console.WriteLine();

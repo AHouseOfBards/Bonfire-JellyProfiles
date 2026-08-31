@@ -236,5 +236,8 @@
   "errors.failedMergeDevice": "Nie udało się scalić urządzeń.",
   "profileForm.noTags": "Brak tagów — ten filtr jest wyłączony",
   "switcher.reloadFailedTitle": "Prawie gotowe",
-  "switcher.reloadFailedBody": "Zamknij i otwórz aplikację ponownie, aby dokończyć zmianę profilu."
+  "switcher.reloadFailedBody": "Zamknij i otwórz aplikację ponownie, aby dokończyć zmianę profilu.",
+  "profileForm.tidyDevices": "Uporządkuj duplikaty",
+  "profileForm.tidyNone": "Nie znaleziono duplikatów.",
+  "profileForm.tidyFound": "Znaleziono {count} urządzeń, które wyglądają na duplikaty. Scalić je?"
 }

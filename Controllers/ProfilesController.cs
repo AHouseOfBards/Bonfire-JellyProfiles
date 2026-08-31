@@ -2968,17 +2968,36 @@ namespace Jellyfin.Profiles.Controllers
 
             lock (ConfigLock)
             {
-                var claimed = false;
+                var changed = false;
                 foreach (var d in config.KnownDevices)
                 {
                     if (d.MasterUserId == Guid.Empty
                         && (sessionDeviceIds.Contains(d.DeviceId) || whitelistedDeviceIds.Contains(d.DeviceId)))
                     {
                         d.MasterUserId = masterUserId;
-                        claimed = true;
+                        changed = true;
+                    }
+
+                    // Names recorded before 1.5.10 kept whatever encoding the client sent,
+                    // because the header parser returned values verbatim — a phone shows as
+                    // "Pixel+8". The parser is fixed, but a stored name only corrects itself
+                    // the next time that device contacts the server, and a device on a
+                    // whitelist may not do so for months. Repaired in place instead.
+                    var decodedName = DecodeLegacyDeviceName(d.DeviceName);
+                    if (!string.Equals(decodedName, d.DeviceName, StringComparison.Ordinal))
+                    {
+                        d.DeviceName = decodedName;
+                        changed = true;
+                    }
+
+                    var decodedClient = DecodeLegacyDeviceName(d.Client);
+                    if (!string.Equals(decodedClient, d.Client, StringComparison.Ordinal))
+                    {
+                        d.Client = decodedClient;
+                        changed = true;
                     }
                 }
-                if (claimed) Plugin.Instance?.SaveConfiguration();
+                if (changed) Plugin.Instance?.SaveConfiguration();
             }
 
             List<KnownDevice> devices;
@@ -3114,6 +3133,72 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             return Ok();
+        }
+
+        /// <summary>
+        /// Finds device records that are almost certainly one machine, and — only when asked
+        /// twice — folds each group into its most recently seen member.
+        /// <para>
+        /// Merging one pair at a time is fine for a stray duplicate and useless for the case
+        /// that actually happens: one browser that has minted a new id every time its site
+        /// data was cleared, leaving four or five identical-looking rows to work through.
+        /// </para>
+        /// <para>
+        /// <c>apply=false</c> is the default. This rewrites device whitelists and there is no
+        /// undo, so the picker shows what would be merged and asks first.
+        /// </para>
+        /// </summary>
+        [HttpPost("devices/merge-duplicates")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult MergeDuplicateDevices([FromQuery] bool apply = false)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterId = currentUserIdVal.Value;
+
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
+            if (currentMapping != null && currentMapping.MasterUserId != masterId)
+                return Unauthorized("Only the master profile can merge devices.");
+
+            lock (ConfigLock)
+            {
+                // This household's devices only. The list is server-wide, and grouping across
+                // it could fold another household's hardware into this one's whitelist.
+                var owned = config.KnownDevices.Where(d => d.MasterUserId == masterId).ToList();
+                var groups = GroupLikelyDuplicates(owned);
+
+                if (!apply)
+                {
+                    return Ok(new
+                    {
+                        applied = false,
+                        groups = groups.Select(g => new
+                        {
+                            keep = new { g[0].DeviceId, g[0].DeviceName, g[0].Client, g[0].LastSeen },
+                            merge = g.Skip(1).Select(d => new { d.DeviceId, d.DeviceName, d.LastSeen })
+                        })
+                    });
+                }
+
+                var merged = 0;
+                foreach (var group in groups)
+                {
+                    // Into the most recently seen, which is the one still in use.
+                    var keep = group[0];
+                    foreach (var other in group.Skip(1))
+                    {
+                        if (MergeDeviceRecords(config, other.DeviceId, keep.DeviceId)) merged++;
+                    }
+                }
+
+                if (merged > 0) Plugin.Instance?.SaveConfiguration();
+                return Ok(new { applied = true, merged, groups = groups.Count });
+            }
         }
 
         /// <summary>

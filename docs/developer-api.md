@@ -75,6 +75,7 @@ is not the one the code enforces.
 | `GET /plugins/profiles/devices` | user | Devices seen on the caller’s account. |
 | `POST /plugins/profiles/devices/delete` | user | Forget one. |
 | `POST /plugins/profiles/devices/merge` | user | Fold two records for one machine into one. |
+| `POST /plugins/profiles/devices/merge-duplicates` | user | Find, and optionally merge, records that are one machine. |
 | `POST /plugins/profiles/devices/rename` | user | Give a device a name that sticks. |
 | `GET /plugins/profiles/image/{profileId}` | anon | A profile picture. |
 | `POST /plugins/profiles/panic` | anon | Emergency disable, with the code. |
@@ -904,6 +905,45 @@ recent `lastSeen` and takes a real name over a placeholder.
   household's device into its own and inherit its whitelist entries.
 
 ---
+
+### `POST /plugins/profiles/devices/merge-duplicates`
+
+**Authorisation:** signed-in user; must be the master account.
+
+Finds device records that are almost certainly one machine, and — only when asked twice —
+folds each group into its most recently seen member.
+
+The evidence is stronger than it looks. A jellyfin-web device id is
+`btoa(navigator.userAgent + '|' + Date.now())`, so two ids sharing a long prefix are two ids
+whose **user agents are byte-identical**: the same browser, at the same version, on the same
+operating system. Add the same client and the same reported name, and that is about as good a
+case as a client-supplied identifier can make.
+
+It is still a suggestion. Nothing merges on its own, because two people with the same phone and
+the same browser version would land in one group, and merging them would widen a whitelist —
+the one outcome device housekeeping may never reach by itself. Grouping is scoped to a single
+household, and then a person confirms.
+
+* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
+* **Query:** `apply` (boolean, default `false`)
+
+* **Response `200 OK`** (dry run):
+```json
+{
+  "applied": false,
+  "groups": [
+    {
+      "keep": { "deviceId": "TW96aWxsY…MDAw", "deviceName": "Chrome", "client": "Jellyfin Web", "lastSeen": "2026-08-31T10:02:00Z" },
+      "merge": [ { "deviceId": "TW96aWxsY…NTAw", "deviceName": "Chrome", "lastSeen": "2026-08-23T18:40:00Z" } ]
+    }
+  ]
+}
+```
+
+* **Response `200 OK`** (`apply=true`): `{ "applied": true, "merged": 3, "groups": 1 }`
+
+Each merge follows the same rule as `devices/merge`: the surviving id is added to a profile's
+`allowedDeviceIds` **before** the old one is removed, so no whitelist passes through empty.
 
 ### `POST /plugins/profiles/devices/rename`
 

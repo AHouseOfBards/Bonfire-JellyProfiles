@@ -236,5 +236,8 @@
   "errors.failedMergeDevice": "Échec de la fusion des appareils.",
   "profileForm.noTags": "Aucune étiquette — ce filtre est désactivé",
   "switcher.reloadFailedTitle": "Presque",
-  "switcher.reloadFailedBody": "Fermez puis rouvrez l’application pour terminer le changement de profil."
+  "switcher.reloadFailedBody": "Fermez puis rouvrez l’application pour terminer le changement de profil.",
+  "profileForm.tidyDevices": "Nettoyer les doublons",
+  "profileForm.tidyNone": "Aucun doublon trouvé.",
+  "profileForm.tidyFound": "{count} appareil(s) semblent être des doublons d'un appareil existant. Les fusionner ?"
 }

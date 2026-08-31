@@ -9,6 +9,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Jellyfin.Profiles.Configuration;
 using Jellyfin.Profiles.Models;
@@ -1105,6 +1106,68 @@ namespace Jellyfin.Profiles.Controllers
             return true;
         }
 
+        /// <summary>
+        /// Groups devices that are almost certainly one machine, so an administrator can
+        /// merge them in one action instead of one pair at a time.
+        /// <para>
+        /// The evidence is stronger than it looks. A jellyfin-web device id is
+        /// <c>btoa(navigator.userAgent + '|' + Date.now())</c>, so two ids sharing a long
+        /// prefix are two ids whose <em>user agents are byte-identical</em> — the same
+        /// browser at the same version on the same operating system. Add the same client
+        /// and the same reported name and the case is about as good as a client-supplied
+        /// identifier can make it.
+        /// </para>
+        /// <para>
+        /// It is still only a suggestion, and nothing here merges on its own. Two people
+        /// with the same phone model and the same browser version would land in one group,
+        /// and merging them would widen a whitelist — the one outcome device housekeeping
+        /// may never reach by itself. The grouping is scoped to a single household first,
+        /// which makes that unlikely, and then a person confirms it.
+        /// </para>
+        /// </summary>
+        internal static List<List<KnownDevice>> GroupLikelyDuplicates(IEnumerable<KnownDevice> devices)
+        {
+            // Long enough that it cannot be a coincidence of base64 alignment: 32 base64
+            // characters is 24 bytes of user agent, which is well past "Mozilla/5.0 (" and
+            // into the platform.
+            const int MinSharedPrefix = 32;
+
+            var groups = new List<List<KnownDevice>>();
+
+            foreach (var byName in devices
+                .Where(d => !string.IsNullOrEmpty(d.DeviceId))
+                .GroupBy(d => (d.DeviceName ?? string.Empty).Trim().ToLowerInvariant()
+                              + " " + (d.Client ?? string.Empty).Trim().ToLowerInvariant()))
+            {
+                var candidates = byName.OrderByDescending(d => d.LastSeen).ToList();
+                if (candidates.Count < 2) continue;
+
+                // Within one name+client set, split again by shared id prefix, so two
+                // genuinely different machines that happen to report the same name are not
+                // swept together.
+                while (candidates.Count > 0)
+                {
+                    var head = candidates[0];
+                    var group = new List<KnownDevice> { head };
+                    candidates.RemoveAt(0);
+
+                    for (var i = candidates.Count - 1; i >= 0; i--)
+                    {
+                        var shared = FirstDifferingIndex(new[] { head.DeviceId, candidates[i].DeviceId });
+                        if (shared >= MinSharedPrefix)
+                        {
+                            group.Add(candidates[i]);
+                            candidates.RemoveAt(i);
+                        }
+                    }
+
+                    if (group.Count > 1) groups.Add(group);
+                }
+            }
+
+            return groups;
+        }
+
         /// <summary>Names that carry no information, and so must never suppress a fallback.</summary>
         internal static bool IsPlaceholderDeviceName(string? name)
             => string.IsNullOrWhiteSpace(name)
@@ -1146,14 +1209,92 @@ namespace Jellyfin.Profiles.Controllers
 
             foreach (var group in byLabel)
             {
+                var ids = group.Select(d => d.DeviceId ?? string.Empty).ToList();
+                var from = FirstDifferingIndex(ids);
+
                 foreach (var d in group)
                 {
-                    var hint = d.DeviceId.Length <= 6 ? d.DeviceId : d.DeviceId.Substring(0, 6);
+                    var hint = IdFragment(d.DeviceId, from);
                     if (!string.IsNullOrEmpty(hint)) d.DeviceName += " (" + hint + ")";
                 }
             }
 
             return devices;
+        }
+
+        /// <summary>
+        /// The first character position at which these ids stop agreeing.
+        /// <para>
+        /// A device id from jellyfin-web is <c>btoa(navigator.userAgent + '|' + Date.now())</c>,
+        /// so every id one browser ever mints begins with the same forty-odd characters — the
+        /// base64 of its user agent. Taking a fragment from the *front* to tell two of them
+        /// apart produced four rows in the picker all reading "Chrome (TW96aW)", which is
+        /// base64 for "Mozil". Taking it from the back is no better: the timestamps end in
+        /// zeros, so the tails collide too.
+        /// </para>
+        /// <para>
+        /// The only fragment worth showing is one taken from where they actually differ, and
+        /// that position depends on the group, so it is computed rather than guessed.
+        /// </para>
+        /// </summary>
+        internal static int FirstDifferingIndex(IReadOnlyList<string> ids)
+        {
+            if (ids.Count < 2) return 0;
+
+            var shortest = ids.Min(s => s?.Length ?? 0);
+            for (var i = 0; i < shortest; i++)
+            {
+                var c = ids[0][i];
+                foreach (var id in ids)
+                {
+                    if (char.ToLowerInvariant(id[i]) != char.ToLowerInvariant(c)) return i;
+                }
+            }
+            // One id is a prefix of another, or they are equal. The end of the shortest is
+            // the first place they can be told apart.
+            return shortest;
+        }
+
+        /// <summary>Six characters of an id from <paramref name="from"/>, or as near as it reaches.</summary>
+        internal static string IdFragment(string? deviceId, int from)
+        {
+            if (string.IsNullOrEmpty(deviceId)) return string.Empty;
+
+            const int Width = 6;
+            // Back off the window rather than run past the end, so a short id still yields
+            // something rather than nothing.
+            var start = Math.Min(from, Math.Max(0, deviceId.Length - Width));
+            return deviceId.Substring(start, Math.Min(Width, deviceId.Length - start));
+        }
+
+        /// <summary>
+        /// Undoes URL encoding left in a stored device name by the parser this plugin used
+        /// before 1.5.10, which returned header values verbatim. A phone reported as
+        /// <c>Pixel+8</c> is one whose name was recorded then, and it stays that way until
+        /// that phone happens to contact the server again.
+        /// <para>
+        /// Only applied when the value actually looks encoded: a <c>%</c> escape, or a plus
+        /// sign in a value that contains no spaces. "Pixel 8 Pro+" is a name somebody typed
+        /// and must survive; "Pixel+8" is one nobody did.
+        /// </para>
+        /// </summary>
+        internal static string DecodeLegacyDeviceName(string? name)
+        {
+            if (string.IsNullOrEmpty(name)) return string.Empty;
+
+            var looksEncoded = Regex.IsMatch(name, "%[0-9A-Fa-f]{2}")
+                               || (name.IndexOf('+') >= 0 && name.IndexOf(' ') < 0);
+            if (!looksEncoded) return name;
+
+            try
+            {
+                var decoded = WebUtility.UrlDecode(name);
+                return string.IsNullOrWhiteSpace(decoded) ? name : decoded;
+            }
+            catch (Exception)
+            {
+                return name;
+            }
         }
 
         /// <summary>What a device reads as in the picker: the name, qualified by its client.</summary>

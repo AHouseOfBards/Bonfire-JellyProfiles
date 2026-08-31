@@ -203,7 +203,7 @@ Building a native app or custom Jellyfin client?
 
 📄 **[Developer API Reference](docs/developer-api.md)**
 
-All 49 endpoints in one table with their authorisation level, the seven routes that work
+All 50 endpoints in one table with their authorisation level, the seven routes that work
 without a token and why each one has to, error codes and rate limits, profile switching
 and PIN verification, the Bonfire sharing rules, and how to add a translation.
 

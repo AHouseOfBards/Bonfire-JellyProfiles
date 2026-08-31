@@ -270,6 +270,9 @@
         'profileForm.mergeDeviceAria': 'Mark {name} as the same device as another',
         'profileForm.mergeDeviceTitle': 'Same device?',
         'profileForm.mergeDeviceMessage': 'These two become one device. Any profile allowed on either one stays allowed.',
+        'profileForm.tidyDevices': 'Tidy up duplicates',
+        'profileForm.tidyNone': 'No duplicates found.',
+        'profileForm.tidyFound': 'Found {count} device(s) that look like duplicates of one you already have. Merge them?',
         'profileForm.maximumRating': 'Maximum rating',
         'profileForm.noRestrictions': 'No Restrictions',
         'profileForm.ratingG': 'G / TV-G (6+)',
@@ -1187,6 +1190,7 @@
                         </div>
                     </div>
                     <div class="form-hint">${t('profileForm.devicesHint')}</div>
+                    ${isEdit ? `<button type="button" id="devices-tidy-btn" class="profiles-btn btn-secondary device-tidy-btn">${t('profileForm.tidyDevices')}</button>` : ''}
                 </div>
             `;
         },
@@ -5727,14 +5731,19 @@
                 // is allowed on, and the checkbox states are rebuilt from that. Patching
                 // would leave the ticks describing a list that no longer exists.
                 const deviceAction = (path, body, failKey) => {
-                    fetch(apiClient.getUrl('plugins/profiles/devices/' + path), {
+                    // Some of these take their argument in the query string and no body at
+                    // all. Sending the four bytes "null" for those is not harmless: ASP.NET
+                    // binds it as an explicit null, which is a different thing from absent.
+                    const init = {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             ...this.getAuthHeaders(masterState.masterToken)
-                        },
-                        body: JSON.stringify(body)
-                    })
+                        }
+                    };
+                    if (body !== null && body !== undefined) init.body = JSON.stringify(body);
+
+                    fetch(apiClient.getUrl('plugins/profiles/devices/' + path), init)
                     .then(res => {
                         if (res.ok) {
                             this.clearSharedFormData();
@@ -5762,6 +5771,42 @@
                                 'errors.failedRenameDevice'));
                     });
                 });
+
+                // One browser that has minted a new id every time its site data was cleared
+                // leaves four or five identical-looking rows, and merging them a pair at a
+                // time is the kind of chore nobody finishes. Two calls: the first only
+                // reports, the second acts.
+                const tidyBtn = content.querySelector('#devices-tidy-btn');
+                if (tidyBtn) {
+                    tidyBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const url = apiClient.getUrl('plugins/profiles/devices/merge-duplicates');
+                        fetch(url, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                ...this.getAuthHeaders(masterState.masterToken)
+                            }
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            const count = (data.groups || [])
+                                .reduce((n, g) => n + (g.merge ? g.merge.length : 0), 0);
+                            if (!count) {
+                                this.showAlert(t('profileForm.tidyDevices'), t('profileForm.tidyNone'));
+                                return;
+                            }
+                            this.showConfirmDialog(
+                                t('profileForm.tidyDevices'),
+                                t('profileForm.tidyFound', { count: count }),
+                                () => deviceAction('merge-duplicates?apply=true', null,
+                                                   'errors.failedMergeDevice'));
+                        })
+                        .catch(err => this.showAlert(t('errors.error'),
+                            t('errors.withMessage', { message: err.message })));
+                    });
+                }
 
                 content.querySelectorAll('.device-merge-btn').forEach(btn => {
                     btn.addEventListener('click', (e) => {
