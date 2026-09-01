@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- On a TV, moving off the first profile jumped straight to Manage Profiles and the other profiles could not be reached. [#16]\n- Picking a profile could leave you in your main account after the page reloaded. If the change cannot be stored, Bonfire now says so instead of switching you back without a word. [#16]",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.5.13/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "5597d0fc898f386e84b40a6de25d94af",
         "timestamp": "2026-09-01T00:00:00Z"
       },
       {
