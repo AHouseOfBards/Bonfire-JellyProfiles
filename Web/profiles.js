@@ -852,7 +852,17 @@
 
                 // In order, and only one of them applies. Widening the match after a
                 // narrower one has already hit would write another server's entry.
+                //
+                // The second rung is the one that makes a wrong refusal unlikely: the
+                // entry to overwrite is the one holding the session being replaced, so the
+                // user signed in right now names it even when the id and the address do
+                // not. The old code wrote *every* stored server when it had no id, which
+                // did make the switch work — by pointing other servers at a token they
+                // will not accept.
+                const signedIn = this.normalizeGuid(
+                    typeof ApiClient.getCurrentUserId === 'function' ? ApiClient.getCurrentUserId() : '');
                 let targets = creds.Servers.filter(s => serverId && this.normalizeGuid(s.Id) === serverId);
+                if (!targets.length) targets = creds.Servers.filter(s => signedIn && this.normalizeGuid(s.UserId) === signedIn);
                 if (!targets.length) targets = creds.Servers.filter(sameAddress);
                 if (!targets.length && creds.Servers.length === 1) targets = creds.Servers.slice();
                 if (!targets.length) {
@@ -1201,9 +1211,9 @@
                     // would widen a whitelist. Renaming is what makes them tellable apart in
                     // the first place, and the name sticks — see KnownDevice.NameIsCustom.
                     const actions = isEdit
-                        ? `<button type="button" class="device-rename-btn" data-id="${escapeHtml(deviceId)}" data-name="${escapeHtml(deviceName)}" title="${t('profileForm.renameDevice')}" aria-label="${t('profileForm.renameDeviceAria', { name: escapeHtml(deviceName) })}">✏️</button>
-                           <button type="button" class="device-merge-btn" data-id="${escapeHtml(deviceId)}" data-name="${escapeHtml(deviceName)}" title="${t('profileForm.mergeDevice')}" aria-label="${t('profileForm.mergeDeviceAria', { name: escapeHtml(deviceName) })}">⇄</button>
-                           <button type="button" class="device-delete-btn" data-id="${escapeHtml(deviceId)}" title="${t('profileForm.forgetDevice')}" aria-label="${t('profileForm.forgetDeviceAria', { name: escapeHtml(deviceName) })}">🗑️</button>`
+                        ? `<button type="button" class="device-rename-btn" data-id="${escapeHtml(deviceId)}" data-name="${escapeHtml(deviceName)}" title="${t('profileForm.renameDevice')}" aria-label="${t('profileForm.renameDeviceAria', { name: escapeHtml(deviceName) })}"><span class="material-icons" aria-hidden="true">edit</span></button>
+                           <button type="button" class="device-merge-btn" data-id="${escapeHtml(deviceId)}" data-name="${escapeHtml(deviceName)}" title="${t('profileForm.mergeDevice')}" aria-label="${t('profileForm.mergeDeviceAria', { name: escapeHtml(deviceName) })}"><span class="material-icons" aria-hidden="true">swap_horiz</span></button>
+                           <button type="button" class="device-delete-btn" data-id="${escapeHtml(deviceId)}" title="${t('profileForm.forgetDevice')}" aria-label="${t('profileForm.forgetDeviceAria', { name: escapeHtml(deviceName) })}"><span class="material-icons" aria-hidden="true">delete</span></button>`
                         : '';
                     return `
                         <div class="device-dropdown-item" data-device-id="${escapeHtml(deviceId)}">
@@ -1774,7 +1784,13 @@
             // still be running timers a step later the escalation would then navigate a
             // second time — onto a cache-busted URL nobody asked for. The ladder is for a
             // reload that does nothing, not for one that is merely slow.
+            //
+            // Taken off again when the ladder ends, which is not academic: the last rung
+            // reveals the page and leaves the viewer able to try another profile, so a
+            // ladder that never unbinds leaves a pair of listeners behind per attempt.
+            this._releaseReloadGuards();
             const stop = () => { if (this._reloadTimer) clearTimeout(this._reloadTimer); };
+            this._reloadGuards = stop;
             window.addEventListener('pagehide', stop);
             window.addEventListener('beforeunload', stop);
 
@@ -1785,8 +1801,17 @@
         /// screen still belongs to whoever was there before. Reveal the page and say so —
         /// the alternative is leaving somebody looking at another person's library and
         /// believing it is their own.
+        /// Drops the pagehide/beforeunload pair the ladder arms. Safe with none outstanding.
+        _releaseReloadGuards: function () {
+            if (!this._reloadGuards) return;
+            window.removeEventListener('pagehide', this._reloadGuards);
+            window.removeEventListener('beforeunload', this._reloadGuards);
+            this._reloadGuards = null;
+        },
+
         _reloadFailed: function () {
             this._reloading = false;
+            this._releaseReloadGuards();
             try { localStorage.removeItem(this.config.switchingKey); } catch (e) { /* ignore */ }
 
             // The switch hid the page behind an opaque overlay, or behind the head

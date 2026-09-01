@@ -46,6 +46,7 @@ function makePage(opts) {
     opts = opts || {};
     const navigations = [];
     const timers = [];
+    const bound = [];
 
     const location = {
         pathname: '/index.html',
@@ -78,10 +79,18 @@ function makePage(opts) {
             getItem: () => null, setItem() {}, removeItem() {}
         },
         navigator: { userAgent: 'Mozilla/5.0 (SMART-TV; Tizen 6.0)' },
-        addEventListener() {}, removeEventListener() {},
+        // Recorded, not swallowed: the ladder arms a pagehide/beforeunload pair and has
+        // to take it off again, or a viewer told to try another profile leaves a pair
+        // behind for every attempt.
+        addEventListener: (type, fn) => bound.push({ type, fn }),
+        removeEventListener: (type, fn) => {
+            const i = bound.findIndex(l => l.type === type && l.fn === fn);
+            if (i >= 0) bound.splice(i, 1);
+        },
         ApiClient: {
             serverId: () => (opts.serverId === undefined ? 'A1B2C3D4E5F6478899AABBCCDDEEFF00' : opts.serverId),
             serverAddress: () => (opts.serverAddress === undefined ? 'http://192.168.1.9:8096' : opts.serverAddress),
+            getCurrentUserId: () => (opts.currentUserId === undefined ? 'master-user' : opts.currentUserId),
             setAuthenticationInfo() {}
         },
         setTimeout(fn, ms) { timers.push({ fn, ms }); return timers.length; },
@@ -124,7 +133,7 @@ function makePage(opts) {
         t.fn();
         return true;
     }
-    return { plugin, navigations, timers, tick, removedProps, sandbox };
+    return { plugin, navigations, timers, tick, removedProps, sandbox, bound };
 }
 
 console.log();
@@ -184,6 +193,9 @@ if (typeof page.plugin._reloadWithFallback !== 'function') {
         'removeProperty called with: ' + page.removedProps.join(', '));
     ok('and the switching flag is cleared, so the next load is not treated as a switch',
         page.sandbox.localStorage.getItem('jpf-sw') === null);
+    ok('and the ladder takes its unload guards back off',
+        page.bound.filter(l => l.type === 'pagehide' || l.type === 'beforeunload').length === 0,
+        'still bound: ' + page.bound.map(l => l.type).join(', '));
 }
 
 console.log();
@@ -232,11 +244,22 @@ console.log('── The credentials write, which is what survives the reload ─
         r.servers && r.servers[1].AccessToken === 'OTHER');
     ok('and it reports that it wrote', r.result === true);
 
+    // No id to match on, and no address either: the entry holding the session being
+    // replaced is the one the signed-in user names. This rung is why refusing outright is
+    // safe — the old code wrote every stored server when it had no id, which made the
+    // switch work by pointing other servers at a token they will not accept.
+    r = run(creds([
+        { Id: 'zzz', UserId: 'someone-else', AccessToken: 'OTHER' },
+        { Id: 'yyy', UserId: 'master-user', AccessToken: 'OLD' }
+    ]), { serverId: '', serverAddress: '' });
+    ok('the entry holding the current session is found by its user',
+        r.servers && r.servers[1].AccessToken === 'NEW-TOKEN' && r.servers[0].AccessToken === 'OTHER');
+
     // No id to match on: the address ApiClient is talking to names the entry instead.
     r = run(creds([
         { Id: 'zzz', ManualAddress: 'http://192.168.1.9:8096/', AccessToken: 'OLD' },
         { Id: 'yyy', ManualAddress: 'http://10.0.0.2:8096', AccessToken: 'OTHER' }
-    ]), { serverId: '' });
+    ]), { serverId: '', currentUserId: '' });
     ok('an unmatched id falls back to the server address',
         r.servers && r.servers[0].AccessToken === 'NEW-TOKEN' && r.servers[1].AccessToken === 'OTHER');
 
@@ -245,7 +268,7 @@ console.log('── The credentials write, which is what survives the reload ─
     r = run(creds([
         { Id: 'zzz', ManualAddress: 'http://elsewhere:8096', AccessToken: 'OLD' },
         { Id: 'yyy', ManualAddress: 'http://10.0.0.2:8096', AccessToken: 'OTHER' }
-    ]), { serverId: 'ffffffffffffffffffffffffffffffff', serverAddress: 'http://192.168.1.9:8096' });
+    ]), { serverId: 'ffffffffffffffffffffffffffffffff', serverAddress: 'http://192.168.1.9:8096', currentUserId: '' });
     ok('no match at all writes nothing', r.servers && r.servers.every(x => x.AccessToken !== 'NEW-TOKEN'));
     ok('and says so rather than letting the reload happen', r.result === false);
 

@@ -10,7 +10,7 @@ listed together so it is obvious which ones are still only a promise.
 tests/run.sh          # or tests\run.ps1 on Windows
 ```
 
-Builds the plugin (Release, `-warnaserror`) and runs all 34 harnesses — 25 JavaScript
+Builds the plugin (Release, `-warnaserror`) and runs all 35 harnesses — 26 JavaScript
 and 9 C#, about 1,450 assertions. CI runs the same command, so the desk and the pipeline
 cannot disagree about what "the tests pass" means.
 
@@ -23,6 +23,11 @@ defect that made 1.5.2 and 1.5.3-beta dead on arrival: a stray backtick inside t
 stylesheet template literal produced valid JavaScript that threw on the first call.
 `tests/js/inject.test.js` is what catches that class of bug, because it executes the
 startup path instead of reading it.
+
+It is also the wrong engine. `node --check` runs today's V8, where `?.` parses happily;
+webOS 5 is Chromium 68 and one token it cannot parse takes the **whole file** down — no
+gate, no switcher, no message. `tests/js/jsbaseline.js` holds the floor, and its first
+four assertions are the detector proving it can go red.
 
 ## The rules
 
@@ -173,7 +178,7 @@ that runs rarely.
 *Check:* `tests/js/routetick.js` counts the DOM work of 100 unchanged ticks and names each
 selector that survives, in both button and menu mode, with and without an active profile.
 
-**Still open, from the same defect:** 26 of those sites read
+**Still open, from the same defect:** 24 of those sites read
 `var config = Plugin.Instance?.Configuration;` *before* taking the lock, so a swap between
 the read and the lock leaves them mutating the orphan. The lock now holds, but the
 reference can be stale. The dashboard no longer triggers it — `POST admin/settings` mutates

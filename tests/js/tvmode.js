@@ -365,6 +365,34 @@ const scroller = ruleAt('.create-profile-container');
 ok('and its container really is the scrolling one',
     !!scroller && /overflow-y:\s*auto/.test(scroller.body));
 
+// ── Glyphs a television can actually draw ────────────────────────────────────
+// Every icon in this interface is material-icons, which jellyfin-web loads and the gate
+// already depends on before sign-in. Three buttons in the device list were raw emoji
+// instead — a pencil, a wastebasket and a double arrow — and a set without a colour
+// emoji font draws those as empty boxes. They were also the three buttons that did not
+// match each other in weight, which is how they were noticed.
+//
+// Text the household reads is exempt: this looks only at what sits between tags in the
+// markup, and only at the ranges where the pictographs live.
+console.log();
+console.log('  Glyphs');
+{
+    const text = L.readProfiles();
+    const stray = new Set();
+    for (const m of text.matchAll(/>([^<>{}\n]{1,60})</g)) {
+        for (const ch of m[1]) {
+            const cp = ch.codePointAt(0);
+            const pictograph = (cp >= 0x2190 && cp <= 0x21FF)      // arrows
+                || (cp >= 0x2300 && cp <= 0x27BF)                  // technical, dingbats
+                || (cp >= 0x2B00 && cp <= 0x2BFF)
+                || (cp >= 0x1F300 && cp <= 0x1FAFF);               // emoji proper
+            if (pictograph) stray.add('U+' + cp.toString(16).toUpperCase());
+        }
+    }
+    ok('no raw emoji or pictographs in the markup — icons are material-icons'
+        + (stray.size ? ' (found ' + [...stray].join(', ') + ')' : ''), stray.size === 0);
+}
+
 console.log();
 console.log('  totals: ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) {

@@ -671,9 +671,6 @@ body.profiles-no-scroll [id*="spinner"] {
     font-style: italic; align-self: center; padding: 1rem 0;
     width: 140px; text-align: center;
 }
-.master-badge {
-    font-size: 0.8rem; opacity: 0.6; font-weight: 400;
-}
 .profile-card:hover .profile-name {
     opacity: 1;
 }
@@ -834,17 +831,6 @@ body.profiles-no-scroll [id*="spinner"] {
 #profile-pin-input:focus, #master-pin-input:focus {
     border-color: var(--jpf-accent); outline: none;
     box-shadow: 0 0 15px var(--jpf-accent-a30);
-}
-.pin-error-text {
-    color: var(--jpf-danger);
-    font-size: 0.95rem;
-    font-weight: 500;
-    margin-top: -10px;
-    text-align: center;
-}
-.pin-input-error {
-    border-color: var(--jpf-danger) !important;
-    box-shadow: 0 0 15px rgba(255, 107, 107, 0.4) !important;
 }
 
 /* Button Styling */
@@ -1325,9 +1311,48 @@ body.profiles-no-scroll [id*="spinner"] {
     font-size: 1.1rem; flex-shrink: 0;
     transition: background 0.2s;
 }
-.device-delete-btn:hover, .device-delete-btn:focus {
+.device-delete-btn:hover {
     background: rgba(255, 107, 107, 0.15);
-    outline: none;
+}
+.device-delete-btn:focus {
+    background: rgba(255, 107, 107, 0.2);
+    outline: 2px solid var(--jpf-danger);
+    outline-offset: 1px;
+}
+/* Rename and merge sit in the same row as Forget and had no rule of any kind, so
+   they rendered as default browser buttons — a bordered grey box in the system
+   font — next to a styled icon. They shipped that way in 1.5.10. Same geometry as
+   Forget; only the colour differs, because only one of the three destroys
+   anything. */
+.device-rename-btn, .device-merge-btn {
+    background: transparent; border: none; color: var(--jpf-text-2);
+    cursor: pointer; padding: 6px; border-radius: var(--jpf-r-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+    transition: background 0.2s;
+}
+.device-rename-btn:hover, .device-merge-btn:hover {
+    background: var(--jpf-surface-2);
+}
+/* All three were emoji — a pencil, a wastebasket, and a double arrow — and they
+   were the only raw emoji left in the product. A television without a colour
+   emoji font draws those as empty boxes, and the three did not even match each
+   other in weight. material-icons is what the rest of this interface uses, the
+   gate included, so it is loaded before any of this is on screen. Sized here
+   rather than inline, and once for all three, so they cannot drift apart. */
+.device-rename-btn .material-icons,
+.device-merge-btn .material-icons,
+.device-delete-btn .material-icons {
+    font-size: 1.15rem;
+    line-height: 1;
+}
+/* Keyboard focus, and it must be visible: these are reached with Tab on a desktop
+   and with a remote on a television, where a background tint alone is not enough.
+   The .jpf-tv block outranks this and puts a thicker ring on. */
+.device-rename-btn:focus, .device-merge-btn:focus {
+    background: var(--jpf-surface-2);
+    outline: 2px solid var(--jpf-accent);
+    outline-offset: 1px;
 }
 
 /* The dropdown is absolutely positioned so it overlays following fields
@@ -1527,10 +1552,10 @@ body.profiles-no-scroll [id*="spinner"] {
 .device-dropdown-item:hover, .device-dropdown-item:focus-within {
     background: var(--jpf-surface-1);
 }
-.device-delete-btn:focus {
-    outline: none;
-    background: rgba(255,107,107,0.2) !important;
-}
+/* Was a second .device-delete-btn:focus at the same specificity as the block above,
+   winning with !important over nothing but its own twin. Folded into one rule, at
+   the value that was actually applying. outline:none is gone with it — a focused
+   control has to be findable, and the tint alone is not that on a television. */
 
 /* ── The Chromium 68 baseline ─────────────────────────────────────
    webOS 5 (the LG CX in issue #16) is Chromium 68 and Tizen 6.0 is 76.
