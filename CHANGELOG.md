@@ -9,7 +9,98 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
-## 1.5.9  — 2026-08-31
+## 1.6.0  — 2026-09-01
+
+**Fixed**
+
+- Switching to someone's main profile wiped that person's library access, and their sub-profiles' access with it. If this has happened to you, re-tick their libraries in Jellyfin's user settings after updating. [#27]
+- Switching into an administrator's account quietly removed their admin rights and hid them from the login screen. [#27]
+- Restricting a profile to specific devices could lock it out of every device, including the ones you picked. [#16]
+- On a TV, picking a profile changed the name at the top but left you in your main account — same libraries, same Continue Watching, same Next Up. [#16]
+- On a TV, moving off the first profile jumped straight to Manage Profiles and no other profile could be reached. [#16]
+- On a TV the profile cards had no size and the focus outline never appeared, so nothing looked selectable. Save could also sit below the bottom of the profile form with no way to reach it on a remote. [#16]
+- The profile switcher said you were signed in as your main profile even while a sub-profile was in use.
+- A profile, device or Bonfire group you had just saved could silently not be there.
+- Anything added while the plugin's settings page was open was undone when an administrator pressed Save.
+- One computer could appear several times in the device list, and devices that sent no name all read as "Unknown Device".
+- Forgetting a profile's only allowed device silently made that profile available everywhere. It is refused now, and says which profiles are in the way.
+- "Try again in 15 minutes" after too many wrong PINs. It now tells you the wait it is actually enforcing, which is usually far less.
+- Device "last seen" dates reset every time Jellyfin restarted, and the device list never dropped hardware nobody uses any more.
+- A language could stop loading until Jellyfin was restarted, dropping everyone back to English.
+- Switching profiles on a light theme flashed a black screen, and a switch that went wrong left the screen blank for four seconds.
+- The profile screen re-downloaded every profile picture on every page load. Your browser keeps them now.
+
+**Added**
+
+- Bonfire knows when it is on a television, and makes the profile pictures, text and focus outline large enough to use from across a room.
+- Rename a device, or tell Bonfire that two entries are the same machine. "Tidy up duplicates" folds together the several devices one browser makes — a profile allowed on any of them stays allowed.
+- A list of everyone signed in, with the household each profile belongs to, and a way to sign one device out.
+- Export and import the plugin's configuration, so there is a copy of your profiles and PINs somewhere other than one file.
+- The audit log can be filtered by name and date, and downloaded.
+- Polish, contributed by danis101. [#26]
+- TROUBLESHOOTING.md, which answers the most common report first: Bonfire does not edit index.html by default, so a file with no plugin tags in it is a healthy install.
+
+**Changed**
+
+- The Switch Profile button now sits next to your account icon in the header, instead of at the end of the row.
+- The interface reads correctly on light Jellyfin themes, where separators and muted text used to be invisible.
+- Bonfire does far less work in the background — most noticeable on a TV, and it steps back further while something is playing.
+- The "restart to finish updating" notice now names the version running and the version waiting, so you can tell whether your restart worked. [#25]
+
+## 1.5.13-beta  — 2026-09-01
+
+**Beta release** — please report issues on GitHub.
+
+**Fixed**
+
+- On a TV, moving off the first profile jumped straight to Manage Profiles and the other profiles could not be reached. [#16]
+- Picking a profile could leave you in your main account after the page reloaded. If the change cannot be stored, Bonfire now says so instead of switching you back without a word. [#16]
+
+## 1.5.12-beta  — 2026-08-31
+
+**Beta release** — please report issues on GitHub.
+
+**Fixed**
+
+- The allowed-devices list showed several rows that read exactly the same, so there was no way to tell which one to tick.
+- Devices recorded before the last update could show a name like "Pixel+8". Existing names are repaired.
+
+**Added**
+
+- "Tidy up duplicates" in the device list. One browser makes a new device every time its site data is cleared, and this merges those back together — a profile allowed on any of them stays allowed.
+
+## 1.5.11-beta  — 2026-08-31
+
+**Beta release** — please report issues on GitHub.
+
+**Fixed**
+
+- On a TV, picking a profile changed the name at the top but left you in your main account — same libraries, same Continue Watching, same Next Up. If the page cannot be rebuilt after switching, Bonfire now says so instead of leaving you on the wrong account. [#16]
+
+## 1.5.10-beta  — 2026-08-31
+
+**Beta release** — please report issues on GitHub.
+
+**Fixed**
+
+- Restricting a profile to specific devices could lock it out of every device, including the ones you picked. [#16]
+- The profile switcher said you were signed in as your main profile even while a sub-profile was in use.
+- One computer could appear several times in the device list, and devices that sent no name all read as "Unknown Device".
+- Forgetting a profile's only allowed device silently made that profile available everywhere. It is refused now, and says which profiles are in the way.
+- "Try again in 15 minutes" after too many wrong PINs. It now tells you the wait it is actually enforcing, which is usually far less.
+
+**Added**
+
+- Rename a device, or tell Bonfire that two entries are the same machine. Reaching your server by local address and by domain name creates two devices, and nothing in the request can tell that from two different computers.
+- The audit log can be filtered by name and date, and downloaded.
+- A list of everyone signed in, with the household each profile belongs to, and a way to sign one device out.
+- Export and import the plugin's configuration, so there is a copy of your profiles and PINs somewhere other than one file.
+
+**Changed**
+
+- The interface reads correctly on light Jellyfin themes, where separators and muted text used to be invisible.
+
+## 1.5.9-beta  — 2026-08-31
 
 **Beta release** — please report issues on GitHub.
 
@@ -23,7 +114,7 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 - TROUBLESHOOTING.md, which answers the most common report first: Bonfire does not edit index.html by default, so a file with no plugin tags in it is a healthy install.
 - The developer API reference now opens with a table of all 42 endpoints, and lists error codes and rate limits.
 
-## 1.5.8  — 2026-08-31
+## 1.5.8-beta  — 2026-08-31
 
 **Beta release** — please report issues on GitHub.
 
@@ -38,7 +129,7 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 - Bonfire now knows it is on a television, and makes the profile pictures, text and focus outline large enough to use from across a room.
 
-## 1.5.7  — 2026-08-28
+## 1.5.7-beta  — 2026-08-28
 
 **Beta release** — please report issues on GitHub.
 
@@ -52,7 +143,7 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 - The profile screen re-downloaded every profile picture on every page load. Your browser keeps them now.
 - The drawer link that never appeared has been removed.
 
-## 1.5.6  — 2026-08-28
+## 1.5.6-beta  — 2026-08-28
 
 **Beta release** — please report issues on GitHub.
 
@@ -75,7 +166,7 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 - Polish, contributed by danis101. (#26)
 
-## 1.5.5  — 2026-08-27
+## 1.5.5-beta  — 2026-08-27
 
 **Beta release** — please report issues on GitHub.
 
@@ -88,7 +179,7 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 - A new check refuses any reference to a part of the Jellyfin page that does not exist. Writing it found ten such references already in the code — the reason the Switch Profile button has never appeared in some places.
 - Contributing and translation guides, and an issue form that asks for the two details most reports are missing.
 
-## 1.5.4  — 2026-08-27
+## 1.5.4-beta  — 2026-08-27
 
 **Beta release** — please report issues on GitHub.
 
@@ -105,7 +196,7 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 - The developer API link no longer promises platform notes the document does not contain.
 
-## 1.5.3  — 2026-08-27
+## 1.5.3-beta  — 2026-08-27
 
 **Beta release** — please report issues on GitHub.
 
@@ -126,7 +217,7 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 - The developer API reference now documents every endpoint, lists the seven that are deliberately reachable without a token, and corrects two statements that were no longer true.
 
-## 1.5.2  — 2026-08-27
+## 1.5.2-beta  — 2026-08-27
 
 **Beta release** — please report issues on GitHub.
 
@@ -143,7 +234,7 @@ Follow-ups to 1.5.1.
 
 - **Transparent background** is now **No background**, and sits directly under the profile name next to the colour it controls, rather than below the picture. (#23)
 
-## 1.5.1  — 2026-08-26
+## 1.5.1-beta  — 2026-08-26
 
 **Beta release** — please report issues on GitHub.
 
@@ -192,7 +283,7 @@ Three reports from the 1.5.0 release.
 - Libraries and their artwork are one list, with the artwork controls behind a switch.
 - Delete is no longer as prominent as Save.
 
-## 1.4.9  — 2026-08-25
+## 1.4.9-beta  — 2026-08-25
 
 **Beta release** — please report issues on GitHub.
 
@@ -209,7 +300,7 @@ The last beta before 1.5.
 - The README described the old file-patching as the only method, and told anyone with a problem to grant write access to a file that no longer needs it.
 - The developer API reference now documents how the script is delivered and the `mechanism` field reporting it.
 
-## 1.4.8  — 2026-08-25
+## 1.4.8-beta  — 2026-08-25
 
 **Beta release** — please report issues on GitHub.
 
@@ -223,7 +314,7 @@ Five faults found in a review before the next stable release.
 - A one-off problem stayed on the settings page as the last problem until Jellyfin was restarted.
 - Returning to the profile grid could draw it over a screen you had already moved on to.
 
-## 1.4.7  — 2026-08-25
+## 1.4.7-beta  — 2026-08-25
 
 **Beta release** — please report issues on GitHub.
 
@@ -232,7 +323,7 @@ Five faults found in a review before the next stable release.
 - Picking a profile showed nothing at all for the second or two it takes, so on a phone the tap read as missed. The profile you picked now shows a spinner and the rest step back, and the screen no longer goes black while it loads.
 - The loading spinner on **Your Bonfire** never actually turned.
 
-## 1.4.6  — 2026-08-25
+## 1.4.6-beta  — 2026-08-25
 
 **Beta release** — please report issues on GitHub.
 
@@ -246,7 +337,7 @@ Five faults found in a review before the next stable release.
 
 - If reverting to the main account ever fails repeatedly, Bonfire now keeps the profile you picked instead of reloading again. There is no longer a way to get stuck on a screen that reloads forever.
 
-## 1.4.5  — 2026-08-24
+## 1.4.5-beta  — 2026-08-24
 
 **Beta release** — please report issues on GitHub.
 
@@ -255,7 +346,7 @@ Five faults found in a review before the next stable release.
 - Serving the client script live stopped other plugins from changing `index.html`. **File Transformation**, **Home Screen Sections** and **Plugin Pages** had no effect while it was switched on. Bonfire now adds its script to whatever those plugins produce, instead of answering the request itself.
 - `index.html` was served carrying the file's own cache validators, which could let a browser keep a page pointing at an old copy of the client script after a plugin update.
 
-## 1.4.4  — 2026-08-24
+## 1.4.4-beta  — 2026-08-24
 
 **Beta release** — please report issues on GitHub.
 
@@ -270,7 +361,7 @@ Five faults found in a review before the next stable release.
 
 - The first tab on the settings page is called General. Calling it Settings inside the settings page said nothing.
 
-## 1.4.3  — 2026-08-23
+## 1.4.3-beta  — 2026-08-23
 
 **Beta release** — please report issues on GitHub.
 
@@ -285,7 +376,7 @@ Five faults found in a review before the next stable release.
 
 - The "paste image URL" box. A linked picture could not be cropped, was never stored on your server, and disappeared without warning when the link died.
 
-## 1.4.2  — 2026-08-23
+## 1.4.2-beta  — 2026-08-23
 
 **Beta release** — please report issues on GitHub.
 
@@ -312,7 +403,7 @@ Five faults found in a review before the next stable release.
 - Delete is no longer as prominent as Save.
 - Choosing a profile picture is one button rather than six controls.
 
-## 1.4.1  — 2026-08-22
+## 1.4.1-beta  — 2026-08-22
 
 **Beta release** — please report issues on GitHub.
 
@@ -352,7 +443,7 @@ Five faults found in a review before the next stable release.
 - The emergency disable link appears only once an administrator has set a code.
 - Error messages, hints and warnings cut down throughout.
 
-## 1.3.3  — 2026-08-09
+## 1.3.3-beta  — 2026-08-09
 
 **Beta release** — please report issues on GitHub.
 
@@ -370,11 +461,11 @@ Five faults found in a review before the next stable release.
 - The emergency disable link appears only once an administrator has set a code.
 - Error messages, hints and warnings cut down throughout.
 
-## 1.3.2  — 2026-08-08
+## 1.3.2-beta  — 2026-08-08
 
 ⚠️ BETA RELEASE — not a finished release; please report issues on GitHub. ▸ FIX — "Switch Profile" never actually appeared in Jellyfin's user menu in 1.3.1. The code looked for the menu component older Jellyfin builds used; 10.11 rewrote it in React, so the entry was silently never added and the profile page was the only way in. It now attaches to the real menu, directly above Sign out, and is found by its Sign out row rather than by English text — so it lands in the right place on a translated interface too. (Issue #14.) ▸ NEW — Switcher Style is now two separate settings instead of one. "Ask Who's watching? on startup" and "Where to switch from" can be combined freely, which makes the arrangement people actually asked for reachable: keep the startup screen, but reach the switcher from Jellyfin's own menu rather than a second icon beside the native one. Existing choices carry over — the old "Profile gate" and "Jellyfin menu" modes map onto the new pair. (Issue #14.) ▸ NEW — Avatar library. Administrators can upload a set of profile pictures under Dashboard → Plugins → Bonfire that anyone on the server can pick from, with an option to require them for a consistent household look. This is the only practical way to set a profile picture on a TV, which has no file browser to upload from. (Issue #14.) ▸ NEW — Pictures can be positioned and zoomed before saving, by dragging, pinching, or with the arrow keys and the zoom slider on a remote. Stored images went from 96×96 to 512×512, so photos are no longer soft on a large screen, and a small copy is generated alongside them so a screen full of avatars does not have to decode the full-size versions. ▸ NEW — Emergency disable code. If Bonfire breaks badly it can make Jellyfin's interface hard to use, including the settings page needed to remove it. Administrators can set a code that shuts the plugin off until the server restarts, entered on any Bonfire screen or with Ctrl+Shift+B. Off by default. It does not unlock other profiles and does not widen library access or parental ratings — those are enforced by Jellyfin itself — but it does skip the profile gate, so the settings page explains exactly what it costs before you turn it on. ▸ FIX — Unreadable image formats now say why. iPhone photos (HEIC) cannot be decoded by most browsers and previously failed in silence; the upload now explains that the photo needs exporting as JPEG first. SVG files are refused deliberately. ▸ FIX — A profile picture whose file has gone missing falls back to the initial and colour instead of a broken-image icon, and the settings page lists which profiles are affected. ▸ FIX — The profile link in the navigation sidebar did nothing when clicked.
 
-## 1.3.1  — 2026-08-06
+## 1.3.1-beta  — 2026-08-06
 
 ⚠️ BETA RELEASE — not a finished release; please report issues on GitHub. ▸ NEW — Choose how you reach the switcher. Until now every account got the same full-screen "Who's Watching?" gate on the home screen. That suits a shared TV and gets in the way everywhere else, so it is now a choice, made under Manage Profiles → Switcher Style. "Profile gate" is the existing behaviour and remains the default. "Jellyfin menu" goes straight to the home screen and instead adds a Switch Profile entry to Jellyfin's own user menu, plus a Bonfire section on your user profile page; the floating switcher button disappears with it. The choice belongs to each account rather than to whoever runs the server, and follows you to every device you sign in on. Sub-profiles inherit their master account's setting, so a household behaves consistently. (Requested in issue #8.) ▸ NEW — Sharing a TV with another adult. Two people with separate accounts linked by a Bonfire had to type a PIN with a TV remote every time they swapped, because an account with no PIN could not be entered from a shared Bonfire at all, and the local-network PIN bypass deliberately stopped at your own account. Both restrictions can now be lifted per account by its own owner, using "Let my Bonfire switch into my account on this network" in Bonfire Grouping. It is off by default so no existing install becomes more open on upgrade, only you can enable it for your own account, and it applies on the local network only — away from home the PIN is still required. Every switch that uses it is written to the profile activity log. The toggle warns before you enable it on an administrator account, and about reverse proxies missing from Jellyfin's Networking → Known Proxies list, where "local" would mean the whole internet. (Requested in issue #13.) ▸ FIX — The profile link in the navigation sidebar did nothing when clicked; it called a function that had never existed. All four ways into the switcher — header button, sidebar link, user menu and profile page — now run through one shared path. ▸ INTERNAL — The cross-account switch rules moved into two pure functions shared by the switch and PIN-verification endpoints, which had drifted: verification honoured the caller's own LAN bypass across a Bonfire link, so it could approve a switch the server then refused.
 
@@ -386,47 +477,47 @@ First stable release of the 1.3 line, consolidating the 1.2.x pre-releases. ■ 
 
 ⚠️ BETA RELEASE — not a finished release; please report issues on GitHub. ▸ Settings page: master accounts and sub-profiles were listed as two separate tables, so working out which profiles belonged to which account meant reading the "Master Account" column on every row. There is now a single list of master accounts, each with its sub-profiles collapsed underneath it behind a "2 sub-profiles" toggle. PIN status and Reset PIN are available at both levels as before. Any sub-profile whose master account no longer exists — normally the residue of a partially failed deletion — is listed separately under "Unlinked sub-profiles" rather than disappearing, so it can still be found and managed. ▸ The permission-fix commands are now generated for the account Jellyfin is actually running as, and the page states which account that is. Previously they had to cover every possibility at once: on Windows, Jellyfin runs either as a service (NT AUTHORITY\NetworkService) or as the signed-in user when installed as a tray/desktop app, so the icacls command granted Modify to ALL local users in order to work in both cases. It now grants access to exactly one account — the real one — which is both less to type and a considerably narrower permission on a file inside Program Files. ▸ The same applies to the Linux and Docker chown commands, which previously assumed the service account was named "jellyfin". That is the convention but not a guarantee, and the commands silently did nothing useful when it was not. If the account cannot be determined, the page falls back to the previous broader commands, so nothing is lost on unusual setups.
 
-## 1.2.11  — 2026-08-05
+## 1.2.11-beta  — 2026-08-05
 
 ⚠️ BETA RELEASE — not a finished release; please report issues on GitHub. ▸ The 'script tag not up to date' notice now explains the actual cause instead of the symptom. It reports whether Jellyfin can write index.html at all — tested directly rather than inferred — so on a Program Files or read-only install it now says so plainly, instead of only stating that the version marker was old and leaving you to guess why re-checking never helped. It also recognises a tag that predates the cache-buster and says that specifically. ▸ The notice is re-titled and re-worded to match its real severity. The profile switcher is unaffected by a stale tag, and since 1.2.6 browsers revalidate the client script on their own within about five minutes, so write access only makes updates instant rather than being required. It previously read like something was broken. ▸ Added a 'Dismiss until next update' button. Where index.html genuinely cannot be written without elevating, there is nothing an administrator can do, and a permanent banner is just noise. Dismissal is tied to the running version, so a new release surfaces it again. The red 'injection failed' banner — the one that does mean the switcher is not loading — can never be dismissed. ▸ Internal: a specific failure reason recorded while patching is no longer overwritten by the generic status refresh that runs immediately afterwards, which was hiding permission errors behind a version-mismatch message.
 
-## 1.2.10  — 2026-08-05
+## 1.2.10-beta  — 2026-08-05
 
 ⚠️ BETA RELEASE — not a finished release; please report issues on GitHub. ▸ Fix: the 'Plugin Script Update Pending' warning could appear permanently even when index.html was perfectly up to date, and no amount of fixing permissions or re-checking would clear it. The cache-buster written into the script tag was taken from the plugin instance when available and the assembly otherwise — but this runs at server startup, possibly before the plugin instance exists, so the tag could be WRITTEN using one source and later COMPARED against the other. If those render differently (for example '1.2.8' against '1.2.8.0') the check could never succeed again. The version now comes from a single deterministic source, and the comparison extracts the version from index.html instead of matching the whole tag string character-for-character — so a tag with different attribute order, quoting or spacing is correctly recognised as current. ▸ The warning now names both versions ('index.html requests client script v1.2.8.0, but this build is v1.2.10.0') so it can be checked rather than guessed at, and explains that browsers pick up new client code on their own within about five minutes thanks to the revalidation added in 1.2.6 — granting write access only makes it immediate.
 
-## 1.2.9  — 2026-08-05
+## 1.2.9-beta  — 2026-08-05
 
 ⚠️ BETA RELEASE — not a finished release; please report issues on GitHub. ▸ Fix: a newly saved PIN (or any other profile change) still showed the old state until the page was reloaded — a freshly set PIN kept reading as 'No PIN'. Opening the switcher from the home screen uses a background-prefetched copy of the profile list so the overlay appears without a flash, but that copy was also being served to the render that happens straight after a save, and was refilled on every fetch so it never expired. Saving, creating, deleting a profile, and leaving the Bonfire panel now always re-read from the server. ▸ Diagnostics: when the local-network PIN bypass skips a PIN, the client address and the fact that Jellyfin classified it as local are now logged. If you run Jellyfin behind a reverse proxy that is not listed under Networking → Known Proxies, every request arrives carrying the proxy's address and is therefore treated as local — which would apply the bypass to remote users. This log line is how to confirm that is not happening on your server.
 
-## 1.2.8  — 2026-08-05
+## 1.2.8-beta  — 2026-08-05
 
 ⚠️ BETA RELEASE — not a finished release; please report issues on GitHub. ▸ Fix: buttons that appeared to do nothing. Alert and confirmation dialogs were rendering behind the full-screen profile overlay, so they were completely invisible. Saving a profile with an invalid PIN silently did nothing instead of explaining why, and the Delete Profile and Bonfire confirmations were affected the same way. ▸ Fix: a saved PIN could look like it had never been stored. The edit form decided whether a PIN existed using a flag that is deliberately false on the local network when 'Bypass PIN on local network' is enabled — so on your own LAN a correctly saved PIN showed as 'Unprotected' with no Clear PIN button. The form now tracks whether a PIN exists separately from whether one will be prompted for, and states plainly when a PIN is set. (A master PIN has never been required in order to give a sub-profile a PIN, and still isn't.) ▸ Fix: PIN validation now reports the problem inline next to the field, including how many digits you actually entered, rather than relying solely on a dialog. ▸ Performance: fixed a listener leak that made clicks progressively slower the longer a session stayed open. Each time the create or edit form opened it attached another document-wide click handler and never removed it, so every click on the page ran a growing pile of stale handlers bound to discarded elements. ▸ Performance: profile switching no longer reads, parses and rewrites the entire audit log on the request. That was synchronous disk I/O and JSON work on the exact click that takes you to the home screen; the log is now kept in memory and persisted in the background. ▸ Diagnostics: profile switches are now timed, and any switch taking over a second logs a warning breaking down where the time went (PIN check, policy sync, session creation, audit write).
 
-## 1.2.7  — 2026-08-04
+## 1.2.7-beta  — 2026-08-04
 
 ⚠️ BETA RELEASE — this build contains a reworked profile editor and is not a finished release. Please report anything that looks wrong on GitHub. The plugin settings page shows a 'v1.2.7-beta' badge and a pre-release notice so you can tell it apart from a stable build. ▸ Fix: the Allowed Devices list no longer shows every device connected to the server by any user. v1.2.6 introduced per-household device ownership but treated records with no recorded owner as visible to everyone — and on an existing install every record starts out unowned, so the picker listed the whole server's devices to every account. Unowned records are now claimed for a household first (via that household's live sessions, or by already appearing on one of its profile whitelists) and are never listed until they are. The v1.2.6 fix that keeps powered-off devices from being silently dropped from a whitelist on save is retained. ▸ UI: the Create and Edit Profile forms are reorganised into four titled sections — Profile (name, colour, picture), Security (PIN, LAN bypass, auto-lock), Libraries, and Content & Device Restrictions (devices, parental rating, tags). Previously every field sat in one flat list in the order features had been added, so unrelated controls were adjacent and there were no landmarks to scroll by. Sections are plain blocks rather than collapsible panels so D-pad focus order on TV stays predictable, and the layout adapts for phone widths. ▸ UI: the 'Your Bonfire' header now uses a campfire icon instead of a house, matching the feature's name; your own Bonfire is amber and linked households are ember-orange so the two remain distinguishable. ▸ UI: clearer hints on the library and tag controls, keyboard Escape closes the device dropdown, and the device list no longer shows a bogus 'Last seen' date for devices restored from a whitelist.
 
-## 1.2.6  — 2026-08-04
+## 1.2.6-beta  — 2026-08-04
 
 Fix: the dashboard's injection warning banner no longer persists after you fix the problem. The status was calculated once at server startup, so running the documented chown/chmod/icacls command and reloading the settings page still showed the same error until a full Jellyfin restart. The banner now re-reads index.html every time the page loads, and a new 'Re-check Now' button re-runs the injection on demand — no restart required. Fix: the banner now states the specific problem (missing script tag, out-of-date version, or unwritable file) instead of listing every possible cause, and a green confirmation is shown when everything is correct. Fix: a missing <head> tag now shows the amber 'update pending' notice rather than either claiming success or firing the red failure banner. Fix: the client script is served with a version ETag and revalidation, so browsers pick up new client code within minutes even on servers where index.html cannot be rewritten — previously a stale cache could hide new features indefinitely. Fix: editing a profile no longer erases device whitelist entries for devices that are switched off. The device picker was filtered to devices with a live session, so any powered-down device silently disappeared from the list and was dropped on save — and an emptied whitelist disables the device restriction entirely. Device ownership is now recorded per household, and every already-allowed device always appears in the picker. Fix: stale plugin .old files are now located correctly for cleanup. Internal: version numbers are no longer hardcoded anywhere in the UI or API responses.
 
-## 1.2.5  — 2026-08-04
+## 1.2.5-beta  — 2026-08-04
 
 UI: Added running plugin version badge to admin settings page header (e.g. v1.2.5). Fix: Atomic Regex tag replacement and seamless script tag updates on server startup.
 
-## 1.2.4  — 2026-08-04
+## 1.2.4-beta  — 2026-08-04
 
 Fix: Replaced manual index.html string slicing with atomic Regex tag replacements. Existing script tags (e.g. from older releases) are now updated in-place to current version cache-busters without leaving stale version tags behind.
 
-## 1.2.3  — 2026-08-04
+## 1.2.3-beta  — 2026-08-04
 
 Fix: Streamlined plugin auto-injection and Windows plugin updates — eliminating false-positive 'injection failed' dashboard error banners whenever client script is active. Automatically strips read-only flags on index.html during server startup. Enhances Windows icacls permissions instructions for users running Jellyfin in Desktop/Tray mode.
 
-## 1.2.2  — 2026-08-04
+## 1.2.2-beta  — 2026-08-04
 
 Fix: Added dedicated dashboard warning banner for pending script tag version updates. When host write permissions prevent updating index.html script tag version cache-busters during a plugin update, a distinct warning now informs admins that the profile switcher remains active and recommends a browser hard refresh (Ctrl+Shift+R) if new features do not appear.
 
-## 1.2.1  — 2026-08-04
+## 1.2.1-beta  — 2026-08-04
 
 Fix: Plugin update no longer leaves the old client script cached in the browser — the injection now detects when the script tag's version cache-buster is stale and re-injects with the current version, so new UI features (like tag filtering) appear immediately after update without a manual cache clear. Fix: the 'Allowed Devices' dropdown when creating or editing a sub-profile now shows only devices the calling master account has sessions on, instead of every device that ever connected to the server. Fix: the 'injection failed' dashboard banner no longer appears as a false positive after a successful injection on a plugin update.
 
@@ -438,51 +529,51 @@ New: Tag-based content filtering for sub-profiles. Each profile can now block or
 
 Fix: Plugin now loads correctly on Jellyfin 10.11.5. The previous release was compiled against 10.11.6, which caused a loader-level assembly version mismatch (FileNotFoundException on MediaBrowser.Common/Controller/Model) on servers running 10.11.5. Compile target downgraded to 10.11.5 — the plugin remains fully compatible with 10.11.6 and later patch releases.
 
-## 1.1.12  — 2026-07-11
+## 1.1.12-beta  — 2026-07-11
 
 Fix: Creating a sub-profile no longer throws 'Error processing request' on Jellyfin 10.11. Root cause: the profile policy was initialized with new UserPolicy(), leaving AuthenticationProviderId null — which Jellyfin 10.11 enforces as NOT NULL in UpdatePolicyAsync. Policy is now seeded from the newly created user's own DTO so all required provider fields are preserved. (Thanks to PepeTechs for the PR.) Also corrects the v1.1.11.0 manifest checksum which was mistakenly left as all-zeros.
 
-## 1.1.11  — 2026-06-30
+## 1.1.11-beta  — 2026-06-30
 
 Fix: Settings page no longer shows a false-positive injection error when the plugin is working correctly (the status check was treating a missing camelCase field as a failure when ASP.NET returned PascalCase). Fix: Permission fix instructions now show the correct two-step chown+chmod commands (sudo chown jellyfin:jellyfin / sudo chmod 664) that actually work on native Linux installs, based on user-confirmed testing. Fix: Creating or editing a sub-profile with no libraries explicitly selected now correctly inherits all master-accessible libraries instead of silently locking the profile out of every library.
 
-## 1.1.10  — 2026-06-24
+## 1.1.10-beta  — 2026-06-24
 
 Fix: index.html backup is now stored in the plugin data directory instead of next to index.html. On Linux and Docker installs the jellyfin service user can write to index.html after chmod 666, but cannot create new files in the web root directory — causing an UnauthorizedAccessException before injection ran. Backup creation is now also non-fatal (injection proceeds even if the backup step fails). Error messages updated to include chmod 755 on the parent directory.
 
-## 1.1.9  — 2026-06-19
+## 1.1.9-beta  — 2026-06-19
 
 Security & Stability Release: resolves a critical privilege escalation bug in library permission mapping (ensuring sub-profiles cannot be assigned unauthorized libraries); fixes index.html script double-injection and corruption by using safe conditional inserting; adds index.html backup before patching; mitigates IP-based PIN brute force by rate limiting per profile; resolves XSS vulnerability in profile name rendering; ensures proper lock synchronization on configuration mappings.
 
-## 1.1.8  — 2026-06-15
+## 1.1.8-beta  — 2026-06-15
 
 Fix: Rename plugin name/directory from 'Bonfire/JellyProfiles' to 'Bonfire' to resolve the Windows server folder deletion and lock conflict bugs. This stops the restart loop and allows clean updates.
 
-## 1.1.7  — 2026-06-15
+## 1.1.7-beta  — 2026-06-15
 
 Fix: profile switching now works correctly on Jellyfin 10.11+. Root cause: the Authorization header parser was not stripping the 'MediaBrowser ' scheme prefix, so the Client parameter always returned null — causing SessionManager.AuthenticateNewSessionInternal to throw ArgumentNullException (request.App). Fixed in GetAuthorizationParameter; added guaranteed fallbacks on AuthenticationRequest so the switch endpoint can never throw on missing header fields.
 
-## 1.1.6  — 2026-06-15
+## 1.1.6-beta  — 2026-06-15
 
 Fix: merged BonfireController and AdminController back into single ProfilesController. Jellyfin's plugin loader does not support multiple controllers with the same route prefix from a plugin assembly, causing a permanent restart loop on v1.1.4 and v1.1.5. All endpoints now in one controller; ProfilesBaseController retained for shared helpers only.
 
-## 1.1.5  — 2026-06-15
+## 1.1.5-beta  — 2026-06-15
 
 Bonfire UI fixes: Generate and Join buttons are now disabled during fetch to prevent double-fire; settings checkboxes are debounced 300ms to prevent race conditions when toggling both quickly; join input/button now wraps to full width on screens under 360px; .profiles-btn:disabled visual state added.
 
-## 1.1.4  — 2026-06-15
+## 1.1.4-beta  — 2026-06-15
 
 Structural refactor: ProfilesController split into ProfilesController, BonfireController, and AdminController via shared ProfilesBaseController. Five structural issues fixed: controller size, [AllowAnonymous] scope documentation, static field documentation, null-dereference guard on Plugin.Instance in audit log path, redundant SaveConfiguration eliminated from RecordDeviceActivity on known-device updates.
 
-## 1.1.3  — 2026-06-15
+## 1.1.3-beta  — 2026-06-15
 
 Structural cleanup and deletion fix: profile deletion now terminates active sessions first (fixes the root cause of deletion always failing); AuditLogEntry, request model classes, and rate limiters moved to proper namespaces; BonfireRateLimiter/PinRateLimiter merged into a single parameterized RateLimiter class.
 
-## 1.1.2  — 2026-06-15
+## 1.1.2-beta  — 2026-06-15
 
 Bug fixes: GIF profile avatars now served correctly; master token cleared on native sign-out; deletion fallback no longer orphans plugin mapping; Bonfire GroupId no longer re-randomizes on config reload; JS file cached server-side (reduced memory pressure); DOM polling reduced from 150ms to 500ms; audit logs moved to separate file (no longer bloats PluginConfiguration.xml rewrite); profile image uploads capped at 2 MB; Bonfire code lookup is now case-insensitive.
 
-## 1.1.1  — 2026-06-15
+## 1.1.1-beta  — 2026-06-15
 
 Fix: Simplified client-side script auto-injection troubleshooting instructions to use dynamic resolved file paths and a robust permission-granting chmod approach.
 
@@ -493,3 +584,4 @@ Release 1.1.0: Codebase cleanup, optimization, documentation updates, and develo
 ## 1.0.0  — 2026-06-11
 
 Initial release.
+

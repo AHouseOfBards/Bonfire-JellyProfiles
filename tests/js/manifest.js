@@ -117,10 +117,20 @@ versions.forEach(function (v) {
 
 ok('at most one entry is waiting to be stamped (' + placeholders + ')', placeholders <= 1);
 
+// One historical tag does not follow the convention: 1.1.0.0 was released as `v1.1`,
+// before the three-part tag name settled. The URL is right — it serves, and `gh release
+// view v1.1` lists the asset — so the check's premise is what is wrong for that one
+// entry, not the entry. Named explicitly rather than loosening the pattern for all of
+// them, so the next release still has to match exactly.
+//
+// This only surfaced when the harness first ran against main's manifest during the 1.6.0
+// cut; until then it had only ever seen beta's.
+const TAG_EXCEPTIONS = { '1.1.0.0': 'v1.1' };
+
 versions.forEach(function (v) {
-    ok(v.version + ' points its sourceUrl at its own tag',
-       typeof v.sourceUrl === 'string'
-       && v.sourceUrl.indexOf('/v' + v.version.replace(/\.0$/, '') + '/') !== -1);
+    const tag = TAG_EXCEPTIONS[v.version] || ('v' + v.version.replace(/\.0$/, ''));
+    ok(v.version + ' points its sourceUrl at its own tag (' + tag + ')',
+       typeof v.sourceUrl === 'string' && v.sourceUrl.indexOf('/' + tag + '/') !== -1);
 });
 
 console.log('\n── The workflow refuses what this file must never contain ──────');
