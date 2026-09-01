@@ -26,8 +26,11 @@ function makeStorage() {
 
 const noopEl = { style: {}, classList: { add() {}, remove() {}, contains: () => false }, appendChild() {}, addEventListener() {} };
 
-// Captures what profiles.js binds on document, so the trap handlers can be invoked.
+// Captures what profiles.js binds, so the trap handlers can be invoked. The trap moved
+// from document to window in 1.5.13 and both are recorded, so this file can still be
+// pointed at an earlier client and reach the assertions that discriminate.
 const documentListeners = [];
+const windowListeners = [];
 
 const sandbox = {
     console,
@@ -53,7 +56,16 @@ const sandbox = {
         documentElement: noopEl,
         activeElement: null
     },
-    window: { location: { hash: '', pathname: '/web/', href: 'https://tv.example.org/web/index.html', origin: 'https://tv.example.org' }, addEventListener: () => {}, PointerEvent: function () {} },
+    window: {
+        innerHeight: 1080,
+        location: { hash: '', pathname: '/web/', href: 'https://tv.example.org/web/index.html', origin: 'https://tv.example.org' },
+        addEventListener: (type, fn, capture) => windowListeners.push({ type, fn, capture: !!capture }),
+        removeEventListener: (type, fn, capture) => {
+            const i = windowListeners.findIndex(l => l.type === type && l.fn === fn && l.capture === !!capture);
+            if (i >= 0) windowListeners.splice(i, 1);
+        },
+        PointerEvent: function () {}
+    },
     history: { pushState: () => {}, replaceState: () => {} },
     URL: URL,
     Image: function () {}
@@ -80,6 +92,7 @@ function el(id, x, y, w, h, extra) {
     return Object.assign({
         id,
         tagName: 'BUTTON',
+        nodeType: 1,
         disabled: false,
         offsetParent: {},
         // Nothing in these fixtures claims the arrow keys unless a test says so.
@@ -90,7 +103,7 @@ function el(id, x, y, w, h, extra) {
 }
 
 /// A key event target that is not one of the focusable fixtures.
-const other = (tagName, extra) => Object.assign({ tagName: tagName || 'DIV', closest: () => null }, extra || {});
+const other = (tagName, extra) => Object.assign({ tagName: tagName || 'DIV', nodeType: 1, closest: () => null }, extra || {});
 
 // â”€â”€ Spatial navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // A 3x2 grid, 100px cells, 20px gutters.
@@ -147,6 +160,74 @@ focused = null;
 PP._moveOverlayFocus(mixedRoot, 'right');
 check('hidden and disabled controls are skipped', focused, 'vis2');
 
+// â”€â”€ The gate as a television actually lays it out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// The fixture above is six identical squares in a row with nothing else on screen. The
+// gate is not that shape: the cards are half again as tall as they are wide, four of them
+// wrap to 2x2 inside a 900px modal, and a row of footer buttons sits below the grid. The
+// footer is what #16 reported landing on, so the footer has to be in the fixture — a grid
+// with nothing to lose to cannot show that nothing is lost to it.
+//
+// Every number here is read off Web/styles.css for .jpf-tv on a 1920x1080 set.
+console.log('\nThe television gate, to scale');
+console.log('-----------------------------');
+
+const TV = (() => {
+    const VW = 1920, MODAL_W = 900, SEC = 33;              // border + padding 2rem
+    const MODAL_L = (VW - MODAL_W) / 2;
+    const GRID_L = MODAL_L + SEC, GRID_W = MODAL_W - 2 * SEC;
+    const CARD_W = 300, CARD_MX = 32, OUTER = CARD_W + 2 * CARD_MX;
+    const PER_ROW = Math.floor(GRID_W / OUTER);            // 2
+    const CARD_H = 15 + 280 + 24 + 38 + 24, ROW_GAP = 64, GRID_TOP = 272;
+    const rowStart = GRID_L + (GRID_W - PER_ROW * OUTER) / 2;
+
+    const cards = [];
+    for (let i = 0; i < 4; i++) {
+        cards.push(el('card' + (i + 1),
+            rowStart + (i % PER_ROW) * OUTER + CARD_MX,
+            GRID_TOP + Math.floor(i / PER_ROW) * (CARD_H + ROW_GAP),
+            CARD_W, CARD_H));
+    }
+    const rows = Math.ceil(4 / PER_ROW);
+    const footerTop = GRID_TOP + rows * CARD_H + (rows - 1) * ROW_GAP + 133;
+    const MANAGE_W = 267, CANCEL_W = 248, GAP = 32, BTN_H = 61;
+    const footerL = MODAL_L + (MODAL_W - (MANAGE_W + GAP + CANCEL_W)) / 2;
+    const manage = el('manage', footerL, footerTop, MANAGE_W, BTN_H);
+    const cancel = el('cancel', footerL + MANAGE_W + GAP, footerTop, CANCEL_W, BTN_H);
+    return { items: cards.concat([manage, cancel]), cards, perRow: PER_ROW };
+})();
+
+const tvSurface = {
+    id: 'profiles-gate-overlay', isConnected: true,
+    contains: n => TV.items.indexOf(n) >= 0,
+    querySelectorAll: () => TV.items,
+    getAttribute: () => null
+};
+const tvNav = Object.create(PP);
+tvNav._overlayFocusables = () => TV.items;
+function tvMove(from, dir) {
+    sandbox.document.activeElement = TV.cards[from];
+    focused = null;
+    tvNav._moveOverlayFocus(tvSurface, dir);
+    return focused;
+}
+
+check('four profiles wrap to a 2x2 grid', TV.perRow, 2);
+check('right from the signed-in card reaches the card beside it', tvMove(0, 'right'), 'card2');
+check('down from it reaches the card below, not the footer', tvMove(0, 'down'), 'card3');
+check('left from the top right comes back', tvMove(1, 'left'), 'card1');
+check('down from the top right stays in its column', tvMove(1, 'down'), 'card4');
+check('up from the bottom row returns to the grid', tvMove(2, 'up'), 'card1');
+check('the footer is reached from the bottom row, and only from there', tvMove(2, 'down'), 'manage');
+
+// The other half of the same fault. Upstream's focusManager (components/focusManager.js)
+// builds its focusable set from INPUT/TEXTAREA/SELECT/BUTTON/A plus `.focusable`, and
+// never consults [tabindex] — so a profile card, which is a div, is invisible to it while
+// our footer buttons are not. Any moment the trap does not get the key event therefore
+// leaves the grid unreachable and Manage Profiles the only place focus can go.
+const cardMarkup = L.readProfiles().match(/<div class="profile-card[^"]*"/g) || [];
+check('every profile card is focusable to upstream as well',
+    cardMarkup.length > 0 && cardMarkup.every(m => /\bfocusable\b/.test(m)), true);
+
 // â”€â”€ Which surface the trap applies to â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 console.log('\nActive surface');
 console.log('--------------');
@@ -194,11 +275,24 @@ console.log('-----------------');
 
 PP._overlayTrap = null;
 documentListeners.length = 0;
+windowListeners.length = 0;
 PP._bindOverlayFocusTrap();
-const keyHandler = documentListeners.find(l => l.type === 'keydown' && l.capture);
-check('trap binds keydown in the capture phase', !!keyHandler, true);
-check('trap binds focusin in the capture phase',
-    !!documentListeners.find(l => l.type === 'focusin' && l.capture), true);
+
+// On window, not document. jellyfin-web binds its remote navigation with
+// window.addEventListener('keydown') and no capture, so document-level capture is ahead
+// of it for anything that travels through the document — but an event dispatched AT
+// window has only window on its path, and television webviews do that. The trap saw
+// nothing; upstream's focusManager, which cannot see a div with tabindex, moved focus to
+// the only thing in the gate it can see. Reported on #16 as "it goes to manage profiles".
+const onWindow = l => l.type === 'keydown' && l.capture;
+// Falls back to the document binding so an older client still reaches the rest of the
+// file. The four assertions here have already recorded which one it found.
+const keyHandler = windowListeners.find(onWindow) || documentListeners.find(onWindow);
+check('trap binds keydown on window, in the capture phase', !!windowListeners.find(onWindow), true);
+check('trap binds focusin on window, in the capture phase',
+    !!windowListeners.find(l => l.type === 'focusin' && l.capture), true);
+check('and binds nothing on document, which window capture already precedes',
+    documentListeners.filter(l => l.type === 'keydown' || l.type === 'focusin').length, 0);
 
 function press(key, target, opts) {
     let prevented = false, stopped = false;
@@ -323,9 +417,25 @@ sandbox.document.activeElement = null;
 r = press('Tab', other('DIV'));
 check('crop: Tab still moves between its buttons', r.focused, 'a');
 
+// A remote key dispatched at window itself. Its propagation path is window alone, so a
+// document listener is never on it — and upstream's window listener is. The trap has to
+// act on it, and with no element target the first press enters at the first control.
+withSurfaces([gateSurface]);
+sandbox.document.activeElement = null;
+r = press('ArrowRight', sandbox.window);
+check('a keydown dispatched at window is trapped', { prevented: r.prevented, stopped: r.stopped },
+    { prevented: true, stopped: true });
+check('and enters the grid rather than leaving it to upstream', r.focused, 'a');
+
+// Same event, but now something in the grid already has focus: it must move by geometry,
+// not re-enter at the first card.
+sandbox.document.activeElement = grid.a;
+r = press('ArrowRight', sandbox.window);
+check('a window-dispatched arrow still moves by geometry', r.focused, 'b');
+
 // Release must make the trap inert.
 PP._releaseOverlayFocusTrap();
-check('release removes both listeners', documentListeners.length, 0);
+check('release removes both listeners', windowListeners.length + documentListeners.length, 0);
 check('release is idempotent', (PP._releaseOverlayFocusTrap(), PP._overlayTrap), null);
 
 // â”€â”€ Plugin image URLs (Tizen) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -367,9 +477,10 @@ console.log('\nTV Back key');
 console.log('-----------');
 
 PP._overlayTrap = null;
+windowListeners.length = 0;
 documentListeners.length = 0;
 PP._bindOverlayFocusTrap();
-const backHandler = documentListeners.find(l => l.type === 'keydown' && l.capture);
+const backHandler = windowListeners.find(onWindow) || documentListeners.find(onWindow);
 
 let clicked = null;
 const backBtn = { id: 'pin-cancel-btn', click() { clicked = 'pin-cancel-btn'; } };

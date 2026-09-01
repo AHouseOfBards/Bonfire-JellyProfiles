@@ -237,6 +237,8 @@
   "profileForm.noTags": "Brak tagów — ten filtr jest wyłączony",
   "switcher.reloadFailedTitle": "Prawie gotowe",
   "switcher.reloadFailedBody": "Zamknij i otwórz aplikację ponownie, aby dokończyć zmianę profilu.",
+  "switcher.notSavedTitle": "Nie zapisano zmiany",
+  "switcher.notSavedBody": "To urządzenie nie zapisało zmiany, więc nadal jesteś zalogowany jak wcześniej.",
   "profileForm.tidyDevices": "Uporządkuj duplikaty",
   "profileForm.tidyNone": "Nie znaleziono duplikatów.",
   "profileForm.tidyFound": "Znaleziono {count} urządzeń, które wyglądają na duplikaty. Scalić je?"

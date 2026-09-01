@@ -331,6 +331,8 @@
         'switcher.switchProfile': 'Switch Profile',
         'switcher.reloadFailedTitle': 'Almost there',
         'switcher.reloadFailedBody': 'Close and reopen the app to finish switching profiles.',
+        'switcher.notSavedTitle': 'Switch not saved',
+        'switcher.notSavedBody': 'This device would not store the change, so you are still signed in as before.',
 
         'bonfire.yourBonfireTitle': 'Your Bonfire',
         'bonfire.hostedTitle': 'Your Hosted Bonfire',
@@ -812,24 +814,66 @@
             });
         },
 
+        /// Writes a token and user into jellyfin-web's own stored credentials, and returns
+        /// whether it actually managed to.
+        ///
+        /// The return value is the point of this function. Everything else about a switch
+        /// can succeed — the server issues the token, ApiClient takes it, the page
+        /// reloads — and the profile still not be the one that comes back, because this is
+        /// the only part that survives the reload. It used to fail silently in two ways,
+        /// both of which look from outside exactly like "it lets me pick a profile but
+        /// loads my own account anyway", which is issue #16:
+        ///
+        ///   - The server was matched with `server.Id === currentServerId`, a raw string
+        ///     comparison of two GUIDs. Every other id comparison in this file goes
+        ///     through normalizeGuid because casing and dashes vary by where the value
+        ///     came from. With more than one server stored — an address and a hostname for
+        ///     the same box is the common way that happens — a mismatch updated nothing
+        ///     and reported nothing.
+        ///   - Writing to localStorage can be accepted and discarded (a full quota, a
+        ///     television in a private-browsing-like mode). Nothing read it back.
+        ///
+        /// So: match by id, fall back to the address ApiClient is actually talking to,
+        /// fall back to a single stored server, and then read back what was written. The
+        /// caller decides what to do with a false; it must not be a reload.
         updateStoredCredentials: function (newToken, newUserId) {
             try {
                 const credsStr = localStorage.getItem('jellyfin_credentials');
-                if (credsStr) {
-                    const creds = JSON.parse(credsStr);
-                    if (creds && Array.isArray(creds.Servers)) {
-                        const currentServerId = typeof ApiClient.serverId === 'function' ? ApiClient.serverId() : (ApiClient.serverId || '');
-                        creds.Servers.forEach(server => {
-                            if (!currentServerId || server.Id === currentServerId || creds.Servers.length === 1) {
-                                server.AccessToken = newToken;
-                                server.UserId = newUserId;
-                            }
-                        });
-                        localStorage.setItem('jellyfin_credentials', JSON.stringify(creds));
-                    }
+                if (!credsStr) return false;
+
+                const creds = JSON.parse(credsStr);
+                if (!creds || !Array.isArray(creds.Servers) || !creds.Servers.length) return false;
+
+                const serverId = this.normalizeGuid(
+                    typeof ApiClient.serverId === 'function' ? ApiClient.serverId() : (ApiClient.serverId || ''));
+                const address = (typeof ApiClient.serverAddress === 'function' ? ApiClient.serverAddress() : '') || '';
+                const sameAddress = (server) => !!address && [server.ManualAddress, server.LocalAddress, server.RemoteAddress]
+                    .some(a => a && String(a).replace(/\/+$/, '') === address.replace(/\/+$/, ''));
+
+                // In order, and only one of them applies. Widening the match after a
+                // narrower one has already hit would write another server's entry.
+                let targets = creds.Servers.filter(s => serverId && this.normalizeGuid(s.Id) === serverId);
+                if (!targets.length) targets = creds.Servers.filter(sameAddress);
+                if (!targets.length && creds.Servers.length === 1) targets = creds.Servers.slice();
+                if (!targets.length) {
+                    console.error('ProfilesPlugin: none of the stored servers is the one being switched on.');
+                    return false;
                 }
+
+                targets.forEach(server => {
+                    server.AccessToken = newToken;
+                    server.UserId = newUserId;
+                });
+                localStorage.setItem('jellyfin_credentials', JSON.stringify(creds));
+
+                // Read back. A write that was accepted and dropped leaves the old token in
+                // place, and the reload would sign back in as whoever was there before.
+                const saved = JSON.parse(localStorage.getItem('jellyfin_credentials') || 'null');
+                return !!(saved && Array.isArray(saved.Servers)
+                    && saved.Servers.some(s => s.AccessToken === newToken && s.UserId === newUserId));
             } catch (e) {
                 console.error("ProfilesPlugin: Stored credentials update failed:", e);
+                return false;
             }
         },
 
@@ -1725,6 +1769,15 @@
                 }
                 this._reloadTimer = setTimeout(() => step(n + 1), this.RELOAD_ESCALATE_MS);
             };
+
+            // A navigation that has committed fires pagehide, and on a set slow enough to
+            // still be running timers a step later the escalation would then navigate a
+            // second time — onto a cache-busted URL nobody asked for. The ladder is for a
+            // reload that does nothing, not for one that is merely slow.
+            const stop = () => { if (this._reloadTimer) clearTimeout(this._reloadTimer); };
+            window.addEventListener('pagehide', stop);
+            window.addEventListener('beforeunload', stop);
+
             step(0);
         },
 
@@ -3410,7 +3463,11 @@
                     return;
                 }
 
-                const inside = surface.contains(e.target);
+                // An event dispatched at `window` has no element target, and contains()
+                // wants a node. Treat it as outside: the direction keys still move, and
+                // _moveOverlayFocus enters at the first control when the active element is
+                // not in the surface, which is the right first press.
+                const inside = !!(e.target && e.target.nodeType && surface.contains(e.target));
                 const dir = dirOf(e);
 
                 if (dir) {
@@ -3466,15 +3523,37 @@
                 if (items.length) items[0].focus();
             };
 
-            document.addEventListener('keydown', onKeyDown, true);
-            document.addEventListener('focusin', onFocusIn, true);
+            // On `window`, and in the capture phase. Both halves of that matter, and the
+            // second time #16 was reported it was because of the first.
+            //
+            // jellyfin-web binds its own remote navigation with
+            // `window.addEventListener('keydown', ...)` — no capture — in
+            // scripts/keyboardNavigation.js, and it bails on `e.defaultPrevented`. So for
+            // any key event that travels through the document we are ahead of it either
+            // way. What document-level capture does NOT see is an event dispatched at
+            // `window` itself: its propagation path is `window` alone, so a document
+            // listener is never on it while upstream's window listener is. Television
+            // webviews do dispatch remote keys that way.
+            //
+            // When that happens the arrows belong to upstream's focusManager, and its
+            // focusable set is INPUT/TEXTAREA/SELECT/BUTTON/A plus `.focusable` — it does
+            // not look at [tabindex] at all. A profile card is a div with tabindex="0", so
+            // the grid is invisible to it and our two footer buttons are not: every arrow
+            // press lands on Manage Profiles and no profile can be reached. That is
+            // exactly how it was reported. The cards carry `focusable` now as well, so
+            // both ends of this are covered.
+            //
+            // Window capture is first on the path for everything else too, so this is a
+            // superset of what it replaces, not a trade.
+            window.addEventListener('keydown', onKeyDown, true);
+            window.addEventListener('focusin', onFocusIn, true);
             this._overlayTrap = { onKeyDown: onKeyDown, onFocusIn: onFocusIn };
         },
 
         _releaseOverlayFocusTrap: function () {
             if (!this._overlayTrap) return;
-            document.removeEventListener('keydown', this._overlayTrap.onKeyDown, true);
-            document.removeEventListener('focusin', this._overlayTrap.onFocusIn, true);
+            window.removeEventListener('keydown', this._overlayTrap.onKeyDown, true);
+            window.removeEventListener('focusin', this._overlayTrap.onFocusIn, true);
             this._overlayTrap = null;
         },
 
@@ -3663,8 +3742,15 @@
                     ? this.normalizeGuid(ApiClient.getCurrentUserId())
                     : '');
 
+            // `focusable` is jellyfin-web's own hook, not ours — see focusManager.js,
+            // whose focusable set is INPUT/TEXTAREA/SELECT/BUTTON/A plus that class, and
+            // which never looks at [tabindex]. Without it a profile card does not exist as
+            // far as upstream's remote navigation is concerned, so any moment our own trap
+            // does not get the key event leaves the whole grid unreachable and only the
+            // footer buttons focusable. That is issue #16's second report, word for word:
+            // "if I move off the top left one, it goes to manage profiles".
             const renderCard = (p) => `
-                <div class="profile-card ${this.isManageMode ? 'manage-mode' : ''}${
+                <div class="profile-card focusable ${this.isManageMode ? 'manage-mode' : ''}${
                     signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' is-current' : ''
                 }" data-id="${p.profileUserId}" data-pin="${p.requiresPin}" tabindex="0"${
                     signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' aria-current="true"' : ''
@@ -3763,7 +3849,7 @@
                     if (this.isManageMode) {
                         if (!atLimit) {
                             cardsHtml += `
-                                <div class="profile-card action-add-profile" tabindex="0">
+                                <div class="profile-card action-add-profile focusable" tabindex="0">
                                     <div class="profile-avatar-container">
                                         <div class="profile-avatar add-avatar">+</div>
                                     </div>
@@ -4263,6 +4349,18 @@
                     localStorage.setItem(this.config.masterStorageKey, JSON.stringify(masterState));
                 }
 
+                // Before anything else is written, because this is the one write that has
+                // to survive the reload. Without it the token lives only on this page's
+                // ApiClient, and the reload signs back in as whoever was there before —
+                // right name in the header, wrong account underneath. Bail here rather
+                // than leave session keys describing a switch that will not happen.
+                if (!this.updateStoredCredentials(activeProfileToken, jellyfinUserId)) {
+                    this._switchLock = false;
+                    this.setSwitchBusy(profileId, false);
+                    this.showAlert(t('switcher.notSavedTitle'), t('switcher.notSavedBody'));
+                    return;
+                }
+
                 this._sessionSet(this.config.activeSessionKey, activeProfileToken);
                 // Cached against the profile being switched into, before the reload, so the
                 // next load starts with the right rules already in place.
@@ -4282,7 +4380,6 @@
                     }));
                 }
 
-                this.updateStoredCredentials(activeProfileToken, jellyfinUserId);
                 apiClient.setAuthenticationInfo(activeProfileToken, jellyfinUserId);
 
                 // The overlay is opaque and covers the viewport, so leaving it up is all it
@@ -6035,7 +6132,7 @@
             if (!content) return;
 
             const entry = (id, icon, title, body) => `
-                <div class="settings-menu-entry" id="${id}" tabindex="0" role="button" style="
+                <div class="settings-menu-entry focusable" id="${id}" tabindex="0" role="button" style="
                     display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
                     border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
                     border: 2px solid rgba(255,255,255,0.08);
@@ -6102,7 +6199,7 @@
             // combination people asked for in issue #14 — ask on startup, but switch from
             // Jellyfin's menu — is unreachable when it is a single choice.
             const locationOption = (value, icon, title, body) => `
-                <div class="switcher-location-option" data-location="${value}" tabindex="0" role="radio"
+                <div class="switcher-location-option focusable" data-location="${value}" tabindex="0" role="radio"
                      aria-checked="${prefs.location === value}" style="
                     display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
                     border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;

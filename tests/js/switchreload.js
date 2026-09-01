@@ -1,5 +1,8 @@
-// The last step of a profile switch is a page reload, and until now nothing checked that
-// it happened.
+// A profile switch that does not take: the two ways the last part of one can fail on a
+// television and report nothing.
+//
+// The reload is the first. The credentials write is the second, and it is upstream of
+// everything here — see the section at the foot of this file.
 //
 // By the time reloadAtHome() is called the switch is complete everywhere except the
 // screen: the profile's token is in localStorage and in ApiClient, and all that is left
@@ -75,6 +78,12 @@ function makePage(opts) {
             getItem: () => null, setItem() {}, removeItem() {}
         },
         navigator: { userAgent: 'Mozilla/5.0 (SMART-TV; Tizen 6.0)' },
+        addEventListener() {}, removeEventListener() {},
+        ApiClient: {
+            serverId: () => (opts.serverId === undefined ? 'A1B2C3D4E5F6478899AABBCCDDEEFF00' : opts.serverId),
+            serverAddress: () => (opts.serverAddress === undefined ? 'http://192.168.1.9:8096' : opts.serverAddress),
+            setAuthenticationInfo() {}
+        },
         setTimeout(fn, ms) { timers.push({ fn, ms }); return timers.length; },
         clearTimeout() {}, setInterval() {}, clearInterval() {},
         requestAnimationFrame(fn) { fn(); },
@@ -190,6 +199,69 @@ console.log('── A working client pays nothing for this ───────
         p.navigations.map(n => n.kind).join(', '));
     ok('nothing escalates while the timer has not fired', p.navigations.length === 1);
     ok('and no alert is shown on the way out', alerted === false);
+}
+
+console.log();
+console.log('── The credentials write, which is what survives the reload ───');
+//
+// Everything else about a switch can succeed and the profile still not be the one that
+// comes back: the token the reload reads is the one in jellyfin-web's own
+// `jellyfin_credentials`, and nothing else. Two silent no-ops lived in that write.
+{
+    const creds = (servers) => JSON.stringify({ Servers: servers });
+    const run = (stored, opts) => {
+        const p = makePage(opts || {});
+        if (stored !== null) p.sandbox.localStorage.setItem('jellyfin_credentials', stored);
+        const result = p.plugin.updateStoredCredentials('NEW-TOKEN', 'uuu');
+        const after = JSON.parse(p.sandbox.localStorage.getItem('jellyfin_credentials') || 'null');
+        return { result, servers: after ? after.Servers : null };
+    };
+
+    // The GUID that comes back from ApiClient.serverId() is not always spelt the way the
+    // stored copy is. Every other id comparison in profiles.js goes through normalizeGuid;
+    // this one used ===, so with two servers stored — an address and a hostname for the
+    // same box is the ordinary way that happens — nothing was written and nothing said so.
+    let r = run(creds([
+        { Id: 'a1b2c3d4-e5f6-4788-99aa-bbccddeeff00', AccessToken: 'OLD', UserId: 'master' },
+        { Id: '00000000-0000-0000-0000-000000000009', AccessToken: 'OTHER', UserId: 'someone' }
+    ]));
+    ok('a server id spelt with dashes still matches',
+        r.servers && r.servers[0].AccessToken === 'NEW-TOKEN' && r.servers[0].UserId === 'uuu',
+        'entry 0 is ' + JSON.stringify(r.servers && r.servers[0]));
+    ok('and the other server is left alone',
+        r.servers && r.servers[1].AccessToken === 'OTHER');
+    ok('and it reports that it wrote', r.result === true);
+
+    // No id to match on: the address ApiClient is talking to names the entry instead.
+    r = run(creds([
+        { Id: 'zzz', ManualAddress: 'http://192.168.1.9:8096/', AccessToken: 'OLD' },
+        { Id: 'yyy', ManualAddress: 'http://10.0.0.2:8096', AccessToken: 'OTHER' }
+    ]), { serverId: '' });
+    ok('an unmatched id falls back to the server address',
+        r.servers && r.servers[0].AccessToken === 'NEW-TOKEN' && r.servers[1].AccessToken === 'OTHER');
+
+    // Nothing matches. Writing every entry would point another server at a token it will
+    // not accept, so the only honest answer is no.
+    r = run(creds([
+        { Id: 'zzz', ManualAddress: 'http://elsewhere:8096', AccessToken: 'OLD' },
+        { Id: 'yyy', ManualAddress: 'http://10.0.0.2:8096', AccessToken: 'OTHER' }
+    ]), { serverId: 'ffffffffffffffffffffffffffffffff', serverAddress: 'http://192.168.1.9:8096' });
+    ok('no match at all writes nothing', r.servers && r.servers.every(x => x.AccessToken !== 'NEW-TOKEN'));
+    ok('and says so rather than letting the reload happen', r.result === false);
+
+    ok('no stored credentials at all is also a no', run(null).result === false);
+
+    // Storage that accepts a write and drops it. A television in a private-browsing-like
+    // mode does this, and the reload would sign back in as whoever was there before.
+    {
+        const p = makePage();
+        p.sandbox.localStorage.setItem('jellyfin_credentials', creds([{ Id: 'a1b2c3d4e5f6478899aabbccddeeff00', AccessToken: 'OLD' }]));
+        const frozen = p.sandbox.localStorage.getItem('jellyfin_credentials');
+        p.sandbox.localStorage.setItem = () => {};
+        p.sandbox.localStorage.getItem = () => frozen;
+        ok('a write that is accepted and discarded is caught on read-back',
+            p.plugin.updateStoredCredentials('NEW-TOKEN', 'uuu') === false);
+    }
 }
 
 console.log();

@@ -85,6 +85,9 @@ function build() {
             body: { classList: makeClassList() },
             documentElement: { style: { cssText: '' }, classList: makeClassList() }
         },
+        // A page always has these; profiles.js binds the focus trap and the reload
+        // ladder's pagehide guard on window.
+        addEventListener() {}, removeEventListener() {},
         JSON, Date, Math, Object, Array, String, Number, Boolean, RegExp, Error, Promise, Set,
         Uint8ClampedArray
     };

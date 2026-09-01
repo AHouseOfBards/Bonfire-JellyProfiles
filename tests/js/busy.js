@@ -87,6 +87,9 @@ function build() {
             body: { classList: makeClassList() },
             documentElement: { style: { cssText: '', removeProperty() {} }, classList: makeClassList() }
         },
+        // A page always has these; profiles.js binds the focus trap and the reload
+        // ladder's pagehide guard on window.
+        addEventListener() {}, removeEventListener() {},
         JSON, Date, Math, Object, Array, String, Number, Boolean, RegExp, Error, Promise, Set
     };
     sandbox.window = sandbox;
@@ -150,9 +153,15 @@ ok('the switch raises it before the request goes out',
     body.indexOf('this.setSwitchBusy(profileId, true);') > 0
     && body.indexOf('this.setSwitchBusy(profileId, true);') < body.indexOf('fetch(url'));
 const catchAt = body.indexOf('.catch(err');
-const releaseAt = body.indexOf('this.setSwitchBusy(profileId, false);');
+// Enumerated, not first-found. There is more than one place the switch gives up now —
+// the request failing, and the credentials write that will not stick — and taking the
+// first occurrence reported the catch as unguarded the moment an earlier one appeared.
+const releases = [];
+for (let i = body.indexOf('this.setSwitchBusy(profileId, false);'); i > 0;
+     i = body.indexOf('this.setSwitchBusy(profileId, false);', i + 1)) releases.push(i);
+ok('every abandoned switch lowers it (' + releases.length + ' place(s))', releases.length >= 1);
 ok('and lowers it when the request fails',
-    catchAt > 0 && releaseAt > catchAt);
+    catchAt > 0 && releases.some(at => at > catchAt));
 
 console.log();
 console.log('── The screen is not blanked for the length of a reload ─────────');
