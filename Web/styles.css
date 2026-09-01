@@ -1,0 +1,1745 @@
+/*
+ * Bonfire's client stylesheet.
+ *
+ * This was 1,400 lines living inside a JavaScript template literal, and that cost
+ * two releases: a code comment containing two backticks closed the literal early,
+ * so the file still PARSED — node --check passed — and threw at runtime three calls
+ * into startup, taking the nine steps after it down with it. 1.5.2 and 1.5.3-beta
+ * shipped dead that way.
+ *
+ * A .css file cannot do that. There is no host language left to terminate, so the
+ * failure mode is gone at the language level rather than guarded against.
+ *
+ * It is embedded as its own resource and spliced into the served script by
+ * ProfilesController.PublishStyles, which encodes it as a JSON string literal —
+ * double-quoted and fully escaped — so no character in here can affect the
+ * surrounding JavaScript. Write plain CSS, including backticks if you want them.
+ */
+/* ── Theme integration ───────────────────────────────────────────
+   jellyfin-web has no colour variables of its own. The request to add
+   them (jellyfin-web discussion #6520) is answered "planned" and nothing
+   more, so there is no supported token to read. What every custom theme
+   and Skin Manager *does* converge on is --accent, so read that where it
+   exists and fall back to Jellyfin's stock blue everywhere else. A stock
+   install renders exactly as it did before; a themed one stops having a
+   foreign blue button sitting in its header.
+
+   Declared on body as well as :root because a theme may set --accent on
+   either, and a custom property resolves against the element it is
+   declared on — reading it only at :root would silently miss every theme
+   that sets it on body. */
+:root, body {
+    --jpf-accent: var(--accent, #00a4dc);
+
+    /* Tints of the accent. These literals are what Bonfire shipped
+       through 1.4.1 and stay as the floor, because deriving them needs
+       colour arithmetic the older TV browsers do not have. */
+    --jpf-accent-a08: rgba(0, 164, 220, 0.08);
+    --jpf-accent-a18: rgba(0, 164, 220, 0.18);
+    --jpf-accent-a30: rgba(0, 164, 220, 0.3);
+    --jpf-accent-a40: rgba(0, 164, 220, 0.4);
+    --jpf-accent-a45: rgba(0, 164, 220, 0.45);
+    --jpf-accent-a50: rgba(0, 164, 220, 0.5);
+    --jpf-accent-a60: rgba(0, 164, 220, 0.6);
+
+    /* == Neutral surfaces, borders and text ==================
+       Thirty distinct white alphas and ten black ones were in
+       this file, seven of them between 0.02 and 0.08 where no
+       eye can tell them apart. They are three surface levels,
+       three border weights and three text weights; everything
+       else was drift. Each level is a step you can actually
+       see, so a hover still reads as a hover.
+
+       Alpha rather than opaque colour on purpose: these sit on
+       whatever background the active Jellyfin theme paints, and
+       an opaque grey would fight it. */
+    --jpf-surface-1: rgba(255, 255, 255, 0.03);
+    --jpf-surface-2: rgba(255, 255, 255, 0.06);
+    --jpf-surface-3: rgba(255, 255, 255, 0.11);
+
+    --jpf-border-1: rgba(255, 255, 255, 0.08);
+    --jpf-border-2: rgba(255, 255, 255, 0.15);
+    --jpf-border-3: rgba(255, 255, 255, 0.26);
+
+    --jpf-text-1: rgba(255, 255, 255, 0.92);
+    --jpf-text-2: rgba(255, 255, 255, 0.68);
+    --jpf-text-3: rgba(255, 255, 255, 0.45);
+
+    /* Shadows and scrims are black, so they keep their own scale. */
+    --jpf-shadow-1: rgba(0, 0, 0, 0.2);
+    --jpf-shadow-2: rgba(0, 0, 0, 0.4);
+    --jpf-shadow-3: rgba(0, 0, 0, 0.55);
+    --jpf-scrim: rgba(0, 0, 0, 0.62);
+
+    /* == Danger and warning =================================
+       Five reds and three ambers were in use. Three of the reds
+       turned out to be states of one another and two were not
+       danger at all, so they are named rather than merged: the
+       bonfire flame gradient is a brand colour that happens to
+       be orange, and collapsing it into "warning" would have
+       made every Bonfire badge look like an error.
+
+       Open Color red-5/red-4 and pink-7, which is what the rest
+       of this file already uses. */
+    --jpf-danger: #ff6b6b;        /* errors, destructive actions   */
+    --jpf-danger-quiet: #ff8787;  /* outline button on transparent */
+    --jpf-danger-deep: #e64980;   /* hover for a filled danger btn */
+
+    --jpf-warn: #ff9900;          /* warnings, and the flame       */
+    --jpf-flame-deep: #ff5500;    /* far stop of the flame gradient only */
+
+
+
+    /* ── Shape and spacing ───────────────────────────────────
+       Every screen was styled on its own, which left eight corner
+       radii, ten container widths and four gap values across the
+       product — so the surfaces never read as one thing. Three of
+       each, chosen near the most common existing values.
+
+       50% and 999px are deliberately NOT tokens: those mean "a
+       circle" and "a pill", which are shapes rather than sizes. */
+    --jpf-r-sm: 6px;    /* inputs, chips, small controls */
+    --jpf-r-md: 12px;   /* buttons, cards, dialogs       */
+    --jpf-r-lg: 20px;   /* full-screen surfaces, avatars */
+
+    --jpf-gap: 12px;      /* controls sitting in a row */
+    --jpf-gap-lg: 1.25rem; /* sections and button rows */
+
+    /* Applied by the layout work rather than swapped in blind: a
+       container width is not interchangeable the way a radius is. */
+    --jpf-w-narrow: 420px; /* PIN and confirm dialogs   */
+    --jpf-w-form: 560px;   /* single-column forms       */
+    --jpf-w-wide: 960px;   /* two-column forms, the gate */
+}
+
+/* ── The same set again, for a light background ──────────────────────────────
+   Every neutral above is white at a low alpha, which is correct on Jellyfin's
+   dark themes and invisible on its light ones: a separator at
+   rgba(255,255,255,.08) over white is white. The gate, the forms and the
+   dialogs all lost their edges, and muted text washed out to near-nothing.
+
+   Only the tokens are redefined; not one rule below repeats itself, which is
+   the whole reason for having them.
+
+   prefers-color-scheme is the OS setting, not Jellyfin's theme picker — the
+   two can disagree, and there is no supported way to read the second from a
+   plugin (jellyfin-web sets no class or attribute that names the active
+   theme). So this catches the common case, someone on a light desktop using a
+   light Jellyfin theme, and cannot catch a light theme chosen on a dark
+   desktop. Preferred over guessing from a computed background colour, which
+   is read before the theme's stylesheet has necessarily applied. */
+@media (prefers-color-scheme: light) {
+    :root, body {
+        --jpf-surface-1: rgba(0, 0, 0, 0.03);
+        --jpf-surface-2: rgba(0, 0, 0, 0.06);
+        --jpf-surface-3: rgba(0, 0, 0, 0.11);
+
+        --jpf-border-1: rgba(0, 0, 0, 0.10);
+        --jpf-border-2: rgba(0, 0, 0, 0.18);
+        --jpf-border-3: rgba(0, 0, 0, 0.30);
+
+        --jpf-text-1: rgba(0, 0, 0, 0.88);
+        --jpf-text-2: rgba(0, 0, 0, 0.66);
+        --jpf-text-3: rgba(0, 0, 0, 0.48);
+
+        /* Shadows go lighter, not darker: the same black at the same alpha
+           reads as a smudge on white. */
+        --jpf-shadow-1: rgba(0, 0, 0, 0.10);
+        --jpf-shadow-2: rgba(0, 0, 0, 0.16);
+        --jpf-shadow-3: rgba(0, 0, 0, 0.22);
+        /* The scrim stays dark. It exists to cover the page during a switch,
+           and a pale one would show the old page through it. */
+
+        /* Open Color red-7/red-6 and orange-8: the -5 reds are legible on a
+           dark ground and far too pale on a white one. */
+        --jpf-danger: #e03131;
+        --jpf-danger-quiet: #f03e3e;
+        --jpf-danger-deep: #c2255c;
+        --jpf-warn: #e8590c;
+    }
+}
+
+
+/* Where the browser can mix colours, tint the *theme's* accent rather
+   than the hardcoded blue. color-mix is Chrome 111+, so Tizen 6
+   (Chromium 76) and older webOS keep the literals above instead of
+   losing the glow altogether. */
+@supports (color: color-mix(in srgb, red 50%, transparent)) {
+    :root, body {
+        --jpf-accent-a08: color-mix(in srgb, var(--jpf-accent) 8%, transparent);
+        --jpf-accent-a18: color-mix(in srgb, var(--jpf-accent) 18%, transparent);
+        --jpf-accent-a30: color-mix(in srgb, var(--jpf-accent) 30%, transparent);
+        --jpf-accent-a40: color-mix(in srgb, var(--jpf-accent) 40%, transparent);
+        --jpf-accent-a45: color-mix(in srgb, var(--jpf-accent) 45%, transparent);
+        --jpf-accent-a50: color-mix(in srgb, var(--jpf-accent) 50%, transparent);
+        --jpf-accent-a60: color-mix(in srgb, var(--jpf-accent) 60%, transparent);
+    }
+}
+/* Administrator-supplied avatar picker.
+   auto-fill rather than a fixed count so it reflows from a phone to a TV
+   without a media query, and scrolls internally instead of pushing the
+   form's buttons off screen when the library is large. */
+.avatar-color-group {
+    transition: opacity 0.2s ease;
+}
+.avatar-color-group.is-inert {
+    opacity: 0.45;
+}
+/* The only thing that said this button opens a panel was aria-expanded,
+   which is not a thing anyone can see. */
+.picture-caret {
+    font-size: 1.15rem !important;
+    margin-left: -2px;
+    opacity: 0.7;
+    transition: transform 0.2s ease;
+}
+.picture-change-btn[aria-expanded="true"] .picture-caret {
+    transform: rotate(180deg);
+}
+/* Held down for as long as the panel is out, so the link between the two
+   survives the panel being scrolled past. */
+.picture-change-btn[aria-expanded="true"] {
+    background-color: var(--jpf-accent-a18);
+    border-color: var(--jpf-accent-a60);
+    color: #fff;
+}
+@media (prefers-reduced-motion: reduce) {
+    .picture-caret {
+        transition: none;
+    }
+}
+/* Change picture and Remove: same class, same height, one group. */
+.image-upload-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+.picture-remove-btn .material-icons {
+    color: rgba(255, 107, 107, 0.85);
+}
+.picture-remove-btn:hover, .picture-remove-btn:focus {
+    color: var(--jpf-danger-quiet);
+}
+/* Collapsed by default on a profile that already has a picture. When it
+   opens it needs to read as one panel belonging to the button above it —
+   loose controls stacked in the form was the part that looked unfinished. */
+/* Shown only while a picture is set — with no picture the colour is the
+   whole background and there is nothing to make transparent. The inline
+   display comes from renderAvatarPicker and is driven by setPreview. */
+.picture-transparent-row {
+    min-width: 0;
+}
+.picture-transparent-toggle {
+    font-size: 0.88rem !important;
+}
+.picture-transparent-hint {
+    margin-top: 4px;
+}
+.picture-sources {
+    display: none;
+    flex-direction: column;
+    gap: var(--jpf-gap);
+    width: 100%;
+    min-width: 0;
+    /* Required: width:100% and padding on a content-box element add up
+       to wider than the card. This sheet has no global box-sizing. */
+    box-sizing: border-box;
+    padding: 0.9rem;
+    background: var(--jpf-shadow-1);
+    border: 1px solid var(--jpf-border-1);
+    border-radius: var(--jpf-r-md);
+}
+.picture-sources.is-open {
+    display: flex;
+}
+.picture-source-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+/* One rule, so a server with uploads locked off does not leave a divider
+   above nothing. */
+.picture-source-block + .picture-source-block {
+    border-top: 1px solid var(--jpf-border-1);
+    padding-top: var(--jpf-gap);
+}
+.picture-source-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--jpf-text-3);
+}
+/* The panel is the box now; a second one inside it was two frames deep. */
+.picture-sources .avatar-library-grid {
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+.avatar-library-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+    gap: var(--jpf-gap);
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 4px;
+    background: var(--jpf-shadow-1);
+    border-radius: var(--jpf-r-md);
+    border: 1px solid var(--jpf-border-1);
+}
+.avatar-library-item {
+    aspect-ratio: 1 / 1;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--jpf-surface-2);
+    cursor: pointer;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.avatar-library-item img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.avatar-library-item:hover,
+.avatar-library-item:focus {
+    border-color: var(--jpf-accent);
+    transform: scale(1.06);
+    outline: none;
+}
+
+/* Scroll Block */
+body.profiles-no-scroll, html.profiles-no-scroll {
+    overflow: hidden !important;
+    height: 100% !important;
+}
+
+/* Hide loaders behind overlay */
+body.profiles-no-scroll .docloader,
+body.profiles-no-scroll .mainLoader,
+body.profiles-no-scroll .loadingSpinner,
+body.profiles-no-scroll .spinner,
+body.profiles-no-scroll .view-loader,
+body.profiles-no-scroll paper-spinner,
+body.profiles-no-scroll paper-spinner-lite,
+body.profiles-no-scroll [class*="loader"],
+body.profiles-no-scroll [class*="spinner"],
+body.profiles-no-scroll [id*="loader"],
+body.profiles-no-scroll [id*="spinner"] {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* Overlay Glassmorphic Layout */
+#profiles-gate-overlay {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: radial-gradient(circle at 50% 40%, #1e1e2e 0%, #0d0d12 100%);
+    z-index: 99999; display: flex; align-items: center; justify-content: center;
+    color: #fff; font-family: 'Outfit', 'Inter', sans-serif;
+    overflow-y: auto; padding: 2rem 0; box-sizing: border-box;
+    opacity: 1; transition: opacity 0.22s ease;
+}
+.profiles-modal-content {
+    text-align: center; max-width: 900px; width: 90%;
+    display: flex; flex-direction: column; align-items: center;
+    margin: auto;
+}
+.profiles-title {
+    font-size: 3rem; font-weight: 700; margin-bottom: 3rem;
+    text-shadow: 0 4px 20px rgba(0,0,0,0.6); letter-spacing: -0.05rem;
+}
+.profiles-home-section {
+    width: 100%;
+    margin-bottom: 2.5rem;
+    background: var(--jpf-surface-1);
+    border: 1px solid var(--jpf-border-1);
+    border-radius: var(--jpf-r-lg);
+    padding: 1.75rem 2rem;
+    box-sizing: border-box;
+    box-shadow: 0 10px 30px var(--jpf-shadow-1);
+    text-align: left;
+}
+.profiles-home-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--jpf-border-1);
+}
+/* Your own Bonfire: a warm amber flame. */
+.profiles-home-icon {
+    font-size: 1.8rem;
+    color: var(--jpf-warn);
+    text-shadow: 0 2px 10px rgba(255, 153, 0, 0.35);
+}
+/* A linked household's Bonfire: deeper ember, so the two read as different
+   groups without needing a second glyph. */
+.profiles-home-icon.bonfire-icon-color {
+    color: var(--jpf-flame-deep);
+    text-shadow: 0 2px 10px rgba(255, 85, 0, 0.3);
+}
+.profiles-home-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #fff;
+}
+.profiles-grid {
+    display: flex; flex-wrap: wrap; gap: 3rem; justify-content: center; width: 100%;
+    max-width: var(--jpf-w-wide); margin: 0 auto;
+}
+/* Cards used to be a fixed 140px whatever the display, so on a desktop
+   they sat in a thin band with large voids above and below, and on a TV
+   they were small at viewing distance. clamp keeps the phone size as
+   the floor and lets them grow with the viewport. */
+/* Each clamp is preceded by the plain value it falls back to. clamp() is
+   Chrome 79; webOS 5 is 68 and Tizen 6.0 is 76, so on both of the sets
+   in the open issues the clamped declaration is dropped — and without a
+   preceding one the card would have no width at all, which is a large
+   part of what "colour bars stretched across the screen" was. The floor
+   is used rather than the ceiling because it is the value that was
+   shipping before clamp went in; TVs get their real size from .jpf-tv
+   below, which is a plain px value for exactly this reason. */
+.profile-card {
+    display: flex; flex-direction: column; align-items: center;
+    width: 140px;
+    width: clamp(140px, 12vw, 210px); cursor: pointer; position: relative;
+}
+.profile-avatar-container {
+    position: relative;
+    width: 130px;
+    width: clamp(130px, 11vw, 195px);
+    height: 130px;
+    height: clamp(130px, 11vw, 195px);
+    margin-top: 15px;
+    transition: transform 0.12s ease;
+}
+/* Touch has no hover, so without this the first feedback of any kind is the
+   page changing a second or two later. */
+.profile-card:active .profile-avatar-container {
+    transform: scale(0.95);
+}
+
+@keyframes jpfSpin {
+    to { transform: rotate(360deg); }
+}
+/* The chosen profile carries the spinner; everything else steps back so it
+   is obvious which one is being opened and that the rest are not takers. */
+#profiles-gate-overlay.is-switching .profile-card:not(.is-switching),
+#profiles-gate-overlay.is-switching .profiles-footer,
+#profiles-gate-overlay.is-switching .profiles-home-header {
+    opacity: 0.3;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+#profiles-gate-overlay.is-switching .profile-card.is-switching {
+    cursor: progress;
+}
+.profile-card.is-switching .profile-avatar {
+    filter: brightness(0.4);
+    transition: filter 0.2s ease;
+}
+.profile-card.is-switching .profile-avatar-container::after {
+    content: '';
+    position: absolute;
+    /* Longhand rather than the inset shorthand, which is Chrome 87;
+       webOS 5 is 68 and Tizen 6.0 is 76, and a declaration they cannot
+       parse is dropped — leaving this spinner with no offsets at all,
+       so it collapses into the top-left corner of the avatar instead of
+       centring over it. The whole point of it is to show a switch is
+       under way on a device where nothing else moves. */
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    margin: auto;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: 3px solid var(--jpf-border-3);
+    border-top-color: #fff;
+    animation: jpfSpin 0.8s linear infinite;
+    z-index: 20;
+    pointer-events: none;
+}
+/* A button that has started something and is waiting for it. The label is
+   kept in place rather than replaced, so the button does not resize. */
+.profiles-btn.is-busy {
+    position: relative;
+    color: transparent !important;
+    pointer-events: none;
+}
+.profiles-btn.is-busy::after {
+    content: '';
+    position: absolute;
+    /* Longhand for the same reason as the switch spinner above: the
+       inset shorthand is Chrome 87 and both television baselines drop
+       it, which would leave every busy button's spinner stuck in its
+       corner. */
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    margin: auto;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--jpf-border-3);
+    border-top-color: #fff;
+    animation: jpfSpin 0.8s linear infinite;
+}
+/* The spinner still turns — it is the only thing reporting progress — but
+   nothing else moves. */
+@media (prefers-reduced-motion: reduce) {
+    .profile-avatar-container,
+    .profile-card.is-switching .profile-avatar {
+        transition: none;
+    }
+    .profile-card:active .profile-avatar-container {
+        transform: none;
+    }
+}
+.profile-crown {
+    position: absolute; top: -20px; left: 50%;
+    transform: translateX(-50%); z-index: 15;
+    pointer-events: none;
+    animation: crownFloat 3s ease-in-out infinite;
+}
+@keyframes crownFloat {
+    0% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-4px) rotate(2deg); }
+    100% { transform: translateX(-50%) translateY(0); }
+}
+.profile-avatar {
+    position: relative;
+    width: 100%; height: 100%; border-radius: var(--jpf-r-lg);
+    /* The 3px border below is transparent, so without this the avatar
+       colour showed through it as a ring — a blue outline around Bard's
+       orange picture. Clipping to the padding box keeps the colour behind
+       the initial, which is the only thing it is for, and off the border. */
+    background-clip: padding-box;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 3.5rem; font-weight: bold; text-transform: uppercase;
+    box-shadow: 0 10px 30px var(--jpf-shadow-3);
+    transition: transform 0.3s cubic-bezier(0.165, 0.84, 0.44, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+    border: 3px solid transparent;
+}
+/* The one you are already in. Now that the avatar colour no longer
+   paints the border, an accent ring means exactly one thing. */
+.profile-card.is-current .profile-avatar {
+    border-color: var(--jpf-accent);
+}
+
+/* ── Cut-out pictures (issue #23) ────────────────────────────────
+   A circular avatar over a coloured rounded square shows the colour
+   in the four corners. With this on there is no colour, no clip and
+   nothing square drawn around the picture — the picture's own alpha
+   is the shape, so the shadow and the ring have to follow it.
+
+   That rules out box-shadow and border, which always draw the box.
+   drop-shadow() respects the alpha channel, so it is what both are
+   built from below. The border is kept at transparent rather than
+   removed, so turning this on does not shift the layout by 3px. */
+.profile-avatar.is-transparent {
+    background-color: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    overflow: visible;
+}
+/* The rule above is two classes; the is-current rule below started life
+   at three, so it won and painted the accent border as a rounded square
+   around a circular picture — while the silhouette outline drew a second
+   ring inside it. Two highlights on one avatar, which is what was
+   reported. Every state that touches border-color or box-shadow on
+   .profile-avatar therefore needs an .is-transparent counterpart at equal
+   or higher specificity; they are kept together here so the next one
+   added is hard to miss. */
+.profile-card.is-current .profile-avatar.is-transparent {
+    border-color: transparent;
+    box-shadow: none;
+}
+/* Manage mode dropped a dark rounded-square scrim over the picture, which
+   is a third square on something deliberately not square. The pencil
+   carries its own drop-shadow and reads fine without it, and the hover
+   silhouette already says the card is live. */
+.profile-avatar.is-transparent .profile-avatar-overlay-wrap {
+    background: transparent;
+}
+/* The scrim was also what the white pencil was legible against. Without it
+   the icon sat on whatever the picture happens to be — invisible on a pale
+   one. A disc behind the icon restores the contrast and stays round, which
+   is the whole point of not drawing the square. */
+.profile-avatar.is-transparent .profile-avatar-overlay-svg {
+    background: var(--jpf-scrim);
+    border-radius: 50%;
+    padding: 10px;
+    box-sizing: content-box;
+}
+.profile-avatar.is-transparent img {
+    filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
+}
+/* Four offsets approximate a stroke around an arbitrary silhouette;
+   CSS has no way to stroke an alpha channel directly. All static —
+   they composite once on hover rather than every frame. */
+.profile-card.is-current .profile-avatar.is-transparent img {
+    filter:
+        drop-shadow(3px 0 0 var(--jpf-accent))
+        drop-shadow(-3px 0 0 var(--jpf-accent))
+        drop-shadow(0 3px 0 var(--jpf-accent))
+        drop-shadow(0 -3px 0 var(--jpf-accent))
+        drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
+}
+/* These four must outrank the hover/focus block further down, which
+   sets box-shadow and border-color on .profile-avatar. Listing the
+   same three states keeps the specificity above it. */
+.profile-card:hover .profile-avatar.is-transparent,
+.profile-card:focus .profile-avatar.is-transparent,
+.profile-card:focus-within .profile-avatar.is-transparent {
+    box-shadow: none;
+    border-color: transparent;
+}
+/* Focus is the D-pad cursor: on a television it is the only thing saying
+   which profile Enter will open, and it has to read across a room. The
+   rectangular states get a 3px border and a wide accent box-shadow; taking
+   both off for cut-outs left a 2px hairline as the whole indicator. The
+   outline matches the border it replaced, and the blurred accent pass is
+   the box-shadow glow rebuilt so it follows the picture instead of the
+   box it no longer fills. */
+.profile-card:hover .profile-avatar.is-transparent img,
+.profile-card:focus .profile-avatar.is-transparent img,
+.profile-card:focus-within .profile-avatar.is-transparent img {
+    filter:
+        drop-shadow(3px 0 0 rgba(255, 255, 255, 0.92))
+        drop-shadow(-3px 0 0 rgba(255, 255, 255, 0.92))
+        drop-shadow(0 3px 0 rgba(255, 255, 255, 0.92))
+        drop-shadow(0 -3px 0 rgba(255, 255, 255, 0.92))
+        drop-shadow(0 6px 20px var(--jpf-accent));
+}
+/* The small circular renderings clip to a circle already, so they
+   only need the colour taken off. */
+.image-upload-preview.is-transparent {
+    background-color: transparent;
+}
+.profile-current-badge {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--jpf-accent);
+    margin-top: 2px;
+}
+.profile-card:hover .profile-avatar,
+.profile-card:focus .profile-avatar,
+.profile-card:focus-within .profile-avatar {
+    transform: scale(1.08);
+    box-shadow: 0 15px 35px var(--jpf-accent-a40);
+    border-color: rgba(255,255,255,0.8);
+}
+.profile-card:focus {
+    outline: none;
+}
+.add-avatar {
+    border: 3px dashed var(--jpf-border-3);
+    background: var(--jpf-surface-1) !important; color: var(--jpf-text-3);
+}
+.profile-card:hover .add-avatar,
+.profile-card:focus .add-avatar,
+.profile-card:focus-within .add-avatar {
+    border-color: rgba(255,255,255,0.8); color: #fff;
+    background: var(--jpf-surface-2) !important;
+}
+.profile-name {
+    margin-top: 1rem; font-size: 1.25rem; font-weight: 500;
+    opacity: 0.75; transition: opacity 0.3s ease;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    text-align: center;
+    /* The card centres its children, so this box is content-sized and a
+       long name or badge widened it past the card and out into the gap
+       between profiles. Translation is what made that likely: "PIN
+       Protected" is 13 characters and "Protégé par code PIN" is 20, under
+       a card whose smallest width is 140px. Wrap inside the card instead. */
+    max-width: 100%;
+    overflow-wrap: break-word;
+}
+.profiles-limit-notice {
+    font-size: 0.85rem; color: var(--jpf-text-3);
+    font-style: italic; align-self: center; padding: 1rem 0;
+    width: 140px; text-align: center;
+}
+.profile-card:hover .profile-name {
+    opacity: 1;
+}
+
+/* Manage Mode Overlay Icon styling */
+.profile-avatar-overlay-wrap {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--jpf-scrim); border-radius: var(--jpf-r-lg);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.25s ease;
+    pointer-events: none;
+    z-index: 5;
+}
+.profile-card.manage-mode:hover .profile-avatar-overlay-wrap {
+    opacity: 1;
+}
+.profile-avatar-overlay-svg {
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+}
+.profile-lock-indicator {
+    position: absolute; bottom: 8px; right: 8px;
+    background: rgba(15, 15, 15, 0.85); border-radius: 50%;
+    width: 32px; height: 32px; display: flex;
+    align-items: center; justify-content: center;
+    pointer-events: none;
+    box-shadow: 0 4px 10px var(--jpf-shadow-3);
+    border: 1.5px solid var(--jpf-border-3);
+    z-index: 10;
+}
+.profile-bonfire-indicator {
+    position: absolute; top: 8px; left: 8px;
+    background: linear-gradient(135deg, var(--jpf-warn) 0%, var(--jpf-flame-deep) 100%);
+    border-radius: 50%;
+    width: 32px; height: 32px; display: flex;
+    align-items: center; justify-content: center;
+    pointer-events: none;
+    box-shadow: 0 4px 10px var(--jpf-shadow-3);
+    border: 1.5px solid var(--jpf-border-3);
+    z-index: 10;
+}
+#bonfire-join-input {
+    background: var(--jpf-surface-2); border: 1px solid var(--jpf-border-2);
+    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
+    transition: border-color 0.25s, box-shadow 0.25s;
+    position: relative !important;
+}
+#bonfire-join-input:focus {
+    border-color: var(--jpf-accent); outline: none;
+    box-shadow: 0 0 10px var(--jpf-accent-a40);
+}
+.bonfire-kick-btn:focus, .bonfire-kick-btn:hover {
+    background-color: var(--jpf-danger-deep) !important;
+    outline: none;
+    box-shadow: 0 0 10px rgba(255, 107, 107, 0.4);
+}
+.profile-card.manage-mode:hover .profile-avatar {
+    transform: scale(1.08);
+    border-color: var(--jpf-accent);
+}
+/* The fourth state that paints a border on .profile-avatar, and the one
+   that actually fires while Manage Profiles is open. See the note by
+   .profile-card.is-current .profile-avatar.is-transparent. */
+.profile-card.manage-mode:hover .profile-avatar.is-transparent {
+    border-color: transparent;
+}
+
+/* PIN Status Badges */
+.profile-pin-badge {
+    font-size: 0.75rem; margin-top: 4px; padding: 2px 8px; border-radius: var(--jpf-r-md);
+    font-weight: 600; display: inline-flex; align-items: center; gap: 4px;
+    /* Same reason as .profile-name above — an inline-flex box sizes to its
+       text and will happily sit wider than the card holding it. */
+    max-width: 100%;
+    text-align: center;
+}
+/* These were inverted: "PIN Protected" in red and "No PIN" in green, so
+   the screen called the protected state a problem and the unprotected one
+   a success. Neither is an error, so neither gets an error colour —
+   protected reads present, unprotected reads muted. */
+.profile-pin-badge.locked {
+    background: var(--jpf-surface-3); color: var(--jpf-text-1);
+    border: 1px solid var(--jpf-border-3);
+}
+.profile-pin-badge.unlocked {
+    background: transparent; color: var(--jpf-text-3);
+    border: 1px solid var(--jpf-border-1);
+}
+
+/* Floating Profiles Selector Bubble — fallback corner pill */
+/* This only appears when header injection fails entirely.    */
+#profiles-floating-bubble.profiles-floating-fallback {
+    position: fixed;
+    bottom: 24px; left: 24px; right: auto; top: auto;
+    z-index: 9999;
+    background: transparent;
+    color: #fff; padding: 0; border-radius: 50%;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 16px var(--jpf-shadow-2);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: none;
+    width: 40px; height: 40px;
+}
+#profiles-floating-bubble.profiles-floating-fallback:hover,
+#profiles-floating-bubble.profiles-floating-fallback:focus {
+    transform: scale(1.08) translateY(-2px);
+    box-shadow: 0 8px 20px var(--jpf-shadow-3);
+    outline: none;
+}
+
+/* Header button integration style */
+#profiles-floating-bubble.headerButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: inherit;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    vertical-align: middle;
+    margin: 0 4px;
+    padding: 0;
+}
+
+/* Footer and bottom buttons */
+.profiles-footer {
+    margin-top: 4rem; width: 100%; display: flex; justify-content: center;
+    /* Matches .pin-actions, the button row on the other gate screens. */
+    gap: var(--jpf-gap-lg); flex-wrap: wrap;
+}
+/* Equal widths, so the gap between two buttons falls on the centre line.
+   The row was already centred correctly; what read as crooked was its seam.
+   Centring buttons of unequal width puts the gap between them off-axis, and
+   with two buttons sitting under two equal profile cards the eye compares
+   the two seams rather than the outer edges. Measured on the gate: cards
+   met at 653px, buttons at 681px.
+
+   Also stops the row resizing as labels change — it is Manage Profiles or
+   Done, sometimes plus Settings, sometimes plus Cancel. */
+.profiles-footer .profiles-btn {
+    min-width: 11rem;
+}
+
+/* PIN Entry Form styles */
+.pin-entry-container {
+    display: flex; flex-direction: column; align-items: center; gap: 2rem;
+}
+#profile-pin-input, #master-pin-input {
+    background: var(--jpf-surface-2); border: 2px solid var(--jpf-border-2);
+    border-radius: var(--jpf-r-md); color: #fff; font-size: 2.5rem; text-align: center;
+    padding: 12px; width: 180px; letter-spacing: 0.6rem;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    -webkit-text-security: disc;
+}
+#create-pin-input, #edit-pin-input {
+    -webkit-text-security: disc;
+}
+#profile-pin-input:focus, #master-pin-input:focus {
+    border-color: var(--jpf-accent); outline: none;
+    box-shadow: 0 0 15px var(--jpf-accent-a30);
+}
+
+/* Button Styling */
+.profiles-btn {
+    padding: 10px 24px; border: 1.5px solid transparent; border-radius: var(--jpf-r-md);
+    font-weight: 600; font-size: 1rem; cursor: pointer;
+    transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
+}
+.profiles-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+.btn-primary {
+    background-color: var(--jpf-accent); color: #fff;
+}
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: #0082ad; border-color: rgba(255, 255, 255, 0.4);
+    box-shadow: 0 0 12px var(--jpf-accent-a50); transform: translateY(-1px);
+    outline: none;
+}
+.btn-secondary {
+    background-color: var(--jpf-surface-3); color: var(--jpf-text-2);
+    border: 1px solid var(--jpf-border-2);
+}
+.btn-secondary:hover,
+.btn-secondary:focus {
+    background-color: var(--jpf-border-2); color: #fff;
+    border-color: var(--jpf-accent);
+    box-shadow: 0 0 10px var(--jpf-accent-a40);
+    outline: none;
+}
+.pin-actions {
+    display: flex; gap: var(--jpf-gap-lg); margin-top: 1rem;
+}
+
+/* Profile Creation Form styles */
+/* A column of sections. Below the breakpoint the two of these simply
+   stack, so the phone order is unchanged: Profile, Security,
+   Libraries, Restrictions. */
+.form-col {
+    display: flex; flex-direction: column; gap: 1.5rem;
+    min-width: 0;
+}
+
+/* Two columns once there is room for them. Everything Bonfire drew was
+   a phone column whatever the screen — on a desktop this form was a
+   ~440px ribbon with the rest of the window empty, and the Save button
+   several screens below the name field. */
+@media (min-width: 900px) {
+    .create-profile-container.is-two-col {
+        max-width: var(--jpf-w-wide);
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+        max-height: 85vh;
+    }
+    /* Everything that is not one of the two columns spans both of them.
+       Naming only .profile-dialog-actions left the Create form's button row
+       and its error line as half-width grid items under the left column. */
+    .create-profile-container.is-two-col > *:not(.form-col) {
+        grid-column: 1 / -1;
+    }
+}
+
+.create-profile-container {
+    width: 100%; max-width: var(--jpf-w-form); box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 1.5rem;
+    background: var(--jpf-surface-1); border: 1px solid var(--jpf-border-1);
+    border-radius: var(--jpf-r-lg); padding: 2rem; box-shadow: 0 20px 50px var(--jpf-shadow-2);
+    text-align: left; max-height: 75vh; overflow-y: auto;
+}
+.profile-dialog-actions {
+    margin-top: 1rem; display: flex; justify-content: space-between; width: 100%; gap: var(--jpf-gap);
+}
+/* Save used to scroll out of sight. This form is capped at 75vh and
+   scrolls inside itself, so on a phone — and in the single-column
+   layout — the button row sat below the fold. With a mouse you scroll
+   to it without thinking; with a remote there is nothing to flick, so
+   the form simply could not be finished (RDB-2).
+
+   Scoped to the scrolling container on purpose: sticky positions
+   against the nearest scrolling ancestor, and this row only ever
+   appears inside that one. position: sticky is Chrome 56, so it holds
+   on both television baselines.
+
+   The negative margins pull the bar out through the container's 2rem
+   padding so its backdrop spans the full width, and the backdrop has
+   to be opaque — the container's own background is
+   rgba(255,255,255,0.03), which would let the fields scroll visibly
+   through the buttons. The literal matches the overlay's own dark
+   gradient, which is hardcoded here too rather than themed. */
+.create-profile-container > .profile-dialog-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin: 1rem -2rem -2rem;
+    padding: 1rem 2rem;
+    background: #1b1b28;
+    border-top: 1px solid var(--jpf-border-1);
+}
+.dialog-action-buttons {
+    display: flex; gap: var(--jpf-gap);
+}
+.btn-danger {
+    background: rgba(230,0,0,0.85); color:#fff; border:none;
+}
+/* The trigger, not the confirmation. Delete Profile and Delete Group sat
+   beside Save as equally solid red buttons, so the destructive option
+   carried the same weight as the safe one. btn-danger itself stays filled
+   because it is also the Confirm button on the dialog these open, where
+   loud red is correct — that is the moment you mean it. */
+.btn-danger-quiet {
+    background: transparent; color: var(--jpf-danger-quiet);
+    border: 1.5px solid rgba(230,0,0,0.40);
+}
+.btn-danger-quiet:hover,
+.btn-danger-quiet:focus {
+    background: rgba(230,0,0,0.15);
+    border-color: rgba(230,0,0,0.85);
+    color: var(--jpf-danger);
+    outline: none;
+}
+.btn-danger:hover,
+.btn-danger:focus {
+    background: rgba(200,0,0,0.95);
+    outline: none;
+}
+
+/* Mobile Responsiveness Media Queries */
+@media (max-width: 600px) {
+    #profiles-floating-bubble.profiles-floating-fallback {
+        left: 12px;
+        right: auto;
+        bottom: 12px;
+    }
+}
+/* Wrap Bonfire join row on very small phones so the button
+   doesn't overflow or clip its label on screens under 360px. */
+@media (max-width: 360px) {
+    #bonfire-join-input,
+    #bonfire-join-btn {
+        flex: 1 1 100% !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+}
+@media (max-width: 480px) {
+    .profiles-title {
+        font-size: 2.2rem;
+        margin-bottom: 2rem;
+    }
+    .profiles-home-section {
+        padding: 1.25rem 1rem;
+        margin-bottom: 1.5rem;
+        border-radius: var(--jpf-r-md);
+    }
+    .profiles-home-title {
+        font-size: 1.25rem;
+    }
+    .profiles-grid {
+        gap: 1.5rem;
+    }
+    .profile-dialog-actions {
+        flex-direction: column;
+    }
+    .dialog-action-buttons {
+        width: 100%;
+    }
+    .dialog-action-buttons button, #edit-delete-btn {
+        flex: 1;
+        width: 100%;
+        text-align: center;
+    }
+}
+.form-group,
+.bonfire-form-group {
+    display: flex; flex-direction: column; gap: 0.5rem;
+}
+.form-group label,
+.bonfire-form-group label {
+    font-size: 0.9rem; font-weight: 600; color: var(--jpf-text-2);
+}
+.form-group input[type="text"],
+.bonfire-form-group input[type="text"],
+.form-group input[type="password"] {
+    background: var(--jpf-surface-2); border: 1px solid var(--jpf-border-2);
+    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
+}
+.form-group select {
+    background: var(--jpf-surface-2) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
+    background-size: 20px;
+    border: 1px solid var(--jpf-border-2);
+    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    padding-right: 36px;
+}
+.form-group select option {
+    background-color: #1a1a1a;
+    color: #fff;
+}
+.form-group input:focus, .form-group select:focus {
+    border-color: var(--jpf-accent); outline: none;
+    box-shadow: 0 0 10px var(--jpf-accent-a40);
+}
+.avatar-color-picker {
+    display: flex; flex-wrap: wrap; gap: var(--jpf-gap);
+}
+.color-dot {
+    width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+    border: 2px solid transparent; transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.color-dot:hover,
+.color-dot:focus {
+    border-color: rgba(255,255,255,0.8);
+    transform: scale(1.1);
+    outline: none;
+}
+.color-dot.active {
+    border-color: #fff; transform: scale(1.1);
+}
+.library-checklist {
+    background: var(--jpf-surface-2); border-radius: var(--jpf-r-md);
+    padding: 10px; display: flex; flex-direction: column; gap: 0.5rem;
+    max-height: 140px; overflow-y: auto; border: 1px solid var(--jpf-border-1);
+}
+/* Per-library artwork rows in the edit form (issue #19). */
+/* Deliberately no max-height and no overflow. This list used to scroll
+   inside a form that also scrolled, next to a second list that scrolled
+   too — three nested scroll areas, and on a D-pad no way to tell which
+   one the remote had hold of. The dialog is the only scroller now. */
+.libart-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--jpf-surface-2);
+    border: 1px solid var(--jpf-border-1);
+    border-radius: var(--jpf-r-md);
+    padding: 8px;
+}
+/* Only there to say what the second column is. Hidden with the controls it
+   labels, and out of the accessibility tree either way — a remote should
+   not have to step through a table header to reach the libraries. */
+.libart-head {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--jpf-gap);
+    padding: 2px 8px 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--jpf-text-3);
+}
+.libart-list.show-artwork .libart-head {
+    display: flex;
+}
+/* Artwork is opt-in. Without this the row carried an empty picture slot and
+   an unlabelled dropdown for every library on the server. */
+.libart-thumb,
+.libart-mode,
+.libart-choose {
+    display: none;
+}
+.libart-list.show-artwork .libart-row.libart-has-art .libart-thumb {
+    display: flex;
+}
+.libart-list.show-artwork .libart-mode {
+    display: block;
+}
+.libart-list.show-artwork .libart-choose {
+    display: inline-flex;
+}
+.libart-toggle {
+    margin-top: 10px !important;
+    font-size: 0.88rem !important;
+}
+.libart-explainer {
+    margin-top: 6px;
+}
+.libart-row {
+    display: flex;
+    align-items: center;
+    /* Wrap rather than crush the name. The row is thumb + name + mode,
+       and in a narrow dialog the name was the only flexible part, so it
+       ellipsised down to "3D Movi…" while the select kept its width. */
+    flex-wrap: wrap;
+    gap: var(--jpf-gap);
+    padding: 6px 8px;
+    border-radius: var(--jpf-r-sm);
+    background: var(--jpf-surface-2);
+}
+/* No display here. It is hidden by the grouped rule above and shown by
+   .libart-list.show-artwork .libart-row.libart-has-art — declaring
+   display:flex in this block would outrank the first (same specificity,
+   later in the sheet) and put the empty slot back on every row. */
+.libart-thumb {
+    width: 44px;
+    height: 26px;
+    flex-shrink: 0;
+    order: 2;
+    border-radius: var(--jpf-r-sm);
+    background-color: var(--jpf-surface-3);
+    background-size: cover;
+    background-position: center;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    color: var(--jpf-text-3);
+}
+/* Wraps the tick, the thumbnail and the name — the part of the row that
+   is one target. initTVCheckboxes binds to .library-check-label, which is
+   how a remote toggles it: Enter does not tick a native checkbox. */
+.libart-check {
+    flex: 1 1 220px;
+    min-width: 0;
+    margin-left: 0;
+}
+.libart-name {
+    /* Enough to read a real library name before anything else gives. */
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.9rem;
+}
+.libart-mode {
+    flex-shrink: 0;
+    width: auto !important;
+    min-width: 100px;
+    padding: 4px 6px !important;
+    font-size: 0.82rem !important;
+    margin: 0 !important;
+}
+/* Kept in the layout when hidden so rows do not jump as modes change. */
+.libart-choose {
+    flex-shrink: 0;
+}
+.library-check-label {
+    display: flex !important; align-items: center !important; gap: 0.6rem; cursor: pointer;
+    font-size: 0.95rem; color: var(--jpf-text-1);
+    border-radius: var(--jpf-r-sm); padding: 4px 8px; margin-left: -8px;
+    transition: background 0.2s, color 0.2s;
+    position: relative !important;
+}
+.library-check-label input {
+    cursor: pointer; accent-color: var(--jpf-accent);
+    position: relative !important;
+    opacity: 1 !important;
+    width: 18px !important;
+    height: 18px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
+}
+.library-check-label:focus, .library-check-label:hover {
+    background: var(--jpf-surface-2);
+    color: #fff;
+    outline: none;
+}
+.library-check-label:focus input, .library-check-label:hover input {
+    box-shadow: 0 0 8px var(--jpf-accent-a60);
+}
+/* ── Titled sections in the create/edit forms ───────────────────── */
+.profile-section {
+    background: var(--jpf-surface-1);
+    border: 1px solid var(--jpf-border-1);
+    border-radius: var(--jpf-r-md);
+    padding: 1rem 1.15rem 1.15rem;
+    margin-bottom: 1.25rem;
+}
+.profile-section-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding-bottom: 0.75rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--jpf-border-1);
+}
+.profile-section-icon {
+    font-size: 1.35rem;
+    color: var(--jpf-accent);
+    flex-shrink: 0;
+    line-height: 1.3;
+}
+.profile-section-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.profile-section-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+    line-height: 1.3;
+}
+.profile-section-subtitle {
+    font-size: 0.8rem;
+    color: var(--jpf-text-3);
+    line-height: 1.35;
+}
+.profile-section-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+}
+/* Sections already space their children, so the per-field margin that the
+   flat layout relied on would double up here. */
+.profile-section-body .form-group {
+    margin-bottom: 0;
+}
+
+/* Header row that sits inside a section, e.g. "Enabled Libraries | Select all".
+   Wraps rather than squashing the label on narrow phones. */
+.section-inline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.35rem;
+}
+
+.form-hint-warn {
+    color: rgba(245, 159, 0, 0.85) !important;
+}
+.form-error {
+    color: var(--jpf-danger);
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-align: center;
+    padding: 8px 12px;
+    background: rgba(255, 107, 107, 0.1);
+    border-radius: var(--jpf-r-md);
+    border: 1px solid rgba(255, 107, 107, 0.25);
+}
+
+.image-upload-row {
+    display: flex;
+    align-items: center;
+    gap: var(--jpf-gap);
+    flex-wrap: wrap;
+}
+.image-upload-preview {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.8rem; font-weight: bold; text-transform: uppercase;
+    overflow: hidden;
+    border: 2px solid var(--jpf-border-3);
+    flex-shrink: 0;
+}
+.image-upload-btn {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    font-size: 0.95rem;
+    align-self: flex-start;
+}
+
+.device-delete-btn {
+    background: transparent; border: none; color: var(--jpf-danger);
+    cursor: pointer; padding: 6px; border-radius: var(--jpf-r-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+    transition: background 0.2s;
+}
+.device-delete-btn:hover {
+    background: rgba(255, 107, 107, 0.15);
+}
+.device-delete-btn:focus {
+    background: rgba(255, 107, 107, 0.2);
+    outline: 2px solid var(--jpf-danger);
+    outline-offset: 1px;
+}
+/* Rename and merge sit in the same row as Forget and had no rule of any kind, so
+   they rendered as default browser buttons — a bordered grey box in the system
+   font — next to a styled icon. They shipped that way in 1.5.10. Same geometry as
+   Forget; only the colour differs, because only one of the three destroys
+   anything. */
+.device-rename-btn, .device-merge-btn {
+    background: transparent; border: none; color: var(--jpf-text-2);
+    cursor: pointer; padding: 6px; border-radius: var(--jpf-r-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+    transition: background 0.2s;
+}
+.device-rename-btn:hover, .device-merge-btn:hover {
+    background: var(--jpf-surface-2);
+}
+/* All three were emoji — a pencil, a wastebasket, and a double arrow — and they
+   were the only raw emoji left in the product. A television without a colour
+   emoji font draws those as empty boxes, and the three did not even match each
+   other in weight. material-icons is what the rest of this interface uses, the
+   gate included, so it is loaded before any of this is on screen. Sized here
+   rather than inline, and once for all three, so they cannot drift apart. */
+.device-rename-btn .material-icons,
+.device-merge-btn .material-icons,
+.device-delete-btn .material-icons {
+    font-size: 1.15rem;
+    line-height: 1;
+}
+/* Keyboard focus, and it must be visible: these are reached with Tab on a desktop
+   and with a remote on a television, where a background tint alone is not enough.
+   The .jpf-tv block outranks this and puts a thicker ring on. */
+.device-rename-btn:focus, .device-merge-btn:focus {
+    background: var(--jpf-surface-2);
+    outline: 2px solid var(--jpf-accent);
+    outline-offset: 1px;
+}
+
+/* The dropdown is absolutely positioned so it overlays following fields
+   instead of pushing the form around when it opens.
+   Its colours and max-height are set in the single .devices-dropdown-list block
+   further down; this one carries only the positioning. Both used to set
+   max-height and overflow-y at the same specificity, so the 240px here never
+   applied. */
+.devices-dropdown-list {
+    position: absolute;
+    top: 100%; left: 0; right: 0;
+    z-index: 10000;
+    margin-top: 4px;
+}
+
+/* Phones: reclaim horizontal space and stop the section chrome from
+   eating the width the form fields need. */
+@media (max-width: 600px) {
+    .profile-section {
+        padding: 0.85rem 0.8rem 0.9rem;
+        margin-bottom: 1rem;
+        border-radius: var(--jpf-r-md);
+    }
+    .profile-section-body { gap: 0.95rem; }
+    .profile-section-title { font-size: 1rem; }
+    .profile-section-subtitle { font-size: 0.75rem; }
+    .image-upload-btn { width: 100%; }
+}
+
+/* TV / D-pad: the focus ring must be obvious from across a room, and a
+   focused control inside a scrolling section has to scroll itself into
+   view rather than sitting behind a section header. */
+/* The plan asked only that this rule be standalone so that dropping it
+   is harmless. It is standalone — but dropping it is NOT harmless, and
+   checking the shape rather than the consequence nearly let that
+   through. :focus-visible is Chrome 86, so webOS 5 (68) and Tizen 6.0
+   (76) discard the whole rule as an unparseable selector. The one rule
+   written for televisions was the one televisions could not see.
+
+   So: a plain :focus carries the ring on old browsers, and the
+   :not(:focus-visible) rule takes it back off for pointer focus on
+   browsers new enough to tell the difference. That second rule is
+   itself dropped by the old parsers, which is exactly what makes the
+   pair safe — each browser reads only the half it understands. */
+.profile-section :focus {
+    outline: 2px solid var(--jpf-accent);
+    outline-offset: 2px;
+    scroll-margin-top: 4rem;
+    scroll-margin-bottom: 4rem;
+}
+.profile-section :focus:not(:focus-visible) {
+    outline: none;
+}
+.profile-section :focus-visible {
+    outline: 2px solid var(--jpf-accent);
+    outline-offset: 2px;
+    scroll-margin-top: 4rem;
+    scroll-margin-bottom: 4rem;
+}
+
+.tag-editor {
+    display: flex; flex-direction: column; gap: 8px;
+}
+.tag-chip-list {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    background: var(--jpf-surface-2); border-radius: var(--jpf-r-md);
+    border: 1px solid var(--jpf-border-1);
+    padding: 8px; min-height: 40px;
+    max-height: 120px; overflow-y: auto;
+    align-content: flex-start;
+}
+/* The label is an attribute, not a string in here. It was the one piece of
+   user-facing copy in the product that could not be translated: CSS content
+   is not reachable from t(), so a Polish household read one English sentence
+   in the middle of a translated form. validate.js now fails on any content:
+   string literal in this file, so a second one cannot appear. */
+.tag-chip-list[data-empty="true"]::before {
+    content: attr(data-empty-label);
+    font-size: 0.8rem; color: var(--jpf-text-3);
+    align-self: center;
+}
+.tag-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--jpf-accent-a18);
+    border: 1px solid var(--jpf-accent-a45);
+    color: #fff; border-radius: 999px;
+    padding: 3px 6px 3px 12px; font-size: 0.85rem;
+    max-width: 100%; word-break: break-word;
+}
+.tag-chip-remove {
+    background: transparent; border: none; color: var(--jpf-text-2);
+    cursor: pointer; font-size: 1rem; line-height: 1;
+    padding: 0; width: 18px; height: 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, color 0.2s;
+}
+.tag-chip-remove:hover, .tag-chip-remove:focus {
+    background: var(--jpf-border-3); color: #fff; outline: none;
+}
+.tag-input-row {
+    display: flex; gap: 8px;
+}
+.tag-input-row .tag-input {
+    flex: 1; min-width: 0;
+}
+.tag-input-row .tag-add-btn {
+    padding: 8px 18px; font-size: 0.9rem; flex-shrink: 0;
+}
+.form-hint {
+    font-size: 0.78rem;
+    color: var(--jpf-text-3);
+    margin-top: -0.2rem;
+    text-align: left;
+    position: relative !important;
+    display: block !important;
+}
+
+/* Switch-Profile bubble — fade transition */
+#profiles-floating-bubble {
+    transition: opacity 0.15s ease;
+}
+#profiles-floating-bubble.profiles-bubble-hiding {
+    opacity: 0 !important;
+    pointer-events: none;
+}
+/* Fallback bubble — fade transition (defers all positioning to ID rule above) */
+.profiles-floating-fallback {
+    transition: opacity 0.15s ease;
+}
+.profiles-floating-fallback.profiles-bubble-hiding {
+    opacity: 0 !important;
+    pointer-events: none;
+}
+
+/* Keyframe Animations */
+.anim-fade-in {
+    animation: fadeIn 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.96) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Devices Dropdown Styles */
+/* Allowed Devices is the one hand-built control among native selects, and
+   it sat directly above two of them. It cannot become a <select> — it is
+   multi-select with checkboxes — so it borrows their exact appearance
+   instead, chevron included, rather than carrying a text arrow. */
+.devices-dropdown-trigger {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--jpf-surface-2) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
+    background-size: 20px;
+    border: 1px solid var(--jpf-border-2);
+    border-radius: var(--jpf-r-md);
+    padding: 10px;
+    padding-right: 36px;
+    color: #fff;
+    font-size: 1rem;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.devices-dropdown-trigger:focus {
+    outline: none;
+    border-color: var(--jpf-accent) !important;
+    box-shadow: 0 0 10px var(--jpf-accent-a50) !important;
+}
+/* background-color, not background: the shorthand would reset the chevron
+   that now lives in this element's background-image. */
+.devices-dropdown-trigger:hover {
+    background-color: var(--jpf-surface-2);
+}
+.devices-dropdown-list {
+    background: #202020;
+    border: 1px solid var(--jpf-border-2);
+    border-radius: var(--jpf-r-sm);
+    max-height: 250px;
+    overflow-y: auto;
+    box-shadow: 0 4px 15px var(--jpf-shadow-3);
+}
+.device-dropdown-item {
+    display: flex;
+    align-items: center;
+    /* gap, not margins on the children: this row holds a label and up to three
+       action buttons (rename, merge, forget), and the count changes with the
+       mode. Declared here rather than in a second block for the same selector,
+       which is where it used to live -- see the note on the positioning rule
+       above. A margin fallback for Chromium 68 is in the flex-gap section. */
+    gap: 8px;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--jpf-border-1);
+    transition: background 0.2s;
+}
+.device-dropdown-item:hover, .device-dropdown-item:focus-within {
+    background: var(--jpf-surface-1);
+}
+/* Was a second .device-delete-btn:focus at the same specificity as the block above,
+   winning with !important over nothing but its own twin. Folded into one rule, at
+   the value that was actually applying. outline:none is gone with it — a focused
+   control has to be findable, and the tint alone is not that on a television. */
+
+/* ── The Chromium 68 baseline ─────────────────────────────────────
+   webOS 5 (the LG CX in issue #16) is Chromium 68 and Tizen 6.0 is 76.
+   Everything below is here because a declaration those two cannot parse
+   is dropped silently, and a *rule* they cannot parse is dropped whole.
+
+   The pattern is the one the color-mix block at the top already uses:
+   state the old way first, or guard the new way with @supports. Do not
+   reach for a JavaScript check when the cascade can answer it. */
+
+/* aspect-ratio is Chrome 88, and without it these tiles have no height
+   at all — the avatar library collapses to an empty strip. The old
+   padding-top trick needs the image taken out of flow, so it is guarded
+   rather than layered: on a modern browser none of this applies. */
+@supports not (aspect-ratio: 1 / 1) {
+    .avatar-library-item {
+        position: relative;
+        height: 0;
+        padding-top: 100%;
+    }
+    .avatar-library-item img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+}
+
+/* ── Flex gap, replaced with margins where it does nothing ────────
+   Flex gap is Chrome 84. On both television baselines every gap on a
+   flex container is ignored and the children sit flush against each
+   other — 34 containers of it, which is most of why the gate looked
+   like bars rather than cards.
+
+   Gated on a measured class, not on @supports. A feature query for
+   gap answers TRUE on Chromium 68, because grid gap shipped in 66 and
+   the query cannot tell the two layout modes apart — so the obvious
+   guard says yes on exactly the devices where flex gap does nothing.
+   See _supportsFlexGap, which measures a probe instead.
+
+   Three shapes, and the third is the awkward one:
+     column        margin-top on every child but the first
+     row           margin-left on every child but the first
+     row + wrap    half the gap on both sides of every child
+
+   Wrapping containers get symmetric half-margins rather than a single
+   trailing margin, because .profiles-grid is centred: a trailing margin
+   would push every row off-centre by half a gap. The cost is half a gap
+   of padding at the container edges, which is invisible next to what it
+   replaces. */
+.jpf-no-flex-gap .picture-sources > * + * { margin-top: var(--jpf-gap); }
+.jpf-no-flex-gap .picture-source-block > * + * { margin-top: 8px; }
+.jpf-no-flex-gap .profile-name > * + * { margin-top: 4px; }
+.jpf-no-flex-gap .pin-entry-container > * + * { margin-top: 2rem; }
+.jpf-no-flex-gap .form-col > * + * { margin-top: 1.5rem; }
+.jpf-no-flex-gap .create-profile-container > * + * { margin-top: 1.5rem; }
+.jpf-no-flex-gap .form-group > * + * { margin-top: 0.5rem; }
+.jpf-no-flex-gap .bonfire-form-group > * + * { margin-top: 0.5rem; }
+.jpf-no-flex-gap .library-checklist > * + * { margin-top: 0.5rem; }
+.jpf-no-flex-gap .libart-list > * + * { margin-top: 6px; }
+.jpf-no-flex-gap .profile-section-heading > * + * { margin-top: 2px; }
+.jpf-no-flex-gap .profile-section-body > * + * { margin-top: 1.1rem; }
+.jpf-no-flex-gap .tag-editor > * + * { margin-top: 8px; }
+
+.jpf-no-flex-gap .profiles-home-header > * + * { margin-left: 0.75rem; }
+.jpf-no-flex-gap .profile-pin-badge > * + * { margin-left: 4px; }
+.jpf-no-flex-gap .pin-actions > * + * { margin-left: var(--jpf-gap-lg); }
+.jpf-no-flex-gap .profile-dialog-actions > * + * { margin-left: var(--jpf-gap); }
+.jpf-no-flex-gap .dialog-action-buttons > * + * { margin-left: var(--jpf-gap); }
+.jpf-no-flex-gap .libart-head > * + * { margin-left: var(--jpf-gap); }
+.jpf-no-flex-gap .library-check-label > * + * { margin-left: 0.6rem; }
+.jpf-no-flex-gap .profile-section-header > * + * { margin-left: 0.7rem; }
+.jpf-no-flex-gap .image-upload-btn > * + * { margin-left: 8px; }
+.jpf-no-flex-gap .device-dropdown-item > * + * { margin-left: 8px; }
+.jpf-no-flex-gap .tag-chip > * + * { margin-left: 6px; }
+.jpf-no-flex-gap .tag-input-row > * + * { margin-left: 8px; }
+
+.jpf-no-flex-gap .image-upload-actions > * { margin: 0 4px 8px; }
+.jpf-no-flex-gap .profiles-grid > * { margin: 0 1.5rem 3rem; }
+.jpf-no-flex-gap .profiles-footer > * {
+    margin: 0 calc(var(--jpf-gap-lg) / 2) var(--jpf-gap-lg);
+}
+.jpf-no-flex-gap .avatar-color-picker > * {
+    margin: 0 calc(var(--jpf-gap) / 2) var(--jpf-gap);
+}
+.jpf-no-flex-gap .libart-row > * {
+    margin: 0 calc(var(--jpf-gap) / 2) var(--jpf-gap);
+}
+.jpf-no-flex-gap .section-inline-header > * { margin: 0 0.25rem 0.5rem; }
+.jpf-no-flex-gap .image-upload-row > * {
+    margin: 0 calc(var(--jpf-gap) / 2) var(--jpf-gap);
+}
+.jpf-no-flex-gap .tag-chip-list > * { margin: 0 3px 6px; }
+
+/* The two gap values that change inside a media query need their
+   fallbacks changed with them, and .profile-dialog-actions also turns
+   into a column there — so its margin has to move axis, not just size.
+   Missing this would leave the dialog buttons stacked and touching on a
+   narrow screen, which is the one place the Save button already had to
+   be rescued (see the sticky rule below). */
+@media (max-width: 480px) {
+    .jpf-no-flex-gap .profiles-grid > * { margin: 0 0.75rem 1.5rem; }
+    .jpf-no-flex-gap .profile-dialog-actions > * + * {
+        margin-left: 0;
+        margin-top: var(--jpf-gap);
+    }
+}
+@media (max-width: 600px) {
+    .jpf-no-flex-gap .profile-section-body > * + * { margin-top: 0.95rem; }
+}
+
+/* ── Television ───────────────────────────────────────────────────
+   Applied when <html> carries jpf-tv; see applyDeviceClasses for how
+   that is decided. The largest breakpoint in this sheet is
+   min-width: 900px, so before this a 1920px television at three metres
+   was handed exactly the layout of a monitor at sixty centimetres.
+
+   Plain pixel values, deliberately. This block exists for Chromium 68
+   and 76, which drop clamp() — sizing the television with the one
+   feature the television cannot parse would be the same mistake twice.
+
+   It is last in the sheet and every selector carries .jpf-tv, so it
+   outranks the rules it overrides on both specificity and order. A
+   rule that is present but outranked has shipped here before. */
+.jpf-tv, .jpf-tv body {
+    /* Declared on body too, because the base tokens at the top of this
+       sheet are set on the selector list :root, body — and a
+       declaration on body beats one on html for everything inside it.
+       Setting these on html alone would change nothing at all. */
+    --jpf-gap: 20px;
+    --jpf-gap-lg: 2rem;
+}
+.jpf-tv .profile-card {
+    width: 300px;
+}
+.jpf-tv .profile-avatar-container {
+    width: 280px;
+    height: 280px;
+}
+.jpf-tv .profiles-grid {
+    gap: 4rem;
+}
+.jpf-no-flex-gap.jpf-tv .profiles-grid > * {
+    margin: 0 2rem 4rem;
+}
+.jpf-tv .profiles-title {
+    font-size: 4rem;
+    margin-bottom: 4rem;
+}
+.jpf-tv .profile-name {
+    font-size: 1.75rem;
+    margin-top: 1.5rem;
+}
+.jpf-tv .profiles-btn {
+    font-size: 1.5rem;
+    padding: 16px 36px;
+}
+.jpf-tv .profile-section-title {
+    font-size: 1.6rem;
+}
+.jpf-tv .profile-section-body {
+    gap: 1.8rem;
+}
+.jpf-tv .profile-section {
+    padding: 1.6rem 1.5rem;
+}
+/* Thicker and further out. At three metres a 2px outline sitting 2px
+   from the control is not findable, and finding the focused control is
+   the entire navigation model on a remote. */
+.jpf-tv .profile-section :focus,
+.jpf-tv .profile-card:focus,
+.jpf-tv .profiles-btn:focus {
+    outline: 4px solid var(--jpf-accent);
+    outline-offset: 4px;
+}
+/* Kept in a rule of its own, and this is not tidiness. One unparseable
+   selector invalidates the entire comma-separated list — there is no
+   forgiveness before :is() — so folding this into the list above would
+   have deleted the thick television focus ring on precisely the two
+   television browsers it was written for, while looking correct
+   everywhere it was tested. The plan warned about this in P4-11 and I
+   still wrote it the wrong way first; cssbaseline.js now fails on it. */
+.jpf-tv .profile-section :focus-visible {
+    outline: 4px solid var(--jpf-accent);
+    outline-offset: 4px;
+}

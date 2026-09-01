@@ -110,6 +110,18 @@ namespace Jellyfin.Profiles.Configuration
         /// </para>
         /// </summary>
         public Guid MasterUserId { get; set; }
+
+        /// <summary>
+        /// True once an administrator has renamed this device by hand, which stops the name
+        /// being overwritten by whatever the client sends on its next request.
+        /// <para>
+        /// Without this the rename is pointless: the device reports "Chrome" on every call,
+        /// so a name typed in the picker survives until the next page load. Renaming is the
+        /// only way to tell apart two records that are genuinely one computer reached at two
+        /// addresses, so it has to stick.
+        /// </para>
+        /// </summary>
+        public bool NameIsCustom { get; set; }
     }
 
     public class BonfireGroup
@@ -288,6 +300,17 @@ namespace Jellyfin.Profiles.Configuration
         public string ProfileName { get; set; } = string.Empty;
         public string? PinHash { get; set; }
         public string AvatarColor { get; set; } = "#1F77B4";
+        /// <summary>
+        /// Suppresses <see cref="AvatarColor"/> behind the profile picture, for pictures
+        /// that are cut out rather than rectangular — a circular avatar over a coloured
+        /// square shows the colour in the corners (issue #23).
+        /// </summary>
+        /// <remarks>
+        /// The client sets this automatically when it detects transparent corners in an
+        /// uploaded picture, and the edit form can override it either way. It has no
+        /// effect when no picture is set: the colour is the entire background then.
+        /// </remarks>
+        public bool TransparentAvatar { get; set; }
         public bool IsHidden { get; set; } = true;
         /// <summary>
         /// Minutes of inactivity before auto-lock. 0 = never. Default 5.

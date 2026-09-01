@@ -1,6 +1,13 @@
 (function () {
     'use strict';
 
+    // Told to the inline head script, which is the only other piece of the plugin that
+    // runs on a page load. This tag is deferred, so it has finished evaluating before
+    // DOMContentLoaded — meaning the absence of this flag at that point is proof the
+    // script never loaded, and the head script can stop holding the page hidden for
+    // something that is not coming.
+    try { window.__jpLoaded = 1; } catch (e) { /* no window: reading the file, not running it */ }
+
     function escapeHtml(str) {
         if (!str) return '';
         return String(str)
@@ -89,6 +96,373 @@
     const OVERLAY_Z = 99999;
     const DIALOG_Z = OVERLAY_Z + 10;
 
+    // ── Internationalisation ────────────────────────────────────────────────────
+    // English lives inline, as the single dependency-free fallback every client can
+    // render immediately — no fetch, no flash of untranslated text, works even if the
+    // server is briefly unreachable. Every other language is a JSON file the server
+    // hands out from Web/i18n/, fetched once and only for a visitor whose browser
+    // actually asks for it: nobody pays for a translation they will not read.
+    //
+    // To add a language: drop Web/i18n/<code>.json next to fr.json, with the same keys
+    // and translated values. That is the whole job — the .csproj takes Web/i18n/*.json
+    // as a wildcard, the server lists what it finds embedded, and the line below is
+    // rewritten with that list as the script is served. Nothing here needs editing.
+    //
+    // `node Web/i18n/validate.js` checks a file against the catalogue below before you
+    // open the pull request.
+    //
+    // The empty default is what a copy of this file read straight off disk will use, so
+    // reading the raw file always yields English and never a broken fetch.
+    let SUPPORTED_LOCALES = []; // __BONFIRE_LOCALES__
+
+    /*
+     * The stylesheet, spliced in by the server from Web/styles.css.
+     *
+     * This used to be a 1,400-line template literal right inside injectStyles, and
+     * it cost two releases: a code comment containing two backticks ended the literal
+     * early, the file still parsed, node --check passed, and the script threw at
+     * runtime three calls into startup. 1.5.2 and 1.5.3-beta shipped dead.
+     *
+     * PublishStyles replaces the marker below with the CSS encoded as a JSON string
+     * literal — double-quoted and fully escaped — so nothing in the stylesheet can
+     * terminate anything here. The failure mode is gone rather than guarded.
+     *
+     * The default is an empty string, not the real CSS, so this file is never the
+     * place the stylesheet lives. If the marker is ever edited away the replace does
+     * nothing and the plugin renders unstyled, which is loud and immediate — unlike a
+     * silently truncated literal, which is what got us here.
+     */
+    let BONFIRE_STYLES = ""; // __BONFIRE_STYLES__
+
+    const EN_STRINGS = {
+        'common.cancel': 'Cancel',
+        'common.confirm': 'Confirm',
+        'common.back': 'Back',
+        'common.done': 'Done',
+        'common.save': 'Save',
+        'common.ok': 'OK',
+        'common.remove': 'Remove',
+        'common.add': 'Add',
+        'common.selectAll': 'Select all',
+        'common.create': 'Create',
+        'common.join': 'Join',
+        'common.submit': 'Submit',
+        'common.unlock': 'Unlock',
+        'common.settings': 'Settings',
+
+        'gate.whosWatching': "Who's Watching?",
+        'gate.manageProfiles': 'Manage Profiles',
+        'gate.signedIn': 'Signed in',
+        'gate.pinProtected': 'PIN Protected',
+        'gate.noPin': 'No PIN',
+        'gate.addProfile': 'Add Profile',
+        'gate.yourBonfire': 'Your Bonfire',
+        'gate.guest': 'Guest',
+        'gate.bonfireOf': "{name}'s Bonfire",
+        'gate.limitReached': '{count}/{max} profiles — limit reached',
+        'gate.cantGetPast': "Can't get past this screen?",
+        'gate.bonfireProfile': 'Bonfire Profile',
+
+        'pin.enterProfilePin': 'Enter Profile PIN',
+        'pin.enterMasterPin': 'Enter Master PIN',
+        'pin.incorrectPin': 'Incorrect PIN. Please try again.',
+        'pin.incorrectMasterPin': 'Incorrect Master PIN. Please try again.',
+
+        'avatar.positionYourPicture': 'Position your picture',
+        'avatar.dragOrArrows': 'Drag or arrows to move, slider to zoom. Press OK when it looks right.',
+        'avatar.usePicture': 'Use picture',
+        'avatar.fromThisServer': 'From this server',
+        'avatar.fromThisDevice': 'From this device',
+        'avatar.uploadPicture': 'Upload a picture',
+        'avatar.uploadHint': 'JPEG, PNG, WebP or GIF. You can position and zoom it after choosing.',
+        'avatar.adminLimited': 'Your server administrator has limited profile pictures to the set above.',
+        'avatar.profilePicture': 'Profile Picture',
+        'avatar.changePicture': 'Change picture',
+        'avatar.choosePicture': 'Choose a picture',
+        'avatar.avatarLabel': 'Avatar',
+        'avatar.zoom': 'Zoom',
+        'avatar.chooseFirst': 'Choose a picture first.',
+        'avatar.libraryArtworkTitle': 'Library artwork',
+
+        'errors.error': 'Error',
+        'errors.validationError': 'Validation Error',
+        'errors.unauthorized': 'Unauthorized',
+        'errors.failedDeleteDevice': 'Failed to delete device.',
+        'errors.failedRenameDevice': 'Failed to rename device.',
+        'errors.failedMergeDevice': 'Failed to merge devices.',
+        'errors.withMessage': 'Error: {message}',
+        'errors.savingProfile': 'Error saving profile: {message}',
+        'errors.loadProfileDetails': 'Failed to load profile details: {message}',
+        'errors.failedDeleteProfile': 'Failed to delete profile',
+        'errors.deletingProfile': 'Error deleting profile: {message}',
+        'errors.couldNotSaveArtwork': 'Could not save the artwork.',
+        'errors.couldNotSaveThat': 'Could not save that.',
+        'errors.heicUnsupported': "HEIC photos aren't supported. Export the photo as JPEG first.",
+        'errors.svgUnsupported': "SVG images aren't supported. Use a JPEG, PNG, WebP or GIF.",
+        'errors.imageTooLarge': 'That image is over 25 MB. Use a smaller one.',
+        'errors.fileUnreadable': 'That file could not be read.',
+        'errors.imageEmpty': 'That image appears to be empty.',
+        'errors.imageFormatUnsupported': "That image format isn't supported. Save it as a JPEG or PNG first.",
+        'errors.imageLoadFailed': 'That image could not be loaded.',
+
+        'profileForm.profileName': 'Profile Name',
+        'profileForm.namePlaceholder': 'e.g. Kids',
+        'profileForm.masterNameHint': 'The master profile takes its name from your Jellyfin account.',
+        'profileForm.avatarColor': 'Avatar Color',
+        'profileForm.colorHintNoPicture': 'Used as the avatar background when no picture is set.',
+        'profileForm.colorHintHasPicture': 'Shows behind the picture, wherever it is transparent.',
+        'profileForm.colorHintUnused': 'Not used while the background is transparent.',
+        'profileForm.noBackground': 'No background',
+        'profileForm.noBackgroundHint': 'For pictures that are cut out rather than rectangular. Leaves the corners clear instead of filling them with the avatar colour. Set automatically when a picture is chosen.',
+        'profileForm.pin': 'PIN',
+        'profileForm.pinPlaceholderEmpty': 'Leave empty for no PIN',
+        'profileForm.pinPlaceholderNew': 'New PIN',
+        'profileForm.pinPlaceholderNone': 'No PIN',
+        'profileForm.pinPlaceholderUnprotected': 'Unprotected',
+        'profileForm.clearPin': 'Clear PIN',
+        'profileForm.pinIsSetHint': '🔒 <strong>A PIN is set.</strong> Leave blank to keep it, type a new one to replace it, or use Clear PIN.',
+        'profileForm.noPinSetHint': 'No PIN set. This profile can be opened by anyone who can reach the switcher.',
+        'profileForm.bypassPinLan': 'Bypass PIN on local network (LAN)',
+        'profileForm.bypassPinHint': 'No PIN prompt on your home network.',
+        'profileForm.autoLock': 'Auto-lock after inactivity',
+        'profileForm.autoLockHintCreate': 'Only applies when this profile has a PIN set.',
+        'profileForm.autoLockHintEdit': 'Only applies when a PIN is set on this profile.',
+        'profileForm.lockoutNever': 'Never',
+        'profileForm.lockout1Min': '1 minute',
+        'profileForm.lockout5Min': '5 minutes',
+        'profileForm.lockout5MinDefault': '5 minutes (default)',
+        'profileForm.lockout10Min': '10 minutes',
+        'profileForm.lockout20Min': '20 minutes',
+        'profileForm.lockout30Min': '30 minutes',
+        'profileForm.lockout1Hour': '1 hour',
+        'profileForm.enabledLibraries': 'Enabled Libraries',
+        'profileForm.libraries': 'Libraries',
+        'profileForm.librariesInheritHint': 'Tick nothing and this profile sees the same libraries as your account.',
+        'profileForm.libraryHeader': 'Library',
+        'profileForm.artworkHeader': 'Artwork',
+        'profileForm.artworkForAria': 'Artwork for {name}',
+        'profileForm.removeTagAria': 'Remove tag {tag}',
+        'profileForm.artworkDefault': 'Default',
+        'profileForm.artworkPicture': 'Picture',
+        'profileForm.artworkHidden': 'Hidden',
+        'profileForm.artworkChoose': 'Choose',
+        'profileForm.artworkToggleLabel': 'Choose the artwork on each library tile',
+        'profileForm.artworkExplainer': 'A library tile takes its picture from whatever is inside the library — which can be something this profile is not allowed to open. <strong>Picture</strong> puts an image you choose on the tile instead, and <strong>Hidden</strong> leaves just the icon and the name.',
+        'profileForm.allowedDevices': 'Allowed Devices',
+        'profileForm.allDevicesAllowed': 'All Devices Allowed',
+        'profileForm.oneDeviceAllowed': '1 Device Allowed',
+        'profileForm.devicesAllowed': '{count} Devices Allowed',
+        'profileForm.noDevicesYet': 'No devices found for your account yet',
+        'profileForm.noDevicesConnected': 'No connected devices found',
+        'profileForm.devicesHint': 'If no devices are selected, this profile can be accessed from any device.',
+        'profileForm.unknownDevice': 'Unknown Device',
+        'profileForm.noTags': 'No tags — this filter is off',
+        'profileForm.unknownClient': 'Unknown Client',
+        'profileForm.unknown': 'Unknown',
+        'profileForm.deviceLastSeen': '{client} • Last seen {date}',
+        'profileForm.forgetDevice': 'Forget this device',
+        'profileForm.forgetDeviceAria': 'Forget {name}',
+        'profileForm.renameDevice': 'Rename this device',
+        'profileForm.renameDeviceAria': 'Rename {name}',
+        'profileForm.renameDeviceTitle': 'Rename device',
+        'profileForm.renameDeviceLabel': 'Name',
+        'profileForm.mergeDevice': 'This is the same device as…',
+        'profileForm.mergeDeviceAria': 'Mark {name} as the same device as another',
+        'profileForm.mergeDeviceTitle': 'Same device?',
+        'profileForm.mergeDeviceMessage': 'These two become one device. Any profile allowed on either one stays allowed.',
+        'profileForm.tidyDevices': 'Tidy up duplicates',
+        'profileForm.tidyNone': 'No duplicates found.',
+        'profileForm.tidyFound': 'Found {count} device(s) that look like duplicates of one you already have. Merge them?',
+        'profileForm.maximumRating': 'Maximum rating',
+        'profileForm.noRestrictions': 'No Restrictions',
+        'profileForm.ratingG': 'G / TV-G (6+)',
+        'profileForm.ratingPG': 'PG / TV-PG (10+)',
+        'profileForm.ratingPG13': 'PG-13 / TV-14 (14+)',
+        'profileForm.ratingR': 'R / TV-MA (17+)',
+        'profileForm.blockedTags': 'Blocked tags',
+        'profileForm.blockedTagsHint': 'Hides anything with these tags. A tag on a series or library covers everything inside it.',
+        'profileForm.allowedTags': 'Allowed tags',
+        'profileForm.allowedTagsHint': '⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items. Untagged content is hidden too.',
+        'profileForm.tagPlaceholderAdults': 'e.g. adults',
+        'profileForm.tagPlaceholderKids': 'e.g. kids',
+        'profileForm.createTitle': 'Create Profile',
+        'profileForm.editTitle': 'Edit Profile',
+        'profileForm.sectionProfileTitle': 'Profile',
+        'profileForm.sectionProfileSubtitle': 'Name, colour, and picture',
+        'profileForm.sectionSecurityTitle': 'Security',
+        'profileForm.sectionSecuritySubtitle': 'PIN protection and automatic locking',
+        'profileForm.sectionLibrariesSubtitle': 'Which libraries this profile can browse',
+        'profileForm.sectionRestrictionsTitle': 'Content & Device Restrictions',
+        'profileForm.sectionRestrictionsSubtitle': 'Limits applied on top of the libraries above',
+        'profileForm.deleteProfile': 'Delete Profile',
+        'profileForm.nameRequired': 'Profile name is required.',
+        'profileForm.pinMustBeDigits': 'A PIN can only contain digits.',
+        'profileForm.pinLengthCreate': 'PIN must be 4–8 digits.',
+        'profileForm.pinLengthEdit': 'A PIN must be 4-8 digits — you entered {count}.',
+        'profileForm.deleteConfirmMessage': 'Are you sure you want to delete profile "{name}" and its underlying user account? This action is irreversible.',
+        'profileForm.deleteDeviceTitle': 'Delete Device History',
+        'profileForm.deleteDeviceMessage': 'Remove this device? Any access restrictions for it go too.',
+
+        'panic.emergencyDisable': 'Emergency disable',
+        'panic.dialogBody': "Enter the code your server administrator set. This shuts the Bonfire switcher off until Jellyfin is restarted — the profile gate disappears and this account is used as-is. It does not unlock anyone else's profile.",
+        'panic.emergencyCodePlaceholder': 'Emergency code',
+        'panic.disable': 'Disable',
+        'panic.checking': 'Checking…',
+        'panic.tooManyAttempts': 'Too many attempts. Try again in an hour, or restart Jellyfin.',
+        'panic.incorrectCode': 'Incorrect code.',
+        'panic.disabledTitle': 'Bonfire disabled',
+        'panic.disabledBody': 'The switcher is off until Jellyfin restarts. Reload the page if anything still looks wrong.',
+
+        'settings.title': 'Settings',
+        'settings.switcherStyleTitle': 'Switcher Style',
+        'settings.switcherStyleBody': 'Where you reach this screen from, and whether it opens on startup.',
+        'settings.yourBonfireTitle': 'Your Bonfire',
+        'settings.yourBonfireBody': 'Share your profiles with another home, or join theirs.',
+
+        'switcher.title': 'Switcher Style',
+        'switcher.intro': 'How you reach this screen. Applies to your account on every device.',
+        'switcher.askOnStartup': 'Ask "Who\'s watching?" on startup',
+        'switcher.askOnStartupHint': 'Shown once when the app opens — not every time you return to the home screen.',
+        'switcher.whereToSwitchFrom': 'Where to switch from',
+        'switcher.bonfireButtonTitle': 'Bonfire button',
+        'switcher.bonfireButtonBody': "A separate switcher button in the header, next to Jellyfin's own profile icon.",
+        'switcher.menuTitle': "Jellyfin's user menu",
+        'switcher.menuBody': 'Adds "Switch Profile" above Sign out in Jellyfin\'s own menu, and to your profile page. Removes the second header icon.',
+        'switcher.switchProfile': 'Switch Profile',
+        'switcher.reloadFailedTitle': 'Almost there',
+        'switcher.reloadFailedBody': 'Close and reopen the app to finish switching profiles.',
+        'switcher.notSavedTitle': 'Switch not saved',
+        'switcher.notSavedBody': 'This device would not store the change, so you are still signed in as before.',
+
+        'bonfire.yourBonfireTitle': 'Your Bonfire',
+        'bonfire.hostedTitle': 'Your Hosted Bonfire',
+        'bonfire.shareCode': 'Share this code to invite someone to your Bonfire:',
+        'bonfire.members': 'Members ({count})',
+        'bonfire.kick': 'Kick',
+        'bonfire.noMembersYet': 'No members joined yet.',
+        'bonfire.deleteGroup': 'Delete Group',
+        'bonfire.hostTitle': 'Host a Bonfire',
+        'bonfire.hostBody': 'Host your own group to share your sub-profiles with friends.',
+        'bonfire.generateJoinCode': 'Generate Join Code',
+        'bonfire.generating': 'Generating…',
+        'bonfire.joinedTitle': 'Joined Bonfire',
+        'bonfire.joinedOwnedBy': 'You have joined a bonfire group owned by:',
+        'bonfire.accessEachOther': "You can access each other's profiles from the switcher grid.",
+        'bonfire.leaveGroup': 'Leave Group',
+        'bonfire.joinTitle': 'Join a Bonfire',
+        'bonfire.joinBody': "Enter a friend's Bonfire Code to join their group:",
+        'bonfire.joinCodePlaceholder': 'e.g. B7F8XA',
+        'bonfire.joining': 'Joining…',
+        'bonfire.pleaseEnterCode': 'Please enter a 6-character code.',
+        'bonfire.tooManyJoinAttempts': 'Too many failed attempts. Try again in 15 minutes.',
+        'bonfire.failedToJoin': 'Failed to join group.',
+        'bonfire.leaveCurrentTitle': 'Leave your current Bonfire?',
+        'bonfire.leaveCurrentBody': 'Joining this Bonfire removes you from your current one.',
+        'bonfire.kickConfirmTitle': 'Kick Member',
+        'bonfire.kickConfirmBody': 'Are you sure you want to kick this user from your Bonfire group?',
+        'bonfire.failedKick': 'Failed to kick member.',
+        'bonfire.deleteGroupConfirmTitle': 'Delete Group',
+        'bonfire.deleteGroupConfirmBody': 'Delete your Bonfire? Members are disconnected and drop out of your switcher.',
+        'bonfire.failedDeleteGroup': 'Failed to delete group.',
+        'bonfire.leaveGroupConfirmTitle': 'Leave Group',
+        'bonfire.leaveGroupConfirmBody': 'Leave this Bonfire? You will stop sharing switchers.',
+        'bonfire.failedLeaveGroup': 'Failed to leave group.',
+        'bonfire.failedGenerateCode': 'Failed to generate code: {message}',
+        'bonfire.failedLoadStatus': 'Failed to load Bonfire status: {message}',
+        'bonfire.unknownUser': 'Unknown User',
+        'bonfire.hideMine': 'Hide my sub-profiles from others',
+        'bonfire.hideMineHint': 'Connected homes see only your master profile.',
+        'bonfire.hideOthers': "Hide other people's sub-profiles from me",
+        'bonfire.hideOthersHint': 'You see only the master profiles of connected homes.',
+        'bonfire.lanSwitchLabel': 'Let my Bonfire switch into my account on this network',
+        'bonfire.lanSwitchHint': 'No PIN needed on your home network. Away from home it still is{extra}.',
+        'bonfire.lanSwitchHintExtra': ', and until you set one your account cannot be opened remotely at all',
+        'bonfire.settingsSaved': 'Saved.',
+        'bonfire.settingsSaveFailed': 'Could not save. Nothing was changed.',
+        'bonfire.adminAccountWarning': 'This is an admin account.',
+        'bonfire.adminAccountWarningBody': 'Whoever switches into it gets your admin rights.',
+        'bonfire.proxyHint': 'Behind a reverse proxy, check Networking → Known Proxies first, or everyone looks local.',
+        'bonfire.allowHouseholdTitle': 'Allow household switching?',
+        'bonfire.allowHouseholdBody': 'Anyone in your Bonfire can open your account on your home network without your PIN.',
+
+        'profilePage.title': 'Bonfire Profiles',
+        'profilePage.body': 'Currently watching as <strong>{name}</strong>. Switch to another profile in your household without signing out.',
+        'profilePage.thisAccount': 'this account',
+    };
+
+    /// The active language's strings. Starts out equal to EN_STRINGS — every lookup
+    /// already resolves correctly before loadLocale() has done anything — and is
+    /// swapped wholesale, never merged, once a translation arrives: a partial file
+    /// would otherwise leave a stale mix of two languages on screen.
+    let activeStrings = EN_STRINGS;
+
+    /// Looks up `key`, filling in `{token}` placeholders from `vars`. Falls back to the
+    /// English string, then to the key itself, so a translation file missing a newer
+    /// key degrades to English rather than showing nothing.
+    ///
+    /// `vars` values are interpolated as-is: pass already-escaped HTML for anything
+    /// that ends up in a template destined for innerHTML, exactly as callers already do
+    /// for user-supplied text like profile and device names.
+    function t(key, vars) {
+        let str = (activeStrings && activeStrings[key]) || EN_STRINGS[key] || key;
+        if (vars) {
+            Object.keys(vars).forEach(k => {
+                str = str.split('{' + k + '}').join(vars[k]);
+            });
+        }
+        return str;
+    }
+
+    /// First of the browser's preferred languages that this plugin ships a translation
+    /// for, or null to stay on English.
+    ///
+    /// A full tag wins over its base language, so pt-BR picks the Brazilian file when
+    /// there is one and falls back to pt when there is not. Slicing to two characters —
+    /// which is what this did first — made a regional translation unreachable and would
+    /// have handed a pt-BR reader a pt-PT file without either of them choosing that.
+    function detectLocale() {
+        const langs = (navigator.languages && navigator.languages.length)
+            ? navigator.languages : [navigator.language || ''];
+
+        // Locale codes reach a URL below. They come from the server rather than from
+        // anything a visitor controls, but the shape is checked anyway — this is the one
+        // place a bad value could turn into a request for something else.
+        const have = SUPPORTED_LOCALES
+            .filter(c => typeof c === 'string' && /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(c));
+        const lower = have.map(c => c.toLowerCase());
+
+        for (const lang of langs) {
+            const tag = (lang || '').toLowerCase();
+            if (!tag) continue;
+
+            // Longest match first, dropping one subtag at a time: zh-Hans-CN, then
+            // zh-Hans, then zh. Trying only the full tag and the bare language would
+            // skip straight past a zh-Hans file for a browser asking for zh-Hans-CN.
+            const parts = tag.split('-');
+            for (let n = parts.length; n >= 1; n--) {
+                const i = lower.indexOf(parts.slice(0, n).join('-'));
+                if (i !== -1) return have[i];
+            }
+        }
+        return null;
+    }
+
+    /// Fetches the detected locale's strings and swaps them in. Always resolves —
+    /// nothing here is worth failing startup over. No detected/supported locale, a
+    /// missing file, or a network error all leave English active, which is already
+    /// what `activeStrings` is until this resolves.
+    function loadLocale() {
+        const locale = detectLocale();
+        if (!locale) return Promise.resolve();
+
+        return fetch(pluginUrl('/plugins/profiles/i18n/' + locale + '.json'))
+            .then(res => res.ok ? res.json() : null)
+            .then(strings => {
+                if (strings && typeof strings === 'object') activeStrings = strings;
+            })
+            .catch(() => { /* stay on English */ });
+    }
+
     const ProfilesPlugin = {
         config: {
             masterStorageKey: 'jellyfin_profiles_master_state',
@@ -96,6 +470,10 @@
             // Key set before window.location.reload() so the early-hide
             // inline head script can suppress the page flash on the next load.
             switchingKey: 'jpf-sw',
+            // The background colour and colour-scheme of the page being left, written
+            // alongside switchingKey and read by the head script on the next load. See
+            // _captureLeavingBackground.
+            backgroundKey: 'jpf-bg',
             // Set when the emergency disable succeeds. profiles.js is served with a
             // five-minute cache, so a reload inside that window can re-run this very script
             // from cache — the marker is what stops it coming back to life.
@@ -137,9 +515,160 @@
             };
         },
 
+        /// A one-field dialog. Used where a value has to be typed rather than chosen, which
+        /// so far is renaming a device.
+        ///
+        /// Not window.prompt(): it is blocked in several of the environments this runs in
+        /// (and silently returns null in a WebView), it cannot be reached with a D-pad on a
+        /// television, and it renders outside the focus trap the rest of the overlay lives
+        /// inside. The input is focused and selected on open so a rename is type-and-enter.
+        showPromptDialog: function (title, label, initialValue, onSubmit) {
+            const dialog = document.createElement('div');
+            dialog.id = 'profiles-prompt-dialog';
+            dialog.classList.add('jpf-trap-surface');
+            dialog.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.82);
+                backdrop-filter: blur(8px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: ${DIALOG_Z};
+                opacity: 0;
+                transition: opacity 0.15s ease-out;
+            `;
+
+            dialog.innerHTML = `
+                <div class="prompt-dialog-content" style="
+                    background: #181818;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: var(--jpf-r-md);
+                    padding: 24px;
+                    max-width: 420px;
+                    width: 90%;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                ">
+                    <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <label for="profiles-prompt-input" style="display: block; color: rgba(255,255,255,0.7); font-size: 0.85rem; margin-bottom: 6px;">${escapeHtml(label)}</label>
+                    <input id="profiles-prompt-input" type="text" maxlength="64" value="${escapeHtml(initialValue || '')}" style="width: 100%; box-sizing: border-box; margin-bottom: 20px;" />
+                    <div style="display: flex; gap: var(--jpf-gap); justify-content: flex-end;">
+                        <button id="prompt-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
+                        <button id="prompt-save-btn" type="button" class="profiles-btn btn-primary">${t('common.save')}</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(dialog);
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                dialog.style.opacity = '1';
+            }));
+
+            const close = () => {
+                dialog.style.opacity = '0';
+                setTimeout(() => dialog.remove(), 160);
+            };
+
+            const input = dialog.querySelector('#profiles-prompt-input');
+            const submit = () => {
+                const value = (input.value || '').trim();
+                if (!value) return;
+                close();
+                if (typeof onSubmit === 'function') onSubmit(value);
+            };
+
+            dialog.querySelector('#prompt-cancel-btn').addEventListener('click', close);
+            dialog.querySelector('#prompt-save-btn').addEventListener('click', submit);
+
+            dialog.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') { e.preventDefault(); close(); }
+                else if (e.key === 'Enter') { e.preventDefault(); submit(); }
+            });
+
+            input.focus();
+            input.select();
+        },
+
+        /// A dialog that asks which one. `options` is [{ id, name }]; the chosen id is
+        /// handed back. Built on a real <select> so a television's D-pad and a phone's
+        /// native picker both work without any focus handling of our own.
+        showSelectDialog: function (title, message, options, onSubmit) {
+            const dialog = document.createElement('div');
+            dialog.id = 'profiles-select-dialog';
+            dialog.classList.add('jpf-trap-surface');
+            dialog.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.82);
+                backdrop-filter: blur(8px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: ${DIALOG_Z};
+                opacity: 0;
+                transition: opacity 0.15s ease-out;
+            `;
+
+            const choices = options.map(o =>
+                `<option value="${escapeHtml(o.id)}">${escapeHtml(o.name)}</option>`).join('');
+
+            dialog.innerHTML = `
+                <div class="select-dialog-content" style="
+                    background: #181818;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: var(--jpf-r-md);
+                    padding: 24px;
+                    max-width: 420px;
+                    width: 90%;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                ">
+                    <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 16px;">${escapeHtml(message)}</p>
+                    <select id="profiles-select-input" style="width: 100%; box-sizing: border-box; margin-bottom: 20px;">
+                        ${choices}
+                    </select>
+                    <div style="display: flex; gap: var(--jpf-gap); justify-content: flex-end;">
+                        <button id="select-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
+                        <button id="select-confirm-btn" type="button" class="profiles-btn btn-primary">${t('common.ok')}</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(dialog);
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                dialog.style.opacity = '1';
+            }));
+
+            const close = () => {
+                dialog.style.opacity = '0';
+                setTimeout(() => dialog.remove(), 160);
+            };
+
+            const select = dialog.querySelector('#profiles-select-input');
+            dialog.querySelector('#select-cancel-btn').addEventListener('click', close);
+            dialog.querySelector('#select-confirm-btn').addEventListener('click', () => {
+                const value = select.value;
+                close();
+                if (value && typeof onSubmit === 'function') onSubmit(value);
+            });
+
+            dialog.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') { e.preventDefault(); close(); }
+            });
+
+            select.focus();
+        },
+
         showConfirmDialog: function (title, message, onConfirm, onCancel) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-confirm-dialog';
+            dialog.classList.add('jpf-trap-surface');
             dialog.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -170,8 +699,8 @@
                     <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
                     <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
                     <div style="display: flex; gap: var(--jpf-gap); justify-content: center;">
-                        <button id="dialog-confirm-btn" class="profiles-btn btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">Confirm</button>
-                        <button id="dialog-cancel-btn" class="profiles-btn btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">Cancel</button>
+                        <button id="dialog-confirm-btn" class="profiles-btn btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.confirm')}</button>
+                        <button id="dialog-cancel-btn" class="profiles-btn btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.cancel')}</button>
                     </div>
                 </div>
             `;
@@ -221,6 +750,7 @@
         showAlert: function (title, message, onClose) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-alert-dialog';
+            dialog.classList.add('jpf-trap-surface');
             dialog.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -251,7 +781,7 @@
                     <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
                     <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
                     <div style="display: flex; justify-content: center;">
-                        <button id="dialog-close-btn" class="profiles-btn btn-primary" style="padding: 10px 24px; font-weight: 600; min-width: 120px;">OK</button>
+                        <button id="dialog-close-btn" class="profiles-btn btn-primary" style="padding: 10px 24px; font-weight: 600; min-width: 120px;">${t('common.ok')}</button>
                     </div>
                 </div>
             `;
@@ -284,24 +814,76 @@
             });
         },
 
+        /// Writes a token and user into jellyfin-web's own stored credentials, and returns
+        /// whether it actually managed to.
+        ///
+        /// The return value is the point of this function. Everything else about a switch
+        /// can succeed — the server issues the token, ApiClient takes it, the page
+        /// reloads — and the profile still not be the one that comes back, because this is
+        /// the only part that survives the reload. It used to fail silently in two ways,
+        /// both of which look from outside exactly like "it lets me pick a profile but
+        /// loads my own account anyway", which is issue #16:
+        ///
+        ///   - The server was matched with `server.Id === currentServerId`, a raw string
+        ///     comparison of two GUIDs. Every other id comparison in this file goes
+        ///     through normalizeGuid because casing and dashes vary by where the value
+        ///     came from. With more than one server stored — an address and a hostname for
+        ///     the same box is the common way that happens — a mismatch updated nothing
+        ///     and reported nothing.
+        ///   - Writing to localStorage can be accepted and discarded (a full quota, a
+        ///     television in a private-browsing-like mode). Nothing read it back.
+        ///
+        /// So: match by id, fall back to the address ApiClient is actually talking to,
+        /// fall back to a single stored server, and then read back what was written. The
+        /// caller decides what to do with a false; it must not be a reload.
         updateStoredCredentials: function (newToken, newUserId) {
             try {
                 const credsStr = localStorage.getItem('jellyfin_credentials');
-                if (credsStr) {
-                    const creds = JSON.parse(credsStr);
-                    if (creds && Array.isArray(creds.Servers)) {
-                        const currentServerId = typeof ApiClient.serverId === 'function' ? ApiClient.serverId() : (ApiClient.serverId || '');
-                        creds.Servers.forEach(server => {
-                            if (!currentServerId || server.Id === currentServerId || creds.Servers.length === 1) {
-                                server.AccessToken = newToken;
-                                server.UserId = newUserId;
-                            }
-                        });
-                        localStorage.setItem('jellyfin_credentials', JSON.stringify(creds));
-                    }
+                if (!credsStr) return false;
+
+                const creds = JSON.parse(credsStr);
+                if (!creds || !Array.isArray(creds.Servers) || !creds.Servers.length) return false;
+
+                const serverId = this.normalizeGuid(
+                    typeof ApiClient.serverId === 'function' ? ApiClient.serverId() : (ApiClient.serverId || ''));
+                const address = (typeof ApiClient.serverAddress === 'function' ? ApiClient.serverAddress() : '') || '';
+                const sameAddress = (server) => !!address && [server.ManualAddress, server.LocalAddress, server.RemoteAddress]
+                    .some(a => a && String(a).replace(/\/+$/, '') === address.replace(/\/+$/, ''));
+
+                // In order, and only one of them applies. Widening the match after a
+                // narrower one has already hit would write another server's entry.
+                //
+                // The second rung is the one that makes a wrong refusal unlikely: the
+                // entry to overwrite is the one holding the session being replaced, so the
+                // user signed in right now names it even when the id and the address do
+                // not. The old code wrote *every* stored server when it had no id, which
+                // did make the switch work — by pointing other servers at a token they
+                // will not accept.
+                const signedIn = this.normalizeGuid(
+                    typeof ApiClient.getCurrentUserId === 'function' ? ApiClient.getCurrentUserId() : '');
+                let targets = creds.Servers.filter(s => serverId && this.normalizeGuid(s.Id) === serverId);
+                if (!targets.length) targets = creds.Servers.filter(s => signedIn && this.normalizeGuid(s.UserId) === signedIn);
+                if (!targets.length) targets = creds.Servers.filter(sameAddress);
+                if (!targets.length && creds.Servers.length === 1) targets = creds.Servers.slice();
+                if (!targets.length) {
+                    console.error('ProfilesPlugin: none of the stored servers is the one being switched on.');
+                    return false;
                 }
+
+                targets.forEach(server => {
+                    server.AccessToken = newToken;
+                    server.UserId = newUserId;
+                });
+                localStorage.setItem('jellyfin_credentials', JSON.stringify(creds));
+
+                // Read back. A write that was accepted and dropped leaves the old token in
+                // place, and the reload would sign back in as whoever was there before.
+                const saved = JSON.parse(localStorage.getItem('jellyfin_credentials') || 'null');
+                return !!(saved && Array.isArray(saved.Servers)
+                    && saved.Servers.some(s => s.AccessToken === newToken && s.UserId === newUserId));
             } catch (e) {
                 console.error("ProfilesPlugin: Stored credentials update failed:", e);
+                return false;
             }
         },
 
@@ -351,7 +933,9 @@
                 profileUserId: pick(p, 'profileUserId', null),
                 profileName: pick(p, 'profileName', ''),
                 avatarInitial: pick(p, 'avatarInitial', '?'),
-                avatarColor: pick(p, 'avatarColor', '#00A4DC'),
+                avatarColor: pick(p, 'avatarColor', DEFAULT_AVATAR_COLOR),
+                // Cut-out picture: paint no colour behind it (issue #23).
+                transparentAvatar: pick(p, 'transparentAvatar', false),
                 requiresPin: pick(p, 'requiresPin', false),
                 // "A PIN exists" — distinct from requiresPin, which is false on the LAN when
                 // the bypass is enabled. Forms must use this one.
@@ -414,24 +998,36 @@
 
         /// The avatar swatches are identical in both forms; keeping one copy means a palette
         /// change lands in both places at once.
-        /// Dims the avatar colour once a picture is set.
+        /// Dims the avatar colour when it has stopped doing anything.
         ///
-        /// The colour is the background behind the initial, so with a picture it does
-        /// nothing at all — and it was twenty-one swatches over three rows, the largest
-        /// thing on the form, sitting there inert. Dimmed rather than hidden: it starts
+        /// It is twenty-one swatches over three rows, the largest thing on the form, so
+        /// leaving it at full strength when it cannot affect the avatar reads as a
+        /// control that is simply being ignored. Dimmed rather than hidden: it starts
         /// mattering again the moment the picture is removed, and a control that
         /// vanishes and reappears is worse than one that fades.
-        setColorGroupInert: function (prefix, hasPicture) {
+        ///
+        /// It used to dim whenever a picture was set, and say "Not used while a picture
+        /// is set". That was wrong, and it is how issue #23 came to be filed: the colour
+        /// is painted *behind* the picture and shows through wherever the picture is
+        /// transparent, so somebody read the hint, chose a cut-out picture, and got a
+        /// coloured square anyway. The colour is genuinely unused in one case only —
+        /// a picture with the background switched off.
+        setColorGroupInert: function (prefix, hasPicture, isTransparent) {
             const group = document.getElementById(prefix + '-color-group');
             if (!group) return;
 
-            group.classList.toggle('is-inert', !!hasPicture);
+            const unused = !!hasPicture && !!isTransparent;
+            group.classList.toggle('is-inert', unused);
 
             const hint = group.querySelector('[data-role="color-hint"]');
             if (hint) {
-                hint.textContent = hasPicture
-                    ? 'Not used while a picture is set.'
-                    : 'Used as the avatar background when no picture is set.';
+                if (unused) {
+                    hint.textContent = t('profileForm.colorHintUnused');
+                } else if (hasPicture) {
+                    hint.textContent = t('profileForm.colorHintHasPicture');
+                } else {
+                    hint.textContent = t('profileForm.colorHintNoPicture');
+                }
             }
         },
 
@@ -538,30 +1134,178 @@
                 .then(res => res.ok ? res.json() : null)
                 .then(data => {
                     const tags = (data && (data.Tags || data.tags)) || [];
-                    return Array.from(new Set(tags.filter(t => t)))
+                    return Array.from(new Set(tags.filter(tag => tag)))
                         .sort((a, b) => a.localeCompare(b));
                 })
                 .catch(() => []);
         },
 
         renderTagSuggestions: function (id, tags) {
-            return `<datalist id="${id}">${(tags || []).map(t => `<option value="${escapeHtml(t)}"></option>`).join('')}</datalist>`;
+            return `<datalist id="${id}">${(tags || []).map(tag => `<option value="${escapeHtml(tag)}"></option>`).join('')}</datalist>`;
         },
 
         renderTagChip: function (tag) {
             const safe = escapeHtml(tag);
-            return `<span class="tag-chip" data-tag="${safe}"><span>${safe}</span><button type="button" class="tag-chip-remove" tabindex="0" aria-label="Remove tag ${safe}">×</button></span>`;
+            return `<span class="tag-chip" data-tag="${safe}"><span>${safe}</span><button type="button" class="tag-chip-remove" tabindex="0" aria-label="${t('profileForm.removeTagAria', { tag: safe })}">×</button></span>`;
         },
 
         renderTagEditor: function (id, tags, placeholder, suggestionsId) {
-            const chips = (tags || []).map(t => this.renderTagChip(t)).join('');
+            const chips = (tags || []).map(tag => this.renderTagChip(tag)).join('');
             return `
                 <div class="tag-editor" id="${id}">
-                    <div class="tag-chip-list" ${(tags || []).length ? '' : 'data-empty="true"'}>${chips}</div>
+                    <div class="tag-chip-list" data-empty-label="${escapeHtml(t('profileForm.noTags'))}" ${(tags || []).length ? '' : 'data-empty="true"'}>${chips}</div>
                     <div class="tag-input-row">
                         <input type="text" class="tag-input" placeholder="${escapeHtml(placeholder)}" list="${suggestionsId}" autocomplete="off" />
-                        <button type="button" class="profiles-btn btn-secondary tag-add-btn">Add</button>
+                        <button type="button" class="profiles-btn btn-secondary tag-add-btn">${t('common.add')}</button>
                     </div>
+                </div>
+            `;
+        },
+
+        /// The allowed-devices dropdown, shared by the Add and Edit profile forms.
+        ///
+        /// These two forms were built by two functions that had been copied from each
+        /// other and then edited apart: 213 identical lines, ten runs of six or more.
+        /// The copies had already drifted — a fix to one was a fix to one — and the
+        /// duplicated *comments* were the clearest sign of it, the same sentence about
+        /// sending null rather than an empty array sitting verbatim in both.
+        ///
+        /// Four things actually differ between the modes, and they are all here:
+        ///   - create prefixes its element ids, because both forms can be in the
+        ///     document at once and duplicate ids would make getElementById a coin toss;
+        ///   - the checkbox class follows the same prefix, since the handlers query it;
+        ///   - only edit has a profile to read existing selections from;
+        ///   - only edit offers Forget, because a device cannot be stale for a profile
+        ///     that does not exist yet.
+        renderDeviceDropdown: function (mode, devices, profile) {
+            const isEdit = mode === 'edit';
+            const p = isEdit ? '' : 'create-';
+            const boxClass = isEdit ? 'device-checkbox' : 'create-device-checkbox';
+
+            const items = (devices && devices.length > 0)
+                ? devices.map(dev => {
+                    const deviceId = dev.deviceId || dev.DeviceId || '';
+                    const deviceName = dev.deviceName || dev.DeviceName || t('profileForm.unknownDevice');
+                    const client = dev.client || dev.Client || t('profileForm.unknownClient');
+                    const lastSeen = dev.lastSeen || dev.LastSeen;
+                    const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
+                    // Year 1 is what an unset DateTime serialises to; showing "01/01/0001"
+                    // reads as a bug rather than as "we have never seen this device".
+                    const lastSeenStr = (lastSeenDate && lastSeenDate.getFullYear() > 1)
+                        ? lastSeenDate.toLocaleDateString() : t('profileForm.unknown');
+                    // Both spellings, because the list can come from the plugin's own
+                    // camelCase JSON or straight off a Jellyfin DTO.
+                    const isChecked = isEdit && profile && profile.allowedDeviceIds
+                        && (profile.allowedDeviceIds.includes(deviceId)
+                            || (dev.DeviceId && profile.allowedDeviceIds.includes(dev.DeviceId)));
+                    // Housekeeping actions belong to the edit form only: the create form is
+                    // listing devices to tick, and a half-made profile is the wrong place to
+                    // be reorganising the household's hardware.
+                    //
+                    // Rename and merge are here because one machine does not have one device
+                    // id. jellyfin-web keeps its id in localStorage, which is per origin, so
+                    // reaching the server by LAN address and by domain name produces two
+                    // devices for one computer — as does a new browser profile or a reinstall.
+                    // Nothing in the request can tell those apart from two real machines, so
+                    // the plugin will not guess: merging two that are genuinely different
+                    // would widen a whitelist. Renaming is what makes them tellable apart in
+                    // the first place, and the name sticks — see KnownDevice.NameIsCustom.
+                    const actions = isEdit
+                        ? `<button type="button" class="device-rename-btn" data-id="${escapeHtml(deviceId)}" data-name="${escapeHtml(deviceName)}" title="${t('profileForm.renameDevice')}" aria-label="${t('profileForm.renameDeviceAria', { name: escapeHtml(deviceName) })}"><span class="material-icons" aria-hidden="true">edit</span></button>
+                           <button type="button" class="device-merge-btn" data-id="${escapeHtml(deviceId)}" data-name="${escapeHtml(deviceName)}" title="${t('profileForm.mergeDevice')}" aria-label="${t('profileForm.mergeDeviceAria', { name: escapeHtml(deviceName) })}"><span class="material-icons" aria-hidden="true">swap_horiz</span></button>
+                           <button type="button" class="device-delete-btn" data-id="${escapeHtml(deviceId)}" title="${t('profileForm.forgetDevice')}" aria-label="${t('profileForm.forgetDeviceAria', { name: escapeHtml(deviceName) })}"><span class="material-icons" aria-hidden="true">delete</span></button>`
+                        : '';
+                    return `
+                        <div class="device-dropdown-item" data-device-id="${escapeHtml(deviceId)}">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
+                                <input type="checkbox" class="${boxClass}" value="${escapeHtml(deviceId)}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
+                                <span style="display: flex; flex-direction: column; min-width: 0;">
+                                    <span class="device-row-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
+                                    <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: lastSeenStr })}</span>
+                                </span>
+                            </label>
+                            ${actions}
+                        </div>
+                    `;
+                }).join('')
+                : `
+                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">${t('profileForm.noDevicesYet')}</div>
+                `;
+
+            return `
+                <div class="form-group">
+                    <label>${t('profileForm.allowedDevices')}</label>
+                    <div class="devices-dropdown-container" style="position: relative;">
+                        <div id="${p}devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
+                            <span id="${p}devices-dropdown-selected-text">${t('profileForm.allDevicesAllowed')}</span>
+                        </div>
+                        <div id="${p}devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
+                            ${items}
+                        </div>
+                    </div>
+                    <div class="form-hint">${t('profileForm.devicesHint')}</div>
+                    ${isEdit ? `<button type="button" id="devices-tidy-btn" class="profiles-btn btn-secondary device-tidy-btn">${t('profileForm.tidyDevices')}</button>` : ''}
+                </div>
+            `;
+        },
+
+        /// The maximum-rating select, shared by both profile forms.
+        ///
+        /// The five options and their numeric values were written out twice; a rating
+        /// added to one copy would silently not exist in the other. Only the id prefix
+        /// and which option is preselected differ.
+        ///
+        /// `maxRating` is compared with ===, so it must already be a number or null.
+        /// Passing the raw string from a form control would preselect nothing and
+        /// quietly reset the profile's rating on the next save.
+        renderRatingSelect: function (mode, maxRating) {
+            const id = mode + '-rating-select';
+            const opts = [
+                ['', 'profileForm.noRestrictions'],
+                ['6', 'profileForm.ratingG'],
+                ['10', 'profileForm.ratingPG'],
+                ['14', 'profileForm.ratingPG13'],
+                ['17', 'profileForm.ratingR'],
+            ].map(([value, key]) => {
+                const current = value === '' ? maxRating === null || maxRating === undefined
+                    : maxRating === Number(value);
+                return `<option value="${value}" ${current ? 'selected' : ''}>${t(key)}</option>`;
+            }).join('\n                            ');
+
+            return `
+                <div class="form-group">
+                    <label for="${id}">${t('profileForm.maximumRating')}</label>
+                    <select id="${id}">
+                            ${opts}
+                    </select>
+                </div>
+            `;
+        },
+
+        /// Blocked and allowed tag editors, shared by both profile forms.
+        ///
+        /// Only the id prefix and the starting tags differ: a new profile begins with
+        /// none, an existing one with whatever it has. The allowed-tags hint carries
+        /// form-hint-warn because an allow-list is subtractive — naming one tag hides
+        /// everything without it — and that warning existing in only one of two copies
+        /// is exactly the drift this merge is for.
+        renderTagSection: function (mode, libraryTags, profile) {
+            const p = mode + '-';
+            const suggestions = p + 'tag-suggestions';
+            const blocked = (profile && profile.blockedTags) || [];
+            const allowed = (profile && profile.allowedTags) || [];
+
+            return `
+                ${this.renderTagSuggestions(suggestions, libraryTags)}
+                <div class="form-group">
+                    <label>${t('profileForm.blockedTags')}</label>
+                    ${this.renderTagEditor(p + 'blocked-tags', blocked, t('profileForm.tagPlaceholderAdults'), suggestions)}
+                    <div class="form-hint">${t('profileForm.blockedTagsHint')}</div>
+                </div>
+                <div class="form-group">
+                    <label>${t('profileForm.allowedTags')}</label>
+                    ${this.renderTagEditor(p + 'allowed-tags', allowed, t('profileForm.tagPlaceholderKids'), suggestions)}
+                    <div class="form-hint form-hint-warn">${t('profileForm.allowedTagsHint')}</div>
                 </div>
             `;
         },
@@ -580,6 +1324,9 @@
                     if (chipList.querySelector('.tag-chip')) {
                         chipList.removeAttribute('data-empty');
                     } else {
+                        // Set here too: a list that starts non-empty carries no label, and
+                        // removing its last chip would otherwise show an empty grey box.
+                        chipList.setAttribute('data-empty-label', t('profileForm.noTags'));
                         chipList.setAttribute('data-empty', 'true');
                     }
                 };
@@ -626,7 +1373,126 @@
             if (!editor) return [];
             return Array.from(editor.querySelectorAll('.tag-chip'))
                 .map(chip => chip.getAttribute('data-tag'))
-                .filter(t => t);
+                .filter(tag => tag);
+        },
+
+        /// Runs one startup step, and refuses to let it take the rest of init() with it.
+        ///
+        /// 1.5.2 shipped a stray backtick inside the stylesheet template literal in
+        /// injectStyles. The file still parsed — it was valid JavaScript, just not what
+        /// anyone meant — so the syntax check passed and it went out. At runtime
+        /// injectStyles threw, and because init() called these bare, the nine steps after
+        /// it never ran: no focus trap, so a remote could not reach the gate; no switcher
+        /// preferences; no panic shortcut, which is the escape hatch for exactly this;
+        /// no session validation. bindEvents had already run, so the route poll kept
+        /// raising an unstyled gate and the plugin looked alive while almost nothing
+        /// worked. A broken stylesheet should cost styling and nothing else.
+        _step: function (name, fn) {
+            try {
+                fn();
+            } catch (e) {
+                console.error('ProfilesPlugin: startup step "' + name + '" failed.', e);
+            }
+        },
+
+        /// Upstream's TV test, copied so the two cannot disagree.
+        ///
+        /// From jellyfin-web src/scripts/browser.js isTv(), which is the function behind
+        /// browser.tv and therefore behind layoutManager's own auto-detection. Its own
+        /// first comment is "This is going to be really difficult to get right", which is
+        /// why this is a copy rather than something reasoned out afresh.
+        ///
+        /// `web0s` is spelt with a ZERO. That is upstream's spelling because it is what
+        /// LG actually puts in the user agent, and writing the letter O here would miss
+        /// every webOS set silently.
+        _uaLooksLikeTv: function (ua) {
+            const s = String(ua || '').toLowerCase();
+            // The Oculus browser carries samsungbrowser in its UA and is a headset.
+            if (s.indexOf('oculusbrowser') !== -1) return false;
+            return s.indexOf('tv') !== -1
+                || s.indexOf('samsungbrowser') !== -1
+                || s.indexOf('viera') !== -1
+                || s.indexOf('titanos') !== -1
+                || s.indexOf('netcast') !== -1
+                || s.indexOf('web0s') !== -1;
+        },
+
+        /// Does this browser lay out flex containers with `gap`?
+        ///
+        /// Chrome 84. webOS 5 (the LG CX) is Chromium 68 and Tizen 6.0 is 76, so on both
+        /// of the televisions this plugin has open issues from, every `gap` on a flex
+        /// container is ignored and the spacing between children is simply gone.
+        ///
+        /// Measured, not asked. `@supports (gap: 1px)` answers TRUE on Chromium 68,
+        /// because grid gap shipped in 66 and the query cannot tell the two layout modes
+        /// apart — so the obvious feature query returns yes on exactly the devices where
+        /// flex gap does nothing. Two empty children in a column box with a 1px row-gap
+        /// make the box 1px tall where it works and 0 where it does not.
+        _supportsFlexGap: function () {
+            if (this._flexGapOk !== undefined) return this._flexGapOk;
+            if (!document.body) return true;   // too early to tell; assume modern
+            let probe;
+            try {
+                probe = document.createElement('div');
+                probe.style.cssText = 'display:flex;flex-direction:column;row-gap:1px;'
+                    + 'position:absolute;visibility:hidden;pointer-events:none';
+                probe.appendChild(document.createElement('div'));
+                probe.appendChild(document.createElement('div'));
+                document.body.appendChild(probe);
+                this._flexGapOk = probe.scrollHeight === 1;
+            } catch (e) {
+                this._flexGapOk = true;
+            } finally {
+                if (probe && probe.parentNode) probe.parentNode.removeChild(probe);
+            }
+            return this._flexGapOk;
+        },
+
+        /// Puts `jpf-tv` and `jpf-no-flex-gap` on <html>, so the stylesheet can size for
+        /// a screen three metres away and can replace flex gaps the device ignores.
+        ///
+        /// The plan said to read `layoutManager.tv`. It cannot be read: layoutManager is
+        /// an ES module default export in jellyfin-web and is never placed on window.
+        /// What it does do is write `layout-tv` / `layout-mobile` / `layout-desktop` onto
+        /// document.documentElement (src/components/layoutManager.js, setLayout), so that
+        /// class is the supported signal — and it is strictly better than sniffing,
+        /// because it also honours a layout the user has forced in Display settings. A
+        /// desktop set to TV mode gets TV sizing, which sniffing would never give it.
+        ///
+        /// The UA is only the fallback, for the two moments the class is not there yet:
+        /// a cold load where we run before layoutManager.init(), and the pre-sign-in gate.
+        ///
+        /// Re-run on class changes rather than on a timer. layoutManager can switch mode
+        /// at runtime and fires 'modechange', but that event is on the module object we
+        /// cannot reach; the class attribute it writes is observable, costs nothing when
+        /// nothing changes, and is not the route poll's business.
+        applyDeviceClasses: function () {
+            const root = document.documentElement;
+            if (!root) return;
+
+            // Writes only on an actual change. The observer below watches the very
+            // attribute this touches, and a write that changes nothing would still be a
+            // mutation record and a second pass through here on every unrelated class
+            // change Jellyfin makes.
+            const apply = () => {
+                const isTv = root.classList.contains('layout-tv')
+                    || (!root.classList.contains('layout-mobile')
+                        && !root.classList.contains('layout-desktop')
+                        && this._uaLooksLikeTv(navigator.userAgent));
+                if (isTv !== root.classList.contains('jpf-tv')) {
+                    root.classList.toggle('jpf-tv', isTv);
+                }
+            };
+
+            apply();
+            root.classList.toggle('jpf-no-flex-gap', !this._supportsFlexGap());
+
+            if (this._deviceClassObserver || typeof MutationObserver === 'undefined') return;
+            this._deviceClassObserver = new MutationObserver(() => apply());
+            this._deviceClassObserver.observe(root, {
+                attributes: true,
+                attributeFilter: ['class'],
+            });
         },
 
         init: function () {
@@ -639,27 +1505,39 @@
             // We gate _revealPage() on this event so we never fade in to a blank shell.
             this._viewShowFired = false;
             this._pendingReveal = false;
-            this.bindEvents();
-            this.injectStyles();
+            // Kicked off now so it usually finishes before anyone actually needs a
+            // translated string — fetchAndRenderProfiles awaits it just before drawing
+            // the gate for the first time, which is the only render early enough to
+            // matter.
+            this._step('loadLocale', () => { this._i18nReady = loadLocale(); });
+            // fetchAndRenderProfiles awaits this before the first gate render, so it has to
+            // be a promise even if the step above failed.
+            if (!this._i18nReady) this._i18nReady = Promise.resolve();
+
+            this._step('bindEvents', () => this.bindEvents());
+            // Before injectStyles, so the sheet's .jpf-tv and .jpf-no-flex-gap rules match
+            // on the first paint rather than after a reflow the viewer can see.
+            this._step('applyDeviceClasses', () => this.applyDeviceClasses());
+            this._step('injectStyles', () => this.injectStyles());
             // Kicked off before the first route check so the gate decision is usually made
             // with the real answer in hand rather than the cached one.
             // Before any Jellyfin view renders: the cached rules have to be in the document
             // by the time the first library card paints, or the artwork this profile is not
             // meant to see gets a frame on screen.
-            this.applyCachedLibraryArtwork();
-            this.loadLibraryArtwork();
-            this.loadSwitcherPrefs();
-            this.bindPanicShortcut();
+            this._step('applyCachedLibraryArtwork', () => this.applyCachedLibraryArtwork());
+            this._step('loadLibraryArtwork', () => this.loadLibraryArtwork());
+            this._step('loadSwitcherPrefs', () => this.loadSwitcherPrefs());
+            this._step('bindPanicShortcut', () => this.bindPanicShortcut());
             // Bound once for the life of the page. It resolves the active Bonfire screen on
             // every event and does nothing when there is none, so it covers the gate, the
             // PIN prompt, the profile forms and every dialog without per-screen wiring.
-            this._bindOverlayFocusTrap();
+            this._step('_bindOverlayFocusTrap', () => this._bindOverlayFocusTrap());
             // Before validateSessionState, which can trigger a reload of its own.
-            this.checkPersistedPanic();
+            this._step('checkPersistedPanic', () => this.checkPersistedPanic());
             if (this._panicDisabled) return;
-            this.validateSessionState();
+            this._step('validateSessionState', () => this.validateSessionState());
             // If the user refreshes while a profile is active, restart the inactivity timer
-            setTimeout(() => this.initLockoutTimer(), 800);
+            setTimeout(() => this._step('initLockoutTimer', () => this.initLockoutTimer()), 800);
         },
 
         bindEvents: function () {
@@ -679,6 +1557,13 @@
             window.addEventListener('popstate', doCheck);
             window.addEventListener('hashchange', doCheck);
 
+            // The corner-pill fallback is placed by geometry, so its position is stale
+            // only when the viewport changes — a rotation on a phone, a window resize.
+            // Marking it here is what lets the route tick stop recomputing it.
+            ['resize', 'orientationchange'].forEach(evt => {
+                window.addEventListener(evt, () => { this._fallbackPosDirty = true; });
+            });
+
             // Intercept history.pushState / replaceState (React-router style navigation)
             ['pushState', 'replaceState'].forEach(method => {
                 const orig = history[method];
@@ -689,8 +1574,10 @@
                 };
             });
 
-            // Fix #3: Clear the cached master token on native Jellyfin sign-out so it
-            // does not persist in localStorage on shared / public devices.
+            // Clear the cached master token on native Jellyfin sign-out, so it does not
+            // persist in localStorage on a shared or public device. Signing out of
+            // Jellyfin has to mean signing out of Bonfire too, or the next person at the
+            // machine inherits the switcher.
             document.addEventListener('usersignedout', () => {
                 try {
                     localStorage.removeItem(this.config.masterStorageKey);
@@ -704,13 +1591,238 @@
                 } catch (e) { /* ignore storage errors */ }
             });
 
-            // Fix #8: 500ms interval is sufficient since viewshow/popstate/hashchange
-            // already cover all SPA navigation. The poll is only a safety net for rare
-            // DOM-mutation scenarios (e.g., video OSD).
-            setInterval(doCheck, 500);
+            // 500 ms is sufficient because viewshow, popstate and hashchange already cover
+            // every SPA navigation. The poll is only a safety net for the cases that change
+            // the DOM without changing the route — the video OSD is the one that matters.
+            //
+            // It backs off to 2 s once playback starts. There is nothing for the plugin to
+            // do during playback — the gate is not raised, the bubble is hidden, and the
+            // menus are not on screen — and that is exactly when the device has least
+            // headroom: a TV decoding 4K is the weakest hardware in the house doing the
+            // hardest thing it ever does. Four times fewer wake-ups for work that has no
+            // effect.
+            //
+            // Not stopped outright. The tick is also what notices playback *ending* on a
+            // client whose URL does not change, and a poll that switched itself off would
+            // then need something else to switch it back on. 2 s is a quarter of a second
+            // of latency on the bubble reappearing, which nobody can see.
+            this._tickMs = 500;
+            const arm = () => {
+                clearInterval(this._routeTimer);
+                this._routeTimer = setInterval(() => {
+                    doCheck();
+                    // _lastRouteType is set by checkRoute, so this reads the classification
+                    // that has just been made rather than repeating the work to get it.
+                    const want = this._lastRouteType === 'videoosd' ? 2000 : 500;
+                    if (want !== this._tickMs) {
+                        this._tickMs = want;
+                        arm();
+                    }
+                }, this._tickMs);
+            };
+            arm();
 
             // Initial check on load
             setTimeout(doCheck, 200);
+        },
+
+        /// True when the browser is sitting on the home screen.
+        ///
+        /// Extracted from checkRoute so reloadAtHome() can ask the same question. The two
+        /// must agree: reloadAtHome only redirects when this is false, so a route this
+        /// says is home is a route it will never try to build a URL for.
+        isHomeRoute: function () {
+            const hash = window.location.hash || '';
+            const path = window.location.pathname || '';
+
+            // Check if we are on the home screen
+            // The home screen route can be: empty, '#/', '#/home', '#/home.html', or similar.
+            // But we must NOT trigger it if we are on pages like configuration, plugins, selectserver, login, etc.
+            const isIgnoredPage = hash.includes('configuration') ||
+                                 hash.includes('plugin') ||
+                                 hash.includes('login') ||
+                                 hash.includes('selectserver') ||
+                                 path.includes('configuration') ||
+                                 path.includes('plugin') ||
+                                 path.includes('login') ||
+                                 path.includes('selectserver');
+
+            if (isIgnoredPage) return false;
+
+            // 10.11 moved the route out of the fragment and into the path, so on those
+            // builds the hash is empty on every page — and the `hash === ''` clause below
+            // was therefore answering "yes, this is home" for all of them. Whenever the
+            // path carries a route, it is the authority and the hash has nothing to say.
+            const webRoute = path.match(/^.*\/web\/(.*)$/);
+            if (webRoute) {
+                const route = webRoute[1].replace(/\/+$/, '');
+                if (route !== '' && route !== 'index.html') {
+                    return route === 'home' || route === 'home.html';
+                }
+            }
+
+            return (
+                hash === '' ||
+                hash === '#/' ||
+                hash.includes('home') ||
+                path.endsWith('/home') ||
+                path.endsWith('/home.html') ||
+                // If there is no hash and we are at /web/index.html or root
+                (!hash && (path.endsWith('index.html') || path === '/' || path === '/web/'))
+            );
+        },
+
+        /// The home screen's URL in whichever routing style this build of jellyfin-web
+        /// uses, or null when neither shape is recognisable.
+        ///
+        /// Two styles are in the wild: 10.10 and earlier keep the route in the fragment
+        /// ('/web/index.html#/home.html'), 10.11 moved it into the path ('/web/home').
+        /// Guessing wrong here means a 404 rather than a stale page, so an unrecognised
+        /// shape returns null and the caller stays put instead.
+        homeUrl: function () {
+            const loc = window.location;
+            const hash = loc.hash || '';
+
+            // Hash-routed: the document does not change, only the fragment. Whichever
+            // prefix this build uses is reused rather than guessed at.
+            if (hash.startsWith('#!/')) return loc.pathname + loc.search + '#!/home.html';
+            if (hash.startsWith('#/')) return loc.pathname + loc.search + '#/home.html';
+
+            // Path-routed: '/web/mypreferencesmenu' -> '/web/home'. Matched from '/web/'
+            // so a server hosted on a base path keeps it.
+            const m = loc.pathname.match(/^(.*\/web\/)/);
+            if (m) return m[1] + 'home';
+
+            return null;
+        },
+
+        /// Reloads onto the home screen. For every caller here the signed-in identity has
+        /// just changed, so the app must re-initialise under the new token — and the page
+        /// that was on screen belonged to the previous profile.
+        ///
+        /// Issue #22: this used to be a bare reload, which preserves the route. Switching
+        /// from the user menu therefore reloaded /web/mypreferencesmenu as the new
+        /// profile, leaving the user to find their own way home. The gate never showed it
+        /// because the gate only ever runs from home, where the two are the same thing.
+        reloadAtHome: function () {
+            // Already home: reload exactly as before. This is the path the gate uses and
+            // the one with hardware testing behind it, so it is left untouched. It also
+            // keeps homeUrl() away from the one case it could get wrong — a hash-routed
+            // build sitting at '/web/' with no fragment, where the path branch would
+            // wrongly produce '/web/home'.
+            if (this.isHomeRoute()) {
+                this._reloadWithFallback(null);
+                return;
+            }
+
+            this._reloadWithFallback(this.homeUrl());
+        },
+
+        /// How long to wait before deciding a navigation attempt did not take.
+        ///
+        /// Long enough that a slow television is not interrupted mid-teardown, short
+        /// enough that somebody who tapped a profile is not left staring at the wrong
+        /// account. A page that is genuinely unloading never reaches the timer.
+        RELOAD_ESCALATE_MS: 1200,
+
+        /// Reloads the page, and checks that the reload happened.
+        ///
+        /// By the time this runs the switch is complete everywhere except the screen: the
+        /// profile's token is in localStorage and in ApiClient, and all that is left is for
+        /// the document to be rebuilt under the new identity. If that does not happen,
+        /// jellyfin-web goes on rendering the page it built for the *previous* profile —
+        /// its home sections, its Continue Watching, its Next Up — while the header shows
+        /// the profile that was picked, because Bonfire draws that part itself.
+        ///
+        /// Reported on Samsung Tizen as "it lets you pick a profile, but nothing changes
+        /// once you load in". The credentials, the token and the server were all ruled out
+        /// first; what was left is that `location.reload()` is not reliable everywhere this
+        /// runs. The bundled television clients serve jellyfin-web from a local file://
+        /// origin, which is where it has been seen to do nothing at all.
+        ///
+        /// So each step is a different mechanism rather than a retry of the same one. The
+        /// last rung says so out loud: showing a child the parent's Continue Watching while
+        /// they believe it is theirs is worse than admitting the reload failed.
+        _reloadWithFallback: function (target) {
+            const step = (n) => {
+                try {
+                    if (n === 0) {
+                        if (target) {
+                            // replace() rather than assignment so Back does not return to
+                            // the previous profile's page.
+                            window.location.replace(target);
+                            // A fragment-only change does not reload the document, and a
+                            // full re-initialisation is the entire point of the call.
+                            if (target.indexOf('#') !== -1) window.location.reload();
+                        } else {
+                            window.location.reload();
+                        }
+                    } else if (n === 1) {
+                        // Assignment, not replace(): a different code path in the browser,
+                        // which is the only reason to try it at all.
+                        window.location.href = target || window.location.href;
+                    } else if (n === 2) {
+                        // Force a cache-busting navigation. Some webviews treat a reload
+                        // of an identical URL as a no-op but will honour a changed query.
+                        const url = target || window.location.href;
+                        const sep = url.indexOf('?') === -1 ? '?' : '&';
+                        const bust = url.indexOf('#') === -1
+                            ? url + sep + 'jpf=' + Date.now()
+                            : url.replace('#', sep + 'jpf=' + Date.now() + '#');
+                        window.location.href = bust;
+                    } else {
+                        this._reloadFailed();
+                        return;
+                    }
+                } catch (e) {
+                    // A blocked navigation must not stop the ladder.
+                }
+                this._reloadTimer = setTimeout(() => step(n + 1), this.RELOAD_ESCALATE_MS);
+            };
+
+            // A navigation that has committed fires pagehide, and on a set slow enough to
+            // still be running timers a step later the escalation would then navigate a
+            // second time — onto a cache-busted URL nobody asked for. The ladder is for a
+            // reload that does nothing, not for one that is merely slow.
+            //
+            // Taken off again when the ladder ends, which is not academic: the last rung
+            // reveals the page and leaves the viewer able to try another profile, so a
+            // ladder that never unbinds leaves a pair of listeners behind per attempt.
+            this._releaseReloadGuards();
+            const stop = () => { if (this._reloadTimer) clearTimeout(this._reloadTimer); };
+            this._reloadGuards = stop;
+            window.addEventListener('pagehide', stop);
+            window.addEventListener('beforeunload', stop);
+
+            step(0);
+        },
+
+        /// Nothing rebuilt the page, so the profile that was chosen is signed in but the
+        /// screen still belongs to whoever was there before. Reveal the page and say so —
+        /// the alternative is leaving somebody looking at another person's library and
+        /// believing it is their own.
+        /// Drops the pagehide/beforeunload pair the ladder arms. Safe with none outstanding.
+        _releaseReloadGuards: function () {
+            if (!this._reloadGuards) return;
+            window.removeEventListener('pagehide', this._reloadGuards);
+            window.removeEventListener('beforeunload', this._reloadGuards);
+            this._reloadGuards = null;
+        },
+
+        _reloadFailed: function () {
+            this._reloading = false;
+            this._releaseReloadGuards();
+            try { localStorage.removeItem(this.config.switchingKey); } catch (e) { /* ignore */ }
+
+            // The switch hid the page behind an opaque overlay, or behind the head
+            // script's opacity:0. Either would leave this message invisible.
+            document.documentElement.style.removeProperty('opacity');
+            document.documentElement.style.removeProperty('background');
+            const overlay = document.getElementById('profiles-gate-overlay');
+            if (overlay) overlay.remove();
+
+            console.error('ProfilesPlugin: the page could not be reloaded after switching.');
+            this.showAlert(t('switcher.reloadFailedTitle'), t('switcher.reloadFailedBody'));
         },
 
         checkRoute: function () {
@@ -720,28 +1832,8 @@
 
             const hash = window.location.hash || '';
             const path = window.location.pathname || '';
-            
-            // Check if we are on the home screen
-            // The home screen route can be: empty, '#/', '#/home', '#/home.html', or similar.
-            // But we must NOT trigger it if we are on pages like configuration, plugins, selectserver, login, etc.
-            const isIgnoredPage = hash.includes('configuration') || 
-                                 hash.includes('plugin') || 
-                                 hash.includes('login') || 
-                                 hash.includes('selectserver') ||
-                                 path.includes('configuration') ||
-                                 path.includes('plugin') ||
-                                 path.includes('login') ||
-                                 path.includes('selectserver');
 
-            const isHome = !isIgnoredPage && (
-                hash === '' || 
-                hash === '#/' || 
-                hash.includes('home') || 
-                path.endsWith('/home') || 
-                path.endsWith('/home.html') ||
-                // If there is no hash and we are at /web/index.html or root
-                (!hash && (path.endsWith('index.html') || path === '/' || path === '/web/'))
-            );
+            const isHome = this.isHomeRoute();
 
             // skipReveal: set to true when we know the gate overlay is about to be shown.
             // In that case showProfileOverlay() will call _revealPage() once the overlay
@@ -803,9 +1895,20 @@
 
             // ── Active player: DOM-based detection (catches delayed URL updates) ──
             // The OSD element appears in the DOM the moment playback starts.
+            // Class selectors only. This list carried [class*="videoOsd"] and
+            // [class*="osdBottom"] as well, and an unqualified attribute-substring
+            // selector cannot use the class index — the engine walks every element in the
+            // document and tests each one. That ran twice a second, for the life of the
+            // page, on every device, including the weakest hardware in the house *during
+            // playback*, which is the one moment it has least to spare.
+            //
+            // They also never matched anything the three explicit names beside them did
+            // not already match: .videoOsdBottom is itself the element [class*="videoOsd"]
+            // was reaching for. Verified against jellyfin-web 10.11 —
+            // src/controllers/playback/video/index.html — and recorded in
+            // tests/upstream-selectors.json.
             const hasOsdDom = !!document.querySelector(
-                '.videoOsdBottom, .osdControls, .upNextContainer, ' +
-                '[class*="videoOsd"], [class*="osdBottom"], .btnExitVideo'
+                '.videoOsdBottom, .osdControls, .upNextContainer, .btnExitVideo'
             );
 
             // ── Admin / server-management pages ─────────────────────────────────
@@ -860,13 +1963,71 @@
             // revealing now would show a blank page during the profile fetch.
             if (!skipReveal) this._revealPage();
 
-            // Inject sidebar link fallbacks for TV D-pad targeting
-            this.injectSidebarLink();
         },
 
         // Smoothly fades the page back in after a profile switch.
         // Guards on _viewShowFired to ensure React has rendered the view before we
         // expose it — otherwise a blank white shell flashes for a moment.
+        /**
+         * Records the colour the page is currently painted in, so the next load can hold
+         * that colour while it renders instead of a hardcoded one.
+         *
+         * The head script used to set background:#101010 and color-scheme:dark
+         * unconditionally. Jellyfin ships light themes and lets a user pick any of them,
+         * so on every one of those a profile switch flashed a full-screen black rectangle
+         * — the exact flash the head script exists to prevent, just in the other
+         * direction. It also forced dark form controls and scrollbars for that moment.
+         *
+         * Read here rather than guessed there, because here is the one place the answer is
+         * knowable: the page is fully rendered, the theme stylesheet has applied, and
+         * whatever the user is looking at is what we should keep showing.
+         *
+         * Returns the colour, so the caller can paint with it immediately as well.
+         */
+        _captureLeavingBackground: function () {
+            let colour = '';
+            try {
+                // The body carries the theme colour in Jellyfin's stylesheets; when it is
+                // transparent the colour is on <html> behind it, so ask that instead.
+                const fromBody = getComputedStyle(document.body || document.documentElement).backgroundColor;
+                colour = this._isSeeThrough(fromBody)
+                    ? getComputedStyle(document.documentElement).backgroundColor
+                    : fromBody;
+            } catch (e) { /* fall through to the default */ }
+
+            if (!colour || this._isSeeThrough(colour)) colour = '#101010';
+
+            // The scheme has to match the colour or the browser paints dark scrollbars and
+            // form controls over a light page for the length of the switch.
+            const scheme = this._isLightColour(colour) ? 'light' : 'dark';
+
+            try {
+                localStorage.setItem(this.config.backgroundKey, colour + '|' + scheme);
+            } catch (e) { /* private mode: the head script falls back on its own */ }
+
+            return colour;
+        },
+
+        /** True for a colour that is missing or fully transparent. */
+        _isSeeThrough: function (colour) {
+            if (!colour) return true;
+            if (colour === 'transparent') return true;
+            const m = /^rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*0*\.?0*\s*\)$/.exec(colour);
+            return !!m;
+        },
+
+        /**
+         * Relative luminance, so "which colour-scheme is this" is decided by the colour
+         * itself rather than by a list of theme names that would need updating whenever
+         * Jellyfin adds one.
+         */
+        _isLightColour: function (colour) {
+            const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/.exec(colour);
+            if (!m) return false;
+            const r = parseFloat(m[1]), g = parseFloat(m[2]), b = parseFloat(m[3]);
+            return (0.2126 * r + 0.7152 * g + 0.0722 * b) > 128;
+        },
+
         _revealPage: function () {
             if (this._pageRevealed || !document.documentElement.style.opacity) return;
 
@@ -1146,6 +2307,9 @@
             this.removeProfileOverlay();
             const bubble = document.getElementById('profiles-floating-bubble');
             if (bubble) bubble.remove();
+            // The drawer link injectSidebarLink used to add. Kept in the teardown, and
+            // only here: a browser that ran an older build in this tab may still have one
+            // in the page, and the emergency disable has to leave nothing of ours behind.
             const sidebarLink = document.getElementById('profiles-sidebar-link');
             if (sidebarLink) sidebarLink.remove();
             const menuItem = document.getElementById('profiles-user-menu-item');
@@ -1218,6 +2382,7 @@
 
             const dialog = document.createElement('div');
             dialog.id = 'profiles-panic-dialog';
+            dialog.classList.add('jpf-trap-surface');
             dialog.style.cssText = `
                 position: fixed; top: 0; left: 0; right: 0; bottom: 0;
                 background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
@@ -1228,18 +2393,16 @@
             dialog.innerHTML = `
                 <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);
                             padding:24px; max-width:460px; width:90%; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
-                    <h2 style="margin:0 0 12px 0; color:#fff; font-size:1.2rem; font-weight:700;">Emergency disable</h2>
+                    <h2 style="margin:0 0 12px 0; color:#fff; font-size:1.2rem; font-weight:700;">${t('panic.emergencyDisable')}</h2>
                     <p style="color:rgba(255,255,255,0.7); font-size:0.9rem; line-height:1.5; margin:0 0 16px 0;">
-                        Enter the code your server administrator set. This shuts the Bonfire switcher off
-                        until Jellyfin is restarted — the profile gate disappears and this account is used
-                        as-is. It does not unlock anyone else's profile.
+                        ${t('panic.dialogBody')}
                     </p>
-                    <input type="password" id="profiles-panic-input" autocomplete="off" placeholder="Emergency code"
+                    <input type="password" id="profiles-panic-input" autocomplete="off" placeholder="${t('panic.emergencyCodePlaceholder')}"
                            style="width:100%; box-sizing:border-box; padding:10px; font-size:1rem; margin-bottom:8px;" />
-                    <div id="profiles-panic-error" style="display:none; color:#ff6b6b; font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
+                    <div id="profiles-panic-error" style="display:none; color:var(--jpf-danger); font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
                     <div style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:12px;">
-                        <button id="profiles-panic-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>
-                        <button id="profiles-panic-submit" class="profiles-btn btn-danger" style="padding:10px 20px; font-weight:600;">Disable</button>
+                        <button id="profiles-panic-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
+                        <button id="profiles-panic-submit" class="profiles-btn btn-danger" style="padding:10px 20px; font-weight:600;">${t('panic.disable')}</button>
                     </div>
                 </div>
             `;
@@ -1258,7 +2421,7 @@
                 if (!code) return;
 
                 submitBtn.disabled = true;
-                submitBtn.textContent = 'Checking…';
+                submitBtn.textContent = t('panic.checking');
                 errDiv.style.display = 'none';
 
                 fetch(ApiClient.getUrl('plugins/profiles/panic'), {
@@ -1273,18 +2436,17 @@
                         // reload a page they cannot use would not help.
                         close();
                         this.applyPanicDisable(/* persist */ true);
-                        this.showAlert('Bonfire disabled',
-                            'The switcher is off until Jellyfin restarts. Reload the page if anything still looks wrong.');
+                        this.showAlert(t('panic.disabledTitle'), t('panic.disabledBody'));
                         return;
                     }
-                    if (res.status === 429) throw new Error('Too many attempts. Try again in an hour, or restart Jellyfin.');
-                    throw new Error('Incorrect code.');
+                    if (res.status === 429) throw new Error(t('panic.tooManyAttempts'));
+                    throw new Error(t('panic.incorrectCode'));
                 })
                 .catch(err => {
-                    errDiv.textContent = err.message || 'Incorrect code.';
+                    errDiv.textContent = err.message || t('panic.incorrectCode');
                     errDiv.style.display = 'block';
                     submitBtn.disabled = false;
-                    submitBtn.textContent = 'Disable';
+                    submitBtn.textContent = t('panic.disable');
                 });
             };
 
@@ -1451,9 +2613,10 @@
                             if (profile) {
                                 const info = {
                                     name: profile.profileName,
-                                    color: profile.avatarColor || '#00A4DC',
+                                    color: profile.avatarColor || DEFAULT_AVATAR_COLOR,
                                     initial: profile.avatarInitial || (profile.profileName ? profile.profileName.charAt(0).toUpperCase() : 'P'),
-                                    profileImage: profile.profileImage || null
+                                    profileImage: profile.profileImage || null,
+                                    transparent: !!profile.transparentAvatar
                                 };
                                 // Store it in sessionStorage for future fast access
                                 this._sessionSet('jellyfin_profiles_active_info', JSON.stringify(info));
@@ -1479,7 +2642,7 @@
             }
             return {
                 name: fallbackName,
-                color: '#00A4DC',
+                color: DEFAULT_AVATAR_COLOR,
                 initial: fallbackInitial,
                 profileImage: null
             };
@@ -1548,12 +2711,29 @@
                     }
                     this.updateStoredCredentials(masterState.masterToken, masterState.masterUserId);
                     apiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
+
+                    // The cached "who is active" record survives this reload, and nothing
+                    // here was clearing it — so the header avatar went on naming the
+                    // profile we just reverted away from while the gate, which reads the
+                    // signed-in user from ApiClient, correctly showed the master. Two
+                    // places disagreeing about who you are is worse than either being
+                    // wrong. The active-token key is already absent (it is what put us in
+                    // this branch), so this only clears the stale name and picture.
+                    this.clearProfileSession();
                     // Hide current page instantly so there is no visible frame
                     // between old page unloading and new page's head script running.
-                    document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
+                    // Held in the colour the page is already painted in, not a fixed
+                    // dark one — see _captureLeavingBackground.
+                    const leavingBg = this._captureLeavingBackground();
+                    document.documentElement.style.cssText =
+                        'opacity:0;background:' + leavingBg + ';color-scheme:'
+                        + (this._isLightColour(leavingBg) ? 'light' : 'dark');
                     this._reloading = true;
                     localStorage.setItem(this.config.switchingKey, '1');
-                    window.location.reload();
+                    // Same reasoning as the switch itself (issue #22): the signed-in
+                    // identity just changed back to the master, so the page on screen
+                    // belonged to a profile that is no longer active.
+                    this.reloadAtHome();
                 }
             }
         },
@@ -1651,7 +2831,7 @@
                 // Consume the prefetch exactly once, then drop it.
                 const profiles = this.cachedProfiles;
                 this.invalidateProfileCache();
-                this.showProfileOverlay(profiles);
+                (this._i18nReady || Promise.resolve()).then(() => this.showProfileOverlay(profiles));
                 return;
             }
 
@@ -1677,7 +2857,7 @@
                 // prefetch buffer, and repopulating it here made the *next* call short-circuit
                 // to data that was already stale.
                 localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
-                this.showProfileOverlay(normalized);
+                return (this._i18nReady || Promise.resolve()).then(() => this.showProfileOverlay(normalized));
             })
             .catch(err => {
                 console.error("Failed to load sub-profiles:", err);
@@ -1919,7 +3099,7 @@
                                 masterPin: this.masterPin
                             })
                         }).then(res => {
-                            if (!res.ok) return res.text().then(t => { throw new Error(t || "Could not save the artwork."); });
+                            if (!res.ok) return res.text().then(body => { throw new Error(body || t('errors.couldNotSaveArtwork')); });
                             entry.dirty = false;
                         });
                     }), Promise.resolve());
@@ -1940,6 +3120,7 @@
 
                 const dialog = document.createElement("div");
                 dialog.id = "profiles-libart-dialog";
+                dialog.classList.add("jpf-trap-surface");
                 dialog.style.cssText =
                     "position:fixed; top:0; left:0; right:0; bottom:0;" +
                     "background:rgba(0,0,0,0.85); backdrop-filter:blur(8px);" +
@@ -1947,18 +3128,18 @@
                 dialog.innerHTML =
                     '<div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);' +
                     ' padding:22px; max-width:420px; width:94%; max-height:86vh; overflow:auto;">' +
-                    '<h2 style="margin:0 0 14px 0; color:#fff; font-size:1.15rem; font-weight:700;">Library artwork</h2>' +
+                    '<h2 style="margin:0 0 14px 0; color:#fff; font-size:1.15rem; font-weight:700;">' + t('avatar.libraryArtworkTitle') + '</h2>' +
                     '<div id="profiles-libart-host"></div>' +
-                    '<div id="profiles-libart-error" style="display:none; color:#ff6b6b; font-size:0.85rem;' +
+                    '<div id="profiles-libart-error" style="display:none; color:var(--jpf-danger); font-size:0.85rem;' +
                     ' font-weight:600; margin-top:8px;"></div>' +
                     '<div style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:16px;">' +
-                    '<button id="profiles-libart-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>' +
-                    '<button id="profiles-libart-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">Use picture</button>' +
+                    '<button id="profiles-libart-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">' + t('common.cancel') + '</button>' +
+                    '<button id="profiles-libart-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">' + t('avatar.usePicture') + '</button>' +
                     '</div></div>';
                 document.body.appendChild(dialog);
 
                 const host = dialog.querySelector("#profiles-libart-host");
-                host.innerHTML = this.renderAvatarPicker("libart", library, null, "#00A4DC");
+                host.innerHTML = this.renderAvatarPicker("libart", library, null, DEFAULT_AVATAR_COLOR);
                 const picker = this.initAvatarPicker(host, "libart", library, null, () => {});
 
                 const close = () => dialog.remove();
@@ -1967,7 +3148,7 @@
                     const picked = picker.get();
                     if (!picked.image && !picked.libraryId) {
                         const err = dialog.querySelector("#profiles-libart-error");
-                        err.textContent = "Choose a picture first.";
+                        err.textContent = t('avatar.chooseFirst');
                         err.style.display = "block";
                         return;
                     }
@@ -2122,22 +3303,57 @@
 
         /// Selector for the surfaces we trap focus inside: the gate overlay and any of our
         /// own dialogs (confirm, alert, crop, panic), all of which sit above the page.
-        TRAP_SURFACE_SELECTOR: '#profiles-gate-overlay, [id^="profiles-"][id$="-dialog"]',
+        /// Every dialog gets this class as it is built. It replaced
+        /// `[id^="profiles-"][id$="-dialog"]`, which is two unqualified attribute
+        /// selectors: the engine cannot use an index for either, so resolving them meant
+        /// walking every element in the document — and this runs on every keydown and
+        /// focusin *in the whole application*, so typing in Jellyfin's own search box
+        /// walked the page once per keystroke.
+        ///
+        /// A class keeps the property that made the id pattern attractive: it travels with
+        /// the element, so removing the dialog removes it from the set with no bookkeeping
+        /// to get wrong. See the note above about lifecycle bookkeeping being what leaks.
+        TRAP_SURFACE_CLASS: 'jpf-trap-surface',
+
+        TRAP_SURFACE_SELECTOR: '#profiles-gate-overlay, .jpf-trap-surface',
 
         /// The surface the remote should currently be confined to, or null when Bonfire
         /// has nothing on screen. Dialogs render above the gate, and the last one in the
         /// DOM is the topmost, so document order picks the right one.
         _activeTrapSurface: function () {
-            const surfaces = document.querySelectorAll(this.TRAP_SURFACE_SELECTOR);
-            if (!surfaces.length) return null;
+            // Class first, id second. Dialogs render above the gate, so the last dialog in
+            // document order is the topmost surface; with none open, the gate is. On the
+            // far more common path — nothing of ours on screen — this is one class-index
+            // lookup that comes back empty, where it used to be a full document walk on
+            // every keystroke anywhere in the application.
+            //
+            // The answer is identical to the querySelectorAll version it replaces,
+            // including the case that looks like an oversight: a topmost surface that has
+            // already detached disarms the trap rather than falling back to the gate
+            // underneath. That is existing behaviour with a test on it, and this change is
+            // about how the surface is found, not about what counts as one.
+            const dialogs = document.getElementsByClassName(this.TRAP_SURFACE_CLASS);
+            const last = dialogs.length
+                ? dialogs[dialogs.length - 1]
+                : document.getElementById('profiles-gate-overlay');
+            if (!last) return null;
 
-            const last = surfaces[surfaces.length - 1];
             // A dialog mid-fade still counts; one already detached does not.
             return last.isConnected === false ? null : last;
         },
 
         /// Everything inside a surface a remote can land on. Hidden elements are left out:
         /// the overlay swaps between a grid and a form, and the old one lingers.
+        ///
+        /// The offsetParent read below was flagged as forcing layout once per element
+        /// inside a focus handler. It does not: layout is invalidated by writes, and this
+        /// filter only reads, so the whole loop costs one layout however many controls a
+        /// surface has. Spatial navigation needs geometry anyway.
+        ///
+        /// `checkVisibility()` is the tidy replacement and is **not an option here**. It
+        /// needs Chrome 105; the TVs this has to work on are Chrome 68 (webOS 5) and
+        /// Chrome 76 (Tizen 6.0), so it would throw on exactly the devices the focus trap
+        /// exists for — and a remote is the one input with no way to escape a broken trap.
         _overlayFocusables: function (root) {
             return Array.prototype.filter.call(
                 root.querySelectorAll('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])'),
@@ -2272,7 +3488,11 @@
                     return;
                 }
 
-                const inside = surface.contains(e.target);
+                // An event dispatched at `window` has no element target, and contains()
+                // wants a node. Treat it as outside: the direction keys still move, and
+                // _moveOverlayFocus enters at the first control when the active element is
+                // not in the surface, which is the right first press.
+                const inside = !!(e.target && e.target.nodeType && surface.contains(e.target));
                 const dir = dirOf(e);
 
                 if (dir) {
@@ -2328,15 +3548,37 @@
                 if (items.length) items[0].focus();
             };
 
-            document.addEventListener('keydown', onKeyDown, true);
-            document.addEventListener('focusin', onFocusIn, true);
+            // On `window`, and in the capture phase. Both halves of that matter, and the
+            // second time #16 was reported it was because of the first.
+            //
+            // jellyfin-web binds its own remote navigation with
+            // `window.addEventListener('keydown', ...)` — no capture — in
+            // scripts/keyboardNavigation.js, and it bails on `e.defaultPrevented`. So for
+            // any key event that travels through the document we are ahead of it either
+            // way. What document-level capture does NOT see is an event dispatched at
+            // `window` itself: its propagation path is `window` alone, so a document
+            // listener is never on it while upstream's window listener is. Television
+            // webviews do dispatch remote keys that way.
+            //
+            // When that happens the arrows belong to upstream's focusManager, and its
+            // focusable set is INPUT/TEXTAREA/SELECT/BUTTON/A plus `.focusable` — it does
+            // not look at [tabindex] at all. A profile card is a div with tabindex="0", so
+            // the grid is invisible to it and our two footer buttons are not: every arrow
+            // press lands on Manage Profiles and no profile can be reached. That is
+            // exactly how it was reported. The cards carry `focusable` now as well, so
+            // both ends of this are covered.
+            //
+            // Window capture is first on the path for everything else too, so this is a
+            // superset of what it replaces, not a trade.
+            window.addEventListener('keydown', onKeyDown, true);
+            window.addEventListener('focusin', onFocusIn, true);
             this._overlayTrap = { onKeyDown: onKeyDown, onFocusIn: onFocusIn };
         },
 
         _releaseOverlayFocusTrap: function () {
             if (!this._overlayTrap) return;
-            document.removeEventListener('keydown', this._overlayTrap.onKeyDown, true);
-            document.removeEventListener('focusin', this._overlayTrap.onFocusIn, true);
+            window.removeEventListener('keydown', this._overlayTrap.onKeyDown, true);
+            window.removeEventListener('focusin', this._overlayTrap.onFocusIn, true);
             this._overlayTrap = null;
         },
 
@@ -2462,14 +3704,13 @@
             this.interceptHomeAndShowProfiles();
         },
 
-
         renderOverlayContent: function (overlay, profiles) {
             // Claims the screen so a form still loading in the background does not
             // draw itself over the grid when it finally returns.
             this.beginNavigation();
 
-            const title = this.isManageMode ? "Manage Profiles" : "Who's Watching?";
-            const manageBtnText = this.isManageMode ? "Done" : "Manage Profiles";
+            const title = this.isManageMode ? t('gate.manageProfiles') : t('gate.whosWatching');
+            const manageBtnText = this.isManageMode ? t('common.done') : t('gate.manageProfiles');
 
             const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
             const maxSubProfiles = masterProfile ? masterProfile.maxSubProfiles : 5;
@@ -2508,12 +3749,33 @@
             // The signed-in Jellyfin user IS the active profile — switching signs in as
             // that profile's own account. The gate never said which one that was, and the
             // avatar-colour rings made it look as though it did.
-            const signedInId = (typeof ApiClient.getCurrentUserId === 'function')
-                ? this.normalizeGuid(ApiClient.getCurrentUserId())
-                : '';
+            //
+            // But ApiClient is not the authority when the picker was opened from the header
+            // bubble. handleBubbleClick puts the *master's* credentials back before listing,
+            // because a sub-profile's token cannot see its siblings — so by the time this
+            // renders, getCurrentUserId() is the master on every platform, and the badge
+            // sat on the master's card however long you had been using a profile. Reported
+            // as "the switcher says I am signed in as my main profile"; it is this, not a
+            // switch that failed. _resumeState is the profile that was active a moment ago
+            // and is what the badge means, so it wins when it is set.
+            const resumed = this._resumeState && !this._resumeState.closeOnly
+                ? this._resumeState.userId
+                : null;
+            const signedInId = resumed
+                ? this.normalizeGuid(resumed)
+                : ((typeof ApiClient.getCurrentUserId === 'function')
+                    ? this.normalizeGuid(ApiClient.getCurrentUserId())
+                    : '');
 
+            // `focusable` is jellyfin-web's own hook, not ours — see focusManager.js,
+            // whose focusable set is INPUT/TEXTAREA/SELECT/BUTTON/A plus that class, and
+            // which never looks at [tabindex]. Without it a profile card does not exist as
+            // far as upstream's remote navigation is concerned, so any moment our own trap
+            // does not get the key event leaves the whole grid unreachable and only the
+            // footer buttons focusable. That is issue #16's second report, word for word:
+            // "if I move off the top left one, it goes to manage profiles".
             const renderCard = (p) => `
-                <div class="profile-card ${this.isManageMode ? 'manage-mode' : ''}${
+                <div class="profile-card focusable ${this.isManageMode ? 'manage-mode' : ''}${
                     signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' is-current' : ''
                 }" data-id="${p.profileUserId}" data-pin="${p.requiresPin}" tabindex="0"${
                     signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' aria-current="true"' : ''
@@ -2521,13 +3783,19 @@
                     <div class="profile-avatar-container">
                         ${p.isMaster ? `
                         <div class="profile-crown">
-                            <svg viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px; color: #ffb800; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.55));">
+                            <svg viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px; color: var(--jpf-warn); filter: drop-shadow(0 2px 5px rgba(0,0,0,0.55));">
                                 <path d="M5 16h14a1 1 0 0 0 1-.76l2.89-10.12a.5.5 0 0 0-.74-.53l-5.6 3.73-4.11-6.17a.5.5 0 0 0-.88 0L7.45 8.32 1.85 4.59a.5.5 0 0 0-.74.53L4 15.24a1 1 0 0 0 1 .76z"/>
                                 <rect x="4" y="18" width="16" height="2" rx="1"/>
                             </svg>
                         </div>
                         ` : ''}
-                        <div class="profile-avatar" style="background-color: ${safeColor(p.avatarColor)}; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative;">
+                        <div class="profile-avatar${
+                            p.profileImage && p.transparentAvatar ? ' is-transparent' : ''
+                        }" style="background-color: ${
+                            p.profileImage && p.transparentAvatar ? 'transparent' : safeColor(p.avatarColor)
+                        }; overflow: ${
+                            p.profileImage && p.transparentAvatar ? 'visible' : 'hidden'
+                        }; display: flex; align-items: center; justify-content: center; position: relative;">
                             ${avatarInner(p.profileImage, p.avatarInitial, /* useThumb */ true)}
                             ${this.isManageMode ? `
                             <div class="profile-avatar-overlay-wrap">
@@ -2547,7 +3815,7 @@
                         </div>
                         ` : ''}
                         ${p.isBonfire ? `
-                        <div class="profile-bonfire-indicator" title="Bonfire Profile">
+                        <div class="profile-bonfire-indicator" title="${t('gate.bonfireProfile')}">
                             <span class="material-icons" style="font-size: 1.15rem; color: #fff;">local_fire_department</span>
                         </div>
                         ` : ''}
@@ -2555,10 +3823,10 @@
                     <div class="profile-name">
                         <span>${escapeHtml(p.profileName)}</span>
                         ${signedInId && this.normalizeGuid(p.profileUserId) === signedInId
-                            ? '<span class="profile-current-badge">Watching now</span>' : ''}
+                            ? `<span class="profile-current-badge">${t('gate.signedIn')}</span>` : ''}
                         ${this.isManageMode ? `
                             <span class="profile-pin-badge ${p.requiresPin ? 'locked' : 'unlocked'}">
-                                ${p.requiresPin ? 'PIN Protected' : 'No PIN'}
+                                ${p.requiresPin ? t('gate.pinProtected') : t('gate.noPin')}
                             </span>
                         ` : ''}
                     </div>
@@ -2579,12 +3847,12 @@
                 // warm flame colour; linked ones are tinted by .bonfire-icon-color so the two
                 // remain distinguishable at a glance.
                 if (isLocalGroup) {
-                    headerTitle = "Your Bonfire";
+                    headerTitle = t('gate.yourBonfire');
                     headerIcon = "local_fire_department";
                 } else {
                     const masterProfileForGroup = groupProfiles.find(p => p.isMaster);
-                    const groupName = masterProfileForGroup ? escapeHtml(masterProfileForGroup.profileName) : "Guest";
-                    headerTitle = `${groupName}'s Bonfire`;
+                    const groupName = masterProfileForGroup ? escapeHtml(masterProfileForGroup.profileName) : t('gate.guest');
+                    headerTitle = t('gate.bonfireOf', { name: groupName });
                     headerIcon = "local_fire_department";
                     isBonfireIcon = true;
                 }
@@ -2606,16 +3874,16 @@
                     if (this.isManageMode) {
                         if (!atLimit) {
                             cardsHtml += `
-                                <div class="profile-card action-add-profile" tabindex="0">
+                                <div class="profile-card action-add-profile focusable" tabindex="0">
                                     <div class="profile-avatar-container">
                                         <div class="profile-avatar add-avatar">+</div>
                                     </div>
-                                    <div class="profile-name">Add Profile</div>
+                                    <div class="profile-name">${t('gate.addProfile')}</div>
                                 </div>
                             `;
                         } else {
                             cardsHtml += `
-                                <div class="profiles-limit-notice">${subProfileCount}/${maxSubProfiles} profiles — limit reached</div>
+                                <div class="profiles-limit-notice">${t('gate.limitReached', { count: subProfileCount, max: maxSubProfiles })}</div>
                             `;
                         }
                     }
@@ -2641,10 +3909,10 @@
                     <div class="profiles-footer">
                         <button id="profiles-toggle-manage-btn" class="profiles-btn btn-secondary">${manageBtnText}</button>
                         ${this.isManageMode && hasLocalMaster
-                            ? '<button id="profiles-settings-btn" class="profiles-btn btn-secondary">Settings</button>'
+                            ? `<button id="profiles-settings-btn" class="profiles-btn btn-secondary">${t('common.settings')}</button>`
                             : ''}
                         ${this._resumeState && !this.isManageMode
-                            ? '<button id="profiles-resume-btn" class="profiles-btn btn-secondary">Cancel</button>'
+                            ? `<button id="profiles-resume-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>`
                             : ''}
                     </div>
                     <!-- Deliberately plain and dim. It has to be reachable by D-pad, because
@@ -2654,7 +3922,7 @@
                     <button id="profiles-panic-link" tabindex="0" style="
                         display: none; background: none; border: none; color: rgba(255,255,255,0.28);
                         font-size: 0.72rem; margin-top: 1.5rem; cursor: pointer;
-                        text-decoration: underline; padding: 6px 10px;">Can't get past this screen?</button>
+                        text-decoration: underline; padding: 6px 10px;">${t('gate.cantGetPast')}</button>
                 </div>
             `;
 
@@ -2744,7 +4012,6 @@
                 this.applyPanicLinkVisibility();
             }
 
-
             // Back out of a switcher the user opened on purpose, returning to the profile
             // they were already using. Only present when there is something to return to —
             // the startup gate is a required choice and has no Cancel.
@@ -2785,13 +4052,13 @@
             this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
             content.innerHTML = `
-                <h1 class="profiles-title">Enter Profile PIN</h1>
+                <h1 class="profiles-title">${t('pin.enterProfilePin')}</h1>
                 <div class="pin-entry-container">
                     <input type="text" id="profile-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
-                    <div id="pin-error-msg" style="display:none; color:#ff6b6b; font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
+                    <div id="pin-error-msg" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions">
-                        <button id="pin-submit-btn" class="profiles-btn btn-primary">Unlock</button>
-                        <button id="pin-cancel-btn" class="profiles-btn btn-secondary">Back</button>
+                        <button id="pin-submit-btn" class="profiles-btn btn-primary">${t('common.unlock')}</button>
+                        <button id="pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.back')}</button>
                     </div>
                 </div>
             `;
@@ -2807,9 +4074,9 @@
 
             const showPinError = (msg) => {
                 switchInProgress = false;
-                pinInput.style.borderColor = '#ff6b6b';
+                pinInput.style.borderColor = 'var(--jpf-danger)';
                 pinInput.style.boxShadow = '0 0 15px rgba(255,107,107,0.5)';
-                errorMsg.textContent = msg || 'Incorrect PIN. Please try again.';
+                errorMsg.textContent = msg || t('pin.incorrectPin');
                 errorMsg.style.display = 'block';
                 pinInput.value = '';
                 // setTimeout avoids re-triggering the 'input' clearError listener on refocus
@@ -2900,13 +4167,13 @@
 
             const content = document.querySelector('.profiles-modal-content');
             content.innerHTML = `
-                <h1 class="profiles-title">Enter Master PIN</h1>
+                <h1 class="profiles-title">${t('pin.enterMasterPin')}</h1>
                 <div class="pin-entry-container">
                     <input type="text" id="master-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
-                    <div id="master-pin-error-msg" style="display:none; color:#ff6b6b; font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
+                    <div id="master-pin-error-msg" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions">
-                        <button id="master-pin-submit-btn" class="profiles-btn btn-primary">Submit</button>
-                        <button id="master-pin-cancel-btn" class="profiles-btn btn-secondary">Cancel</button>
+                        <button id="master-pin-submit-btn" class="profiles-btn btn-primary">${t('common.submit')}</button>
+                        <button id="master-pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                     </div>
                 </div>
             `;
@@ -2920,9 +4187,9 @@
 
             const showPinError = (msg) => {
                 verified = false;
-                pinInput.style.borderColor = '#ff6b6b';
+                pinInput.style.borderColor = 'var(--jpf-danger)';
                 pinInput.style.boxShadow = '0 0 15px rgba(255,107,107,0.5)';
-                errorMsg.textContent = msg || 'Incorrect PIN. Please try again.';
+                errorMsg.textContent = msg || t('pin.incorrectPin');
                 errorMsg.style.display = 'block';
                 pinInput.value = '';
                 setTimeout(() => pinInput.focus(), 0);
@@ -3002,7 +4269,7 @@
                     }
                     if (!res.ok) {
                         return res.text().then(text => {
-                            throw new Error(text || 'Incorrect Master PIN. Please try again.');
+                            throw new Error(text || t('pin.incorrectMasterPin'));
                         });
                     }
                     this.masterPin = pin;
@@ -3012,7 +4279,7 @@
                 .catch(err => {
                     verifyInProgress = false;
                     if (err.message !== 'Session expired') {
-                        showPinError(err.message || 'Incorrect Master PIN. Please try again.');
+                        showPinError(err.message || t('pin.incorrectMasterPin'));
                     }
                 });
             };
@@ -3093,7 +4360,7 @@
                             this.handleSessionExpired();
                             throw new Error('Session expired');
                         }
-                        throw new Error(body || 'Incorrect PIN. Please try again.');
+                        throw new Error(body || t('pin.incorrectPin'));
                     });
                 }
                 return res.json();
@@ -3105,6 +4372,18 @@
                 if (this.normalizeGuid(jellyfinUserId) === this.normalizeGuid(masterState.masterUserId)) {
                     masterState.masterToken = activeProfileToken;
                     localStorage.setItem(this.config.masterStorageKey, JSON.stringify(masterState));
+                }
+
+                // Before anything else is written, because this is the one write that has
+                // to survive the reload. Without it the token lives only on this page's
+                // ApiClient, and the reload signs back in as whoever was there before —
+                // right name in the header, wrong account underneath. Bail here rather
+                // than leave session keys describing a switch that will not happen.
+                if (!this.updateStoredCredentials(activeProfileToken, jellyfinUserId)) {
+                    this._switchLock = false;
+                    this.setSwitchBusy(profileId, false);
+                    this.showAlert(t('switcher.notSavedTitle'), t('switcher.notSavedBody'));
+                    return;
                 }
 
                 this._sessionSet(this.config.activeSessionKey, activeProfileToken);
@@ -3121,11 +4400,11 @@
                         name: profile.profileName,
                         color: profile.avatarColor,
                         initial: profile.avatarInitial,
-                        profileImage: profile.profileImage || null
+                        profileImage: profile.profileImage || null,
+                        transparent: !!profile.transparentAvatar
                     }));
                 }
 
-                this.updateStoredCredentials(activeProfileToken, jellyfinUserId);
                 apiClient.setAuthenticationInfo(activeProfileToken, jellyfinUserId);
 
                 // The overlay is opaque and covers the viewport, so leaving it up is all it
@@ -3133,18 +4412,21 @@
                 // screen for however long the reload costs. Blanking the document instead
                 // meant a phone showed several seconds of black with nothing to say the tap
                 // had registered. Only the background is calmed towards the next page.
+                const leavingBg = this._captureLeavingBackground();
                 const overlay = document.getElementById('profiles-gate-overlay');
                 if (overlay) {
                     overlay.style.transition = 'background 0.2s ease';
-                    overlay.style.background = '#101010';
+                    overlay.style.background = leavingBg;
                 } else {
                     // Menu-mode switch with no gate on screen: nothing is covering the app,
                     // so the old page does still have to be hidden before it repaints.
-                    document.documentElement.style.cssText = 'opacity:0;background:#101010;color-scheme:dark';
+                    document.documentElement.style.cssText =
+                        'opacity:0;background:' + leavingBg + ';color-scheme:'
+                        + (this._isLightColour(leavingBg) ? 'light' : 'dark');
                 }
                 this._reloading = true;
                 localStorage.setItem(this.config.switchingKey, '1');
-                window.location.reload();
+                this.reloadAtHome();
             })
             .catch(err => {
                 this._switchLock = false;
@@ -3152,7 +4434,7 @@
                 if (err.message === 'Session expired') return;
                 if (typeof onError === 'function') {
                     // Caller has closed-over references to the DOM — no re-query needed
-                    onError(err.message || 'Incorrect PIN. Please try again.');
+                    onError(err.message || t('pin.incorrectPin'));
                 } else {
                     // Fallback: no PIN screen is currently shown (e.g. direct card tap without PIN prompt)
                     this.isManageMode = false;
@@ -3184,17 +4466,17 @@
             // can decode it. Elsewhere the canvas load simply fails, so without this the
             // user gets silence and no idea why.
             if (type.includes('heic') || type.includes('heif') || /\.hei[cf]$/.test(name)) {
-                return 'HEIC photos aren\'t supported. Export the photo as JPEG first.';
+                return t('errors.heicUnsupported');
             }
 
             // SVG can carry script, and these files are served back from the server's own
             // origin. Not worth it for an avatar.
             if (type.includes('svg') || /\.svgz?$/.test(name)) {
-                return 'SVG images aren\'t supported. Use a JPEG, PNG, WebP or GIF.';
+                return t('errors.svgUnsupported');
             }
 
             if (file.size > 25 * 1024 * 1024) {
-                return 'That image is over 25 MB. Use a smaller one.';
+                return t('errors.imageTooLarge');
             }
 
             return null;
@@ -3207,20 +4489,19 @@
                 if (reason) { reject(new Error(reason)); return; }
 
                 const reader = new FileReader();
-                reader.onerror = () => reject(new Error('That file could not be read.'));
+                reader.onerror = () => reject(new Error(t('errors.fileUnreadable')));
                 reader.onload = (event) => {
                     const img = new Image();
                     img.onload = () => {
                         if (!img.width || !img.height) {
-                            reject(new Error('That image appears to be empty.'));
+                            reject(new Error(t('errors.imageEmpty')));
                             return;
                         }
                         resolve(img);
                     };
                     // Reached for any format this browser cannot decode — including a HEIC
                     // that slipped past the check above with an empty MIME type.
-                    img.onerror = () => reject(new Error(
-                        'That image format isn\'t supported. Save it as a JPEG or PNG first.'));
+                    img.onerror = () => reject(new Error(t('errors.imageFormatUnsupported')));
                     img.src = event.target.result;
                 };
                 reader.readAsDataURL(file);
@@ -3236,7 +4517,7 @@
             return new Promise((resolve, reject) => {
                 const img = new Image();
                 img.onload = () => resolve(img);
-                img.onerror = () => reject(new Error('That image could not be loaded.'));
+                img.onerror = () => reject(new Error(t('errors.imageLoadFailed')));
                 try {
                     if (new URL(resolved, window.location.href).origin !== window.location.origin) {
                         img.crossOrigin = 'anonymous';
@@ -3262,34 +4543,88 @@
             };
         },
 
-        /// Renders the cropped square at `outSize` and returns it as a data URL.
-        /// PNG is used when the source has transparency — re-encoding a cut-out avatar as
-        /// JPEG would fill the transparent area with black.
-        renderCrop: function (img, viewport, crop, outSize, preferPng) {
+        /// Renders the cropped square at `outSize` onto a canvas.
+        _cropCanvas: function (img, viewport, crop, outSize) {
             const canvas = document.createElement('canvas');
             canvas.width = outSize;
             canvas.height = outSize;
             const ctx = canvas.getContext('2d');
             const k = outSize / viewport;
             ctx.drawImage(img, crop.x * k, crop.y * k, img.width * crop.zoom * k, img.height * crop.zoom * k);
+            return canvas;
+        },
+
+        /// Renders the cropped square at `outSize` and returns it as a data URL.
+        /// PNG is used when the source has transparency — re-encoding a cut-out avatar as
+        /// JPEG would fill the transparent area with black.
+        renderCrop: function (img, viewport, crop, outSize, preferPng) {
+            const canvas = this._cropCanvas(img, viewport, crop, outSize);
             return preferPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.85);
         },
 
-        /// True when any pixel is not fully opaque. Sampled at low resolution — this only
-        /// decides an output format, so an exact answer is not worth the work.
-        _hasTransparency: function (img) {
+        /// Reads an image's alpha channel at low resolution and answers the two separate
+        /// questions the picker has about it. One decode, two answers.
+        ///
+        ///   hasAlpha — is any pixel less than fully opaque? Decides PNG over JPEG, where
+        ///              a single soft pixel is enough to matter, because re-encoding a
+        ///              cut-out as JPEG fills the transparent area with black.
+        ///
+        ///   cutout   — is this shaped art rather than a rectangular photo? Decides
+        ///              whether to paint the avatar colour behind it (issue #23). This is
+        ///              a much stricter question and deliberately not the same test: an
+        ///              antialiased edge or a soft border makes hasAlpha true, and must
+        ///              not be allowed to switch somebody's background off.
+        ///
+        /// cutout reads the corners, because `object-fit: cover` means the corners are the
+        /// only place the colour is ever visible. A circular avatar has four transparent
+        /// corners; a photograph has none.
+        _alphaProfile: function (source) {
+            const out = { hasAlpha: false, cutout: false };
             try {
                 const s = 32;
                 const canvas = document.createElement('canvas');
                 canvas.width = s; canvas.height = s;
                 const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, s, s);
+                ctx.drawImage(source, 0, 0, s, s);
                 const data = ctx.getImageData(0, 0, s, s).data;
+
                 for (let i = 3; i < data.length; i += 4) {
-                    if (data[i] < 250) return true;
+                    if (data[i] < 250) { out.hasAlpha = true; break; }
                 }
-            } catch (e) { /* tainted canvas or no context — assume opaque */ }
-            return false;
+
+                // Nothing is transparent at all, so there is no shape to work around and
+                // the corner walk cannot say otherwise.
+                if (!out.hasAlpha) return out;
+
+                // A corner counts as cut away only when a whole 4x4 block of it is clear.
+                // One outermost pixel would let a single stray sample decide this.
+                const BLOCK = 4;
+                const corners = [[0, 0], [s - BLOCK, 0], [0, s - BLOCK], [s - BLOCK, s - BLOCK]];
+                let clearCorners = 0;
+
+                for (let c = 0; c < corners.length; c++) {
+                    const cx = corners[c][0];
+                    const cy = corners[c][1];
+                    let clear = true;
+                    for (let y = cy; y < cy + BLOCK && clear; y++) {
+                        for (let x = cx; x < cx + BLOCK && clear; x++) {
+                            if (data[(y * s + x) * 4 + 3] >= 16) clear = false;
+                        }
+                    }
+                    if (clear) clearCorners++;
+                }
+
+                // Three of four rather than all four: a circle with one stray opaque
+                // sample still counts, a rectangle with one rounded corner still does not.
+                out.cutout = clearCorners >= 3;
+            } catch (e) { /* tainted canvas or no context — assume an opaque photo */ }
+            return out;
+        },
+
+        /// True when any pixel is not fully opaque. Sampled at low resolution — this only
+        /// decides an output format, so an exact answer is not worth the work.
+        _hasTransparency: function (img) {
+            return this._alphaProfile(img).hasAlpha;
         },
 
         /// Opens the crop editor. Calls back with { image, thumb } data URLs, or does
@@ -3312,6 +4647,7 @@
 
             const dialog = document.createElement('div');
             dialog.id = 'profiles-crop-dialog';
+            dialog.classList.add('jpf-trap-surface');
             dialog.style.cssText = `
                 position: fixed; top: 0; left: 0; right: 0; bottom: 0;
                 background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
@@ -3322,9 +4658,9 @@
                 <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);
                             padding:22px; max-width:340px; width:92%; box-shadow:0 10px 30px rgba(0,0,0,0.5); text-align:center;
                             user-select:none; -webkit-user-select:none;">
-                    <h2 style="margin:0 0 4px 0; color:#fff; font-size:1.15rem; font-weight:700;">Position your picture</h2>
+                    <h2 style="margin:0 0 4px 0; color:#fff; font-size:1.15rem; font-weight:700;">${t('avatar.positionYourPicture')}</h2>
                     <p style="color:rgba(255,255,255,0.55); font-size:0.78rem; margin:0 0 14px 0;">
-                        Drag or arrows to move, slider to zoom. Press OK when it looks right.
+                        ${t('avatar.dragOrArrows')}
                     </p>
                     <!-- data-profiles-own-keys marks the arrows as this element's own, so
                          the focus trap leaves them for panning. It is on the view and not
@@ -3337,10 +4673,10 @@
                                 style="display:block; width:${VIEW}px; height:${VIEW}px;"></canvas>
                     </div>
                     <input type="range" id="profiles-crop-zoom" min="1" max="4" step="0.01" value="1"
-                           style="width:100%; margin:16px 0 4px 0;" aria-label="Zoom" />
+                           style="width:100%; margin:16px 0 4px 0;" aria-label="${t('avatar.zoom')}" />
                     <div style="display:flex; gap: var(--jpf-gap); justify-content:center; margin-top:12px;">
-                        <button id="profiles-crop-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">Cancel</button>
-                        <button id="profiles-crop-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">Use picture</button>
+                        <button id="profiles-crop-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
+                        <button id="profiles-crop-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">${t('avatar.usePicture')}</button>
                     </div>
                 </div>
             `;
@@ -3495,10 +4831,20 @@
             };
             dialog.querySelector('#profiles-crop-cancel').addEventListener('click', close);
             dialog.querySelector('#profiles-crop-save').addEventListener('click', () => {
+                const thumbCanvas = this._cropCanvas(img, VIEW, crop, this.IMAGE_THUMB_SIZE);
+
+                // Read from the cropped result, not the source. Cropping into the opaque
+                // middle of a cut-out leaves a picture with nothing transparent about it,
+                // and the background decision has to describe what will actually be shown.
+                // preferPng stays on the source, where being over-eager costs only bytes.
+                const cutout = this._alphaProfile(thumbCanvas).cutout;
+
                 const image = this.renderCrop(img, VIEW, crop, this.IMAGE_MASTER_SIZE, preferPng);
-                const thumb = this.renderCrop(img, VIEW, crop, this.IMAGE_THUMB_SIZE, preferPng);
+                const thumb = preferPng
+                    ? thumbCanvas.toDataURL('image/png')
+                    : thumbCanvas.toDataURL('image/jpeg', 0.85);
                 close();
-                onDone({ image: image, thumb: thumb });
+                onDone({ image: image, thumb: thumb, cutout: cutout });
             });
 
             setTimeout(() => view.focus(), 50);
@@ -3528,19 +4874,49 @@
         /// cannot drift — they already carried near-identical copies of the old upload UI.
         ///
         /// `prefix` namespaces the element ids ('create' or 'edit').
-        renderAvatarPicker: function (prefix, library, currentImage, currentColor) {
+        /// The cut-out background choice (issue #23).
+        ///
+        /// Rendered by the form rather than by renderAvatarPicker, and placed directly under
+        /// the name field: it decides what happens to the avatar *colour*, so sitting below
+        /// the picture panel put the whole picture row between it and the swatches it
+        /// governs. initAvatarPicker still owns the wiring and finds it by id wherever the
+        /// form has put it.
+        ///
+        /// Hidden until a picture is set — with no picture the colour is the entire
+        /// background and there is nothing to switch off. The library-artwork dialog reuses
+        /// the picker and simply never calls this.
+        renderTransparentToggle: function (prefix, currentImage, currentTransparent) {
+            return `
+                <div id="${prefix}-transparent-row" class="form-group picture-transparent-row"
+                     style="display: ${currentImage ? 'block' : 'none'};">
+                    <label class="library-check-label picture-transparent-toggle">
+                        <input type="checkbox" id="${prefix}-transparent-toggle"${currentTransparent ? ' checked' : ''} />
+                        <span>${t('profileForm.noBackground')}</span>
+                    </label>
+                    <div class="form-hint picture-transparent-hint">${t('profileForm.noBackgroundHint')}</div>
+                </div>
+            `;
+        },
+
+        /// `transparency` opts this picker into the cut-out background choice (issue #23):
+        /// null or omitted means the form is not offering it, which is what the
+        /// library-artwork dialog wants — it reuses this picker to choose a tile picture,
+        /// where a transparent avatar background means nothing. Otherwise { enabled: bool }.
+        renderAvatarPicker: function (prefix, library, currentImage, currentColor, transparency) {
+            const supportsTransparent = !!transparency;
+            const currentTransparent = supportsTransparent && !!transparency.enabled;
             const hasLibrary = library.avatars.length > 0;
             const preview = currentImage ? avatarInner(currentImage, '+', /* useThumb */ true) : '+';
 
             const libraryHtml = hasLibrary ? `
                 <div class="picture-source-block">
-                    <div class="picture-source-title">From this server</div>
+                    <div class="picture-source-title">${t('avatar.fromThisServer')}</div>
                     <div id="${prefix}-avatar-library" class="avatar-library-grid">
                         ${library.avatars.map(a => `
                             <button type="button" class="avatar-library-item" tabindex="0"
                                     data-id="${escapeHtml(a.id)}" data-url="${escapeHtml(a.url)}"
                                     title="${escapeHtml(a.displayName)}"
-                                    aria-label="${escapeHtml(a.displayName || 'Avatar')}">
+                                    aria-label="${escapeHtml(a.displayName) || t('avatar.avatarLabel')}">
                                 <img src="${safeImageSrc(a.thumbUrl)}" alt="" loading="lazy" />
                             </button>
                         `).join('')}
@@ -3552,17 +4928,17 @@
             // avatars to the library — a disabled button people cannot use is just noise.
             const uploadHtml = library.allowCustomUploads ? `
                 <div class="picture-source-block">
-                    <div class="picture-source-title">From this device</div>
+                    <div class="picture-source-title">${t('avatar.fromThisDevice')}</div>
                     <label for="${prefix}-profile-image-file" id="${prefix}-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
                         <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
-                        <span>Upload a picture</span>
+                        <span>${t('avatar.uploadPicture')}</span>
                     </label>
                     <input type="file" id="${prefix}-profile-image-file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" style="display: none;" />
-                    <div class="form-hint" style="margin: 0;">JPEG, PNG, WebP or GIF. You can position and zoom it after choosing.</div>
+                    <div class="form-hint" style="margin: 0;">${t('avatar.uploadHint')}</div>
                 </div>
             ` : `
                 <div class="form-hint" style="margin: 0; min-width: 0;">
-                    Your server administrator has limited profile pictures to the set above.
+                    ${t('avatar.adminLimited')}
                 </div>
             `;
 
@@ -3581,21 +4957,25 @@
             // the row, which read as belonging to whatever came next.
             return `
                 <div class="form-group">
-                    <label>Profile Picture</label>
+                    <label>${t('avatar.profilePicture')}</label>
                     <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: var(--jpf-gap);">
                         <div class="image-upload-row">
-                            <div id="${prefix}-image-upload-preview" class="image-upload-preview" style="background-color: ${safeColor(currentColor)};">${preview}</div>
+                            <div id="${prefix}-image-upload-preview" class="image-upload-preview${
+                                currentImage && currentTransparent ? ' is-transparent' : ''
+                            }" style="background-color: ${
+                                currentImage && currentTransparent ? 'transparent' : safeColor(currentColor)
+                            };">${preview}</div>
                             <div class="image-upload-actions">
                                 <button type="button" id="${prefix}-change-picture" class="profiles-btn btn-secondary image-upload-btn picture-change-btn"
                                         aria-expanded="${sourcesOpen}" aria-controls="${prefix}-picture-sources">
                                     <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
-                                    <span>${currentImage ? 'Change picture' : 'Choose a picture'}</span>
+                                    <span>${currentImage ? t('avatar.changePicture') : t('avatar.choosePicture')}</span>
                                     <span class="material-icons picture-caret" aria-hidden="true">expand_more</span>
                                 </button>
                                 <button type="button" id="${prefix}-clear-profile-image-btn" class="profiles-btn btn-secondary image-upload-btn picture-remove-btn"
                                         style="display: ${currentImage ? 'inline-flex' : 'none'};">
                                     <span class="material-icons" style="font-size: 1.25rem;">delete_outline</span>
-                                    <span>Remove</span>
+                                    <span>${t('common.remove')}</span>
                                 </button>
                             </div>
                         </div>
@@ -3603,7 +4983,7 @@
                             ${libraryHtml}
                             ${uploadHtml}
                         </div>
-                        <div id="${prefix}-image-error" style="display:none; color:#ff6b6b; font-size:0.82rem; font-weight:600; line-height:1.45;"></div>
+                        <div id="${prefix}-image-error" style="display:none; color:var(--jpf-danger); font-size:0.82rem; font-weight:600; line-height:1.45;"></div>
                     </div>
                 </div>
             `;
@@ -3611,22 +4991,60 @@
 
         /// Wires the picker up. Returns an accessor for the chosen image so the caller can
         /// read it at save time without tracking the state itself.
-        initAvatarPicker: function (container, prefix, library, initialImage, onPreviewChange) {
+        /// `transparency` must match what was passed to renderAvatarPicker — see there.
+        initAvatarPicker: function (container, prefix, library, initialImage, onPreviewChange, transparency) {
+            const initialTransparent = !!transparency && !!transparency.enabled;
             // libraryId is set instead of image/thumb when the picture comes from the
             // library on a locked-down server: the server copies the file itself, which is
             // the only form of the choice it can actually verify.
-            const state = { image: initialImage || null, thumb: null, libraryId: null };
+            const state = {
+                image: initialImage || null,
+                thumb: null,
+                libraryId: null,
+                // Only meaningful while a picture is set. With no picture the colour is
+                // the entire background, so there is nothing to make transparent.
+                transparent: !!(initialImage && initialTransparent)
+            };
 
             const previewEl = container.querySelector(`#${prefix}-image-upload-preview`);
             const errEl = container.querySelector(`#${prefix}-image-error`);
             const fileInput = container.querySelector(`#${prefix}-profile-image-file`);
             const fileLabel = container.querySelector(`#${prefix}-profile-image-label`);
             const removeBtn = container.querySelector(`#${prefix}-clear-profile-image-btn`);
+            const transparentRow = container.querySelector(`#${prefix}-transparent-row`);
+            const transparentInput = container.querySelector(`#${prefix}-transparent-toggle`);
 
             const showError = (message) => {
                 if (!errEl) return;
                 errEl.textContent = message;
                 errEl.style.display = message ? 'block' : 'none';
+            };
+
+            /// The colour currently chosen on the form. Read from the DOM rather than
+            /// passed in: the two forms already keep `.active` on exactly one dot, so
+            /// this cannot drift out of step with what will be saved.
+            const currentColor = () => {
+                const active = container.querySelector('.color-dot.active');
+                return active ? safeColor(active.getAttribute('data-color')) : DEFAULT_AVATAR_COLOR;
+            };
+
+            /// Whether the colour swatches can still affect the avatar. Owned here rather
+            /// than by the two forms, because it depends on both facts this function
+            /// holds — a picture being set, and its background being switched off — and
+            /// two writers would race each other.
+            const syncColorGroup = () => {
+                this.setColorGroupInert(prefix, !!state.image, state.transparent);
+            };
+
+            /// Paints the preview to match state.transparent and keeps the checkbox in
+            /// step. Called both when detection decides and when the user overrides, so
+            /// the two can never disagree about what is stored.
+            const applyTransparency = () => {
+                if (transparentInput) transparentInput.checked = state.transparent;
+                syncColorGroup();
+                if (!previewEl) return;
+                previewEl.classList.toggle('is-transparent', state.transparent);
+                previewEl.style.backgroundColor = state.transparent ? 'transparent' : currentColor();
             };
 
             const setPreview = (src) => {
@@ -3637,9 +5055,23 @@
                 // from here so it is right on the first paint too — setPreview runs once
                 // at init.
                 if (removeBtn) removeBtn.style.display = src ? 'inline-flex' : 'none';
+                // Same for the transparency choice: it describes a picture, so it has
+                // nothing to say when there is not one.
+                if (transparentRow) transparentRow.style.display = src ? 'block' : 'none';
+                syncColorGroup();
                 if (typeof onPreviewChange === 'function') onPreviewChange(src);
             };
             setPreview(state.image);
+            applyTransparency();
+
+            if (transparentInput) {
+                // The user's answer always beats detection's. Detection only ever writes
+                // this value when a new picture arrives.
+                transparentInput.addEventListener('change', () => {
+                    state.transparent = transparentInput.checked;
+                    applyTransparency();
+                });
+            }
 
             // The ways of choosing a picture are collapsed behind one button. Every id
             // the handlers below bind to still exists — they have only moved inside the
@@ -3658,6 +5090,11 @@
                 state.thumb = result.thumb;
                 state.libraryId = null;
                 setPreview(result.image);
+                // A new picture re-answers the question, so detection wins here even if
+                // the user had overridden it for the previous one — the override was
+                // about a picture that is no longer set.
+                state.transparent = !!result.cutout;
+                applyTransparency();
                 showError('');
                 if (fileInput) fileInput.value = '';
             };
@@ -3695,6 +5132,22 @@
                         state.thumb = null;
                         state.libraryId = btn.getAttribute('data-id');
                         setPreview(state.image);
+
+                        // No crop step on this path, so there is no cropped canvas to read
+                        // and the source has to be fetched again to be sampled. Same
+                        // origin — it is our own avatar endpoint — so the canvas is not
+                        // tainted. Detection is best-effort: a failure just leaves the
+                        // colour painted, which is the old behaviour.
+                        const pickedUrl = state.image;
+                        this.loadImageFromUrl(pickedUrl)
+                            .then(img => {
+                                // The user may have picked something else while this was
+                                // in flight; a late answer must not overwrite it.
+                                if (state.image !== pickedUrl) return;
+                                state.transparent = this._alphaProfile(img).cutout;
+                                applyTransparency();
+                            })
+                            .catch(() => { /* leave the colour on */ });
                         return;
                     }
 
@@ -3716,14 +5169,23 @@
                 state.image = '';
                 state.thumb = null;
                 state.libraryId = null;
+                // With no picture the colour is the whole background. Leaving this set
+                // would save a profile whose avatar is a transparent square.
+                state.transparent = false;
                 setPreview(null);
+                applyTransparency();
                 if (fileInput) fileInput.value = '';
             };
 
             if (removeBtn) removeBtn.addEventListener('click', clearPicture);
 
             return {
-                get: () => ({ image: state.image, thumb: state.thumb, libraryId: state.libraryId }),
+                get: () => ({
+                    image: state.image,
+                    thumb: state.thumb,
+                    libraryId: state.libraryId,
+                    transparent: state.transparent
+                }),
                 clear: clearPicture,
                 setError: showError
             };
@@ -3753,42 +5215,43 @@
                 // ── Section 1: who this profile is ──────────────────────────────
                 const createAppearance = `
                     <div class="form-group">
-                        <label for="create-name-input">Profile Name</label>
-                        <input type="text" id="create-name-input" placeholder="e.g. Kids" required />
+                        <label for="create-name-input">${t('profileForm.profileName')}</label>
+                        <input type="text" id="create-name-input" placeholder="${t('profileForm.namePlaceholder')}" required />
                     </div>
+                    ${this.renderTransparentToggle('create', null, false)}
                     <div class="form-group avatar-color-group" id="create-color-group">
-                        <label>Avatar Color</label>
-                        ${this.renderColorPicker('#00A4DC')}
-                        <div class="form-hint" data-role="color-hint">Used as the avatar background when no picture is set.</div>
+                        <label>${t('profileForm.avatarColor')}</label>
+                        ${this.renderColorPicker(DEFAULT_AVATAR_COLOR)}
+                        <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
                     </div>
-                    ${this.renderAvatarPicker('create', avatarLibrary, null, '#00A4DC')}
+                    ${this.renderAvatarPicker('create', avatarLibrary, null, DEFAULT_AVATAR_COLOR, { enabled: false })}
                 `;
 
                 // ── Section 2: getting into this profile ────────────────────────
                 const createSecurity = `
                     <div class="form-group">
-                        <label for="create-pin-input">PIN</label>
-                        <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="Leave empty for no PIN" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                        <label for="create-pin-input">${t('profileForm.pin')}</label>
+                        <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${t('profileForm.pinPlaceholderEmpty')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     </div>
                     <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
                             <input type="checkbox" id="create-local-bypass-checkbox" style="cursor: pointer; accent-color: var(--jpf-accent);" />
-                            <span>Bypass PIN on local network (LAN)</span>
+                            <span>${t('profileForm.bypassPinLan')}</span>
                         </label>
-                        <div class="form-hint">No PIN prompt on your home network.</div>
+                        <div class="form-hint">${t('profileForm.bypassPinHint')}</div>
                     </div>
                     <div class="form-group">
-                        <label for="create-lockout-select">Auto-lock after inactivity</label>
+                        <label for="create-lockout-select">${t('profileForm.autoLock')}</label>
                         <select id="create-lockout-select">
-                            <option value="0">Never</option>
-                            <option value="1">1 minute</option>
-                            <option value="5" selected>5 minutes (default)</option>
-                            <option value="10">10 minutes</option>
-                            <option value="20">20 minutes</option>
-                            <option value="30">30 minutes</option>
-                            <option value="60">1 hour</option>
+                            <option value="0">${t('profileForm.lockoutNever')}</option>
+                            <option value="1">${t('profileForm.lockout1Min')}</option>
+                            <option value="5" selected>${t('profileForm.lockout5MinDefault')}</option>
+                            <option value="10">${t('profileForm.lockout10Min')}</option>
+                            <option value="20">${t('profileForm.lockout20Min')}</option>
+                            <option value="30">${t('profileForm.lockout30Min')}</option>
+                            <option value="60">${t('profileForm.lockout1Hour')}</option>
                         </select>
-                        <div class="form-hint">Only applies when this profile has a PIN set.</div>
+                        <div class="form-hint">${t('profileForm.autoLockHintCreate')}</div>
                     </div>
                 `;
 
@@ -3796,10 +5259,10 @@
                 const createLibraries = `
                     <div class="form-group">
                         <div class="section-inline-header">
-                            <label style="margin: 0;">Enabled Libraries</label>
+                            <label style="margin: 0;">${t('profileForm.enabledLibraries')}</label>
                             <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
                                 <input type="checkbox" id="create-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: var(--jpf-accent);" />
-                                <span>Select all</span>
+                                <span>${t('common.selectAll')}</span>
                             </label>
                         </div>
                         <div class="library-checklist">
@@ -3810,93 +5273,41 @@
                                 </label>
                             `).join('')}
                         </div>
-                        <div class="form-hint">Tick nothing and this profile sees the same libraries as your account.</div>
+                        <div class="form-hint">${t('profileForm.librariesInheritHint')}</div>
                     </div>
                 `;
 
                 // ── Section 4: limits applied on top of the libraries above ─────
                 const createRestrictions = `
-                    <div class="form-group">
-                        <label>Allowed Devices</label>
-                        <div class="devices-dropdown-container" style="position: relative;">
-                            <div id="create-devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
-                                <span id="create-devices-dropdown-selected-text">All Devices Allowed</span>
-                            </div>
-                            <div id="create-devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
-                                ${devices && devices.length > 0 ? devices.map(dev => {
-                                    const deviceId = dev.deviceId || dev.DeviceId || '';
-                                    const deviceName = dev.deviceName || dev.DeviceName || 'Unknown Device';
-                                    const client = dev.client || dev.Client || 'Unknown Client';
-                                    const lastSeen = dev.lastSeen || dev.LastSeen;
-                                    const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
-                                    const lastSeenStr = (lastSeenDate && lastSeenDate.getFullYear() > 1)
-                                        ? lastSeenDate.toLocaleDateString() : 'Unknown';
-                                    return `
-                                        <div class="device-dropdown-item">
-                                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
-                                                <input type="checkbox" class="create-device-checkbox" value="${escapeHtml(deviceId)}" style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
-                                                <span style="display: flex; flex-direction: column; min-width: 0;">
-                                                    <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
-                                                    <span style="font-size: 0.75rem; opacity: 0.6;">${escapeHtml(client)} • Last seen ${lastSeenStr}</span>
-                                                </span>
-                                            </label>
-                                        </div>
-                                    `;
-                                }).join('') : `
-                                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">No devices found for your account yet</div>
-                                `}
-                            </div>
-                        </div>
-                        <div class="form-hint">If no devices are selected, this profile can be accessed from any device.</div>
-                    </div>
+                    ${this.renderDeviceDropdown('create', devices, null)}
 
-                    <div class="form-group">
-                        <label for="create-rating-select">Maximum rating</label>
-                        <select id="create-rating-select">
-                            <option value="">No Restrictions</option>
-                            <option value="6">G / TV-G (6+)</option>
-                            <option value="10">PG / TV-PG (10+)</option>
-                            <option value="14">PG-13 / TV-14 (14+)</option>
-                            <option value="17">R / TV-MA (17+)</option>
-                        </select>
-                    </div>
-
-                    ${this.renderTagSuggestions('create-tag-suggestions', libraryTags)}
-                    <div class="form-group">
-                        <label>Blocked tags</label>
-                        ${this.renderTagEditor('create-blocked-tags', [], 'e.g. adults', 'create-tag-suggestions')}
-                        <div class="form-hint">Hides anything with these tags. A tag on a series or library covers everything inside it.</div>
-                    </div>
-                    <div class="form-group">
-                        <label>Allowed tags</label>
-                        ${this.renderTagEditor('create-allowed-tags', [], 'e.g. kids', 'create-tag-suggestions')}
-                        <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items. Untagged content is hidden too.</div>
-                    </div>
+                    ${this.renderRatingSelect('create', null)}
+                    ${this.renderTagSection('create', libraryTags, null)}
                 `;
 
                 content.innerHTML = `
-                    <h1 class="profiles-title">Create Profile</h1>
+                    <h1 class="profiles-title">${t('profileForm.createTitle')}</h1>
                     <div class="create-profile-container is-two-col">
                         <div class="form-col">
-                            ${this.renderSection('person', 'Profile', 'Name, colour, and picture', createAppearance)}
-                            ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', createSecurity)}
+                            ${this.renderSection('person', t('profileForm.sectionProfileTitle'), t('profileForm.sectionProfileSubtitle'), createAppearance)}
+                            ${this.renderSection('lock', t('profileForm.sectionSecurityTitle'), t('profileForm.sectionSecuritySubtitle'), createSecurity)}
                         </div>
                         <div class="form-col">
-                            ${this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', createLibraries)}
-                            ${this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', createRestrictions)}
+                            ${this.renderSection('video_library', t('profileForm.libraries'), t('profileForm.sectionLibrariesSubtitle'), createLibraries)}
+                            ${this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), createRestrictions)}
                         </div>
 
                         <div id="create-error-msg" class="form-error" style="display:none;"></div>
                         <div class="pin-actions">
-                            <button id="create-submit-btn" class="profiles-btn btn-primary">Create</button>
-                            <button id="create-cancel-btn" class="profiles-btn btn-secondary">Cancel</button>
+                            <button id="create-submit-btn" class="profiles-btn btn-primary">${t('common.create')}</button>
+                            <button id="create-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                         </div>
                     </div>
                 `;
 
                 // Color selector interaction
                 const dots = content.querySelectorAll('.color-dot');
-                let selectedColor = '#00A4DC';
+                let selectedColor = DEFAULT_AVATAR_COLOR;
                 dots.forEach(dot => {
                     dot.addEventListener('click', () => {
                         dots.forEach(d => d.classList.remove('active'));
@@ -3909,9 +5320,10 @@
                     });
                 });
 
+                // The colour group is dimmed by the picker itself now — it depends on the
+                // transparency choice as well as on whether a picture is set.
                 const avatarPicker = this.initAvatarPicker(
-                    content, 'create', avatarLibrary, null,
-                    (src) => this.setColorGroupInert('create', !!src));
+                    content, 'create', avatarLibrary, null, null, { enabled: false });
 
                 // With no picture chosen, the preview shows the profile's initial — so it
                 // has to follow what is being typed into the name field.
@@ -3992,11 +5404,11 @@
                     const txt = document.getElementById('create-devices-dropdown-selected-text');
                     if (txt) {
                         if (checked.length === 0) {
-                            txt.textContent = 'All Devices Allowed';
+                            txt.textContent = t('profileForm.allDevicesAllowed');
                         } else if (checked.length === 1) {
-                            txt.textContent = '1 Device Allowed';
+                            txt.textContent = t('profileForm.oneDeviceAllowed');
                         } else {
-                            txt.textContent = `${checked.length} Devices Allowed`;
+                            txt.textContent = t('profileForm.devicesAllowed', { count: checked.length });
                         }
                     }
                 };
@@ -4028,12 +5440,12 @@
                     };
 
                     if (!name) {
-                        showCreateError('Profile name is required.');
+                        showCreateError(t('profileForm.nameRequired'));
                         return;
                     }
 
                     if (pin && (pin.length < 4 || pin.length > 8 || !/^\d+$/.test(pin))) {
-                        showCreateError('PIN must be 4–8 digits.');
+                        showCreateError(t('profileForm.pinLengthCreate'));
                         return;
                     }
 
@@ -4061,7 +5473,8 @@
                             allowedDeviceIds: checkedDevices,
                             profileImage: avatarPicker.get().image,
                             profileImageThumb: avatarPicker.get().thumb,
-                            avatarLibraryId: avatarPicker.get().libraryId
+                            avatarLibraryId: avatarPicker.get().libraryId,
+                            transparentAvatar: avatarPicker.get().transparent
                         })
                     })
                     .then(res => {
@@ -4123,52 +5536,53 @@
                 // ── Section 1: who this profile is ──────────────────────────────
                 const appearanceBody = `
                     <div class="form-group">
-                        <label for="edit-name-input">Profile Name</label>
+                        <label for="edit-name-input">${t('profileForm.profileName')}</label>
                         <input type="text" id="edit-name-input" value="${escapeHtml(profile.profileName)}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
-                        ${profile.isMaster ? `<div class="form-hint">The master profile takes its name from your Jellyfin account.</div>` : ''}
+                        ${profile.isMaster ? `<div class="form-hint">${t('profileForm.masterNameHint')}</div>` : ''}
                     </div>
+                    ${this.renderTransparentToggle('edit', profile.profileImage, !!profile.transparentAvatar)}
                     <div class="form-group avatar-color-group" id="edit-color-group">
-                        <label>Avatar Color</label>
+                        <label>${t('profileForm.avatarColor')}</label>
                         ${this.renderColorPicker(profile.avatarColor)}
-                        <div class="form-hint" data-role="color-hint">Used as the avatar background when no picture is set.</div>
+                        <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
                     </div>
-                    ${this.renderAvatarPicker('edit', avatarLibrary, profile.profileImage, profile.avatarColor)}
+                    ${this.renderAvatarPicker('edit', avatarLibrary, profile.profileImage, profile.avatarColor, { enabled: !!profile.transparentAvatar })}
                 `;
 
                 // ── Section 2: getting into this profile ────────────────────────
                 const securityBody = `
                     <div class="form-group">
-                        <label for="edit-pin-input">PIN</label>
+                        <label for="edit-pin-input">${t('profileForm.pin')}</label>
                         <div class="pin-edit-group" style="display:flex; gap: var(--jpf-gap); flex-wrap: wrap;">
-                            <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? 'New PIN' : 'No PIN'}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
-                            ${profile.hasPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">Clear PIN</button>` : ''}
+                            <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? t('profileForm.pinPlaceholderNew') : t('profileForm.pinPlaceholderNone')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
+                            ${profile.hasPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">${t('profileForm.clearPin')}</button>` : ''}
                         </div>
                         <div id="edit-pin-error" class="form-error" style="display:none; margin-top:8px;"></div>
                         <div class="form-hint">
                             ${profile.hasPin
-                                ? '🔒 <strong>A PIN is set.</strong> Leave blank to keep it, type a new one to replace it, or use Clear PIN.'
-                                : 'No PIN set. This profile can be opened by anyone who can reach the switcher.'}
+                                ? t('profileForm.pinIsSetHint')
+                                : t('profileForm.noPinSetHint')}
                         </div>
                     </div>
                     <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
                             <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent);" />
-                            <span>Bypass PIN on local network (LAN)</span>
+                            <span>${t('profileForm.bypassPinLan')}</span>
                         </label>
-                        <div class="form-hint">No PIN prompt on your home network.</div>
+                        <div class="form-hint">${t('profileForm.bypassPinHint')}</div>
                     </div>
                     <div class="form-group">
-                        <label for="edit-lockout-select">Auto-lock after inactivity</label>
+                        <label for="edit-lockout-select">${t('profileForm.autoLock')}</label>
                         <select id="edit-lockout-select">
-                            <option value="0" ${currentLockout === 0 ? 'selected' : ''}>Never</option>
-                            <option value="1" ${currentLockout === 1 ? 'selected' : ''}>1 minute</option>
-                            <option value="5" ${currentLockout === 5 ? 'selected' : ''}>5 minutes</option>
-                            <option value="10" ${currentLockout === 10 ? 'selected' : ''}>10 minutes</option>
-                            <option value="20" ${currentLockout === 20 ? 'selected' : ''}>20 minutes</option>
-                            <option value="30" ${currentLockout === 30 ? 'selected' : ''}>30 minutes</option>
-                            <option value="60" ${currentLockout === 60 ? 'selected' : ''}>1 hour</option>
+                            <option value="0" ${currentLockout === 0 ? 'selected' : ''}>${t('profileForm.lockoutNever')}</option>
+                            <option value="1" ${currentLockout === 1 ? 'selected' : ''}>${t('profileForm.lockout1Min')}</option>
+                            <option value="5" ${currentLockout === 5 ? 'selected' : ''}>${t('profileForm.lockout5Min')}</option>
+                            <option value="10" ${currentLockout === 10 ? 'selected' : ''}>${t('profileForm.lockout10Min')}</option>
+                            <option value="20" ${currentLockout === 20 ? 'selected' : ''}>${t('profileForm.lockout20Min')}</option>
+                            <option value="30" ${currentLockout === 30 ? 'selected' : ''}>${t('profileForm.lockout30Min')}</option>
+                            <option value="60" ${currentLockout === 60 ? 'selected' : ''}>${t('profileForm.lockout1Hour')}</option>
                         </select>
-                        <div class="form-hint">Only applies when a PIN is set on this profile.</div>
+                        <div class="form-hint">${t('profileForm.autoLockHintEdit')}</div>
                     </div>
                 `;
 
@@ -4176,19 +5590,19 @@
                 const librariesBody = `
                     <div class="form-group">
                         <div class="section-inline-header">
-                            <label style="margin: 0;">Libraries</label>
+                            <label style="margin: 0;">${t('profileForm.libraries')}</label>
                             <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
                                 <input type="checkbox" id="edit-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: var(--jpf-accent);" />
-                                <span>Select all</span>
+                                <span>${t('common.selectAll')}</span>
                             </label>
                         </div>
                         <div class="form-hint" style="margin: 0 0 8px 0;">
-                            Tick nothing and this profile sees the same libraries as your account.
+                            ${t('profileForm.librariesInheritHint')}
                         </div>
                         <div class="libart-list" id="edit-library-artwork">
                             <div class="libart-head" aria-hidden="true">
-                                <span class="libart-head-lib">Library</span>
-                                <span class="libart-head-art">Artwork</span>
+                                <span class="libart-head-lib">${t('profileForm.libraryHeader')}</span>
+                                <span class="libart-head-art">${t('profileForm.artworkHeader')}</span>
                             </div>
                             ${normalizedLibs.map(lib => {
                                 const storedFolders = profile.enabledFolders;
@@ -4205,110 +5619,53 @@
                                             <span class="libart-thumb" aria-hidden="true"></span>
                                             <span class="libart-name" title="${escapeHtml(lib.name)}">${escapeHtml(lib.name)}</span>
                                         </label>
-                                        <select class="libart-mode" aria-label="Artwork for ${escapeHtml(lib.name)}">
-                                            <option value="inherit">Default</option>
-                                            <option value="custom">Picture</option>
-                                            <option value="none">Hidden</option>
+                                        <select class="libart-mode" aria-label="${t('profileForm.artworkForAria', { name: escapeHtml(lib.name) })}">
+                                            <option value="inherit">${t('profileForm.artworkDefault')}</option>
+                                            <option value="custom">${t('profileForm.artworkPicture')}</option>
+                                            <option value="none">${t('profileForm.artworkHidden')}</option>
                                         </select>
-                                        <button type="button" class="profiles-btn btn-secondary libart-choose" style="padding:6px 12px; font-size:0.8rem;">Choose</button>
+                                        <button type="button" class="profiles-btn btn-secondary libart-choose" style="padding:6px 12px; font-size:0.8rem;">${t('profileForm.artworkChoose')}</button>
                                     </div>
                                 `;
                             }).join('')}
                         </div>
                         <label class="library-check-label libart-toggle">
                             <input type="checkbox" id="edit-libart-toggle" />
-                            <span>Choose the artwork on each library tile</span>
+                            <span>${t('profileForm.artworkToggleLabel')}</span>
                         </label>
                         <div class="form-hint libart-explainer" id="edit-libart-hint" style="display: none;">
-                            A library tile takes its picture from whatever is inside the library —
-                            which can be something this profile is not allowed to open.
-                            <strong>Picture</strong> puts an image you choose on the tile instead, and
-                            <strong>Hidden</strong> leaves just the icon and the name.
+                            ${t('profileForm.artworkExplainer')}
                         </div>
                     </div>
                 `;
 
                 // ── Section 4: limits applied on top of the libraries above ─────
                 const restrictionsBody = `
-                    <div class="form-group">
-                        <label>Allowed Devices</label>
-                        <div class="devices-dropdown-container" style="position: relative;">
-                            <div id="devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
-                                <span id="devices-dropdown-selected-text">All Devices Allowed</span>
-                            </div>
-                            <div id="devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
-                                ${devices && devices.length > 0 ? devices.map(dev => {
-                                    const deviceId = dev.deviceId || dev.DeviceId || '';
-                                    const deviceName = dev.deviceName || dev.DeviceName || 'Unknown Device';
-                                    const client = dev.client || dev.Client || 'Unknown Client';
-                                    const lastSeen = dev.lastSeen || dev.LastSeen;
-                                    const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
-                                    const lastSeenStr = (lastSeenDate && lastSeenDate.getFullYear() > 1)
-                                        ? lastSeenDate.toLocaleDateString() : 'Unknown';
-                                    const isChecked = profile.allowedDeviceIds && (profile.allowedDeviceIds.includes(deviceId) || (dev.DeviceId && profile.allowedDeviceIds.includes(dev.DeviceId)));
-                                    return `
-                                        <div class="device-dropdown-item">
-                                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
-                                                <input type="checkbox" class="device-checkbox" value="${escapeHtml(deviceId)}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
-                                                <span style="display: flex; flex-direction: column; min-width: 0;">
-                                                    <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
-                                                    <span style="font-size: 0.75rem; opacity: 0.6;">${escapeHtml(client)} • Last seen ${lastSeenStr}</span>
-                                                </span>
-                                            </label>
-                                            <button type="button" class="device-delete-btn" data-id="${escapeHtml(deviceId)}" title="Forget this device" aria-label="Forget ${escapeHtml(deviceName)}">🗑️</button>
-                                        </div>
-                                    `;
-                                }).join('') : `
-                                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">No devices found for your account yet</div>
-                                `}
-                            </div>
-                        </div>
-                        <div class="form-hint">If no devices are selected, this profile can be accessed from any device.</div>
-                    </div>
+                    ${this.renderDeviceDropdown('edit', devices, profile)}
 
-                    <div class="form-group">
-                        <label for="edit-rating-select">Maximum rating</label>
-                        <select id="edit-rating-select">
-                            <option value="" ${maxRating === null ? 'selected' : ''}>No Restrictions</option>
-                            <option value="6" ${maxRating === 6 ? 'selected' : ''}>G / TV-G (6+)</option>
-                            <option value="10" ${maxRating === 10 ? 'selected' : ''}>PG / TV-PG (10+)</option>
-                            <option value="14" ${maxRating === 14 ? 'selected' : ''}>PG-13 / TV-14 (14+)</option>
-                            <option value="17" ${maxRating === 17 ? 'selected' : ''}>R / TV-MA (17+)</option>
-                        </select>
-                    </div>
-
-                    ${this.renderTagSuggestions('edit-tag-suggestions', libraryTags)}
-                    <div class="form-group">
-                        <label>Blocked tags</label>
-                        ${this.renderTagEditor('edit-blocked-tags', profile.blockedTags || [], 'e.g. adults', 'edit-tag-suggestions')}
-                        <div class="form-hint">Hides anything with these tags. A tag on a series or library covers everything inside it.</div>
-                    </div>
-                    <div class="form-group">
-                        <label>Allowed tags</label>
-                        ${this.renderTagEditor('edit-allowed-tags', profile.allowedTags || [], 'e.g. kids', 'edit-tag-suggestions')}
-                        <div class="form-hint form-hint-warn">⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items. Untagged content is hidden too.</div>
-                    </div>
+                    ${this.renderRatingSelect('edit', maxRating)}
+                    ${this.renderTagSection('edit', libraryTags, profile)}
                 `;
 
                 content.innerHTML = `
-                    <h1 class="profiles-title">Edit Profile</h1>
+                    <h1 class="profiles-title">${t('profileForm.editTitle')}</h1>
                     <div class="create-profile-container${isSub ? ' is-two-col' : ''}">
                         <div class="form-col">
-                            ${this.renderSection('person', 'Profile', 'Name, colour, and picture', appearanceBody)}
-                            ${this.renderSection('lock', 'Security', 'PIN protection and automatic locking', securityBody)}
+                            ${this.renderSection('person', t('profileForm.sectionProfileTitle'), t('profileForm.sectionProfileSubtitle'), appearanceBody)}
+                            ${this.renderSection('lock', t('profileForm.sectionSecurityTitle'), t('profileForm.sectionSecuritySubtitle'), securityBody)}
                         </div>
                         <div class="form-col">
-                            ${isSub ? this.renderSection('video_library', 'Libraries', 'Which libraries this profile can browse', librariesBody) : ''}
-                            ${isSub ? this.renderSection('shield', 'Content & Device Restrictions', 'Limits applied on top of the libraries above', restrictionsBody) : ''}
+                            ${isSub ? this.renderSection('video_library', t('profileForm.libraries'), t('profileForm.sectionLibrariesSubtitle'), librariesBody) : ''}
+                            ${isSub ? this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), restrictionsBody) : ''}
                         </div>
 
                         <div class="profile-dialog-actions">
                             <div class="dialog-action-buttons">
-                                <button id="edit-submit-btn" class="profiles-btn btn-primary">Save</button>
-                                <button id="edit-cancel-btn" class="profiles-btn btn-secondary">Cancel</button>
+                                <button id="edit-submit-btn" class="profiles-btn btn-primary">${t('common.save')}</button>
+                                <button id="edit-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                             </div>
                             ${isSub ? `
-                                <button id="edit-delete-btn" class="profiles-btn btn-danger-quiet">Delete Profile</button>
+                                <button id="edit-delete-btn" class="profiles-btn btn-danger-quiet">${t('profileForm.deleteProfile')}</button>
                             ` : ''}
                         </div>
                     </div>
@@ -4316,7 +5673,7 @@
 
                 // Setup active color dot selection
                 const dots = content.querySelectorAll('.color-dot');
-                let selectedColor = profile.avatarColor || '#00A4DC';
+                let selectedColor = profile.avatarColor || DEFAULT_AVATAR_COLOR;
                 dots.forEach(dot => {
                     const color = dot.getAttribute('data-color');
                     if (color.toLowerCase() === selectedColor.toLowerCase()) {
@@ -4338,10 +5695,12 @@
                 const avatarPicker = this.initAvatarPicker(
                     content, 'edit', avatarLibrary, profile.profileImage,
                     (src) => {
-                        this.setColorGroupInert('edit', !!src);
+                        // Colour dimming is the picker's own business now; this callback
+                        // is only here to put the initial back when the picture goes.
                         const preview = document.getElementById('edit-image-upload-preview');
                         if (preview && !src) preview.innerHTML = escapeHtml(profile.avatarInitial);
-                    });
+                    },
+                    { enabled: !!profile.transparentAvatar });
 
                 // Support D-pad Enter/Space select on color dots
                 content.addEventListener('keydown', (e) => {
@@ -4418,11 +5777,11 @@
                     const txt = document.getElementById('devices-dropdown-selected-text');
                     if (txt) {
                         if (checked.length === 0) {
-                            txt.textContent = 'All Devices Allowed';
+                            txt.textContent = t('profileForm.allDevicesAllowed');
                         } else if (checked.length === 1) {
-                            txt.textContent = '1 Device Allowed';
+                            txt.textContent = t('profileForm.oneDeviceAllowed');
                         } else {
-                            txt.textContent = `${checked.length} Devices Allowed`;
+                            txt.textContent = t('profileForm.devicesAllowed', { count: checked.length });
                         }
                     }
                 };
@@ -4437,7 +5796,7 @@
                         e.preventDefault();
                         e.stopPropagation();
                         const devId = btn.getAttribute('data-id');
-                        this.showConfirmDialog('Delete Device History', 'Remove this device? Any access restrictions for it go too.', () => {
+                        this.showConfirmDialog(t('profileForm.deleteDeviceTitle'), t('profileForm.deleteDeviceMessage'), () => {
                             const delDevUrl = apiClient.getUrl('plugins/profiles/devices/delete');
                             fetch(delDevUrl, {
                                 method: 'POST',
@@ -4459,15 +5818,135 @@
                                     if (row) row.remove();
                                     const remaining = editList.querySelectorAll('.device-dropdown-item');
                                     if (remaining.length === 0) {
-                                        editList.innerHTML = '<div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">No connected devices found</div>';
+                                        editList.innerHTML = '<div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">' + t('profileForm.noDevicesConnected') + '</div>';
                                     }
                                     updateSelectedText();
-                                } else {
-                                    this.showAlert('Error', 'Failed to delete device.');
+                                    return null;
                                 }
+                                // The server refuses this when the device is the only one a
+                                // profile is allowed on, and says which profiles those are —
+                                // forgetting it would empty their whitelist, and an empty
+                                // whitelist means "any device". Showing the generic failure
+                                // instead threw that away and left the administrator with a
+                                // button that just did not work.
+                                return res.text().then(body => {
+                                    this.showAlert(
+                                        t('errors.error'),
+                                        (body && body.trim()) || t('errors.failedDeleteDevice'));
+                                });
                             })
-                            .catch(err => this.showAlert('Error', 'Error: ' + err.message));
+                            .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
                         });
+                    });
+                });
+
+                // ── Renaming and merging ────────────────────────────────────────────
+                //
+                // Both post and then re-open the form, rather than patching the row in
+                // place: a merge changes which devices exist and which of them this profile
+                // is allowed on, and the checkbox states are rebuilt from that. Patching
+                // would leave the ticks describing a list that no longer exists.
+                const deviceAction = (path, body, failKey) => {
+                    // Some of these take their argument in the query string and no body at
+                    // all. Sending the four bytes "null" for those is not harmless: ASP.NET
+                    // binds it as an explicit null, which is a different thing from absent.
+                    const init = {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...this.getAuthHeaders(masterState.masterToken)
+                        }
+                    };
+                    if (body !== null && body !== undefined) init.body = JSON.stringify(body);
+
+                    fetch(apiClient.getUrl('plugins/profiles/devices/' + path), init)
+                    .then(res => {
+                        if (res.ok) {
+                            this.clearSharedFormData();
+                            this.showEditProfileModal(profile);
+                            return null;
+                        }
+                        return res.text().then(text => {
+                            this.showAlert(t('errors.error'), (text && text.trim()) || t(failKey));
+                        });
+                    })
+                    .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
+                };
+
+                content.querySelectorAll('.device-rename-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.showPromptDialog(
+                            t('profileForm.renameDeviceTitle'),
+                            t('profileForm.renameDeviceLabel'),
+                            btn.getAttribute('data-name'),
+                            (name) => deviceAction(
+                                'rename',
+                                { deviceId: btn.getAttribute('data-id'), deviceName: name },
+                                'errors.failedRenameDevice'));
+                    });
+                });
+
+                // One browser that has minted a new id every time its site data was cleared
+                // leaves four or five identical-looking rows, and merging them a pair at a
+                // time is the kind of chore nobody finishes. Two calls: the first only
+                // reports, the second acts.
+                const tidyBtn = content.querySelector('#devices-tidy-btn');
+                if (tidyBtn) {
+                    tidyBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const url = apiClient.getUrl('plugins/profiles/devices/merge-duplicates');
+                        fetch(url, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                ...this.getAuthHeaders(masterState.masterToken)
+                            }
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            const count = (data.groups || [])
+                                .reduce((n, g) => n + (g.merge ? g.merge.length : 0), 0);
+                            if (!count) {
+                                this.showAlert(t('profileForm.tidyDevices'), t('profileForm.tidyNone'));
+                                return;
+                            }
+                            this.showConfirmDialog(
+                                t('profileForm.tidyDevices'),
+                                t('profileForm.tidyFound', { count: count }),
+                                () => deviceAction('merge-duplicates?apply=true', null,
+                                                   'errors.failedMergeDevice'));
+                        })
+                        .catch(err => this.showAlert(t('errors.error'),
+                            t('errors.withMessage', { message: err.message })));
+                    });
+                }
+
+                content.querySelectorAll('.device-merge-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        const fromId = btn.getAttribute('data-id');
+                        const others = Array.from(content.querySelectorAll('.device-dropdown-item'))
+                            .map(row => ({
+                                id: row.getAttribute('data-device-id'),
+                                name: (row.querySelector('.device-row-name') || {}).textContent || ''
+                            }))
+                            .filter(d => d.id && d.id !== fromId);
+
+                        if (others.length === 0) return;
+
+                        this.showSelectDialog(
+                            t('profileForm.mergeDeviceTitle'),
+                            t('profileForm.mergeDeviceMessage'),
+                            others,
+                            (intoId) => deviceAction(
+                                'merge',
+                                { fromDeviceId: fromId, intoDeviceId: intoId },
+                                'errors.failedMergeDevice'));
                     });
                 });
 
@@ -4479,11 +5958,10 @@
                         e.preventDefault();
                         isPinCleared = true;
                         document.getElementById('edit-pin-input').value = '';
-                        document.getElementById('edit-pin-input').placeholder = 'Unprotected';
+                        document.getElementById('edit-pin-input').placeholder = t('profileForm.pinPlaceholderUnprotected');
                         clearPinBtn.style.display = 'none';
                     });
                 }
-
 
 
                 // Save handler
@@ -4530,7 +6008,7 @@
                         }
                         const input = document.getElementById('edit-pin-input');
                         if (input) {
-                            input.style.borderColor = '#ff6b6b';
+                            input.style.borderColor = 'var(--jpf-danger)';
                             input.focus();
                         }
                     };
@@ -4539,7 +6017,7 @@
                     if (pinInputEl) pinInputEl.style.borderColor = '';
 
                     if (!name) {
-                        this.showAlert("Validation Error", "Profile name is required.");
+                        this.showAlert(t('errors.validationError'), t('profileForm.nameRequired'));
                         return;
                     }
 
@@ -4548,11 +6026,11 @@
                         pin = ''; // Tells backend to clear the PIN
                     } else if (pinVal) {
                         if (!/^\d+$/.test(pinVal)) {
-                            showPinError('A PIN can only contain digits.');
+                            showPinError(t('profileForm.pinMustBeDigits'));
                             return;
                         }
                         if (pinVal.length < 4 || pinVal.length > 8) {
-                            showPinError(`A PIN must be 4-8 digits — you entered ${pinVal.length}.`);
+                            showPinError(t('profileForm.pinLengthEdit', { count: pinVal.length }));
                             return;
                         }
                         pin = pinVal;
@@ -4580,7 +6058,8 @@
                             allowedDeviceIds: checkedDevices,
                             profileImage: avatarPicker.get().image,
                             profileImageThumb: avatarPicker.get().thumb,
-                            avatarLibraryId: avatarPicker.get().libraryId
+                            avatarLibraryId: avatarPicker.get().libraryId,
+                            transparentAvatar: avatarPicker.get().transparent
                         })
                     })
                     .then(res => {
@@ -4591,14 +6070,14 @@
                             this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
                         });
                     })
-                    .catch(err => this.showAlert("Error", "Error saving profile: " + err.message));
+                    .catch(err => this.showAlert(t('errors.error'), t('errors.savingProfile', { message: err.message })));
                 });
 
                 // Delete handler
                 const delBtn = document.getElementById('edit-delete-btn');
                 if (delBtn) {
                     delBtn.addEventListener('click', () => {
-                        this.showConfirmDialog('Delete Profile', `Are you sure you want to delete profile "${escapeHtml(profile.profileName)}" and its underlying user account? This action is irreversible.`, () => {
+                        this.showConfirmDialog(t('profileForm.deleteProfile'), t('profileForm.deleteConfirmMessage', { name: escapeHtml(profile.profileName) }), () => {
                             this.executeProfileDeletion(profile.profileUserId);
                         });
                     });
@@ -4612,7 +6091,7 @@
                 this.initTagEditors(content);
             })
             .catch(err => {
-                this.showAlert("Error", "Failed to load profile details: " + err.message);
+                this.showAlert(t('errors.error'), t('errors.loadProfileDetails', { message: err.message }));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
             });
         },
@@ -4628,14 +6107,14 @@
             if (!content) return;
 
             content.innerHTML = `
-                <h1 class="profiles-title">Your Bonfire</h1>
+                <h1 class="profiles-title">${t('bonfire.yourBonfireTitle')}</h1>
                 <div class="create-profile-container" style="max-width: 500px; width: 100%;">
                     <div id="bonfire-container" style="width: 100%; min-height: 100px; display: flex; flex-direction: column; gap: 1.5rem;">
                         <div style="display: flex; justify-content: center; padding: 20px;">
                             <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: jpfSpin 1s linear infinite;"></div>
                         </div>
                         <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
-                            <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">Back</button>
+                            <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
                         </div>
                     </div>
                 </div>
@@ -4678,7 +6157,7 @@
             if (!content) return;
 
             const entry = (id, icon, title, body) => `
-                <div class="settings-menu-entry" id="${id}" tabindex="0" role="button" style="
+                <div class="settings-menu-entry focusable" id="${id}" tabindex="0" role="button" style="
                     display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
                     border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
                     border: 2px solid rgba(255,255,255,0.08);
@@ -4693,16 +6172,16 @@
             `;
 
             content.innerHTML = `
-                <h1 class="profiles-title">Settings</h1>
+                <h1 class="profiles-title">${t('settings.title')}</h1>
                 <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
                     <div style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
-                        ${entry('settings-switcher-style', 'switch_account', 'Switcher Style',
-                            'Where you reach this screen from, and whether it opens on startup.')}
-                        ${entry('settings-your-bonfire', 'local_fire_department', 'Your Bonfire',
-                            'Share your profiles with another home, or join theirs.')}
+                        ${entry('settings-switcher-style', 'switch_account', t('settings.switcherStyleTitle'),
+                            t('settings.switcherStyleBody'))}
+                        ${entry('settings-your-bonfire', 'local_fire_department', t('settings.yourBonfireTitle'),
+                            t('settings.yourBonfireBody'))}
                     </div>
                     <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
-                        <button id="settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">Back</button>
+                        <button id="settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.back')}</button>
                     </div>
                 </div>
             `;
@@ -4745,7 +6224,7 @@
             // combination people asked for in issue #14 — ask on startup, but switch from
             // Jellyfin's menu — is unreachable when it is a single choice.
             const locationOption = (value, icon, title, body) => `
-                <div class="switcher-location-option" data-location="${value}" tabindex="0" role="radio"
+                <div class="switcher-location-option focusable" data-location="${value}" tabindex="0" role="radio"
                      aria-checked="${prefs.location === value}" style="
                     display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
                     border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
@@ -4761,33 +6240,33 @@
             `;
 
             content.innerHTML = `
-                <h1 class="profiles-title">Switcher Style</h1>
+                <h1 class="profiles-title">${t('switcher.title')}</h1>
                 <div class="create-profile-container" style="max-width: 560px; width: 100%;">
                     <p style="opacity: 0.75; font-size: 0.9rem; line-height: 1.5; margin: 0 0 1.5rem 0; text-align: left;">
-                        How you reach this screen. Applies to your account on every device.
+                        ${t('switcher.intro')}
                     </p>
 
                     <div class="bonfire-form-group" style="gap: 4px; text-align: left; margin-bottom: 1.5rem;">
                         <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.95rem !important; font-weight: 600 !important; position: relative !important;">
                             <input type="checkbox" id="switcher-ask-startup" ${prefs.askOnStartup ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
-                            <span>Ask "Who's watching?" on startup</span>
+                            <span>${t('switcher.askOnStartup')}</span>
                         </label>
                         <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.78rem !important; position: relative !important; display: block !important;">
-                            Shown once when the app opens — not every time you return to the home screen.
+                            ${t('switcher.askOnStartupHint')}
                         </div>
                     </div>
 
-                    <div style="text-align: left; font-size: 0.95rem; font-weight: 600; margin-bottom: 10px;">Where to switch from</div>
+                    <div style="text-align: left; font-size: 0.95rem; font-weight: 600; margin-bottom: 10px;">${t('switcher.whereToSwitchFrom')}</div>
                     <div role="radiogroup" style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
-                        ${locationOption('button', 'account_circle', 'Bonfire button',
-                            'A separate switcher button in the header, next to Jellyfin\'s own profile icon.')}
-                        ${locationOption('menu', 'switch_account', 'Jellyfin\'s user menu',
-                            'Adds "Switch Profile" above Sign out in Jellyfin\'s own menu, and to your profile page. Removes the second header icon.')}
+                        ${locationOption('button', 'account_circle', t('switcher.bonfireButtonTitle'),
+                            t('switcher.bonfireButtonBody'))}
+                        ${locationOption('menu', 'switch_account', t('switcher.menuTitle'),
+                            t('switcher.menuBody'))}
                     </div>
 
-                    <div id="switcher-mode-error" style="display: none; color: #ff6b6b; font-size: 0.85rem; font-weight: 600; margin-top: 12px;"></div>
+                    <div id="switcher-mode-error" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 12px;"></div>
                     <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
-                        <button id="switcher-mode-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">Done</button>
+                        <button id="switcher-mode-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
                     </div>
                 </div>
             `;
@@ -4811,7 +6290,7 @@
                     },
                     body: JSON.stringify({ askOnStartup: askOnStartup, switcherLocation: location })
                 })
-                .then(res => res.ok ? res.json() : Promise.reject(new Error('Could not save that.')))
+                .then(res => res.ok ? res.json() : Promise.reject(new Error(t('errors.couldNotSaveThat'))))
                 .then(saved => {
                     const ask = (saved.askOnStartup !== undefined ? saved.askOnStartup : saved.AskOnStartup) === true;
                     const loc = (saved.switcherLocation || saved.SwitcherLocation) === 'menu' ? 'menu' : 'button';
@@ -4819,7 +6298,7 @@
                     return { askOnStartup: ask, location: loc };
                 })
                 .catch(err => {
-                    errDiv.textContent = err.message || 'Could not save that.';
+                    errDiv.textContent = err.message || t('errors.couldNotSaveThat');
                     errDiv.style.display = 'block';
                     return null;
                 });
@@ -4888,10 +6367,10 @@
                 })
             })
             .then(res => {
-                if (!res.ok) throw new Error("Failed to delete profile");
+                if (!res.ok) throw new Error(t('errors.failedDeleteProfile'));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
             })
-            .catch(err => this.showAlert("Error", "Error deleting profile: " + err.message));
+            .catch(err => this.showAlert(t('errors.error'), t('errors.deletingProfile', { message: err.message })));
         },
 
         loadBonfireStatus: function (content, apiClient, masterToken) {
@@ -4908,7 +6387,7 @@
             .then(res => {
                 if (res.status === 401) {
                     this.handleSessionExpired();
-                    throw new Error('Unauthorized');
+                    throw new Error(t('errors.unauthorized'));
                 }
                 return res.json();
             })
@@ -4918,7 +6397,7 @@
             })
             .catch(err => {
                 if (!this.navIsCurrent(ticket)) return;
-                container.innerHTML = `<div style="color: #ff6b6b; font-size: 0.9rem;">Failed to load Bonfire status: ${err.message}</div>`;
+                container.innerHTML = `<div style="color: var(--jpf-danger); font-size: 0.9rem;">${t('bonfire.failedLoadStatus', { message: err.message })}</div>`;
             });
         },
 
@@ -4934,37 +6413,37 @@
                 hostSectionHtml = `
                     <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
-                            <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Your Hosted Bonfire</label>
-                            <span style="font-size: 0.88rem; opacity: 0.75; display: block;">Share this code to invite someone to your Bonfire:</span>
+                            <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.hostedTitle')}</label>
+                            <span style="font-size: 0.88rem; opacity: 0.75; display: block;">${t('bonfire.shareCode')}</span>
                             <div style="font-size: 2rem; font-weight: 700; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 12px; border-radius: var(--jpf-r-md); border: 1px solid var(--jpf-accent-a30);">${ownedCode}</div>
                         </div>
-                        
+
                         <div class="bonfire-form-group">
-                            <label style="font-size: 1rem; font-weight: 600; color: #fff; display: block; margin-bottom: 8px;">Members (${ownedMembers.length})</label>
+                            <label style="font-size: 1rem; font-weight: 600; color: #fff; display: block; margin-bottom: 8px;">${t('bonfire.members', { count: ownedMembers.length })}</label>
                             <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--jpf-r-md); padding: 8px;">
                                 ${ownedMembers.length > 0 ? ownedMembers.map(m => {
                                     const mUserId = m.userId || m.UserId;
-                                    const mUsername = m.username || m.Username || 'Unknown User';
+                                    const mUsername = m.username || m.Username || t('bonfire.unknownUser');
                                     return `
                                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: var(--jpf-r-sm);">
                                         <span style="font-size: 0.95rem; font-weight: 500;">${mUsername}</span>
-                                        <button type="button" class="bonfire-kick-btn" data-id="${mUserId}" style="background: #ff6b6b !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">Kick</button>
+                                        <button type="button" class="bonfire-kick-btn" data-id="${mUserId}" style="background: var(--jpf-danger) !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">${t('bonfire.kick')}</button>
                                     </div>
                                     `;
-                                }).join('') : '<div style="font-size: 0.9rem; opacity: 0.5; font-style: italic; text-align: center; padding: 12px;">No members joined yet.</div>'}
+                                }).join('') : '<div style="font-size: 0.9rem; opacity: 0.5; font-style: italic; text-align: center; padding: 12px;">' + t('bonfire.noMembersYet') + '</div>'}
                             </div>
                         </div>
                         <div style="display: flex; justify-content: flex-end;">
-                            <button type="button" id="bonfire-delete-btn" class="profiles-btn btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">Delete Group</button>
+                            <button type="button" id="bonfire-delete-btn" class="profiles-btn btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">${t('bonfire.deleteGroup')}</button>
                         </div>
                     </div>
                 `;
             } else {
                 hostSectionHtml = `
                     <div class="bonfire-form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
-                        <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Host a Bonfire</label>
-                        <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">Host your own group to share your sub-profiles with friends.</span>
-                        <button type="button" id="bonfire-generate-btn" class="profiles-btn btn-primary" style="width: 100% !important; padding: 12px !important; font-weight: 600 !important; box-sizing: border-box !important; display: block !important; margin: 8px 0 !important;">Generate Join Code</button>
+                        <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.hostTitle')}</label>
+                        <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">${t('bonfire.hostBody')}</span>
+                        <button type="button" id="bonfire-generate-btn" class="profiles-btn btn-primary" style="width: 100% !important; padding: 12px !important; font-weight: 600 !important; box-sizing: border-box !important; display: block !important; margin: 8px 0 !important;">${t('bonfire.generateJoinCode')}</button>
                     </div>
                 `;
             }
@@ -4974,26 +6453,26 @@
                 guestSectionHtml = `
                     <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
-                            <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Joined Bonfire</label>
-                            <span style="font-size: 0.88rem; opacity: 0.75;">You have joined a bonfire group owned by:</span>
+                            <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.joinedTitle')}</label>
+                            <span style="font-size: 0.88rem; opacity: 0.75;">${t('bonfire.joinedOwnedBy')}</span>
                             <div style="font-size: 1.25rem; font-weight: 700; color: var(--jpf-accent); margin: 12px 0; background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--jpf-r-md); border: 1px solid rgba(255,255,255,0.05); text-align: center;">${joinedOwnerName}</div>
-                            <span style="font-size: 0.85rem; opacity: 0.6; display: block; margin-top: -4px;">You can access each other's profiles from the switcher grid.</span>
+                            <span style="font-size: 0.85rem; opacity: 0.6; display: block; margin-top: -4px;">${t('bonfire.accessEachOther')}</span>
                         </div>
                         <div style="display: flex; justify-content: flex-end;">
-                            <button type="button" id="bonfire-leave-btn" class="profiles-btn btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">Leave Group</button>
+                            <button type="button" id="bonfire-leave-btn" class="profiles-btn btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">${t('bonfire.leaveGroup')}</button>
                         </div>
                     </div>
                 `;
             } else {
                 guestSectionHtml = `
                     <div class="bonfire-form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
-                        <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">Join a Bonfire</label>
-                        <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">Enter a friend's Bonfire Code to join their group:</span>
+                        <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.joinTitle')}</label>
+                        <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">${t('bonfire.joinBody')}</span>
                         <div style="display: flex !important; gap: var(--jpf-gap) !important; align-items: center !important; width: 100% !important; box-sizing: border-box !important; margin: 12px 0 !important;">
-                            <input type="text" id="bonfire-join-input" placeholder="e.g. B7F8XA" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; margin: 0 !important; padding: 10px !important;" />
-                            <button type="button" id="bonfire-join-btn" class="profiles-btn btn-primary" style="flex: 0 0 auto !important; padding: 0 24px !important; height: 44px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; font-weight: 600 !important; margin: 0 !important; box-sizing: border-box !important;">Join</button>
+                            <input type="text" id="bonfire-join-input" placeholder="${t('bonfire.joinCodePlaceholder')}" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; margin: 0 !important; padding: 10px !important;" />
+                            <button type="button" id="bonfire-join-btn" class="profiles-btn btn-primary" style="flex: 0 0 auto !important; padding: 0 24px !important; height: 44px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; font-weight: 600 !important; margin: 0 !important; box-sizing: border-box !important;">${t('common.join')}</button>
                         </div>
-                        <div id="bonfire-join-error" style="display: none; color: #ff6b6b; font-size: 0.85rem; font-weight: 600; margin-top: 8px; text-align: center;"></div>
+                        <div id="bonfire-join-error" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 8px; text-align: center;"></div>
                     </div>
                 `;
             }
@@ -5009,18 +6488,18 @@
             const lanBypassSectionHtml = (isOwner || isMember) ? `
                 <div class="bonfire-form-group" style="gap: 4px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
                     <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
-                        <input type="checkbox" id="bonfire-lan-bypass-checkbox" ${lanBypass ? 'checked' : ''} style="cursor: pointer !important; accent-color: #ff9900 !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
-                        <span>Let my Bonfire switch into my account on this network</span>
+                        <input type="checkbox" id="bonfire-lan-bypass-checkbox" ${lanBypass ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-warn) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
+                        <span>${t('bonfire.lanSwitchLabel')}</span>
                     </label>
                     <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">
-                        No PIN needed on your home network. Away from home it still is${hasPinSet ? '' : ', and until you set one your account cannot be opened remotely at all'}.
+                        ${t('bonfire.lanSwitchHint', { extra: hasPinSet ? '' : t('bonfire.lanSwitchHintExtra') })}
                     </div>
                     ${isAdmin ? `
-                    <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid #ff9900; border-radius: var(--jpf-r-sm); font-size: 0.75rem; line-height: 1.5; color: rgba(255,255,255,0.8);">
-                        <strong style="color: #ff9900;">This is an admin account.</strong> Whoever switches into it gets your admin rights.
+                    <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid var(--jpf-warn); border-radius: var(--jpf-r-sm); font-size: 0.75rem; line-height: 1.5; color: rgba(255,255,255,0.8);">
+                        <strong style="color: var(--jpf-warn);">${t('bonfire.adminAccountWarning')}</strong> ${t('bonfire.adminAccountWarningBody')}
                     </div>` : ''}
                     <div style="margin-left: 1.6rem; margin-top: 8px; font-size: 0.72rem; line-height: 1.5; opacity: 0.45;">
-                        Behind a reverse proxy, check Networking → Known Proxies first, or everyone looks local.
+                        ${t('bonfire.proxyHint')}
                     </div>
                 </div>
             ` : '';
@@ -5030,20 +6509,29 @@
                     <div class="bonfire-form-group" style="gap: 4px;">
                         <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
                             <input type="checkbox" id="bonfire-hide-mine-checkbox" ${hideMine ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
-                            <span>Hide my sub-profiles from others</span>
+                            <span>${t('bonfire.hideMine')}</span>
                         </label>
-                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">Connected homes see only your master profile.</div>
+                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">${t('bonfire.hideMineHint')}</div>
                     </div>
 
                     <div class="bonfire-form-group" style="gap: 4px;">
                         <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
                             <input type="checkbox" id="bonfire-hide-others-checkbox" ${hideOthers ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
-                            <span>Hide other people's sub-profiles from me</span>
+                            <span>${t('bonfire.hideOthers')}</span>
                         </label>
-                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">You see only the master profiles of connected homes.</div>
+                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">${t('bonfire.hideOthersHint')}</div>
                     </div>
 
                     ${lanBypassSectionHtml}
+
+                    <!-- Saving these is a fetch that can fail. Without somewhere to say so,
+                         a failure left the box sitting in its new position with the server
+                         still holding the old value — the one case where that matters is the
+                         LAN bypass, where the box can read "on" while nobody can actually
+                         switch in, or the reverse. aria-live so a screen reader hears it
+                         without the focus having to move. -->
+                    <div id="bonfire-settings-status" role="status" aria-live="polite"
+                         style="display: none; margin-left: 1.6rem; font-size: 0.78rem; line-height: 1.4;"></div>
                 </div>
             `;
 
@@ -5053,7 +6541,7 @@
                     ${guestSectionHtml}
                     ${settingsSectionHtml}
                     <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
-                        <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">Back</button>
+                        <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
                     </div>
                 </div>
             `;
@@ -5071,7 +6559,7 @@
             container.querySelectorAll('.bonfire-kick-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const mId = btn.getAttribute('data-id');
-                    this.showConfirmDialog('Kick Member', 'Are you sure you want to kick this user from your Bonfire group?', () => {
+                    this.showConfirmDialog(t('bonfire.kickConfirmTitle'), t('bonfire.kickConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/kick'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) },
@@ -5079,9 +6567,9 @@
                         })
                         .then(res => {
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
-                            else this.showAlert('Error', 'Failed to kick member.');
+                            else this.showAlert(t('errors.error'), t('bonfire.failedKick'));
                         })
-                        .catch(err => this.showAlert('Error', 'Error: ' + err.message));
+                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
                     });
                 });
             });
@@ -5090,16 +6578,16 @@
             const deleteBtn = container.querySelector('#bonfire-delete-btn');
             if (deleteBtn) {
                 deleteBtn.addEventListener('click', () => {
-                    this.showConfirmDialog('Delete Group', 'Delete your Bonfire? Members are disconnected and drop out of your switcher.', () => {
+                    this.showConfirmDialog(t('bonfire.deleteGroupConfirmTitle'), t('bonfire.deleteGroupConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/delete-group'), {
                             method: 'POST',
                             headers: this.getAuthHeaders(masterToken)
                         })
                         .then(res => {
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
-                            else this.showAlert('Error', 'Failed to delete group.');
+                            else this.showAlert(t('errors.error'), t('bonfire.failedDeleteGroup'));
                         })
-                        .catch(err => this.showAlert('Error', 'Error: ' + err.message));
+                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
                     });
                 });
             }
@@ -5108,16 +6596,16 @@
             const leaveBtn = container.querySelector('#bonfire-leave-btn');
             if (leaveBtn) {
                 leaveBtn.addEventListener('click', () => {
-                    this.showConfirmDialog('Leave Group', 'Leave this Bonfire? You will stop sharing switchers.', () => {
+                    this.showConfirmDialog(t('bonfire.leaveGroupConfirmTitle'), t('bonfire.leaveGroupConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/leave'), {
                             method: 'POST',
                             headers: this.getAuthHeaders(masterToken)
                         })
                         .then(res => {
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
-                            else this.showAlert('Error', 'Failed to leave group.');
+                            else this.showAlert(t('errors.error'), t('bonfire.failedLeaveGroup'));
                         })
-                        .catch(err => this.showAlert('Error', 'Error: ' + err.message));
+                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
                     });
                 });
             }
@@ -5128,7 +6616,7 @@
                 generateBtn.addEventListener('click', () => {
                     // Disable immediately to prevent double-fire on slow connections
                     generateBtn.disabled = true;
-                    generateBtn.textContent = 'Generating…';
+                    generateBtn.textContent = t('bonfire.generating');
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/generate'), {
                         method: 'POST',
                         headers: masterToken ? this.getAuthHeaders(masterToken) : {}
@@ -5139,8 +6627,8 @@
                     })
                     .catch(err => {
                         generateBtn.disabled = false;
-                        generateBtn.textContent = 'Generate Join Code';
-                        this.showAlert('Error', 'Failed to generate code: ' + err.message);
+                        generateBtn.textContent = t('bonfire.generateJoinCode');
+                        this.showAlert(t('errors.error'), t('bonfire.failedGenerateCode', { message: err.message }));
                     });
                 });
             }
@@ -5154,7 +6642,7 @@
                     const code = joinInput.value.trim();
                     errDiv.style.display = 'none';
                     if (!code || code.length !== 6) {
-                        errDiv.textContent = 'Please enter a 6-character code.';
+                        errDiv.textContent = t('bonfire.pleaseEnterCode');
                         errDiv.style.display = 'block';
                         return;
                     }
@@ -5162,8 +6650,8 @@
                     // drops the current one. Confirm first rather than surprising the user.
                     if (isMember) {
                         this.showConfirmDialog(
-                            'Leave your current Bonfire?',
-                            'Joining this Bonfire removes you from your current one.',
+                            t('bonfire.leaveCurrentTitle'),
+                            t('bonfire.leaveCurrentBody'),
                             () => submitJoin(code));
                         return;
                     }
@@ -5174,7 +6662,7 @@
                     errDiv.style.display = 'none';
                     // Disable to prevent double-submit; re-enable on all error paths
                     joinBtn.disabled = true;
-                    joinBtn.textContent = 'Joining…';
+                    joinBtn.textContent = t('bonfire.joining');
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/join'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) },
@@ -5182,20 +6670,20 @@
                     })
                     .then(res => {
                         if (res.status === 429) {
-                            errDiv.textContent = 'Too many failed attempts. Try again in 15 minutes.';
+                            errDiv.textContent = t('bonfire.tooManyJoinAttempts');
                             errDiv.style.display = 'block';
                             joinBtn.disabled = false;
-                            joinBtn.textContent = 'Join';
+                            joinBtn.textContent = t('common.join');
                             return;
                         }
                         if (!res.ok) return res.text().then(text => { throw new Error(text); });
                         this.loadBonfireStatus(content, apiClient, masterToken);
                     })
                     .catch(err => {
-                        errDiv.textContent = err.message || 'Failed to join group.';
+                        errDiv.textContent = err.message || t('bonfire.failedToJoin');
                         errDiv.style.display = 'block';
                         joinBtn.disabled = false;
-                        joinBtn.textContent = 'Join';
+                        joinBtn.textContent = t('common.join');
                     });
                 };
 
@@ -5211,11 +6699,42 @@
             const hideOthersCb = container.querySelector('#bonfire-hide-others-checkbox');
             const lanBypassCb = container.querySelector('#bonfire-lan-bypass-checkbox');
             let _settingsDebounceTimer = null;
+            const statusDiv = container.querySelector('#bonfire-settings-status');
+
+            // The last state the server acknowledged. A failed save is reverted to this, so
+            // the boxes always show what is actually stored rather than what was attempted.
+            // Seeded from the values this panel was rendered with, which came from the server.
+            const lastSaved = {
+                hideMine: hideMineCb ? hideMineCb.checked : false,
+                hideOthers: hideOthersCb ? hideOthersCb.checked : false,
+                lanBypass: lanBypassCb ? lanBypassCb.checked : false
+            };
+
+            const settingsBoxes = [hideMineCb, hideOthersCb, lanBypassCb].filter(Boolean);
+
+            const setStatus = (message, ok) => {
+                if (!statusDiv) return;
+                statusDiv.textContent = message;
+                statusDiv.style.color = ok ? 'var(--jpf-accent)' : 'var(--jpf-danger)';
+                statusDiv.style.display = 'block';
+                statusDiv.style.opacity = ok ? '0.75' : '1';
+            };
+
+            let _statusClearTimer = null;
+            const flashSaved = () => {
+                setStatus(t('bonfire.settingsSaved'), true);
+                clearTimeout(_statusClearTimer);
+                _statusClearTimer = setTimeout(() => {
+                    if (statusDiv) statusDiv.style.display = 'none';
+                }, 2500);
+            };
+
             const saveSettings = () => {
                 clearTimeout(_settingsDebounceTimer);
                 _settingsDebounceTimer = setTimeout(() => {
                     const hideMineVal = hideMineCb ? hideMineCb.checked : false;
                     const hideOthersVal = hideOthersCb ? hideOthersCb.checked : false;
+                    const lanBypassVal = lanBypassCb ? lanBypassCb.checked : false;
 
                     const body = {
                         hideMySubProfilesFromOthers: hideMineVal,
@@ -5224,7 +6743,15 @@
                     // Omitted rather than sent as false when the toggle is not on screen, so a
                     // standalone account saving the hide flags cannot clear a setting it never
                     // rendered. The server treats a missing value as "leave alone".
-                    if (lanBypassCb) body.allowHouseholdLanBypass = lanBypassCb.checked;
+                    if (lanBypassCb) body.allowHouseholdLanBypass = lanBypassVal;
+
+                    // Locked while the request is in flight. Toggling again mid-save would
+                    // queue a second write whose result arrives in whatever order the network
+                    // decides, and a revert would then restore a state neither click asked for.
+                    settingsBoxes.forEach(cb => { cb.disabled = true; });
+                    clearTimeout(_statusClearTimer);
+
+                    const finish = () => { settingsBoxes.forEach(cb => { cb.disabled = false; }); };
 
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/settings'), {
                         method: 'POST',
@@ -5235,9 +6762,26 @@
                         body: JSON.stringify(body)
                     })
                     .then(res => {
-                        if (!res.ok) console.error('Failed to save Bonfire settings.');
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        lastSaved.hideMine = hideMineVal;
+                        lastSaved.hideOthers = hideOthersVal;
+                        lastSaved.lanBypass = lanBypassVal;
+                        finish();
+                        flashSaved();
                     })
-                    .catch(err => console.error('Error saving Bonfire settings:', err));
+                    .catch(err => {
+                        // This used to be a console.error and nothing else. The box stayed
+                        // where the user put it while the server still held the old value —
+                        // and for the LAN bypass that means the panel can read "household
+                        // switching allowed" when it is not, or the other way round. Whichever
+                        // way it lands, the person believes a security setting that is not true.
+                        console.error('Error saving Bonfire settings:', err);
+                        if (hideMineCb) hideMineCb.checked = lastSaved.hideMine;
+                        if (hideOthersCb) hideOthersCb.checked = lastSaved.hideOthers;
+                        if (lanBypassCb) lanBypassCb.checked = lastSaved.lanBypass;
+                        finish();
+                        setStatus(t('bonfire.settingsSaveFailed'), false);
+                    });
                 }, 300);
             };
 
@@ -5256,14 +6800,14 @@
                     }
 
                     const adminLine = isAdmin
-                        ? '<br><br><strong style="color:#ff9900;">This is an admin account.</strong> Whoever switches into it gets your admin rights.'
+                        ? `<br><br><strong style="color:var(--jpf-warn);">${t('bonfire.adminAccountWarning')}</strong> ${t('bonfire.adminAccountWarningBody')}`
                         : '';
 
                     this.showConfirmDialog(
-                        'Allow household switching?',
-                        'Anyone in your Bonfire can open your account on your home network without your PIN.' + adminLine,
+                        t('bonfire.allowHouseholdTitle'),
+                        t('bonfire.allowHouseholdBody') + adminLine,
                         () => saveSettings(),
-                        () => { lanBypassCb.checked = false; }
+                        () => { lanBypassCb.checked = lastSaved.lanBypass; }
                     );
                 });
             }
@@ -5277,60 +6821,6 @@
             }, 100);
         },
 
-        injectSidebarLink: function () {
-            const existingLink = document.getElementById('profiles-sidebar-link');
-            if (existingLink) {
-                // Already injected and configured. No need to touch it!
-                return;
-            }
-
-            const activeInfo = this.getCachedActiveProfile();
-            const initial = activeInfo.initial;
-            const color = activeInfo.color;
-            const name = activeInfo.name;
-
-            const container = document.querySelector('.sidebar-nav') || 
-                              document.querySelector('.navMenu') || 
-                              document.getElementById('menuItems');
-            if (!container) return;
-
-            const link = document.createElement('a');
-            link.id = 'profiles-sidebar-link';
-            link.href = '#';
-            link.className = 'sidebarLink navMenu-link';
-            link.setAttribute('tabindex', '0');
-            link.style.display = 'flex';
-            link.style.alignItems = 'center';
-            link.style.gap = '10px';
-            link.style.cursor = 'pointer';
-
-            link.innerHTML = `
-                <div class="sidebar-profile-avatar" style="width: 24px; height: 24px; border-radius: 50%; background-color: ${color}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: bold; text-transform: uppercase; flex-shrink: 0; overflow: hidden; position: relative;">
-                    ${avatarInner(activeInfo.profileImage, initial, /* useThumb */ true)}
-                </div>
-                <span class="sidebarLinkText">${name} (Switch)</span>
-            `;
-
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const drawer = document.querySelector('.drawer-open');
-                if (drawer) {
-                    const mask = document.querySelector('.appdrawer-mask');
-                    if (mask) mask.click();
-                }
-                this.handleBubbleClick();
-            });
-
-            link.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    link.click();
-                }
-            });
-
-            container.appendChild(link);
-        },
 
         // ── Native-mode entry points ───────────────────────────────────────────────
         // Native mode drops the forced gate, so the switcher has to be reachable from
@@ -5358,14 +6848,21 @@
         /// idempotent — React re-renders the menu freely, so this runs from checkRoute
         /// rather than trying to catch every rebuild.
         syncUserMenuEntry: function () {
+            // Cheap guard first, for the same reason as syncPreferencesMenuEntry: this runs
+            // from the route poll, and in button mode the only reason to touch the menu is
+            // to remove a row a previous menu-mode session left behind.
+            const menuMode = this.isMenuLocation();
+            if (!menuMode && !this._userEntryPlaced) return;
+
             const menu = document.querySelector(this.USER_MENU_SELECTOR);
             if (!menu) return;
 
             const existing = menu.querySelector('#profiles-user-menu-item');
 
-            if (!this.isMenuLocation()) {
+            if (!menuMode) {
                 // Location switched back to the floating button — take the row out again.
                 if (existing) existing.remove();
+                this._userEntryPlaced = false;
                 return;
             }
             if (existing && menu.contains(existing)) return;
@@ -5410,8 +6907,8 @@
             }
 
             const label = entry.querySelector('.MuiListItemText-primary') || entry.querySelector('.MuiListItemText-root');
-            if (label) label.textContent = 'Switch Profile';
-            else entry.textContent = 'Switch Profile';
+            if (label) label.textContent = t('switcher.switchProfile');
+            else entry.textContent = t('switcher.switchProfile');
 
             entry.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -5426,6 +6923,7 @@
             });
 
             signOut.parentNode.insertBefore(entry, signOut);
+            this._userEntryPlaced = true;
         },
 
         /// Re-asserts the "Switch Profile" row on the Settings page (#/mypreferencesmenu),
@@ -5435,6 +6933,15 @@
         /// Source of truth: src/apps/legacy/routes/user/settings/index.tsx, page id
         /// myPreferencesMenuPage. The row goes in the "User" section above Sign out.
         syncPreferencesMenuEntry: function () {
+            // Cheap guard first. This runs from the route poll, so in button mode — the
+            // default — it used to query the document and read offsetParent (which forces
+            // layout) twice a second purely to discover it had nothing to do. Reading a
+            // cached preference costs nothing, and the only reason to look at the page in
+            // button mode is to take away a row a previous menu-mode session left behind,
+            // which _prefsEntryPlaced already knows about.
+            const menuMode = this.isMenuLocation();
+            if (!menuMode && !this._prefsEntryPlaced) return;
+
             // Jellyfin keeps previous views in the DOM, so match the visible one or the
             // row lands on a page nobody is looking at.
             const page = Array.from(document.querySelectorAll('#myPreferencesMenuPage'))
@@ -5443,8 +6950,9 @@
 
             const existing = page.querySelector('#profiles-preferences-menu-item');
 
-            if (!this.isMenuLocation()) {
+            if (!menuMode) {
                 if (existing) existing.remove();
+                this._prefsEntryPlaced = false;
                 return;
             }
             if (existing) return;
@@ -5473,8 +6981,8 @@
             }
 
             const label = entry.querySelector('.listItemBodyText');
-            if (label) label.textContent = 'Switch Profile';
-            else entry.textContent = 'Switch Profile';
+            if (label) label.textContent = t('switcher.switchProfile');
+            else entry.textContent = t('switcher.switchProfile');
 
             entry.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -5486,6 +6994,7 @@
             });
 
             signOut.parentNode.insertBefore(entry, signOut);
+            this._prefsEntryPlaced = true;
         },
 
         /// Closes the MUI menu. Our cloned row has no React handler, so nothing would
@@ -5520,15 +7029,14 @@
             section.style.cssText = 'margin: 2em 0; max-width: 44em;';
             section.innerHTML = `
                 <h2 class="sectionTitle" style="display:flex; align-items:center; gap:0.4em;">
-                    <span class="material-icons local_fire_department" aria-hidden="true" style="color:#ff9900;"></span>
-                    Bonfire Profiles
+                    <span class="material-icons local_fire_department" aria-hidden="true" style="color:var(--jpf-warn);"></span>
+                    ${t('profilePage.title')}
                 </h2>
                 <p style="opacity:0.7; margin:0 0 1em 0; line-height:1.5;">
-                    Currently watching as <strong>${escapeHtml(activeInfo.name || 'this account')}</strong>.
-                    Switch to another profile in your household without signing out.
+                    ${t('profilePage.body', { name: escapeHtml(activeInfo.name) || t('profilePage.thisAccount') })}
                 </p>
                 <button is="emby-button" type="button" id="profiles-userprofile-switch-btn" class="raised button-submit block">
-                    <span>Switch Profile</span>
+                    <span>${t('switcher.switchProfile')}</span>
                 </button>
             `;
 
@@ -5621,7 +7129,30 @@
                 // If no named container matched (e.g. a custom Skin Manager theme),
                 // find the rightmost visible button in the top 80px of the viewport
                 // and insert next to it.  Works for ANY theme regardless of class names.
-                const anchor = this._findGeometricHeaderAnchor();
+                // Cached like the header container, and for a sharper reason: this walks
+                // every button and link in the document and reads getBoundingClientRect on
+                // each one, which forces layout. Running it twice a second was the most
+                // expensive thing the plugin did, and it only ever runs on themes where no
+                // named container matched — so the worst case fell on the people already
+                // worst served. Re-found when it leaves the page or the viewport changes.
+                if (this._geoAnchor && !document.contains(this._geoAnchor)) {
+                    this._geoAnchor = null;
+                }
+                //
+                // A failed search backs off for the same three seconds the named search
+                // does. Without it, a page with no buttons at all in the top 80px — which
+                // is where this ends up — would re-run the whole walk on every tick
+                // forever, having already established there is nothing to find.
+                const geoNow = Date.now();
+                const geoStale = !this._geoSearchedAt || geoNow - this._geoSearchedAt >= 3000;
+                if (!this._geoAnchor && (geoStale || this._fallbackPosDirty)) {
+                    this._geoSearchedAt = geoNow;
+                    this._geoAnchor = this._findGeometricHeaderAnchor();
+                } else if (this._fallbackPosDirty) {
+                    this._geoSearchedAt = geoNow;
+                    this._geoAnchor = this._findGeometricHeaderAnchor();
+                }
+                const anchor = this._geoAnchor;
                 if (anchor) {
                     if (bubble && bubble.classList.contains('profiles-floating-fallback')) {
                         bubble.remove();
@@ -5652,16 +7183,27 @@
                         bubble = this._buildFallbackBubble();
                         document.documentElement.appendChild(bubble);
                         this.attachBubbleClickHandler(bubble);
+                        // _buildFallbackBubble positions it as it builds it, so it starts
+                        // clean rather than asking for the same computation twice.
+                        this._fallbackPosDirty = false;
                     }
                 }
             }
 
-            if (bubble && bubble.classList.contains('profiles-floating-fallback')) {
+            if (bubble && bubble.classList.contains('profiles-floating-fallback')
+                && this._fallbackPosDirty !== false) {
+                // Where the corner pill goes depends on the viewport, not on the route.
+                // This ran on every tick — a document-wide button query plus several
+                // elementFromPoint calls, each one forcing layout — twice a second, on
+                // precisely the themes where the header search had already failed and was
+                // therefore costing the most. Recomputed when the pill is built and when
+                // the viewport changes, which is when the answer can actually differ.
                 const pos = this._findBestFallbackPosition();
                 bubble.style.top = pos.top;
                 bubble.style.bottom = pos.bottom;
                 bubble.style.left = pos.left;
                 bubble.style.right = pos.right;
+                this._fallbackPosDirty = false;
             }
 
             this._bubbleShow(bubble);
@@ -5701,9 +7243,10 @@
                         if (currentProfile) {
                             const info = {
                                 name: currentProfile.profileName,
-                                color: currentProfile.avatarColor || '#00A4DC',
+                                color: currentProfile.avatarColor || DEFAULT_AVATAR_COLOR,
                                 initial: currentProfile.avatarInitial || (currentProfile.profileName ? currentProfile.profileName.charAt(0).toUpperCase() : 'P'),
-                                profileImage: currentProfile.profileImage || null
+                                profileImage: currentProfile.profileImage || null,
+                                transparent: !!currentProfile.transparentAvatar
                             };
                             this._sessionSet('jellyfin_profiles_active_info', JSON.stringify(info));
                         }
@@ -5718,22 +7261,66 @@
 
         // ── Header-container detection ───────────────────────────────────────────
 
+        /**
+         * The container the floating switcher button is placed in.
+         *
+         * Cached, because this is reached from evaluateFloatingBubbleVisibility on every
+         * route tick while a profile is active — which is essentially always — and the
+         * header is built once per page. It was re-running the entire search twice a
+         * second to arrive at the same answer: six document queries on a stock install and
+         * ten on a theme where nothing matched, two of them full-document walks.
+         * tests/js/routetick.js measures it.
+         *
+         * The cache is invalidated by the element leaving the document, which is what
+         * React rebuilding the header looks like from out here.
+         */
         _findHeaderContainer: function () {
-            // Strategy A: explicit Jellyfin class names (fast path)
-            const byClass =
-                document.querySelector('.headerRightButtons') ||
-                document.querySelector('.headerSelfView') ||
-                document.querySelector('.skinHeader-rightButtons') ||
-                document.querySelector('.headerButtons-right') ||
-                document.querySelector('.headerRight') ||
-                document.querySelector('.viewHeaderRight');
+            if (this._headerContainer && document.contains(this._headerContainer)) {
+                return this._headerContainer;
+            }
+
+            // A failed search is remembered too, briefly. Caching only successes would
+            // leave the full cost in place on exactly the themes where no strategy
+            // matches — the case that was already the most expensive. Three seconds is
+            // far below the time anyone takes to notice a missing button, and far above
+            // a React re-render.
+            const now = Date.now();
+            if (this._headerContainer === null
+                && this._headerSearchedAt
+                && now - this._headerSearchedAt < 3000) {
+                return null;
+            }
+            this._headerSearchedAt = now;
+
+            this._headerContainer = this._searchForHeaderContainer();
+            return this._headerContainer;
+        },
+
+        _searchForHeaderContainer: function () {
+            // Strategy A: Jellyfin's own right-hand button container.
+            //
+            // Five other class names were tried before this one — .headerRightButtons,
+            // .headerSelfView, .skinHeader-rightButtons, .headerButtons-right and
+            // .viewHeaderRight. Every one is absent from jellyfin-web 10.11, so on a
+            // stock install the browser resolved five selectors that could not match
+            // before reaching the one that does. They are recorded in
+            // tests/upstream-selectors.json.
+            const byClass = document.querySelector('.headerRight');
             if (byClass) return byClass;
 
-            // Strategy B: parent of any known Jellyfin icon button
+            // Strategy B: the parent of a header button. A theme that renames the
+            // container usually keeps Jellyfin's own buttons inside it.
+            //
+            // .headerButton rather than [class*="headerButton"]: every header button
+            // upstream carries the bare class alongside its specific one
+            // (headerCastButton castButton headerButton headerButtonRight), so the plain
+            // class selector matches exactly the same elements while letting the engine
+            // use the class index instead of walking the document. .btnCurrentUser,
+            // .headerButtonUser, .headerButton-user, .btnCast and .headerButton-cast were
+            // also tried here and none of them exists upstream either — the cast button
+            // is .headerCastButton.
             const knownBtn = document.querySelector(
-                '.btnCurrentUser, .headerButtonUser, .headerButton-user, ' +
-                '.btnCast, .headerButton-cast, ' +
-                '[class*="headerButton"]:not(#profiles-floating-bubble)'
+                '.headerButton:not(#profiles-floating-bubble)'
             );
             if (knownBtn) return knownBtn.parentElement;
 
@@ -5744,20 +7331,30 @@
             const skinHeader = document.querySelector(
                 '.skinHeader, .jellyfinHeader, [class*="skinHeader"], [class*="topBar"]'
             );
-            if (skinHeader) {
-                const children = skinHeader.querySelectorAll('div, nav, ul, span');
-                let best = null, bestCount = 0;
-                for (const el of children) {
-                    const btns = el.querySelectorAll('button, a[role="button"]');
-                    if (btns.length > bestCount && btns.length >= 2) {
-                        bestCount = btns.length;
-                        best = el;
-                    }
+            if (!skinHeader) return null;
+
+            // Two queries, not one per candidate. This used to ask for every div, nav, ul
+            // and span under the header and then run a second query *inside each one*, so
+            // the same buttons were counted once for every ancestor they had. Counting
+            // upwards from each button gives the identical answer in one pass.
+            const counts = new Map();
+            for (const btn of skinHeader.querySelectorAll('button, a[role="button"]')) {
+                for (let el = btn.parentElement; el && el !== skinHeader; el = el.parentElement) {
+                    counts.set(el, (counts.get(el) || 0) + 1);
                 }
-                return best;
             }
 
-            return null;
+            // Walked in document order, and ties go to the first — the same result the
+            // nested version produced, since it iterated the same node list.
+            let best = null, bestCount = 0;
+            for (const el of skinHeader.querySelectorAll('div, nav, ul, span')) {
+                const n = counts.get(el) || 0;
+                if (n > bestCount && n >= 2) {
+                    bestCount = n;
+                    best = el;
+                }
+            }
+            return best;
         },
 
         // Finds the rightmost visible button within the top 80px of the viewport.
@@ -5786,12 +7383,14 @@
             // `.focusable`). A bare <button> qualifies on paper; carrying the class as well
             // costs nothing and is what every other header control does.
             b.className = 'paper-icon-button-light headerButton focusable';
-            b.title = 'Switch Profile';
-            b.setAttribute('aria-label', 'Switch Profile');
+            b.title = t('switcher.switchProfile');
+            b.setAttribute('aria-label', t('switcher.switchProfile'));
 
             const activeInfo = this.getCachedActiveProfile();
             b.innerHTML = `
-                <div class="profiles-header-avatar" style="background-color: ${safeColor(activeInfo.color)}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
+                <div class="profiles-header-avatar" style="background-color: ${
+                    activeInfo.profileImage && activeInfo.transparent ? 'transparent' : safeColor(activeInfo.color)
+                }; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
                     ${avatarInner(activeInfo.profileImage, activeInfo.initial, /* useThumb */ true)}
                 </div>
             `;
@@ -5803,8 +7402,8 @@
             const b = document.createElement('button');
             b.id = 'profiles-floating-bubble';
             b.className = 'profiles-floating-fallback focusable';
-            b.title = 'Switch Profile';
-            b.setAttribute('aria-label', 'Switch Profile');
+            b.title = t('switcher.switchProfile');
+            b.setAttribute('aria-label', t('switcher.switchProfile'));
 
             // Set initial position dynamically
             const pos = this._findBestFallbackPosition();
@@ -5815,7 +7414,9 @@
 
             const activeInfo = this.getCachedActiveProfile();
             b.innerHTML = `
-                <div class="profiles-header-avatar" style="background-color: ${safeColor(activeInfo.color)}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
+                <div class="profiles-header-avatar" style="background-color: ${
+                    activeInfo.profileImage && activeInfo.transparent ? 'transparent' : safeColor(activeInfo.color)
+                }; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
                     ${avatarInner(activeInfo.profileImage, activeInfo.initial, /* useThumb */ true)}
                 </div>
             `;
@@ -5852,8 +7453,15 @@
 
         // Inserts bubble before the user-account button, or appends if not found.
         _insertBeforeUserBtn: function (container, bubble) {
+            // .headerUserButton is the real class. This asked for .headerButton-user,
+            // .btnCurrentUser and .headerButtonUser, none of which exists in jellyfin-web,
+            // so the query never matched and the function has always fallen through to
+            // lastElementChild — placing the switcher at the end of the header rather than
+            // beside the account icon it is named for. Verified in
+            // src/scripts/libraryMenu.js: "headerButton headerButtonRight headerUserButton"
+            // and the headerUserButtonRound variant.
             const userBtn =
-                container.querySelector('.headerButton-user, .btnCurrentUser, .headerButtonUser') ||
+                container.querySelector('.headerUserButton, .headerUserButtonRound') ||
                 container.lastElementChild;
             if (userBtn) {
                 userBtn.parentNode.insertBefore(bubble, userBtn);
@@ -5861,7 +7469,6 @@
                 container.appendChild(bubble);
             }
         },
-
 
         /// Opens the profile selector over whatever page the user is on.
         ///
@@ -5970,1230 +7577,15 @@
         },
 
         injectStyles: function () {
+            // Idempotent: a second evaluation of this script (a re-injected tag, a client
+            // that loads it twice) would otherwise append a second full copy of the sheet.
+            if (document.getElementById('jpf-styles')) return;
+
             const style = document.createElement('style');
-            style.innerHTML = `
-                /* ── Theme integration ───────────────────────────────────────────
-                   jellyfin-web has no colour variables of its own. The request to add
-                   them (jellyfin-web discussion #6520) is answered "planned" and nothing
-                   more, so there is no supported token to read. What every custom theme
-                   and Skin Manager *does* converge on is --accent, so read that where it
-                   exists and fall back to Jellyfin's stock blue everywhere else. A stock
-                   install renders exactly as it did before; a themed one stops having a
-                   foreign blue button sitting in its header.
-
-                   Declared on body as well as :root because a theme may set --accent on
-                   either, and a custom property resolves against the element it is
-                   declared on — reading it only at :root would silently miss every theme
-                   that sets it on body. */
-                :root, body {
-                    --jpf-accent: var(--accent, #00a4dc);
-
-                    /* Tints of the accent. These literals are what Bonfire shipped
-                       through 1.4.1 and stay as the floor, because deriving them needs
-                       colour arithmetic the older TV browsers do not have. */
-                    --jpf-accent-a08: rgba(0, 164, 220, 0.08);
-                    --jpf-accent-a18: rgba(0, 164, 220, 0.18);
-                    --jpf-accent-a30: rgba(0, 164, 220, 0.3);
-                    --jpf-accent-a40: rgba(0, 164, 220, 0.4);
-                    --jpf-accent-a45: rgba(0, 164, 220, 0.45);
-                    --jpf-accent-a50: rgba(0, 164, 220, 0.5);
-                    --jpf-accent-a60: rgba(0, 164, 220, 0.6);
-
-                    /* ── Shape and spacing ───────────────────────────────────
-                       Every screen was styled on its own, which left eight corner
-                       radii, ten container widths and four gap values across the
-                       product — so the surfaces never read as one thing. Three of
-                       each, chosen near the most common existing values.
-
-                       50% and 999px are deliberately NOT tokens: those mean "a
-                       circle" and "a pill", which are shapes rather than sizes. */
-                    --jpf-r-sm: 6px;    /* inputs, chips, small controls */
-                    --jpf-r-md: 12px;   /* buttons, cards, dialogs       */
-                    --jpf-r-lg: 20px;   /* full-screen surfaces, avatars */
-
-                    --jpf-gap: 12px;      /* controls sitting in a row */
-                    --jpf-gap-lg: 1.25rem; /* sections and button rows */
-
-                    /* Applied by the layout work rather than swapped in blind: a
-                       container width is not interchangeable the way a radius is. */
-                    --jpf-w-narrow: 420px; /* PIN and confirm dialogs   */
-                    --jpf-w-form: 560px;   /* single-column forms       */
-                    --jpf-w-wide: 960px;   /* two-column forms, the gate */
-                }
-
-                /* Where the browser can mix colours, tint the *theme's* accent rather
-                   than the hardcoded blue. color-mix is Chrome 111+, so Tizen 6
-                   (Chromium 76) and older webOS keep the literals above instead of
-                   losing the glow altogether. */
-                @supports (color: color-mix(in srgb, red 50%, transparent)) {
-                    :root, body {
-                        --jpf-accent-a08: color-mix(in srgb, var(--jpf-accent) 8%, transparent);
-                        --jpf-accent-a18: color-mix(in srgb, var(--jpf-accent) 18%, transparent);
-                        --jpf-accent-a30: color-mix(in srgb, var(--jpf-accent) 30%, transparent);
-                        --jpf-accent-a40: color-mix(in srgb, var(--jpf-accent) 40%, transparent);
-                        --jpf-accent-a45: color-mix(in srgb, var(--jpf-accent) 45%, transparent);
-                        --jpf-accent-a50: color-mix(in srgb, var(--jpf-accent) 50%, transparent);
-                        --jpf-accent-a60: color-mix(in srgb, var(--jpf-accent) 60%, transparent);
-                    }
-                }
-                /* Administrator-supplied avatar picker.
-                   auto-fill rather than a fixed count so it reflows from a phone to a TV
-                   without a media query, and scrolls internally instead of pushing the
-                   form's buttons off screen when the library is large. */
-                .avatar-color-group {
-                    transition: opacity 0.2s ease;
-                }
-                .avatar-color-group.is-inert {
-                    opacity: 0.45;
-                }
-                /* The only thing that said this button opens a panel was aria-expanded,
-                   which is not a thing anyone can see. */
-                .picture-caret {
-                    font-size: 1.15rem !important;
-                    margin-left: -2px;
-                    opacity: 0.7;
-                    transition: transform 0.2s ease;
-                }
-                .picture-change-btn[aria-expanded="true"] .picture-caret {
-                    transform: rotate(180deg);
-                }
-                /* Held down for as long as the panel is out, so the link between the two
-                   survives the panel being scrolled past. */
-                .picture-change-btn[aria-expanded="true"] {
-                    background-color: var(--jpf-accent-a18);
-                    border-color: var(--jpf-accent-a60);
-                    color: #fff;
-                }
-                @media (prefers-reduced-motion: reduce) {
-                    .picture-caret {
-                        transition: none;
-                    }
-                }
-                /* Change picture and Remove: same class, same height, one group. */
-                .image-upload-actions {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    flex-wrap: wrap;
-                    min-width: 0;
-                }
-                .picture-remove-btn .material-icons {
-                    color: rgba(255, 107, 107, 0.85);
-                }
-                .picture-remove-btn:hover, .picture-remove-btn:focus {
-                    color: #ff8787;
-                }
-                /* Collapsed by default on a profile that already has a picture. When it
-                   opens it needs to read as one panel belonging to the button above it —
-                   loose controls stacked in the form was the part that looked unfinished. */
-                .picture-sources {
-                    display: none;
-                    flex-direction: column;
-                    gap: var(--jpf-gap);
-                    width: 100%;
-                    min-width: 0;
-                    /* Required: width:100% and padding on a content-box element add up
-                       to wider than the card. This sheet has no global box-sizing. */
-                    box-sizing: border-box;
-                    padding: 0.9rem;
-                    background: rgba(0, 0, 0, 0.18);
-                    border: 1px solid rgba(255, 255, 255, 0.09);
-                    border-radius: var(--jpf-r-md);
-                }
-                .picture-sources.is-open {
-                    display: flex;
-                }
-                .picture-source-block {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 8px;
-                    min-width: 0;
-                }
-                /* One rule, so a server with uploads locked off does not leave a divider
-                   above nothing. */
-                .picture-source-block + .picture-source-block {
-                    border-top: 1px solid rgba(255, 255, 255, 0.08);
-                    padding-top: var(--jpf-gap);
-                }
-                .picture-source-title {
-                    font-size: 0.72rem;
-                    font-weight: 700;
-                    letter-spacing: 0.06em;
-                    text-transform: uppercase;
-                    color: rgba(255, 255, 255, 0.5);
-                }
-                /* The panel is the box now; a second one inside it was two frames deep. */
-                .picture-sources .avatar-library-grid {
-                    background: transparent;
-                    border: none;
-                    padding: 0;
-                }
-                .avatar-library-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
-                    gap: var(--jpf-gap);
-                    max-height: 200px;
-                    overflow-y: auto;
-                    padding: 4px;
-                    background: rgba(0,0,0,0.15);
-                    border-radius: var(--jpf-r-md);
-                    border: 1px solid rgba(255,255,255,0.05);
-                }
-                .avatar-library-item {
-                    aspect-ratio: 1 / 1;
-                    padding: 0;
-                    border: 2px solid transparent;
-                    border-radius: 50%;
-                    overflow: hidden;
-                    background: rgba(255,255,255,0.04);
-                    cursor: pointer;
-                    transition: border-color 0.15s ease, transform 0.15s ease;
-                }
-                .avatar-library-item img {
-                    width: 100%; height: 100%; object-fit: cover; display: block;
-                }
-                .avatar-library-item:hover,
-                .avatar-library-item:focus {
-                    border-color: var(--jpf-accent);
-                    transform: scale(1.06);
-                    outline: none;
-                }
-
-                /* Scroll Block */
-                body.profiles-no-scroll, html.profiles-no-scroll {
-                    overflow: hidden !important;
-                    height: 100% !important;
-                }
-
-                /* Hide loaders behind overlay */
-                body.profiles-no-scroll .docloader,
-                body.profiles-no-scroll .mainLoader,
-                body.profiles-no-scroll .loadingSpinner,
-                body.profiles-no-scroll .spinner,
-                body.profiles-no-scroll .view-loader,
-                body.profiles-no-scroll paper-spinner,
-                body.profiles-no-scroll paper-spinner-lite,
-                body.profiles-no-scroll [class*="loader"],
-                body.profiles-no-scroll [class*="spinner"],
-                body.profiles-no-scroll [id*="loader"],
-                body.profiles-no-scroll [id*="spinner"] {
-                    display: none !important;
-                    opacity: 0 !important;
-                    visibility: hidden !important;
-                }
-
-                /* Overlay Glassmorphic Layout */
-                #profiles-gate-overlay {
-                    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-                    background: radial-gradient(circle at 50% 40%, #1e1e2e 0%, #0d0d12 100%);
-                    z-index: 99999; display: flex; align-items: center; justify-content: center;
-                    color: #fff; font-family: 'Outfit', 'Inter', sans-serif;
-                    overflow-y: auto; padding: 2rem 0; box-sizing: border-box;
-                    opacity: 1; transition: opacity 0.22s ease;
-                }
-                .profiles-modal-content {
-                    text-align: center; max-width: 900px; width: 90%;
-                    display: flex; flex-direction: column; align-items: center;
-                    margin: auto;
-                }
-                .profiles-title {
-                    font-size: 3rem; font-weight: 700; margin-bottom: 3rem;
-                    text-shadow: 0 4px 20px rgba(0,0,0,0.6); letter-spacing: -0.05rem;
-                }
-                .profiles-home-section {
-                    width: 100%;
-                    margin-bottom: 2.5rem;
-                    background: rgba(255, 255, 255, 0.015);
-                    border: 1px solid rgba(255, 255, 255, 0.04);
-                    border-radius: var(--jpf-r-lg);
-                    padding: 1.75rem 2rem;
-                    box-sizing: border-box;
-                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-                    text-align: left;
-                }
-                .profiles-home-header {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                    margin-bottom: 1.75rem;
-                    padding-bottom: 0.75rem;
-                    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-                }
-                /* Your own Bonfire: a warm amber flame. */
-                .profiles-home-icon {
-                    font-size: 1.8rem;
-                    color: #ff9900;
-                    text-shadow: 0 2px 10px rgba(255, 153, 0, 0.35);
-                }
-                /* A linked household's Bonfire: deeper ember, so the two read as different
-                   groups without needing a second glyph. */
-                .profiles-home-icon.bonfire-icon-color {
-                    color: #ff5500;
-                    text-shadow: 0 2px 10px rgba(255, 85, 0, 0.3);
-                }
-                .profiles-home-title {
-                    font-size: 1.5rem;
-                    font-weight: 700;
-                    letter-spacing: -0.02em;
-                    color: #fff;
-                }
-                .profiles-grid {
-                    display: flex; flex-wrap: wrap; gap: 3rem; justify-content: center; width: 100%;
-                    max-width: var(--jpf-w-wide); margin: 0 auto;
-                }
-                /* Cards used to be a fixed 140px whatever the display, so on a desktop
-                   they sat in a thin band with large voids above and below, and on a TV
-                   they were small at viewing distance. clamp keeps the phone size as
-                   the floor and lets them grow with the viewport. */
-                .profile-card {
-                    display: flex; flex-direction: column; align-items: center;
-                    width: clamp(140px, 12vw, 210px); cursor: pointer; position: relative;
-                }
-                .profile-avatar-container {
-                    position: relative;
-                    width: clamp(130px, 11vw, 195px);
-                    height: clamp(130px, 11vw, 195px);
-                    margin-top: 15px;
-                    transition: transform 0.12s ease;
-                }
-                /* Touch has no hover, so without this the first feedback of any kind is the
-                   page changing a second or two later. */
-                .profile-card:active .profile-avatar-container {
-                    transform: scale(0.95);
-                }
-
-                @keyframes jpfSpin {
-                    to { transform: rotate(360deg); }
-                }
-                /* The chosen profile carries the spinner; everything else steps back so it
-                   is obvious which one is being opened and that the rest are not takers. */
-                #profiles-gate-overlay.is-switching .profile-card:not(.is-switching),
-                #profiles-gate-overlay.is-switching .profiles-footer,
-                #profiles-gate-overlay.is-switching .profiles-home-header {
-                    opacity: 0.3;
-                    pointer-events: none;
-                    transition: opacity 0.2s ease;
-                }
-                #profiles-gate-overlay.is-switching .profile-card.is-switching {
-                    cursor: progress;
-                }
-                .profile-card.is-switching .profile-avatar {
-                    filter: brightness(0.4);
-                    transition: filter 0.2s ease;
-                }
-                .profile-card.is-switching .profile-avatar-container::after {
-                    content: '';
-                    position: absolute;
-                    inset: 0;
-                    margin: auto;
-                    width: 46px;
-                    height: 46px;
-                    border-radius: 50%;
-                    border: 3px solid rgba(255, 255, 255, 0.22);
-                    border-top-color: #fff;
-                    animation: jpfSpin 0.8s linear infinite;
-                    z-index: 20;
-                    pointer-events: none;
-                }
-                /* A button that has started something and is waiting for it. The label is
-                   kept in place rather than replaced, so the button does not resize. */
-                .profiles-btn.is-busy {
-                    position: relative;
-                    color: transparent !important;
-                    pointer-events: none;
-                }
-                .profiles-btn.is-busy::after {
-                    content: '';
-                    position: absolute;
-                    inset: 0;
-                    margin: auto;
-                    width: 18px;
-                    height: 18px;
-                    border-radius: 50%;
-                    border: 2px solid rgba(255, 255, 255, 0.3);
-                    border-top-color: #fff;
-                    animation: jpfSpin 0.8s linear infinite;
-                }
-                /* The spinner still turns — it is the only thing reporting progress — but
-                   nothing else moves. */
-                @media (prefers-reduced-motion: reduce) {
-                    .profile-avatar-container,
-                    .profile-card.is-switching .profile-avatar {
-                        transition: none;
-                    }
-                    .profile-card:active .profile-avatar-container {
-                        transform: none;
-                    }
-                }
-                .profile-crown {
-                    position: absolute; top: -20px; left: 50%;
-                    transform: translateX(-50%); z-index: 15;
-                    pointer-events: none;
-                    animation: crownFloat 3s ease-in-out infinite;
-                }
-                @keyframes crownFloat {
-                    0% { transform: translateX(-50%) translateY(0); }
-                    50% { transform: translateX(-50%) translateY(-4px) rotate(2deg); }
-                    100% { transform: translateX(-50%) translateY(0); }
-                }
-                .profile-avatar {
-                    position: relative;
-                    width: 100%; height: 100%; border-radius: var(--jpf-r-lg);
-                    /* The 3px border below is transparent, so without this the avatar
-                       colour showed through it as a ring — a blue outline around Bard's
-                       orange picture. Clipping to the padding box keeps the colour behind
-                       the initial, which is the only thing it is for, and off the border. */
-                    background-clip: padding-box;
-                    display: flex; align-items: center; justify-content: center;
-                    font-size: 3.5rem; font-weight: bold; text-transform: uppercase;
-                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-                    transition: transform 0.3s cubic-bezier(0.165, 0.84, 0.44, 1), box-shadow 0.3s ease, border-color 0.3s ease;
-                    border: 3px solid transparent;
-                }
-                /* The one you are already in. Now that the avatar colour no longer
-                   paints the border, an accent ring means exactly one thing. */
-                .profile-card.is-current .profile-avatar {
-                    border-color: var(--jpf-accent);
-                }
-                .profile-current-badge {
-                    display: block;
-                    font-size: 0.7rem;
-                    font-weight: 600;
-                    letter-spacing: 0.04em;
-                    text-transform: uppercase;
-                    color: var(--jpf-accent);
-                    margin-top: 2px;
-                }
-                .profile-card:hover .profile-avatar,
-                .profile-card:focus .profile-avatar,
-                .profile-card:focus-within .profile-avatar {
-                    transform: scale(1.08);
-                    box-shadow: 0 15px 35px var(--jpf-accent-a40);
-                    border-color: rgba(255,255,255,0.8);
-                }
-                .profile-card:focus {
-                    outline: none;
-                }
-                .add-avatar {
-                    border: 3px dashed rgba(255,255,255,0.25);
-                    background: rgba(255,255,255,0.02) !important; color: rgba(255,255,255,0.4);
-                }
-                .profile-card:hover .add-avatar,
-                .profile-card:focus .add-avatar,
-                .profile-card:focus-within .add-avatar {
-                    border-color: rgba(255,255,255,0.8); color: #fff;
-                    background: rgba(255,255,255,0.05) !important;
-                }
-                .profile-name {
-                    margin-top: 1rem; font-size: 1.25rem; font-weight: 500;
-                    opacity: 0.75; transition: opacity 0.3s ease;
-                    display: flex; flex-direction: column; align-items: center; gap: 4px;
-                    text-align: center;
-                }
-                .profiles-limit-notice {
-                    font-size: 0.85rem; color: rgba(255,255,255,0.35);
-                    font-style: italic; align-self: center; padding: 1rem 0;
-                    width: 140px; text-align: center;
-                }
-                .master-badge {
-                    font-size: 0.8rem; opacity: 0.6; font-weight: 400;
-                }
-                .profile-card:hover .profile-name {
-                    opacity: 1;
-                }
-
-                /* Manage Mode Overlay Icon styling */
-                .profile-avatar-overlay-wrap {
-                    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-                    background: rgba(0, 0, 0, 0.65); border-radius: var(--jpf-r-lg);
-                    display: flex; align-items: center; justify-content: center;
-                    opacity: 0; transition: opacity 0.25s ease;
-                    pointer-events: none;
-                    z-index: 5;
-                }
-                .profile-card.manage-mode:hover .profile-avatar-overlay-wrap {
-                    opacity: 1;
-                }
-                .profile-avatar-overlay-svg {
-                    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
-                }
-                .profile-lock-indicator {
-                    position: absolute; bottom: 8px; right: 8px;
-                    background: rgba(15, 15, 15, 0.85); border-radius: 50%;
-                    width: 32px; height: 32px; display: flex;
-                    align-items: center; justify-content: center;
-                    pointer-events: none;
-                    box-shadow: 0 4px 10px rgba(0,0,0,0.55);
-                    border: 1.5px solid rgba(255,255,255,0.2);
-                    z-index: 10;
-                }
-                .profile-bonfire-indicator {
-                    position: absolute; top: 8px; left: 8px;
-                    background: linear-gradient(135deg, #ff9900 0%, #ff5500 100%);
-                    border-radius: 50%;
-                    width: 32px; height: 32px; display: flex;
-                    align-items: center; justify-content: center;
-                    pointer-events: none;
-                    box-shadow: 0 4px 10px rgba(0,0,0,0.55);
-                    border: 1.5px solid rgba(255,255,255,0.2);
-                    z-index: 10;
-                }
-                #bonfire-join-input {
-                    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
-                    transition: border-color 0.25s, box-shadow 0.25s;
-                    position: relative !important;
-                }
-                #bonfire-join-input:focus {
-                    border-color: var(--jpf-accent); outline: none;
-                    box-shadow: 0 0 10px var(--jpf-accent-a40);
-                }
-                .bonfire-kick-btn:focus, .bonfire-kick-btn:hover {
-                    background-color: #e64980 !important;
-                    outline: none;
-                    box-shadow: 0 0 10px rgba(255, 107, 107, 0.4);
-                }
-                .profile-card.manage-mode:hover .profile-avatar {
-                    transform: scale(1.08);
-                    border-color: var(--jpf-accent);
-                }
-
-                /* PIN Status Badges */
-                .profile-pin-badge {
-                    font-size: 0.75rem; margin-top: 4px; padding: 2px 8px; border-radius: var(--jpf-r-md);
-                    font-weight: 600; display: inline-flex; align-items: center; gap: 4px;
-                }
-                /* These were inverted: "PIN Protected" in red and "No PIN" in green, so
-                   the screen called the protected state a problem and the unprotected one
-                   a success. Neither is an error, so neither gets an error colour —
-                   protected reads present, unprotected reads muted. */
-                .profile-pin-badge.locked {
-                    background: rgba(255, 255, 255, 0.10); color: rgba(255, 255, 255, 0.88);
-                    border: 1px solid rgba(255, 255, 255, 0.20);
-                }
-                .profile-pin-badge.unlocked {
-                    background: transparent; color: rgba(255, 255, 255, 0.45);
-                    border: 1px solid rgba(255, 255, 255, 0.12);
-                }
-
-                /* Floating Profiles Selector Bubble — fallback corner pill */
-                /* This only appears when header injection fails entirely.    */
-                #profiles-floating-bubble.profiles-floating-fallback {
-                    position: fixed;
-                    bottom: 24px; left: 24px; right: auto; top: auto;
-                    z-index: 9999;
-                    background: transparent;
-                    color: #fff; padding: 0; border-radius: 50%;
-                    cursor: pointer;
-                    display: inline-flex; align-items: center; justify-content: center;
-                    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
-                    transition: transform 0.2s ease, box-shadow 0.2s ease;
-                    border: none;
-                    width: 40px; height: 40px;
-                }
-                #profiles-floating-bubble.profiles-floating-fallback:hover,
-                #profiles-floating-bubble.profiles-floating-fallback:focus {
-                    transform: scale(1.08) translateY(-2px);
-                    box-shadow: 0 8px 20px rgba(0,0,0,0.5);
-                    outline: none;
-                }
-
-                /* Header button integration style */
-                #profiles-floating-bubble.headerButton {
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: inherit;
-                    background: transparent;
-                    border: none;
-                    cursor: pointer;
-                    vertical-align: middle;
-                    margin: 0 4px;
-                    padding: 0;
-                }
-
-                /* Footer and bottom buttons */
-                .profiles-footer {
-                    margin-top: 4rem; width: 100%; display: flex; justify-content: center;
-                    /* Matches .pin-actions, the button row on the other gate screens. */
-                    gap: var(--jpf-gap-lg); flex-wrap: wrap;
-                }
-                /* Equal widths, so the gap between two buttons falls on the centre line.
-                   The row was already centred correctly; what read as crooked was its seam.
-                   Centring buttons of unequal width puts the gap between them off-axis, and
-                   with two buttons sitting under two equal profile cards the eye compares
-                   the two seams rather than the outer edges. Measured on the gate: cards
-                   met at 653px, buttons at 681px.
-
-                   Also stops the row resizing as labels change — it is Manage Profiles or
-                   Done, sometimes plus Settings, sometimes plus Cancel. */
-                .profiles-footer .profiles-btn {
-                    min-width: 11rem;
-                }
-
-                /* PIN Entry Form styles */
-                .pin-entry-container {
-                    display: flex; flex-direction: column; align-items: center; gap: 2rem;
-                }
-                #profile-pin-input, #master-pin-input {
-                    background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.15);
-                    border-radius: var(--jpf-r-md); color: #fff; font-size: 2.5rem; text-align: center;
-                    padding: 12px; width: 180px; letter-spacing: 0.6rem;
-                    transition: border-color 0.3s ease, box-shadow 0.3s ease;
-                    -webkit-text-security: disc;
-                }
-                #create-pin-input, #edit-pin-input {
-                    -webkit-text-security: disc;
-                }
-                #profile-pin-input:focus, #master-pin-input:focus {
-                    border-color: var(--jpf-accent); outline: none;
-                    box-shadow: 0 0 15px var(--jpf-accent-a30);
-                }
-                .pin-error-text {
-                    color: #ff6b6b;
-                    font-size: 0.95rem;
-                    font-weight: 500;
-                    margin-top: -10px;
-                    text-align: center;
-                }
-                .pin-input-error {
-                    border-color: #ff6b6b !important;
-                    box-shadow: 0 0 15px rgba(255, 107, 107, 0.4) !important;
-                }
-
-                /* Button Styling */
-                .profiles-btn {
-                    padding: 10px 24px; border: 1.5px solid transparent; border-radius: var(--jpf-r-md);
-                    font-weight: 600; font-size: 1rem; cursor: pointer;
-                    transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
-                }
-                .profiles-btn:disabled {
-                    opacity: 0.55;
-                    cursor: not-allowed;
-                    transform: none !important;
-                    box-shadow: none !important;
-                }
-                .btn-primary {
-                    background-color: var(--jpf-accent); color: #fff;
-                }
-                .btn-primary:hover,
-                .btn-primary:focus {
-                    background-color: #0082ad; border-color: rgba(255, 255, 255, 0.4);
-                    box-shadow: 0 0 12px var(--jpf-accent-a50); transform: translateY(-1px);
-                    outline: none;
-                }
-                .btn-secondary {
-                    background-color: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7);
-                    border: 1px solid rgba(255,255,255,0.15);
-                }
-                .btn-secondary:hover,
-                .btn-secondary:focus {
-                    background-color: rgba(255,255,255,0.15); color: #fff;
-                    border-color: var(--jpf-accent);
-                    box-shadow: 0 0 10px var(--jpf-accent-a40);
-                    outline: none;
-                }
-                .pin-actions {
-                    display: flex; gap: var(--jpf-gap-lg); margin-top: 1rem;
-                }
-
-                /* Profile Creation Form styles */
-                /* A column of sections. Below the breakpoint the two of these simply
-                   stack, so the phone order is unchanged: Profile, Security,
-                   Libraries, Restrictions. */
-                .form-col {
-                    display: flex; flex-direction: column; gap: 1.5rem;
-                    min-width: 0;
-                }
-
-                /* Two columns once there is room for them. Everything Bonfire drew was
-                   a phone column whatever the screen — on a desktop this form was a
-                   ~440px ribbon with the rest of the window empty, and the Save button
-                   several screens below the name field. */
-                @media (min-width: 900px) {
-                    .create-profile-container.is-two-col {
-                        max-width: var(--jpf-w-wide);
-                        display: grid;
-                        grid-template-columns: 1fr 1fr;
-                        align-items: start;
-                        max-height: 85vh;
-                    }
-                    /* Everything that is not one of the two columns spans both of them.
-                       Naming only .profile-dialog-actions left the Create form's button row
-                       and its error line as half-width grid items under the left column. */
-                    .create-profile-container.is-two-col > *:not(.form-col) {
-                        grid-column: 1 / -1;
-                    }
-                }
-
-                .create-profile-container {
-                    width: 100%; max-width: var(--jpf-w-form); box-sizing: border-box;
-                    display: flex; flex-direction: column; gap: 1.5rem;
-                    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
-                    border-radius: var(--jpf-r-lg); padding: 2rem; box-shadow: 0 20px 50px rgba(0,0,0,0.4);
-                    text-align: left; max-height: 75vh; overflow-y: auto;
-                }
-                .profile-dialog-actions {
-                    margin-top: 1rem; display: flex; justify-content: space-between; width: 100%; gap: var(--jpf-gap);
-                }
-                .dialog-action-buttons {
-                    display: flex; gap: var(--jpf-gap);
-                }
-                .btn-danger {
-                    background: rgba(230,0,0,0.85); color:#fff; border:none;
-                }
-                /* The trigger, not the confirmation. Delete Profile and Delete Group sat
-                   beside Save as equally solid red buttons, so the destructive option
-                   carried the same weight as the safe one. btn-danger itself stays filled
-                   because it is also the Confirm button on the dialog these open, where
-                   loud red is correct — that is the moment you mean it. */
-                .btn-danger-quiet {
-                    background: transparent; color: #ff8787;
-                    border: 1.5px solid rgba(230,0,0,0.40);
-                }
-                .btn-danger-quiet:hover,
-                .btn-danger-quiet:focus {
-                    background: rgba(230,0,0,0.15);
-                    border-color: rgba(230,0,0,0.85);
-                    color: #ffa8a8;
-                    outline: none;
-                }
-                .btn-danger:hover,
-                .btn-danger:focus {
-                    background: rgba(200,0,0,0.95);
-                    outline: none;
-                }
-
-                /* Mobile Responsiveness Media Queries */
-                @media (max-width: 600px) {
-                    #profiles-floating-bubble.profiles-floating-fallback {
-                        left: 12px;
-                        right: auto;
-                        bottom: 12px;
-                    }
-                }
-                /* Wrap Bonfire join row on very small phones so the button
-                   doesn't overflow or clip its label on screens under 360px. */
-                @media (max-width: 360px) {
-                    #bonfire-join-input,
-                    #bonfire-join-btn {
-                        flex: 1 1 100% !important;
-                        width: 100% !important;
-                        box-sizing: border-box !important;
-                    }
-                }
-                @media (max-width: 480px) {
-                    .profiles-title {
-                        font-size: 2.2rem;
-                        margin-bottom: 2rem;
-                    }
-                    .profiles-home-section {
-                        padding: 1.25rem 1rem;
-                        margin-bottom: 1.5rem;
-                        border-radius: var(--jpf-r-md);
-                    }
-                    .profiles-home-title {
-                        font-size: 1.25rem;
-                    }
-                    .profiles-grid {
-                        gap: 1.5rem;
-                    }
-                    .profile-dialog-actions {
-                        flex-direction: column;
-                    }
-                    .dialog-action-buttons {
-                        width: 100%;
-                    }
-                    .dialog-action-buttons button, #edit-delete-btn {
-                        flex: 1;
-                        width: 100%;
-                        text-align: center;
-                    }
-                }
-                .form-group,
-                .bonfire-form-group {
-                    display: flex; flex-direction: column; gap: 0.5rem;
-                }
-                .form-group label,
-                .bonfire-form-group label {
-                    font-size: 0.9rem; font-weight: 600; color: rgba(255,255,255,0.6);
-                }
-                .form-group input[type="text"],
-                .bonfire-form-group input[type="text"],
-                .form-group input[type="password"] {
-                    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
-                }
-                .form-group select {
-                    background: rgba(255, 255, 255, 0.06) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
-                    background-size: 20px;
-                    border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
-                    cursor: pointer;
-                    appearance: none;
-                    -webkit-appearance: none;
-                    -moz-appearance: none;
-                    padding-right: 36px;
-                }
-                .form-group select option {
-                    background-color: #1a1a1a;
-                    color: #fff;
-                }
-                .form-group input:focus, .form-group select:focus {
-                    border-color: var(--jpf-accent); outline: none;
-                    box-shadow: 0 0 10px var(--jpf-accent-a40);
-                }
-                .avatar-color-picker {
-                    display: flex; flex-wrap: wrap; gap: var(--jpf-gap);
-                }
-                .color-dot {
-                    width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
-                    border: 2px solid transparent; transition: transform 0.2s ease, border-color 0.2s ease;
-                }
-                .color-dot:hover,
-                .color-dot:focus {
-                    border-color: rgba(255,255,255,0.8);
-                    transform: scale(1.1);
-                    outline: none;
-                }
-                .color-dot.active {
-                    border-color: #fff; transform: scale(1.1);
-                }
-                .library-checklist {
-                    background: rgba(255,255,255,0.04); border-radius: var(--jpf-r-md);
-                    padding: 10px; display: flex; flex-direction: column; gap: 0.5rem;
-                    max-height: 140px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1);
-                }
-                /* Per-library artwork rows in the edit form (issue #19). */
-                /* Deliberately no max-height and no overflow. This list used to scroll
-                   inside a form that also scrolled, next to a second list that scrolled
-                   too — three nested scroll areas, and on a D-pad no way to tell which
-                   one the remote had hold of. The dialog is the only scroller now. */
-                .libart-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 6px;
-                    background: rgba(255,255,255,0.04);
-                    border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: var(--jpf-r-md);
-                    padding: 8px;
-                }
-                /* Only there to say what the second column is. Hidden with the controls it
-                   labels, and out of the accessibility tree either way — a remote should
-                   not have to step through a table header to reach the libraries. */
-                .libart-head {
-                    display: none;
-                    align-items: center;
-                    justify-content: space-between;
-                    gap: var(--jpf-gap);
-                    padding: 2px 8px 6px;
-                    font-size: 0.72rem;
-                    font-weight: 700;
-                    letter-spacing: 0.06em;
-                    text-transform: uppercase;
-                    color: rgba(255, 255, 255, 0.45);
-                }
-                .libart-list.show-artwork .libart-head {
-                    display: flex;
-                }
-                /* Artwork is opt-in. Without this the row carried an empty picture slot and
-                   an unlabelled dropdown for every library on the server. */
-                .libart-thumb,
-                .libart-mode,
-                .libart-choose {
-                    display: none;
-                }
-                .libart-list.show-artwork .libart-row.libart-has-art .libart-thumb {
-                    display: flex;
-                }
-                .libart-list.show-artwork .libart-mode {
-                    display: block;
-                }
-                .libart-list.show-artwork .libart-choose {
-                    display: inline-flex;
-                }
-                .libart-toggle {
-                    margin-top: 10px !important;
-                    font-size: 0.88rem !important;
-                }
-                .libart-explainer {
-                    margin-top: 6px;
-                }
-                .libart-row {
-                    display: flex;
-                    align-items: center;
-                    /* Wrap rather than crush the name. The row is thumb + name + mode,
-                       and in a narrow dialog the name was the only flexible part, so it
-                       ellipsised down to "3D Movi…" while the select kept its width. */
-                    flex-wrap: wrap;
-                    gap: var(--jpf-gap);
-                    padding: 6px 8px;
-                    border-radius: var(--jpf-r-sm);
-                    background: rgba(255, 255, 255, 0.04);
-                }
-                /* No display here. It is hidden by the grouped rule above and shown by
-                   .libart-list.show-artwork .libart-row.libart-has-art — declaring
-                   display:flex in this block would outrank the first (same specificity,
-                   later in the sheet) and put the empty slot back on every row. */
-                .libart-thumb {
-                    width: 44px;
-                    height: 26px;
-                    flex-shrink: 0;
-                    order: 2;
-                    border-radius: var(--jpf-r-sm);
-                    background-color: rgba(255, 255, 255, 0.08);
-                    background-size: cover;
-                    background-position: center;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 0.8rem;
-                    color: rgba(255, 255, 255, 0.35);
-                }
-                /* Wraps the tick, the thumbnail and the name — the part of the row that
-                   is one target. initTVCheckboxes binds to .library-check-label, which is
-                   how a remote toggles it: Enter does not tick a native checkbox. */
-                .libart-check {
-                    flex: 1 1 220px;
-                    min-width: 0;
-                    margin-left: 0;
-                }
-                .libart-name {
-                    /* Enough to read a real library name before anything else gives. */
-                    flex: 1 1 auto;
-                    min-width: 0;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                    font-size: 0.9rem;
-                }
-                .libart-mode {
-                    flex-shrink: 0;
-                    width: auto !important;
-                    min-width: 100px;
-                    padding: 4px 6px !important;
-                    font-size: 0.82rem !important;
-                    margin: 0 !important;
-                }
-                /* Kept in the layout when hidden so rows do not jump as modes change. */
-                .libart-choose {
-                    flex-shrink: 0;
-                }
-                .library-check-label {
-                    display: flex !important; align-items: center !important; gap: 0.6rem; cursor: pointer;
-                    font-size: 0.95rem; color: rgba(255,255,255,0.85);
-                    border-radius: var(--jpf-r-sm); padding: 4px 8px; margin-left: -8px;
-                    transition: background 0.2s, color 0.2s;
-                    position: relative !important;
-                }
-                .library-check-label input {
-                    cursor: pointer; accent-color: var(--jpf-accent);
-                    position: relative !important;
-                    opacity: 1 !important;
-                    width: 18px !important;
-                    height: 18px !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    flex-shrink: 0 !important;
-                }
-                .library-check-label:focus, .library-check-label:hover {
-                    background: rgba(255, 255, 255, 0.05);
-                    color: #fff;
-                    outline: none;
-                }
-                .library-check-label:focus input, .library-check-label:hover input {
-                    box-shadow: 0 0 8px var(--jpf-accent-a60);
-                }
-                /* ── Titled sections in the create/edit forms ───────────────────── */
-                .profile-section {
-                    background: rgba(255, 255, 255, 0.025);
-                    border: 1px solid rgba(255, 255, 255, 0.08);
-                    border-radius: var(--jpf-r-md);
-                    padding: 1rem 1.15rem 1.15rem;
-                    margin-bottom: 1.25rem;
-                }
-                .profile-section-header {
-                    display: flex;
-                    align-items: flex-start;
-                    gap: 0.7rem;
-                    padding-bottom: 0.75rem;
-                    margin-bottom: 1rem;
-                    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-                }
-                .profile-section-icon {
-                    font-size: 1.35rem;
-                    color: var(--jpf-accent);
-                    flex-shrink: 0;
-                    line-height: 1.3;
-                }
-                .profile-section-heading {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 2px;
-                    min-width: 0;
-                }
-                .profile-section-title {
-                    font-size: 1.05rem;
-                    font-weight: 700;
-                    color: #fff;
-                    margin: 0;
-                    line-height: 1.3;
-                }
-                .profile-section-subtitle {
-                    font-size: 0.8rem;
-                    color: rgba(255, 255, 255, 0.5);
-                    line-height: 1.35;
-                }
-                .profile-section-body {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1.1rem;
-                }
-                /* Sections already space their children, so the per-field margin that the
-                   flat layout relied on would double up here. */
-                .profile-section-body .form-group {
-                    margin-bottom: 0;
-                }
-
-                /* Header row that sits inside a section, e.g. "Enabled Libraries | Select all".
-                   Wraps rather than squashing the label on narrow phones. */
-                .section-inline-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    gap: 0.5rem;
-                    flex-wrap: wrap;
-                    margin-bottom: 0.35rem;
-                }
-
-                .form-hint-warn {
-                    color: rgba(245, 159, 0, 0.85) !important;
-                }
-                .form-error {
-                    color: #ff6b6b;
-                    font-size: 0.88rem;
-                    font-weight: 600;
-                    text-align: center;
-                    padding: 8px 12px;
-                    background: rgba(255, 107, 107, 0.1);
-                    border-radius: var(--jpf-r-md);
-                    border: 1px solid rgba(255, 107, 107, 0.25);
-                }
-
-                .image-upload-row {
-                    display: flex;
-                    align-items: center;
-                    gap: var(--jpf-gap);
-                    flex-wrap: wrap;
-                }
-                .image-upload-preview {
-                    width: 64px; height: 64px;
-                    border-radius: 50%;
-                    color: #fff;
-                    display: flex; align-items: center; justify-content: center;
-                    font-size: 1.8rem; font-weight: bold; text-transform: uppercase;
-                    overflow: hidden;
-                    border: 2px solid rgba(255, 255, 255, 0.2);
-                    flex-shrink: 0;
-                }
-                .image-upload-btn {
-                    cursor: pointer;
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 8px;
-                    padding: 10px 20px;
-                    font-size: 0.95rem;
-                    align-self: flex-start;
-                }
-
-                .device-dropdown-item {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    gap: 8px;
-                    padding: 8px 12px;
-                    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-                }
-                .device-delete-btn {
-                    background: transparent; border: none; color: #ff6b6b;
-                    cursor: pointer; padding: 6px; border-radius: var(--jpf-r-sm);
-                    display: flex; align-items: center; justify-content: center;
-                    font-size: 1.1rem; flex-shrink: 0;
-                    transition: background 0.2s;
-                }
-                .device-delete-btn:hover, .device-delete-btn:focus {
-                    background: rgba(255, 107, 107, 0.15);
-                    outline: none;
-                }
-
-                /* The dropdown is absolutely positioned so it overlays following fields
-                   instead of pushing the form around when it opens. */
-                .devices-dropdown-list {
-                    position: absolute;
-                    top: 100%; left: 0; right: 0;
-                    z-index: 10000;
-                    margin-top: 4px;
-                    max-height: 240px;
-                    overflow-y: auto;
-                }
-
-                /* Phones: reclaim horizontal space and stop the section chrome from
-                   eating the width the form fields need. */
-                @media (max-width: 600px) {
-                    .profile-section {
-                        padding: 0.85rem 0.8rem 0.9rem;
-                        margin-bottom: 1rem;
-                        border-radius: var(--jpf-r-md);
-                    }
-                    .profile-section-body { gap: 0.95rem; }
-                    .profile-section-title { font-size: 1rem; }
-                    .profile-section-subtitle { font-size: 0.75rem; }
-                    .image-upload-btn { width: 100%; }
-                }
-
-                /* TV / D-pad: the focus ring must be obvious from across a room, and a
-                   focused control inside a scrolling section has to scroll itself into
-                   view rather than sitting behind a section header. */
-                .profile-section :focus-visible {
-                    outline: 2px solid var(--jpf-accent);
-                    outline-offset: 2px;
-                    scroll-margin-top: 4rem;
-                    scroll-margin-bottom: 4rem;
-                }
-
-                .tag-editor {
-                    display: flex; flex-direction: column; gap: 8px;
-                }
-                .tag-chip-list {
-                    display: flex; flex-wrap: wrap; gap: 6px;
-                    background: rgba(255,255,255,0.04); border-radius: var(--jpf-r-md);
-                    border: 1px solid rgba(255,255,255,0.1);
-                    padding: 8px; min-height: 40px;
-                    max-height: 120px; overflow-y: auto;
-                    align-content: flex-start;
-                }
-                .tag-chip-list[data-empty="true"]::before {
-                    content: "No tags — this filter is off";
-                    font-size: 0.8rem; color: rgba(255,255,255,0.35);
-                    align-self: center;
-                }
-                .tag-chip {
-                    display: inline-flex; align-items: center; gap: 6px;
-                    background: var(--jpf-accent-a18);
-                    border: 1px solid var(--jpf-accent-a45);
-                    color: #fff; border-radius: 999px;
-                    padding: 3px 6px 3px 12px; font-size: 0.85rem;
-                    max-width: 100%; word-break: break-word;
-                }
-                .tag-chip-remove {
-                    background: transparent; border: none; color: rgba(255,255,255,0.7);
-                    cursor: pointer; font-size: 1rem; line-height: 1;
-                    padding: 0; width: 18px; height: 18px; border-radius: 50%;
-                    display: flex; align-items: center; justify-content: center;
-                    transition: background 0.2s, color 0.2s;
-                }
-                .tag-chip-remove:hover, .tag-chip-remove:focus {
-                    background: rgba(255,255,255,0.18); color: #fff; outline: none;
-                }
-                .tag-input-row {
-                    display: flex; gap: 8px;
-                }
-                .tag-input-row .tag-input {
-                    flex: 1; min-width: 0;
-                }
-                .tag-input-row .tag-add-btn {
-                    padding: 8px 18px; font-size: 0.9rem; flex-shrink: 0;
-                }
-                .form-hint {
-                    font-size: 0.78rem;
-                    color: rgba(255,255,255,0.4);
-                    margin-top: -0.2rem;
-                    text-align: left;
-                    position: relative !important;
-                    display: block !important;
-                }
-
-                /* Switch-Profile bubble — fade transition */
-                #profiles-floating-bubble {
-                    transition: opacity 0.15s ease;
-                }
-                #profiles-floating-bubble.profiles-bubble-hiding {
-                    opacity: 0 !important;
-                    pointer-events: none;
-                }
-                /* Fallback bubble — fade transition (defers all positioning to ID rule above) */
-                .profiles-floating-fallback {
-                    transition: opacity 0.15s ease;
-                }
-                .profiles-floating-fallback.profiles-bubble-hiding {
-                    opacity: 0 !important;
-                    pointer-events: none;
-                }
-
-                /* Keyframe Animations */
-                .anim-fade-in {
-                    animation: fadeIn 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
-                }
-                @keyframes fadeIn {
-                    from { opacity: 0; transform: scale(0.96) translateY(10px); }
-                    to { opacity: 1; transform: scale(1) translateY(0); }
-                }
-
-                /* Devices Dropdown Styles */
-                /* Allowed Devices is the one hand-built control among native selects, and
-                   it sat directly above two of them. It cannot become a <select> — it is
-                   multi-select with checkboxes — so it borrows their exact appearance
-                   instead, chevron included, rather than carrying a text arrow. */
-                .devices-dropdown-trigger {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    background: rgba(255, 255, 255, 0.06) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
-                    background-size: 20px;
-                    border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: var(--jpf-r-md);
-                    padding: 10px;
-                    padding-right: 36px;
-                    color: #fff;
-                    font-size: 1rem;
-                    cursor: pointer;
-                    user-select: none;
-                    transition: border-color 0.2s, box-shadow 0.2s;
-                }
-                .devices-dropdown-trigger:focus {
-                    outline: none;
-                    border-color: var(--jpf-accent) !important;
-                    box-shadow: 0 0 10px var(--jpf-accent-a50) !important;
-                }
-                /* background-color, not background: the shorthand would reset the chevron
-                   that now lives in this element's background-image. */
-                .devices-dropdown-trigger:hover {
-                    background-color: rgba(255,255,255,0.05);
-                }
-                .devices-dropdown-list {
-                    background: #202020;
-                    border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: var(--jpf-r-sm);
-                    max-height: 250px;
-                    overflow-y: auto;
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-                }
-                .device-dropdown-item {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    padding: 8px 12px;
-                    border-bottom: 1px solid rgba(255,255,255,0.05);
-                    transition: background 0.2s;
-                }
-                .device-dropdown-item:hover, .device-dropdown-item:focus-within {
-                    background: rgba(255,255,255,0.03);
-                }
-                .device-delete-btn:focus {
-                    outline: none;
-                    background: rgba(255,107,107,0.2) !important;
-                }
-            `;
+            style.id = 'jpf-styles';
+            // textContent, not innerHTML. A <style> element's contents are CSS, not markup,
+            // so HTML-parsing them buys nothing and can only misread the text.
+            style.textContent = BONFIRE_STYLES;
             document.head.appendChild(style);
         }
     };

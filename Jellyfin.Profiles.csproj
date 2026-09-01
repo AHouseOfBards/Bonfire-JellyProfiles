@@ -6,13 +6,13 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Jellyfin.Profiles</AssemblyName>
     <RootNamespace>Jellyfin.Profiles</RootNamespace>
-    <Version>1.5.0</Version>
+    <Version>1.6.0</Version>
     <!-- Jellyfin requires a purely numeric assembly version, so any pre-release label lives
          here instead. The plugin reports this string in the API and the dashboard badge, and
          the settings page shows a pre-release notice whenever it matches -beta/-alpha/-rc.
          STABLE RELEASE: no suffix. Append "-beta" here (and only here) to mark a build as
          pre-release; nothing else needs changing. -->
-    <InformationalVersion>1.5.0</InformationalVersion>
+    <InformationalVersion>1.6.0</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
@@ -31,15 +31,26 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- The SDK globs **/*.cs, so anything under these would be compiled into the plugin.
+       tests\ holds four standalone harness projects; without this the plugin build picks
+       up their Program.cs files and fails on duplicate assembly attributes. -->
   <ItemGroup>
     <Compile Remove="scratch\**" />
     <EmbeddedResource Remove="scratch\**" />
     <None Remove="scratch\**" />
+    <Compile Remove="tests\**" />
+    <EmbeddedResource Remove="tests\**" />
+    <None Remove="tests\**" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Web/profilesDashboard.html" />
     <EmbeddedResource Include="Web/profiles.js" />
+    <!-- Spliced into profiles.js as it is served, by ProfilesController.PublishStyles.
+         A real .css file rather than a template literal inside the script: that is what
+         makes the 1.5.2 failure impossible at the language level. -->
+    <EmbeddedResource Include="Web/styles.css" />
+    <EmbeddedResource Include="Web/i18n/*.json" />
   </ItemGroup>
 
 </Project>

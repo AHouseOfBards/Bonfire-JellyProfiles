@@ -133,6 +133,30 @@ jobs:
             exit 1
           fi
 
+          # A checksum that already belongs to another version means this release is
+          # byte-identical to one that already shipped — the artefact was rebuilt from an
+          # unchanged tree, or the wrong zip was uploaded. Either way the release notes
+          # describe changes that are not in the file.
+          #
+          # 1.1.2, 1.1.4 and 1.1.6 all carry 0b6481f7f56de24f3c9757d67a73f181. Three
+          # releases, three sets of notes, one binary. Nothing in the pipeline noticed,
+          # and nothing could have: every other check here asks whether the checksum was
+          # written, never whether it is new.
+          #
+          # Both manifests are searched. The same artefact appearing under a beta version
+          # and a stable one is the normal, correct outcome of promoting a beta, so a match
+          # is only fatal within the channel being released to.
+          CLASH=$(jq -r --arg c "$C" --arg v "$V" \
+            '[.[0].versions[] | select(.checksum == $c and .version != $v) | .version] | join(", ")' \
+            manifest.json)
+          if [ -n "$CLASH" ]; then
+            echo "::error::${V} has the same checksum as ${CLASH} in the '${BRANCH}' manifest."
+            echo "::error::The build is byte-identical to a release that already shipped, so"
+            echo "::error::whatever the release notes describe is not in this artefact."
+            echo "::error::Checksum: ${C}"
+            exit 1
+          fi
+
           jq --arg v "$V" --arg c "$C" \
              '.[0].versions |= map(if .version == $v then .checksum = $c else . end)' \
              manifest.json > manifest.tmp.json

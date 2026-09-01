@@ -1,0 +1,44 @@
+name: CI
+
+# Until now the only workflow here ran on tags, so a pull request got no build, no syntax
+# check and no translation check at all. 1.5.2 shipped a client script that threw on
+# startup and nothing noticed, because the file was still valid JavaScript.
+on:
+  pull_request:
+  push:
+    branches: [main, beta]
+
+jobs:
+  check:
+    name: Build and verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Necessary but NOT sufficient — this passed against the 1.5.2 defect, which was
+      # valid JavaScript that threw on the first call. tests/run.sh is what catches that.
+      - name: Syntax check the client script
+        run: node --check Web/profiles.js
+
+      # Builds the plugin (Release, -warnaserror) and runs all 17 harnesses: 13 JS and
+      # 4 C#, ~737 assertions. Same command a maintainer runs locally, so CI and the
+      # desk cannot disagree about what "the tests pass" means.
+      - name: Run the test suite
+        run: bash tests/run.sh
+
+      # Contributors are told to run this before opening a PR (Web/i18n/README.md).
+      # Nothing enforced it, so the first person to forget shipped a broken catalogue.
+      - name: Validate translations
+        run: node Web/i18n/validate.js

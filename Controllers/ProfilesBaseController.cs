@@ -1,15 +1,19 @@
 using System;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Jellyfin.Profiles.Configuration;
 using Jellyfin.Profiles.Models;
+using MediaBrowser.Controller.Devices;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Common.Net;
@@ -47,9 +51,80 @@ namespace Jellyfin.Profiles.Controllers
         internal static string? AuditLogPath;
         internal static readonly object AuditLogLock = new();
 
+        /// <summary>
+        /// The one lock guarding every read-modify-write of the plugin configuration.
+        /// <para>
+        /// Twenty-six sites used to do <c>var config = Plugin.Instance?.Configuration;</c>
+        /// and then locked that instance. That is not mutual exclusion. When an administrator
+        /// saves the settings page Jellyfin calls <c>BasePlugin&lt;T&gt;.UpdateConfiguration</c>,
+        /// which assigns a <em>new</em> configuration instance — so every monitor already held
+        /// on the old object is guarding something nothing else will ever lock, while every
+        /// request arriving afterwards locks the new one. Two writers get inside at once, and
+        /// whatever the first one wrote goes away with the object it wrote to. The symptom is
+        /// a profile, device or group that was saved and simply is not there.
+        /// </para>
+        /// <para>
+        /// A static field, because controllers are transient: an instance field would hand
+        /// every request its own private lock, which is the same bug wearing a different hat.
+        /// Proven, and guarded against coming back, by <c>tests/cs/configlock</c> — it calls
+        /// the real <c>UpdateConfiguration</c> to show the instance is replaced, then walks two
+        /// threads through the old pattern and catches both inside the critical section.
+        /// </para>
+        /// </summary>
+        internal static readonly object ConfigLock = new();
+
+        /// <summary>
+        /// Should a switch to <paramref name="targetUserId"/> rewrite that account's policy
+        /// from its master's? True only for a genuine sub-profile.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Issue #27. The switch path inherits streaming limits, tag filters and the enabled
+        /// library list from a profile's master account, which is right for a sub-profile and
+        /// catastrophic for anything else. It was gated only on
+        /// <c>targetUser.Id != callerMasterUserId</c>, so a Bonfire switch into somebody
+        /// else's *main* account ran it too — and there, with no mapping, the code took the
+        /// target to be its own master.
+        /// </para>
+        /// <para>
+        /// What that did to a real account, permanently, on every switch: a main user
+        /// normally has <c>EnableAllFolders = true</c> and an EMPTY <c>EnabledFolders</c>,
+        /// because Jellyfin stores "all" as the flag rather than as a list. The legacy branch
+        /// read that empty list as the authoritative set, intersected it with itself, then
+        /// wrote <c>EnableAllFolders = false</c> with an empty list and every folder blocked.
+        /// The reporter's words: "that user's library access is cleared", and a prompt to ask
+        /// the administrator to create a library. It also set <c>IsAdministrator = false</c>
+        /// and <c>IsHidden = true</c>, so a switch into an admin quietly demoted them.
+        /// </para>
+        /// <para>
+        /// Their sub-profiles went with it: each one intersects its own list against the
+        /// master's accessible folders, and the master now had none.
+        /// </para>
+        /// <para>
+        /// A master's own self-mapping is excluded as well as a missing one. Both mean the
+        /// target is a real Jellyfin account that owns its policy, with nothing above it to
+        /// inherit from.
+        /// </para>
+        /// </remarks>
+        internal static bool ShouldInheritMasterPolicy(
+            ProfileMapping? mapping, Guid targetUserId, Guid callerMasterUserId)
+        {
+            // No mapping: a main Jellyfin account reached through a Bonfire link.
+            if (mapping == null) return false;
+
+            // A master's self-mapping. It is its own master, so there is nothing to inherit.
+            if (mapping.ProfileUserId == mapping.MasterUserId) return false;
+
+            // Switching back to the caller's own master account.
+            if (targetUserId == callerMasterUserId) return false;
+
+            return true;
+        }
+
         // ── DI fields (set by derived constructors) ─────────────────────────────────
         protected readonly IUserManager _userManager;
         protected readonly ISessionManager _sessionManager;
+        protected readonly IDeviceManager _deviceManager;
         protected readonly ILibraryManager _libraryManager;
         protected readonly INetworkManager _networkManager;
         protected readonly ILogger _logger;
@@ -57,12 +132,14 @@ namespace Jellyfin.Profiles.Controllers
         protected ProfilesBaseController(
             IUserManager userManager,
             ISessionManager sessionManager,
+            IDeviceManager deviceManager,
             ILibraryManager libraryManager,
             INetworkManager networkManager,
             ILogger logger)
         {
             _userManager = userManager;
             _sessionManager = sessionManager;
+            _deviceManager = deviceManager;
             _libraryManager = libraryManager;
             _networkManager = networkManager;
             _logger = logger;
@@ -88,27 +165,94 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         protected string? GetAuthorizationParameter(string name)
+            => ParseAuthorizationParameter(
+                   Request.Headers["Authorization"].FirstOrDefault(),
+                   Request.Headers["X-Emby-Authorization"].FirstOrDefault(),
+                   name);
+
+        /// <summary>
+        /// Reads one parameter out of a MediaBrowser authorization header, the way Jellyfin's
+        /// own <c>AuthorizationContext.GetParts</c> reads it.
+        /// <para>
+        /// This used to read <c>Authorization</c> only, split on every comma, and return the
+        /// value verbatim. All three were wrong, and the device restriction is the feature
+        /// that paid for it, because <see cref="GetAuthorizationParameter"/> is what supplies
+        /// the DeviceId the restriction is checked against — and a DeviceId that fails to
+        /// parse is indistinguishable from a device that is not on the whitelist. The result
+        /// was a profile restricted to a device that then could not be reached from any
+        /// device at all.
+        /// </para>
+        /// <para>Three fixes, each one a client that really sends what it describes:</para>
+        /// <list type="number">
+        /// <item><description><c>X-Emby-Authorization</c> is still sent instead of
+        /// <c>Authorization</c> by a number of clients, and Jellyfin itself accepts either
+        /// (<c>GetAuthorizationDictionary</c> falls back to it). Reading only the one header
+        /// meant every parameter came back null for those clients — so the switch was refused
+        /// and nothing was ever recorded in the device picker for them.</description></item>
+        /// <item><description>Commas inside a quoted value are part of the value. The device
+        /// name is user-settable and travels unencoded from the browser
+        /// (<c>apiClient.setRequestHeaders</c> interpolates <c>_deviceName</c> raw), so
+        /// "Living Room, TV" split the header mid-value and shifted every parameter after it
+        /// out of alignment.</description></item>
+        /// <item><description>Values are URL-encoded by some clients; Jellyfin decodes them.
+        /// Not decoding meant the same physical device could be recorded under two spellings,
+        /// and names displayed as "Xbox%20One" in the picker.</description></item>
+        /// </list>
+        /// <para>Static and header-string-based so a harness can drive it without a request.</para>
+        /// </summary>
+        internal static string? ParseAuthorizationParameter(
+            string? authorizationHeader, string? embyAuthorizationHeader, string name)
         {
-            var authHeader = Request.Headers["Authorization"].FirstOrDefault();
-            if (string.IsNullOrEmpty(authHeader)) return null;
+            var header = !string.IsNullOrEmpty(authorizationHeader)
+                ? authorizationHeader
+                : embyAuthorizationHeader;
+            if (string.IsNullOrEmpty(header)) return null;
 
-            // Strip the scheme prefix (e.g. "MediaBrowser ") so the first token
-            // parses as "Client=\"...\"" rather than "MediaBrowser Client=\"...\"".
+            // Strip the scheme prefix (e.g. "MediaBrowser ") so the first token parses as
+            // "Client=\"...\"" rather than "MediaBrowser Client=\"...\"".
             const string scheme = "MediaBrowser ";
-            if (authHeader.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
-                authHeader = authHeader.Substring(scheme.Length);
+            if (header.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
+                header = header.Substring(scheme.Length);
 
-            var parts = authHeader.Split(',');
-            foreach (var part in parts)
+            // Quote-aware scan. `inQuotes` flips on every quote character, so a comma seen
+            // while inside a value is kept rather than treated as a separator.
+            var key = string.Empty;
+            var start = 0;
+            var inQuotes = false;
+            string? found = null;
+
+            void Consider(string k, string v)
             {
-                var trimmed = part.Trim();
-                if (trimmed.StartsWith(name + "=", StringComparison.OrdinalIgnoreCase))
+                if (found == null && string.Equals(k.Trim(), name, StringComparison.OrdinalIgnoreCase))
                 {
-                    var value = trimmed.Substring(name.Length + 1).Trim('"', ' ');
-                    return value;
+                    found = WebUtility.UrlDecode(v.Trim().Trim('"'));
                 }
             }
-            return null;
+
+            int i;
+            for (i = 0; i < header.Length; i++)
+            {
+                var c = header[i];
+                if (c == '"')
+                {
+                    inQuotes = !inQuotes;
+                }
+                else if (!inQuotes && c == '=' && key.Length == 0)
+                {
+                    key = header.Substring(start, i - start);
+                    start = i + 1;
+                }
+                else if (!inQuotes && c == ',')
+                {
+                    if (key.Length > 0) Consider(key, header.Substring(start, i - start));
+                    key = string.Empty;
+                    start = i + 1;
+                }
+            }
+
+            if (key.Length > 0) Consider(key, header.Substring(start, i - start));
+
+            return found;
         }
 
         // ── PIN hashing ─────────────────────────────────────────────────────────────
@@ -196,7 +340,7 @@ namespace Jellyfin.Profiles.Controllers
 
             if (IsLegacyPinHash(mapping.PinHash))
             {
-                lock (config)
+                lock (ConfigLock)
                 {
                     // Re-check inside the lock — a concurrent request may have upgraded it.
                     if (IsLegacyPinHash(mapping.PinHash))
@@ -379,7 +523,9 @@ namespace Jellyfin.Profiles.Controllers
             {
                 if (AuditLogPath != null) return AuditLogPath;
 
-                // Fix #4: guard against Plugin.Instance being null on first call
+                // Plugin.Instance can still be null the first time this is reached, before
+                // the plugin has finished constructing. Without this guard the audit log
+                // path throws on the very first request rather than degrading.
                 var instance = Plugin.Instance;
                 if (instance == null)
                 {
@@ -519,9 +665,12 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return;
 
-            var deviceId = GetAuthorizationParameter("DeviceId");
-            var deviceName = GetAuthorizationParameter("Device");
-            var client = GetAuthorizationParameter("Client");
+            // Trimmed at the door. The id is compared against whitelists with an ordinal
+            // comparison in several places, so a stray space is a different device — and the
+            // record written here is what those comparisons are made against.
+            var deviceId = GetAuthorizationParameter("DeviceId")?.Trim();
+            var deviceName = GetAuthorizationParameter("Device")?.Trim();
+            var client = GetAuthorizationParameter("Client")?.Trim();
             if (string.IsNullOrEmpty(deviceId)) return;
 
             // Attribute the device to the caller's master account so the device picker can be
@@ -535,25 +684,57 @@ namespace Jellyfin.Profiles.Controllers
                 ownerId = callerMapping != null ? callerMapping.MasterUserId : callerId.Value;
             }
 
-            lock (config)
+            lock (ConfigLock)
             {
                 var existing = config.KnownDevices.FirstOrDefault(d =>
                     string.Equals(d.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
 
+                var now = DateTime.UtcNow;
+                var save = false;
+
                 if (existing != null)
                 {
-                    // Update in-memory only — LastSeen is informational and does not need
-                    // to trigger a full PluginConfiguration.xml rewrite on every request.
-                    existing.LastSeen = DateTime.UtcNow;
-                    existing.DeviceName = deviceName ?? existing.DeviceName;
-                    existing.Client = client ?? existing.Client;
+                    existing.LastSeen = now;
+
+                    // A name only ever improves. A client that sends nothing must not replace
+                    // a good name with a blank — which is how rows ended up reading "Unknown
+                    // Device" despite having been named at some point — and a name an
+                    // administrator typed outranks whatever the client reports, or the rename
+                    // would last until this device's next request.
+                    if (!existing.NameIsCustom && !IsPlaceholderDeviceName(deviceName))
+                        existing.DeviceName = deviceName!;
+                    if (!string.IsNullOrWhiteSpace(client)) existing.Client = client;
+
+                    // LastSeen was in-memory only, to keep a full PluginConfiguration.xml
+                    // rewrite off every request. The cost was that it never survived a
+                    // restart: the device list came back ordered by whenever each record was
+                    // first written, and "last seen" showed a date from before the restart —
+                    // so the column an administrator uses to decide what to revoke was
+                    // reliably wrong after every server update.
+                    //
+                    // Written at most once an hour per device instead. That is far finer than
+                    // the "unseen for 180 days" question the value is actually used to answer,
+                    // and it is one write an hour rather than one a request.
+                    //
+                    // Throttled against when it was last *persisted*, not last seen: LastSeen
+                    // is bumped in memory on every request, so comparing against it would
+                    // never reach an hour on a device that is in regular use — which is every
+                    // device this matters for.
+                    var lastWrite = DevicePersistedAt.TryGetValue(existing.DeviceId, out var at)
+                        ? at
+                        : DateTime.MinValue;
+                    if (now - lastWrite >= DeviceLastSeenWriteInterval)
+                    {
+                        DevicePersistedAt[existing.DeviceId] = now;
+                        save = true;
+                    }
 
                     // Claim ownership for records written before MasterUserId existed. This is
-                    // the one case worth persisting, so the migration happens exactly once.
+                    // the one case worth persisting immediately, so it happens exactly once.
                     if (existing.MasterUserId == Guid.Empty && ownerId != Guid.Empty)
                     {
                         existing.MasterUserId = ownerId;
-                        Plugin.Instance?.SaveConfiguration();
+                        save = true;
                     }
                 }
                 else
@@ -562,15 +743,573 @@ namespace Jellyfin.Profiles.Controllers
                     config.KnownDevices.Add(new KnownDevice
                     {
                         DeviceId = deviceId,
-                        DeviceName = deviceName ?? "Unknown Device",
-                        Client = client ?? "Unknown Client",
-                        LastSeen = DateTime.UtcNow,
+                        // Left blank rather than stamped "Unknown Device". The picker fills a
+                        // blank in from the client name and, failing that, from the device id,
+                        // so a nameless device still reads as something an administrator can
+                        // tell apart — see DisambiguateDeviceNames. Storing the placeholder
+                        // made every nameless device render as the same row.
+                        DeviceName = IsPlaceholderDeviceName(deviceName) ? string.Empty : deviceName!,
+                        Client = string.IsNullOrWhiteSpace(client) ? string.Empty : client,
+                        LastSeen = now,
                         MasterUserId = ownerId
                     });
-                    Plugin.Instance?.SaveConfiguration();
+                    DevicePersistedAt[deviceId] = now;
+                    save = true;
                 }
+
+                // Only while we are writing anyway, and at most once a day. KnownDevices is a
+                // single server-wide list that only ever grew: every phone that ever hit the
+                // server stayed in it forever, and the device picker is a list an administrator
+                // has to read.
+                if (save) save |= PruneStaleDevices(config, now);
+
+                if (save) Plugin.Instance?.SaveConfiguration();
             }
         }
+
+        // ── Device housekeeping ─────────────────────────────────────────────────────
+
+        /// <summary>When each device's LastSeen was last written to disk. See RecordDeviceActivity.</summary>
+        private static readonly ConcurrentDictionary<string, DateTime> DevicePersistedAt = new();
+
+        private static readonly TimeSpan DeviceLastSeenWriteInterval = TimeSpan.FromHours(1);
+
+        /// <summary>How long a device may go unseen before it is dropped from the picker.
+        /// <para>
+        /// Re-examined once the duplicate reports were diagnosed, and deliberately left at 180
+        /// days. The worry was that 180 days of "one row per connection" is what made the list
+        /// unreadable — but the id does not rotate per connection: jellyfin-web persists it in
+        /// <c>localStorage</c> under <c>_deviceId2</c>, so a browser keeps one id until its
+        /// site data is cleared. The duplicates come from one machine having several ids
+        /// (a second origin, a second browser profile, a reinstall), and shortening the window
+        /// does nothing about those while it does drop devices people still own — a television
+        /// used over the summer, a tablet that lives in a drawer. Merging is the fix; see
+        /// <see cref="MergeDeviceRecords"/>.
+        /// </para>
+        /// </summary>
+        private static readonly TimeSpan DeviceRetention = TimeSpan.FromDays(180);
+
+        private static DateTime _lastDevicePrune = DateTime.MinValue;
+
+        /// <summary>
+        /// Drops devices nobody has used for <see cref="DeviceRetention"/>, unless some profile
+        /// still names them. True when anything was removed.
+        /// <para>
+        /// A device on a whitelist is kept however old it is: removing it would silently widen
+        /// that profile's access, because an empty <c>AllowedDeviceIds</c> means "any device".
+        /// Tidying a list must never turn a restriction off.
+        /// </para>
+        /// <para>Caller must hold <see cref="ConfigLock"/>.</para>
+        /// </summary>
+        private bool PruneStaleDevices(PluginConfiguration config, DateTime now)
+        {
+            if (now - _lastDevicePrune < TimeSpan.FromDays(1)) return false;
+            _lastDevicePrune = now;
+
+            var removed = RemoveStaleDevices(config, now);
+            if (removed > 0)
+            {
+                _logger.LogInformation(
+                    "ProfilesPlugin: Dropped {Count} device(s) unseen for {Days} days.",
+                    removed, (int)DeviceRetention.TotalDays);
+            }
+            return removed > 0;
+        }
+
+        /// <summary>
+        /// The pruning itself, with no throttle and no logger, so it can be driven directly by
+        /// a harness. Returns how many records were removed. Caller must hold ConfigLock.
+        /// </summary>
+        internal static int RemoveStaleDevices(PluginConfiguration config, DateTime now)
+        {
+            var whitelisted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var m in config.Mappings)
+                foreach (var id in m.AllowedDeviceIds)
+                    if (!string.IsNullOrEmpty(id)) whitelisted.Add(id);
+
+            return config.KnownDevices.RemoveAll(d =>
+                now - d.LastSeen > DeviceRetention && !whitelisted.Contains(d.DeviceId));
+        }
+
+        /// <summary>
+        /// A 429 that says how long the wait actually is, and carries a <c>Retry-After</c>
+        /// header so anything automated can read the same number the person is shown.
+        /// <para>
+        /// Every one of these used to end "please try again in 15 minutes", which is the
+        /// width of the window rather than the wait. The limiter slides: it frees a slot
+        /// when the oldest counted attempt ages out, so the real answer is usually far
+        /// less, and fifteen was not even a safe over-estimate to quote — it was simply a
+        /// different quantity.
+        /// </para>
+        /// </summary>
+        internal ActionResult TooManyAttempts(RateLimiter limiter, string key, string what)
+        {
+            var wait = limiter.RetryAfter(key);
+            if (wait > TimeSpan.Zero)
+            {
+                Response.Headers["Retry-After"] =
+                    ((int)Math.Ceiling(wait.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
+            }
+
+            return StatusCode(
+                StatusCodes.Status429TooManyRequests,
+                what + " Please try again " + RateLimiter.DescribeWait(wait) + ".");
+        }
+
+        // ── Reading a submitted configuration ───────────────────────────────────────
+
+        /// <summary>
+        /// Finds a property on a JSON object, matching the name without regard to case.
+        /// <para>
+        /// Case-insensitive because the casing a configuration export comes back in is not
+        /// something an administrator should have to know about. Jellyfin's REST serialiser
+        /// emits PascalCase today; the client that reads a saved file and posts it back is
+        /// not necessarily this one, and a file that round-trips through any other tool can
+        /// easily arrive camelCased. Binding straight to the type would have silently treated
+        /// every such file as an empty configuration.
+        /// </para>
+        /// </summary>
+        internal static bool TryProperty(JsonElement obj, string name, out JsonElement value)
+        {
+            value = default;
+            if (obj.ValueKind != JsonValueKind.Object) return false;
+
+            foreach (var p in obj.EnumerateObject())
+            {
+                if (string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = p.Value;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Deserialises a JSON element, tolerating either casing, and returning null rather
+        /// than throwing on anything malformed.
+        /// </summary>
+        internal static T? Read<T>(JsonElement element) where T : class
+        {
+            try
+            {
+                return element.Deserialize<T>(new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }
+
+        // ── Device restrictions ─────────────────────────────────────────────────────
+
+        /// <summary>Why a device was or was not allowed to switch into a profile.</summary>
+        internal enum DeviceAccess
+        {
+            /// <summary>The profile names no devices, so every device may use it.</summary>
+            NotRestricted,
+
+            /// <summary>The calling device is on the profile's list.</summary>
+            Allowed,
+
+            /// <summary>The list is populated and this device is not on it. The intended refusal.</summary>
+            DeniedNotOnList,
+
+            /// <summary>
+            /// The request carried no usable DeviceId, so the restriction could not be
+            /// evaluated. Refusing is still the right answer — an unidentifiable device must
+            /// not pass a device check — but it is a different fault from the one above and
+            /// the caller is told so, because the two used to be one silent message.
+            /// </summary>
+            DeniedNoDeviceId,
+
+            /// <summary>
+            /// Every device on the list has gone: not one of the ids is a device the server
+            /// still knows about. No device can ever match, so the profile is unreachable
+            /// until somebody edits the list.
+            /// <para>
+            /// This is still a refusal. Falling back to "allow anything" would turn a
+            /// restriction off by itself, which is the one thing tidying a device list is
+            /// never allowed to do — the same rule <see cref="RemoveStaleDevices"/> is built
+            /// around. What changes is that the caller can say so instead of repeating
+            /// "not allowed on this device" at somebody whose only allowed device no longer
+            /// exists. The account that owns the profile is never device-restricted, so the
+            /// list can always be fixed from the profile's edit form.
+            /// </para>
+            /// </summary>
+            DeniedListIsStale
+        }
+
+        /// <summary>
+        /// Whether <paramref name="deviceId"/> may switch into the profile described by
+        /// <paramref name="mapping"/>. <paramref name="knownDevices"/> is the server's device
+        /// list, used only to tell a stale whitelist apart from an ordinary refusal; pass null
+        /// to skip that distinction.
+        /// <para>
+        /// Pure and static so both call sites share one set of rules and a harness can drive
+        /// every outcome. The two call sites had a copy each, and a copy is where the two
+        /// halves of a rule drift apart.
+        /// </para>
+        /// </summary>
+        internal static DeviceAccess EvaluateDeviceRestriction(
+            ProfileMapping? mapping, string? deviceId, IEnumerable<KnownDevice>? knownDevices)
+        {
+            // A master account is not a sub-profile and is never device-restricted; without
+            // this an owner could lock themselves out of their own household.
+            if (mapping == null
+                || mapping.ProfileUserId == mapping.MasterUserId
+                || mapping.AllowedDeviceIds == null)
+            {
+                return DeviceAccess.NotRestricted;
+            }
+
+            var allowed = mapping.AllowedDeviceIds
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id.Trim())
+                .ToList();
+
+            // An empty list means "any device". A list that is only blank strings means the
+            // same thing: it was never a restriction, whatever Count said.
+            if (allowed.Count == 0) return DeviceAccess.NotRestricted;
+
+            var candidate = deviceId?.Trim();
+            if (string.IsNullOrEmpty(candidate)) return DeviceAccess.DeniedNoDeviceId;
+
+            if (allowed.Any(id => string.Equals(id, candidate, StringComparison.OrdinalIgnoreCase)))
+            {
+                return DeviceAccess.Allowed;
+            }
+
+            if (knownDevices != null)
+            {
+                var known = knownDevices
+                    .Select(d => d.DeviceId)
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                if (!allowed.Any(known.Contains)) return DeviceAccess.DeniedListIsStale;
+            }
+
+            return DeviceAccess.DeniedNotOnList;
+        }
+
+        /// <summary>
+        /// The profiles whose device list would be left empty — and therefore unrestricted —
+        /// if every id in <paramref name="removingIds"/> were dropped from it.
+        /// <para>
+        /// An empty <c>AllowedDeviceIds</c> means "any device", so removing the last entry
+        /// from a whitelist does not tidy it, it switches the restriction off. Forgetting a
+        /// device is an explicit act rather than housekeeping, but the widening it can cause
+        /// is just as silent, so the callers refuse instead and say which profiles are in the
+        /// way. Same rule as <see cref="RemoveStaleDevices"/>, enforced from the other side.
+        /// </para>
+        /// </summary>
+        internal static List<Guid> ProfilesLeftUnrestrictedBy(
+            PluginConfiguration config, IEnumerable<string> removingIds)
+        {
+            var removing = removingIds
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id.Trim())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var affected = new List<Guid>();
+            if (removing.Count == 0) return affected;
+
+            foreach (var m in config.Mappings)
+            {
+                if (m.AllowedDeviceIds == null) continue;
+
+                var current = m.AllowedDeviceIds
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Select(id => id.Trim())
+                    .ToList();
+
+                // Not restricted to begin with, so nothing can be widened.
+                if (current.Count == 0) continue;
+
+                if (current.All(removing.Contains)) affected.Add(m.ProfileUserId);
+            }
+
+            return affected;
+        }
+
+        /// <summary>
+        /// Folds <paramref name="fromId"/> into <paramref name="intoId"/>: every profile that
+        /// allowed the old device now allows the new one, and the old record is dropped.
+        /// Returns false when there was nothing to merge. Caller must hold ConfigLock.
+        /// <para>
+        /// Why one machine ends up with several records at all is explained on
+        /// <see cref="GroupLikelyDuplicates"/>, which is what finds them.
+        /// </para>
+        /// <para>
+        /// The merge is deliberately additive on the whitelist. <paramref name="intoId"/> is
+        /// added before <paramref name="fromId"/> is removed, so no list passes through empty
+        /// and no restriction is switched off in the middle of the operation.
+        /// </para>
+        /// </summary>
+        internal static bool MergeDeviceRecords(PluginConfiguration config, string? fromId, string? intoId)
+        {
+            fromId = fromId?.Trim();
+            intoId = intoId?.Trim();
+
+            if (string.IsNullOrEmpty(fromId) || string.IsNullOrEmpty(intoId)) return false;
+            if (string.Equals(fromId, intoId, StringComparison.OrdinalIgnoreCase)) return false;
+
+            var source = config.KnownDevices.FirstOrDefault(d =>
+                string.Equals(d.DeviceId, fromId, StringComparison.OrdinalIgnoreCase));
+            var target = config.KnownDevices.FirstOrDefault(d =>
+                string.Equals(d.DeviceId, intoId, StringComparison.OrdinalIgnoreCase));
+
+            if (source == null || target == null) return false;
+
+            foreach (var m in config.Mappings)
+            {
+                if (m.AllowedDeviceIds == null) continue;
+
+                var allowsSource = m.AllowedDeviceIds.Any(id =>
+                    string.Equals(id?.Trim(), fromId, StringComparison.OrdinalIgnoreCase));
+                if (!allowsSource) continue;
+
+                var allowsTarget = m.AllowedDeviceIds.Any(id =>
+                    string.Equals(id?.Trim(), intoId, StringComparison.OrdinalIgnoreCase));
+
+                // Add first, remove second. The other order empties a single-entry list for
+                // as long as it takes to do the second step, and an empty list means "any
+                // device" to everything that reads it.
+                if (!allowsTarget) m.AllowedDeviceIds.Add(target.DeviceId);
+
+                m.AllowedDeviceIds.RemoveAll(id =>
+                    string.Equals(id?.Trim(), fromId, StringComparison.OrdinalIgnoreCase));
+            }
+
+            // The surviving record keeps whichever details are better: the more recent sighting,
+            // and a real name over a placeholder.
+            if (source.LastSeen > target.LastSeen) target.LastSeen = source.LastSeen;
+            if (IsPlaceholderDeviceName(target.DeviceName) && !IsPlaceholderDeviceName(source.DeviceName))
+                target.DeviceName = source.DeviceName;
+            if (string.IsNullOrWhiteSpace(target.Client) && !string.IsNullOrWhiteSpace(source.Client))
+                target.Client = source.Client;
+            if (target.MasterUserId == Guid.Empty) target.MasterUserId = source.MasterUserId;
+
+            config.KnownDevices.Remove(source);
+            return true;
+        }
+
+        /// <summary>
+        /// Groups devices that are almost certainly one machine, so an administrator can
+        /// merge them in one action instead of one pair at a time.
+        /// <para>
+        /// One machine has several records because jellyfin-web keeps its device id in
+        /// <c>localStorage</c> under <c>_deviceId2</c>, which is per origin: reaching the
+        /// same server by LAN address and by domain name mints two, as does a new browser
+        /// profile, cleared site data, or a reinstalled app.
+        /// </para>
+        /// <para>
+        /// The evidence for grouping them is stronger than it looks. That id is
+        /// <c>btoa(navigator.userAgent + '|' + Date.now())</c>, so two ids sharing a long
+        /// prefix have <em>byte-identical user agents</em> — the same browser at the same
+        /// version on the same operating system. Add the same client and reported name and
+        /// the case is as good as a client-supplied identifier can make it.
+        /// </para>
+        /// <para>
+        /// It is still only a suggestion, and nothing here merges on its own. Two people
+        /// with the same phone model and the same browser version would land in one group,
+        /// and merging them would widen a whitelist — the one outcome device housekeeping
+        /// may never reach by itself. The grouping is scoped to a single household first,
+        /// which makes that unlikely, and then a person confirms it.
+        /// </para>
+        /// </summary>
+        internal static List<List<KnownDevice>> GroupLikelyDuplicates(IEnumerable<KnownDevice> devices)
+        {
+            // Long enough that it cannot be a coincidence of base64 alignment: 32 base64
+            // characters is 24 bytes of user agent, which is well past "Mozilla/5.0 (" and
+            // into the platform.
+            const int MinSharedPrefix = 32;
+
+            var groups = new List<List<KnownDevice>>();
+
+            foreach (var byName in devices
+                .Where(d => !string.IsNullOrEmpty(d.DeviceId))
+                .GroupBy(d => (d.DeviceName ?? string.Empty).Trim().ToLowerInvariant()
+                              + " " + (d.Client ?? string.Empty).Trim().ToLowerInvariant()))
+            {
+                var candidates = byName.OrderByDescending(d => d.LastSeen).ToList();
+                if (candidates.Count < 2) continue;
+
+                // Within one name+client set, split again by shared id prefix, so two
+                // genuinely different machines that happen to report the same name are not
+                // swept together.
+                while (candidates.Count > 0)
+                {
+                    var head = candidates[0];
+                    var group = new List<KnownDevice> { head };
+                    candidates.RemoveAt(0);
+
+                    for (var i = candidates.Count - 1; i >= 0; i--)
+                    {
+                        var shared = FirstDifferingIndex(new[] { head.DeviceId, candidates[i].DeviceId });
+                        if (shared >= MinSharedPrefix)
+                        {
+                            group.Add(candidates[i]);
+                            candidates.RemoveAt(i);
+                        }
+                    }
+
+                    if (group.Count > 1) groups.Add(group);
+                }
+            }
+
+            return groups;
+        }
+
+        /// <summary>Names that carry no information, and so must never suppress a fallback.</summary>
+        internal static bool IsPlaceholderDeviceName(string? name)
+            => string.IsNullOrWhiteSpace(name)
+               || string.Equals(name.Trim(), "Unknown Device", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(name.Trim(), "Unknown", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Makes every device in the list readable on its own, and distinct from every other.
+        /// <para>
+        /// The picker is a list of checkboxes an administrator has to choose between, and it
+        /// was rendering several rows that read exactly the same — "Unknown Device" for every
+        /// client that did not send a name, and one row per browser origin for a single
+        /// computer, all of them honestly called "Chrome". A row that cannot be told apart
+        /// from the row above it is not a choice.
+        /// </para>
+        /// <para>
+        /// Two passes, and the second only does anything when the first leaves a collision:
+        /// a placeholder name falls back to the client, and any label still shared by more
+        /// than one device is given a short piece of the device id. The id is the thing that
+        /// is actually unique, but it is meaningless to read, so it is the last resort rather
+        /// than the first.
+        /// </para>
+        /// </summary>
+        internal static List<KnownDevice> DisambiguateDeviceNames(List<KnownDevice> devices)
+        {
+            foreach (var d in devices)
+            {
+                if (!IsPlaceholderDeviceName(d.DeviceName)) continue;
+
+                d.DeviceName = !string.IsNullOrWhiteSpace(d.Client)
+                               && !string.Equals(d.Client.Trim(), "Unknown Client", StringComparison.OrdinalIgnoreCase)
+                    ? d.Client.Trim()
+                    : "Unrecognised device";
+            }
+
+            var byLabel = devices
+                .GroupBy(d => DeviceLabel(d), StringComparer.OrdinalIgnoreCase)
+                .Where(g => g.Count() > 1);
+
+            foreach (var group in byLabel)
+            {
+                var ids = group.Select(d => d.DeviceId ?? string.Empty).ToList();
+                var from = FirstDifferingIndex(ids);
+
+                foreach (var d in group)
+                {
+                    var hint = IdFragment(d.DeviceId, from);
+                    if (!string.IsNullOrEmpty(hint)) d.DeviceName += " (" + hint + ")";
+                }
+            }
+
+            return devices;
+        }
+
+        /// <summary>
+        /// The first character position at which these ids stop agreeing.
+        /// <para>
+        /// A device id from jellyfin-web is <c>btoa(navigator.userAgent + '|' + Date.now())</c>,
+        /// so every id one browser ever mints begins with the same forty-odd characters — the
+        /// base64 of its user agent. Taking a fragment from the *front* to tell two of them
+        /// apart produced four rows in the picker all reading "Chrome (TW96aW)", which is
+        /// base64 for "Mozil". Taking it from the back is no better: the timestamps end in
+        /// zeros, so the tails collide too.
+        /// </para>
+        /// <para>
+        /// The only fragment worth showing is one taken from where they actually differ, and
+        /// that position depends on the group, so it is computed rather than guessed.
+        /// </para>
+        /// </summary>
+        internal static int FirstDifferingIndex(IReadOnlyList<string> ids)
+        {
+            if (ids.Count < 2) return 0;
+
+            var shortest = ids.Min(s => s?.Length ?? 0);
+            for (var i = 0; i < shortest; i++)
+            {
+                var c = ids[0][i];
+                foreach (var id in ids)
+                {
+                    if (char.ToLowerInvariant(id[i]) != char.ToLowerInvariant(c)) return i;
+                }
+            }
+            // One id is a prefix of another, or they are equal. The end of the shortest is
+            // the first place they can be told apart.
+            return shortest;
+        }
+
+        /// <summary>Six characters of an id from <paramref name="from"/>, or as near as it reaches.</summary>
+        internal static string IdFragment(string? deviceId, int from)
+        {
+            if (string.IsNullOrEmpty(deviceId)) return string.Empty;
+
+            const int Width = 6;
+            // Back off the window rather than run past the end, so a short id still yields
+            // something rather than nothing.
+            var start = Math.Min(from, Math.Max(0, deviceId.Length - Width));
+            return deviceId.Substring(start, Math.Min(Width, deviceId.Length - start));
+        }
+
+        /// <summary>
+        /// Undoes URL encoding left in a stored device name by the parser this plugin used
+        /// before 1.5.10, which returned header values verbatim. A phone reported as
+        /// <c>Pixel+8</c> is one whose name was recorded then, and it stays that way until
+        /// that phone happens to contact the server again.
+        /// <para>
+        /// Only applied when the value actually looks encoded: a <c>%</c> escape, or a plus
+        /// sign in a value that contains no spaces. "Pixel 8 Pro+" is a name somebody typed
+        /// and must survive; "Pixel+8" is one nobody did.
+        /// </para>
+        /// </summary>
+        internal static string DecodeLegacyDeviceName(string? name)
+        {
+            if (string.IsNullOrEmpty(name)) return string.Empty;
+
+            var looksEncoded = Regex.IsMatch(name, "%[0-9A-Fa-f]{2}")
+                               || (name.IndexOf('+') >= 0 && name.IndexOf(' ') < 0);
+            if (!looksEncoded) return name;
+
+            try
+            {
+                var decoded = WebUtility.UrlDecode(name);
+                return string.IsNullOrWhiteSpace(decoded) ? name : decoded;
+            }
+            catch (Exception)
+            {
+                return name;
+            }
+        }
+
+        /// <summary>What a device reads as in the picker: the name, qualified by its client.</summary>
+        internal static string DeviceLabel(KnownDevice d)
+            => string.IsNullOrWhiteSpace(d.Client)
+               || string.Equals(d.DeviceName?.Trim(), d.Client.Trim(), StringComparison.OrdinalIgnoreCase)
+                ? (d.DeviceName ?? string.Empty).Trim()
+                : (d.DeviceName ?? string.Empty).Trim() + " · " + d.Client.Trim();
+
+        /// <summary>The message sent to the client for a refusal. Never used for an allow.</summary>
+        internal static string DeviceAccessMessage(DeviceAccess access) => access switch
+        {
+            DeviceAccess.DeniedNoDeviceId =>
+                "This device did not identify itself, so it cannot be checked against the profile's device list.",
+            DeviceAccess.DeniedListIsStale =>
+                "None of this profile's allowed devices are known to the server any more. Edit the profile to choose a device again.",
+            _ => "This profile is not allowed on this device."
+        };
 
         /// <summary>
         /// Selects the devices a given master account may see in the "Allowed Devices" picker.
@@ -620,7 +1359,7 @@ namespace Jellyfin.Profiles.Controllers
         protected HashSet<Guid> GetLinkedMasterUserIds(Guid masterUserId, PluginConfiguration config)
         {
             var linked = new HashSet<Guid> { masterUserId };
-            lock (config)
+            lock (ConfigLock)
             {
                 foreach (var g in config.BonfireGroups.Where(g => g.OwnerUserId == masterUserId))
                     foreach (var id in g.MemberUserIds) linked.Add(id);
@@ -635,7 +1374,7 @@ namespace Jellyfin.Profiles.Controllers
 
         protected int GetMaxProfilesForUser(Guid userId, PluginConfiguration config)
         {
-            lock (config)
+            lock (ConfigLock)
             {
                 var ov = config.UserProfileLimitOverrides?.FirstOrDefault(o => o.UserId == userId);
                 return ov?.MaxProfiles ?? config.MaxProfilesPerUser;
@@ -643,6 +1382,73 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         protected const int MaxProfileImageBytes = 2 * 1024 * 1024;
+
+        /// <summary>
+        /// Streams an image from disk with a cache validator.
+        /// <para>
+        /// All four image endpoints did <c>File(System.IO.File.ReadAllBytes(path), type)</c>
+        /// — the whole file onto the managed heap, per image, per request. The profile gate
+        /// renders every avatar in the household at once, so opening it allocated all of
+        /// them together; a 2 MB picture goes straight to the large object heap, which is
+        /// not compacted by default. <c>PhysicalFile</c> hands the path to the server's
+        /// <c>SendFileAsync</c>, which streams it without the copy.
+        /// </para>
+        /// <para>
+        /// The validator is length plus last-write time rather than a hash of the content:
+        /// hashing would mean reading the whole file to avoid reading the whole file. It
+        /// changes whenever the image does, which is what a validator has to do. With it,
+        /// a browser that already has the picture gets a 304 and no body at all — and these
+        /// are re-requested constantly, because the gate is drawn on every page load.
+        /// </para>
+        /// <para>
+        /// <c>private</c>, not <c>public</c>: the endpoints are anonymous so the gate can
+        /// render before sign-in, but the images are one household's faces and have no
+        /// business in a shared proxy cache.
+        /// </para>
+        /// </summary>
+        protected ActionResult ImageFileResult(string path, string contentType)
+        {
+            FileInfo info;
+            try
+            {
+                info = new FileInfo(path);
+                if (!info.Exists) return NotFound();
+            }
+            catch (Exception ex)
+            {
+                // Deleted between being found and being served, or unreadable.
+                _logger.LogWarning(ex, "ProfilesPlugin: Could not stat image {Path}.", path);
+                return NotFound();
+            }
+
+            var etag = new Microsoft.Net.Http.Headers.EntityTagHeaderValue(
+                "\"" + info.Length.ToString("x", CultureInfo.InvariantCulture)
+                + "-" + info.LastWriteTimeUtc.Ticks.ToString("x", CultureInfo.InvariantCulture) + "\"");
+
+            Response.Headers["Cache-Control"] = "private, max-age=3600";
+
+            // This overload answers If-None-Match and If-Modified-Since itself, so the 304
+            // is handled by the framework rather than by a branch here that could drift.
+            return PhysicalFile(path, contentType, info.LastWriteTimeUtc, etag);
+        }
+
+        // Bounds for both the server-wide limit and the per-account override. The lower bound
+        // was already checked in one place and not the other; the upper bound was checked
+        // nowhere, so the settings page happily saved 2,000,000,000 and the gate then tried to
+        // lay out that many tiles. Anything above about a dozen is already past what the
+        // "Who's Watching?" screen can show without scrolling on a TV.
+        protected const int MinProfilesPerUser = 1;
+        protected const int MaxProfilesPerUserLimit = 20;
+
+        /// <summary>
+        /// Null when <paramref name="value"/> is within bounds, otherwise the message to
+        /// return. Says what the bound is: "must be between 1 and 20" tells an administrator
+        /// what to type next, where "invalid value" sends them back to the documentation.
+        /// </summary>
+        protected static string? ValidateProfileLimit(int value) =>
+            value < MinProfilesPerUser || value > MaxProfilesPerUserLimit
+                ? $"Maximum profiles must be between {MinProfilesPerUser} and {MaxProfilesPerUserLimit}."
+                : null;
 
         /// <summary>
         /// Minimum length of the emergency disable code. It is submitted without any
