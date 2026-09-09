@@ -2,7 +2,7 @@
 
 **Plugin ID:** `b1462fca-774b-4b13-8d02-e2d4f2bc18b9`  
 **Base path:** `/plugins/profiles`  
-**Server:** Jellyfin 10.11.x  
+**Server:** Jellyfin 10.11.x and 12.0  
 
 All paths below are relative to the base path. All request and response bodies are JSON
 unless stated otherwise. Field names are returned camelCase.
@@ -1186,7 +1186,7 @@ Returns the calling account's switcher preferences.
 
 | Field | Type | Description |
 |---|---|---|
-| `askOnStartup` | boolean | Whether the "Who's Watching?" screen appears when the client loads. Shown once per browser session, not on every visit to the home screen. |
+| `askOnStartup` | boolean | Whether the "Who's Watching?" screen appears when the client loads. Shown once per browser session, not on every visit to the home screen. This is the *household* answer; since 1.6.1.1 a device may keep its own — see below. |
 | `switcherLocation` | string | `"button"` or `"menu"`. See below. |
 | `switcherMode` | string | **Deprecated.** Derived from `askOnStartup` for clients written against the 1.3.1 API. |
 | `masterUserId` | string (GUID) | The master account these preferences belong to. |
@@ -1213,6 +1213,35 @@ belong to. The bundled `profiles.js` mirrors them into `localStorage`, because t
 whether to raise the gate has to be made on page load, long before a request could answer it —
 a cache keyed by account is what stops the next person to sign in on a shared browser from
 inheriting the previous one's choice.
+
+#### A device may keep its own `askOnStartup` (1.6.1.1)
+
+`askOnStartup` is a household setting: set it on the phone and the television follows. That
+is wrong for the homes where the living-room television should always ask and the tablet one
+person uses never should, so the bundled client offers a checkbox — *Use the same answer on
+all my devices*, ticked by default — that takes one device out of the household answer.
+
+**This is entirely client-side and there is no API for it.** The override lives in
+`localStorage` under `jellyfin_profiles_device_gate`, filed by master account id, and is
+never posted. Two consequences for anyone writing against this API:
+
+* **`GET` still returns the household answer, and always will.** It is not the answer a
+  particular device is acting on. A client that wants Bonfire's behaviour has to decide,
+  itself, whether to honour a local override; a client that ignores the whole idea gets the
+  household answer and behaves exactly as it did before 1.6.1.1.
+* **The override is deliberately not a preference.** Storing it on the server would mean one
+  device opting out dragged every other device into per-device mode as well — a change made
+  somewhere the household cannot see, to a setting nobody touched there.
+
+Re-ticking the box `POST`s that device's current answer as `askOnStartup`, so the household
+adopts what is on screen at that moment rather than snapping back to whatever the server
+still held.
+
+Only `askOnStartup` works this way. `switcherLocation` stays household-wide, because it
+decides whether the injected button exists at all and a household with no consistent answer
+to that has no consistent place to reach the switcher. A client changing only the location
+should therefore send back the `askOnStartup` it read from `GET`, not whatever a local
+override says, or it will publish one device's private choice to the whole household.
 
 > **`switcherMode` is deprecated.** It was a single setting in 1.3.1 and could not express
 > "ask on startup, but put the switcher in Jellyfin's menu" — the combination requested in

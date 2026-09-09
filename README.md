@@ -3,7 +3,8 @@
 Adds multi-user profile switching to Jellyfin. One account can hold several isolated
 profiles, each with its own watch history, parental controls, and library access.
 
-> Built for Jellyfin Server **10.11.x** (all minor versions supported).
+> Built for Jellyfin Server **10.11.x and 12.0** (all minor versions supported).
+> One install serves both — there is nothing to choose between.
 
 ---
 
