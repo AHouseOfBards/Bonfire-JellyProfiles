@@ -804,6 +804,28 @@ body.profiles-no-scroll [id*="spinner"] {
     vertical-align: middle;
     margin: 0 4px;
     padding: 0;
+    /* The modern toolbar is a flex row, and a flex item shrinks by default. With the
+       row tight the 28px avatar was squeezed into an ellipse — reported as "it's
+       being compressed". Nothing about this button should ever shrink. */
+    flex: 0 0 auto;
+}
+#profiles-floating-bubble .profiles-header-avatar {
+    flex: 0 0 auto;
+}
+
+/* Standing in the modern toolbar rather than the legacy header.
+   Its neighbour is a 40px MUI Avatar inside an IconButton with padding:0 —
+   components/UserAvatar.tsx renders <Avatar> at its default size — so a 28px circle
+   read as an afterthought next to it. The legacy header's own buttons are smaller,
+   which is why this is a class applied at insertion (see _insertBeforeUserBtn) and
+   not a change to the default.
+
+   !important because the element carries its dimensions as inline style attributes,
+   written when the avatar is built, and an inline style outranks any rule without it. */
+#profiles-floating-bubble.jpf-modern-toolbar-btn .profiles-header-avatar {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 1.05rem !important;
 }
 
 /* Footer and bottom buttons */

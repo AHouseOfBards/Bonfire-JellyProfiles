@@ -23,6 +23,25 @@
   "verifiedOn": "2026-08-28",
   "selectors": [
     {
+      "selector": "#app-user-menu",
+      "status": "upstream",
+      "source": "src/components/toolbar/AppUserMenu.tsx"
+    },
+    {
+      "selector": "#app-user-menu .MuiBackdrop-root",
+      "status": "runtime",
+      "source": "@mui/material/Modal"
+    },
+    {
+      "selector": "#myPreferencesMenuPage",
+      "status": "upstream",
+      "source": "src/apps/experimental/AppOverrides.scss"
+    },
+    {
+      "selector": "#profiles-floating-bubble",
+      "status": "ours"
+    },
+    {
       "selector": "#profiles-gate-overlay",
       "status": "ours"
     },
@@ -39,67 +58,9 @@
       "status": "ours"
     },
     {
-      "selector": "#profiles-floating-bubble",
-      "status": "ours"
-    },
-    {
-      "selector": "[id^=\"profiles-\"][id$=\"-dialog\"]",
-      "status": "ours",
-      "note": "Two unqualified attribute selectors. P3-3 replaces this with a tracked list."
-    },
-    {
-      "selector": "a",
-      "status": "generic"
-    },
-    {
-      "selector": "div",
-      "status": "generic"
-    },
-    {
-      "selector": "span",
-      "status": "generic"
-    },
-    {
-      "selector": "nav",
-      "status": "generic"
-    },
-    {
-      "selector": "ul",
-      "status": "generic"
-    },
-    {
-      "selector": "button",
-      "status": "generic"
-    },
-    {
-      "selector": "form",
-      "status": "generic"
-    },
-    {
-      "selector": "a[href]",
-      "status": "generic"
-    },
-    {
-      "selector": "a[role=\"button\"]",
-      "status": "generic"
-    },
-    {
-      "selector": "[data-id]",
-      "status": "generic"
-    },
-    {
-      "selector": "button:not(#profiles-floating-bubble)",
-      "status": "generic",
-      "note": "Geometric header fallback: any button except our own, so the bubble cannot anchor to itself."
-    },
-    {
-      "selector": "a[role=\"button\"]:not(#profiles-floating-bubble)",
-      "status": "generic"
-    },
-    {
-      "selector": "li.MuiMenuItem-root",
-      "status": "runtime",
-      "source": "@mui/material/MenuItem"
+      "selector": "#userProfilePage",
+      "status": "upstream",
+      "source": "src/apps/stable/routes/user/userprofile.tsx"
     },
     {
       "selector": ".MuiListItemIcon-root",
@@ -107,144 +68,19 @@
       "source": "@mui/material/ListItemIcon"
     },
     {
-      "selector": ".MuiListItemText-root",
-      "status": "runtime",
-      "source": "@mui/material/ListItemText"
-    },
-    {
       "selector": ".MuiListItemText-primary",
       "status": "runtime",
       "source": "@mui/material/ListItemText"
     },
     {
-      "selector": "#app-user-menu .MuiBackdrop-root",
+      "selector": ".MuiListItemText-root",
       "status": "runtime",
-      "source": "@mui/material/Modal"
+      "source": "@mui/material/ListItemText"
     },
     {
       "selector": ".MuiModal-root .MuiBackdrop-root",
       "status": "runtime",
       "source": "@mui/material/Modal"
-    },
-    {
-      "selector": "[role=\"menuitem\"]",
-      "status": "runtime",
-      "source": "@mui/material/MenuItem"
-    },
-    {
-      "selector": "[data-testid=\"LogoutIcon\"]",
-      "status": "runtime",
-      "source": "@mui/icons-material/Logout",
-      "note": "AppUserMenu.tsx imports Logout from @mui/icons-material and renders <Logout />; MUI stamps data-testid=\"LogoutIcon\" on it. Absent from jellyfin-web source but present at runtime. Checked FIRST, before any text match, because issue #14 arrived with a Polish screenshot."
-    },
-    {
-      "selector": ".skinHeader",
-      "status": "upstream",
-      "source": "src/apps/experimental/routes/home.tsx"
-    },
-    {
-      "selector": ".headerRight",
-      "status": "upstream",
-      "source": "src/scripts/libraryMenu.js"
-    },
-    {
-      "selector": "#app-user-menu",
-      "status": "upstream",
-      "source": "src/components/toolbar/AppUserMenu.tsx"
-    },
-    {
-      "selector": "#myPreferencesMenuPage",
-      "status": "upstream",
-      "source": "src/apps/experimental/AppOverrides.scss"
-    },
-    {
-      "selector": "#userProfilePage",
-      "status": "upstream",
-      "source": "src/apps/stable/routes/user/userprofile.tsx"
-    },
-    {
-      "selector": ".userProfilePage",
-      "status": "upstream",
-      "source": "src/apps/stable/routes/user/userprofile.tsx"
-    },
-    {
-      "selector": ".btnLogout",
-      "status": "upstream",
-      "source": "src/apps/stable/routes/user/settings/index.tsx"
-    },
-    {
-      "selector": ".userSection .btnLogout",
-      "status": "upstream",
-      "source": "src/apps/stable/routes/user/settings/index.tsx",
-      "note": "Both halves are in this one file — it is the only place upstream where they co-occur, which is what makes the descendant selector meaningful."
-    },
-    {
-      "selector": ".listItem",
-      "status": "upstream",
-      "source": "src/apps/stable/routes/user/settings/index.tsx"
-    },
-    {
-      "selector": ".listItemIcon",
-      "status": "upstream",
-      "source": "src/apps/stable/routes/user/settings/index.tsx"
-    },
-    {
-      "selector": ".listItemBodyText",
-      "status": "upstream",
-      "source": "src/apps/stable/routes/user/settings/index.tsx"
-    },
-    {
-      "selector": ".readOnlyContent",
-      "status": "upstream",
-      "source": "src/apps/dashboard/controllers/livetvguideprovider.html"
-    },
-    {
-      "selector": ".padded-left",
-      "status": "upstream",
-      "source": "src/apps/experimental/components/library/ItemsView.tsx"
-    },
-    {
-      "selector": ".page",
-      "status": "upstream",
-      "source": "src/styles/librarybrowser.scss",
-      "note": "Was recorded against src/apps/dashboard/AppOverrides.scss, which contains only \"pages\". Real definition is the \"> .page\" rule."
-    },
-    {
-      "selector": ".card",
-      "status": "upstream",
-      "source": "src/components/cardbuilder/card.scss",
-      "note": "Was recorded against src/apps/dashboard/components/BaseCard.tsx, which contains only the cardbuilder import path. Real definition is \".card {\"."
-    },
-    {
-      "selector": "[class*=\"skinHeader\"]",
-      "status": "theme",
-      "note": "Substring match for skins that rename the header. Deliberate, and it is why the fast path failing is survivable."
-    },
-    {
-      "selector": "[class*=\"topBar\"]",
-      "status": "theme",
-      "note": "Same, for skins using a topBar naming."
-    },
-    {
-      "selector": ".jellyfinHeader",
-      "status": "theme",
-      "note": "ElegantFin and similar."
-    },
-    {
-      "selector": ".videoOsdBottom",
-      "status": "upstream",
-      "source": "src/controllers/playback/video/index.html",
-      "note": "Playback detection in checkRoute. Also in src/styles/videoosd.scss."
-    },
-    {
-      "selector": ".osdControls",
-      "status": "upstream",
-      "source": "src/controllers/playback/video/index.html"
-    },
-    {
-      "selector": ".upNextContainer",
-      "status": "upstream",
-      "source": "src/controllers/playback/video/index.html"
     },
     {
       "selector": ".btnExitVideo",
@@ -253,10 +89,26 @@
       "trackedBy": "P3-2"
     },
     {
+      "selector": ".btnLogout",
+      "status": "upstream",
+      "source": "src/apps/stable/routes/user/settings/index.tsx"
+    },
+    {
+      "selector": ".card",
+      "status": "upstream",
+      "source": "src/components/cardbuilder/card.scss",
+      "note": "Was recorded against src/apps/dashboard/components/BaseCard.tsx, which contains only the cardbuilder import path. Real definition is \".card {\"."
+    },
+    {
       "selector": ".headerButton:not(#profiles-floating-bubble)",
       "status": "upstream",
       "source": "src/scripts/libraryMenu.js",
       "note": "Strategy B in _searchForHeaderContainer. Every header button upstream carries the bare headerButton class alongside its specific one — \"headerCastButton castButton headerButton headerButtonRight\" — so this matches the same elements [class*=\"headerButton\"] did while letting the engine use the class index instead of walking the document."
+    },
+    {
+      "selector": ".headerRight",
+      "status": "upstream",
+      "source": "src/scripts/libraryMenu.js"
     },
     {
       "selector": ".headerUserButton",
@@ -271,9 +123,163 @@
       "note": "The rounded-avatar variant: \"headerButton headerButtonRight paper-icon-button-light headerUserButtonRound\"."
     },
     {
+      "selector": ".jellyfinHeader",
+      "status": "theme",
+      "note": "ElegantFin and similar."
+    },
+    {
       "selector": ".jpf-trap-surface",
       "status": "ours",
       "note": "Added to every dialog Bonfire builds. Replaced [id^=\"profiles-\"][id$=\"-dialog\"] in TRAP_SURFACE_SELECTOR: two unqualified attribute selectors that walked the whole document on every keydown and focusin anywhere in Jellyfin. A class keeps the property that made the id pattern attractive — it travels with the element, so there is no lifecycle bookkeeping to get wrong."
+    },
+    {
+      "selector": ".listItem",
+      "status": "upstream",
+      "source": "src/apps/stable/routes/user/settings/index.tsx"
+    },
+    {
+      "selector": ".listItemBodyText",
+      "status": "upstream",
+      "source": "src/apps/stable/routes/user/settings/index.tsx"
+    },
+    {
+      "selector": ".listItemIcon",
+      "status": "upstream",
+      "source": "src/apps/stable/routes/user/settings/index.tsx"
+    },
+    {
+      "selector": ".osdControls",
+      "status": "upstream",
+      "source": "src/controllers/playback/video/index.html"
+    },
+    {
+      "selector": ".padded-left",
+      "status": "upstream",
+      "source": "src/apps/experimental/components/library/ItemsView.tsx"
+    },
+    {
+      "selector": ".page",
+      "status": "upstream",
+      "source": "src/styles/librarybrowser.scss",
+      "note": "Was recorded against src/apps/dashboard/AppOverrides.scss, which contains only \"pages\". Real definition is the \"> .page\" rule."
+    },
+    {
+      "selector": ".readOnlyContent",
+      "status": "upstream",
+      "source": "src/apps/dashboard/controllers/livetvguideprovider.html"
+    },
+    {
+      "selector": ".skinHeader",
+      "status": "upstream",
+      "source": "src/apps/experimental/routes/home.tsx"
+    },
+    {
+      "selector": ".upNextContainer",
+      "status": "upstream",
+      "source": "src/controllers/playback/video/index.html"
+    },
+    {
+      "selector": ".userProfilePage",
+      "status": "upstream",
+      "source": "src/apps/stable/routes/user/userprofile.tsx"
+    },
+    {
+      "selector": ".userSection .btnLogout",
+      "status": "upstream",
+      "source": "src/apps/stable/routes/user/settings/index.tsx",
+      "note": "Both halves are in this one file — it is the only place upstream where they co-occur, which is what makes the descendant selector meaningful."
+    },
+    {
+      "selector": ".videoOsdBottom",
+      "status": "upstream",
+      "source": "src/controllers/playback/video/index.html",
+      "note": "Playback detection in checkRoute. Also in src/styles/videoosd.scss."
+    },
+    {
+      "selector": "[aria-controls=\"app-user-menu\"]",
+      "status": "upstream",
+      "source": "src/components/toolbar/UserMenuButton.tsx",
+      "note": "The account button in the modern toolbar, which is where the switcher goes when the legacy header is hidden. components/toolbar/UserMenuButton.tsx renders <IconButton aria-controls={ID} aria-haspopup='true'> where ID is the 'app-user-menu' exported by AppUserMenu.tsx — the same contract the #app-user-menu entry above verifies, and byte-identical in 10.11 and 12.0. Named rather than found by geometry: the first attempt let the geometric fallback place the button and it landed in a different slot on every other load, because React fills that toolbar progressively and 'rightmost button' answers whatever had rendered by then. An exact-match attribute selector can use an index; it is the [class*=] kind that cannot."
+    },
+    {
+      "selector": "[class*=\"skinHeader\"]",
+      "status": "theme",
+      "note": "Substring match for skins that rename the header. Deliberate, and it is why the fast path failing is survivable."
+    },
+    {
+      "selector": "[class*=\"topBar\"]",
+      "status": "theme",
+      "note": "Same, for skins using a topBar naming."
+    },
+    {
+      "selector": "[data-id]",
+      "status": "generic"
+    },
+    {
+      "selector": "[data-testid=\"LogoutIcon\"]",
+      "status": "runtime",
+      "source": "@mui/icons-material/Logout",
+      "note": "AppUserMenu.tsx imports Logout from @mui/icons-material and renders <Logout />; MUI stamps data-testid=\"LogoutIcon\" on it. Absent from jellyfin-web source but present at runtime. Checked FIRST, before any text match, because issue #14 arrived with a Polish screenshot."
+    },
+    {
+      "selector": "[id^=\"profiles-\"][id$=\"-dialog\"]",
+      "status": "ours",
+      "note": "Two unqualified attribute selectors. P3-3 replaces this with a tracked list."
+    },
+    {
+      "selector": "[role=\"menuitem\"]",
+      "status": "runtime",
+      "source": "@mui/material/MenuItem"
+    },
+    {
+      "selector": "a",
+      "status": "generic"
+    },
+    {
+      "selector": "a[href]",
+      "status": "generic"
+    },
+    {
+      "selector": "a[role=\"button\"]",
+      "status": "generic"
+    },
+    {
+      "selector": "a[role=\"button\"]:not(#profiles-floating-bubble)",
+      "status": "generic"
+    },
+    {
+      "selector": "button",
+      "status": "generic"
+    },
+    {
+      "selector": "button:not(#profiles-floating-bubble)",
+      "status": "generic",
+      "note": "Geometric header fallback: any button except our own, so the bubble cannot anchor to itself."
+    },
+    {
+      "selector": "div",
+      "status": "generic"
+    },
+    {
+      "selector": "form",
+      "status": "generic"
+    },
+    {
+      "selector": "li.MuiMenuItem-root",
+      "status": "runtime",
+      "source": "@mui/material/MenuItem"
+    },
+    {
+      "selector": "nav",
+      "status": "generic"
+    },
+    {
+      "selector": "span",
+      "status": "generic"
+    },
+    {
+      "selector": "ul",
+      "status": "generic"
     }
   ]
 }

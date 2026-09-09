@@ -74,11 +74,20 @@ function el(opts) {
             }
             return true;
         },
+        attrs: o.attrs || {},
+        getAttribute(n) { return Object.prototype.hasOwnProperty.call(this.attrs, n) ? this.attrs[n] : null; },
         matchesSel(sel) { return matches(this, sel); },
         querySelectorAll(sel) { return descendants(this).filter(n => matches(n, sel)); },
         querySelector(sel) { return this.querySelectorAll(sel)[0] || null; },
         contains(other) { return other === this || descendants(this).indexOf(other) !== -1; },
-        insertBefore(n) { this.children.push(n); n.parentElement = this; return n; },
+        // A real insertBefore honours the reference node, and that is exactly what is
+        // under test: the button has to land BEFORE the account button, not after it.
+        insertBefore(n, ref) {
+            const i = ref ? this.children.indexOf(ref) : -1;
+            if (i >= 0) this.children.splice(i, 0, n); else this.children.push(n);
+            n.parentElement = this;
+            return n;
+        },
         appendChild(n) { this.children.push(n); n.parentElement = this; return n; },
         remove() {
             if (this.parentElement) {
@@ -88,9 +97,24 @@ function el(opts) {
             this.parentElement = null;
         },
         setAttribute() {}, addEventListener() {},
-        classList: { add() {}, remove() {}, contains: () => false },
+        classList: (() => {
+            const set = new Set();
+            return {
+                add: c => set.add(c),
+                remove: c => set.delete(c),
+                contains: c => set.has(c),
+                toggle: (c, force) => {
+                    const on = force === undefined ? !set.has(c) : !!force;
+                    if (on) set.add(c); else set.delete(c);
+                    return on;
+                }
+            };
+        })(),
         style: {}
     };
+    // The code under test reaches for parentNode as well as parentElement; a real element
+    // has both and they agree for everything in this fixture.
+    Object.defineProperty(node, 'parentNode', { get() { return node.parentElement; } });
     (o.children || []).forEach(c => { node.children.push(c); c.parentElement = node; });
     return node;
 }
@@ -120,6 +144,11 @@ function matches(node, sel) {
         if (one === '.headerButton:not(#profiles-floating-bubble)') {
             return hasClass(node, 'headerButton') && node.id !== 'profiles-floating-bubble';
         }
+        if (one === '[aria-controls="app-user-menu"]') {
+            return node.getAttribute('aria-controls') === 'app-user-menu';
+        }
+        if (one === '.headerUserButton') return hasClass(node, 'headerUserButton');
+        if (one === '.headerUserButtonRound') return hasClass(node, 'headerUserButtonRound');
         if (one === '[class*="skinHeader"]') return node.className.indexOf('skinHeader') !== -1;
         if (one === '[class*="topBar"]') return node.className.indexOf('topBar') !== -1;
         if (one.charAt(0) === '.') return hasClass(node, one.slice(1));
@@ -181,10 +210,16 @@ function modernLayout() {
         ] })
     ] });
 
+    // The account button is the last child of its own Box, exactly as
+    // components/toolbar/AppToolbar.tsx renders it.
+    const userBox = el({ className: 'MuiBox-root', rect: rect(1500, 8, 40, 40), children: [
+        el({ tag: 'button', className: 'MuiIconButton-root',
+             attrs: { 'aria-controls': 'app-user-menu' }, rect: rect(1500, 8, 40, 40) })
+    ] });
     const toolbar = el({ className: 'MuiToolbar-root', rect: rect(0, 0, 1600, 56), children: [
         el({ tag: 'button', className: 'MuiIconButton-root', rect: rect(1400, 8, 40, 40) }),
         el({ tag: 'button', className: 'MuiIconButton-root', rect: rect(1450, 8, 40, 40) }),
-        el({ tag: 'button', className: 'MuiIconButton-root', rect: rect(1500, 8, 40, 40) })
+        userBox
     ] });
 
     return el({ children: [hiddenWrapper, toolbar] });
@@ -220,15 +255,37 @@ console.log('── Modern layout: the legacy header is present but hidden ─�
     ok('and it really is not laid out', hiddenRight.getClientRects().length === 0);
 
     const found = PP._findHeaderContainer();
-    ok('no hidden container is offered as the header',
-        found === null,
-        found ? 'got .' + found.className : '');
+    ok('the hidden container is never the answer',
+        found !== hiddenRight && !(found && found.className === 'headerRight'),
+        found ? 'got .' + found.className : 'null');
+    ok('whatever is returned is laid out',
+        found === null || found.getClientRects().length > 0);
 
-    // With no named container, the geometric search runs — and finds the real toolbar.
-    const anchor = PP._findGeometricHeaderAnchor();
-    ok('the geometric fallback finds the visible toolbar instead',
-        !!anchor && anchor.getBoundingClientRect().right === 1540,
-        anchor ? 'anchor right=' + anchor.getBoundingClientRect().right : 'nothing found');
+    // And it is named, not guessed: the account button carries
+    // aria-controls="app-user-menu" in both 10.11 and 12.0, so the switcher lands beside
+    // the avatar rather than wherever React had got to when the search ran.
+    ok('the modern toolbar account button supplies the container',
+        !!found && found.className === 'MuiBox-root',
+        found ? '.' + found.className : 'null');
+
+    // Inserting marks it, so it can be sized against the 40px MUI avatar next to it.
+    // Guarded: pointed at a build with no named strategy for this toolbar, `found` is
+    // null and calling through would throw a stack trace instead of reporting, which
+    // would stop this file before the sections below it ever ran.
+    const bubble = el({ tag: 'button', id: 'profiles-floating-bubble' });
+    if (found) {
+        PP._insertBeforeUserBtn(found, bubble);
+        ok('the button is marked as standing in the modern toolbar',
+            bubble.classList.contains('jpf-modern-toolbar-btn'));
+        ok('and is inserted before the account button, not after it',
+            found.children.indexOf(bubble) === 0,
+            'index ' + found.children.indexOf(bubble));
+    } else {
+        ok('the button is marked as standing in the modern toolbar', false,
+            'no container was found to insert into');
+        ok('and is inserted before the account button, not after it', false,
+            'no container was found to insert into');
+    }
 }
 
 console.log();
@@ -247,15 +304,26 @@ console.log('── A hidden header and a visible one together ─────�
 {
     // A theme that builds its own bar while the stock one sits hidden. The stock
     // .skinHeader comes first in document order, so querySelector would return the one
-    // that cannot work.
+    // that cannot work. Its buttons carry no class this fixture matches on, so the
+    // cluster search inside .topBar is what has to answer.
     const themeBar = el({ className: 'topBar', rect: rect(0, 0, 1600, 56), children: [
         el({ className: 'topBar-actions', rect: rect(1300, 8, 260, 40), children: [
             el({ tag: 'button', rect: rect(1400, 8, 40, 40) }),
             el({ tag: 'button', rect: rect(1450, 8, 40, 40) })
         ] })
     ] });
-    const root = modernLayout();
-    root.appendChild(themeBar);
+    // No modern toolbar in this one: Strategy A2 would answer first and this is about
+    // the .skinHeader search underneath it.
+    const root = el({ children: [
+        el({ laidOut: false, children: [
+            el({ className: 'skinHeader focuscontainer-x', children: [
+                el({ className: 'headerRight', children: [
+                    el({ tag: 'button', className: 'headerButton headerUserButton' })
+                ] })
+            ] })
+        ] }),
+        themeBar
+    ] });
 
     const PP = makePlugin(root);
     const found = PP._findHeaderContainer();

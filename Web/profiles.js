@@ -7359,6 +7359,27 @@
             // .headerButtonUser, .headerButton-user, .btnCast and .headerButton-cast were
             // also tried here and none of them exists upstream either — the cast button
             // is .headerCastButton.
+            // Strategy A2: the modern toolbar's user-menu button.
+            //
+            // Named, not geometric, and that is the point. The first attempt at the modern
+            // layout let the geometric fallback place the button, and it landed in a
+            // different slot on every other load — between SyncPlay and Cast one time,
+            // beside the avatar the next. React fills that toolbar progressively, so
+            // "rightmost button in the top 80px" answers whatever happened to be rendered
+            // at the instant the search ran, and the answer was then cached.
+            //
+            // components/toolbar/UserMenuButton.tsx renders
+            //   <IconButton aria-controls={ID} aria-haspopup='true'>  where ID is
+            // 'app-user-menu' — the same contract as the #app-user-menu we already inject
+            // the menu entry into, and byte-identical in 10.11 and 12.0. So the account
+            // button can be named outright, and the switcher lands beside the avatar every
+            // time. An exact-match attribute selector indexes; the [class*=] kind is what
+            // cannot.
+            const modernUserBtn = document.querySelector('[aria-controls="app-user-menu"]');
+            if (this._isLaidOut(modernUserBtn) && this._isLaidOut(modernUserBtn.parentElement)) {
+                return modernUserBtn.parentElement;
+            }
+
             //
             // Every match is considered, not just the first: on the modern layout the
             // hidden legacy header supplies the first .headerButton in document order, and
@@ -7518,9 +7539,23 @@
             // beside the account icon it is named for. Verified in
             // src/scripts/libraryMenu.js: "headerButton headerButtonRight headerUserButton"
             // and the headerUserButtonRound variant.
+            // The third is the modern toolbar's account button — see Strategy A2 in
+            // _searchForHeaderContainer for why aria-controls is the right handle on it.
             const userBtn =
-                container.querySelector('.headerUserButton, .headerUserButtonRound') ||
+                container.querySelector(
+                    '.headerUserButton, .headerUserButtonRound, [aria-controls="app-user-menu"]'
+                ) ||
                 container.lastElementChild;
+
+            // Sized against whatever it ends up standing next to. The modern toolbar puts a
+            // 40px MUI Avatar in an IconButton with padding:0 (UserAvatar.tsx renders
+            // <Avatar> at its default size), and a 28px circle beside that read as an
+            // afterthought rather than a control. The legacy header's buttons are smaller,
+            // so this is a class rather than a new default.
+            const modern = !!(userBtn && userBtn.getAttribute
+                && userBtn.getAttribute('aria-controls') === 'app-user-menu');
+            bubble.classList.toggle('jpf-modern-toolbar-btn', modern);
+
             if (userBtn) {
                 userBtn.parentNode.insertBefore(bubble, userBtn);
             } else {
