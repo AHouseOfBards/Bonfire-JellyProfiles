@@ -9,6 +9,77 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.6.1  — 2026-09-09
+
+**Works on Jellyfin 12.0.** The same build serves 10.11 and 12.0 — there is nothing extra to install.
+
+**Fixed**
+
+- On Jellyfin 12.0 the Switch Profile button was missing from the header. Its default layout keeps the old header in the page but hides it, and Bonfire was adding the button there.
+- In the profile form, text boxes would not take a click and dropdowns would not open — the page jumped to the top instead. Jellyfin's account menu was being left open, and its focus handling and Bonfire's fought each other.
+- The Switch Profile button could appear beside the wrong icon at the wrong size, then move a second or two later. It now appears once, beside your account icon.
+- Importing avatars from a folder failed on Jellyfin 12.0, and on any server where an administrator had turned legacy authorization off.
+- The Bonfire section on your profile page sat against the left edge while the rest of the page was centred.
+- The rename and merge buttons in the device list were unstyled, and drew as empty boxes on televisions without an emoji font.
+
+**Changed**
+
+- Bonfire follows your theme's accent colour on Jellyfin 12.0, which publishes that colour under a new name.
+
+## 1.6.0.6-beta  — 2026-09-09
+
+**Beta release** — please report issues on GitHub.
+
+**Fixed**
+
+- In the profile form, text boxes would not take a click and dropdowns would not open — the page jumped to the top instead. Jellyfin's account menu was being left open and its focus handling fought Bonfire's.
+
+## 1.6.0.5-beta  — 2026-09-09
+
+**Beta release** — please report issues on GitHub.
+
+**Fixed**
+
+- The Switch Profile button appeared beside the wrong icon at the wrong size, then moved a second or two later. It now appears once, in place.
+
+## 1.6.0.4-beta  — 2026-09-09
+
+**Beta release** — please report issues on GitHub.
+
+**Fixed**
+
+- The Bonfire section on your profile page sat against the left edge while the rest of the page was centred.
+
+## 1.6.0.3-beta  — 2026-09-09
+
+**Beta release** — please report issues on GitHub.
+
+**Fixed**
+
+- The Switch Profile button moved around the header between page loads, and could appear squashed. It now sits beside your account icon and matches its size.
+
+## 1.6.0.2-beta  — 2026-09-09
+
+**Beta release** — please report issues on GitHub.
+
+**Fixed**
+
+- The Switch Profile button was missing from the header on Jellyfin's modern layout, which is the default in 12.0 and an option in 10.11. It was being added to the old header, which that layout keeps in the page but hides.
+
+## 1.6.0.1-beta  — 2026-09-08
+
+**Beta release** — please report issues on GitHub.
+
+Built for Jellyfin 10.11 and checked against 12.0.
+
+**Fixed**
+
+- Importing avatars from a folder failed on Jellyfin 12.0, and on any server where an administrator had turned legacy authorization off.
+
+**Changed**
+
+- Bonfire follows your theme's accent colour on Jellyfin 12.0, which publishes that colour under a new name.
+
 ## 1.6.0  — 2026-09-01
 
 **Fixed**
