@@ -3539,13 +3539,52 @@
             // Second line of defence: whatever moved focus out, take it back. Membership is
             // tested against any surface rather than the topmost one, so focus returning to
             // the gate under a dialog that is still fading out is left where it belongs.
+            //
+            // Two guards, and both are here because this handler fought another focus trap
+            // to a standstill. MUI's Modal enforces focus back inside itself exactly the
+            // way this does, so with Jellyfin's account menu still open the two handlers
+            // bounced focus between them: 134 focus() calls and a RangeError, our onFocusIn
+            // and MUI's contain() alternating the whole way down the stack. From the
+            // household's side, every text box and dropdown in the profile form was dead
+            // and the page jumped to the top — items[0] being the first field in the form.
             const onFocusIn = (e) => {
+                // 1. Never re-enter. focus() dispatches focusin synchronously, so without
+                //    this the handler calls itself through its own reclaim.
+                if (this._reclaimingFocus) return;
+
                 const surface = this._activeTrapSurface();
                 if (!surface) return;
                 if (e.target && e.target.closest && e.target.closest(this.TRAP_SURFACE_SELECTOR)) return;
                 if (e.target === document.body || e.target === document.documentElement) return;
+
+                // 2. Stop fighting. A reclaim that is immediately undone means something
+                //    else is also enforcing focus, and whoever gives up last wins nothing —
+                //    the loop only ends in a stack overflow. Standing down leaves focus
+                //    where the other trap wants it, which is at least a usable state, and
+                //    is the correct outcome anyway: the other trap belongs to something
+                //    rendered above us.
+                const now = Date.now();
+                if (this._focusStandDownUntil && now < this._focusStandDownUntil) return;
+
+                this._focusReclaims = (now - (this._focusReclaimAt || 0) < 1000)
+                    ? (this._focusReclaims || 0) + 1
+                    : 1;
+                this._focusReclaimAt = now;
+                if (this._focusReclaims > 4) {
+                    this._focusStandDownUntil = now + 5000;
+                    console.warn('ProfilesPlugin: another focus trap is active; standing down '
+                        + 'rather than fighting it for focus.');
+                    return;
+                }
+
                 const items = this._overlayFocusables(surface);
-                if (items.length) items[0].focus();
+                if (!items.length) return;
+                this._reclaimingFocus = true;
+                try {
+                    items[0].focus();
+                } finally {
+                    this._reclaimingFocus = false;
+                }
             };
 
             // On `window`, and in the capture phase. Both halves of that matter, and the
@@ -7001,7 +7040,30 @@
         /// dismiss it otherwise. Escape is what MUI itself listens for; clicking the
         /// backdrop is the fallback for builds where that listener is not attached.
         closeUserMenu: function () {
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+            const menu = document.getElementById('app-user-menu');
+
+            // Dispatched INSIDE the menu, not on the document.
+            //
+            // MUI's Modal handles Escape with an onKeyDown on its own root element, so the
+            // event has to travel through that element to be seen. Dispatched on
+            // `document` — which is what this did — the propagation path is [window,
+            // document] and the modal is never on it, so the call has never once closed
+            // anything. Only the backdrop click below has, and when that missed too the
+            // menu stayed open with its focus trap live, fighting ours for focus until the
+            // stack overflowed. See onFocusIn.
+            //
+            // Dispatched on a node inside the menu and allowed to bubble, it passes through
+            // the modal root whether the id sits on that root or on the paper within it.
+            const from = menu
+                ? (menu.contains(document.activeElement) ? document.activeElement
+                    : (menu.firstElementChild || menu))
+                : null;
+            if (from) {
+                from.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'Escape', code: 'Escape', keyCode: 27, which: 27,
+                    bubbles: true, cancelable: true
+                }));
+            }
 
             setTimeout(() => {
                 const backdrop = document.querySelector('#app-user-menu .MuiBackdrop-root, .MuiModal-root .MuiBackdrop-root');
