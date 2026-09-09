@@ -13,7 +13,7 @@
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Added**\n\n- Televisions and other apps can now offer your profiles on their own sign-in screen, and open one with its PIN. Two new settings under Dashboard -> Bonfire, both off until you turn them on.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.1.2/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "46b8c0598fa1a987d8176e491a52121c",
         "timestamp": "2026-09-09T19:35:17Z"
       },
       {
