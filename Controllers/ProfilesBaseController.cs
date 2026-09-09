@@ -22,6 +22,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
+using Jellyfin.Profiles.Auth;
+
 namespace Jellyfin.Profiles.Controllers
 {
     /// <summary>
@@ -256,38 +258,15 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         // ── PIN hashing ─────────────────────────────────────────────────────────────
-        // PINs are 4-8 digits, so the entire keyspace (10^4 - 10^8) is trivially
-        // enumerable against a fast unsalted digest. Hashes are therefore PBKDF2-SHA256
-        // with a per-PIN random salt, stored as:
-        //     pbkdf2.sha256$<iterations>$<base64 salt>$<base64 hash>
-        //
-        // Hashes written before this change are bare 64-char SHA-256 hex. Those are still
-        // accepted on verification and transparently re-hashed to the new format on the
-        // next successful entry, so no existing PIN is invalidated.
+        // The primitives moved to Auth/PinHasher.cs when the authentication provider
+        // needed them too — a provider is not a controller, and the alternative was a
+        // second implementation of a security primitive. These stay as thin wrappers so
+        // every existing call site reads the same and the harnesses still find them.
 
-        private const int PinIterations = 150_000;
-        private const int PinSaltBytes = 16;
-        private const int PinHashBytes = 32;
-        private const string PinHashPrefix = "pbkdf2.sha256$";
-
-        protected string HashPin(string? pin)
-        {
-            if (string.IsNullOrEmpty(pin)) return string.Empty;
-
-            var salt = RandomNumberGenerator.GetBytes(PinSaltBytes);
-            var hash = Rfc2898DeriveBytes.Pbkdf2(
-                Encoding.UTF8.GetBytes(pin), salt, PinIterations, HashAlgorithmName.SHA256, PinHashBytes);
-
-            return $"{PinHashPrefix}{PinIterations}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
-        }
-
-        /// <summary>Legacy (pre-PBKDF2) unsalted SHA-256 hex digest. Verification only.</summary>
-        private static string LegacyHashPin(string pin)
-            => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(pin))).ToLowerInvariant();
+        protected string HashPin(string? pin) => PinHasher.Hash(pin);
 
         /// <summary>True when the stored hash still uses the legacy format and should be upgraded.</summary>
-        protected static bool IsLegacyPinHash(string? storedHash)
-            => !string.IsNullOrEmpty(storedHash) && !storedHash.StartsWith(PinHashPrefix, StringComparison.Ordinal);
+        protected static bool IsLegacyPinHash(string? storedHash) => PinHasher.IsLegacy(storedHash);
 
         /// <summary>
         /// Constant-time comparison of a candidate PIN against a stored hash of either format.
@@ -295,45 +274,15 @@ namespace Jellyfin.Profiles.Controllers
         /// </summary>
         protected bool VerifyPinHash(string? pin, string? storedHash)
         {
-            if (string.IsNullOrEmpty(pin) || string.IsNullOrEmpty(storedHash)) return false;
-
-            if (IsLegacyPinHash(storedHash))
-            {
-                return CryptographicOperations.FixedTimeEquals(
-                    Encoding.UTF8.GetBytes(LegacyHashPin(pin)),
-                    Encoding.UTF8.GetBytes(storedHash));
-            }
-
-            // pbkdf2.sha256$<iterations>$<salt>$<hash>
-            var parts = storedHash.Substring(PinHashPrefix.Length).Split('$');
-            if (parts.Length != 3
-                || !int.TryParse(parts[0], out var iterations)
-                || iterations <= 0)
+            var result = PinHasher.Verify(pin, storedHash);
+            if (result == PinHasher.PinResult.MalformedHash)
             {
                 _logger.LogWarning("ProfilesPlugin: Stored PIN hash is malformed; refusing to verify.");
-                return false;
             }
 
-            try
-            {
-                var salt = Convert.FromBase64String(parts[1]);
-                var expected = Convert.FromBase64String(parts[2]);
-                var actual = Rfc2898DeriveBytes.Pbkdf2(
-                    Encoding.UTF8.GetBytes(pin), salt, iterations, HashAlgorithmName.SHA256, expected.Length);
-                return CryptographicOperations.FixedTimeEquals(actual, expected);
-            }
-            catch (FormatException ex)
-            {
-                _logger.LogWarning(ex, "ProfilesPlugin: Stored PIN hash has invalid base64; refusing to verify.");
-                return false;
-            }
+            return result == PinHasher.PinResult.Match;
         }
 
-        /// <summary>
-        /// Verifies a PIN against a mapping and, when it matches a legacy hash, upgrades the
-        /// stored hash to PBKDF2 in place. Call this instead of <see cref="VerifyPinHash"/>
-        /// wherever the mapping is available so old hashes drain away over time.
-        /// </summary>
         protected bool VerifyPinAndUpgrade(string? pin, ProfileMapping mapping, PluginConfiguration config)
         {
             if (!VerifyPinHash(pin, mapping.PinHash)) return false;

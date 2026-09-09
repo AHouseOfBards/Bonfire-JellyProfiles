@@ -1,0 +1,303 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using Jellyfin.Database.Implementations.Entities;
+using MediaBrowser.Controller.Authentication;
+using Microsoft.Extensions.Logging.Abstractions;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BonfirePinAuthenticationProvider — the thing that lets a television offer a
+// profile at all.
+//
+// This is the highest-stakes code in the plugin. It is reached during Jellyfin's
+// own authentication, and it is reached for accounts that have nothing to do with
+// Bonfire: a user with no AuthenticationProviderId is offered EVERY enabled
+// provider in turn, and the first success wins. A wrong "yes" here is not a bug in
+// a switcher, it is an authentication bypass on somebody else's account.
+//
+// So the tests below are mostly about refusal, and every refusal is checked
+// separately rather than as "it throws for bad input".
+//
+// The type-shape section is not decoration either. We ship ONE net9 assembly for
+// both Jellyfin 10.11 and 12.0, and the two versions do not agree on the
+// interface: 12.0 removed HasPassword from IAuthenticationProvider. An implicit
+// implementation survives that — it is just an extra public method nobody calls —
+// while an explicit one makes the runtime look for an interface member that does
+// not exist, and the type fails to load. On a server, that means no authentication
+// provider, for anybody.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BindingFlags Any = BindingFlags.Public | BindingFlags.NonPublic
+                       | BindingFlags.Instance | BindingFlags.Static;
+
+int pass = 0;
+var fails = new System.Collections.Generic.List<string>();
+void Ok(string name, bool cond, string detail = null)
+{
+    if (cond) { pass++; Console.WriteLine("  PASS  " + name); }
+    else
+    {
+        fails.Add(name + (detail is null ? "" : "  — " + detail));
+        Console.WriteLine("  FAIL  " + name + (detail is null ? "" : "  — " + detail));
+    }
+}
+
+static string RepoRoot()
+{
+    var d = AppContext.BaseDirectory;
+    while (d != null && !File.Exists(Path.Combine(d, "Jellyfin.Profiles.csproj")))
+        d = Path.GetDirectoryName(d);
+    return d ?? throw new Exception("could not find the repository root");
+}
+
+// Which build of the plugin to load. This harness's own output sits in
+// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved — there is
+// no second place to keep in step, and it cannot say net9.0 while the <Reference> that
+// compiled it pointed at net10.0. tests/run.sh cs10 runs the whole set against net10.0.
+var tfm = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
+    Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)).Name;
+
+var asm = Assembly.LoadFrom(Path.Combine(RepoRoot(), "bin", "Release", tfm, "Jellyfin.Profiles.dll"));
+
+var providerType = asm.GetType("Jellyfin.Profiles.Auth.BonfirePinAuthenticationProvider", true);
+var pluginType   = asm.GetType("Jellyfin.Profiles.Plugin", true);
+var cfgType      = asm.GetType("Jellyfin.Profiles.Configuration.PluginConfiguration", true);
+var mappingType  = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);
+var hasherType   = asm.GetType("Jellyfin.Profiles.Auth.PinHasher", true);
+
+Console.WriteLine();
+Console.WriteLine("── It loads on both Jellyfin 10.11 and 12.0 ───────────────────");
+
+Ok("it implements IAuthenticationProvider", typeof(IAuthenticationProvider).IsAssignableFrom(providerType));
+Ok("and IRequiresResolvedUser, so it is handed the profile",
+   typeof(IRequiresResolvedUser).IsAssignableFrom(providerType));
+
+// An explicit interface implementation is compiled as a private method whose name
+// carries the interface's full name. Finding one means the type would fail to load on
+// whichever Jellyfin version does not declare that member.
+var explicitImpls = providerType
+    .GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
+    .Where(m => m.IsFinal && m.IsVirtual && m.Name.Contains('.'))
+    .Select(m => m.Name)
+    .ToArray();
+Ok("no member is implemented explicitly", explicitImpls.Length == 0,
+   explicitImpls.Length > 0
+       ? string.Join(", ", explicitImpls) + " — would not load on a Jellyfin whose interface omits it"
+       : null);
+
+// 12.0 dropped this from the interface. Keeping it as a plain public method is what lets
+// 10.11 still skip the password box for a profile with no PIN.
+var hasPassword = providerType.GetMethod("HasPassword", Any, null, new[] { typeof(User) }, null);
+Ok("HasPassword is still present for 10.11", hasPassword != null && hasPassword.IsPublic);
+
+Console.WriteLine();
+Console.WriteLine("── Off unless an administrator turns it on ────────────────────");
+
+var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-clientpin-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(tempDir);
+var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
+Ok("the plugin can be constructed against stub paths", plugin != null);
+
+var configProp = pluginType.GetProperty("Configuration", Any);
+var config = configProp.GetValue(plugin);
+var enableProp = cfgType.GetProperty("EnableClientPinLogin", Any);
+Ok("the configuration has an EnableClientPinLogin flag", enableProp != null);
+Ok("and it is OFF by default — this changes how the server authenticates",
+   (bool)enableProp.GetValue(config) == false);
+
+// NullLogger<T> has both a public constructor and an Instance property depending on the
+// abstractions version; take whichever is there rather than assuming.
+var loggerType = typeof(NullLogger<>).MakeGenericType(providerType);
+var instanceProp = loggerType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
+var logger = instanceProp != null
+    ? instanceProp.GetValue(null)
+    : Activator.CreateInstance(loggerType, nonPublic: true);
+Ok("a logger can be supplied to the provider", logger != null);
+var provider = Activator.CreateInstance(providerType, logger);
+Ok("the provider can be constructed", provider != null);
+
+var isEnabled = providerType.GetProperty("IsEnabled");
+Ok("the provider reports itself disabled while the flag is off", (bool)isEnabled.GetValue(provider) == false);
+
+enableProp.SetValue(config, true);
+Ok("and enabled once it is on", (bool)isEnabled.GetValue(provider) == true);
+
+Console.WriteLine();
+Console.WriteLine("── The household ──────────────────────────────────────────────");
+
+var MASTER = Guid.NewGuid();
+var KID    = Guid.NewGuid();      // PIN 4821
+var GUEST  = Guid.NewGuid();      // no PIN
+var OUTSID = Guid.NewGuid();      // not a Bonfire user at all
+
+var hash = (Func<string, string>)(pin =>
+    (string)hasherType.GetMethod("Hash", Any).Invoke(null, new object[] { pin }));
+
+object Mapping(Guid profile, Guid master, string pin)
+{
+    var m = Activator.CreateInstance(mappingType);
+    mappingType.GetProperty("ProfileUserId").SetValue(m, profile);
+    mappingType.GetProperty("MasterUserId").SetValue(m, master);
+    mappingType.GetProperty("ProfileName").SetValue(m, "test");
+    mappingType.GetProperty("PinHash").SetValue(m, pin is null ? string.Empty : hash(pin));
+    return m;
+}
+
+var mappings = (System.Collections.IList)cfgType.GetProperty("Mappings").GetValue(config);
+mappings.Add(Mapping(MASTER, MASTER, "9999"));   // a master: maps to itself
+mappings.Add(Mapping(KID, MASTER, "4821"));
+mappings.Add(Mapping(GUEST, MASTER, null));
+
+static User MakeUser(Guid id, string name)
+{
+    var u = new User(name, "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
+                           "Jellyfin.Server.Implementations.Users.DefaultPasswordResetProvider");
+    typeof(User).GetProperty("Id").SetValue(u, id);
+    return u;
+}
+
+var authWithUser = providerType.GetMethod("Authenticate", Any, null,
+    new[] { typeof(string), typeof(string), typeof(User) }, null);
+
+// Returns null on success (the username it resolved to), or the exception type name.
+string Try(User user, string password)
+{
+    try
+    {
+        var task = authWithUser.Invoke(provider, new object[] { user?.Username ?? "x", password, user });
+        var result = task.GetType().GetProperty("Result").GetValue(task);
+        return (string)result.GetType().GetProperty("Username").GetValue(result);
+    }
+    catch (TargetInvocationException ex)
+    {
+        return "!" + ex.InnerException.GetType().Name;
+    }
+}
+
+Console.WriteLine();
+Console.WriteLine("── It refuses everything that is not a sub-profile ────────────");
+
+Ok("a null resolved user is refused", Try(null, "4821") == "!AuthenticationException");
+Ok("an account Bonfire has never heard of is refused",
+   Try(MakeUser(OUTSID, "someone-else"), "4821") == "!AuthenticationException");
+
+// The master maps to itself. Returning it here would let the account that owns every
+// profile — and on many servers administers the whole server — be opened with a PIN,
+// as a side effect of a lookup rather than as anybody's decision.
+Ok("the MASTER account is refused, even with its own correct PIN",
+   Try(MakeUser(MASTER, "bard"), "9999") == "!AuthenticationException");
+
+Console.WriteLine();
+Console.WriteLine("── And accepts exactly one thing ──────────────────────────────");
+
+Ok("a sub-profile opens with its PIN", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+Ok("and the wrong PIN is refused", Try(MakeUser(KID, "Bardkids"), "4822") == "!AuthenticationException");
+Ok("an empty PIN does not open a PIN-protected profile",
+   Try(MakeUser(KID, "Bardkids"), "") == "!AuthenticationException");
+
+Ok("a profile with no PIN opens with an empty box", Try(MakeUser(GUEST, "Bardguest"), "") == "Bardguest");
+
+// "No PIN" must not quietly become "any PIN" — somebody testing whether the box does
+// anything would otherwise be let in.
+Ok("but a profile with no PIN refuses a typed value",
+   Try(MakeUser(GUEST, "Bardguest"), "1234") == "!AuthenticationException");
+
+Console.WriteLine();
+Console.WriteLine("── Every refusal looks the same from outside ──────────────────");
+
+// Different messages would enumerate which accounts on the server are Bonfire profiles.
+string Message(User user, string password)
+{
+    try
+    {
+        authWithUser.Invoke(provider, new object[] { user?.Username ?? "x", password, user });
+        return null;
+    }
+    catch (TargetInvocationException ex) { return ex.InnerException.Message; }
+}
+
+var messages = new[]
+{
+    Message(MakeUser(OUTSID, "someone-else"), "4821"),
+    Message(MakeUser(MASTER, "bard"), "9999"),
+    Message(MakeUser(KID, "Bardkids"), "4822"),
+    Message(MakeUser(GUEST, "Bardguest"), "1234")
+}.Distinct().ToArray();
+Ok("all four refusals carry one identical message", messages.Length == 1,
+   messages.Length > 1 ? string.Join(" | ", messages) : null);
+
+Console.WriteLine();
+Console.WriteLine("── HasPassword cannot hide a real account's password box ──────");
+
+// With a blank AuthenticationProviderId, GetAuthenticationProviders(user)[0] is whichever
+// provider DI happened to hand back first — so this method can be the one Jellyfin asks
+// about an account that is nothing to do with us. Answering false would remove the
+// password prompt from a real user's login.
+Ok("an unknown account is reported as having a password",
+   (bool)hasPassword.Invoke(provider, new object[] { MakeUser(OUTSID, "someone-else") }) == true);
+Ok("a PIN-protected profile is reported as having one",
+   (bool)hasPassword.Invoke(provider, new object[] { MakeUser(KID, "Bardkids") }) == true);
+Ok("a profile with no PIN is reported as having none",
+   (bool)hasPassword.Invoke(provider, new object[] { MakeUser(GUEST, "Bardguest") }) == false);
+
+Console.WriteLine();
+Console.WriteLine("── A PIN is not an account password ───────────────────────────");
+
+// Jellyfin calls ChangePassword when an administrator sets a password on the account.
+// Writing the PIN there would create a second place it lives, and the two would drift.
+var changePassword = providerType.GetMethod("ChangePassword", Any, null,
+    new[] { typeof(User), typeof(string) }, null);
+string changed;
+try
+{
+    changePassword.Invoke(provider, new object[] { MakeUser(KID, "Bardkids"), "hunter2" });
+    changed = "returned";
+}
+catch (TargetInvocationException ex) { changed = ex.InnerException.GetType().Name; }
+Ok("setting an account password on a profile is refused, not silently ignored",
+   changed == "AuthenticationException", changed);
+
+Console.WriteLine();
+if (fails.Count > 0)
+{
+    foreach (var f in fails) Console.WriteLine("   - " + f);
+    Console.WriteLine(pass + " passed, " + fails.Count + " failed");
+    Environment.Exit(1);
+}
+Console.WriteLine(pass + " passed, 0 failed");
+
+sealed class StubPaths : MediaBrowser.Common.Configuration.IApplicationPaths
+{
+    private readonly string _root;
+    public StubPaths(string root) { _root = root; }
+    public string ProgramDataPath => _root;
+    public string WebPath => _root;
+    public string ProgramSystemPath => _root;
+    public string DataPath => _root;
+    public string ImageCachePath => _root;
+    public string PluginsPath => _root;
+    public string PluginConfigurationsPath => _root;
+    public string LogDirectoryPath => _root;
+    public string ConfigurationDirectoryPath => _root;
+    public string SystemConfigurationFilePath => Path.Combine(_root, "system.xml");
+    public string CachePath { get => _root; set { } }
+    public string TempDirectory => _root;
+    public string VirtualDataPath => _root;
+    public string TrickplayPath => _root;
+    public string BackupPath => _root;
+    public void MakeSanityCheckOrThrow() { }
+    public void CreateAndCheckMarker(string path, string markerName, bool recursive = false) { }
+}
+
+sealed class StubXml : MediaBrowser.Model.Serialization.IXmlSerializer
+{
+    public void SerializeToStream(object obj, Stream stream) { }
+    public void SerializeToFile(object obj, string file) { }
+    public object DeserializeFromFile(Type type, string file)
+        => throw new FileNotFoundException("stub serializer", file);
+    public object DeserializeFromStream(Type type, Stream stream)
+        => throw new NotSupportedException();
+    public object DeserializeFromBytes(Type type, byte[] buffer)
+        => throw new NotSupportedException();
+}

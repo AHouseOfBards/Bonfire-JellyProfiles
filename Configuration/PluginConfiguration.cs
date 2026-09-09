@@ -41,6 +41,17 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public bool DefaultAskOnStartup { get; set; } = true;
 
+        /// <summary>
+        /// Lets a sub-profile be entered with its PIN from any Jellyfin client, including
+        /// the native ones that never load the web client and so never see the switcher.
+        /// <para>
+        /// Off by default, and deliberately so. Turning it on binds sub-profiles to
+        /// Bonfire's own authentication provider, which is a change to how the server
+        /// authenticates — not something to acquire by upgrading.
+        /// </para>
+        /// </summary>
+        public bool EnableClientPinLogin { get; set; }
+
         /// <summary>Default for <see cref="ProfileMapping.SwitcherLocation"/>. See <see cref="DefaultAskOnStartup"/>.</summary>
         public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;
 

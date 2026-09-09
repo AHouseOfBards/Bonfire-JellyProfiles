@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using Jellyfin.Profiles.Configuration;
 using MediaBrowser.Common.Configuration;
 using Microsoft.Extensions.Hosting;
+using System.Linq;
+using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Profiles
@@ -279,19 +281,87 @@ namespace Jellyfin.Profiles
         private readonly IApplicationPaths _appPaths;
         private readonly ILogger<ProfilesBootstrapTask> _logger;
 
+        private readonly IUserManager _userManager;
+
         public ProfilesBootstrapTask(
             IApplicationPaths appPaths,
+            IUserManager userManager,
             ILogger<ProfilesBootstrapTask> logger)
         {
             _appPaths = appPaths;
+            _userManager = userManager;
             _logger = logger;
             _current = this;
+        }
+
+        // ── Client PIN login ────────────────────────────────────────────────────────
+        //
+        // A sub-profile is created with Jellyfin's default authentication provider and a
+        // 64-character random password nobody knows, which is why it can only be entered
+        // through Bonfire's own switch. To let a television offer it too, the profile has
+        // to reach BonfirePinAuthenticationProvider — and a user only reaches a provider
+        // Jellyfin selects for it:
+        //
+        //     var providers = _authenticationProviders.Where(i => i.IsEnabled).ToList();
+        //     if (!string.IsNullOrEmpty(authenticationProviderId))
+        //         providers = providers.Where(i => /* match on type name */).ToList();
+        //
+        // So the id is cleared rather than pointed at us, and that choice is the whole
+        // safety story. Blank means Jellyfin tries EVERY enabled provider and takes the
+        // first success, so ours becomes an ADDITIONAL way in and never the only one:
+        //
+        //   - turn the feature off, or uninstall the plugin, and the profile falls back to
+        //     the default provider and its random password — exactly the state it was in
+        //     before, rather than a locked-out account;
+        //   - the existing web switcher keeps working throughout, because it authenticates
+        //     with that same random password and never depended on us.
+        //
+        // Binding to our own type name instead would have made this provider the only one
+        // a profile could use, so switching the feature off would have broken the switcher
+        // that has worked since 1.0.
+        private void ReconcileAuthProviders()
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config?.Mappings == null || !config.EnableClientPinLogin) return;
+
+            var subProfiles = config.Mappings
+                .Where(m => m.MasterUserId != m.ProfileUserId)
+                .Select(m => m.ProfileUserId)
+                .ToList();
+
+            int cleared = 0;
+            foreach (var id in subProfiles)
+            {
+                try
+                {
+                    var user = _userManager.GetUserById(id);
+                    if (user == null || string.IsNullOrEmpty(user.AuthenticationProviderId)) continue;
+
+                    user.AuthenticationProviderId = string.Empty;
+                    _userManager.UpdateUserAsync(user).GetAwaiter().GetResult();
+                    cleared++;
+                }
+                catch (Exception ex)
+                {
+                    // One bad profile must not stop the rest, and must not stop startup.
+                    _logger.LogError(ex,
+                        "ProfilesPlugin: could not open profile {ProfileId} to client PIN login.", id);
+                }
+            }
+
+            if (cleared > 0)
+            {
+                _logger.LogInformation(
+                    "ProfilesPlugin: {Count} profile(s) can now be entered by PIN from any client.",
+                    cleared);
+            }
         }
 
         /// <inheritdoc />
         public Task StartAsync(CancellationToken cancellationToken)
         {
             CleanupOldDlls();
+            ReconcileAuthProviders();
             lock (PatchLock)
             {
                 TryPatchIndex();
