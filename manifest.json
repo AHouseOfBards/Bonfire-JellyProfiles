@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- The Bonfire section on your profile page sat against the left edge while the rest of the page was centred.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.0.4/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "cf7e0ce03a31520bd1f0c67ac3674408",
         "timestamp": "2026-09-09T00:00:00Z"
       },
       {
