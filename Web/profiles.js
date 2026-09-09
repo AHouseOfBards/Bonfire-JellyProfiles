@@ -7274,9 +7274,46 @@
          * The cache is invalidated by the element leaving the document, which is what
          * React rebuilding the header looks like from out here.
          */
+        /// True when an element is actually laid out — not merely present in the document.
+        ///
+        /// getClientRects() is empty for anything inside a display:none subtree, and unlike
+        /// offsetParent it stays correct for a position:fixed element. Both matter here.
+        ///
+        /// jellyfin-web keeps its whole legacy header in the DOM and hides it whenever the
+        /// modern layout is active — the default in 12.0, and an option in 10.11. Its own
+        /// comment in components/AppHeader.tsx says why: "these components are not used
+        /// with the new layouts, but legacy views interact with the elements directly so
+        /// they need to be present in the DOM. We use display: none to hide them and
+        /// prevent errors." RootAppRouter renders it as
+        /// <AppHeader isHidden={layoutManager.modern || isNewLayoutPath} />, and
+        /// libraryMenu.js still fills that hidden .skinHeader with .headerRight,
+        /// .headerButton and .headerUserButton.
+        ///
+        /// So on the modern layout every named strategy below matched, and the button went
+        /// into a container nobody could see. From outside that is indistinguishable from
+        /// the injection having failed — and the geometric fallback, which would have found
+        /// the real toolbar, never ran because the search had already "succeeded".
+        _isLaidOut: function (el) {
+            return !!el && typeof el.getClientRects === 'function' && el.getClientRects().length > 0;
+        },
+
         _findHeaderContainer: function () {
+            const cachedNow = Date.now();
             if (this._headerContainer && document.contains(this._headerContainer)) {
-                return this._headerContainer;
+                // Re-checked on the same three-second cadence as a fresh search, not on
+                // every tick. This is a layout read and checkRoute runs twice a second;
+                // what it is watching for — someone switching layout in Display settings —
+                // does not happen between ticks.
+                if (cachedNow - (this._headerCheckedAt || 0) < 3000) {
+                    return this._headerContainer;
+                }
+                this._headerCheckedAt = cachedNow;
+                if (this._isLaidOut(this._headerContainer)) {
+                    return this._headerContainer;
+                }
+                // The layout changed under us and this container is now hidden. Drop it and
+                // search again rather than keeping a button nobody can see.
+                this._headerContainer = null;
             }
 
             // A failed search is remembered too, briefly. Caching only successes would
@@ -7291,6 +7328,7 @@
                 return null;
             }
             this._headerSearchedAt = now;
+            this._headerCheckedAt = now;
 
             this._headerContainer = this._searchForHeaderContainer();
             return this._headerContainer;
@@ -7305,8 +7343,10 @@
             // stock install the browser resolved five selectors that could not match
             // before reaching the one that does. They are recorded in
             // tests/upstream-selectors.json.
+            // Laid out, not merely present — see _isLaidOut. On the modern layout this
+            // element exists and is inside a display:none wrapper.
             const byClass = document.querySelector('.headerRight');
-            if (byClass) return byClass;
+            if (this._isLaidOut(byClass)) return byClass;
 
             // Strategy B: the parent of a header button. A theme that renames the
             // container usually keeps Jellyfin's own buttons inside it.
@@ -7319,18 +7359,34 @@
             // .headerButtonUser, .headerButton-user, .btnCast and .headerButton-cast were
             // also tried here and none of them exists upstream either — the cast button
             // is .headerCastButton.
-            const knownBtn = document.querySelector(
+            //
+            // Every match is considered, not just the first: on the modern layout the
+            // hidden legacy header supplies the first .headerButton in document order, and
+            // taking it would rule out a visible one a theme had put further down.
+            const knownBtns = document.querySelectorAll(
                 '.headerButton:not(#profiles-floating-bubble)'
             );
-            if (knownBtn) return knownBtn.parentElement;
+            for (const btn of knownBtns) {
+                if (this._isLaidOut(btn) && this._isLaidOut(btn.parentElement)) {
+                    return btn.parentElement;
+                }
+            }
 
             // Strategy C: find the button cluster inside a custom skin/theme header.
             // ElegantFin and Skin Manager themes wrap everything in .skinHeader or
             // a similarly named element; we pick the child that contains the most
             // icon buttons (likely the right-side group).
-            const skinHeader = document.querySelector(
+            // querySelectorAll, and the first one that is laid out. Stock jellyfin-web's
+            // own .skinHeader comes first in document order and is display:none on the
+            // modern layout, so querySelector would hand back the one candidate that
+            // cannot work and stop before reaching a theme's visible header.
+            let skinHeader = null;
+            const headers = document.querySelectorAll(
                 '.skinHeader, .jellyfinHeader, [class*="skinHeader"], [class*="topBar"]'
             );
+            for (const h of headers) {
+                if (this._isLaidOut(h)) { skinHeader = h; break; }
+            }
             if (!skinHeader) return null;
 
             // Two queries, not one per candidate. This used to ask for every div, nav, ul
@@ -7354,7 +7410,9 @@
                     best = el;
                 }
             }
-            return best;
+            // A visible header can still hold a hidden cluster — a theme's collapsed
+            // overflow menu counts buttons just as well as its visible row does.
+            return this._isLaidOut(best) ? best : null;
         },
 
         // Finds the rightmost visible button within the top 80px of the viewport.
