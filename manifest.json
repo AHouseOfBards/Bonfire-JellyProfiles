@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\nBuilt for Jellyfin 10.11 and checked against 12.0.\n\n**Fixed**\n\n- Importing avatars from a folder failed on Jellyfin 12.0, and on any server where an administrator had turned legacy authorization off.\n\n**Changed**\n\n- Bonfire follows your theme's accent colour on Jellyfin 12.0, which publishes that colour under a new name.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.0.1/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "a4679e6a080a7d30b4f6e3004b6fccf1",
         "timestamp": "2026-09-08T00:00:00Z"
       },
       {
