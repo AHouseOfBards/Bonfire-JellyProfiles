@@ -280,6 +280,29 @@ live.plugin._panicLinkAvailable = false;
 live.plugin._libraryArtLoaded = true;
 live.plugin.isProfileSessionActive = () => true;
 live.plugin.checkRoute();
+
+// ── The two phases are different, and this file only ever measured one ──────────
+//
+// For the first few seconds of a page the header search runs on every tick, because the
+// modern toolbar's account button is not in the DOM yet and a named anchor is worth
+// waiting for — HEADER_ANCHOR_GRACE_MS. Before that existed, geometry guessed
+// immediately and the button visibly jumped a second later.
+//
+// That window is bounded. This section is about the other phase: the selectors the
+// browser resolves twice a second FOR THE WHOLE SESSION, which is what the comment below
+// has always been about. So the grace is retired first, deliberately, rather than left to
+// expire on a wall clock that 20 synchronous ticks never advance.
+//
+// The grace itself is measured separately further down, and the bound on it is asserted
+// there — otherwise a grace that never ended would read exactly like this.
+live.plugin._headerAnchorWaitFrom = 0;
+
+// And then warm up AGAIN, because retiring the grace is what lets the one-off searches
+// run at all. During the grace the geometric branch returns without searching, so its
+// single document query was still owed; measuring immediately after would have counted a
+// startup cost as a per-tick one. Steady state means every one-off has been paid.
+live.plugin.checkRoute();
+
 live.reset();
 for (let i = 0; i < 20; i++) live.plugin.checkRoute();
 
@@ -307,6 +330,55 @@ ok('no full-document walk while a profile is active'
 // them full-document walks.
 ok('a tick with a profile active runs one document query, the OSD watch ('
    + liveTotal.toFixed(1) + ')', liveTotal <= 1);
+
+console.log('\n── The startup grace, which is the other phase ─────────────────');
+
+// While waiting for a named anchor the search runs every tick. That is allowed to cost
+// more than steady state — but only indexed lookups, never a walk. Strategy C ends in
+// [class*="skinHeader"], [class*="topBar"], two attribute-substring selectors that can
+// never use an index, and running those twice a second was the first thing this change
+// got wrong. They are skipped until the grace is over.
+const grace = build({});
+grace.plugin._switcherPrefs = { askOnStartup: false, location: 'button' };
+grace.plugin._panicLinkAvailable = false;
+grace.plugin._libraryArtLoaded = true;
+grace.plugin.isProfileSessionActive = () => true;
+grace.plugin.checkRoute();
+grace.plugin._headerAnchorWaitFrom = Date.now();   // squarely inside the window
+grace.plugin._headerContainer = null;
+grace.reset();
+for (let i = 0; i < 20; i++) grace.plugin.checkRoute();
+
+const graceSels = {};
+grace.selectors.forEach(function (s) { graceSels[s] = (graceSels[s] || 0) + 1; });
+const graceWalks = Object.keys(graceSels).filter(isFullWalk);
+const gracePerTick = (grace.counts.querySelector + grace.counts.querySelectorAll) / 20;
+console.log('  per tick during the grace: ' + gracePerTick.toFixed(1) + ' document queries');
+
+ok('no full-document walk during the grace either'
+   + (graceWalks.length ? ' — found: ' + graceWalks.join(' | ').slice(0, 110) : ''),
+   graceWalks.length === 0);
+
+// A handful of indexed lookups is the whole point of the trade. Ten would mean the
+// expensive strategies had crept back in.
+ok('and it stays in single figures (' + gracePerTick.toFixed(1) + ')', gracePerTick < 10);
+
+// The bound is what makes all of the above a startup cost rather than a permanent one.
+// Without this assertion, deleting the expiry would leave every check in this file green.
+const graceMs = grace.plugin.HEADER_ANCHOR_GRACE_MS;
+ok('the grace is a finite number of milliseconds (' + graceMs + ')',
+   typeof graceMs === 'number' && isFinite(graceMs) && graceMs > 0);
+ok('and short enough to be a page-load cost, not a session one', graceMs <= 5000);
+
+// It has to actually end. Wound back past the bound, and given one tick to pay the
+// one-off searches the grace was deferring, the cost returns to steady state.
+grace.plugin._headerAnchorWaitFrom = 0;
+grace.plugin.checkRoute();
+grace.reset();
+for (let i = 0; i < 20; i++) grace.plugin.checkRoute();
+const afterPerTick = (grace.counts.querySelector + grace.counts.querySelectorAll) / 20;
+ok('once the grace expires the tick is cheap again (' + afterPerTick.toFixed(1) + ')',
+   afterPerTick <= 1);
 
 // The searches must still happen when their answer can have changed, or the button
 // quietly stops appearing on any page that rebuilds its header.

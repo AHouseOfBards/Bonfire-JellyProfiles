@@ -348,6 +348,14 @@ console.log('── A hidden header and a visible one together ─────�
     ] });
 
     const PP = makePlugin(root);
+    // Strategy C is skipped while a named anchor may still be arriving — it ends in two
+    // attribute-substring selectors that walk the whole document, and running those every
+    // tick is what the route-tick budget forbids. So the grace is retired first: this is
+    // about what the search finds, not about when it is allowed to look.
+    PP._findHeaderContainer();
+    PP._headerAnchorWaitFrom = 0;
+    PP._headerContainer = null;
+    PP._headerSearchedAt = 0;
     const found = PP._findHeaderContainer();
     ok('the visible one wins, not the first in document order',
         !!found && found.className === 'topBar-actions',

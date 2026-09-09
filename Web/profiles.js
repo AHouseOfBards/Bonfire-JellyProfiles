@@ -7137,6 +7137,12 @@
                 }
 
             } else {
+                // Nothing named matched. If a named anchor may still be on its way, wait
+                // rather than guess — see HEADER_ANCHOR_GRACE_MS. Only when there is
+                // nothing on screen yet: a button already placed is left exactly where it
+                // is, because removing it here would trade the jump for a flicker.
+                if (!bubble && this._withinAnchorGrace()) return;
+
                 // ── Strategy 2: geometry-based anchor ────────────────────────────────
                 // If no named container matched (e.g. a custom Skin Manager theme),
                 // find the rightmost visible button in the top 80px of the viewport
@@ -7309,6 +7315,27 @@
             return !!el && typeof el.getClientRects === 'function' && el.getClientRects().length > 0;
         },
 
+        /// How long a named anchor gets to appear before geometry is allowed to guess.
+        ///
+        /// A named anchor is strictly better than a guessed one — it is the account button
+        /// itself rather than whatever happened to be furthest right — so the guess waits
+        /// for it. The modern toolbar renders progressively, and on the first tick the
+        /// account button is not there yet while the Cast button is.
+        ///
+        /// The cost is borne by custom themes where nothing named will ever match: their
+        /// button now appears this much later, and then stays put. That is the better
+        /// trade. One late arrival beats a visible jump on every single page load, and
+        /// three seconds is well inside how long the rest of the page takes to settle.
+        HEADER_ANCHOR_GRACE_MS: 3000,
+
+        /// True while a named anchor may still be about to appear and nothing has been
+        /// placed yet. Reset whenever the container is lost, so a React remount gets the
+        /// same head start the first load did.
+        _withinAnchorGrace: function () {
+            return this._headerAnchorWaitFrom !== undefined
+                && Date.now() - this._headerAnchorWaitFrom < this.HEADER_ANCHOR_GRACE_MS;
+        },
+
         _findHeaderContainer: function () {
             const cachedNow = Date.now();
             if (this._headerContainer && document.contains(this._headerContainer)) {
@@ -7324,8 +7351,11 @@
                     return this._headerContainer;
                 }
                 // The layout changed under us and this container is now hidden. Drop it and
-                // search again rather than keeping a button nobody can see.
+                // search again rather than keeping a button nobody can see — and restart
+                // the anchor grace, so a React remount gets the same head start the first
+                // load did instead of falling straight to geometry.
                 this._headerContainer = null;
+                this._headerAnchorWaitFrom = undefined;
             }
 
             // A failed search is remembered too, briefly. Caching only successes would
@@ -7333,8 +7363,23 @@
             // matches — the case that was already the most expensive. Three seconds is
             // far below the time anyone takes to notice a missing button, and far above
             // a React re-render.
+            //
+            // Except while we are still waiting for a named anchor to appear. The modern
+            // toolbar is React and its account button is not in the DOM on the first tick,
+            // so the first search fails, the throttle then held that answer for three
+            // seconds, and the switcher spent those three seconds wherever geometry had
+            // guessed. Reported as "it loads squished next to the cast button first, then
+            // updates" — the update being this throttle expiring.
+            //
+            // During the grace the named search runs on every tick instead. That is four
+            // indexed queries, which is what the geometric walk it replaces costs many
+            // times over, and it only happens in the first few seconds of a page.
             const now = Date.now();
-            if (this._headerContainer === null
+            if (this._headerAnchorWaitFrom === undefined) this._headerAnchorWaitFrom = now;
+            const waitingForAnchor = now - this._headerAnchorWaitFrom < this.HEADER_ANCHOR_GRACE_MS;
+
+            if (!waitingForAnchor
+                && this._headerContainer === null
                 && this._headerSearchedAt
                 && now - this._headerSearchedAt < 3000) {
                 return null;
@@ -7342,11 +7387,21 @@
             this._headerSearchedAt = now;
             this._headerCheckedAt = now;
 
-            this._headerContainer = this._searchForHeaderContainer();
+            // Indexed strategies only while waiting. Strategy C ends in
+            // [class*="skinHeader"], [class*="topBar"] — two unqualified attribute-substring
+            // selectors, which can never use an index and always walk the whole document.
+            // Running that on every tick is precisely what the route-tick budget forbids,
+            // and it would buy nothing: it is the heuristic for custom themes, and a custom
+            // theme's header does not appear three seconds late. It runs once the grace is
+            // over, on the same tick geometry would otherwise have taken.
+            this._headerContainer = this._searchForHeaderContainer(waitingForAnchor);
+            // Found one, so the wait is over. Cleared rather than left running, so that if
+            // this container is ever lost the grace starts again from that moment.
+            if (this._headerContainer) this._headerAnchorWaitFrom = undefined;
             return this._headerContainer;
         },
 
-        _searchForHeaderContainer: function () {
+        _searchForHeaderContainer: function (indexedOnly) {
             // Strategy A: Jellyfin's own right-hand button container.
             //
             // Five other class names were tried before this one — .headerRightButtons,
@@ -7409,6 +7464,10 @@
             // ElegantFin and Skin Manager themes wrap everything in .skinHeader or
             // a similarly named element; we pick the child that contains the most
             // icon buttons (likely the right-side group).
+            // Strategy C walks the document and is skipped while a named anchor may still
+            // be coming — see the call site.
+            if (indexedOnly) return null;
+
             // querySelectorAll, and the first one that is laid out. Stock jellyfin-web's
             // own .skinHeader comes first in document order and is display:none on the
             // modern layout, so querySelector would hand back the one candidate that
