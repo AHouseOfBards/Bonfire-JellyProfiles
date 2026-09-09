@@ -97,6 +97,26 @@ function el(opts) {
             this.parentElement = null;
         },
         setAttribute() {}, addEventListener() {},
+        // The code asks whether a candidate page is the visible one via offsetParent.
+        get offsetParent() { return this.isLaidOut() ? {} : null; },
+        // Assigning innerHTML in a browser parses the markup into real children. The only
+        // thing the code under test then does with those children is look them up by id,
+        // so that is what this models: every id the markup declares becomes findable.
+        // Modelling nothing at all would make querySelector return null and the code would
+        // throw on a listener, which tests the fixture rather than the plugin.
+        set innerHTML(html) {
+            this._html = html;
+            this.children = this.children.filter(c => !c.__fromHtml);
+            const re = /id="([^"]+)"/g;
+            let m;
+            while ((m = re.exec(html))) {
+                const child = el({ id: m[1] });
+                child.__fromHtml = true;
+                child.parentElement = this;
+                this.children.push(child);
+            }
+        },
+        get innerHTML() { return this._html || ''; },
         classList: (() => {
             const set = new Set();
             return {
@@ -144,6 +164,8 @@ function matches(node, sel) {
         if (one === '.headerButton:not(#profiles-floating-bubble)') {
             return hasClass(node, 'headerButton') && node.id !== 'profiles-floating-bubble';
         }
+        if (one === 'form') return node.tagName === 'FORM';
+        if (one.charAt(0) === '#') return node.id === one.slice(1);
         if (one === '[aria-controls="app-user-menu"]') {
             return node.getAttribute('aria-controls') === 'app-user-menu';
         }
@@ -175,7 +197,7 @@ function makePlugin(root) {
             createElement: tag => el({ tag }),
             querySelector: sel => root.querySelector(sel),
             querySelectorAll: sel => root.querySelectorAll(sel),
-            getElementById: () => null,
+            getElementById: id => root.querySelectorAll('#' + id)[0] || null,
             contains: node => root.contains(node),
             addEventListener() {}, removeEventListener() {}
         },
@@ -379,6 +401,48 @@ console.log('── The cache notices a layout switch ────────�
     ok('after it, the now-hidden container is dropped',
         PP._findHeaderContainer() === null,
         'still returning a container inside a display:none wrapper');
+}
+
+console.log();
+console.log('── The section on the Jellyfin profile page ───────────────────');
+{
+    // userprofile.tsx puts both the avatar block and the password form inside
+    // .padded-left .padded-right, and centres them. .padded-left is 3.3% padding, so that
+    // container is very nearly full width — a plain block-level section dropped into it
+    // lands hard against the left edge while the page's own content floats in the middle.
+    const padded = el({ className: 'padded-left padded-right padded-bottom-page', children: [
+        el({ className: 'readOnlyContent' }),
+        el({ tag: 'form', className: 'updatePasswordForm passwordSection' })
+    ] });
+    const root = el({ children: [el({ id: 'userProfilePage', className: 'page', children: [padded] })] });
+
+    const PP = makePlugin(root);
+    PP.getCachedActiveProfile = () => ({ name: 'Bard', color: '#00A4DC', initial: 'B', profileImage: null });
+    PP.injectProfilePageSection();
+
+    const section = padded.children.find(c => c.id === 'profiles-userprofile-section');
+    ok('the section is added to the padded page container',
+        !!section, 'children: ' + padded.children.map(c => c.className || c.tagName).join(', '));
+    ok('as a sibling of the avatar block and the form, after both',
+        !!section && padded.children.indexOf(section) === 2);
+
+    // The alignment itself is a stylesheet rule, so it is asserted there rather than by
+    // reading back an inline style that no longer exists.
+    const CSS = L.extractCss(L.readSourceAndStyles(fs.readFileSync(SRC_PATH, 'utf8')));
+    ok('it carries the class the stylesheet aligns',
+        !!section && (' ' + section.className + ' ').indexOf(' jpf-userprofile-section ') !== -1,
+        section ? section.className : 'no section');
+    ok('and that class centres it the way .readOnlyContent centres itself',
+        /\.jpf-userprofile-section\s*\{[^}]*margin:\s*2em\s+auto/.test(CSS));
+    ok('and caps it at the 54em jellyfin-web caps the siblings at',
+        /min-width:\s*50em[^{]*\{\s*\.jpf-userprofile-section\s*\{[^}]*max-width:\s*54em/.test(CSS));
+    // Comments out first. Written as a plain indexOf over the whole sheet, this went red
+    // on the comment that explains the 44em is gone — prose, not a declaration. That is
+    // the same failure themetest.js had this week and the navMenu substring bug before
+    // it: ask about the declarations, not about the characters.
+    const declarations = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+    ok('no declaration still carries the arbitrary 44em',
+        declarations.indexOf('44em') === -1);
 }
 
 console.log();

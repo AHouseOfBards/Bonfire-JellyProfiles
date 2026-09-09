@@ -828,6 +828,32 @@ body.profiles-no-scroll [id*="spinner"] {
     font-size: 1.05rem !important;
 }
 
+/* The section added to Jellyfin's own profile page (#/userprofile).
+   It sits in the .padded-left .padded-right container, as a sibling of the avatar
+   block and the password form. That container is close to full width — .padded-left
+   is 3.3% padding — while everything the page puts in it is centred, so a plain
+   block-level section landed hard against the left edge with the rest of the page
+   floating in the middle. Reported as "misaligned on the actual profile page".
+
+   These are jellyfin-web's own two rules for the siblings, from src/styles/site.scss
+   and identical in 10.11 and 12.0:
+
+       .readOnlyContent { @media (min-width: 50em) { max-width: 54em; } }
+       form             { @media (min-width: 50em) { max-width: 54em; } }
+
+   plus the inline margin:0 auto that userprofile.tsx gives .readOnlyContent. Matching
+   both puts our section on the same axis and the same width cap as the block above it,
+   at every viewport — including below 50em, where the siblings are unconstrained and
+   so is this. The 44em it used to carry was a number with nothing behind it. */
+.jpf-userprofile-section {
+    margin: 2em auto;
+}
+@media all and (min-width: 50em) {
+    .jpf-userprofile-section {
+        max-width: 54em;
+    }
+}
+
 /* Footer and bottom buttons */
 .profiles-footer {
     margin-top: 4rem; width: 100%; display: flex; justify-content: center;

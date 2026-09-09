@@ -7020,13 +7020,25 @@
                 .find(el => el.offsetParent !== null || el.classList.contains('is-active'));
             if (!page) return;
 
-            const host = page.querySelector('.readOnlyContent, .padded-left, form') || page;
+            // The padded page container, deliberately — our section is a sibling of the
+            // avatar block and of the password form, not a part of either.
+            //
+            // This used to be one querySelector with all three in the list, which reads
+            // like a preference order and is not one: querySelector returns the first match
+            // in DOCUMENT order, and .padded-left is the parent of .readOnlyContent, so the
+            // answer was the parent whatever order they were written in. Right answer,
+            // wrong reason — asked one at a time now so the intent is the behaviour.
+            const host = page.querySelector('.padded-left')
+                || page.querySelector('.readOnlyContent')
+                || page.querySelector('form')
+                || page;
 
             const activeInfo = this.getCachedActiveProfile();
             const section = document.createElement('div');
             section.id = 'profiles-userprofile-section';
-            section.className = 'verticalSection';
-            section.style.cssText = 'margin: 2em 0; max-width: 44em;';
+            // Geometry lives in the stylesheet, so it can be checked and so it matches
+            // what the page around it does — see .jpf-userprofile-section.
+            section.className = 'verticalSection jpf-userprofile-section';
             section.innerHTML = `
                 <h2 class="sectionTitle" style="display:flex; align-items:center; gap:0.4em;">
                     <span class="material-icons local_fire_department" aria-hidden="true" style="color:var(--jpf-warn);"></span>
