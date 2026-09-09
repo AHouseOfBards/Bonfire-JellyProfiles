@@ -13,7 +13,7 @@
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- In the profile form, text boxes would not take a click and dropdowns would not open — the page jumped to the top instead. Jellyfin's account menu was being left open and its focus handling fought Bonfire's.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.0.6/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "a18ac83f7505879190931efa72f1f52e",
         "timestamp": "2026-09-09T00:00:00Z"
       },
       {
