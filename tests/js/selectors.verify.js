@@ -39,8 +39,22 @@ function get(url) {
  */
 function tokens(selector) {
     const matchable = selector.replace(/:not\([^)]*\)/g, '');
-    return [...new Set((matchable.match(/[.#]([A-Za-z][\w-]*)/g) || [])
-        .map(t => t.slice(1)))];
+    const classesAndIds = (matchable.match(/[.#]([A-Za-z][\w-]*)/g) || []).map(t => t.slice(1));
+
+    // Attribute selectors, by attribute NAME. Without this an entry like
+    // [aria-controls="app-user-menu"] yielded no tokens at all, so `missing` came back
+    // empty and the entry was reported verified without a single character of it having
+    // been looked for — a silent pass, which is worse than a failure.
+    //
+    // The name, not the value: a value is often an imported constant at the point of use
+    // (UserMenuButton.tsx writes aria-controls={ID}, and the 'app-user-menu' literal
+    // lives in AppUserMenu.tsx, which the #app-user-menu entry verifies separately).
+    // Grepping the value here would fail against the file that actually carries the
+    // binding.
+    const attributes = (matchable.match(/\[([A-Za-z][\w-]*)\s*[~|^$*]?=/g) || [])
+        .map(t => t.slice(1).replace(/\s*[~|^$*]?=$/, ''));
+
+    return [...new Set(classesAndIds.concat(attributes))];
 }
 
 /**

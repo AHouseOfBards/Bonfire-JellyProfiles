@@ -16,20 +16,31 @@
  * surrounding JavaScript. Write plain CSS, including backticks if you want them.
  */
 /* ── Theme integration ───────────────────────────────────────────
-   jellyfin-web has no colour variables of its own. The request to add
-   them (jellyfin-web discussion #6520) is answered "planned" and nothing
-   more, so there is no supported token to read. What every custom theme
-   and Skin Manager *does* converge on is --accent, so read that where it
-   exists and fall back to Jellyfin's stock blue everywhere else. A stock
-   install renders exactly as it did before; a themed one stops having a
-   foreign blue button sitting in its header.
+   Read in this order, because the answer is different on each server.
+
+   Jellyfin 12.0 finally gives us the supported token that jellyfin-web
+   discussion #6520 asked for. Every theme now derives from one base
+   built on MUI's cssVariables, which emits the palette onto :root under
+   the jf prefix — --jf-palette-primary-main is the accent, and
+   src/themes/_base/_theme.scss reads it exactly this way itself. All
+   six stock themes go through it, so a Blue Radiance or Purple Haze
+   install now tints Bonfire correctly instead of approximately.
+
+   10.11 has no colour variables of its own, so it falls through to
+   --accent, which is what every custom theme and Skin Manager
+   converged on. Then Jellyfin's stock blue, which both versions still
+   use as their own primary — so a stock install of either renders
+   exactly as it always has.
+
+   Nested var() fallbacks are CSS Custom Properties Level 1 (Chromium
+   49), well under the Chromium 68 floor this sheet holds to.
 
    Declared on body as well as :root because a theme may set --accent on
    either, and a custom property resolves against the element it is
    declared on — reading it only at :root would silently miss every theme
    that sets it on body. */
 :root, body {
-    --jpf-accent: var(--accent, #00a4dc);
+    --jpf-accent: var(--jf-palette-primary-main, var(--accent, #00a4dc));
 
     /* Tints of the accent. These literals are what Bonfire shipped
        through 1.4.1 and stay as the floor, because deriving them needs
@@ -793,6 +804,54 @@ body.profiles-no-scroll [id*="spinner"] {
     vertical-align: middle;
     margin: 0 4px;
     padding: 0;
+    /* The modern toolbar is a flex row, and a flex item shrinks by default. With the
+       row tight the 28px avatar was squeezed into an ellipse — reported as "it's
+       being compressed". Nothing about this button should ever shrink. */
+    flex: 0 0 auto;
+}
+#profiles-floating-bubble .profiles-header-avatar {
+    flex: 0 0 auto;
+}
+
+/* Standing in the modern toolbar rather than the legacy header.
+   Its neighbour is a 40px MUI Avatar inside an IconButton with padding:0 —
+   components/UserAvatar.tsx renders <Avatar> at its default size — so a 28px circle
+   read as an afterthought next to it. The legacy header's own buttons are smaller,
+   which is why this is a class applied at insertion (see _insertBeforeUserBtn) and
+   not a change to the default.
+
+   !important because the element carries its dimensions as inline style attributes,
+   written when the avatar is built, and an inline style outranks any rule without it. */
+#profiles-floating-bubble.jpf-modern-toolbar-btn .profiles-header-avatar {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 1.05rem !important;
+}
+
+/* The section added to Jellyfin's own profile page (#/userprofile).
+   It sits in the .padded-left .padded-right container, as a sibling of the avatar
+   block and the password form. That container is close to full width — .padded-left
+   is 3.3% padding — while everything the page puts in it is centred, so a plain
+   block-level section landed hard against the left edge with the rest of the page
+   floating in the middle. Reported as "misaligned on the actual profile page".
+
+   These are jellyfin-web's own two rules for the siblings, from src/styles/site.scss
+   and identical in 10.11 and 12.0:
+
+       .readOnlyContent { @media (min-width: 50em) { max-width: 54em; } }
+       form             { @media (min-width: 50em) { max-width: 54em; } }
+
+   plus the inline margin:0 auto that userprofile.tsx gives .readOnlyContent. Matching
+   both puts our section on the same axis and the same width cap as the block above it,
+   at every viewport — including below 50em, where the siblings are unconstrained and
+   so is this. The 44em it used to carry was a number with nothing behind it. */
+.jpf-userprofile-section {
+    margin: 2em auto;
+}
+@media all and (min-width: 50em) {
+    .jpf-userprofile-section {
+        max-width: 54em;
+    }
 }
 
 /* Footer and bottom buttons */

@@ -3539,13 +3539,52 @@
             // Second line of defence: whatever moved focus out, take it back. Membership is
             // tested against any surface rather than the topmost one, so focus returning to
             // the gate under a dialog that is still fading out is left where it belongs.
+            //
+            // Two guards, and both are here because this handler fought another focus trap
+            // to a standstill. MUI's Modal enforces focus back inside itself exactly the
+            // way this does, so with Jellyfin's account menu still open the two handlers
+            // bounced focus between them: 134 focus() calls and a RangeError, our onFocusIn
+            // and MUI's contain() alternating the whole way down the stack. From the
+            // household's side, every text box and dropdown in the profile form was dead
+            // and the page jumped to the top — items[0] being the first field in the form.
             const onFocusIn = (e) => {
+                // 1. Never re-enter. focus() dispatches focusin synchronously, so without
+                //    this the handler calls itself through its own reclaim.
+                if (this._reclaimingFocus) return;
+
                 const surface = this._activeTrapSurface();
                 if (!surface) return;
                 if (e.target && e.target.closest && e.target.closest(this.TRAP_SURFACE_SELECTOR)) return;
                 if (e.target === document.body || e.target === document.documentElement) return;
+
+                // 2. Stop fighting. A reclaim that is immediately undone means something
+                //    else is also enforcing focus, and whoever gives up last wins nothing —
+                //    the loop only ends in a stack overflow. Standing down leaves focus
+                //    where the other trap wants it, which is at least a usable state, and
+                //    is the correct outcome anyway: the other trap belongs to something
+                //    rendered above us.
+                const now = Date.now();
+                if (this._focusStandDownUntil && now < this._focusStandDownUntil) return;
+
+                this._focusReclaims = (now - (this._focusReclaimAt || 0) < 1000)
+                    ? (this._focusReclaims || 0) + 1
+                    : 1;
+                this._focusReclaimAt = now;
+                if (this._focusReclaims > 4) {
+                    this._focusStandDownUntil = now + 5000;
+                    console.warn('ProfilesPlugin: another focus trap is active; standing down '
+                        + 'rather than fighting it for focus.');
+                    return;
+                }
+
                 const items = this._overlayFocusables(surface);
-                if (items.length) items[0].focus();
+                if (!items.length) return;
+                this._reclaimingFocus = true;
+                try {
+                    items[0].focus();
+                } finally {
+                    this._reclaimingFocus = false;
+                }
             };
 
             // On `window`, and in the capture phase. Both halves of that matter, and the
@@ -7001,7 +7040,30 @@
         /// dismiss it otherwise. Escape is what MUI itself listens for; clicking the
         /// backdrop is the fallback for builds where that listener is not attached.
         closeUserMenu: function () {
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+            const menu = document.getElementById('app-user-menu');
+
+            // Dispatched INSIDE the menu, not on the document.
+            //
+            // MUI's Modal handles Escape with an onKeyDown on its own root element, so the
+            // event has to travel through that element to be seen. Dispatched on
+            // `document` — which is what this did — the propagation path is [window,
+            // document] and the modal is never on it, so the call has never once closed
+            // anything. Only the backdrop click below has, and when that missed too the
+            // menu stayed open with its focus trap live, fighting ours for focus until the
+            // stack overflowed. See onFocusIn.
+            //
+            // Dispatched on a node inside the menu and allowed to bubble, it passes through
+            // the modal root whether the id sits on that root or on the paper within it.
+            const from = menu
+                ? (menu.contains(document.activeElement) ? document.activeElement
+                    : (menu.firstElementChild || menu))
+                : null;
+            if (from) {
+                from.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'Escape', code: 'Escape', keyCode: 27, which: 27,
+                    bubbles: true, cancelable: true
+                }));
+            }
 
             setTimeout(() => {
                 const backdrop = document.querySelector('#app-user-menu .MuiBackdrop-root, .MuiModal-root .MuiBackdrop-root');
@@ -7020,13 +7082,25 @@
                 .find(el => el.offsetParent !== null || el.classList.contains('is-active'));
             if (!page) return;
 
-            const host = page.querySelector('.readOnlyContent, .padded-left, form') || page;
+            // The padded page container, deliberately — our section is a sibling of the
+            // avatar block and of the password form, not a part of either.
+            //
+            // This used to be one querySelector with all three in the list, which reads
+            // like a preference order and is not one: querySelector returns the first match
+            // in DOCUMENT order, and .padded-left is the parent of .readOnlyContent, so the
+            // answer was the parent whatever order they were written in. Right answer,
+            // wrong reason — asked one at a time now so the intent is the behaviour.
+            const host = page.querySelector('.padded-left')
+                || page.querySelector('.readOnlyContent')
+                || page.querySelector('form')
+                || page;
 
             const activeInfo = this.getCachedActiveProfile();
             const section = document.createElement('div');
             section.id = 'profiles-userprofile-section';
-            section.className = 'verticalSection';
-            section.style.cssText = 'margin: 2em 0; max-width: 44em;';
+            // Geometry lives in the stylesheet, so it can be checked and so it matches
+            // what the page around it does — see .jpf-userprofile-section.
+            section.className = 'verticalSection jpf-userprofile-section';
             section.innerHTML = `
                 <h2 class="sectionTitle" style="display:flex; align-items:center; gap:0.4em;">
                     <span class="material-icons local_fire_department" aria-hidden="true" style="color:var(--jpf-warn);"></span>
@@ -7125,6 +7199,12 @@
                 }
 
             } else {
+                // Nothing named matched. If a named anchor may still be on its way, wait
+                // rather than guess — see HEADER_ANCHOR_GRACE_MS. Only when there is
+                // nothing on screen yet: a button already placed is left exactly where it
+                // is, because removing it here would trade the jump for a flicker.
+                if (!bubble && this._withinAnchorGrace()) return;
+
                 // ── Strategy 2: geometry-based anchor ────────────────────────────────
                 // If no named container matched (e.g. a custom Skin Manager theme),
                 // find the rightmost visible button in the top 80px of the viewport
@@ -7274,9 +7354,70 @@
          * The cache is invalidated by the element leaving the document, which is what
          * React rebuilding the header looks like from out here.
          */
+        /// True when an element is actually laid out — not merely present in the document.
+        ///
+        /// getClientRects() is empty for anything inside a display:none subtree, and unlike
+        /// offsetParent it stays correct for a position:fixed element. Both matter here.
+        ///
+        /// jellyfin-web keeps its whole legacy header in the DOM and hides it whenever the
+        /// modern layout is active — the default in 12.0, and an option in 10.11. Its own
+        /// comment in components/AppHeader.tsx says why: "these components are not used
+        /// with the new layouts, but legacy views interact with the elements directly so
+        /// they need to be present in the DOM. We use display: none to hide them and
+        /// prevent errors." RootAppRouter renders it as
+        /// <AppHeader isHidden={layoutManager.modern || isNewLayoutPath} />, and
+        /// libraryMenu.js still fills that hidden .skinHeader with .headerRight,
+        /// .headerButton and .headerUserButton.
+        ///
+        /// So on the modern layout every named strategy below matched, and the button went
+        /// into a container nobody could see. From outside that is indistinguishable from
+        /// the injection having failed — and the geometric fallback, which would have found
+        /// the real toolbar, never ran because the search had already "succeeded".
+        _isLaidOut: function (el) {
+            return !!el && typeof el.getClientRects === 'function' && el.getClientRects().length > 0;
+        },
+
+        /// How long a named anchor gets to appear before geometry is allowed to guess.
+        ///
+        /// A named anchor is strictly better than a guessed one — it is the account button
+        /// itself rather than whatever happened to be furthest right — so the guess waits
+        /// for it. The modern toolbar renders progressively, and on the first tick the
+        /// account button is not there yet while the Cast button is.
+        ///
+        /// The cost is borne by custom themes where nothing named will ever match: their
+        /// button now appears this much later, and then stays put. That is the better
+        /// trade. One late arrival beats a visible jump on every single page load, and
+        /// three seconds is well inside how long the rest of the page takes to settle.
+        HEADER_ANCHOR_GRACE_MS: 3000,
+
+        /// True while a named anchor may still be about to appear and nothing has been
+        /// placed yet. Reset whenever the container is lost, so a React remount gets the
+        /// same head start the first load did.
+        _withinAnchorGrace: function () {
+            return this._headerAnchorWaitFrom !== undefined
+                && Date.now() - this._headerAnchorWaitFrom < this.HEADER_ANCHOR_GRACE_MS;
+        },
+
         _findHeaderContainer: function () {
+            const cachedNow = Date.now();
             if (this._headerContainer && document.contains(this._headerContainer)) {
-                return this._headerContainer;
+                // Re-checked on the same three-second cadence as a fresh search, not on
+                // every tick. This is a layout read and checkRoute runs twice a second;
+                // what it is watching for — someone switching layout in Display settings —
+                // does not happen between ticks.
+                if (cachedNow - (this._headerCheckedAt || 0) < 3000) {
+                    return this._headerContainer;
+                }
+                this._headerCheckedAt = cachedNow;
+                if (this._isLaidOut(this._headerContainer)) {
+                    return this._headerContainer;
+                }
+                // The layout changed under us and this container is now hidden. Drop it and
+                // search again rather than keeping a button nobody can see — and restart
+                // the anchor grace, so a React remount gets the same head start the first
+                // load did instead of falling straight to geometry.
+                this._headerContainer = null;
+                this._headerAnchorWaitFrom = undefined;
             }
 
             // A failed search is remembered too, briefly. Caching only successes would
@@ -7284,19 +7425,45 @@
             // matches — the case that was already the most expensive. Three seconds is
             // far below the time anyone takes to notice a missing button, and far above
             // a React re-render.
+            //
+            // Except while we are still waiting for a named anchor to appear. The modern
+            // toolbar is React and its account button is not in the DOM on the first tick,
+            // so the first search fails, the throttle then held that answer for three
+            // seconds, and the switcher spent those three seconds wherever geometry had
+            // guessed. Reported as "it loads squished next to the cast button first, then
+            // updates" — the update being this throttle expiring.
+            //
+            // During the grace the named search runs on every tick instead. That is four
+            // indexed queries, which is what the geometric walk it replaces costs many
+            // times over, and it only happens in the first few seconds of a page.
             const now = Date.now();
-            if (this._headerContainer === null
+            if (this._headerAnchorWaitFrom === undefined) this._headerAnchorWaitFrom = now;
+            const waitingForAnchor = now - this._headerAnchorWaitFrom < this.HEADER_ANCHOR_GRACE_MS;
+
+            if (!waitingForAnchor
+                && this._headerContainer === null
                 && this._headerSearchedAt
                 && now - this._headerSearchedAt < 3000) {
                 return null;
             }
             this._headerSearchedAt = now;
+            this._headerCheckedAt = now;
 
-            this._headerContainer = this._searchForHeaderContainer();
+            // Indexed strategies only while waiting. Strategy C ends in
+            // [class*="skinHeader"], [class*="topBar"] — two unqualified attribute-substring
+            // selectors, which can never use an index and always walk the whole document.
+            // Running that on every tick is precisely what the route-tick budget forbids,
+            // and it would buy nothing: it is the heuristic for custom themes, and a custom
+            // theme's header does not appear three seconds late. It runs once the grace is
+            // over, on the same tick geometry would otherwise have taken.
+            this._headerContainer = this._searchForHeaderContainer(waitingForAnchor);
+            // Found one, so the wait is over. Cleared rather than left running, so that if
+            // this container is ever lost the grace starts again from that moment.
+            if (this._headerContainer) this._headerAnchorWaitFrom = undefined;
             return this._headerContainer;
         },
 
-        _searchForHeaderContainer: function () {
+        _searchForHeaderContainer: function (indexedOnly) {
             // Strategy A: Jellyfin's own right-hand button container.
             //
             // Five other class names were tried before this one — .headerRightButtons,
@@ -7305,8 +7472,10 @@
             // stock install the browser resolved five selectors that could not match
             // before reaching the one that does. They are recorded in
             // tests/upstream-selectors.json.
+            // Laid out, not merely present — see _isLaidOut. On the modern layout this
+            // element exists and is inside a display:none wrapper.
             const byClass = document.querySelector('.headerRight');
-            if (byClass) return byClass;
+            if (this._isLaidOut(byClass)) return byClass;
 
             // Strategy B: the parent of a header button. A theme that renames the
             // container usually keeps Jellyfin's own buttons inside it.
@@ -7319,18 +7488,59 @@
             // .headerButtonUser, .headerButton-user, .btnCast and .headerButton-cast were
             // also tried here and none of them exists upstream either — the cast button
             // is .headerCastButton.
-            const knownBtn = document.querySelector(
+            // Strategy A2: the modern toolbar's user-menu button.
+            //
+            // Named, not geometric, and that is the point. The first attempt at the modern
+            // layout let the geometric fallback place the button, and it landed in a
+            // different slot on every other load — between SyncPlay and Cast one time,
+            // beside the avatar the next. React fills that toolbar progressively, so
+            // "rightmost button in the top 80px" answers whatever happened to be rendered
+            // at the instant the search ran, and the answer was then cached.
+            //
+            // components/toolbar/UserMenuButton.tsx renders
+            //   <IconButton aria-controls={ID} aria-haspopup='true'>  where ID is
+            // 'app-user-menu' — the same contract as the #app-user-menu we already inject
+            // the menu entry into, and byte-identical in 10.11 and 12.0. So the account
+            // button can be named outright, and the switcher lands beside the avatar every
+            // time. An exact-match attribute selector indexes; the [class*=] kind is what
+            // cannot.
+            const modernUserBtn = document.querySelector('[aria-controls="app-user-menu"]');
+            if (this._isLaidOut(modernUserBtn) && this._isLaidOut(modernUserBtn.parentElement)) {
+                return modernUserBtn.parentElement;
+            }
+
+            //
+            // Every match is considered, not just the first: on the modern layout the
+            // hidden legacy header supplies the first .headerButton in document order, and
+            // taking it would rule out a visible one a theme had put further down.
+            const knownBtns = document.querySelectorAll(
                 '.headerButton:not(#profiles-floating-bubble)'
             );
-            if (knownBtn) return knownBtn.parentElement;
+            for (const btn of knownBtns) {
+                if (this._isLaidOut(btn) && this._isLaidOut(btn.parentElement)) {
+                    return btn.parentElement;
+                }
+            }
 
             // Strategy C: find the button cluster inside a custom skin/theme header.
             // ElegantFin and Skin Manager themes wrap everything in .skinHeader or
             // a similarly named element; we pick the child that contains the most
             // icon buttons (likely the right-side group).
-            const skinHeader = document.querySelector(
+            // Strategy C walks the document and is skipped while a named anchor may still
+            // be coming — see the call site.
+            if (indexedOnly) return null;
+
+            // querySelectorAll, and the first one that is laid out. Stock jellyfin-web's
+            // own .skinHeader comes first in document order and is display:none on the
+            // modern layout, so querySelector would hand back the one candidate that
+            // cannot work and stop before reaching a theme's visible header.
+            let skinHeader = null;
+            const headers = document.querySelectorAll(
                 '.skinHeader, .jellyfinHeader, [class*="skinHeader"], [class*="topBar"]'
             );
+            for (const h of headers) {
+                if (this._isLaidOut(h)) { skinHeader = h; break; }
+            }
             if (!skinHeader) return null;
 
             // Two queries, not one per candidate. This used to ask for every div, nav, ul
@@ -7354,7 +7564,9 @@
                     best = el;
                 }
             }
-            return best;
+            // A visible header can still hold a hidden cluster — a theme's collapsed
+            // overflow menu counts buttons just as well as its visible row does.
+            return this._isLaidOut(best) ? best : null;
         },
 
         // Finds the rightmost visible button within the top 80px of the viewport.
@@ -7460,9 +7672,23 @@
             // beside the account icon it is named for. Verified in
             // src/scripts/libraryMenu.js: "headerButton headerButtonRight headerUserButton"
             // and the headerUserButtonRound variant.
+            // The third is the modern toolbar's account button — see Strategy A2 in
+            // _searchForHeaderContainer for why aria-controls is the right handle on it.
             const userBtn =
-                container.querySelector('.headerUserButton, .headerUserButtonRound') ||
+                container.querySelector(
+                    '.headerUserButton, .headerUserButtonRound, [aria-controls="app-user-menu"]'
+                ) ||
                 container.lastElementChild;
+
+            // Sized against whatever it ends up standing next to. The modern toolbar puts a
+            // 40px MUI Avatar in an IconButton with padding:0 (UserAvatar.tsx renders
+            // <Avatar> at its default size), and a 28px circle beside that read as an
+            // afterthought rather than a control. The legacy header's buttons are smaller,
+            // so this is a class rather than a new default.
+            const modern = !!(userBtn && userBtn.getAttribute
+                && userBtn.getAttribute('aria-controls') === 'app-user-menu');
+            bubble.classList.toggle('jpf-modern-toolbar-btn', modern);
+
             if (userBtn) {
                 userBtn.parentNode.insertBefore(bubble, userBtn);
             } else {

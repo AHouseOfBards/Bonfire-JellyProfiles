@@ -80,4 +80,48 @@ if (repeated.length) {
     console.log('no inline style value is used twice (' + total + ' single-use)');
 }
 
+// ── No client-side code may authenticate the legacy way ─────────────────────
+//
+// Jellyfin 12.0 disables legacy authorization by default, and migrates existing
+// installs to off as well. With it off, AuthorizationContext reads NONE of these:
+// the X-Emby-Token header, X-MediaBrowser-Token, the api_key query parameter, the
+// X-Emby-Authorization header, or an Authorization header using the `Emby` scheme.
+// Only `Authorization: MediaBrowser ...` is read.
+//
+// This page had exactly one such request — the avatar folder import sent
+// X-Emby-Token, because it hand-rolls its fetch to get a Blob back. It would have
+// come back 401 on every 12.0 server, and on any 10.11 server whose administrator
+// had already turned legacy authorization off.
+//
+// Both Web files are scanned, not just this one: profiles.js is clean today and the
+// point is that it stays that way. Comments and the header name inside a string that
+// is only ever *read* are not what this looks for — it looks for a request being
+// built with one.
+const LEGACY_AUTH = [
+    ['X-Emby-Token', /['"`]X-Emby-Token['"`]\s*:/g],
+    ['X-MediaBrowser-Token', /['"`]X-MediaBrowser-Token['"`]\s*:/g],
+    ['X-Emby-Authorization', /['"`]X-Emby-Authorization['"`]\s*:/g],
+    ['api_key query parameter', /[?&]api_key=/g],
+    ['the Emby authorization scheme', /['"`]Emby Client=/g]
+];
+
+const authOffenders = [];
+for (const file of [L.dashboardPath(), L.profilesPath()]) {
+    const src = fs.readFileSync(file, 'utf8');
+    const name = file.split(/[\\/]/).pop();
+    for (const [what, re] of LEGACY_AUTH) {
+        re.lastIndex = 0;
+        const n = (src.match(re) || []).length;
+        if (n) authOffenders.push(name + ' builds a request with ' + what + ' (' + n + ')');
+    }
+}
+
+if (authOffenders.length) {
+    failed = true;
+    console.error('LEGACY AUTHORIZATION — Jellyfin 12.0 does not read these:');
+    authOffenders.forEach(o => console.error('  ' + o));
+} else {
+    console.log('no client code authenticates the legacy way');
+}
+
 process.exit(failed ? 1 : 0);

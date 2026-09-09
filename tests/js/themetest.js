@@ -36,7 +36,12 @@ const CONSUMERS = CSS.slice(supportsEnd);
 const ALPHAS = ['a08', 'a18', 'a30', 'a40', 'a45', 'a50', 'a60'];
 
 console.log('── The accent is read from the theme ─────────────────────────');
-check('--jpf-accent is defined', /--jpf-accent:\s*var\(--accent,\s*#00a4dc\)/.test(DEFS), true);
+// Three deep, and the order is the assertion: Jellyfin 12.0's supported token first,
+// then 10.11's de-facto one, then the stock blue both versions use anyway. Reading
+// --accent first would pin every 12.0 install to the fallback, because 12.0 does not
+// define --accent at all — the whole palette moved to MUI cssVariables under --jf-.
+check('--jpf-accent reads 12.0 first, then 10.11, then the literal',
+    /--jpf-accent:\s*var\(--jf-palette-primary-main,\s*var\(--accent,\s*#00a4dc\)\)/.test(DEFS), true);
 check('declared on :root AND body', /:root,\s*body\s*\{/.test(DEFS), true);
 // Reading --accent only at :root would miss every theme that sets it on body,
 // because a custom property resolves against the element declaring it.
@@ -131,7 +136,12 @@ check('DEFAULT_AVATAR_COLOR is still a colour',
     /const DEFAULT_AVATAR_COLOR = '#00A4DC';/.test(SRC), true);
 check('the palette array is still literals',
     /'#00A4DC', '#E50914', '#22C55E'/.test(SRC), true);
-check('no var() reached the palette', /palette[\s\S]{0,400}var\(--/.test(SRC), false);
+// Anchored to the declaration, not to the word. It used to search 400 characters after
+// any occurrence of "palette" anywhere in the source or the stylesheet — so the moment
+// a CSS comment mentioned --jf-palette-primary-main next to a var(), this went red over
+// prose. Same question, asked of the array itself.
+check('no var() reached the palette',
+    /const palette = \[[\s\S]{0,400}var\(--/.test(SRC), false);
 
 console.log();
 console.log('── Signals mean what they look like ──────────────────────────');

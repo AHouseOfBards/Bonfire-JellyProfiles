@@ -97,7 +97,14 @@ const csproj = fs.readFileSync(path.join(L.ROOT, 'Jellyfin.Profiles.csproj'), 'u
 const inFlight = (/<Version>([^<]+)<\/Version>/.exec(csproj) || [])[1];
 ok('the csproj names a version to release (' + (inFlight || 'none found') + ')', !!inFlight);
 
-const pending = inFlight ? inFlight + '.0' : null;
+// Jellyfin's manifest wants four parts. A three-part csproj version is padded; a
+// four-part one is already there. Padding unconditionally made 1.6.0.1 into 1.6.0.1.0,
+// which matches no entry — so the release being prepared looked like an unrelated entry
+// carrying a placeholder checksum, which is the one thing this file exists to catch.
+// release.yml derives the same value the same way.
+const pending = inFlight
+    ? (inFlight.split('.').length === 4 ? inFlight : inFlight + '.0')
+    : null;
 
 // Enumerated one version at a time. An "all checksums look fine" aggregate is exactly the
 // shape of check that let two uninstallable releases through.

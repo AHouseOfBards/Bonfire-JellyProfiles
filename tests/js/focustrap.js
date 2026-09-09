@@ -433,6 +433,120 @@ sandbox.document.activeElement = grid.a;
 r = press('ArrowRight', sandbox.window);
 check('a window-dispatched arrow still moves by geometry', r.focused, 'b');
 
+// ── Two focus traps must not fight ─────────────────────────────────────────────
+//
+// MUI's Modal enforces focus back inside itself exactly the way this handler does. With
+// Jellyfin's account menu still open — its Escape never reached it, see closeUserMenu —
+// the two bounced focus between them until the stack overflowed: 134 focus() calls and a
+// RangeError, our onFocusIn and MUI's contain() alternating all the way down. From the
+// household's side, every text box and dropdown in the profile form was dead and the page
+// jumped to the top, items[0] being the first field.
+//
+// Modelled as a rival that reclaims focus every time ours lands, which is what MUI does.
+console.log('\nAgainst a rival focus trap');
+console.log('--------------------------');
+{
+    const focusHandler = (windowListeners.find(l => l.type === 'focusin' && l.capture)
+        || documentListeners.find(l => l.type === 'focusin' && l.capture));
+    check('the trap binds a focusin handler at all', !!focusHandler, true);
+
+    if (focusHandler) {
+        const outsider = other('DIV');
+        const trapSurface = {
+            id: 'profiles-gate-overlay',
+            isConnected: true,
+            contains: n => items.indexOf(n) >= 0,
+            querySelectorAll: () => items,
+            getAttribute: () => null
+        };
+        withSurfaces([trapSurface]);
+
+        // The rival: every time our handler focuses something, it drags focus straight
+        // back out, and that re-fires focusin. A handler with no guard recurses here
+        // until the stack gives out.
+        let ours = 0;
+        let depth = 0;
+        let maxDepth = 0;
+        const fire = target => {
+            depth++;
+            maxDepth = Math.max(maxDepth, depth);
+            if (depth < 60) focusHandler.fn({ target });
+            depth--;
+        };
+        items.forEach(it => {
+            it.focus = function () {
+                ours++;
+                focused = this.id;
+                fire(outsider);          // the rival yanks it straight back out
+            };
+        });
+
+        PP._reclaimingFocus = false;
+        PP._focusReclaims = 0;
+        PP._focusReclaimAt = 0;
+        PP._focusStandDownUntil = 0;
+
+        let threw = null;
+        try { fire(outsider); } catch (e) { threw = e; }
+
+        check('it does not blow the stack (' + (threw ? threw.constructor.name : 'no throw') + ')',
+            threw === null, true);
+        check('and does not recurse into itself (depth ' + maxDepth + ')', maxDepth <= 3, true);
+
+        // A couple of attempts is fine. Hundreds is the bug.
+        check('it gives up rather than trading focus forever (' + ours + ' reclaims)',
+            ours <= 5, true);
+        // The rival above re-fires inside our own focus() call, which the re-entrancy
+        // guard alone is enough to stop. The real one does not: MUI's handler runs after
+        // ours has returned, so each bounce is a fresh event and the guard is clear again.
+        // That is the shape that produced 134 calls, and only standing down ends it.
+        items.forEach(it => { it.focus = function () { ours++; focused = this.id; }; });
+        PP._reclaimingFocus = false;
+        PP._focusReclaims = 0;
+        PP._focusReclaimAt = 0;
+        PP._focusStandDownUntil = 0;
+        ours = 0;
+
+        for (let i = 0; i < 40; i++) focusHandler.fn({ target: outsider });
+
+        check('a rival that bounces across event turns is given up on too ('
+            + ours + ' of 40)', ours <= 5, true);
+        check('and it records that it stood down',
+            typeof PP._focusStandDownUntil === 'number' && PP._focusStandDownUntil > Date.now(),
+            true);
+
+        // Standing down is temporary — a page where the rival has gone away must work
+        // again rather than leaving the trap permanently disarmed.
+        PP._focusStandDownUntil = 0;
+        PP._focusReclaims = 0;
+        PP._focusReclaimAt = 0;
+        items.forEach(it => { it.focus = function () { focused = this.id; }; });
+        focused = null;
+        focusHandler.fn({ target: other('DIV') });
+        check('and comes back once the fight is over', focused, 'a');
+    }
+}
+
+// closeUserMenu has to dispatch Escape somewhere MUI can see it. MUI's Modal handles
+// Escape with an onKeyDown on its own root element, so an event dispatched on `document`
+// — whose propagation path is [window, document] — never reaches it. That line had never
+// closed anything.
+console.log('\nClosing the account menu');
+console.log('------------------------');
+{
+    const src = L.readProfiles();
+    const body = src.slice(src.indexOf('closeUserMenu: function'),
+                           src.indexOf('closeUserMenu: function') + 1600);
+    check('Escape is no longer dispatched at the document',
+        /document\.dispatchEvent\(\s*new KeyboardEvent/.test(body), false);
+    check('it is dispatched on a node inside the menu instead',
+        /from\.dispatchEvent\(\s*new KeyboardEvent/.test(body), true);
+    check('and it still bubbles, so it reaches the modal root',
+        /bubbles:\s*true/.test(body), true);
+    check('the backdrop click is kept as the fallback',
+        /MuiBackdrop-root/.test(body), true);
+}
+
 // Release must make the trap inert.
 PP._releaseOverlayFocusTrap();
 check('release removes both listeners', windowListeners.length + documentListeners.length, 0);

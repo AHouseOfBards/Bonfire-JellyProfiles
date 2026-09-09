@@ -43,7 +43,18 @@ jobs:
           set -euo pipefail
           VERSION=$(grep '<Version>' Jellyfin.Profiles.csproj | sed 's/.*<Version>\(.*\)<\/Version>/\1/' | tr -d '[:space:]')
           INFO=$(grep '<InformationalVersion>' Jellyfin.Profiles.csproj | sed 's/.*<InformationalVersion>\(.*\)<\/InformationalVersion>/\1/' | tr -d '[:space:]')
-          FULL="${VERSION}.0"
+          # Jellyfin's manifest wants a four-part version. A three-part csproj version is
+          # padded; a four-part one is already there. Padding unconditionally turned
+          # 1.6.0.1 into 1.6.0.1.0, which Version.TryParse rejects and which matches no
+          # entry, so the run failed at the manifest lookup with a confusing message
+          # about a missing entry that was in fact present.
+          case "$VERSION" in
+            *.*.*.*) FULL="${VERSION}" ;;
+            *.*.*)   FULL="${VERSION}.0" ;;
+            *)
+              echo "::error::<Version>${VERSION}</Version> is not three or four parts."
+              exit 1 ;;
+          esac
           TAG="${GITHUB_REF_NAME#v}"
 
           # The tag drives the release URL; the csproj version drives which manifest entry

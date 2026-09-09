@@ -812,6 +812,30 @@
                 return obj[name] !== undefined ? obj[name] : obj[upper];
             }
 
+            // The one authorization header this page builds for itself. Every other call
+            // here goes through ApiClient.ajax, which builds its own; this exists for the
+            // single request that wants a Blob back.
+            //
+            // `MediaBrowser` scheme, and nothing else. Jellyfin 12.0 disables legacy
+            // authorization by default and migrates existing installs to off; with it off
+            // the server reads only this header with this scheme. Each field is read the
+            // way profiles.js reads it, because ApiClient exposes some of these as
+            // functions and some as properties depending on the build.
+            function authorizationHeader() {
+                const get = (fn, prop, fallback) => {
+                    if (typeof ApiClient[fn] === 'function') return ApiClient[fn]() || fallback;
+                    return ApiClient[prop] || fallback;
+                };
+                const client = get('appName', '_appName', 'Jellyfin Web');
+                const device = get('deviceName', '_deviceName', 'Dashboard');
+                const deviceId = get('deviceId', '_deviceId', '');
+                const version = get('appVersion', '_appVersion', '');
+                const token = get('accessToken', '_accessToken', '');
+                return 'MediaBrowser Client="' + client + '", Device="' + device
+                    + '", DeviceId="' + deviceId + '", Version="' + version
+                    + '", Token="' + token + '"';
+            }
+
             // Canonical form of a GUID for use as a lookup key — GUIDs come back in mixed case
             // and sometimes with or without hyphens depending on the serializer, so comparing
             // the raw strings would fail to match a sub-profile to its master.
@@ -1936,8 +1960,21 @@
                         const name = field(files[i], 'name');
                         setStatus('Importing ' + (i + 1) + ' of ' + files.length + '…');
 
+                        // The only hand-rolled request on this page — everything else goes
+                        // through ApiClient.ajax, which builds this header itself. It is
+                        // hand-rolled because the response is wanted as a Blob.
+                        //
+                        // It used to send X-Emby-Token. Jellyfin 12.0 turns legacy
+                        // authorization off by default and migrates existing installs to
+                        // off, and with it off the server reads none of X-Emby-Token,
+                        // X-MediaBrowser-Token, the api_key query parameter, the
+                        // X-Emby-Authorization header, or the `Emby` scheme — see
+                        // AuthorizationContext.GetAuthorizationDictionary. This request
+                        // would have come back 401 and the avatar folder import would have
+                        // stopped working, on 12.0 and on any 10.11 install whose
+                        // administrator had already turned legacy authorization off.
                         fetch(ApiClient.getUrl('plugins/profiles/admin/avatars/scan/file', { path: folder, name: name }), {
-                            headers: { 'X-Emby-Token': ApiClient.accessToken() }
+                            headers: { 'Authorization': authorizationHeader() }
                         })
                         .then(function (res) {
                             if (!res.ok) return res.text().then(function (t) { throw new Error(t || 'could not be read'); });
