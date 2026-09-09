@@ -48,6 +48,8 @@ namespace Jellyfin.Profiles.Models
         public bool? DefaultAskOnStartup { get; set; }
         public string? DefaultSwitcherLocation { get; set; }
         public string? IndexInjectionMode { get; set; }
+        public bool? EnableClientPinLogin { get; set; }
+        public bool? EnableClientProfileList { get; set; }
     }
 
     /// <summary>Identifies one signed-in device belonging to one user.</summary>

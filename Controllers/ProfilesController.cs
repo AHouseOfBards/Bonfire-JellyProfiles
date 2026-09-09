@@ -1573,6 +1573,10 @@ namespace Jellyfin.Profiles.Controllers
                     config.DefaultSwitcherLocation = incoming.DefaultSwitcherLocation;
                 if (TryProperty(root, "IndexInjectionMode", out _))
                     config.IndexInjectionMode = incoming.IndexInjectionMode;
+                if (TryProperty(root, "EnableClientPinLogin", out _))
+                    config.EnableClientPinLogin = incoming.EnableClientPinLogin;
+                if (TryProperty(root, "EnableClientProfileList", out _))
+                    config.EnableClientProfileList = incoming.EnableClientProfileList;
                 if (TryProperty(root, "PanicCodeHash", out _))
                     config.PanicCodeHash = incoming.PanicCodeHash;
 
@@ -3707,6 +3711,14 @@ namespace Jellyfin.Profiles.Controllers
                     config.DefaultSwitcherLocation = SwitcherLocations.Normalize(request.DefaultSwitcherLocation);
                 if (request.IndexInjectionMode != null)
                     config.IndexInjectionMode = IndexInjectionModes.Normalize(request.IndexInjectionMode);
+
+                // Two switches rather than one, because they carry different risks: the
+                // first changes how a profile authenticates, the second edits the endpoint
+                // every client on this server signs in through.
+                if (request.EnableClientPinLogin.HasValue)
+                    config.EnableClientPinLogin = request.EnableClientPinLogin.Value;
+                if (request.EnableClientProfileList.HasValue)
+                    config.EnableClientProfileList = request.EnableClientProfileList.Value;
 
                 Plugin.Instance?.SaveConfiguration();
             }

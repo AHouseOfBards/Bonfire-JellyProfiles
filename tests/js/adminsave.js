@@ -59,7 +59,12 @@ async function run(fieldValues) {
         disallowCustomAvatars: false,
         defaultAskOnStartup: true,
         defaultSwitcherLocation: 'button',
-        indexInjectionMode: 'middleware'
+        indexInjectionMode: 'middleware',
+        // Both default off. A missing id throws in the stub below, so adding a control to
+        // the form without adding it here is a failure rather than a silent omission —
+        // which is the whole reason this list is written out by hand.
+        enableClientPinLogin: false,
+        enableClientProfileList: false
     }, fieldValues || {});
 
     // One fake element per id. `value` and `checked` both present, so whichever the
@@ -161,7 +166,9 @@ const expected = [
     'disallowCustomAvatarUploads',
     'defaultAskOnStartup',
     'defaultSwitcherLocation',
-    'indexInjectionMode'
+    'indexInjectionMode',
+    'enableClientPinLogin',
+    'enableClientProfileList'
 ];
 
 if (body) {
@@ -171,7 +178,7 @@ if (body) {
         ok('sends ' + k, Object.prototype.hasOwnProperty.call(body, k));
     });
     Object.keys(body).forEach(function (k) {
-        ok(k + ' is one of the six this page owns', expected.indexOf(k) !== -1);
+        ok(k + ' is one of the ' + expected.length + ' this page owns', expected.indexOf(k) !== -1);
     });
 
     // The named collections are the ones that were being silently reverted. Listed

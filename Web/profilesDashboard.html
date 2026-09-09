@@ -292,6 +292,8 @@
        so changing the rhythm is one edit. */
     #profilesConfigurationPage .jpf-section { margin-top: 3em; }
     #profilesConfigurationPage .jpf-lede { margin-bottom: 1em; }
+    /* A heading that opens a new group of settings inside one form. */
+    #profilesConfigurationPage .jpf-subhead { margin-top: 1.5em; }
     #profilesConfigurationPage .jpf-block-end { margin-bottom: 3em; }
 
     /* The rest of the vocabulary. Layout that belongs to one element still gets
@@ -488,7 +490,7 @@
                     <div class="fieldDescription">Users enter their PIN before adding a sub-profile.</div>
                 </div>
 
-                <h3 class="checkboxListLabel" style="margin-top:1.5em;">Switcher defaults</h3>
+                <h3 class="checkboxListLabel jpf-subhead">Switcher defaults</h3>
                 <div class="fieldDescription jpf-lede">
                     What new accounts get. Anyone who picks their own setting keeps it.
                 </div>
@@ -508,6 +510,38 @@
                         <option value="menu">Jellyfin's own menu</option>
                     </select>
                     <div class="fieldDescription">The menu option adds a row to Settings instead of a second portrait.</div>
+                </div>
+
+                <h3 class="checkboxListLabel jpf-subhead">Televisions and other apps</h3>
+                <div class="fieldDescription jpf-lede">
+                    Android TV, Roku and Swiftfin never load the web client, so they never see
+                    the Bonfire switcher. These two settings let them offer profiles through
+                    their own sign-in screen instead. Both are off until you turn them on.
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="enableClientPinLogin" />
+                        <span>Let profiles be opened with their PIN on any app</span>
+                    </label>
+                    <div class="fieldDescription">
+                        A profile can be signed into by typing its PIN where the app asks for a
+                        password. The PIN is never stored as a Jellyfin password. A profile with
+                        no PIN opens with the box left empty. Master accounts are never affected.
+                    </div>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="enableClientProfileList" />
+                        <span>Show profiles on an app's sign-in screen</span>
+                    </label>
+                    <div class="fieldDescription">
+                        After someone signs in on a device once, that household's profiles appear
+                        in its user list. Only that household's, and only on devices they have
+                        used. This changes the sign-in list every app on this server reads, so
+                        turn it on when you can test it.
+                    </div>
                 </div>
 
 
@@ -787,6 +821,10 @@
                     page.querySelector('#defaultAskOnStartup').checked = config.DefaultAskOnStartup !== false;
                     page.querySelector('#defaultSwitcherLocation').value =
                         config.DefaultSwitcherLocation === 'menu' ? 'menu' : 'button';
+                    // Absent before 1.6.1.2, and both default to off: neither may switch
+                    // itself on because a configuration predates it.
+                    page.querySelector('#enableClientPinLogin').checked = !!config.EnableClientPinLogin;
+                    page.querySelector('#enableClientProfileList').checked = !!config.EnableClientProfileList;
                     // Absent before 1.4.1 — "both" is the shipped default and the safe one.
                     // Matches IndexInjectionModes.Normalize on the server: anything
                     // unrecognised, including a configuration written before 1.4.1, is
@@ -2129,7 +2167,9 @@
                         disallowCustomAvatarUploads: page.querySelector('#disallowCustomAvatars').checked,
                         defaultAskOnStartup: page.querySelector('#defaultAskOnStartup').checked,
                         defaultSwitcherLocation: page.querySelector('#defaultSwitcherLocation').value === 'menu' ? 'menu' : 'button',
-                        indexInjectionMode: page.querySelector('#indexInjectionMode').value
+                        indexInjectionMode: page.querySelector('#indexInjectionMode').value,
+                        enableClientPinLogin: page.querySelector('#enableClientPinLogin').checked,
+                        enableClientProfileList: page.querySelector('#enableClientProfileList').checked
                     })
                 }).then(function () {
                     Dashboard.hideLoadingMsg();
