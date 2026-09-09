@@ -52,6 +52,17 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public bool EnableClientPinLogin { get; set; }
 
+        /// <summary>
+        /// Adds this household's profiles to the user list a client paints its login screen
+        /// from, on a device the household has already signed in on at least once.
+        /// <para>
+        /// Off by default, and separate from <see cref="EnableClientPinLogin"/> on purpose.
+        /// This one edits <c>/Users/Public</c>, the endpoint every client on the server uses
+        /// to sign in, so it carries a blast radius the PIN provider does not.
+        /// </para>
+        /// </summary>
+        public bool EnableClientProfileList { get; set; }
+
         /// <summary>Default for <see cref="ProfileMapping.SwitcherLocation"/>. See <see cref="DefaultAskOnStartup"/>.</summary>
         public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;
 

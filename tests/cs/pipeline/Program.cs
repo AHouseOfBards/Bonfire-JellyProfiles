@@ -1,4 +1,6 @@
 using System;
+using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Devices;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -39,6 +41,8 @@ void Check(string name, bool condition)
 var networkConfig = new NetworkConfiguration();
 
 var serverConfig = DispatchProxy.Create<IServerConfigurationManager, ThrowingProxy>();
+var userManager = DispatchProxy.Create<IUserManager, ThrowingProxy>();
+var deviceManager = DispatchProxy.Create<IDeviceManager, ThrowingProxy>();
 ((ThrowingProxy)(object)serverConfig).AnswerTo = "GetConfiguration";
 ((ThrowingProxy)(object)serverConfig).Answer = networkConfig;
 
@@ -84,7 +88,10 @@ async Task<Result> Run(string path, RequestDelegate downstream, Action<HttpConte
     };
 
     var middleware = new ProfilesIndexMiddleware(next, NullLogger<ProfilesIndexMiddleware>.Instance);
-    await middleware.Invoke(context, serverConfig);
+    // The user-list injection takes these; the index path this file exercises never
+    // touches them, and both proxies throw on any call — so if that ever stops being true,
+    // these tests say so loudly instead of quietly exercising a different path.
+    await middleware.Invoke(context, serverConfig, userManager, deviceManager);
 
     return new Result
     {

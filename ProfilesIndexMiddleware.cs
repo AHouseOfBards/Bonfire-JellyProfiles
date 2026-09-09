@@ -9,6 +9,9 @@ using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Jellyfin.Profiles.Auth;
+using MediaBrowser.Controller.Devices;
+using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
@@ -137,8 +140,19 @@ namespace Jellyfin.Profiles
         /// <returns>A task.</returns>
         public async Task Invoke(
             HttpContext context,
-            IServerConfigurationManager serverConfig)
+            IServerConfigurationManager serverConfig,
+            IUserManager userManager,
+            IDeviceManager deviceManager)
         {
+            // The login-screen user list, a completely separate job from the index document
+            // below and sharing only the capture machinery. Checked first because it is a
+            // different path entirely and must not fall through the index logic.
+            if (IsPublicUsersPath(context))
+            {
+                await InjectPublicUsersAsync(context, userManager, deviceManager).ConfigureAwait(false);
+                return;
+            }
+
             if (!ShouldHandle(context, serverConfig))
             {
                 await _next(context).ConfigureAwait(false);
@@ -272,6 +286,143 @@ namespace Jellyfin.Profiles
             Interlocked.Increment(ref ServedCount);
 
             await context.Response.Body.WriteAsync(bytes, context.RequestAborted).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// <c>GET /Users/Public</c> - the list a client paints its login screen from.
+        /// <para>
+        /// Buffers the response the way the index path does, hands the bytes to
+        /// <see cref="PublicUserInjector"/>, and writes back whatever comes out. Every
+        /// failure path returns the response Jellyfin produced, byte for byte: this endpoint
+        /// is how every client on the server signs in, so nothing here may be able to break
+        /// it.
+        /// </para>
+        /// </summary>
+        private async Task InjectPublicUsersAsync(
+            HttpContext context, IUserManager userManager, IDeviceManager deviceManager)
+        {
+            var config = Plugin.Instance?.Configuration;
+
+            // Resolved BEFORE the response is captured, so a device we do not recognise -
+            // the overwhelmingly common case on a busy server - costs one header parse and
+            // one device lookup, and never buffers a body at all.
+            IReadOnlyList<Guid> household;
+            try
+            {
+                household = PublicUserInjector.ResolveHousehold(
+                    context.Request.Headers[HeaderNames.Authorization],
+                    context.Request.Headers["X-Emby-Authorization"],
+                    deviceManager,
+                    config);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ProfilesPlugin: could not resolve a household for the user list.");
+                await _next(context).ConfigureAwait(false);
+                return;
+            }
+
+            if (household.Count == 0)
+            {
+                await _next(context).ConfigureAwait(false);
+                return;
+            }
+
+            var originalBody = context.Features.Get<IHttpResponseBodyFeature>();
+            if (originalBody == null)
+            {
+                await _next(context).ConfigureAwait(false);
+                return;
+            }
+
+            byte[] produced;
+            using (var captured = new MemoryStream())
+            {
+                var capture = new StreamResponseBodyFeature(captured);
+                var negotiation = SuspendContentNegotiation(context.Request);
+                context.Features.Set<IHttpResponseBodyFeature>(capture);
+
+                try
+                {
+                    await _next(context).ConfigureAwait(false);
+                    await capture.CompleteAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    context.Features.Set(originalBody);
+                    RestoreContentNegotiation(context.Request, negotiation);
+                }
+
+                produced = captured.ToArray();
+            }
+
+            if (context.Response.HasStarted)
+            {
+                return;
+            }
+
+            byte[]? rewritten = null;
+            if (context.Response.StatusCode == StatusCodes.Status200OK
+                && !context.Response.Headers.ContainsKey(HeaderNames.ContentEncoding))
+            {
+                try
+                {
+                    rewritten = PublicUserInjector.Inject(
+                        produced,
+                        context.Response.ContentType,
+                        household,
+                        userManager,
+                        context.Connection.RemoteIpAddress?.ToString(),
+                        _logger);
+                }
+                catch (Exception ex)
+                {
+                    // Anything at all here and the client gets Jellyfin's own answer.
+                    _logger.LogWarning(ex, "ProfilesPlugin: could not add profiles to the user list.");
+                    rewritten = null;
+                }
+            }
+
+            if (rewritten == null)
+            {
+                await PassThroughAsync(context, produced).ConfigureAwait(false);
+                return;
+            }
+
+            context.Response.ContentLength = rewritten.Length;
+
+            // The body is no longer what Jellyfin measured, and this list must not be cached
+            // anyway - it changes the moment somebody signs in on this device.
+            context.Response.Headers.Remove(HeaderNames.ETag);
+            context.Response.Headers.Remove(HeaderNames.LastModified);
+            context.Response.Headers[HeaderNames.CacheControl] = "no-cache, no-store, must-revalidate";
+
+            await context.Response.Body.WriteAsync(rewritten, context.RequestAborted).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// True for <c>GET /Users/Public</c>, under a base URL or not. Matched on the exact
+        /// path so no other Users route is ever buffered.
+        /// </summary>
+        private static bool IsPublicUsersPath(HttpContext context)
+        {
+            if (!HttpMethods.IsGet(context.Request.Method))
+            {
+                return false;
+            }
+
+            if (Plugin.Instance?.Configuration?.EnableClientProfileList != true)
+            {
+                return false;
+            }
+
+            var path = context.Request.Path.Value;
+            if (string.IsNullOrEmpty(path))
+            {
+                return false;
+            }
+
+            return path.EndsWith("/Users/Public", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void Fail(string reason) => LastError = reason;
