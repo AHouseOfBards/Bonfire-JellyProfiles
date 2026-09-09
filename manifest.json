@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.6.0.2",
+        "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- The Switch Profile button was missing from the header on Jellyfin's modern layout, which is the default in 12.0 and an option in 10.11. It was being added to the old header, which that layout keeps in the page but hides.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.0.2/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-09-09T00:00:00Z"
+      },
+      {
         "version": "1.6.0.1",
         "changelog": "**Beta release** — please report issues on GitHub.\n\nBuilt for Jellyfin 10.11 and checked against 12.0.\n\n**Fixed**\n\n- Importing avatars from a folder failed on Jellyfin 12.0, and on any server where an administrator had turned legacy authorization off.\n\n**Changed**\n\n- Bonfire follows your theme's accent colour on Jellyfin 12.0, which publishes that colour under a new name.",
         "targetAbi": "10.11.0.0",
