@@ -16,20 +16,31 @@
  * surrounding JavaScript. Write plain CSS, including backticks if you want them.
  */
 /* ── Theme integration ───────────────────────────────────────────
-   jellyfin-web has no colour variables of its own. The request to add
-   them (jellyfin-web discussion #6520) is answered "planned" and nothing
-   more, so there is no supported token to read. What every custom theme
-   and Skin Manager *does* converge on is --accent, so read that where it
-   exists and fall back to Jellyfin's stock blue everywhere else. A stock
-   install renders exactly as it did before; a themed one stops having a
-   foreign blue button sitting in its header.
+   Read in this order, because the answer is different on each server.
+
+   Jellyfin 12.0 finally gives us the supported token that jellyfin-web
+   discussion #6520 asked for. Every theme now derives from one base
+   built on MUI's cssVariables, which emits the palette onto :root under
+   the jf prefix — --jf-palette-primary-main is the accent, and
+   src/themes/_base/_theme.scss reads it exactly this way itself. All
+   six stock themes go through it, so a Blue Radiance or Purple Haze
+   install now tints Bonfire correctly instead of approximately.
+
+   10.11 has no colour variables of its own, so it falls through to
+   --accent, which is what every custom theme and Skin Manager
+   converged on. Then Jellyfin's stock blue, which both versions still
+   use as their own primary — so a stock install of either renders
+   exactly as it always has.
+
+   Nested var() fallbacks are CSS Custom Properties Level 1 (Chromium
+   49), well under the Chromium 68 floor this sheet holds to.
 
    Declared on body as well as :root because a theme may set --accent on
    either, and a custom property resolves against the element it is
    declared on — reading it only at :root would silently miss every theme
    that sets it on body. */
 :root, body {
-    --jpf-accent: var(--accent, #00a4dc);
+    --jpf-accent: var(--jf-palette-primary-main, var(--accent, #00a4dc));
 
     /* Tints of the accent. These literals are what Bonfire shipped
        through 1.4.1 and stay as the floor, because deriving them needs
