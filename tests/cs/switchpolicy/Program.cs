@@ -52,7 +52,13 @@ void Ok(string name, bool cond)
 }
 
 var root = RepoRoot();
-var dll = System.IO.Path.Combine(root, "bin", "Release", "net9.0", "Jellyfin.Profiles.dll");
+// Which build of the plugin to load. This harness's own output sits in
+// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved — there is
+// no second place to keep in step, and it cannot say net9.0 while the <Reference> that
+// compiled it pointed at net10.0. tests/run.sh cs10 runs the whole set against net10.0.
+var tfm = new System.IO.DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
+    System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)).Name;
+var dll = System.IO.Path.Combine(root, "bin", "Release", tfm, "Jellyfin.Profiles.dll");
 var asm = Assembly.LoadFrom(dll);
 var baseCtl = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController", true);
 var mappingType = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);

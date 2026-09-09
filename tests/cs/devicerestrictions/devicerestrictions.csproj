@@ -1,7 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
+    <!-- Which build of the plugin this harness loads, and therefore which runtime it
+         must itself run on: a net9 harness cannot load the net10 assembly. Defaults to
+         net9.0, the one that ships. tests/run.sh cs10 runs the whole set against the
+         other one. -->
+    <BonfireTfm Condition="'$(BonfireTfm)' == ''">net9.0</BonfireTfm>
+    <TargetFramework>$(BonfireTfm)</TargetFramework>
     <Nullable>disable</Nullable>
     <AssemblyName>devicerestrictionsharness</AssemblyName>
     <RootNamespace>devicerestrictionsharness</RootNamespace>

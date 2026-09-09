@@ -1,7 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <!-- Two runtimes, one source. Jellyfin 10.11.x runs on .NET 9 and 12.0 runs on .NET 10,
+         and a net9 assembly does load on the .NET 10 runtime — that is what 1.6.0.1 through
+         1.6.1 shipped and it is confirmed working on a live 12.0 server. But that is the
+         runtime being tolerant, not a promise, so net10.0 is built and tested alongside it
+         and is ready the day it is needed.
+         net9.0 is still what ships: it is the only one of the two that serves BOTH servers,
+         so one artefact and one manifest entry covers everybody. See the packaging step in
+         release.yml, which names net9.0 deliberately. -->
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>Jellyfin.Profiles</AssemblyName>

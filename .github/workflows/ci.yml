@@ -17,10 +17,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 9
+      # Both, because the plugin multi-targets. Jellyfin 10.11.x runs on .NET 9 and 12.0
+      # runs on .NET 10, and the C# harnesses run on whichever runtime the build they are
+      # loading was compiled for — a net9 harness cannot load a net10 assembly.
+      - name: Setup .NET 9 and 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: |
+            9.0.x
+            10.0.x
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -32,11 +37,20 @@ jobs:
       - name: Syntax check the client script
         run: node --check Web/profiles.js
 
-      # Builds the plugin (Release, -warnaserror) and runs all 17 harnesses: 13 JS and
-      # 4 C#, ~737 assertions. Same command a maintainer runs locally, so CI and the
-      # desk cannot disagree about what "the tests pass" means.
+      # Builds the plugin (Release, -warnaserror, both frameworks) and runs all 36
+      # harnesses: 27 JS and 9 C#, ~1,450 assertions. Same command a maintainer runs
+      # locally, so CI and the desk cannot disagree about what "the tests pass" means.
+      # The C# half runs against net9.0, which is the build that ships.
       - name: Run the test suite
         run: bash tests/run.sh
+
+      # And again against the other build. net9.0 is what ships — it is the only one of
+      # the two that loads on both a 10.11 and a 12.0 server — but a build nobody has ever
+      # loaded is not a working build, so the net10.0 assembly is loaded and reflected on
+      # rather than merely compiled. When Jellyfin drops the .NET 9 runtime, this is the
+      # step that will already have been passing for months.
+      - name: Run the C# harnesses against the .NET 10 build
+        run: bash tests/run.sh cs10
 
       # Contributors are told to run this before opening a PR (Web/i18n/README.md).
       # Nothing enforced it, so the first person to forget shipped a broken catalogue.
