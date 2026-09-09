@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.6.0.3",
+        "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- The Switch Profile button moved around the header between page loads, and could appear squashed. It now sits beside your account icon and matches its size.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.0.3/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-09-09T00:00:00Z"
+      },
+      {
         "version": "1.6.0.2",
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- The Switch Profile button was missing from the header on Jellyfin's modern layout, which is the default in 12.0 and an option in 10.11. It was being added to the old header, which that layout keeps in the page but hides.",
         "targetAbi": "10.11.0.0",
