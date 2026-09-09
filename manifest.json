@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.6.1.1",
+        "changelog": "**Beta release** — please report issues on GitHub.\n\n**Added**\n\n- You can now keep \"Who's watching?\" on for one device and off for another, instead of it having to match everywhere.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.1.1/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-09-09T17:32:02Z"
+      },
+      {
         "version": "1.6.0.6",
         "changelog": "**Beta release** — please report issues on GitHub.\n\n**Fixed**\n\n- In the profile form, text boxes would not take a click and dropdowns would not open — the page jumped to the top instead. Jellyfin's account menu was being left open and its focus handling fought Bonfire's.",
         "targetAbi": "10.11.0.0",

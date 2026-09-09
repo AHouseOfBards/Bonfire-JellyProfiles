@@ -43,7 +43,40 @@ console.log('── the stylesheet is a real file, not a literal ─────
 ok('Web/styles.css exists and is substantial', css.length > 40000, css.length + ' chars');
 ok('profiles.js no longer carries the stylesheet',
     !/style\.(innerHTML|textContent)\s*=\s*`/.test(js));
-ok('and is much shorter for it', js.length < 450000, js.length + ' chars');
+/* This was `js.length < 450000`, and it is the reason this comment exists.
+ *
+ * An absolute ceiling answers "how big is this file". The question this section asks is
+ * "has the stylesheet come back into it" — a coarser check standing in for a precise one,
+ * which is the shape this repository has shipped three bugs past. It also rots: by 1.6.1
+ * the client had grown to within a few hundred characters of the ceiling, so the next
+ * honest change was going to fail it, and the obvious repair is to raise the number. Do
+ * that twice and the check passes for years while measuring nothing in particular.
+ *
+ * So ask the real question. Every rule in styles.css opens with a selector line, and those
+ * exact strings have no business being in a script unless the sheet is sitting inside it.
+ * Sampled across the whole file rather than from the top, because the failure this guards
+ * against — someone pasting the CSS back into a template literal — re-inlines all of it.
+ *
+ * Verified red against ad1bd3b^, the last build with the stylesheet inline. */
+const selectorLines = css.split('\n')
+    .map(l => l.trim())
+    .filter(l => /^[.#@:a-zA-Z][^{}"']{15,}\{$/.test(l));
+
+const stride = Math.max(1, Math.floor(selectorLines.length / 12));
+const sample = [];
+for (let i = 0; i < selectorLines.length && sample.length < 12; i += stride) {
+    sample.push(selectorLines[i]);
+}
+
+// An empty sample would make "none of them appear" trivially true. That is exactly how
+// selectors.verify.js once reported an attribute selector verified without having looked
+// for a single character of it, so the sample is asserted before it is used.
+ok('the stylesheet yields rules to look for', sample.length >= 8,
+    sample.length + ' selector lines sampled from ' + selectorLines.length);
+
+const inlined = sample.filter(sel => js.indexOf(sel) !== -1);
+ok('and not one of them appears in profiles.js', inlined.length === 0,
+    inlined.length ? inlined.length + ' of ' + sample.length + ' are inline, e.g. ' + inlined[0] : '');
 ok('the csproj embeds the stylesheet',
     fs.readFileSync(path.join(L.ROOT, 'Jellyfin.Profiles.csproj'), 'utf8')
         .indexOf('Web/styles.css') !== -1);
