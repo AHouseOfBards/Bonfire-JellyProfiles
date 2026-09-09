@@ -14,13 +14,13 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Jellyfin.Profiles</AssemblyName>
     <RootNamespace>Jellyfin.Profiles</RootNamespace>
-    <Version>1.6.1.2</Version>
+    <Version>1.6.1.3</Version>
     <!-- Jellyfin requires a purely numeric assembly version, so any pre-release label lives
          here instead. The plugin reports this string in the API and the dashboard badge, and
          the settings page shows a pre-release notice whenever it matches -beta/-alpha/-rc.
          STABLE RELEASE: no suffix. Append "-beta" here (and only here) to mark a build as
          pre-release; nothing else needs changing. -->
-    <InformationalVersion>1.6.1.2-beta</InformationalVersion>
+    <InformationalVersion>1.6.1.3-beta</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
@@ -34,6 +34,15 @@
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="Jellyfin.Common" Version="10.11.5">
+      <PrivateAssets>all</PrivateAssets>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <!-- JsonDefaults, so anything we add to a Jellyfin API response is serialized by
+         Jellyfin's own rules rather than System.Text.Json's defaults. Its nine converters
+         are not decoration: without them enums become integers and Guids grow dashes, and
+         a client that parses one of those crashes. Byte-identical between 10.11 and 12.0,
+         and runtime-excluded like the rest — the server supplies its own copy. -->
+    <PackageReference Include="Jellyfin.Extensions" Version="10.11.5">
       <PrivateAssets>all</PrivateAssets>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>

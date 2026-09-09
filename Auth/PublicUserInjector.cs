@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Jellyfin.Data.Queries;
+using Jellyfin.Extensions.Json;
 using Jellyfin.Profiles.Controllers;
 using MediaBrowser.Controller.Devices;
 using MediaBrowser.Controller.Library;
@@ -113,19 +114,30 @@ namespace Jellyfin.Profiles.Auth
 
             if (root is not JsonArray array) return null;
 
-            // Jellyfin serves this endpoint in two casings and picks by content negotiation
-            // — application/json; profile="CamelCase" or "PascalCase". Serializing our
-            // additions in the wrong one would hand a client an array whose last entries it
-            // silently cannot read, so the casing is taken from the response we are editing
-            // rather than assumed.
-            var options = UseCamelCase(responseContentType)
-                ? JsonNamingPolicy.CamelCase
-                : null;
-            var serializerOptions = new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = options,
-                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-            };
+            // JELLYFIN'S OWN SETTINGS, NOT OURS. 1.6.1.2 built a JsonSerializerOptions here
+            // by hand — naming policy and ignore-nulls, which looked like the whole job —
+            // and it crashed the Android TV app the moment a profile was actually added.
+            // JsonDefaults carries nine converters, and two of them are load-bearing for
+            // this DTO:
+            //
+            //   JsonStringEnumConverter  UserPolicy.SyncPlayAccess, BlockUnratedItems and
+            //                            UserConfiguration.SubtitleMode are enums. Without
+            //                            it they serialize as integers, where every client
+            //                            on the server expects strings.
+            //   JsonGuidConverter        Jellyfin writes Guids as "N" — dashless. The
+            //                            default writes them with dashes, so our entries
+            //                            disagreed with every other id the client had seen.
+            //
+            // Getting the DTO from Jellyfin and then serializing it ourselves was the right
+            // lesson applied one level too shallow. Take both from Jellyfin.
+            //
+            // The casing is still ours to choose, because Jellyfin serves this endpoint in
+            // both by content negotiation — application/json; profile="CamelCase" or
+            // "PascalCase" — so it is read off the response we are editing rather than
+            // assumed. JsonDefaults exposes one prepared set for each.
+            var serializerOptions = UseCamelCase(responseContentType)
+                ? JsonDefaults.CamelCaseOptions
+                : JsonDefaults.PascalCaseOptions;
 
             // Whatever Jellyfin already returned stays exactly as it is — on a server that
             // shows its users publicly the master is likely already in here.
