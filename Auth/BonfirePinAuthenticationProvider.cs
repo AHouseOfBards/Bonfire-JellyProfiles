@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Profiles.Configuration;
 using MediaBrowser.Controller.Authentication;
+using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Profiles.Auth
@@ -49,10 +50,23 @@ namespace Jellyfin.Profiles.Auth
     {
         private readonly ILogger<BonfirePinAuthenticationProvider> _logger;
 
-        public BonfirePinAuthenticationProvider(ILogger<BonfirePinAuthenticationProvider> logger)
+        /// <param name="services">
+        /// Resolved from, rather than injected as, <c>IUserManager</c>. Jellyfin's
+        /// <c>UserManager</c> constructor takes <c>IEnumerable&lt;IAuthenticationProvider&gt;</c>,
+        /// so asking for the user manager here would be a dependency cycle and the container
+        /// would fail to build it — taking every login on the server with it. The service
+        /// provider is safe to hold and is only asked for the user manager during a request,
+        /// long after both exist.
+        /// </param>
+        public BonfirePinAuthenticationProvider(
+            ILogger<BonfirePinAuthenticationProvider> logger,
+            IServiceProvider? services = null)
         {
             _logger = logger;
+            _services = services;
         }
+
+        private readonly IServiceProvider? _services;
 
         /// <summary>Shown in Dashboard → Users as the account's authentication provider.</summary>
         public string Name => "Bonfire PIN";
@@ -91,12 +105,68 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Reached only when Jellyfin could not resolve the username to a user. We cannot
-        /// identify a profile from a name alone yet — that arrives with the name-stripping
-        /// work — so decline and let another provider answer.
+        /// Reached when Jellyfin could not resolve the username to a user — which is the
+        /// normal case now, because the sign-in screen offers a household's own name for a
+        /// profile rather than the system username underneath it.
+        ///
+        /// <para>A profile is created as <c>&lt;master&gt;_&lt;name&gt;</c> so that two
+        /// households on one server can both have a "kids", and that system username is what
+        /// the web switcher, the audit log and Jellyfin's own dashboard all show. Only the
+        /// sign-in screen shows the short name, so only this path has to translate it
+        /// back.</para>
+        ///
+        /// <para><b>Which "kids" is decided by the device, never by the name.</b> The
+        /// household is resolved from the device the request came in on, and only that
+        /// household's profiles are considered — so the collision case is not ambiguous, it
+        /// simply never arises. A device we do not recognise has no household, and a name
+        /// alone cannot be resolved, so it is declined.</para>
+        ///
+        /// <para>Jellyfin then trusts the username we return and looks it up itself:
+        /// <c>UserManager.AuthenticateUser</c>, the <c>user is null</c> branch. That branch
+        /// excludes <c>DefaultAuthenticationProvider</c>, which is why this works for us and
+        /// would not for Jellyfin's own.</para>
         /// </summary>
         public Task<ProviderAuthenticationResult> Authenticate(string username, string password)
-            => Authenticate(username, password, null);
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config?.Mappings == null || !config.EnableClientPinLogin) throw Decline();
+
+            var deviceId = RequestDevice.Current;
+            var master = DeviceRegistry.FindMaster(config, deviceId);
+            if (master == Guid.Empty)
+            {
+                _logger.LogInformation(
+                    "ProfilesPlugin: sign-in as {Name} from device {DeviceId}, which no household has "
+                    + "signed in on, so there is no way to tell which profile was meant.",
+                    username,
+                    string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId);
+                throw Decline();
+            }
+
+            // Only this household, and never the master: it keeps its real username, is
+            // reachable by it, and must not become PIN-openable as a side effect of a
+            // name lookup.
+            var mapping = config.Mappings.FirstOrDefault(m =>
+                m.MasterUserId == master
+                && m.ProfileUserId != master
+                && string.Equals(m.ProfileName, username, StringComparison.OrdinalIgnoreCase));
+
+            if (mapping == null) throw Decline();
+
+            var user = _services?.GetService(typeof(IUserManager)) is IUserManager users
+                ? users.GetUserById(mapping.ProfileUserId)
+                : null;
+
+            if (user == null)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: {Name} resolved to profile {ProfileId}, which no longer exists.",
+                    username, mapping.ProfileUserId);
+                throw Decline();
+            }
+
+            return Authenticate(user.Username, password, user);
+        }
 
         public Task<ProviderAuthenticationResult> Authenticate(string username, string password, User? resolvedUser)
         {

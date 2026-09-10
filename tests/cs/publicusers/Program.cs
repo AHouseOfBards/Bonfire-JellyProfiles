@@ -90,7 +90,7 @@ var dto = new UserDto
 
 var userManager = UserManagerStub.Create(profileId, dto);
 
-byte[] Run(string contentType, string body = "[]")
+byte[] Run(string contentType, string body = "[]", object nameConfig = null)
     => (byte[])inject.Invoke(null, new object[]
     {
         Encoding.UTF8.GetBytes(body),
@@ -98,7 +98,8 @@ byte[] Run(string contentType, string body = "[]")
         (IReadOnlyList<Guid>)new List<Guid> { profileId },
         userManager,
         "127.0.0.1",
-        NullLogger.Instance
+        NullLogger.Instance,
+        nameConfig
     });
 
 Console.WriteLine();
@@ -229,6 +230,15 @@ if (resolve != null)
     var KID = Guid.NewGuid();
     var GUEST = Guid.NewGuid();
     var STRANGER = Guid.NewGuid();
+
+    object MappingNamed(Guid profile, Guid master, string name)
+    {
+        var m = Activator.CreateInstance(mappingType);
+        mappingType.GetProperty("ProfileUserId").SetValue(m, profile);
+        mappingType.GetProperty("MasterUserId").SetValue(m, master);
+        mappingType.GetProperty("ProfileName").SetValue(m, name);
+        return m;
+    }
 
     object MappingWithPin(Guid profile, Guid master, string pinHash)
     {
@@ -555,6 +565,53 @@ if (resolve != null)
     Ok("a sub-profile with no PIN is offered too", offered.Contains(PINLESS),
        offered.Count + " user(s) offered");
     Ok("and so is the master", offered.Contains(MASTER));
+
+    devicesList.Clear();
+    mappings.Clear();
+    mappings.Add(Mapping(KID, MASTER));
+    mappings.Add(Mapping(GUEST, MASTER));
+
+    Console.WriteLine();
+    Console.WriteLine("-- The name a household actually uses -------------------------");
+
+    // Sub-profiles are created with a system username of `<master>_<profile>` to avoid
+    // colliding with every other household on the server, so the sign-in screen was
+    // offering "Bardkids" where the household calls that person "kids". The name is
+    // rewritten to the one they chose.
+    //
+    // This has to be done in the response rather than by renaming the account: the system
+    // username is what keeps two households' "kids" apart, and the web switcher, the audit
+    // log and Jellyfin's own dashboard all show it.
+    devicesList.Clear();
+    mappings.Clear();
+    mappings.Add(MappingNamed(profileId, MASTER, "kids"));
+
+    var friendly = Encoding.UTF8.GetString(Run("application/json", "[]", config));
+    Ok("a profile is offered under the name its household gave it",
+       friendly.Contains("\"kids\"", StringComparison.Ordinal),
+       friendly.Length > 400 ? friendly.Substring(0, 200) : friendly);
+    Ok("and the system username is not shown",
+       !friendly.Contains("Bardkids", StringComparison.Ordinal));
+
+    // camelCase is the other half of the content negotiation and must be rewritten too -
+    // the property is "name" there, and missing it would show the raw username on exactly
+    // the clients that ask for camelCase.
+    var friendlyCamel = Encoding.UTF8.GetString(
+        Run("application/json; profile=\"CamelCase\"", "[]", config));
+    Ok("the same rewrite happens in a camelCase response",
+       friendlyCamel.Contains("\"kids\"", StringComparison.Ordinal)
+       && !friendlyCamel.Contains("Bardkids", StringComparison.Ordinal));
+
+    // Nothing to rename is not an error - a master, or a server that has not upgraded its
+    // mappings, must come back exactly as Jellyfin wrote it.
+    mappings.Clear();
+    var untouched = Encoding.UTF8.GetString(Run("application/json", "[]", config));
+    Ok("an account with no mapping keeps the name Jellyfin gave it",
+       untouched.Contains("Bardkids", StringComparison.Ordinal));
+
+    var noConfig = Encoding.UTF8.GetString(Run("application/json", "[]", null));
+    Ok("and so does every account when there is no configuration at all",
+       noConfig.Contains("Bardkids", StringComparison.Ordinal));
 
     devicesList.Clear();
     mappings.Clear();

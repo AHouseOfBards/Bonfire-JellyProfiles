@@ -117,7 +117,12 @@ var logger = instanceProp != null
     ? instanceProp.GetValue(null)
     : Activator.CreateInstance(loggerType, nonPublic: true);
 Ok("a logger can be supplied to the provider", logger != null);
-var provider = Activator.CreateInstance(providerType, logger);
+// Both arguments, explicitly: Activator.CreateInstance does not apply default
+// parameter values, so `IServiceProvider? services = null` is not enough to satisfy it.
+// The provider resolves IUserManager from this rather than taking it in the constructor,
+// because Jellyfin's UserManager takes IEnumerable<IAuthenticationProvider> and asking
+// for it directly would be a dependency cycle.
+var provider = Activator.CreateInstance(providerType, logger, ServiceStub.Create());
 Ok("the provider can be constructed", provider != null);
 
 var isEnabled = providerType.GetProperty("IsEnabled");
@@ -151,6 +156,12 @@ var mappings = (System.Collections.IList)cfgType.GetProperty("Mappings").GetValu
 mappings.Add(Mapping(MASTER, MASTER, "9999"));   // a master: maps to itself
 mappings.Add(Mapping(KID, MASTER, "4821"));
 mappings.Add(Mapping(GUEST, MASTER, null));
+
+// The names a household actually typed, which are what a sign-in screen now shows and
+// therefore what a client sends back. The system usernames stay Bardkids / Bardguest.
+mappingType.GetProperty("ProfileName").SetValue(mappings[0], "bard");
+mappingType.GetProperty("ProfileName").SetValue(mappings[1], "kids");
+mappingType.GetProperty("ProfileName").SetValue(mappings[2], "guest");
 
 static User MakeUser(Guid id, string name)
 {
@@ -266,6 +277,89 @@ Ok("a profile WITH a PIN still opens with it from any device",
    Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
 Ok("and still refuses the wrong PIN there",
    Try(MakeUser(KID, "Bardkids"), "4822") == "!AuthenticationException");
+
+Console.WriteLine();
+Console.WriteLine("── The name the household typed ───────────────────────────────");
+
+// The sign-in screen now offers "kids", so "kids" is what the client sends back — the
+// picker puts the displayed name straight into the username field. Jellyfin cannot
+// resolve it, and hands the provider a null user:
+//
+//     if (user is null)                                    // UserManager.AuthenticateUser
+//     {
+//         string updatedUsername = authResult.Username;
+//         if (success && authenticationProvider is not DefaultAuthenticationProvider)
+//         {
+//             username = updatedUsername;                  // trust our answer
+//             user = Users.FirstOrDefault(i => string.Equals(username, i.Username, ...));
+//
+// So the provider says which account "kids" meant, and Jellyfin looks that up instead.
+//
+// Which "kids" is decided by the DEVICE, not by the name: two households on one server
+// can each have one, and the system usernames (Bardkids, Smithkids) are what keep them
+// apart everywhere else.
+var authNoUser = providerType.GetMethod("Authenticate", Any, null,
+    new[] { typeof(string), typeof(string) }, null);
+
+// The accounts the provider will look up once it has decided which profile a display
+// name meant. These are the SYSTEM usernames, which is the whole point: the household
+// typed "kids" and the account is "Bardkids".
+UserManagerStub.Add(MASTER, MakeUser(MASTER, "bard"));
+UserManagerStub.Add(KID, MakeUser(KID, "Bardkids"));
+UserManagerStub.Add(GUEST, MakeUser(GUEST, "Bardguest"));
+
+string TryName(string username, string password)
+{
+    try
+    {
+        var task = authNoUser.Invoke(provider, new object[] { username, password });
+        var result = task.GetType().GetProperty("Result").GetValue(task);
+        return (string)result.GetType().GetProperty("Username").GetValue(result);
+    }
+    catch (TargetInvocationException ex)
+    {
+        return "!" + ex.InnerException.GetType().Name;
+    }
+}
+
+devicesList.Clear();
+Remember("family-tv", MASTER);
+FromDevice("family-tv");
+
+Ok("a display name and the right PIN resolve to the real account",
+   TryName("kids", "4821") == "Bardkids");
+
+Ok("and the wrong PIN is still refused",
+   TryName("kids", "4822") == "!AuthenticationException");
+
+// The full system username keeps working — Jellyfin resolves it itself and never reaches
+// this path, but a client that remembers the old name must not break.
+Ok("the system username still opens the profile",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+
+// Without a known device there is no household, so there is no way to say which "kids"
+// was meant. Declining is the only honest answer.
+FromDevice("some-strangers-laptop");
+Ok("a display name from an unknown device is refused",
+   TryName("kids", "4821") == "!AuthenticationException");
+
+FromDevice(null);
+Ok("and refused when no device id is sent",
+   TryName("kids", "4821") == "!AuthenticationException");
+
+// A name in a household that does not have it.
+FromDevice("family-tv");
+Ok("a display name no profile in this household has is refused",
+   TryName("nobody-by-that-name", "4821") == "!AuthenticationException");
+
+// The master is reachable by its own real name and must not become reachable by PIN
+// through this path as a side effect.
+Ok("the master's name does not open the master by PIN",
+   TryName("bard", "9999") == "!AuthenticationException");
+
+// A PIN-less profile through the same path still obeys the device rule.
+Ok("a PIN-less profile opens by display name on a household device",
+   TryName("guest", "") == "Bardguest");
 
 devicesList.Clear();
 FromDevice("family-tv");
@@ -495,5 +589,42 @@ public class RecordingUserManager : DispatchProxy
                     "the reconciliation called IUserManager." + targetMethod.Name
                     + ", which this harness does not model");
         }
+    }
+}
+
+// Just enough of a service provider to hand back a user manager, and just enough of a
+// user manager to answer GetUserById. DispatchProxy because IUserManager gains and loses
+// members between patch releases and a hand-written implementation would not compile
+// against two of them.
+sealed class ServiceStub : IServiceProvider
+{
+    private readonly IUserManager _users;
+
+    private ServiceStub(IUserManager users) { _users = users; }
+
+    public static IServiceProvider Create() => new ServiceStub(UserManagerStub.Create());
+
+    public object? GetService(Type serviceType)
+        => serviceType == typeof(IUserManager) ? _users : null;
+}
+
+public class UserManagerStub : DispatchProxy
+{
+    private static readonly Dictionary<Guid, User> _known = new();
+
+    public static void Add(Guid id, User user) => _known[id] = user;
+
+    public static IUserManager Create() => Create<IUserManager, UserManagerStub>();
+
+    protected override object? Invoke(MethodInfo targetMethod, object?[]? args)
+    {
+        if (targetMethod.Name != "GetUserById")
+        {
+            throw new NotSupportedException(
+                "the provider called IUserManager." + targetMethod.Name
+                + ", which this harness does not model");
+        }
+
+        return _known.TryGetValue((Guid)args![0]!, out var user) ? user : null;
     }
 }

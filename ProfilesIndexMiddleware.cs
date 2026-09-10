@@ -382,7 +382,8 @@ namespace Jellyfin.Profiles
                         household,
                         userManager,
                         context.Connection.RemoteIpAddress?.ToString(),
-                        _logger);
+                        _logger,
+                        config);
                 }
                 catch (Exception ex)
                 {

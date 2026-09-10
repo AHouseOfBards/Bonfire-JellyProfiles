@@ -168,13 +168,19 @@ namespace Jellyfin.Profiles.Auth
         /// Rewrites the captured <c>/Users/Public</c> body with the household appended, or
         /// returns null to leave it untouched.
         /// </summary>
+        /// <param name="config">
+        /// Supplies the name each household gave a profile. Passed rather than read from
+        /// <c>Plugin.Instance</c> so a harness can drive this without a plugin, and null when
+        /// there is nothing to rename.
+        /// </param>
         public static byte[]? Inject(
             byte[] produced,
             string? responseContentType,
             IReadOnlyList<Guid> household,
             IUserManager userManager,
             string? remoteEndPoint,
-            ILogger logger)
+            ILogger logger,
+            Configuration.PluginConfiguration? config)
         {
             if (household.Count == 0) return null;
 
@@ -242,6 +248,31 @@ namespace Jellyfin.Profiles.Auth
                     var dto = userManager.GetUserDto(user, remoteEndPoint);
                     var node = JsonNode.Parse(JsonSerializer.Serialize(dto, serializerOptions));
                     if (node == null) continue;
+
+                    // Show the name the household typed, not the system username.
+                    //
+                    // A profile is created as `<master>_<name>` so two households on one
+                    // server can both have a "kids", and that name is right everywhere it
+                    // normally appears. A sign-in screen is the one place it is not: nobody
+                    // calls their child "Bard_kids". Rewritten here rather than by renaming
+                    // the account, because the system username is what keeps the households
+                    // apart and what the switcher, the audit log and Jellyfin's dashboard
+                    // all show.
+                    //
+                    // The provider translates it back on the way in - a client puts the
+                    // displayed name straight into the username field.
+                    var named = config?.Mappings?.FirstOrDefault(m =>
+                        m.ProfileUserId == userId
+                        && m.MasterUserId != userId
+                        && !string.IsNullOrWhiteSpace(m.ProfileName));
+
+                    if (named != null)
+                    {
+                        // Whichever casing this response negotiated - missing the other one
+                        // would show the raw username on exactly the clients that ask for it.
+                        if (node["Name"] != null) node["Name"] = named.ProfileName;
+                        else if (node["name"] != null) node["name"] = named.ProfileName;
+                    }
 
                     array.Add(node);
                     added++;
