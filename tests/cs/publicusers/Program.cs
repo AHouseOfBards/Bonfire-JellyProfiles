@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using Microsoft.AspNetCore.Http;
 using MediaBrowser.Model.Querying;
 using Jellyfin.Database.Implementations.Entities.Security;
 using MediaBrowser.Controller.Devices;
@@ -790,6 +791,60 @@ if (rewrite != null)
     maps2.Add(Row(CHILD, OWNER, string.Empty));
     Ok("a profile with no name recorded is left alone",
        Run2("{\"Name\":\"Bard_Family\",\"Id\":\"" + CHILD.ToString("N") + "\"}") == null);
+}
+
+Console.WriteLine();
+Console.WriteLine("-- The emergency disable reaches the rewriting ----------------");
+
+// Panic used to have one job: serve an inert client script. That covered everything while
+// all of Bonfire lived in that script. It does not now — the plugin edits Jellyfin's own
+// responses, and if one of those is what has gone wrong, an inert script recovers nothing.
+//
+// Asserted here rather than in tests/cs/pipeline because these two predicates also require
+// EnableClientProfileList, and that harness has no plugin to switch it on with: the
+// assertions read false there whether panic works or not. Here the setting is on, so panic
+// is the only thing that can be making the difference — which is the whole point.
+var mw = asm.GetType("Jellyfin.Profiles.ProfilesIndexMiddleware", true);
+var pluginT = asm.GetType("Jellyfin.Profiles.Plugin", true);
+var panicField = pluginT.GetField("_panicDisabled", BindingFlags.Static | BindingFlags.NonPublic);
+Ok("the panic flag is reachable", panicField != null);
+
+var ownUser = mw.GetMethod("IsOwnUserPath", BindingFlags.Static | BindingFlags.NonPublic);
+var publicUsers = mw.GetMethod("IsPublicUsersPath", BindingFlags.Static | BindingFlags.NonPublic);
+Ok("both predicates exist", ownUser != null && publicUsers != null);
+
+if (panicField != null && ownUser != null && publicUsers != null)
+{
+    bool Path(MethodInfo m, string verb, string path)
+    {
+        var ctx = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        ctx.Request.Method = verb;
+        ctx.Request.Path = path;
+        return (bool)m.Invoke(null, new object[] { ctx });
+    }
+
+    // The plugin created earlier in this file is Plugin.Instance, and its
+    // EnableClientProfileList is on — so without panic these are all true.
+    Ok("with the setting on, the user list is ours", Path(publicUsers, "GET", "/Users/Public"));
+    Ok("and so is the own-user response", Path(ownUser, "GET", "/Users/Me"));
+    Ok("and the authentication response", Path(ownUser, "POST", "/Users/AuthenticateByName"));
+
+    // Set directly rather than through TripPanicDisable, which by design has no way back.
+    panicField.SetValue(null, true);
+    try
+    {
+        Ok("panic stops the sign-in user list", !Path(publicUsers, "GET", "/Users/Public"));
+        Ok("panic stops the own-user rewrite", !Path(ownUser, "GET", "/Users/Me"));
+        Ok("panic stops the authentication rewrite",
+           !Path(ownUser, "POST", "/Users/AuthenticateByName"));
+    }
+    finally
+    {
+        panicField.SetValue(null, false);
+    }
+
+    Ok("and clearing it puts them all back",
+       Path(publicUsers, "GET", "/Users/Public") && Path(ownUser, "GET", "/Users/Me"));
 }
 
 Console.WriteLine();

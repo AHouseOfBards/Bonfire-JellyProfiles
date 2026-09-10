@@ -144,43 +144,54 @@ namespace Jellyfin.Profiles
             IUserManager userManager,
             IDeviceManager deviceManager)
         {
-            // Recorded before anything branches, for every request, because the one place
-            // that needs it is authentication and Jellyfin does not hand a provider anything
-            // about the request. See Auth/RequestDevice.cs.
-            Auth.RequestDevice.Capture(Controllers.ProfilesBaseController.ParseAuthorizationParameter(
-                context.Request.Headers["Authorization"],
-                context.Request.Headers["X-Emby-Authorization"],
-                "DeviceId"));
+            // Recorded before anything branches, because the one place that needs it is
+            // authentication and Jellyfin hands a provider nothing about the request.
+            // See Auth/RequestDevice.cs.
+            //
+            // Only on user routes. The first version did this on EVERY request, and the
+            // parse is a quote-aware character scan with a UrlDecode and a closure — on a
+            // server streaming to forty people that is thousands of pointless scans a
+            // minute, on requests for video segments and images that can never reach an
+            // authentication provider. Everything that can is a POST under /Users/:
+            // AuthenticateByName, the obsolete {userId}/Authenticate that forwards to it,
+            // and the password change that verifies the old one. A substring check on a
+            // string we already hold replaces the scan for everything else.
+            if (IsUserRoute(context))
+            {
+                Auth.RequestDevice.Capture(Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                    context.Request.Headers["Authorization"],
+                    context.Request.Headers["X-Emby-Authorization"],
+                    "DeviceId"));
+            }
 
             // Quick Connect on a device somebody has already signed in on. Answered here
             // rather than passed along, because the client's only route to its password
             // field is this request failing.
-            if (IsQuickConnectInitiatePath(context)
-                && Auth.QuickConnectGate.ShouldDeny(
-                    Plugin.Instance?.Configuration,
-                    Controllers.ProfilesBaseController.ParseAuthorizationParameter(
-                        context.Request.Headers["Authorization"],
-                        context.Request.Headers["X-Emby-Authorization"],
-                        "Device")))
+            if (IsQuickConnectInitiatePath(context))
             {
-                _logger.LogInformation(
-                    "ProfilesPlugin: Quick Connect declined for {Device} ({Client}), a device this "
-                    + "server has seen someone sign in on, so the app opens on its PIN field instead.",
-                    Controllers.ProfilesBaseController.ParseAuthorizationParameter(
-                        context.Request.Headers["Authorization"],
-                        context.Request.Headers["X-Emby-Authorization"],
-                        "Device"),
-                    Controllers.ProfilesBaseController.ParseAuthorizationParameter(
-                        context.Request.Headers["Authorization"],
-                        context.Request.Headers["X-Emby-Authorization"],
-                        "Client"));
+                var qcDevice = Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                    context.Request.Headers["Authorization"],
+                    context.Request.Headers["X-Emby-Authorization"],
+                    "Device");
+
+                if (Auth.QuickConnectGate.ShouldDeny(Plugin.Instance?.Configuration, qcDevice))
+                {
+                    _logger.LogInformation(
+                        "ProfilesPlugin: Quick Connect declined for {Device} ({Client}), a device this "
+                        + "server has seen someone sign in on, so the app opens on its PIN field instead.",
+                        qcDevice,
+                        Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                            context.Request.Headers["Authorization"],
+                            context.Request.Headers["X-Emby-Authorization"],
+                            "Client"));
 
                 // The same status and wording Jellyfin itself returns when Quick Connect is
                 // switched off server-wide, so the client is taking a path it already has.
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                context.Response.ContentType = "application/json";
-                await context.Response.WriteAsync("\"Quick connect is disabled\"").ConfigureAwait(false);
-                return;
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync("\"Quick connect is disabled\"").ConfigureAwait(false);
+                    return;
+                }
             }
 
             // The two responses that tell a client which account it is. Renaming the
@@ -456,6 +467,9 @@ namespace Jellyfin.Profiles
         /// </summary>
         private static bool IsPublicUsersPath(HttpContext context)
         {
+            // Emergency disable reaches this too. See IsOwnUserPath.
+            if (Plugin.IsPanicDisabled) return false;
+
             if (!HttpMethods.IsGet(context.Request.Method))
             {
                 return false;
@@ -476,6 +490,23 @@ namespace Jellyfin.Profiles
         }
 
         /// <summary>
+        /// True for anything under Jellyfin's <c>/Users</c> routes.
+        /// <para>
+        /// Deliberately wider than the routes that actually authenticate, and deliberately
+        /// far narrower than every request. Getting it too narrow silently breaks PIN-less
+        /// entry — the provider would see no device and refuse — so this admits the whole
+        /// user area rather than trying to enumerate the authenticating paths exactly.
+        /// Media, images and web assets, which is nearly all traffic, are excluded.
+        /// </para>
+        /// </summary>
+        private static bool IsUserRoute(HttpContext context)
+        {
+            var path = context.Request.Path.Value;
+            return !string.IsNullOrEmpty(path)
+                && path.Contains("/Users", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// True for the two responses that name the account a client is signed in as:
         /// <c>GET /Users/Me</c> and <c>POST /Users/AuthenticateByName</c>.
         /// <para>
@@ -486,6 +517,17 @@ namespace Jellyfin.Profiles
         /// </summary>
         private static bool IsOwnUserPath(HttpContext context)
         {
+            // Emergency disable stops the plugin editing Jellyfin's own responses, not just
+            // serving an inert client script.
+            //
+            // One job was enough while everything Bonfire did happened inside that script.
+            // It is not enough now: this rewrites the responses that tell a client which
+            // account it is, and the sign-in user list and Quick Connect are rewritten
+            // beside it. If one of those is what has gone wrong, an inert script recovers
+            // nothing — and the switch an administrator reaches for in an emergency would
+            // not have turned off the thing that needed turning off.
+            if (Plugin.IsPanicDisabled) return false;
+
             if (Plugin.Instance?.Configuration?.EnableClientProfileList != true) return false;
 
             var path = context.Request.Path.Value;
@@ -576,6 +618,9 @@ namespace Jellyfin.Profiles
         /// </summary>
         private static bool IsQuickConnectInitiatePath(HttpContext context)
         {
+            // Emergency disable reaches this too. See IsOwnUserPath.
+            if (Plugin.IsPanicDisabled) return false;
+
             if (!HttpMethods.IsPost(context.Request.Method) && !HttpMethods.IsGet(context.Request.Method))
             {
                 return false;

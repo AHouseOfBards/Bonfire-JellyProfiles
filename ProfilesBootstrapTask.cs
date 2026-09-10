@@ -442,13 +442,27 @@ namespace Jellyfin.Profiles
         /// users use. Preferred over a hardcoded type name so nothing has to be kept in
         /// step with upstream renames; the literal is only a last resort for a master we
         /// cannot read.
+        /// <para>
+        /// <b>Never this provider.</b> Since masters with a PIN are bound here too, a master
+        /// being retired in the same pass is still bound when a sub-profile reads it — and
+        /// the sub-profile would copy the very id being switched off. A disabled provider is
+        /// filtered out of <c>GetAuthenticationProviders</c>, so the account would match
+        /// nothing, fall through to Jellyfin's <c>InvalidAuthProvider</c>, and be unable to
+        /// authenticate at all. Guarded here rather than by ordering the loop, because the
+        /// next person to touch the loop should not have to know.
+        /// </para>
         /// </summary>
         private string MasterProviderId(Guid masterId)
         {
             try
             {
                 var master = _userManager.GetUserById(masterId);
-                if (master != null && !string.IsNullOrEmpty(master.AuthenticationProviderId))
+                if (master != null
+                    && !string.IsNullOrEmpty(master.AuthenticationProviderId)
+                    && !string.Equals(
+                        master.AuthenticationProviderId,
+                        typeof(BonfirePinAuthenticationProvider).FullName,
+                        StringComparison.OrdinalIgnoreCase))
                 {
                     return master.AuthenticationProviderId;
                 }

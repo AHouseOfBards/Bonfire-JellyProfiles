@@ -319,6 +319,32 @@ Check("and not a path that merely starts the same way",
 Check("and not another verb entirely",
       !Ask("IsQuickConnectInitiatePath", "DELETE", "/QuickConnect/Initiate"));
 
+// The device id is captured for the provider to read during authentication, and ONLY on
+// user routes. The first version captured on every request, which put a quote-aware
+// character scan with a UrlDecode in front of every video segment and image on the server.
+// Too narrow is worse than too wide here: a missed capture makes the provider see no
+// device and refuse a PIN-less profile, silently.
+Check("the capture predicate exists", mwType.GetMethod("IsUserRoute", Priv) != null);
+
+Check("POST /Users/AuthenticateByName is captured for",
+      Ask("IsUserRoute", "POST", "/Users/AuthenticateByName"));
+Check("the obsolete per-user authenticate is captured for",
+      Ask("IsUserRoute", "POST", "/Users/8e3cdfa5/Authenticate"));
+Check("a password change is captured for",
+      Ask("IsUserRoute", "POST", "/Users/8e3cdfa5/Password"));
+Check("and quick connect authentication is too",
+      Ask("IsUserRoute", "POST", "/Users/AuthenticateWithQuickConnect"));
+Check("under a base url as well",
+      Ask("IsUserRoute", "POST", "/jellyfin/Users/AuthenticateByName"));
+
+// The traffic this exists to stop scanning.
+Check("a video segment is not", !Ask("IsUserRoute", "GET", "/Videos/8e3cdfa5/hls1/main/0.mp4"));
+Check("an item image is not", !Ask("IsUserRoute", "GET", "/Items/8e3cdfa5/Images/Primary"));
+Check("a web asset is not", !Ask("IsUserRoute", "GET", "/web/index.html"));
+Check("an audio stream is not", !Ask("IsUserRoute", "GET", "/Audio/8e3cdfa5/universal"));
+Check("and the plugin's own script is not",
+      !Ask("IsUserRoute", "GET", "/plugins/profiles/profiles.js"));
+
 // The own-user responses are gated on the setting, and with no plugin configured at all
 // there is nothing to rename — so every answer here must be false. That is worth pinning
 // on its own: a predicate that said yes with no configuration would buffer every
@@ -327,6 +353,46 @@ Check("with no configuration, /Users/Me is not ours",
       !Ask("IsOwnUserPath", "GET", "/Users/Me"));
 Check("nor is the authentication endpoint",
       !Ask("IsOwnUserPath", "POST", "/Users/AuthenticateByName"));
+
+Console.WriteLine();
+Console.WriteLine("── The emergency disable reaches all of it ────────────────────");
+
+// Panic exists to recover a server the plugin has made unusable, and it used to have one
+// job: serve an inert client script, so the switcher disappears on the next page load.
+//
+// That was enough while everything Bonfire did happened in its own script. It is not
+// enough now: the plugin edits Jellyfin's OWN responses — the sign-in user list, the two
+// responses naming the signed-in account, and Quick Connect. If one of those is the thing
+// misbehaving, an inert script recovers nothing, and the switch an administrator reaches
+// for in an emergency would not turn it off.
+var panicField = typeof(Plugin).GetField("_panicDisabled",
+    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+Check("the panic flag is reachable", panicField != null);
+
+if (panicField != null)
+{
+    // Set directly rather than through TripPanicDisable, which by design has no way back —
+    // "there is no code path that clears it". A harness is not a code path, but it does
+    // have to leave the process as it found it.
+    panicField.SetValue(null, true);
+    try
+    {
+        // Only Quick Connect is asserted here. The other two predicates also require
+        // EnableClientProfileList, and this harness has no plugin instance to switch it on
+        // with — so they read false whether panic works or not, which is an assertion that
+        // cannot fail. They live in tests/cs/publicusers, where the setting can be true and
+        // panic is the only thing left making the difference.
+        Check("panic stops refusing Quick Connect",
+              !Ask("IsQuickConnectInitiatePath", "POST", "/QuickConnect/Initiate"));
+    }
+    finally
+    {
+        panicField.SetValue(null, false);
+    }
+
+    Check("and clearing it puts Quick Connect matching back",
+          Ask("IsQuickConnectInitiatePath", "POST", "/QuickConnect/Initiate"));
+}
 
 Console.WriteLine();
 Console.WriteLine("── Counters ────────────────────────────────────────────────────");

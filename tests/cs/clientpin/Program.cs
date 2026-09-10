@@ -586,6 +586,28 @@ if (reconcile != null)
        writes.All(w => w == users[MASTER].AuthenticationProviderId),
        string.Join(", ", writes.Distinct()));
 
+    // NOBODY may be left pointing at this provider once it is switched off.
+    //
+    // A disabled provider is filtered out of GetAuthenticationProviders, so an account
+    // still bound to it matches nothing, falls through to Jellyfin's InvalidAuthProvider
+    // and cannot authenticate at all.
+    //
+    // Binding masters introduced an ordering hazard: sub-profiles are restored by reading
+    // their MASTER's current provider, and when the master has a PIN it is bound to this
+    // one too. Restore the sub-profile first and it copies the very id being retired.
+    // Asserted on the end state rather than on the order, so it holds however the loop is
+    // arranged later.
+    Ok("no account is left on Bonfire's provider once the feature is off",
+       users.Values.All(u => u.AuthenticationProviderId != providerType.FullName),
+       string.Join(", ", users.Values
+           .Where(u => u.AuthenticationProviderId == providerType.FullName)
+           .Select(u => u.Username)));
+
+    Ok("and every one of them is back on Jellyfin's own",
+       users.Values.All(u => u.AuthenticationProviderId
+           == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider"),
+       string.Join(" | ", users.Values.Select(u => u.Username + "=" + u.AuthenticationProviderId)));
+
     // THIS ASSERTION WAS VACUOUS once masters started being bound. It ran after the
     // feature had been switched off and reconciliation had already restored everything, so
     // it passed whether or not a master was ever bound at all — a check answering a
