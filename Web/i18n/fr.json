@@ -78,6 +78,7 @@
   "profileForm.pinPlaceholderUnprotected": "Non protégé",
   "profileForm.clearPin": "Effacer le code PIN",
   "profileForm.pinIsSetHint": "🔒 <strong>Un code PIN est défini.</strong> Laissez vide pour le conserver, saisissez-en un nouveau pour le remplacer, ou utilisez « Effacer le code PIN ».",
+  "profileForm.pinAdminWarning": "Ce compte administre le serveur. Son code PIN permet de se connecter sur les téléviseurs et les autres applications : gardez-le long et confidentiel.",
   "profileForm.noPinSetHint": "Aucun code PIN défini. Ce profil peut être ouvert par quiconque a accès au sélecteur.",
   "profileForm.bypassPinLan": "Ignorer le code PIN sur le réseau local (LAN)",
   "profileForm.bypassPinHint": "Aucun code PIN demandé sur votre réseau domestique.",

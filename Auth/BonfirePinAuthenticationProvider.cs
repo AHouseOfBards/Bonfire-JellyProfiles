@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Jellyfin.Database.Implementations.Entities;
@@ -173,7 +174,37 @@ namespace Jellyfin.Profiles.Auth
             if (resolvedUser == null) throw Decline();
 
             var mapping = FindSubProfile(resolvedUser.Id);
-            if (mapping == null) throw Decline();
+
+            // A master with a PIN of its own, which is a different case entirely: it keeps a
+            // real Jellyfin password and must go on being able to use it.
+            //
+            // "Masters administer the server" was the reason this used to refuse them, and
+            // it is only true of the one account that set the server up. Logan's server has
+            // forty masters and thirty-nine of them administer nothing, so the rule was
+            // wrong for almost every user of it. Administrator accounts are allowed too, by
+            // his decision, with a warning under the PIN field.
+            if (mapping == null)
+            {
+                var master = FindMasterWithPin(resolvedUser.Id);
+                if (master == null) throw Decline();
+
+                // The PIN first, then the account's real password. Jellyfin binds a user to
+                // exactly one provider — GetAuthenticationProviders filters on
+                // AuthenticationProviderId — so a master bound to this one would otherwise
+                // LOSE its password everywhere, web included, and be left with four digits
+                // in front of an account that may administer the server. Delegating is what
+                // makes both work at once, and it is also the safety net: if anything here
+                // is wrong, the real password still gets you in.
+                if (PinHasher.Verify(password, master.PinHash) == PinHasher.PinResult.Match)
+                {
+                    _logger.LogInformation(
+                        "ProfilesPlugin: master account {UserId} entered by PIN on a client.",
+                        master.MasterUserId);
+                    return Task.FromResult(new ProviderAuthenticationResult { Username = resolvedUser.Username });
+                }
+
+                return DelegateToJellyfin(resolvedUser, password);
+            }
 
             // A profile with no PIN opens with an empty box — but only on a device the
             // household has actually signed in on.
@@ -262,6 +293,67 @@ namespace Jellyfin.Profiles.Auth
         /// when the user is genuinely somebody's sub-profile.
         /// </para>
         /// </summary>
+        /// <summary>
+        /// The mapping row of a master that has set a PIN, or null.
+        /// <para>
+        /// A master's own row has <c>MasterUserId == ProfileUserId</c> and is written once,
+        /// lazily, the first time switcher preferences are saved — so most households have
+        /// none, and a master with no PIN is simply not a candidate here.
+        /// </para>
+        /// </summary>
+        private static ProfileMapping? FindMasterWithPin(Guid userId)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config?.Mappings == null || userId == Guid.Empty) return null;
+
+            var row = config.Mappings.FirstOrDefault(m =>
+                m.MasterUserId == userId
+                && m.ProfileUserId == userId
+                && !string.IsNullOrEmpty(m.PinHash));
+
+            // Only an account other profiles actually point at. A stray self-row on an
+            // account with no profiles must not become a PIN-openable login.
+            if (row == null) return null;
+            if (!config.Mappings.Any(m => m.MasterUserId == userId && m.ProfileUserId != userId)) return null;
+
+            return row;
+        }
+
+        /// <summary>
+        /// Hands the credential to Jellyfin's own provider, so an account bound to this one
+        /// keeps working with its real password.
+        /// <para>
+        /// <c>DefaultAuthenticationProvider</c> is registered as an
+        /// <c>IAuthenticationProvider</c> in Jellyfin's container
+        /// (<c>CoreAppHost.RegisterServices</c>), which is the only reason this is possible.
+        /// Matched on the type's short name so a harness can stand in for it, and never on
+        /// "whichever provider is not ours" — the other one registered there is
+        /// <c>InvalidAuthProvider</c>, whose entire job is to refuse.
+        /// </para>
+        /// </summary>
+        private Task<ProviderAuthenticationResult> DelegateToJellyfin(User user, string password)
+        {
+            var providers = _services?.GetService(typeof(IEnumerable<IAuthenticationProvider>))
+                as IEnumerable<IAuthenticationProvider>;
+
+            var jellyfins = providers?.FirstOrDefault(p =>
+                string.Equals(p.GetType().Name, "DefaultAuthenticationProvider", StringComparison.Ordinal));
+
+            if (jellyfins == null)
+            {
+                _logger.LogError(
+                    "ProfilesPlugin: could not find Jellyfin's own authentication provider, so the "
+                    + "password for {Username} cannot be checked. Turn off PIN login on other apps to "
+                    + "restore password sign-in for this account.",
+                    user.Username);
+                throw Decline();
+            }
+
+            return jellyfins is IRequiresResolvedUser resolved
+                ? resolved.Authenticate(user.Username, password, user)
+                : jellyfins.Authenticate(user.Username, password);
+        }
+
         private static ProfileMapping? FindSubProfile(Guid? userId)
         {
             if (userId == null || userId == Guid.Empty) return null;

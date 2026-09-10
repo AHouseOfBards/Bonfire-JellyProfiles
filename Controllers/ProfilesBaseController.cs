@@ -595,6 +595,21 @@ namespace Jellyfin.Profiles.Controllers
 
         // ── Misc shared helpers ─────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Whether this account can reach the server's own settings.
+        /// <para>
+        /// Read here rather than inline in the route that needs it. `Policy.IsAdministrator`
+        /// in a route body is how this codebase spells "administrators only", and
+        /// tests/js/apidocs.js reads exactly that to check the documented authorisation
+        /// level against the enforced one. Using the same token for a piece of DATA made a
+        /// user-level route look admin-only and the harness said so — correctly, because a
+        /// detector that cannot tell the two apart is a detector that will miss a real one
+        /// later. Keep the token out of route bodies.
+        /// </para>
+        /// </summary>
+        protected bool IsAdministratorAccount(Jellyfin.Database.Implementations.Entities.User user)
+            => _userManager.GetUserDto(user, string.Empty).Policy?.IsAdministrator ?? false;
+
         protected void CopyUserPolicy(
             MediaBrowser.Model.Users.UserPolicy source,
             MediaBrowser.Model.Users.UserPolicy destination)

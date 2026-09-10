@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.6.1.12",
+        "changelog": "**Beta release** - please report issues on GitHub.\n\n**Added**\n\n- An account that owns profiles can now sign in on a TV with its PIN. Its real password keeps working everywhere, and a warning appears if the account administers the server.\n\n**Fixed**\n\n- The API reference said the Bonfire status endpoint was administrator-only. It is available to any signed-in user, which is what it has always enforced.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.1.12/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-09-10T17:40:00Z"
+      },
+      {
         "version": "1.6.1.11",
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Changed**\n\n- Sign-in screens now show the name you gave a profile instead of the system username, so \"kids\" appears rather than \"Bard_kids\".",
         "targetAbi": "10.11.0.0",

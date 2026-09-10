@@ -85,7 +85,20 @@ function routes() {
             }
             const body = cs.slice(open, end + 1);
             const attrs = cs.slice(Math.max(0, m.index - 400), m.index);
-            if (/IsAdministrator/.test(body) || /RequireAdministrator/.test(attrs + body)) {
+            // `.IsAdministrator`, a member access — not the bare word.
+            //
+            // This was /IsAdministrator/, which is the same substring trap that made
+            // `.navMenu` "verify" against `navMenuOption` in the selector ledger. A route
+            // that read an account's admin flag as DATA — to warn that its PIN opens an
+            // account which can reach server settings — was reported as admin-only, because
+            // the helper it called was named IsAdministratorAccount.
+            //
+            // Every real check in this codebase reaches the flag through a policy
+            // (`policy.IsAdministrator`, `Policy?.IsAdministrator`), so requiring the dot
+            // keeps all of them and drops identifiers that merely contain the word. The
+            // documented admin routes are what prove it still detects them: loosen this and
+            // they flip to "user" and this very assertion fails.
+            if (/\.IsAdministrator\b/.test(body) || /RequireAdministrator/.test(attrs + body)) {
                 level = 'admin';
             } else if (/GetCurrentUserId\(\)/.test(body)) {
                 level = 'user';

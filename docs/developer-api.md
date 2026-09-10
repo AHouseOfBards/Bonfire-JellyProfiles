@@ -57,7 +57,7 @@ is not the one the code enforces.
 | `POST /plugins/profiles/update` | user | Change a sub-profile’s settings. |
 | `GET /plugins/profiles/profiles.js` | anon | The client script itself. |
 | `GET /plugins/profiles/i18n/{locale}` | anon | One translation file. |
-| `GET /plugins/profiles/bonfire/status` | admin | The caller’s Bonfire group and its members. |
+| `GET /plugins/profiles/bonfire/status` | user | The caller’s Bonfire group and its members. |
 | `POST /plugins/profiles/bonfire/generate` | user | Mint a join code. |
 | `POST /plugins/profiles/bonfire/join` | user | Join a group with a code. |
 | `POST /plugins/profiles/bonfire/kick` | user | Remove a member from the caller’s group. |
@@ -977,7 +977,7 @@ makes it useless for its actual purpose — telling apart two records that are o
 
 ### `GET /plugins/profiles/bonfire/status`
 
-**Authorisation:** administrator.
+**Authorisation:** signed-in user.
 
 Retrieves the bonfire group status and visibility settings for the caller.
 

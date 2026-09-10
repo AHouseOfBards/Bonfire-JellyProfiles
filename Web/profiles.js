@@ -221,6 +221,7 @@
         'profileForm.pinPlaceholderUnprotected': 'Unprotected',
         'profileForm.clearPin': 'Clear PIN',
         'profileForm.pinIsSetHint': '🔒 <strong>A PIN is set.</strong> Leave blank to keep it, type a new one to replace it, or use Clear PIN.',
+        'profileForm.pinAdminWarning': 'This account administers the server. Its PIN can sign in on TVs and other apps, so keep it long and private.',
         'profileForm.noPinSetHint': 'No PIN set. This profile can be opened by anyone who can reach the switcher.',
         'profileForm.bypassPinLan': 'Bypass PIN on local network (LAN)',
         'profileForm.bypassPinHint': 'No PIN prompt on your home network.',
@@ -947,6 +948,10 @@
                 // the bypass is enabled. Forms must use this one.
                 hasPin: pick(p, 'hasPin', false),
                 isMaster: pick(p, 'isMaster', false),
+                // Sent for masters only, and used for one thing: warning that this PIN
+                // opens an account which can reach server settings. A sub-profile is never
+                // created with administrator rights, so it is always false for one.
+                isAdministrator: pick(p, 'isAdministrator', false),
                 lockoutMinutes: pick(p, 'lockoutMinutes', 5),
                 maxSubProfiles: pick(p, 'maxSubProfiles', 5),
                 bypassPinOnLocalNetwork: pick(p, 'bypassPinOnLocalNetwork', false),
@@ -5763,6 +5768,10 @@
                                 ? t('profileForm.pinIsSetHint')
                                 : t('profileForm.noPinSetHint')}
                         </div>
+                        ${profile.isAdministrator ? `
+                        <div class="form-hint" style="color: var(--jpf-danger); font-weight: 600;">
+                            ${t('profileForm.pinAdminWarning')}
+                        </div>` : ''}
                     </div>
                     <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">

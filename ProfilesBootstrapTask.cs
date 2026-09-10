@@ -376,6 +376,25 @@ namespace Jellyfin.Profiles
                 .Select(m => (Profile: m.ProfileUserId, Master: m.MasterUserId))
                 .ToList();
 
+            // A master that has set a PIN is bound too, so it can be entered on a television
+            // without its full password. Only when it HAS a PIN: binding one without would
+            // hand an account with a real password to a provider with nothing to check, and
+            // the provider keeps the password working by delegating to Jellyfin's own — see
+            // BonfirePinAuthenticationProvider.DelegateToJellyfin.
+            //
+            // Restoring is the literal default provider rather than MasterProviderId, which
+            // for a master would read back whatever it is currently bound to — this provider
+            // — and pin it there permanently.
+            var mastersWithPins = config.Mappings
+                .Where(m => m.MasterUserId == m.ProfileUserId
+                            && !string.IsNullOrEmpty(m.PinHash)
+                            && config.Mappings.Any(o => o.MasterUserId == m.MasterUserId
+                                                        && o.ProfileUserId != m.MasterUserId))
+                .Select(m => (Profile: m.ProfileUserId, Master: Guid.Empty))
+                .ToList();
+
+            subProfiles.AddRange(mastersWithPins);
+
             int changed = 0;
             foreach (var (profileId, masterId) in subProfiles)
             {
@@ -384,7 +403,11 @@ namespace Jellyfin.Profiles
                     var user = _userManager.GetUserById(profileId);
                     if (user == null) continue;
 
-                    var target = wanted ?? MasterProviderId(masterId);
+                    // Guid.Empty marks a master: there is no owning account to read a
+                    // provider from, so the restore target is Jellyfin's own.
+                    var target = wanted ?? (masterId == Guid.Empty
+                        ? "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider"
+                        : MasterProviderId(masterId));
 
                     // The whole point of this method's history. Never write an empty or
                     // null id: it makes the row unreadable rather than merely unusable.

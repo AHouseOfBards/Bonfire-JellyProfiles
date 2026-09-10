@@ -138,6 +138,7 @@ var MASTER = Guid.NewGuid();
 var KID    = Guid.NewGuid();      // PIN 4821
 var GUEST  = Guid.NewGuid();      // no PIN
 var OUTSID = Guid.NewGuid();      // not a Bonfire user at all
+var LONER  = Guid.NewGuid();      // has a PIN and a self-row, but owns no profiles
 
 var hash = (Func<string, string>)(pin =>
     (string)hasherType.GetMethod("Hash", Any).Invoke(null, new object[] { pin }));
@@ -154,14 +155,32 @@ object Mapping(Guid profile, Guid master, string pin)
 
 var mappings = (System.Collections.IList)cfgType.GetProperty("Mappings").GetValue(config);
 mappings.Add(Mapping(MASTER, MASTER, "9999"));   // a master: maps to itself
+mappings.Add(Mapping(LONER, LONER, "5555"));    // master-shaped, but owns no profiles
 mappings.Add(Mapping(KID, MASTER, "4821"));
 mappings.Add(Mapping(GUEST, MASTER, null));
 
 // The names a household actually typed, which are what a sign-in screen now shows and
 // therefore what a client sends back. The system usernames stay Bardkids / Bardguest.
-mappingType.GetProperty("ProfileName").SetValue(mappings[0], "bard");
-mappingType.GetProperty("ProfileName").SetValue(mappings[1], "kids");
-mappingType.GetProperty("ProfileName").SetValue(mappings[2], "guest");
+// Set by identity, not by position. These were indexed into the list and adding one
+// fixture above them silently renamed the wrong rows — the harness went red on two
+// unrelated assertions and pointed at the code.
+void NameIt(Guid profileId, string name)
+{
+    foreach (var m in mappings)
+    {
+        if ((Guid)mappingType.GetProperty("ProfileUserId").GetValue(m) == profileId)
+        {
+            mappingType.GetProperty("ProfileName").SetValue(m, name);
+            return;
+        }
+    }
+
+    throw new InvalidOperationException("no mapping for " + profileId);
+}
+
+NameIt(MASTER, "bard");
+NameIt(KID, "kids");
+NameIt(GUEST, "guest");
 
 static User MakeUser(Guid id, string name)
 {
@@ -196,11 +215,41 @@ Ok("a null resolved user is refused", Try(null, "4821") == "!AuthenticationExcep
 Ok("an account Bonfire has never heard of is refused",
    Try(MakeUser(OUTSID, "someone-else"), "4821") == "!AuthenticationException");
 
-// The master maps to itself. Returning it here would let the account that owns every
-// profile — and on many servers administers the whole server — be opened with a PIN,
-// as a side effect of a lookup rather than as anybody's decision.
-Ok("the MASTER account is refused, even with its own correct PIN",
-   Try(MakeUser(MASTER, "bard"), "9999") == "!AuthenticationException");
+// THIS USED TO EXPECT A REFUSAL, on the grounds that a master "on many servers
+// administers the whole server". That is true of exactly one account per server — the one
+// that set it up. Logan's has forty masters and thirty-nine administer nothing, so the
+// rule was wrong for almost every user of it, and it came from my test fixture having one
+// master who was also the admin. Allowing administrators too is his decision, taken
+// knowingly, with a warning under the PIN field.
+//
+// A master keeps its real password. Jellyfin binds a user to exactly ONE provider:
+//
+//     if (!string.IsNullOrEmpty(authenticationProviderId))
+//         providers = providers.Where(i => string.Equals(
+//             authenticationProviderId, i.GetType().FullName, ...)).ToList();
+//
+// so a master bound to this provider would otherwise lose password sign-in everywhere,
+// the web included, and be left with four digits in front of an account that may
+// administer the server. The provider delegates to Jellyfin's own to keep both — which is
+// also the safety net, because a bug in the PIN path cannot lock anybody out.
+Ok("a master with a PIN opens with that PIN",
+   Try(MakeUser(MASTER, "bard"), "9999") == "bard");
+
+Ok("and the wrong PIN does not open it",
+   Try(MakeUser(MASTER, "bard"), "1111") == "!AuthenticationException");
+
+// The delegation. The stub stands in for Jellyfin's own provider and accepts exactly one
+// password, so this fails if the PIN path swallows the credential instead of passing it on.
+Ok("a master's real password still works, through Jellyfin's own provider",
+   Try(MakeUser(MASTER, "bard"), "the-real-password") == "bard");
+
+Ok("and a wrong password is still refused",
+   Try(MakeUser(MASTER, "bard"), "not-the-password") == "!AuthenticationException");
+
+// An account with a self-row but no profiles pointing at it is not a household, and must
+// not become a PIN-openable login because of a stray row.
+Ok("an account with a PIN but no profiles of its own is refused",
+   Try(MakeUser(LONER, "loner"), "5555") == "!AuthenticationException");
 
 Console.WriteLine();
 Console.WriteLine("── And accepts exactly one thing ──────────────────────────────");
@@ -305,6 +354,7 @@ var authNoUser = providerType.GetMethod("Authenticate", Any, null,
 // name meant. These are the SYSTEM usernames, which is the whole point: the household
 // typed "kids" and the account is "Bardkids".
 UserManagerStub.Add(MASTER, MakeUser(MASTER, "bard"));
+UserManagerStub.Add(LONER, MakeUser(LONER, "loner"));
 UserManagerStub.Add(KID, MakeUser(KID, "Bardkids"));
 UserManagerStub.Add(GUEST, MakeUser(GUEST, "Bardguest"));
 
@@ -378,13 +428,25 @@ string Message(User user, string password)
     catch (TargetInvocationException ex) { return ex.InnerException.Message; }
 }
 
+// The master's own correct PIN used to be in this list, as a refusal. It is not a
+// refusal any more, so it was returning null and the check was failing for the right
+// reason. Replaced with LONER — a self-row with a PIN that owns no profiles — which this
+// provider does still refuse itself.
 var messages = new[]
 {
     Message(MakeUser(OUTSID, "someone-else"), "4821"),
-    Message(MakeUser(MASTER, "bard"), "9999"),
+    Message(MakeUser(LONER, "loner"), "5555"),
     Message(MakeUser(KID, "Bardkids"), "4822"),
     Message(MakeUser(GUEST, "Bardguest"), "1234")
 }.Distinct().ToArray();
+// A master's failed PIN is refused by JELLYFIN, not by us, because the provider hands
+// the credential on to DefaultAuthenticationProvider — so it reads exactly like any
+// ordinary account's failure, which is the right thing for it to read like. It is
+// deliberately not folded into the uniformity check above; that check exists to stop this
+// provider's own refusals from saying which accounts are Bonfire profiles.
+Ok("a master's failed PIN is refused by Jellyfin, so it looks like any other account",
+   Message(MakeUser(MASTER, "bard"), "not-the-password") != null);
+
 Ok("all four refusals carry one identical message", messages.Length == 1,
    messages.Length > 1 ? string.Join(" | ", messages) : null);
 
@@ -465,6 +527,7 @@ if (reconcile != null)
         [MASTER] = MakeUser(MASTER, "bard"),
         [KID] = MakeUser(KID, "Bardkids"),
         [GUEST] = MakeUser(GUEST, "Bardguest"),
+        [LONER] = MakeUser(LONER, "loner"),
     };
     var recordingManager = RecordingUserManager.Create(users, writes);
 
@@ -489,6 +552,26 @@ if (reconcile != null)
     Ok("it points them at Bonfire's provider",
        writes.All(w => w == providerType.FullName), string.Join(", ", writes.Distinct()));
 
+    // A master that has set a PIN is bound as well, or Jellyfin would only ever offer it
+    // DefaultAuthenticationProvider and the PIN could not be reached:
+    //
+    //     if (!string.IsNullOrEmpty(authenticationProviderId))
+    //         providers = providers.Where(i => string.Equals(
+    //             authenticationProviderId, i.GetType().FullName, ...)).ToList();
+    //
+    // The password keeps working because the provider delegates to Jellyfin's own, which
+    // is asserted separately above.
+    Ok("a master that set a PIN is bound too, so its PIN can be reached",
+       users[MASTER].AuthenticationProviderId == providerType.FullName,
+       users[MASTER].AuthenticationProviderId);
+
+    // A self-row on an account no profiles point at is not a household. Binding it would
+    // put a provider in front of an ordinary account for no reason.
+    Ok("an account with a PIN but no profiles is left alone",
+       users[LONER].AuthenticationProviderId
+           == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
+       users[LONER].AuthenticationProviderId);
+
     // Feature OFF: they go back to whatever the MASTER uses — read from the master rather
     // than hardcoded, so an upstream rename cannot strand them.
     enableProp.SetValue(config, false);
@@ -503,11 +586,19 @@ if (reconcile != null)
        writes.All(w => w == users[MASTER].AuthenticationProviderId),
        string.Join(", ", writes.Distinct()));
 
-    // The master is not a sub-profile and must never be re-pointed: it is a real account,
-    // often the server's administrator.
-    Ok("the master account is never touched",
+    // THIS ASSERTION WAS VACUOUS once masters started being bound. It ran after the
+    // feature had been switched off and reconciliation had already restored everything, so
+    // it passed whether or not a master was ever bound at all — a check answering a
+    // coarser question than the one it was named for. The state is now asserted while the
+    // feature is ON, above, where the two answers actually differ.
+    //
+    // Restoring a master goes to Jellyfin's own provider rather than through
+    // MasterProviderId, which for a master reads back whatever it is bound to at that
+    // moment — this provider — and would pin it here permanently.
+    Ok("switching the feature off puts the master back on Jellyfin's provider",
        users[MASTER].AuthenticationProviderId
-           == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider");
+           == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
+       users[MASTER].AuthenticationProviderId);
 
     enableProp.SetValue(config, true);
 }
@@ -605,7 +696,24 @@ sealed class ServiceStub : IServiceProvider
     public static IServiceProvider Create() => new ServiceStub(UserManagerStub.Create());
 
     public object? GetService(Type serviceType)
-        => serviceType == typeof(IUserManager) ? _users : null;
+    {
+        if (serviceType == typeof(IUserManager)) return _users;
+
+        // What the provider asks for when it needs to check a real password. Both of
+        // Jellyfin's own are here on purpose: InvalidAuthProvider exists to refuse
+        // everything, so a lookup of "whichever provider is not ours" would pick the wrong
+        // one about half the time depending on registration order.
+        if (serviceType == typeof(IEnumerable<IAuthenticationProvider>))
+        {
+            return new IAuthenticationProvider[]
+            {
+                new InvalidAuthProvider(),
+                new DefaultAuthenticationProvider(),
+            };
+        }
+
+        return null;
+    }
 }
 
 public class UserManagerStub : DispatchProxy
@@ -627,4 +735,47 @@ public class UserManagerStub : DispatchProxy
 
         return _known.TryGetValue((Guid)args![0]!, out var user) ? user : null;
     }
+}
+
+// Stands in for Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider. The
+// real one is internal to the server assembly, and the provider matches on the type's
+// short name precisely so this can take its place.
+sealed class DefaultAuthenticationProvider : IAuthenticationProvider, IRequiresResolvedUser
+{
+    public const string ThePassword = "the-real-password";
+
+    public string Name => "Default";
+    public bool IsEnabled => true;
+
+    public Task<ProviderAuthenticationResult> Authenticate(string username, string password)
+        => Authenticate(username, password, null);
+
+    public Task<ProviderAuthenticationResult> Authenticate(string username, string password, User? resolvedUser)
+    {
+        if (!string.Equals(password, ThePassword, StringComparison.Ordinal))
+        {
+            throw new AuthenticationException("Invalid username or password");
+        }
+
+        return Task.FromResult(new ProviderAuthenticationResult { Username = username });
+    }
+
+    public bool HasPassword(User user) => true;
+
+    public Task ChangePassword(User user, string newPassword) => Task.CompletedTask;
+}
+
+// Registered alongside it in Jellyfin and refuses everything, which is why the provider
+// must not pick "the one that is not ours".
+sealed class InvalidAuthProvider : IAuthenticationProvider
+{
+    public string Name => "InvalidAuthProvider";
+    public bool IsEnabled => true;
+
+    public Task<ProviderAuthenticationResult> Authenticate(string username, string password)
+        => throw new AuthenticationException("This user account cannot be used");
+
+    public bool HasPassword(User user) => true;
+
+    public Task ChangePassword(User user, string newPassword) => Task.CompletedTask;
 }

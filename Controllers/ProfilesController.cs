@@ -112,6 +112,10 @@ namespace Jellyfin.Profiles.Controllers
                     RequiresPin = masterRequiresPin,
                     HasPin = !string.IsNullOrEmpty(linkedMapping?.PinHash),
                     IsMaster = true,
+                    // Only so the PIN field can warn that this PIN opens an account which
+                    // can reach server settings. Sent for masters only; a sub-profile is
+                    // never created with administrator rights.
+                    IsAdministrator = IsAdministratorAccount(linkedUser),
                     LockoutMinutes = linkedMapping?.LockoutMinutes ?? 5,
                     MaxSubProfiles = GetMaxProfilesForUser(linkedId, config),
                     BypassPinOnLocalNetwork = linkedMapping?.BypassPinOnLocalNetwork ?? false,
