@@ -261,17 +261,14 @@ namespace Jellyfin.Profiles.Auth
                     //
                     // The provider translates it back on the way in - a client puts the
                     // displayed name straight into the username field.
-                    var named = config?.Mappings?.FirstOrDefault(m =>
-                        m.ProfileUserId == userId
-                        && m.MasterUserId != userId
-                        && !string.IsNullOrWhiteSpace(m.ProfileName));
+                    var named = ProfileNameRewriter.FriendlyNameFor(config, userId);
 
                     if (named != null)
                     {
                         // Whichever casing this response negotiated - missing the other one
                         // would show the raw username on exactly the clients that ask for it.
-                        if (node["Name"] != null) node["Name"] = named.ProfileName;
-                        else if (node["name"] != null) node["name"] = named.ProfileName;
+                        if (node["Name"] != null) node["Name"] = named;
+                        else if (node["name"] != null) node["name"] = named;
                     }
 
                     array.Add(node);

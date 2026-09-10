@@ -183,6 +183,15 @@ namespace Jellyfin.Profiles
                 return;
             }
 
+            // The two responses that tell a client which account it is. Renaming the
+            // sign-in list alone lasted only until somebody used a profile — the client
+            // stores what these say and paints that afterwards. See ProfileNameRewriter.
+            if (IsOwnUserPath(context))
+            {
+                await RewriteOwnNameAsync(context).ConfigureAwait(false);
+                return;
+            }
+
             // The login-screen user list, a completely separate job from the index document
             // below and sharing only the capture machinery. Checked first because it is a
             // different path entirely and must not fall through the index logic.
@@ -464,6 +473,100 @@ namespace Jellyfin.Profiles
             }
 
             return path.EndsWith("/Users/Public", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// True for the two responses that name the account a client is signed in as:
+        /// <c>GET /Users/Me</c> and <c>POST /Users/AuthenticateByName</c>.
+        /// <para>
+        /// Both, because they are written at different moments and either one left alone
+        /// puts the system username back: the authentication response on a PIN login, and
+        /// <c>/Users/Me</c> every time a stored session is restored.
+        /// </para>
+        /// </summary>
+        private static bool IsOwnUserPath(HttpContext context)
+        {
+            if (Plugin.Instance?.Configuration?.EnableClientProfileList != true) return false;
+
+            var path = context.Request.Path.Value;
+            if (string.IsNullOrEmpty(path)) return false;
+
+            if (HttpMethods.IsGet(context.Request.Method)
+                && path.EndsWith("/Users/Me", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return HttpMethods.IsPost(context.Request.Method)
+                && path.EndsWith("/Users/AuthenticateByName", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Captures one of those responses and renames the profile inside it, or hands
+        /// Jellyfin's own bytes back untouched.
+        /// </summary>
+        private async Task RewriteOwnNameAsync(HttpContext context)
+        {
+            var originalBody = context.Features.Get<IHttpResponseBodyFeature>();
+            if (originalBody == null)
+            {
+                await _next(context).ConfigureAwait(false);
+                return;
+            }
+
+            byte[] produced;
+            using (var captured = new MemoryStream())
+            {
+                var capture = new StreamResponseBodyFeature(captured);
+                var negotiation = SuspendContentNegotiation(context.Request);
+                context.Features.Set<IHttpResponseBodyFeature>(capture);
+
+                try
+                {
+                    await _next(context).ConfigureAwait(false);
+                    await capture.CompleteAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    context.Features.Set(originalBody);
+                    RestoreContentNegotiation(context.Request, negotiation);
+                }
+
+                produced = captured.ToArray();
+            }
+
+            if (context.Response.HasStarted) return;
+
+            byte[]? rewritten = null;
+            if (context.Response.StatusCode == StatusCodes.Status200OK
+                && !context.Response.Headers.ContainsKey(HeaderNames.ContentEncoding))
+            {
+                try
+                {
+                    rewritten = Auth.ProfileNameRewriter.Rewrite(
+                        produced,
+                        context.Response.ContentType,
+                        Plugin.Instance?.Configuration,
+                        _logger);
+                }
+                catch (Exception ex)
+                {
+                    // This is how every client learns who it is. Anything unexpected and it
+                    // gets Jellyfin's own answer.
+                    _logger.LogWarning(ex, "ProfilesPlugin: could not rename a profile in its own user record.");
+                    rewritten = null;
+                }
+            }
+
+            if (rewritten == null)
+            {
+                await PassThroughAsync(context, produced).ConfigureAwait(false);
+                return;
+            }
+
+            context.Response.ContentLength = rewritten.Length;
+            context.Response.Headers[HeaderNames.CacheControl] = "no-cache, no-store, must-revalidate";
+            await context.Response.Body.WriteAsync(rewritten, context.RequestAborted).ConfigureAwait(false);
         }
 
         /// <summary>

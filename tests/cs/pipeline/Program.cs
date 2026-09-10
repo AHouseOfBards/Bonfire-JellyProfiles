@@ -276,6 +276,59 @@ await Run("/web/index.html", WriteBody(sent.Body));
 Check("passing an already-injected page through clears it too", LastError() == null);
 
 Console.WriteLine();
+Console.WriteLine("── Which requests this middleware answers itself ──────────────");
+
+// The middleware now intercepts three paths besides the index document, and each is
+// matched by a private predicate. Those predicates had no coverage at all while the
+// functions on either side of them had eighty-odd assertions between them — which is the
+// shape of every defect this project has shipped: the code that DECIDES whether a feature
+// runs is the code nobody tests.
+//
+// Driven by reflection because they are private, and with a real DefaultHttpContext so
+// the path and method are read the way a request presents them.
+var mwType = typeof(ProfilesIndexMiddleware);
+const System.Reflection.BindingFlags Priv =
+    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
+
+bool Ask(string methodName, string verb, string path)
+{
+    var m = mwType.GetMethod(methodName, Priv);
+    if (m == null) throw new InvalidOperationException(methodName + " is gone");
+
+    var ctx = new DefaultHttpContext();
+    ctx.Request.Method = verb;
+    ctx.Request.Path = path;
+    return (bool)m.Invoke(null, new object[] { ctx });
+}
+
+Check("the own-user predicate exists", mwType.GetMethod("IsOwnUserPath", Priv) != null);
+Check("the quick-connect predicate exists", mwType.GetMethod("IsQuickConnectInitiatePath", Priv) != null);
+
+// Quick Connect. The obsolete GET form is routed by Jellyfin and simply calls the POST
+// one, so leaving it out would be a way straight around the setting.
+Check("POST /QuickConnect/Initiate is ours",
+      Ask("IsQuickConnectInitiatePath", "POST", "/QuickConnect/Initiate"));
+Check("the obsolete GET form is ours too",
+      Ask("IsQuickConnectInitiatePath", "GET", "/QuickConnect/Initiate"));
+Check("under a base url it is still ours",
+      Ask("IsQuickConnectInitiatePath", "POST", "/jellyfin/QuickConnect/Initiate"));
+Check("but not the endpoint that reads a code back",
+      !Ask("IsQuickConnectInitiatePath", "GET", "/QuickConnect/Connect"));
+Check("and not a path that merely starts the same way",
+      !Ask("IsQuickConnectInitiatePath", "POST", "/QuickConnect/InitiateSomething"));
+Check("and not another verb entirely",
+      !Ask("IsQuickConnectInitiatePath", "DELETE", "/QuickConnect/Initiate"));
+
+// The own-user responses are gated on the setting, and with no plugin configured at all
+// there is nothing to rename — so every answer here must be false. That is worth pinning
+// on its own: a predicate that said yes with no configuration would buffer every
+// /Users/Me on the server for nothing.
+Check("with no configuration, /Users/Me is not ours",
+      !Ask("IsOwnUserPath", "GET", "/Users/Me"));
+Check("nor is the authentication endpoint",
+      !Ask("IsOwnUserPath", "POST", "/Users/AuthenticateByName"));
+
+Console.WriteLine();
 Console.WriteLine("── Counters ────────────────────────────────────────────────────");
 
 var servedProp = typeof(ProfilesIndexMiddleware)

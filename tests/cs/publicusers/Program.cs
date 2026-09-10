@@ -675,6 +675,124 @@ if (resolve != null)
 }
 
 Console.WriteLine();
+Console.WriteLine("-- The name a client remembers --------------------------------");
+
+// Name stripping on /Users/Public alone lasted until somebody used the profile, and then
+// reverted. Android TV keeps its own copy of every account it has signed into:
+//
+//     val storedUsers = serverUserRepository.getStoredServerUsers(server)
+//     val storedUserIds = storedUsers.map { it.id }
+//     val publicUsers = serverUserRepository.getPublicServerUsers(server)
+//         .filterNot { it.id in storedUserIds }          // ours is dropped
+//
+// and `holder.cardView.name = user.name` paints the STORED name. That copy is written by
+// authenticateFinish from the account's real DTO — getCurrentUser() on a token restore,
+// or the authentication response on a PIN login — so the friendly name survived exactly
+// until the first sign-in. Logan found it: BardFamily read "family", Bard_test did not,
+// and the difference was that Bard_test had been signed into on that television.
+//
+// So the two endpoints that tell a client who it is are rewritten too.
+var rewriterType = asm.GetType("Jellyfin.Profiles.Auth.ProfileNameRewriter", false);
+Ok("there is a rewriter for the name a client stores", rewriterType != null);
+
+var rewrite = rewriterType?.GetMethod("Rewrite", BindingFlags.Public | BindingFlags.Static);
+Ok("and it can be handed one response body", rewrite != null);
+
+if (rewrite != null)
+{
+    var pluginType2 = asm.GetType("Jellyfin.Profiles.Plugin", true);
+    var cfgType2 = asm.GetType("Jellyfin.Profiles.Configuration.PluginConfiguration", true);
+    var mappingType2 = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);
+
+    var dir2 = Path.Combine(Path.GetTempPath(), "bonfire-rename-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(dir2);
+    var plugin2 = Activator.CreateInstance(pluginType2, new StubPaths(dir2), new StubXml());
+    var cfg2 = pluginType2.GetProperty("Configuration").GetValue(plugin2);
+    cfgType2.GetProperty("EnableClientProfileList").SetValue(cfg2, true);
+
+    var OWNER = Guid.NewGuid();
+    var CHILD = Guid.NewGuid();
+    var maps2 = (System.Collections.IList)cfgType2.GetProperty("Mappings").GetValue(cfg2);
+
+    object Row(Guid profile, Guid master, string name)
+    {
+        var m = Activator.CreateInstance(mappingType2);
+        mappingType2.GetProperty("ProfileUserId").SetValue(m, profile);
+        mappingType2.GetProperty("MasterUserId").SetValue(m, master);
+        mappingType2.GetProperty("ProfileName").SetValue(m, name);
+        return m;
+    }
+
+    maps2.Add(Row(CHILD, OWNER, "family"));
+    maps2.Add(Row(OWNER, OWNER, "Bard"));   // the master's own row
+
+    string Run2(string body, string contentType = "application/json")
+    {
+        var outBytes = (byte[])rewrite.Invoke(null, new object[]
+        {
+            Encoding.UTF8.GetBytes(body), contentType, cfg2, NullLogger.Instance
+        });
+        return outBytes == null ? null : Encoding.UTF8.GetString(outBytes);
+    }
+
+    // GET /Users/Me — one user object.
+    var me = Run2("{\"Name\":\"Bard_Family\",\"Id\":\"" + CHILD.ToString("N") + "\"}");
+    Ok("a single user object is renamed",
+       me != null && me.Contains("\"family\"", StringComparison.Ordinal)
+       && !me.Contains("Bard_Family", StringComparison.Ordinal), me);
+
+    // camelCase is the other half of the content negotiation.
+    var meCamel = Run2("{\"name\":\"Bard_Family\",\"id\":\"" + CHILD.ToString("N") + "\"}",
+                       "application/json; profile=\"CamelCase\"");
+    Ok("and so is a camelCase one",
+       meCamel != null && meCamel.Contains("\"family\"", StringComparison.Ordinal)
+       && !meCamel.Contains("Bard_Family", StringComparison.Ordinal), meCamel);
+
+    // POST /Users/AuthenticateByName — the user is nested under an AuthenticationResult,
+    // and this is the body that a PIN login stores.
+    var auth = Run2("{\"User\":{\"Name\":\"Bard_Family\",\"Id\":\"" + CHILD.ToString("N")
+                    + "\"},\"AccessToken\":\"abc\",\"ServerId\":\"s\"}");
+    Ok("a nested user in an authentication result is renamed",
+       auth != null && auth.Contains("\"family\"", StringComparison.Ordinal)
+       && !auth.Contains("Bard_Family", StringComparison.Ordinal), auth);
+    Ok("and the rest of the authentication result survives",
+       auth != null && auth.Contains("abc", StringComparison.Ordinal));
+
+    // A master is a real account with a real username, and everything else on the server
+    // knows it by that. Never renamed.
+    Ok("a master is left alone",
+       Run2("{\"Name\":\"Bard\",\"Id\":\"" + OWNER.ToString("N") + "\"}") == null);
+
+    // Everyone else on the server.
+    Ok("an account Bonfire does not know is left alone",
+       Run2("{\"Name\":\"someone\",\"Id\":\"" + Guid.NewGuid().ToString("N") + "\"}") == null);
+
+    // Dashed ids are what some clients echo back, so both spellings must resolve.
+    var dashed = Run2("{\"Name\":\"Bard_Family\",\"Id\":\"" + CHILD.ToString("D") + "\"}");
+    Ok("a dashed id resolves the same as a dashless one",
+       dashed != null && dashed.Contains("\"family\"", StringComparison.Ordinal));
+
+    // Bodies that are not a user. Returning null means "leave Jellyfin's bytes alone",
+    // which is the only safe answer on an endpoint every client depends on.
+    Ok("an array is left alone", Run2("[{\"Name\":\"x\"}]") == null);
+    Ok("a body with no id is left alone", Run2("{\"Name\":\"Bard_Family\"}") == null);
+    Ok("something that is not JSON is left alone", Run2("<html>nope</html>") == null);
+    Ok("an empty body is left alone", Run2("") == null);
+
+    // Off means off, on this as on everything else in the tab.
+    cfgType2.GetProperty("EnableClientProfileList").SetValue(cfg2, false);
+    Ok("nothing is renamed while showing profiles on sign-in screens is off",
+       Run2("{\"Name\":\"Bard_Family\",\"Id\":\"" + CHILD.ToString("N") + "\"}") == null);
+    cfgType2.GetProperty("EnableClientProfileList").SetValue(cfg2, true);
+
+    // A mapping with no name of its own has nothing to say.
+    maps2.Clear();
+    maps2.Add(Row(CHILD, OWNER, string.Empty));
+    Ok("a profile with no name recorded is left alone",
+       Run2("{\"Name\":\"Bard_Family\",\"Id\":\"" + CHILD.ToString("N") + "\"}") == null);
+}
+
+Console.WriteLine();
 if (fails.Count > 0)
 {
     foreach (var f in fails) Console.WriteLine("   - " + f);
