@@ -1,7 +1,10 @@
 using System;
 using System.IO;
+using MediaBrowser.Controller.Library;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using Jellyfin.Database.Implementations.Entities;
 using MediaBrowser.Controller.Authentication;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -259,6 +262,99 @@ Ok("setting an account password on a profile is refused, not silently ignored",
    changed == "AuthenticationException", changed);
 
 Console.WriteLine();
+Console.WriteLine("── An empty provider id makes a user row UNREADABLE ────────────");
+
+// This is the constraint 1.6.1.2 broke, asserted here so nobody re-derives the reasoning
+// that led to breaking it. Clearing AuthenticationProviderId makes Jellyfin try every
+// provider, which is genuinely what GetAuthenticationProviders does — but the same field
+// is validated when EF Core materialises the row, on every single load:
+//
+//   ArgumentException: The value cannot be an empty string. (Parameter 'authenticationProviderId')
+//      at Jellyfin.Database.Implementations.Entities.User..ctor(...)
+//      at Jellyfin.Server.Implementations.Users.UserManager.GetUsers()
+//
+// GetUsers() enumerates EVERY user, so two blanked sub-profiles took down user lookup for
+// a whole 40-user server: HTTP 400 on every endpoint that lists users, on every client,
+// unfixable from inside the plugin because the read path throws too. It needed manual SQL.
+//
+// The read path tolerating empty is exactly why this was missed. Checking one path and
+// calling the question settled is what the rules in CLAUDE.md are written against.
+string emptyProviderResult;
+try
+{
+    _ = new User("probe", string.Empty, "reset");
+    emptyProviderResult = "accepted";
+}
+catch (ArgumentException) { emptyProviderResult = "rejected"; }
+Ok("Jellyfin itself refuses an empty AuthenticationProviderId", emptyProviderResult == "rejected",
+   emptyProviderResult);
+
+Console.WriteLine();
+Console.WriteLine("── So the reconciliation must never write one ──────────────────");
+
+// Drives the REAL ProfilesBootstrapTask against a stub user manager and records every
+// value it writes. A source scan could not have caught the original bug: the code read
+// correctly and wrote a value the database would not accept back.
+var taskType = asm.GetType("Jellyfin.Profiles.ProfilesBootstrapTask", true);
+var reconcile = taskType.GetMethod("ReconcileAuthProviders", Any);
+Ok("the bootstrap task exposes its reconciliation", reconcile != null);
+
+if (reconcile != null)
+{
+    var writes = new List<string>();
+    var users = new Dictionary<Guid, User>
+    {
+        [MASTER] = MakeUser(MASTER, "bard"),
+        [KID] = MakeUser(KID, "Bardkids"),
+        [GUEST] = MakeUser(GUEST, "Bardguest"),
+    };
+    var recordingManager = RecordingUserManager.Create(users, writes);
+
+    var taskLoggerType = typeof(NullLogger<>).MakeGenericType(taskType);
+    var taskLoggerProp = taskLoggerType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
+    var taskLogger = taskLoggerProp != null
+        ? taskLoggerProp.GetValue(null)
+        : Activator.CreateInstance(taskLoggerType, nonPublic: true);
+
+    var task = Activator.CreateInstance(
+        taskType, new StubPaths(tempDir), recordingManager, taskLogger);
+
+    // Feature ON: profiles point at our provider, and at nothing else.
+    enableProp.SetValue(config, true);
+    writes.Clear();
+    reconcile.Invoke(task, null);
+
+    Ok("with the feature on, it writes something for the sub-profiles", writes.Count > 0,
+       writes.Count.ToString());
+    Ok("and never an empty value", writes.All(w => !string.IsNullOrEmpty(w)),
+       "an empty id makes the row unreadable and takes the whole server's user lookup with it");
+    Ok("it points them at Bonfire's provider",
+       writes.All(w => w == providerType.FullName), string.Join(", ", writes.Distinct()));
+
+    // Feature OFF: they go back to whatever the MASTER uses — read from the master rather
+    // than hardcoded, so an upstream rename cannot strand them.
+    enableProp.SetValue(config, false);
+    users[KID].AuthenticationProviderId = providerType.FullName;
+    users[GUEST].AuthenticationProviderId = providerType.FullName;
+    writes.Clear();
+    reconcile.Invoke(task, null);
+
+    Ok("with the feature off, it puts them back", writes.Count > 0, writes.Count.ToString());
+    Ok("still never an empty value", writes.All(w => !string.IsNullOrEmpty(w)));
+    Ok("and back to the master's own provider",
+       writes.All(w => w == users[MASTER].AuthenticationProviderId),
+       string.Join(", ", writes.Distinct()));
+
+    // The master is not a sub-profile and must never be re-pointed: it is a real account,
+    // often the server's administrator.
+    Ok("the master account is never touched",
+       users[MASTER].AuthenticationProviderId
+           == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider");
+
+    enableProp.SetValue(config, true);
+}
+
+Console.WriteLine();
 if (fails.Count > 0)
 {
     foreach (var f in fails) Console.WriteLine("   - " + f);
@@ -300,4 +396,40 @@ sealed class StubXml : MediaBrowser.Model.Serialization.IXmlSerializer
         => throw new NotSupportedException();
     public object DeserializeFromBytes(Type type, byte[] buffer)
         => throw new NotSupportedException();
+}
+
+// Records every AuthenticationProviderId the reconciliation writes. DispatchProxy rather
+// than an implementation because IUserManager gains and loses members between patch
+// releases — the same reason tests/cs/pipeline uses it.
+public class RecordingUserManager : DispatchProxy
+{
+    private Dictionary<Guid, User> _users;
+    private List<string> _writes;
+
+    public static IUserManager Create(Dictionary<Guid, User> users, List<string> writes)
+    {
+        var proxy = Create<IUserManager, RecordingUserManager>();
+        var stub = (RecordingUserManager)(object)proxy;
+        stub._users = users;
+        stub._writes = writes;
+        return proxy;
+    }
+
+    protected override object Invoke(MethodInfo targetMethod, object[] args)
+    {
+        switch (targetMethod.Name)
+        {
+            case "GetUserById":
+                return _users.TryGetValue((Guid)args[0], out var u) ? u : null;
+
+            case "UpdateUserAsync":
+                _writes.Add(((User)args[0]).AuthenticationProviderId);
+                return Task.CompletedTask;
+
+            default:
+                throw new NotSupportedException(
+                    "the reconciliation called IUserManager." + targetMethod.Name
+                    + ", which this harness does not model");
+        }
+    }
 }

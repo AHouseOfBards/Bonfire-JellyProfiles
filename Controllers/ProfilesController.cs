@@ -3723,6 +3723,17 @@ namespace Jellyfin.Profiles.Controllers
                 Plugin.Instance?.SaveConfiguration();
             }
 
+            // Outside the lock: this walks users and writes to the database, and holding
+            // ConfigLock across that would block every other request that reads the
+            // configuration. Switching client PIN login OFF has to re-point the profiles
+            // immediately — left until the next restart they would be pointing at a
+            // provider that is no longer enabled, which means no provider at all, which
+            // breaks the web switcher's own ability to enter them.
+            if (request.EnableClientPinLogin.HasValue)
+            {
+                ProfilesBootstrapTask.ReconcileAuthProvidersNow();
+            }
+
             _logger.LogInformation("ProfilesPlugin: Plugin settings updated by an administrator.");
             return Ok();
         }
