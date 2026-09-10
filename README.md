@@ -83,26 +83,26 @@ only applies where Bonfire runs.
 
 ## Client Compatibility
 
-There are two ways to reach a profile, and between them they cover every client.
+**Fully compatible** — the switcher, profile management, avatars, everything:
 
-**The switcher** — the full "Who's Watching?" screen — needs an app that loads the web
-client from your server:
-
-- Jellyfin Web, and the official Jellyfin Android app
+- Jellyfin Web, and Jellyfin for Android
 - Jellyfin Media Player (Windows, macOS, Linux)
 - LG webOS
-- Samsung Tizen, if Bonfire is bundled into the `.wgt` at build time. That package has to
-  be rebuilt to pick up plugin updates.
+- Samsung Tizen, if Bonfire is bundled into the `.wgt` at build time
 
-**The app's own sign-in screen** — for apps that ship their own client and never see the
-switcher, such as Jellyfin for Android TV, Roku and Swiftfin. Turn on the settings under
-**Dashboard → Bonfire → TVs & Apps** and a household's profiles appear in the app's user
-list, each opened with its PIN. Tested on Jellyfin for Android TV.
+**Selection only** — profiles appear in the app's own sign-in screen and open with their
+PIN. PINs, device restrictions and parental controls all hold; profile management needs a
+browser. Turn on **Dashboard → Bonfire → TVs & Apps**, off by default.
+
+- Jellyfin for Android TV (tested)
+- Jellyfin for Roku, Swiftfin, Wholphin (untested)
+
+Everything else, and why, is in [docs/clients.md](docs/clients.md).
 
 > [!IMPORTANT]
-> **Parental controls apply on every client either way.** Library access, maximum parental
-> rating and tag filters are stored on the Jellyfin account and enforced by the server, so
-> a profile sees exactly what it is allowed to see wherever it is signed in.
+> Library access, maximum parental rating and tag filters are stored on the Jellyfin
+> account and enforced by the server, so a profile sees only what it is allowed to see on
+> every client — including ones Bonfire cannot reach at all.
 
 ---
 
@@ -173,11 +173,15 @@ Before you turn it on:
 
 ---
 
-## For Developers
+## Documentation
 
-Building a native app or custom Jellyfin client?
-
-📄 **[Developer API Reference](docs/developer-api.md)**
+| | |
+| --- | --- |
+| [docs/clients.md](docs/clients.md) | Every client, what works on it, and what does not |
+| [docs/developer-api.md](docs/developer-api.md) | All 50 routes, and the Jellyfin routes the plugin changes |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | The switcher does not appear, and other support answers |
+| [BETA-CHANNEL.md](BETA-CHANNEL.md) | Pre-release builds, and why the two version lists differ |
+| [CHANGELOG.md](CHANGELOG.md) | Every release |
 
 All 50 endpoints in one table with their authorisation level, the seven routes that work
 without a token and why each one has to, error codes and rate limits, profile switching

@@ -626,6 +626,52 @@ if (reconcile != null)
 }
 
 Console.WriteLine();
+Console.WriteLine("── A profile limited to certain devices ───────────────────────");
+
+// Device restrictions are enforced in the switcher and in verify-pin, and were enforced
+// NOWHERE on the sign-in-screen path — so a profile limited to the living room television
+// could be opened with its PIN from any phone on the internet. The restriction is the
+// whole reason somebody sets it.
+devicesList.Clear();
+Remember("family-tv", MASTER);
+knownType.GetProperty("DeviceName").SetValue(devicesList[0], "Living Room TV");
+
+var kidMapping = mappings.Cast<object>().First(m =>
+    (Guid)mappingType.GetProperty("ProfileUserId").GetValue(m) == KID);
+var allowed = (System.Collections.IList)mappingType.GetProperty("AllowedDeviceIds").GetValue(kidMapping);
+
+allowed.Clear();
+allowed.Add("family-tv");
+
+FromDevice("family-tv");
+Ok("the allowed device opens the profile with its PIN",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+
+FromDevice("some-strangers-laptop");
+Ok("a device not on the list is refused, correct PIN and all",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
+
+FromDevice(null);
+Ok("and a client that sends no device id is refused",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
+
+// The refusal must look like every other one, or the response says which profiles carry
+// device restrictions.
+FromDevice("some-strangers-laptop");
+Ok("and it looks like every other refusal",
+   Message(MakeUser(KID, "Bardkids"), "4821")
+       == Message(MakeUser(OUTSID, "someone-else"), "4821"));
+
+// An empty list has always meant "any device". Removing the last entry must not quietly
+// become a lockout.
+allowed.Clear();
+Ok("with no list at all, any device opens it again",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+
+devicesList.Clear();
+FromDevice("family-tv");
+
+Console.WriteLine();
 Console.WriteLine("── Quick Connect, after the first sign-in ─────────────────────");
 
 // Android TV opens its sign-in screen on Quick Connect and there is no way to ask it not

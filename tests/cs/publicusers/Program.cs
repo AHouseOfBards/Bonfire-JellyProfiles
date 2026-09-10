@@ -401,6 +401,42 @@ if (resolve != null)
        Resolve("tv-1", MASTER).Count == 3);
 
     Console.WriteLine();
+    Console.WriteLine("-- A profile this device may not open -------------------------");
+
+    // The provider refuses a device-restricted profile from a device not on its list, so
+    // offering it on that device's sign-in screen is a door that does not open. Listing it
+    // also tells anyone holding the television which profiles exist but are barred.
+    devicesList.Clear();
+    mappings.Clear();
+    var ANYWHERE = Guid.NewGuid();
+    var TVONLY = Guid.NewGuid();
+
+    var openRow = MappingWithPin(ANYWHERE, MASTER, "hashed");
+    var boundRow = MappingWithPin(TVONLY, MASTER, "hashed");
+    var boundList = (System.Collections.IList)mappingType.GetProperty("AllowedDeviceIds").GetValue(boundRow);
+    boundList.Add("the-one-television");
+
+    mappings.Add(openRow);
+    mappings.Add(boundRow);
+    Remember("the-one-television", MASTER);
+    Remember("a-different-tv", MASTER);
+
+    var onItsTv = ResolveSignedOut("the-one-television");
+    Ok("a device-restricted profile is offered on its own device", onItsTv.Contains(TVONLY));
+    Ok("and so is one with no restriction", onItsTv.Contains(ANYWHERE));
+
+    var elsewhere = ResolveSignedOut("a-different-tv");
+    Ok("but not on a device it is barred from", !elsewhere.Contains(TVONLY),
+       elsewhere.Count + " offered");
+    Ok("while the unrestricted one still is", elsewhere.Contains(ANYWHERE));
+    Ok("and the master is offered either way", elsewhere.Contains(MASTER));
+
+    devicesList.Clear();
+    mappings.Clear();
+    mappings.Add(Mapping(KID, MASTER));
+    mappings.Add(Mapping(GUEST, MASTER));
+
+    Console.WriteLine();
     Console.WriteLine("-- Who fills the record in ------------------------------------");
 
     // KnownDevices has existed since the device-restrictions work and already had

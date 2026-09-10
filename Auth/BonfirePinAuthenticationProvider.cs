@@ -206,6 +206,35 @@ namespace Jellyfin.Profiles.Auth
                 return DelegateToJellyfin(resolvedUser, password);
             }
 
+            // A profile limited to particular devices is limited here too.
+            //
+            // The switcher and verify-pin both enforce this, and the sign-in-screen path
+            // enforced it nowhere — so a profile restricted to the living room television
+            // could be opened with its PIN from any phone on the internet. Restricting it
+            // is the whole reason somebody sets the list.
+            //
+            // The same evaluator as the other two call sites, not a copy: a copy is where
+            // the two halves of a rule drift apart.
+            var access = Controllers.ProfilesBaseController.EvaluateDeviceRestriction(
+                mapping,
+                RequestDevice.Current,
+                Plugin.Instance?.Configuration?.KnownDevices);
+
+            if (access != Controllers.ProfilesBaseController.DeviceAccess.NotRestricted
+                && access != Controllers.ProfilesBaseController.DeviceAccess.Allowed)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: refused a client sign-in to profile {ProfileId} from device "
+                    + "{DeviceId} ({Reason}).",
+                    mapping.ProfileUserId,
+                    string.IsNullOrEmpty(RequestDevice.Current) ? "(none sent)" : RequestDevice.Current,
+                    access);
+
+                // Declined with the message every other refusal carries, so a response
+                // cannot say which profiles are device-restricted.
+                throw Decline();
+            }
+
             // A profile with no PIN opens with an empty box — but only on a device the
             // household has actually signed in on.
             //

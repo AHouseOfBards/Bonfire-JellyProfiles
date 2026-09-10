@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Jellyfin.Data.Queries;
 using Jellyfin.Extensions.Json;
+using Jellyfin.Profiles.Configuration;
 using Jellyfin.Profiles.Controllers;
 using MediaBrowser.Controller.Devices;
 using MediaBrowser.Controller.Library;
@@ -151,9 +152,15 @@ namespace Jellyfin.Profiles.Auth
             // Only one household, deliberately. Two families sharing a television get the
             // most recent, and share by making a sub-profile or a Bonfire grouping instead —
             // otherwise a guest signing in on your set would leave your profiles on it.
+            // A profile limited to particular devices is only offered on one of them. The
+            // provider refuses it from anywhere else, so listing it here would be a door
+            // that does not open — and would tell whoever holds the television which
+            // profiles exist but are barred to it.
             var household = new List<Guid> { masterId };
             household.AddRange(config.Mappings
-                .Where(m => m.MasterUserId == masterId && m.ProfileUserId != masterId)
+                .Where(m => m.MasterUserId == masterId
+                            && m.ProfileUserId != masterId
+                            && IsOfferedOn(m, deviceId, config))
                 .Select(m => m.ProfileUserId));
 
             logger?.LogInformation(
@@ -162,6 +169,21 @@ namespace Jellyfin.Profiles.Auth
                 deviceId, seenFrom, masterId, household.Count);
 
             return household;
+        }
+
+
+        /// <summary>
+        /// Whether this profile may be entered from this device, by the same rules the
+        /// switcher and the authentication provider use. One evaluator, three call sites.
+        /// </summary>
+        private static bool IsOfferedOn(
+            ProfileMapping mapping, string? deviceId, Configuration.PluginConfiguration config)
+        {
+            var access = ProfilesBaseController.EvaluateDeviceRestriction(
+                mapping, deviceId, config.KnownDevices);
+
+            return access == ProfilesBaseController.DeviceAccess.NotRestricted
+                || access == ProfilesBaseController.DeviceAccess.Allowed;
         }
 
         /// <summary>
