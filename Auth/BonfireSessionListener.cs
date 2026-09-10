@@ -44,6 +44,14 @@ namespace Jellyfin.Profiles.Auth
         public Task StartAsync(CancellationToken cancellationToken)
         {
             _sessionManager.SessionStarted += OnSessionStarted;
+
+            // Said out loud on purpose. Without it, "no profiles appeared" cannot be told
+            // apart from "the listener never started", and those have completely different
+            // fixes. One line per server start is not a cost.
+            _logger.LogInformation(
+                "ProfilesPlugin: watching for sign-ins, so the devices people use can be "
+                + "offered their household's profiles on a sign-in screen.");
+
             return Task.CompletedTask;
         }
 
@@ -75,10 +83,18 @@ namespace Jellyfin.Profiles.Auth
                 //
                 // Asked as its own question rather than read off HouseholdOf, which returns
                 // the account itself when it knows of no mapping and so is never empty.
-                if (!DeviceRegistry.IsHousehold(config, session.UserId)) return;
+                var master = DeviceRegistry.IsHousehold(config, session.UserId)
+                    ? DeviceRegistry.HouseholdOf(config, session.UserId)
+                    : Guid.Empty;
 
-                var master = DeviceRegistry.HouseholdOf(config, session.UserId);
-                if (master == Guid.Empty) return;
+                if (master == Guid.Empty)
+                {
+                    _logger.LogInformation(
+                        "ProfilesPlugin: {User} signed in on device {DeviceId} ({Client}), which is not a "
+                        + "Bonfire household, so nothing was noted for its sign-in screen.",
+                        session.UserName, session.DeviceId, session.Client);
+                    return;
+                }
 
                 DeviceRegistry.RecordAndSave(
                     session.DeviceId,
@@ -87,9 +103,16 @@ namespace Jellyfin.Profiles.Auth
                     master,
                     _logger);
 
-                _logger.LogDebug(
-                    "ProfilesPlugin: {User} signed in on device {DeviceId} ({Client}); "
-                    + "household {Master} noted for its sign-in screen.",
+                // Information, not Debug. This is the half of the feature that WRITES, and
+                // shipping it silent in 1.6.1.7 repeated the exact mistake 1.6.1.6 existed to
+                // fix on the reading half: a device that was never recorded and a device that
+                // was recorded and then not read produce the same visible nothing.
+                //
+                // SessionStarted fires once per new session, not per request, so this is a
+                // handful of lines a day even on a busy server.
+                _logger.LogInformation(
+                    "ProfilesPlugin: {User} signed in on device {DeviceId} ({Client}); household "
+                    + "{Master} noted, so its profiles can be offered on this device's sign-in screen.",
                     session.UserName, session.DeviceId, session.Client, master);
             }
             catch (Exception ex)

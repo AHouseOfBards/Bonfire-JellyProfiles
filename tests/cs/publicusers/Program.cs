@@ -468,6 +468,22 @@ if (resolve != null)
     Ok("and it is registered with the DI container",
        registrar.Contains("BonfireSessionListener"));
 
+    // The writing half has to be as loud as the reading half, and in 1.6.1.7 it was not:
+    // the recording logged at Debug, so a household that saw no profiles could not be told
+    // apart from a listener that never fired or never started. That is the same defect
+    // 1.6.1.6 shipped to fix on the reading side, repeated one release later on the other
+    // side of the same feature.
+    var listenerSrc = File.ReadAllText(
+        Path.Combine(RepoRoot(), "Auth", "BonfireSessionListener.cs"));
+    Ok("the listener announces itself at startup, so silence means it did not start",
+       listenerSrc.Contains("StartAsync")
+       && listenerSrc.Split(new[] { "StartAsync" }, StringSplitOptions.None)[1]
+                     .Split(new[] { "StopAsync" }, StringSplitOptions.None)[0]
+                     .Contains("LogInformation"));
+    Ok("and reports what it recorded at Information, not Debug",
+       listenerSrc.Contains("noted, so its profiles can be offered")
+       && !listenerSrc.Contains("LogDebug"));
+
     devicesList.Clear();
 }
 
