@@ -13,7 +13,7 @@
         "changelog": "**Added**\n\n- Profiles can now appear on the sign-in screen of apps that never load the web client, such as Android TV, and be opened with their PIN. New settings under Dashboard -> Bonfire -> TVs & Apps, all off until you turn them on.\n- On those screens a profile shows the name you gave it, not the full account name.\n- An account that owns profiles can sign in with its PIN as well as its password.\n- Apps can be sent straight to the password field instead of a Quick Connect code.\n- \"Who's watching?\" on startup can be set per device instead of everywhere at once.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.2/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "c68ceee0ceb81d87e726f52f1e973e0e",
         "timestamp": "2026-09-10T21:30:00Z"
       },
       {
