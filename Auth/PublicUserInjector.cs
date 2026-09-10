@@ -70,11 +70,34 @@ namespace Jellyfin.Profiles.Auth
                 .FirstOrDefault();
             if (newest == null || newest.UserId == Guid.Empty) return none;
 
-            // Resolve to the household. A sub-profile maps to its master; a master maps to
-            // itself; an account Bonfire does not know maps to nothing.
+            // Resolve to the household.
+            //
+            // A sub-profile carries a mapping row that names its master. A MASTER usually
+            // does NOT: creating a profile writes a row for the profile only, and a row for
+            // the master itself is written just once, lazily, the first time switcher
+            // preferences are saved. Most households therefore have no row for the person
+            // who owns the profiles.
+            //
+            // 1.6.1.4 required one and returned nothing without it, so signing in as
+            // yourself on a new television — the very first step of the feature — left the
+            // list empty. The sub-profiles pointing AT an account are proof enough that it
+            // is a master, so use that instead of demanding a row that may never be written.
+            Guid masterId;
             var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == newest.UserId);
-            if (mapping == null) return none;
-            var masterId = mapping.MasterUserId;
+            if (mapping != null)
+            {
+                masterId = mapping.MasterUserId;
+            }
+            else if (config.Mappings.Any(m => m.MasterUserId == newest.UserId))
+            {
+                masterId = newest.UserId;
+            }
+            else
+            {
+                // Nobody Bonfire knows. Every other account on the server lands here, which
+                // is what keeps them out of a household they have nothing to do with.
+                return none;
+            }
 
             // Only one household, deliberately. Two families sharing a television get the
             // most recent, and share by making a sub-profile or a Bonfire grouping instead —

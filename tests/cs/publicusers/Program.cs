@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using MediaBrowser.Model.Querying;
+using Jellyfin.Database.Implementations.Entities.Security;
+using MediaBrowser.Controller.Devices;
 using System.Text;
 using System.Text.Json;
 using Jellyfin.Extensions.Json;
@@ -179,6 +182,94 @@ Ok("a user Jellyfin already returned is not added twice", dupResult == null,
    "null means the response was left exactly as it arrived");
 
 Console.WriteLine();
+Console.WriteLine("── Whose television is this? ──────────────────────────────────");
+
+// ResolveHousehold decides whether to touch the response at all, and it shipped in
+// 1.6.1.4 with NO coverage. It required the signed-in account to have a mapping row of
+// its own — which a MASTER usually does not have, because creating a profile writes a row
+// for the profile only and a master's own row is written just once, lazily, the first time
+// switcher preferences are saved. So signing in as yourself on a new television, the very
+// first step of the whole feature, produced an empty list.
+var resolve = injectorType.GetMethod("ResolveHousehold", BindingFlags.Public | BindingFlags.Static);
+Ok("the injector exposes its household lookup", resolve != null);
+
+if (resolve != null)
+{
+    var pluginType = asm.GetType("Jellyfin.Profiles.Plugin", true);
+    var cfgType = asm.GetType("Jellyfin.Profiles.Configuration.PluginConfiguration", true);
+    var mappingType = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);
+
+    var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-pubusers-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(tempDir);
+    var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
+    var config = pluginType.GetProperty("Configuration", BindingFlags.Public | BindingFlags.Instance)
+        .GetValue(plugin);
+    cfgType.GetProperty("EnableClientProfileList").SetValue(config, true);
+
+    var MASTER = Guid.NewGuid();
+    var KID = Guid.NewGuid();
+    var GUEST = Guid.NewGuid();
+    var STRANGER = Guid.NewGuid();
+
+    object Mapping(Guid profile, Guid master)
+    {
+        var m = Activator.CreateInstance(mappingType);
+        mappingType.GetProperty("ProfileUserId").SetValue(m, profile);
+        mappingType.GetProperty("MasterUserId").SetValue(m, master);
+        mappingType.GetProperty("ProfileName").SetValue(m, "p");
+        return m;
+    }
+
+    var mappings = (System.Collections.IList)cfgType.GetProperty("Mappings").GetValue(config);
+    // Deliberately NO row for MASTER — this is the shape a real household actually has.
+    mappings.Add(Mapping(KID, MASTER));
+    mappings.Add(Mapping(GUEST, MASTER));
+
+    const string HEADER_FMT = "MediaBrowser Client=\"tv\", Device=\"telly\", DeviceId=\"{0}\", Version=\"1\"";
+
+    IReadOnlyList<Guid> Resolve(string deviceId, Guid? lastUser, DateTime? when = null)
+    {
+        var dm = DeviceManagerStub.Create(deviceId, lastUser, when ?? DateTime.UtcNow);
+        return (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
+        {
+            string.Format(HEADER_FMT, deviceId), null, dm, config
+        });
+    }
+
+    // The case that shipped broken.
+    var afterMasterSignIn = Resolve("tv-1", MASTER);
+    Ok("a master with no mapping row of its own is still recognised",
+       afterMasterSignIn.Count == 3, afterMasterSignIn.Count + " user(s)");
+    Ok("and the household is the master plus both profiles",
+       afterMasterSignIn.Contains(MASTER) && afterMasterSignIn.Contains(KID)
+       && afterMasterSignIn.Contains(GUEST));
+
+    // Switching into a sub-profile makes IT the newest session; the household must not
+    // empty, which is why the resolution goes through the master rather than the user.
+    var afterProfileSignIn = Resolve("tv-1", KID);
+    Ok("after switching into a profile the household is unchanged",
+       afterProfileSignIn.Count == 3 && afterProfileSignIn.Contains(MASTER));
+
+    // Everyone else on the server.
+    Ok("an account Bonfire does not know resolves to nothing",
+       Resolve("tv-1", STRANGER).Count == 0);
+    Ok("a device nobody has signed in on resolves to nothing",
+       Resolve("tv-unknown", null).Count == 0);
+
+    // The header is the only way we learn the device. Moonfin sends none at all.
+    var noHeader = (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
+    {
+        null, null, DeviceManagerStub.Create("tv-1", MASTER, DateTime.UtcNow), config
+    });
+    Ok("a request with no Authorization header resolves to nothing", noHeader.Count == 0);
+
+    // Off means off, whatever else is true.
+    cfgType.GetProperty("EnableClientProfileList").SetValue(config, false);
+    Ok("and nothing resolves while the setting is off", Resolve("tv-1", MASTER).Count == 0);
+    cfgType.GetProperty("EnableClientProfileList").SetValue(config, true);
+}
+
+Console.WriteLine();
 if (fails.Count > 0)
 {
     foreach (var f in fails) Console.WriteLine("   - " + f);
@@ -225,4 +316,84 @@ public class UserManagerStub : DispatchProxy
                     + ", which this harness does not model");
         }
     }
+}
+
+// One device, one last-known user. DispatchProxy because IDeviceManager gains and loses
+// members between patch releases.
+public class DeviceManagerStub : DispatchProxy
+{
+    private string _deviceId;
+    private Guid? _userId;
+    private DateTime _when;
+
+    public static IDeviceManager Create(string deviceId, Guid? userId, DateTime when)
+    {
+        var proxy = Create<IDeviceManager, DeviceManagerStub>();
+        var stub = (DeviceManagerStub)(object)proxy;
+        stub._deviceId = deviceId;
+        stub._userId = userId;
+        stub._when = when;
+        return proxy;
+    }
+
+    protected override object Invoke(MethodInfo targetMethod, object[] args)
+    {
+        if (targetMethod.Name != "GetDevices")
+        {
+            throw new NotSupportedException(
+                "the injector called IDeviceManager." + targetMethod.Name
+                + ", which this harness does not model");
+        }
+
+        var query = args[0];
+        var wanted = (string)query.GetType().GetProperty("DeviceId").GetValue(query);
+
+        var items = new List<Device>();
+        if (_userId.HasValue && string.Equals(wanted, _deviceId, StringComparison.Ordinal))
+        {
+            var d = (Device)System.Runtime.CompilerServices.RuntimeHelpers
+                .GetUninitializedObject(typeof(Device));
+            typeof(Device).GetProperty("UserId").SetValue(d, _userId.Value);
+            typeof(Device).GetProperty("DeviceId").SetValue(d, _deviceId);
+            typeof(Device).GetProperty("DateLastActivity").SetValue(d, _when);
+            items.Add(d);
+        }
+
+        return new QueryResult<Device>(items);
+    }
+}
+
+sealed class StubPaths : MediaBrowser.Common.Configuration.IApplicationPaths
+{
+    private readonly string _root;
+    public StubPaths(string root) { _root = root; }
+    public string ProgramDataPath => _root;
+    public string WebPath => _root;
+    public string ProgramSystemPath => _root;
+    public string DataPath => _root;
+    public string ImageCachePath => _root;
+    public string PluginsPath => _root;
+    public string PluginConfigurationsPath => _root;
+    public string LogDirectoryPath => _root;
+    public string ConfigurationDirectoryPath => _root;
+    public string SystemConfigurationFilePath => Path.Combine(_root, "system.xml");
+    public string CachePath { get => _root; set { } }
+    public string TempDirectory => _root;
+    public string VirtualDataPath => _root;
+    public string TrickplayPath => _root;
+    public string BackupPath => _root;
+    public void MakeSanityCheckOrThrow() { }
+    public void CreateAndCheckMarker(string path, string markerName, bool recursive = false) { }
+}
+
+sealed class StubXml : MediaBrowser.Model.Serialization.IXmlSerializer
+{
+    public void SerializeToStream(object obj, Stream stream) { }
+    public void SerializeToFile(object obj, string file) { }
+    public object DeserializeFromFile(Type type, string file)
+        => throw new FileNotFoundException("stub serializer", file);
+    public object DeserializeFromStream(Type type, Stream stream)
+        => throw new NotSupportedException();
+    public object DeserializeFromBytes(Type type, byte[] buffer)
+        => throw new NotSupportedException();
 }
