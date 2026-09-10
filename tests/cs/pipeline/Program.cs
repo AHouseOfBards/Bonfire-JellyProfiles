@@ -1,4 +1,6 @@
 using System;
+using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Devices;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -39,6 +41,8 @@ void Check(string name, bool condition)
 var networkConfig = new NetworkConfiguration();
 
 var serverConfig = DispatchProxy.Create<IServerConfigurationManager, ThrowingProxy>();
+var userManager = DispatchProxy.Create<IUserManager, ThrowingProxy>();
+var deviceManager = DispatchProxy.Create<IDeviceManager, ThrowingProxy>();
 ((ThrowingProxy)(object)serverConfig).AnswerTo = "GetConfiguration";
 ((ThrowingProxy)(object)serverConfig).Answer = networkConfig;
 
@@ -84,7 +88,10 @@ async Task<Result> Run(string path, RequestDelegate downstream, Action<HttpConte
     };
 
     var middleware = new ProfilesIndexMiddleware(next, NullLogger<ProfilesIndexMiddleware>.Instance);
-    await middleware.Invoke(context, serverConfig);
+    // The user-list injection takes these; the index path this file exercises never
+    // touches them, and both proxies throw on any call — so if that ever stops being true,
+    // these tests say so loudly instead of quietly exercising a different path.
+    await middleware.Invoke(context, serverConfig, userManager, deviceManager);
 
     return new Result
     {
@@ -267,6 +274,125 @@ await Run("/web/index.html", WriteBody("<p>broken</p>"));
 Check("failure is recorded again", !string.IsNullOrEmpty(LastError()));
 await Run("/web/index.html", WriteBody(sent.Body));
 Check("passing an already-injected page through clears it too", LastError() == null);
+
+Console.WriteLine();
+Console.WriteLine("── Which requests this middleware answers itself ──────────────");
+
+// The middleware now intercepts three paths besides the index document, and each is
+// matched by a private predicate. Those predicates had no coverage at all while the
+// functions on either side of them had eighty-odd assertions between them — which is the
+// shape of every defect this project has shipped: the code that DECIDES whether a feature
+// runs is the code nobody tests.
+//
+// Driven by reflection because they are private, and with a real DefaultHttpContext so
+// the path and method are read the way a request presents them.
+var mwType = typeof(ProfilesIndexMiddleware);
+const System.Reflection.BindingFlags Priv =
+    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
+
+bool Ask(string methodName, string verb, string path)
+{
+    var m = mwType.GetMethod(methodName, Priv);
+    if (m == null) throw new InvalidOperationException(methodName + " is gone");
+
+    var ctx = new DefaultHttpContext();
+    ctx.Request.Method = verb;
+    ctx.Request.Path = path;
+    return (bool)m.Invoke(null, new object[] { ctx });
+}
+
+Check("the own-user predicate exists", mwType.GetMethod("IsOwnUserPath", Priv) != null);
+Check("the quick-connect predicate exists", mwType.GetMethod("IsQuickConnectInitiatePath", Priv) != null);
+
+// Quick Connect. The obsolete GET form is routed by Jellyfin and simply calls the POST
+// one, so leaving it out would be a way straight around the setting.
+Check("POST /QuickConnect/Initiate is ours",
+      Ask("IsQuickConnectInitiatePath", "POST", "/QuickConnect/Initiate"));
+Check("the obsolete GET form is ours too",
+      Ask("IsQuickConnectInitiatePath", "GET", "/QuickConnect/Initiate"));
+Check("under a base url it is still ours",
+      Ask("IsQuickConnectInitiatePath", "POST", "/jellyfin/QuickConnect/Initiate"));
+Check("but not the endpoint that reads a code back",
+      !Ask("IsQuickConnectInitiatePath", "GET", "/QuickConnect/Connect"));
+Check("and not a path that merely starts the same way",
+      !Ask("IsQuickConnectInitiatePath", "POST", "/QuickConnect/InitiateSomething"));
+Check("and not another verb entirely",
+      !Ask("IsQuickConnectInitiatePath", "DELETE", "/QuickConnect/Initiate"));
+
+// The device id is captured for the provider to read during authentication, and ONLY on
+// user routes. The first version captured on every request, which put a quote-aware
+// character scan with a UrlDecode in front of every video segment and image on the server.
+// Too narrow is worse than too wide here: a missed capture makes the provider see no
+// device and refuse a PIN-less profile, silently.
+Check("the capture predicate exists", mwType.GetMethod("IsUserRoute", Priv) != null);
+
+Check("POST /Users/AuthenticateByName is captured for",
+      Ask("IsUserRoute", "POST", "/Users/AuthenticateByName"));
+Check("the obsolete per-user authenticate is captured for",
+      Ask("IsUserRoute", "POST", "/Users/8e3cdfa5/Authenticate"));
+Check("a password change is captured for",
+      Ask("IsUserRoute", "POST", "/Users/8e3cdfa5/Password"));
+Check("and quick connect authentication is too",
+      Ask("IsUserRoute", "POST", "/Users/AuthenticateWithQuickConnect"));
+Check("under a base url as well",
+      Ask("IsUserRoute", "POST", "/jellyfin/Users/AuthenticateByName"));
+
+// The traffic this exists to stop scanning.
+Check("a video segment is not", !Ask("IsUserRoute", "GET", "/Videos/8e3cdfa5/hls1/main/0.mp4"));
+Check("an item image is not", !Ask("IsUserRoute", "GET", "/Items/8e3cdfa5/Images/Primary"));
+Check("a web asset is not", !Ask("IsUserRoute", "GET", "/web/index.html"));
+Check("an audio stream is not", !Ask("IsUserRoute", "GET", "/Audio/8e3cdfa5/universal"));
+Check("and the plugin's own script is not",
+      !Ask("IsUserRoute", "GET", "/plugins/profiles/profiles.js"));
+
+// The own-user responses are gated on the setting, and with no plugin configured at all
+// there is nothing to rename — so every answer here must be false. That is worth pinning
+// on its own: a predicate that said yes with no configuration would buffer every
+// /Users/Me on the server for nothing.
+Check("with no configuration, /Users/Me is not ours",
+      !Ask("IsOwnUserPath", "GET", "/Users/Me"));
+Check("nor is the authentication endpoint",
+      !Ask("IsOwnUserPath", "POST", "/Users/AuthenticateByName"));
+
+Console.WriteLine();
+Console.WriteLine("── The emergency disable reaches all of it ────────────────────");
+
+// Panic exists to recover a server the plugin has made unusable, and it used to have one
+// job: serve an inert client script, so the switcher disappears on the next page load.
+//
+// That was enough while everything Bonfire did happened in its own script. It is not
+// enough now: the plugin edits Jellyfin's OWN responses — the sign-in user list, the two
+// responses naming the signed-in account, and Quick Connect. If one of those is the thing
+// misbehaving, an inert script recovers nothing, and the switch an administrator reaches
+// for in an emergency would not turn it off.
+var panicField = typeof(Plugin).GetField("_panicDisabled",
+    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+Check("the panic flag is reachable", panicField != null);
+
+if (panicField != null)
+{
+    // Set directly rather than through TripPanicDisable, which by design has no way back —
+    // "there is no code path that clears it". A harness is not a code path, but it does
+    // have to leave the process as it found it.
+    panicField.SetValue(null, true);
+    try
+    {
+        // Only Quick Connect is asserted here. The other two predicates also require
+        // EnableClientProfileList, and this harness has no plugin instance to switch it on
+        // with — so they read false whether panic works or not, which is an assertion that
+        // cannot fail. They live in tests/cs/publicusers, where the setting can be true and
+        // panic is the only thing left making the difference.
+        Check("panic stops refusing Quick Connect",
+              !Ask("IsQuickConnectInitiatePath", "POST", "/QuickConnect/Initiate"));
+    }
+    finally
+    {
+        panicField.SetValue(null, false);
+    }
+
+    Check("and clearing it puts Quick Connect matching back",
+          Ask("IsQuickConnectInitiatePath", "POST", "/QuickConnect/Initiate"));
+}
 
 Console.WriteLine();
 Console.WriteLine("── Counters ────────────────────────────────────────────────────");

@@ -4,9 +4,16 @@
 #
 #   tests/run.sh              # everything
 #   tests/run.sh js           # just the JavaScript harnesses
-#   tests/run.sh cs           # just the C# ones
+#   tests/run.sh cs           # just the C# ones, against the net9.0 build that ships
+#   tests/run.sh cs10         # the same set, against the net10.0 build
 #
-# The C# harnesses reference bin/Release/net9.0/Jellyfin.Profiles.dll, so the plugin is
+# The plugin multi-targets net9.0 and net10.0 — Jellyfin 10.11.x runs on .NET 9 and 12.0
+# on .NET 10. net9.0 is what ships, because it is the only one of the two that loads on
+# both servers, so `all` runs the C# set against that one. `cs10` is what proves the other
+# build is not merely compiling: a plugin nobody has ever loaded is not a working plugin,
+# which is the whole lesson of 1.5.2.
+#
+# The C# harnesses reference bin/Release/<tfm>/Jellyfin.Profiles.dll, so the plugin is
 # built first unless SKIP_BUILD is set.
 set -uo pipefail
 
@@ -31,6 +38,11 @@ run() {                       # run <label> <command...>
         echo "$out" | sed 's/^/        /' | tail -25
     fi
 }
+
+# The framework the C# harnesses load the plugin from. They set their own TargetFramework
+# from it too, because a net9 harness cannot load a net10 assembly.
+TFM="net9.0"
+[ "$WHICH" = "cs10" ] && TFM="net10.0"
 
 if [ "$WHICH" != "js" ]; then
     echo "── Building the plugin (Release) ──────────────────────────────"
@@ -60,10 +72,10 @@ if [ "$WHICH" = "all" ] || [ "$WHICH" = "js" ]; then
     echo
 fi
 
-if [ "$WHICH" = "all" ] || [ "$WHICH" = "cs" ]; then
-    echo "── C# ─────────────────────────────────────────────────────────"
+if [ "$WHICH" = "all" ] || [ "$WHICH" = "cs" ] || [ "$WHICH" = "cs10" ]; then
+    echo "── C# (against the $TFM build) ────────────────────────────────"
     for d in tests/cs/*/; do
-        run "$(basename "$d")" dotnet run --project "$d" -c Release --nologo
+        run "$(basename "$d")" dotnet run --project "$d" -c Release --nologo             -p:BonfireTfm="$TFM"
     done
     echo
 fi

@@ -447,6 +447,41 @@ ok('an unchanged tick reads only the switching flag (' + perTick.storageReads.to
    + ' reads of: ' + (keys.join(', ') || 'nothing') + ')',
    keys.length <= 1 && (keys.length === 0 || keys[0] === 'jpf-sw'));
 
+// A device told to keep its own answer to the startup question stores that answer in
+// localStorage, and shouldAskOnStartup — which the home route calls on every tick — is
+// what reads it. Read straight through, that is a synchronous storage call and a
+// JSON.parse twice a second forever, on the device most likely to be the weakest in the
+// house. It has to be cached after the first tick like everything else here.
+const withDevice = build({
+    storage: {
+        // Filed under the sandbox's signed-in user, normalised the way the client does.
+        'jellyfin_profiles_device_gate': JSON.stringify({
+            '8e3cdfa579a84bb9bd9a0e96b7dc974a': { synced: false, askOnStartup: false }
+        })
+    }
+});
+withDevice.plugin._switcherPrefs = { askOnStartup: true, location: 'button' };
+withDevice.plugin._panicLinkAvailable = false;
+withDevice.plugin._libraryArtLoaded = true;
+
+withDevice.plugin.checkRoute();          // primes whatever caching exists
+// Proves the entry is actually in play. Without this the measurement below could be of a
+// device that never had an answer of its own, which costs nothing whatever the code does.
+ok('the device answer is the one in force for this measurement',
+   withDevice.plugin.shouldAskOnStartup() === false
+   && withDevice.plugin._switcherPrefs.askOnStartup === true);
+
+withDevice.reset();
+for (let i = 0; i < TICKS; i++) withDevice.plugin.checkRoute();
+const deviceKeys = [...new Set(withDevice.storageKeys)];
+ok('a device with its own answer still reads no extra storage per tick ('
+   + (withDevice.counts.storageReads / TICKS).toFixed(2) + ' reads of: '
+   + (deviceKeys.join(', ') || 'nothing') + ')',
+   deviceKeys.length <= 1 && (deviceKeys.length === 0 || deviceKeys[0] === 'jpf-sw'));
+ok('and parses no JSON per tick ('
+   + (withDevice.counts.jsonParse / TICKS).toFixed(2) + ')',
+   withDevice.counts.jsonParse === 0);
+
 console.log('\n── But it still notices the things it exists to notice ─────────');
 
 // The poll is not decoration. It is the only thing that sees these, because none of them

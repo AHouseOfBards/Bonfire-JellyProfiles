@@ -29,7 +29,13 @@ static string RepoPath(params string[] parts)
 // middleware can both act on the same document, and the failure mode is two copies of
 // profiles.js at different versions, which means two gates fighting each other.
 
-var asm = Assembly.LoadFrom(RepoPath("bin", "Release", "net9.0", "Jellyfin.Profiles.dll"));
+// Which build of the plugin to load. This harness's own output sits in
+// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved — there is
+// no second place to keep in step, and it cannot say net9.0 while the <Reference> that
+// compiled it pointed at net10.0. tests/run.sh cs10 runs the whole set against net10.0.
+var tfm = new System.IO.DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
+    System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)).Name;
+var asm = Assembly.LoadFrom(RepoPath("bin", "Release", tfm, "Jellyfin.Profiles.dll"));
 var wi = asm.GetType("Jellyfin.Profiles.WebInjection", true);
 var modes = asm.GetType("Jellyfin.Profiles.Configuration.IndexInjectionModes", true);
 var mw = asm.GetType("Jellyfin.Profiles.ProfilesIndexMiddleware", true);

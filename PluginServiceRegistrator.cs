@@ -1,4 +1,6 @@
+using Jellyfin.Profiles.Auth;
 using MediaBrowser.Controller;
+using MediaBrowser.Controller.Authentication;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,6 +42,21 @@ namespace Jellyfin.Profiles
             // IStartupFilter registered here is picked up like any other.
             serviceCollection.AddTransient<IStartupFilter, ProfilesStartupFilter>();
             ProfilesIndexMiddleware.IsRegistered = true;
+
+            // Lets a sub-profile be entered with its PIN from a client that has no
+            // switcher — a television, mostly. UserManager takes
+            // IEnumerable<IAuthenticationProvider> in its constructor, so registering here
+            // is all it takes to be offered one; the provider reports IsEnabled false
+            // until an administrator turns the feature on, and Jellyfin filters disabled
+            // providers out before it matches a user against one.
+            serviceCollection.AddSingleton<IAuthenticationProvider, BonfirePinAuthenticationProvider>();
+
+            // Notes which household a device belongs to, every time anyone signs in on it.
+            //
+            // Without this the sign-in-screen profile list cannot work on a television at
+            // all: Jellyfin deletes its own Device row on logout, and Android TV logs out
+            // before opening the picker. Bonfire's record is the only one that survives.
+            serviceCollection.AddHostedService<BonfireSessionListener>();
         }
     }
 }

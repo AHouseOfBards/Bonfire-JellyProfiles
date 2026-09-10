@@ -58,7 +58,13 @@ void Ok(string name, bool cond)
     else { fails.Add(name); Console.WriteLine("  FAIL  " + name); }
 }
 
-var dll = RepoPath("bin", "Release", "net9.0", "Jellyfin.Profiles.dll");
+// Which build of the plugin to load. This harness's own output sits in
+// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved — there is
+// no second place to keep in step, and it cannot say net9.0 while the <Reference> that
+// compiled it pointed at net10.0. tests/run.sh cs10 runs the whole set against net10.0.
+var tfm = new System.IO.DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
+    System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)).Name;
+var dll = RepoPath("bin", "Release", tfm, "Jellyfin.Profiles.dll");
 var asm = Assembly.LoadFrom(dll);
 var cfgType = asm.GetType("Jellyfin.Profiles.Configuration.PluginConfiguration", true);
 var baseCtl = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController", true);
@@ -186,9 +192,20 @@ Console.WriteLine("── Every lock in the plugin, one at a time ────�
 // A lock target is acceptable only if it is a static object whose lifetime does
 // not depend on the configuration. Each entry says why it is allowed, so adding
 // to this list is a decision somebody has to write down.
+// One field, two legal spellings: bare inside ProfilesBaseController, qualified from
+// anywhere else. Enumerated instead of prefix-stripped so a different type's ConfigLock
+// is still a failure.
+static bool IsConfigLock(string target) =>
+    target == "ConfigLock" || target == "ProfilesBaseController.ConfigLock";
+
 var allowed = new Dictionary<string, string>(StringComparer.Ordinal)
 {
     ["ConfigLock"]   = "static readonly on ProfilesBaseController; survives a settings save",
+    // The same field, named from outside the class that declares it. Spelled out rather
+    // than matched by stripping the qualifier, which would have admitted any type's
+    // ConfigLock — and the whole point of this table is that one object is THE lock.
+    ["ProfilesBaseController.ConfigLock"]
+                     = "the same static readonly field, qualified from another class",
     ["AuditLogLock"] = "static readonly; guards the audit_log.json path and file",
     ["JsCacheLock"]  = "static readonly; guards the one-time profiles.js cache",
     ["PatchLock"]    = "static readonly in ProfilesBootstrapTask; guards index.html patching",
@@ -306,7 +323,7 @@ static List<int> FindUnguardedSaves(IReadOnlyList<string> lines, Regex rx)
     {
         var line = lines[i];
 
-        if (line.Contains("SaveConfiguration()") && !openLocks.Any(l => l.Target == "ConfigLock"))
+        if (line.Contains("SaveConfiguration()") && !openLocks.Any(l => IsConfigLock(l.Target)))
             bad.Add(i + 1);
 
         var m = rx.Match(line);

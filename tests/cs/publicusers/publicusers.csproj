@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Which build of the plugin this harness loads, and therefore which runtime it
+         must itself run on: a net9 harness cannot load the net10 assembly. Defaults to
+         net9.0, the one that ships. tests/run.sh cs10 runs the whole set against the
+         other one. -->
+    <BonfireTfm Condition="'$(BonfireTfm)' == ''">net9.0</BonfireTfm>
+    <TargetFramework>$(BonfireTfm)</TargetFramework>
+    <Nullable>disable</Nullable>
+    <AssemblyName>publicusers</AssemblyName>
+    <RootNamespace>publicusers</RootNamespace>
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <!-- PluginConfiguration derives from BasePluginConfiguration in MediaBrowser.Model,
+       so reflecting on it needs the model assembly present at run time. -->
+  <ItemGroup>
+    <PackageReference Include="Jellyfin.Common" Version="10.11.5" />
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.5" />
+    <PackageReference Include="Jellyfin.Extensions" Version="10.11.5" />
+    <PackageReference Include="Jellyfin.Model" Version="10.11.5" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Jellyfin.Profiles">
+      <HintPath>$(MSBuildThisFileDirectory)..\..\..\bin\Release\$(BonfireTfm)\Jellyfin.Profiles.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

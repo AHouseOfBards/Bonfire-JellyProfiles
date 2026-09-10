@@ -22,6 +22,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
+using Jellyfin.Profiles.Auth;
+
 namespace Jellyfin.Profiles.Controllers
 {
     /// <summary>
@@ -256,38 +258,15 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         // ── PIN hashing ─────────────────────────────────────────────────────────────
-        // PINs are 4-8 digits, so the entire keyspace (10^4 - 10^8) is trivially
-        // enumerable against a fast unsalted digest. Hashes are therefore PBKDF2-SHA256
-        // with a per-PIN random salt, stored as:
-        //     pbkdf2.sha256$<iterations>$<base64 salt>$<base64 hash>
-        //
-        // Hashes written before this change are bare 64-char SHA-256 hex. Those are still
-        // accepted on verification and transparently re-hashed to the new format on the
-        // next successful entry, so no existing PIN is invalidated.
+        // The primitives moved to Auth/PinHasher.cs when the authentication provider
+        // needed them too — a provider is not a controller, and the alternative was a
+        // second implementation of a security primitive. These stay as thin wrappers so
+        // every existing call site reads the same and the harnesses still find them.
 
-        private const int PinIterations = 150_000;
-        private const int PinSaltBytes = 16;
-        private const int PinHashBytes = 32;
-        private const string PinHashPrefix = "pbkdf2.sha256$";
-
-        protected string HashPin(string? pin)
-        {
-            if (string.IsNullOrEmpty(pin)) return string.Empty;
-
-            var salt = RandomNumberGenerator.GetBytes(PinSaltBytes);
-            var hash = Rfc2898DeriveBytes.Pbkdf2(
-                Encoding.UTF8.GetBytes(pin), salt, PinIterations, HashAlgorithmName.SHA256, PinHashBytes);
-
-            return $"{PinHashPrefix}{PinIterations}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
-        }
-
-        /// <summary>Legacy (pre-PBKDF2) unsalted SHA-256 hex digest. Verification only.</summary>
-        private static string LegacyHashPin(string pin)
-            => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(pin))).ToLowerInvariant();
+        protected string HashPin(string? pin) => PinHasher.Hash(pin);
 
         /// <summary>True when the stored hash still uses the legacy format and should be upgraded.</summary>
-        protected static bool IsLegacyPinHash(string? storedHash)
-            => !string.IsNullOrEmpty(storedHash) && !storedHash.StartsWith(PinHashPrefix, StringComparison.Ordinal);
+        protected static bool IsLegacyPinHash(string? storedHash) => PinHasher.IsLegacy(storedHash);
 
         /// <summary>
         /// Constant-time comparison of a candidate PIN against a stored hash of either format.
@@ -295,45 +274,15 @@ namespace Jellyfin.Profiles.Controllers
         /// </summary>
         protected bool VerifyPinHash(string? pin, string? storedHash)
         {
-            if (string.IsNullOrEmpty(pin) || string.IsNullOrEmpty(storedHash)) return false;
-
-            if (IsLegacyPinHash(storedHash))
-            {
-                return CryptographicOperations.FixedTimeEquals(
-                    Encoding.UTF8.GetBytes(LegacyHashPin(pin)),
-                    Encoding.UTF8.GetBytes(storedHash));
-            }
-
-            // pbkdf2.sha256$<iterations>$<salt>$<hash>
-            var parts = storedHash.Substring(PinHashPrefix.Length).Split('$');
-            if (parts.Length != 3
-                || !int.TryParse(parts[0], out var iterations)
-                || iterations <= 0)
+            var result = PinHasher.Verify(pin, storedHash);
+            if (result == PinHasher.PinResult.MalformedHash)
             {
                 _logger.LogWarning("ProfilesPlugin: Stored PIN hash is malformed; refusing to verify.");
-                return false;
             }
 
-            try
-            {
-                var salt = Convert.FromBase64String(parts[1]);
-                var expected = Convert.FromBase64String(parts[2]);
-                var actual = Rfc2898DeriveBytes.Pbkdf2(
-                    Encoding.UTF8.GetBytes(pin), salt, iterations, HashAlgorithmName.SHA256, expected.Length);
-                return CryptographicOperations.FixedTimeEquals(actual, expected);
-            }
-            catch (FormatException ex)
-            {
-                _logger.LogWarning(ex, "ProfilesPlugin: Stored PIN hash has invalid base64; refusing to verify.");
-                return false;
-            }
+            return result == PinHasher.PinResult.Match;
         }
 
-        /// <summary>
-        /// Verifies a PIN against a mapping and, when it matches a legacy hash, upgrades the
-        /// stored hash to PBKDF2 in place. Call this instead of <see cref="VerifyPinHash"/>
-        /// wherever the mapping is available so old hashes drain away over time.
-        /// </summary>
         protected bool VerifyPinAndUpgrade(string? pin, ProfileMapping mapping, PluginConfiguration config)
         {
             if (!VerifyPinHash(pin, mapping.PinHash)) return false;
@@ -646,6 +595,21 @@ namespace Jellyfin.Profiles.Controllers
 
         // ── Misc shared helpers ─────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Whether this account can reach the server's own settings.
+        /// <para>
+        /// Read here rather than inline in the route that needs it. `Policy.IsAdministrator`
+        /// in a route body is how this codebase spells "administrators only", and
+        /// tests/js/apidocs.js reads exactly that to check the documented authorisation
+        /// level against the enforced one. Using the same token for a piece of DATA made a
+        /// user-level route look admin-only and the harness said so — correctly, because a
+        /// detector that cannot tell the two apart is a detector that will miss a real one
+        /// later. Keep the token out of route bodies.
+        /// </para>
+        /// </summary>
+        protected bool IsAdministratorAccount(Jellyfin.Database.Implementations.Entities.User user)
+            => _userManager.GetUserDto(user, string.Empty).Policy?.IsAdministrator ?? false;
+
         protected void CopyUserPolicy(
             MediaBrowser.Model.Users.UserPolicy source,
             MediaBrowser.Model.Users.UserPolicy destination)
@@ -660,119 +624,43 @@ namespace Jellyfin.Profiles.Controllers
             destination.EnableAudioPlaybackTranscoding = source.EnableAudioPlaybackTranscoding;
         }
 
+        /// <summary>
+        /// Notes the calling device against the caller's household.
+        /// <para>
+        /// The recording itself lives in <see cref="Auth.DeviceRegistry"/>, because this is
+        /// not the only caller any more and was never the important one: a television never
+        /// reaches a Bonfire route at all, so for three releases the map was written
+        /// exclusively by the web switcher — the one client that had no use for it. See
+        /// <see cref="Auth.BonfireSessionListener"/>.
+        /// </para>
+        /// </summary>
         protected void RecordDeviceActivity()
         {
-            var config = Plugin.Instance?.Configuration;
-            if (config == null) return;
-
-            // Trimmed at the door. The id is compared against whitelists with an ordinal
-            // comparison in several places, so a stray space is a different device — and the
-            // record written here is what those comparisons are made against.
-            var deviceId = GetAuthorizationParameter("DeviceId")?.Trim();
-            var deviceName = GetAuthorizationParameter("Device")?.Trim();
-            var client = GetAuthorizationParameter("Client")?.Trim();
-            if (string.IsNullOrEmpty(deviceId)) return;
+            var deviceId = GetAuthorizationParameter("DeviceId");
+            if (string.IsNullOrWhiteSpace(deviceId)) return;
 
             // Attribute the device to the caller's master account so the device picker can be
             // scoped by ownership. KnownDevices is a single server-wide list, so without this
             // every household would see every other household's hardware.
             var callerId = GetCurrentUserId();
-            var ownerId = Guid.Empty;
-            if (callerId != null)
-            {
-                var callerMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == callerId.Value);
-                ownerId = callerMapping != null ? callerMapping.MasterUserId : callerId.Value;
-            }
+            var ownerId = callerId == null
+                ? Guid.Empty
+                : Auth.DeviceRegistry.HouseholdOf(Plugin.Instance?.Configuration, callerId.Value);
 
-            lock (ConfigLock)
-            {
-                var existing = config.KnownDevices.FirstOrDefault(d =>
-                    string.Equals(d.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
-
-                var now = DateTime.UtcNow;
-                var save = false;
-
-                if (existing != null)
-                {
-                    existing.LastSeen = now;
-
-                    // A name only ever improves. A client that sends nothing must not replace
-                    // a good name with a blank — which is how rows ended up reading "Unknown
-                    // Device" despite having been named at some point — and a name an
-                    // administrator typed outranks whatever the client reports, or the rename
-                    // would last until this device's next request.
-                    if (!existing.NameIsCustom && !IsPlaceholderDeviceName(deviceName))
-                        existing.DeviceName = deviceName!;
-                    if (!string.IsNullOrWhiteSpace(client)) existing.Client = client;
-
-                    // LastSeen was in-memory only, to keep a full PluginConfiguration.xml
-                    // rewrite off every request. The cost was that it never survived a
-                    // restart: the device list came back ordered by whenever each record was
-                    // first written, and "last seen" showed a date from before the restart —
-                    // so the column an administrator uses to decide what to revoke was
-                    // reliably wrong after every server update.
-                    //
-                    // Written at most once an hour per device instead. That is far finer than
-                    // the "unseen for 180 days" question the value is actually used to answer,
-                    // and it is one write an hour rather than one a request.
-                    //
-                    // Throttled against when it was last *persisted*, not last seen: LastSeen
-                    // is bumped in memory on every request, so comparing against it would
-                    // never reach an hour on a device that is in regular use — which is every
-                    // device this matters for.
-                    var lastWrite = DevicePersistedAt.TryGetValue(existing.DeviceId, out var at)
-                        ? at
-                        : DateTime.MinValue;
-                    if (now - lastWrite >= DeviceLastSeenWriteInterval)
-                    {
-                        DevicePersistedAt[existing.DeviceId] = now;
-                        save = true;
-                    }
-
-                    // Claim ownership for records written before MasterUserId existed. This is
-                    // the one case worth persisting immediately, so it happens exactly once.
-                    if (existing.MasterUserId == Guid.Empty && ownerId != Guid.Empty)
-                    {
-                        existing.MasterUserId = ownerId;
-                        save = true;
-                    }
-                }
-                else
-                {
-                    // First time we've seen this device — persist it.
-                    config.KnownDevices.Add(new KnownDevice
-                    {
-                        DeviceId = deviceId,
-                        // Left blank rather than stamped "Unknown Device". The picker fills a
-                        // blank in from the client name and, failing that, from the device id,
-                        // so a nameless device still reads as something an administrator can
-                        // tell apart — see DisambiguateDeviceNames. Storing the placeholder
-                        // made every nameless device render as the same row.
-                        DeviceName = IsPlaceholderDeviceName(deviceName) ? string.Empty : deviceName!,
-                        Client = string.IsNullOrWhiteSpace(client) ? string.Empty : client,
-                        LastSeen = now,
-                        MasterUserId = ownerId
-                    });
-                    DevicePersistedAt[deviceId] = now;
-                    save = true;
-                }
-
-                // Only while we are writing anyway, and at most once a day. KnownDevices is a
-                // single server-wide list that only ever grew: every phone that ever hit the
-                // server stayed in it forever, and the device picker is a list an administrator
-                // has to read.
-                if (save) save |= PruneStaleDevices(config, now);
-
-                if (save) Plugin.Instance?.SaveConfiguration();
-            }
+            Auth.DeviceRegistry.RecordAndSave(
+                deviceId,
+                GetAuthorizationParameter("Device"),
+                GetAuthorizationParameter("Client"),
+                ownerId,
+                _logger);
         }
 
         // ── Device housekeeping ─────────────────────────────────────────────────────
 
         /// <summary>When each device's LastSeen was last written to disk. See RecordDeviceActivity.</summary>
-        private static readonly ConcurrentDictionary<string, DateTime> DevicePersistedAt = new();
+        internal static readonly ConcurrentDictionary<string, DateTime> DevicePersistedAt = new();
 
-        private static readonly TimeSpan DeviceLastSeenWriteInterval = TimeSpan.FromHours(1);
+        internal static readonly TimeSpan DeviceLastSeenWriteInterval = TimeSpan.FromHours(1);
 
         /// <summary>How long a device may go unseen before it is dropped from the picker.
         /// <para>
@@ -801,7 +689,7 @@ namespace Jellyfin.Profiles.Controllers
         /// </para>
         /// <para>Caller must hold <see cref="ConfigLock"/>.</para>
         /// </summary>
-        private bool PruneStaleDevices(PluginConfiguration config, DateTime now)
+        internal static bool PruneStaleDevices(PluginConfiguration config, DateTime now, ILogger? logger)
         {
             if (now - _lastDevicePrune < TimeSpan.FromDays(1)) return false;
             _lastDevicePrune = now;
@@ -809,7 +697,7 @@ namespace Jellyfin.Profiles.Controllers
             var removed = RemoveStaleDevices(config, now);
             if (removed > 0)
             {
-                _logger.LogInformation(
+                logger?.LogInformation(
                     "ProfilesPlugin: Dropped {Count} device(s) unseen for {Days} days.",
                     removed, (int)DeviceRetention.TotalDays);
             }

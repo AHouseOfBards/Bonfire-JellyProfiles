@@ -2,7 +2,7 @@
 
 **Plugin ID:** `b1462fca-774b-4b13-8d02-e2d4f2bc18b9`  
 **Base path:** `/plugins/profiles`  
-**Server:** Jellyfin 10.11.x  
+**Server:** Jellyfin 10.11.x and 12.0  
 
 All paths below are relative to the base path. All request and response bodies are JSON
 unless stated otherwise. Field names are returned camelCase.
@@ -17,6 +17,7 @@ unless stated otherwise. Field names are returned camelCase.
 - [Rate limits](#rate-limits)
 - [Stability](#stability) — what is guaranteed, and what may change
 - [Profiles API](#profiles-api)
+- [Sign-in from other clients](#sign-in-from-other-clients) — what the TVs & Apps settings change in Jellyfin's own routes
 - [Client Script](#client-script)
 - [Translations](#translations)
 - [Images API](#images-api)
@@ -57,7 +58,7 @@ is not the one the code enforces.
 | `POST /plugins/profiles/update` | user | Change a sub-profile’s settings. |
 | `GET /plugins/profiles/profiles.js` | anon | The client script itself. |
 | `GET /plugins/profiles/i18n/{locale}` | anon | One translation file. |
-| `GET /plugins/profiles/bonfire/status` | admin | The caller’s Bonfire group and its members. |
+| `GET /plugins/profiles/bonfire/status` | user | The caller’s Bonfire group and its members. |
 | `POST /plugins/profiles/bonfire/generate` | user | Mint a join code. |
 | `POST /plugins/profiles/bonfire/join` | user | Join a group with a code. |
 | `POST /plugins/profiles/bonfire/kick` | user | Remove a member from the caller’s group. |
@@ -233,6 +234,7 @@ Retrieves a list of all profiles (master and sub-profiles) accessible to the aut
 | `requiresPin` | boolean | Whether a PIN must be entered to switch to this profile **right now**. This is false when `bypassPinOnLocalNetwork` is set and the caller is on the local network, even though a PIN exists. Use this to decide whether to prompt. |
 | `hasPin` | boolean | Whether a PIN is configured on this profile at all, regardless of whether one will be prompted for. Use this — never `requiresPin` — to display PIN state in a settings or edit screen. See the note below. |
 | `isMaster` | boolean | Indicates if this is the master user account. |
+| `isAdministrator` | boolean | Whether this account has Jellyfin administrator rights. Sent for masters only. Provided so a client can warn that this account's PIN opens an account that can reach server settings; it is not an authorisation signal. |
 | `lockoutMinutes` | integer | Inactivity timeout in minutes before auto-lock. `0` indicates disabled. |
 | `maxSubProfiles` | integer | Maximum sub-profiles allowed (present only when `isMaster` is true). |
 | `enabledFolders` | string[] (GUIDs) | Library GUIDs accessible to this sub-profile (present only when `isMaster` is false). |
@@ -487,6 +489,69 @@ Retrieves media library folders visible to the master user.
 | `collectionType` | string | Type of media collection (e.g., "movies", "tvshows"). |
 
 ---
+
+## Sign-in from other clients
+
+Three settings under **TVs & Apps** change requests that belong to Jellyfin rather than to
+this plugin. Nothing here is a plugin route, and all three are off by default. They exist
+because apps such as Android TV and Roku never load the web client, so they never see the
+switcher.
+
+| Setting | What changes |
+| --- | --- |
+| `enableClientPinLogin` | Sub-profiles, and masters that have set a PIN, are bound to Bonfire's `IAuthenticationProvider`. Their PIN is accepted where the client asks for a password. |
+| `enableClientProfileList` | `GET /Users/Public` gains the calling device's household. `GET /Users/Me` and `POST /Users/AuthenticateByName` report a sub-profile under the name its household gave it. |
+| `skipQuickConnectOnKnownDevices` | `POST /QuickConnect/Initiate` is refused for devices a household has signed in on. |
+
+### `GET /Users/Public`
+
+With `enableClientProfileList` on, the household of the device making the request is added
+to whatever Jellyfin returned. The household is resolved from the `DeviceId` in the
+`Authorization` header, against the devices Bonfire has recorded a sign-in on. An
+unrecognised device gets Jellyfin's own answer unchanged.
+
+Entries are added, never removed, so a server that hides every user still returns only the
+household. The response is serialized with Jellyfin's own `JsonDefaults`, so casing,
+enum names and Guid format match every other entry in the list.
+
+**Some clients derive a per-user device id.** Jellyfin Android TV sends
+`sha1("<ANDROID_ID>+<userId>")` once somebody is signed in and the bare id at the sign-in
+screen; Jellyfin for Android appends the user id. Both forms are recognised.
+
+### `GET /Users/Me` and `POST /Users/AuthenticateByName`
+
+With `enableClientProfileList` on, a sub-profile's `Name` is replaced with the name its
+household gave it — `kids` rather than `Bard_kids`. The account is not renamed: the system
+username is what keeps two households' profiles apart, and it is what the audit log,
+Jellyfin's user administration and every device record still show.
+
+Both are rewritten because a client stores whichever it sees first and paints that
+afterwards.
+
+### `POST /QuickConnect/Initiate`
+
+With `skipQuickConnectOnKnownDevices` on, a request from a device a household has signed in
+on is answered `401 "Quick connect is disabled"` — the same response Jellyfin gives when
+Quick Connect is off server-wide. Clients that open on a Quick Connect code then fall back
+to their password field.
+
+The first sign-in on a device is never refused: matching is by device name, and a device
+nobody has signed in on has no record to match.
+
+### Authentication provider
+
+With `enableClientPinLogin` on, affected accounts have their `AuthenticationProviderId` set
+to Bonfire's provider, and it is restored when the setting is turned off.
+
+A **sub-profile** is opened by its PIN. One with no PIN is opened by an empty box, but only
+from a device its household has signed in on.
+
+A **master** keeps its real password. Jellyfin binds an account to exactly one provider, so
+Bonfire's checks the PIN first and hands anything else to
+`DefaultAuthenticationProvider` — both work. Only masters that have set a PIN are bound.
+
+Every refusal returns the same message, so a response cannot be used to find out which
+accounts on a server are Bonfire profiles.
 
 ## Client Script
 
@@ -977,7 +1042,7 @@ makes it useless for its actual purpose — telling apart two records that are o
 
 ### `GET /plugins/profiles/bonfire/status`
 
-**Authorisation:** administrator.
+**Authorisation:** signed-in user.
 
 Retrieves the bonfire group status and visibility settings for the caller.
 
@@ -1186,7 +1251,7 @@ Returns the calling account's switcher preferences.
 
 | Field | Type | Description |
 |---|---|---|
-| `askOnStartup` | boolean | Whether the "Who's Watching?" screen appears when the client loads. Shown once per browser session, not on every visit to the home screen. |
+| `askOnStartup` | boolean | Whether the "Who's Watching?" screen appears when the client loads. Shown once per browser session, not on every visit to the home screen. This is the *household* answer; since 1.6.1.1 a device may keep its own — see below. |
 | `switcherLocation` | string | `"button"` or `"menu"`. See below. |
 | `switcherMode` | string | **Deprecated.** Derived from `askOnStartup` for clients written against the 1.3.1 API. |
 | `masterUserId` | string (GUID) | The master account these preferences belong to. |
@@ -1213,6 +1278,35 @@ belong to. The bundled `profiles.js` mirrors them into `localStorage`, because t
 whether to raise the gate has to be made on page load, long before a request could answer it —
 a cache keyed by account is what stops the next person to sign in on a shared browser from
 inheriting the previous one's choice.
+
+#### A device may keep its own `askOnStartup` (1.6.1.1)
+
+`askOnStartup` is a household setting: set it on the phone and the television follows. That
+is wrong for the homes where the living-room television should always ask and the tablet one
+person uses never should, so the bundled client offers a checkbox — *Use the same answer on
+all my devices*, ticked by default — that takes one device out of the household answer.
+
+**This is entirely client-side and there is no API for it.** The override lives in
+`localStorage` under `jellyfin_profiles_device_gate`, filed by master account id, and is
+never posted. Two consequences for anyone writing against this API:
+
+* **`GET` still returns the household answer, and always will.** It is not the answer a
+  particular device is acting on. A client that wants Bonfire's behaviour has to decide,
+  itself, whether to honour a local override; a client that ignores the whole idea gets the
+  household answer and behaves exactly as it did before 1.6.1.1.
+* **The override is deliberately not a preference.** Storing it on the server would mean one
+  device opting out dragged every other device into per-device mode as well — a change made
+  somewhere the household cannot see, to a setting nobody touched there.
+
+Re-ticking the box `POST`s that device's current answer as `askOnStartup`, so the household
+adopts what is on screen at that moment rather than snapping back to whatever the server
+still held.
+
+Only `askOnStartup` works this way. `switcherLocation` stays household-wide, because it
+decides whether the injected button exists at all and a household with no consistent answer
+to that has no consistent place to reach the switcher. A client changing only the location
+should therefore send back the `askOnStartup` it read from `GET`, not whatever a local
+override says, or it will publish one device's private choice to the whole household.
 
 > **`switcherMode` is deprecated.** It was a single setting in 1.3.1 and could not express
 > "ask on startup, but put the switcher in Jellyfin's menu" — the combination requested in
@@ -1473,7 +1567,7 @@ login, since `POST /panic` has no credentials of its own.
 
 **Authorisation:** administrator.
 
-Saves the six server-wide settings the plugin's settings page owns.
+Saves the nine server-wide settings the plugin's settings page owns.
 
 Every field is optional and only the fields present in the request are changed. Use this
 rather than Jellyfin's generic `POST /Plugins/{id}/Configuration`: that endpoint replaces
@@ -1489,7 +1583,10 @@ between reading it and writing it back is silently reverted.
   "disallowCustomAvatarUploads": false,
   "defaultAskOnStartup": true,
   "defaultSwitcherLocation": "button",
-  "indexInjectionMode": "middleware"
+  "indexInjectionMode": "middleware",
+  "enableClientPinLogin": false,
+  "enableClientProfileList": false,
+  "skipQuickConnectOnKnownDevices": false
 }
 ```
 
@@ -1501,6 +1598,9 @@ between reading it and writing it back is silently reverted.
 | `defaultAskOnStartup` | boolean | No | Default for accounts that have not chosen: show the gate on startup. |
 | `defaultSwitcherLocation` | string | No | `button` or `menu`. |
 | `indexInjectionMode` | string | No | `file`, `middleware` or `both`. |
+| `enableClientPinLogin` | boolean | No | Allow a sub-profile to be signed into with its PIN from any client. Binds affected accounts to Bonfire's authentication provider; see [Sign-in from other clients](#sign-in-from-other-clients). |
+| `enableClientProfileList` | boolean | No | Add a household's profiles to the user list clients paint their sign-in screen from, and show each profile under the name its household gave it. |
+| `skipQuickConnectOnKnownDevices` | boolean | No | Refuse Quick Connect on devices a household has signed in on, so the app opens its password field instead. |
 
 * **Response:** `200 OK` on success.
 

@@ -9,6 +9,9 @@ using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Jellyfin.Profiles.Auth;
+using MediaBrowser.Controller.Devices;
+using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
@@ -137,8 +140,78 @@ namespace Jellyfin.Profiles
         /// <returns>A task.</returns>
         public async Task Invoke(
             HttpContext context,
-            IServerConfigurationManager serverConfig)
+            IServerConfigurationManager serverConfig,
+            IUserManager userManager,
+            IDeviceManager deviceManager)
         {
+            // Recorded before anything branches, because the one place that needs it is
+            // authentication and Jellyfin hands a provider nothing about the request.
+            // See Auth/RequestDevice.cs.
+            //
+            // Only on user routes. The first version did this on EVERY request, and the
+            // parse is a quote-aware character scan with a UrlDecode and a closure — on a
+            // server streaming to forty people that is thousands of pointless scans a
+            // minute, on requests for video segments and images that can never reach an
+            // authentication provider. Everything that can is a POST under /Users/:
+            // AuthenticateByName, the obsolete {userId}/Authenticate that forwards to it,
+            // and the password change that verifies the old one. A substring check on a
+            // string we already hold replaces the scan for everything else.
+            if (IsUserRoute(context))
+            {
+                Auth.RequestDevice.Capture(Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                    context.Request.Headers["Authorization"],
+                    context.Request.Headers["X-Emby-Authorization"],
+                    "DeviceId"));
+            }
+
+            // Quick Connect on a device somebody has already signed in on. Answered here
+            // rather than passed along, because the client's only route to its password
+            // field is this request failing.
+            if (IsQuickConnectInitiatePath(context))
+            {
+                var qcDevice = Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                    context.Request.Headers["Authorization"],
+                    context.Request.Headers["X-Emby-Authorization"],
+                    "Device");
+
+                if (Auth.QuickConnectGate.ShouldDeny(Plugin.Instance?.Configuration, qcDevice))
+                {
+                    _logger.LogInformation(
+                        "ProfilesPlugin: Quick Connect declined for {Device} ({Client}), a device this "
+                        + "server has seen someone sign in on, so the app opens on its PIN field instead.",
+                        qcDevice,
+                        Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                            context.Request.Headers["Authorization"],
+                            context.Request.Headers["X-Emby-Authorization"],
+                            "Client"));
+
+                // The same status and wording Jellyfin itself returns when Quick Connect is
+                // switched off server-wide, so the client is taking a path it already has.
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync("\"Quick connect is disabled\"").ConfigureAwait(false);
+                    return;
+                }
+            }
+
+            // The two responses that tell a client which account it is. Renaming the
+            // sign-in list alone lasted only until somebody used a profile — the client
+            // stores what these say and paints that afterwards. See ProfileNameRewriter.
+            if (IsOwnUserPath(context))
+            {
+                await RewriteOwnNameAsync(context).ConfigureAwait(false);
+                return;
+            }
+
+            // The login-screen user list, a completely separate job from the index document
+            // below and sharing only the capture machinery. Checked first because it is a
+            // different path entirely and must not fall through the index logic.
+            if (IsPublicUsersPath(context))
+            {
+                await InjectPublicUsersAsync(context, userManager, deviceManager).ConfigureAwait(false);
+                return;
+            }
+
             if (!ShouldHandle(context, serverConfig))
             {
                 await _next(context).ConfigureAwait(false);
@@ -272,6 +345,291 @@ namespace Jellyfin.Profiles
             Interlocked.Increment(ref ServedCount);
 
             await context.Response.Body.WriteAsync(bytes, context.RequestAborted).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// <c>GET /Users/Public</c> - the list a client paints its login screen from.
+        /// <para>
+        /// Buffers the response the way the index path does, hands the bytes to
+        /// <see cref="PublicUserInjector"/>, and writes back whatever comes out. Every
+        /// failure path returns the response Jellyfin produced, byte for byte: this endpoint
+        /// is how every client on the server signs in, so nothing here may be able to break
+        /// it.
+        /// </para>
+        /// </summary>
+        private async Task InjectPublicUsersAsync(
+            HttpContext context, IUserManager userManager, IDeviceManager deviceManager)
+        {
+            var config = Plugin.Instance?.Configuration;
+
+            // Resolved BEFORE the response is captured, so a device we do not recognise -
+            // the overwhelmingly common case on a busy server - costs one header parse and
+            // one device lookup, and never buffers a body at all.
+            IReadOnlyList<Guid> household;
+            try
+            {
+                household = PublicUserInjector.ResolveHousehold(
+                    context.Request.Headers[HeaderNames.Authorization],
+                    context.Request.Headers["X-Emby-Authorization"],
+                    deviceManager,
+                    config,
+                    _logger);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ProfilesPlugin: could not resolve a household for the user list.");
+                await _next(context).ConfigureAwait(false);
+                return;
+            }
+
+            if (household.Count == 0)
+            {
+                await _next(context).ConfigureAwait(false);
+                return;
+            }
+
+            var originalBody = context.Features.Get<IHttpResponseBodyFeature>();
+            if (originalBody == null)
+            {
+                await _next(context).ConfigureAwait(false);
+                return;
+            }
+
+            byte[] produced;
+            using (var captured = new MemoryStream())
+            {
+                var capture = new StreamResponseBodyFeature(captured);
+                var negotiation = SuspendContentNegotiation(context.Request);
+                context.Features.Set<IHttpResponseBodyFeature>(capture);
+
+                try
+                {
+                    await _next(context).ConfigureAwait(false);
+                    await capture.CompleteAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    context.Features.Set(originalBody);
+                    RestoreContentNegotiation(context.Request, negotiation);
+                }
+
+                produced = captured.ToArray();
+            }
+
+            if (context.Response.HasStarted)
+            {
+                return;
+            }
+
+            byte[]? rewritten = null;
+            if (context.Response.StatusCode == StatusCodes.Status200OK
+                && !context.Response.Headers.ContainsKey(HeaderNames.ContentEncoding))
+            {
+                try
+                {
+                    rewritten = PublicUserInjector.Inject(
+                        produced,
+                        context.Response.ContentType,
+                        household,
+                        userManager,
+                        context.Connection.RemoteIpAddress?.ToString(),
+                        _logger,
+                        config);
+                }
+                catch (Exception ex)
+                {
+                    // Anything at all here and the client gets Jellyfin's own answer.
+                    _logger.LogWarning(ex, "ProfilesPlugin: could not add profiles to the user list.");
+                    rewritten = null;
+                }
+            }
+
+            if (rewritten == null)
+            {
+                await PassThroughAsync(context, produced).ConfigureAwait(false);
+                return;
+            }
+
+            context.Response.ContentLength = rewritten.Length;
+
+            // The body is no longer what Jellyfin measured, and this list must not be cached
+            // anyway - it changes the moment somebody signs in on this device.
+            context.Response.Headers.Remove(HeaderNames.ETag);
+            context.Response.Headers.Remove(HeaderNames.LastModified);
+            context.Response.Headers[HeaderNames.CacheControl] = "no-cache, no-store, must-revalidate";
+
+            await context.Response.Body.WriteAsync(rewritten, context.RequestAborted).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// True for <c>GET /Users/Public</c>, under a base URL or not. Matched on the exact
+        /// path so no other Users route is ever buffered.
+        /// </summary>
+        private static bool IsPublicUsersPath(HttpContext context)
+        {
+            // Emergency disable reaches this too. See IsOwnUserPath.
+            if (Plugin.IsPanicDisabled) return false;
+
+            if (!HttpMethods.IsGet(context.Request.Method))
+            {
+                return false;
+            }
+
+            if (Plugin.Instance?.Configuration?.EnableClientProfileList != true)
+            {
+                return false;
+            }
+
+            var path = context.Request.Path.Value;
+            if (string.IsNullOrEmpty(path))
+            {
+                return false;
+            }
+
+            return path.EndsWith("/Users/Public", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// True for anything under Jellyfin's <c>/Users</c> routes.
+        /// <para>
+        /// Deliberately wider than the routes that actually authenticate, and deliberately
+        /// far narrower than every request. Getting it too narrow silently breaks PIN-less
+        /// entry — the provider would see no device and refuse — so this admits the whole
+        /// user area rather than trying to enumerate the authenticating paths exactly.
+        /// Media, images and web assets, which is nearly all traffic, are excluded.
+        /// </para>
+        /// </summary>
+        private static bool IsUserRoute(HttpContext context)
+        {
+            var path = context.Request.Path.Value;
+            return !string.IsNullOrEmpty(path)
+                && path.Contains("/Users", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// True for the two responses that name the account a client is signed in as:
+        /// <c>GET /Users/Me</c> and <c>POST /Users/AuthenticateByName</c>.
+        /// <para>
+        /// Both, because they are written at different moments and either one left alone
+        /// puts the system username back: the authentication response on a PIN login, and
+        /// <c>/Users/Me</c> every time a stored session is restored.
+        /// </para>
+        /// </summary>
+        private static bool IsOwnUserPath(HttpContext context)
+        {
+            // Emergency disable stops the plugin editing Jellyfin's own responses, not just
+            // serving an inert client script.
+            //
+            // One job was enough while everything Bonfire did happened inside that script.
+            // It is not enough now: this rewrites the responses that tell a client which
+            // account it is, and the sign-in user list and Quick Connect are rewritten
+            // beside it. If one of those is what has gone wrong, an inert script recovers
+            // nothing — and the switch an administrator reaches for in an emergency would
+            // not have turned off the thing that needed turning off.
+            if (Plugin.IsPanicDisabled) return false;
+
+            if (Plugin.Instance?.Configuration?.EnableClientProfileList != true) return false;
+
+            var path = context.Request.Path.Value;
+            if (string.IsNullOrEmpty(path)) return false;
+
+            if (HttpMethods.IsGet(context.Request.Method)
+                && path.EndsWith("/Users/Me", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return HttpMethods.IsPost(context.Request.Method)
+                && path.EndsWith("/Users/AuthenticateByName", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Captures one of those responses and renames the profile inside it, or hands
+        /// Jellyfin's own bytes back untouched.
+        /// </summary>
+        private async Task RewriteOwnNameAsync(HttpContext context)
+        {
+            var originalBody = context.Features.Get<IHttpResponseBodyFeature>();
+            if (originalBody == null)
+            {
+                await _next(context).ConfigureAwait(false);
+                return;
+            }
+
+            byte[] produced;
+            using (var captured = new MemoryStream())
+            {
+                var capture = new StreamResponseBodyFeature(captured);
+                var negotiation = SuspendContentNegotiation(context.Request);
+                context.Features.Set<IHttpResponseBodyFeature>(capture);
+
+                try
+                {
+                    await _next(context).ConfigureAwait(false);
+                    await capture.CompleteAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    context.Features.Set(originalBody);
+                    RestoreContentNegotiation(context.Request, negotiation);
+                }
+
+                produced = captured.ToArray();
+            }
+
+            if (context.Response.HasStarted) return;
+
+            byte[]? rewritten = null;
+            if (context.Response.StatusCode == StatusCodes.Status200OK
+                && !context.Response.Headers.ContainsKey(HeaderNames.ContentEncoding))
+            {
+                try
+                {
+                    rewritten = Auth.ProfileNameRewriter.Rewrite(
+                        produced,
+                        context.Response.ContentType,
+                        Plugin.Instance?.Configuration,
+                        _logger);
+                }
+                catch (Exception ex)
+                {
+                    // This is how every client learns who it is. Anything unexpected and it
+                    // gets Jellyfin's own answer.
+                    _logger.LogWarning(ex, "ProfilesPlugin: could not rename a profile in its own user record.");
+                    rewritten = null;
+                }
+            }
+
+            if (rewritten == null)
+            {
+                await PassThroughAsync(context, produced).ConfigureAwait(false);
+                return;
+            }
+
+            context.Response.ContentLength = rewritten.Length;
+            context.Response.Headers[HeaderNames.CacheControl] = "no-cache, no-store, must-revalidate";
+            await context.Response.Body.WriteAsync(rewritten, context.RequestAborted).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// True for <c>POST /QuickConnect/Initiate</c>, under a base URL or not. The obsolete
+        /// GET form is matched too — <c>InitiateQuickConnectLegacy</c> is still routed and
+        /// simply calls the POST one, so leaving it out would be a way around this.
+        /// </summary>
+        private static bool IsQuickConnectInitiatePath(HttpContext context)
+        {
+            // Emergency disable reaches this too. See IsOwnUserPath.
+            if (Plugin.IsPanicDisabled) return false;
+
+            if (!HttpMethods.IsPost(context.Request.Method) && !HttpMethods.IsGet(context.Request.Method))
+            {
+                return false;
+            }
+
+            var path = context.Request.Path.Value;
+            if (string.IsNullOrEmpty(path)) return false;
+
+            return path.EndsWith("/QuickConnect/Initiate", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void Fail(string reason) => LastError = reason;

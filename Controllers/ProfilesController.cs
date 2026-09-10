@@ -112,6 +112,10 @@ namespace Jellyfin.Profiles.Controllers
                     RequiresPin = masterRequiresPin,
                     HasPin = !string.IsNullOrEmpty(linkedMapping?.PinHash),
                     IsMaster = true,
+                    // Only so the PIN field can warn that this PIN opens an account which
+                    // can reach server settings. Sent for masters only; a sub-profile is
+                    // never created with administrator rights.
+                    IsAdministrator = IsAdministratorAccount(linkedUser),
                     LockoutMinutes = linkedMapping?.LockoutMinutes ?? 5,
                     MaxSubProfiles = GetMaxProfilesForUser(linkedId, config),
                     BypassPinOnLocalNetwork = linkedMapping?.BypassPinOnLocalNetwork ?? false,
@@ -1573,6 +1577,10 @@ namespace Jellyfin.Profiles.Controllers
                     config.DefaultSwitcherLocation = incoming.DefaultSwitcherLocation;
                 if (TryProperty(root, "IndexInjectionMode", out _))
                     config.IndexInjectionMode = incoming.IndexInjectionMode;
+                if (TryProperty(root, "EnableClientPinLogin", out _))
+                    config.EnableClientPinLogin = incoming.EnableClientPinLogin;
+                if (TryProperty(root, "EnableClientProfileList", out _))
+                    config.EnableClientProfileList = incoming.EnableClientProfileList;
                 if (TryProperty(root, "PanicCodeHash", out _))
                     config.PanicCodeHash = incoming.PanicCodeHash;
 
@@ -3708,7 +3716,28 @@ namespace Jellyfin.Profiles.Controllers
                 if (request.IndexInjectionMode != null)
                     config.IndexInjectionMode = IndexInjectionModes.Normalize(request.IndexInjectionMode);
 
+                // Two switches rather than one, because they carry different risks: the
+                // first changes how a profile authenticates, the second edits the endpoint
+                // every client on this server signs in through.
+                if (request.EnableClientPinLogin.HasValue)
+                    config.EnableClientPinLogin = request.EnableClientPinLogin.Value;
+                if (request.EnableClientProfileList.HasValue)
+                    config.EnableClientProfileList = request.EnableClientProfileList.Value;
+                if (request.SkipQuickConnectOnKnownDevices.HasValue)
+                    config.SkipQuickConnectOnKnownDevices = request.SkipQuickConnectOnKnownDevices.Value;
+
                 Plugin.Instance?.SaveConfiguration();
+            }
+
+            // Outside the lock: this walks users and writes to the database, and holding
+            // ConfigLock across that would block every other request that reads the
+            // configuration. Switching client PIN login OFF has to re-point the profiles
+            // immediately — left until the next restart they would be pointing at a
+            // provider that is no longer enabled, which means no provider at all, which
+            // breaks the web switcher's own ability to enter them.
+            if (request.EnableClientPinLogin.HasValue)
+            {
+                ProfilesBootstrapTask.ReconcileAuthProvidersNow();
             }
 
             _logger.LogInformation("ProfilesPlugin: Plugin settings updated by an administrator.");

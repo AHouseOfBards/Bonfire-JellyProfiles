@@ -10,9 +10,31 @@ listed together so it is obvious which ones are still only a promise.
 tests/run.sh          # or tests\run.ps1 on Windows
 ```
 
-Builds the plugin (Release, `-warnaserror`) and runs all 36 harnesses — 27 JavaScript
-and 9 C#, about 1,450 assertions. CI runs the same command, so the desk and the pipeline
+Builds the plugin (Release, `-warnaserror`) and runs all 37 harnesses — 28 JavaScript
+and 9 C#, about 1,500 assertions. CI runs the same command, so the desk and the pipeline
 cannot disagree about what "the tests pass" means.
+
+```
+tests/run.sh cs10     # the C# harnesses again, against the .NET 10 build
+```
+
+The plugin multi-targets `net9.0;net10.0`, because Jellyfin 10.11.x runs on .NET 9 and
+12.0 runs on .NET 10. **Only `net9.0` ships.** It is the one of the two that loads on
+*both* servers — the .NET 10 runtime accepts a net9 assembly, which is what every release
+since 1.6.0.1 has been and is confirmed on a live 12.0 server — so one artefact and one
+manifest entry covers everybody. A net10.0 artefact would install on 12.0 and silently
+fail to load on 10.11, and `targetAbi` cannot express the difference because it filters on
+the Jellyfin version, not the runtime.
+
+`net10.0` is built and *run* anyway, so it cannot rot between now and the day .NET 9
+support is dropped — a build nobody has loaded is not a working build. Change the
+packaging step in `release.yml` to net10.0 only when 10.11.x support is being dropped, and
+bump `targetAbi` in the same commit. The source already compiles clean against the
+Jellyfin 12.0.0 packages with `-warnaserror`, so that day is a two-line change.
+
+*Check:* `tests/js/buildtargets.js` fails if the csproj stops building either framework, if
+the packaging step names anything but net9.0, if either workflow stops installing either
+SDK, or if any C# harness pins itself to one framework.
 
 A `*.scan.js` file is a survey, not a gate: it prints what it finds and always exits 0,
 so the runner skips it alongside `*.verify.js`. Counting one would add a harness that can

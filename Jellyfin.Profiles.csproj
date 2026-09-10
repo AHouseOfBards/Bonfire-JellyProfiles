@@ -1,18 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <!-- Two runtimes, one source. Jellyfin 10.11.x runs on .NET 9 and 12.0 runs on .NET 10,
+         and a net9 assembly does load on the .NET 10 runtime — that is what 1.6.0.1 through
+         1.6.1 shipped and it is confirmed working on a live 12.0 server. But that is the
+         runtime being tolerant, not a promise, so net10.0 is built and tested alongside it
+         and is ready the day it is needed.
+         net9.0 is still what ships: it is the only one of the two that serves BOTH servers,
+         so one artefact and one manifest entry covers everybody. See the packaging step in
+         release.yml, which names net9.0 deliberately. -->
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>Jellyfin.Profiles</AssemblyName>
     <RootNamespace>Jellyfin.Profiles</RootNamespace>
-    <Version>1.6.1</Version>
+    <Version>1.6.2</Version>
     <!-- Jellyfin requires a purely numeric assembly version, so any pre-release label lives
          here instead. The plugin reports this string in the API and the dashboard badge, and
          the settings page shows a pre-release notice whenever it matches -beta/-alpha/-rc.
          STABLE RELEASE: no suffix. Append "-beta" here (and only here) to mark a build as
          pre-release; nothing else needs changing. -->
-    <InformationalVersion>1.6.1</InformationalVersion>
+    <InformationalVersion>1.6.2</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
@@ -26,6 +34,15 @@
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="Jellyfin.Common" Version="10.11.5">
+      <PrivateAssets>all</PrivateAssets>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <!-- JsonDefaults, so anything we add to a Jellyfin API response is serialized by
+         Jellyfin's own rules rather than System.Text.Json's defaults. Its nine converters
+         are not decoration: without them enums become integers and Guids grow dashes, and
+         a client that parses one of those crashes. Byte-identical between 10.11 and 12.0,
+         and runtime-excluded like the rest — the server supplies its own copy. -->
+    <PackageReference Include="Jellyfin.Extensions" Version="10.11.5">
       <PrivateAssets>all</PrivateAssets>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>

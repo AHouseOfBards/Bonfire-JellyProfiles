@@ -41,6 +41,40 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public bool DefaultAskOnStartup { get; set; } = true;
 
+        /// <summary>
+        /// Lets a sub-profile be entered with its PIN from any Jellyfin client, including
+        /// the native ones that never load the web client and so never see the switcher.
+        /// <para>
+        /// Off by default, and deliberately so. Turning it on binds sub-profiles to
+        /// Bonfire's own authentication provider, which is a change to how the server
+        /// authenticates — not something to acquire by upgrading.
+        /// </para>
+        /// </summary>
+        public bool EnableClientPinLogin { get; set; }
+
+        /// <summary>
+        /// Adds this household's profiles to the user list a client paints its login screen
+        /// from, on a device the household has already signed in on at least once.
+        /// <para>
+        /// Off by default, and separate from <see cref="EnableClientPinLogin"/> on purpose.
+        /// This one edits <c>/Users/Public</c>, the endpoint every client on the server uses
+        /// to sign in, so it carries a blast radius the PIN provider does not.
+        /// </para>
+        /// </summary>
+        public bool EnableClientProfileList { get; set; }
+
+        /// <summary>
+        /// Send an app straight to its password field, instead of Quick Connect, once a
+        /// household has signed in on that device.
+        /// <para>
+        /// Off by default, like the other two. It changes the response to
+        /// <c>POST /QuickConnect/Initiate</c> for matching devices, which is a request every
+        /// client on the server can make — see <see cref="Auth.QuickConnectGate"/> for why
+        /// this cannot be decided per profile and why it keys on the device name.
+        /// </para>
+        /// </summary>
+        public bool SkipQuickConnectOnKnownDevices { get; set; }
+
         /// <summary>Default for <see cref="ProfileMapping.SwitcherLocation"/>. See <see cref="DefaultAskOnStartup"/>.</summary>
         public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;
 

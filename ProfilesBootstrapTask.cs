@@ -8,6 +8,9 @@ using System.Threading.Tasks;
 using Jellyfin.Profiles.Configuration;
 using MediaBrowser.Common.Configuration;
 using Microsoft.Extensions.Hosting;
+using System.Linq;
+using MediaBrowser.Controller.Library;
+using Jellyfin.Profiles.Auth;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Profiles
@@ -279,19 +282,207 @@ namespace Jellyfin.Profiles
         private readonly IApplicationPaths _appPaths;
         private readonly ILogger<ProfilesBootstrapTask> _logger;
 
+        private readonly IUserManager _userManager;
+
         public ProfilesBootstrapTask(
             IApplicationPaths appPaths,
+            IUserManager userManager,
             ILogger<ProfilesBootstrapTask> logger)
         {
             _appPaths = appPaths;
+            _userManager = userManager;
             _logger = logger;
             _current = this;
         }
+
+        // ── Client PIN login ────────────────────────────────────────────────────────
+        //
+        // A sub-profile is created with Jellyfin's default authentication provider and a
+        // 64-character random password nobody knows, which is why it can only be entered
+        // through Bonfire's own switch. To let a television offer it too, the profile has
+        // to reach BonfirePinAuthenticationProvider, and Jellyfin picks a user's provider
+        // by matching the stored id against each provider's type name:
+        //
+        //     var providers = _authenticationProviders.Where(i => i.IsEnabled).ToList();
+        //     if (!string.IsNullOrEmpty(authenticationProviderId))
+        //         providers = providers.Where(i => /* match on type name */).ToList();
+        //
+        // 1.6.1.2 CLEARED the id instead of setting it, so that every provider would be
+        // tried and ours became an additional way in rather than the only one. That
+        // reasoning was sound and the implementation was catastrophic, because the id is
+        // also read back out of the database on every load:
+        //
+        //     public User(string username, string authenticationProviderId, string passwordResetProviderId)
+        //     {
+        //         ArgumentException.ThrowIfNullOrEmpty(authenticationProviderId);
+        //
+        // An empty string means EF Core cannot materialise that row at all — and
+        // UserManager.GetUsers() enumerates EVERY user, so two blanked sub-profiles took
+        // down user lookup for a whole 40-user server. Every client got HTTP 400 on every
+        // endpoint that lists users, and turning the feature off did not help, because the
+        // damage was in the database rather than in the running code. It needed manual SQL
+        // to repair. See tests/cs/clientpin, which now proves the constructor rejects it.
+        //
+        // So the id is SET, never cleared, and the value to restore is taken from the
+        // profile's own master rather than from a hardcoded type name — the master is an
+        // ordinary Jellyfin user whose provider is whatever this server actually uses, so
+        // there is nothing to keep in step with upstream.
+        private const string DefaultProviderIdFallback =
+            "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider";
+
+        /// <summary>
+        /// Points each sub-profile at the provider the current settings call for: Bonfire's
+        /// when client PIN login is on, and the master's own provider when it is off.
+        /// <para>
+        /// Runs at startup and again whenever the setting is saved, so switching the
+        /// feature off takes effect immediately instead of at the next restart — a profile
+        /// left pointing at a disabled provider has no provider at all, and the web
+        /// switcher would stop being able to enter it.
+        /// </para>
+        /// </summary>
+        /// <summary>
+        /// Re-points sub-profiles after an administrator changes the client PIN setting, so
+        /// turning it OFF takes effect at once. Waiting for the next restart would leave
+        /// every profile pointing at a provider that is no longer enabled, and a profile
+        /// with no enabled provider cannot be entered at all — including by the web
+        /// switcher, which has nothing to do with this feature.
+        /// </summary>
+        internal static void ReconcileAuthProvidersNow()
+        {
+            var self = _current;
+            if (self == null) return;
+
+            try
+            {
+                self.ReconcileAuthProviders();
+            }
+            catch (Exception ex)
+            {
+                self._logger.LogError(ex, "ProfilesPlugin: could not reconcile authentication providers after a settings change.");
+            }
+        }
+
+        internal void ReconcileAuthProviders()
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config?.Mappings == null) return;
+
+            var wanted = config.EnableClientPinLogin
+                ? typeof(BonfirePinAuthenticationProvider).FullName
+                : null;   // null = restore whatever the master uses
+
+            var subProfiles = config.Mappings
+                .Where(m => m.MasterUserId != m.ProfileUserId)
+                .Select(m => (Profile: m.ProfileUserId, Master: m.MasterUserId))
+                .ToList();
+
+            // A master that has set a PIN is bound too, so it can be entered on a television
+            // without its full password. Only when it HAS a PIN: binding one without would
+            // hand an account with a real password to a provider with nothing to check, and
+            // the provider keeps the password working by delegating to Jellyfin's own — see
+            // BonfirePinAuthenticationProvider.DelegateToJellyfin.
+            //
+            // Restoring is the literal default provider rather than MasterProviderId, which
+            // for a master would read back whatever it is currently bound to — this provider
+            // — and pin it there permanently.
+            var mastersWithPins = config.Mappings
+                .Where(m => m.MasterUserId == m.ProfileUserId
+                            && !string.IsNullOrEmpty(m.PinHash)
+                            && config.Mappings.Any(o => o.MasterUserId == m.MasterUserId
+                                                        && o.ProfileUserId != m.MasterUserId))
+                .Select(m => (Profile: m.ProfileUserId, Master: Guid.Empty))
+                .ToList();
+
+            subProfiles.AddRange(mastersWithPins);
+
+            int changed = 0;
+            foreach (var (profileId, masterId) in subProfiles)
+            {
+                try
+                {
+                    var user = _userManager.GetUserById(profileId);
+                    if (user == null) continue;
+
+                    // Guid.Empty marks a master: there is no owning account to read a
+                    // provider from, so the restore target is Jellyfin's own.
+                    var target = wanted ?? (masterId == Guid.Empty
+                        ? "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider"
+                        : MasterProviderId(masterId));
+
+                    // The whole point of this method's history. Never write an empty or
+                    // null id: it makes the row unreadable rather than merely unusable.
+                    if (string.IsNullOrEmpty(target)) continue;
+                    if (string.Equals(user.AuthenticationProviderId, target, StringComparison.Ordinal)) continue;
+
+                    user.AuthenticationProviderId = target;
+                    _userManager.UpdateUserAsync(user).GetAwaiter().GetResult();
+                    changed++;
+                }
+                catch (Exception ex)
+                {
+                    // One bad profile must not stop the rest, and must not stop startup.
+                    _logger.LogError(ex,
+                        "ProfilesPlugin: could not set the authentication provider for profile {ProfileId}.",
+                        profileId);
+                }
+            }
+
+            if (changed > 0)
+            {
+                _logger.LogInformation(
+                    config.EnableClientPinLogin
+                        ? "ProfilesPlugin: {Count} profile(s) can now be entered by PIN from any client."
+                        : "ProfilesPlugin: {Count} profile(s) returned to the default authentication provider.",
+                    changed);
+            }
+        }
+
+        /// <summary>
+        /// The provider a master account uses, which is whatever this server's ordinary
+        /// users use. Preferred over a hardcoded type name so nothing has to be kept in
+        /// step with upstream renames; the literal is only a last resort for a master we
+        /// cannot read.
+        /// <para>
+        /// <b>Never this provider.</b> Since masters with a PIN are bound here too, a master
+        /// being retired in the same pass is still bound when a sub-profile reads it — and
+        /// the sub-profile would copy the very id being switched off. A disabled provider is
+        /// filtered out of <c>GetAuthenticationProviders</c>, so the account would match
+        /// nothing, fall through to Jellyfin's <c>InvalidAuthProvider</c>, and be unable to
+        /// authenticate at all. Guarded here rather than by ordering the loop, because the
+        /// next person to touch the loop should not have to know.
+        /// </para>
+        /// </summary>
+        private string MasterProviderId(Guid masterId)
+        {
+            try
+            {
+                var master = _userManager.GetUserById(masterId);
+                if (master != null
+                    && !string.IsNullOrEmpty(master.AuthenticationProviderId)
+                    && !string.Equals(
+                        master.AuthenticationProviderId,
+                        typeof(BonfirePinAuthenticationProvider).FullName,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return master.AuthenticationProviderId;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "ProfilesPlugin: could not read master {MasterId} to find its authentication provider.",
+                    masterId);
+            }
+
+            return DefaultProviderIdFallback;
+        }
+
 
         /// <inheritdoc />
         public Task StartAsync(CancellationToken cancellationToken)
         {
             CleanupOldDlls();
+            ReconcileAuthProviders();
             lock (PatchLock)
             {
                 TryPatchIndex();

@@ -9,6 +9,105 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.6.2  — 2026-09-10
+
+**Added**
+
+- Profiles can now appear on the sign-in screen of apps that never load the web client, such as Android TV, and be opened with their PIN. New settings under Dashboard -> Bonfire -> TVs & Apps, all off until you turn them on.
+- On those screens a profile shows the name you gave it, not the full account name.
+- An account that owns profiles can sign in with its PIN as well as its password.
+- Apps can be sent straight to the password field instead of a Quick Connect code.
+- "Who's watching?" on startup can be set per device instead of everywhere at once.
+
+## 1.6.1.14-beta  — 2026-09-10
+
+**Fixed**
+
+- A profile went back to showing its full username once you signed into it on a TV. The name you gave it now sticks.
+
+## 1.6.1.13-beta  — 2026-09-10
+
+**Added**
+
+- TV and app settings now have their own tab in the plugin dashboard.
+- A new setting sends TV apps straight to the PIN field instead of a Quick Connect code, on devices someone has already signed in on. The first sign-in still gets Quick Connect.
+
+## 1.6.1.12-beta  — 2026-09-10
+
+**Added**
+
+- An account that owns profiles can now sign in on a TV with its PIN. Its real password keeps working everywhere, and a warning appears if the account administers the server.
+
+**Fixed**
+
+- The API reference said the Bonfire status endpoint was administrator-only. It is available to any signed-in user, which is what it has always enforced.
+
+## 1.6.1.11-beta  — 2026-09-10
+
+**Changed**
+
+- Sign-in screens now show the name you gave a profile instead of the system username, so "kids" appears rather than "Bard_kids".
+
+## 1.6.1.10-beta  — 2026-09-10
+
+**Fixed**
+
+- A profile with no PIN could be signed into from anywhere once PIN login was enabled. It now opens only on a device your household has signed in on.
+
+## 1.6.1.9-beta  — 2026-09-10
+
+**Fixed**
+
+- Profiles now appear on the Android TV sign-in screen. The app uses a different device id once somebody is signed in, so the television was never recognised as one we had seen.
+
+## 1.6.1.8-beta  — 2026-09-10
+
+**Changed**
+
+- The server log now records each sign-in that lets a device be offered its household's profiles, so a sign-in screen showing nothing can be diagnosed.
+
+## 1.6.1.7-beta  — 2026-09-10
+
+**Fixed**
+
+- Profiles now appear on a television's own sign-in screen after you switch accounts. Signing out used to make the server forget which household the TV belonged to.
+
+## 1.6.1.6-beta  — 2026-09-10
+
+**Changed**
+
+- The server log now says why profiles were or were not added to an app's sign-in screen, instead of saying nothing.
+
+## 1.6.1.5-beta  — 2026-09-10
+
+**Fixed**
+
+- Profiles did not appear on a television's sign-in screen after signing in as the account that owns them.
+
+## 1.6.1.4-beta  — 2026-09-10
+
+**Fixed**
+
+- 1.6.1.2 and 1.6.1.3 could leave two profile accounts in a state the server could not read, which made every app fail to sign in. If you turned on "Let profiles be opened with their PIN on any app", see the pinned note on GitHub before updating.
+
+## 1.6.1.3-beta  — 2026-09-09
+
+**Fixed**
+
+- The Android TV app crashed after signing in when "Show profiles on an app's sign-in screen" was turned on.
+
+## 1.6.1.2-beta  — 2026-09-09
+
+**Added**
+
+- Televisions and other apps can now offer your profiles on their own sign-in screen, and open one with its PIN. Two new settings under Dashboard -> Bonfire, both off until you turn them on.
+
+## 1.6.1.1-beta  — 2026-09-09
+
+**Added**
+
+- You can now keep "Who's watching?" on for one device and off for another, instead of it having to match everywhere.
+
 ## 1.6.1  — 2026-09-09
 
 **Works on Jellyfin 12.0.** The same build serves 10.11 and 12.0 — there is nothing extra to install.
