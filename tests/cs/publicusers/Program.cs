@@ -230,6 +230,16 @@ if (resolve != null)
     var GUEST = Guid.NewGuid();
     var STRANGER = Guid.NewGuid();
 
+    object MappingWithPin(Guid profile, Guid master, string pinHash)
+    {
+        var m = Activator.CreateInstance(mappingType);
+        mappingType.GetProperty("ProfileUserId").SetValue(m, profile);
+        mappingType.GetProperty("MasterUserId").SetValue(m, master);
+        mappingType.GetProperty("ProfileName").SetValue(m, "p");
+        mappingType.GetProperty("PinHash").SetValue(m, pinHash);
+        return m;
+    }
+
     object Mapping(Guid profile, Guid master)
     {
         var m = Activator.CreateInstance(mappingType);
@@ -520,6 +530,32 @@ if (resolve != null)
        viaExact.Count == 2 && viaExact.Contains(LOG_MASTER));
 
     // Restore the fixture the later sections expect.
+    devicesList.Clear();
+    mappings.Clear();
+    mappings.Add(Mapping(KID, MASTER));
+    mappings.Add(Mapping(GUEST, MASTER));
+
+    Console.WriteLine();
+    Console.WriteLine("-- Both kinds of profile are offered ---------------------------");
+
+    // A PIN-less profile is still listed, because on a device the household uses it still
+    // opens - see BonfirePinAuthenticationProvider. Listing only PIN-protected ones was
+    // considered and rejected: it would have hidden the profiles most households set up
+    // first, on the one screen this feature exists to serve.
+    devicesList.Clear();
+    mappings.Clear();
+    var PINNED = Guid.NewGuid();
+    var PINLESS = Guid.NewGuid();
+    mappings.Add(MappingWithPin(PINNED, MASTER, "hashed-pin"));
+    mappings.Add(MappingWithPin(PINLESS, MASTER, string.Empty));
+    Remember("tv-pins", MASTER);
+
+    var offered = ResolveSignedOut("tv-pins");
+    Ok("a sub-profile with a PIN is offered", offered.Contains(PINNED));
+    Ok("a sub-profile with no PIN is offered too", offered.Contains(PINLESS),
+       offered.Count + " user(s) offered");
+    Ok("and so is the master", offered.Contains(MASTER));
+
     devicesList.Clear();
     mappings.Clear();
     mappings.Add(Mapping(KID, MASTER));

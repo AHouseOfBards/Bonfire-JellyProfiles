@@ -199,12 +199,76 @@ Ok("and the wrong PIN is refused", Try(MakeUser(KID, "Bardkids"), "4822") == "!A
 Ok("an empty PIN does not open a PIN-protected profile",
    Try(MakeUser(KID, "Bardkids"), "") == "!AuthenticationException");
 
-Ok("a profile with no PIN opens with an empty box", Try(MakeUser(GUEST, "Bardguest"), "") == "Bardguest");
+// ── a PIN-less profile, and the device it is being opened from ──────────────
+//
+// This used to be one line — "a profile with no PIN opens with an empty box" — and the
+// provider obliged unconditionally. The reasoning came from the web switcher, where "no
+// PIN" means "no extra challenge for somebody already signed in as the master", because
+// the gate is only reached after the household has authenticated.
+//
+// A client sign-in screen has no prior authentication at all, and this provider is
+// reached by anything that can POST /Users/AuthenticateByName. Sub-profile usernames are
+// predictable (`<master>_<profile>`) and published by Bonfire's own /Users/Public
+// injection, so on an internet-facing server a PIN-less profile was an account a stranger
+// could enter by guessing one username. Logan found it by trying it.
+//
+// The behaviour that was wanted is kept: type nothing, get in — on a device the household
+// signed in on. Everywhere else it is refused.
+var devicesList = (System.Collections.IList)cfgType.GetProperty("KnownDevices").GetValue(config);
+var knownType = asm.GetType("Jellyfin.Profiles.Configuration.KnownDevice", true);
+var requestDevice = asm.GetType("Jellyfin.Profiles.Auth.RequestDevice", true);
+var capture = requestDevice.GetMethod("Capture", BindingFlags.Public | BindingFlags.Static);
+
+Ok("the provider can see which device a request came from", capture != null);
+
+void Remember(string deviceId, Guid owner)
+{
+    var d = Activator.CreateInstance(knownType);
+    knownType.GetProperty("DeviceId").SetValue(d, deviceId);
+    knownType.GetProperty("MasterUserId").SetValue(d, owner);
+    knownType.GetProperty("LastSeen").SetValue(d, DateTime.UtcNow);
+    devicesList.Add(d);
+}
+
+void FromDevice(string deviceId) => capture.Invoke(null, new object[] { deviceId });
+
+devicesList.Clear();
+Remember("family-tv", MASTER);
+
+FromDevice("family-tv");
+Ok("a profile with no PIN opens with an empty box on a device the household uses",
+   Try(MakeUser(GUEST, "Bardguest"), "") == "Bardguest");
 
 // "No PIN" must not quietly become "any PIN" — somebody testing whether the box does
 // anything would otherwise be let in.
-Ok("but a profile with no PIN refuses a typed value",
+Ok("but a typed value is still refused, even on that device",
    Try(MakeUser(GUEST, "Bardguest"), "1234") == "!AuthenticationException");
+
+// The hole, closed. This is the curl-from-anywhere case.
+FromDevice("some-strangers-laptop");
+Ok("the same empty box is refused from a device nobody in the household has used",
+   Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+
+FromDevice(null);
+Ok("and refused when no device id is sent at all",
+   Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+
+// Another household's television must not open this household's PIN-less profiles.
+Remember("neighbours-tv", OUTSID);
+FromDevice("neighbours-tv");
+Ok("and refused from a device belonging to a different household",
+   Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+
+// A PIN is a real credential, so it stands on its own and is not device-bound. Someone
+// away from home entering their PIN on a phone is the case this protects.
+FromDevice("some-strangers-laptop");
+Ok("a profile WITH a PIN still opens with it from any device",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+Ok("and still refuses the wrong PIN there",
+   Try(MakeUser(KID, "Bardkids"), "4822") == "!AuthenticationException");
+
+devicesList.Clear();
+FromDevice("family-tv");
 
 Console.WriteLine();
 Console.WriteLine("── Every refusal looks the same from outside ──────────────────");

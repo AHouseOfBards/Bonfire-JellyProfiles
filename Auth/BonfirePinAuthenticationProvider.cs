@@ -105,16 +105,47 @@ namespace Jellyfin.Profiles.Auth
             var mapping = FindSubProfile(resolvedUser.Id);
             if (mapping == null) throw Decline();
 
-            // A profile with no PIN opens with an empty box. Anything typed into it is
-            // still wrong — accepting any input would make "no PIN" mean "any PIN", and
-            // somebody testing whether the box does something would be let in.
+            // A profile with no PIN opens with an empty box — but only on a device the
+            // household has actually signed in on.
+            //
+            // The empty box on its own was a hole, and Logan found it by trying: this
+            // provider is reached by anything that can POST /Users/AuthenticateByName, it
+            // sees no device and no network, and sub-profile usernames are both predictable
+            // (`<master>_<profile>`) and published by our own /Users/Public injection. On a
+            // server reachable from the internet that made a PIN-less sub-profile into an
+            // account a stranger could enter by guessing one username. Before client PIN
+            // login existed it was impossible, because the account's Jellyfin password is a
+            // random 64 characters that is generated, set and discarded.
+            //
+            // Requiring a known device keeps exactly the behaviour that is wanted — walk up
+            // to the family television, choose a profile, type nothing — while the same
+            // request from anywhere else fails. It is not a secret and not a boundary: it
+            // raises entry from "know the username" to "know a device id this household has
+            // signed in on". A PIN remains the only actual credential.
             if (string.IsNullOrEmpty(mapping.PinHash))
             {
+                // "No PIN" must not quietly become "any PIN" — somebody testing whether the
+                // box does anything would otherwise be let in.
                 if (!string.IsNullOrEmpty(password)) throw Decline();
 
+                var deviceId = RequestDevice.Current;
+                var seenFor = DeviceRegistry.FindMaster(Plugin.Instance?.Configuration, deviceId);
+
+                if (seenFor == Guid.Empty || seenFor != mapping.MasterUserId)
+                {
+                    _logger.LogWarning(
+                        "ProfilesPlugin: refused to open PIN-less profile {ProfileId} from device {DeviceId}, "
+                        + "which this household has not signed in on. Set a PIN on the profile to allow "
+                        + "entry from anywhere.",
+                        mapping.ProfileUserId,
+                        string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId);
+                    throw Decline();
+                }
+
                 _logger.LogInformation(
-                    "ProfilesPlugin: profile {ProfileId} opened on a client with no PIN set.",
-                    mapping.ProfileUserId);
+                    "ProfilesPlugin: profile {ProfileId} opened with no PIN on {DeviceId}, a device this "
+                    + "household uses.",
+                    mapping.ProfileUserId, deviceId);
                 return Task.FromResult(new ProviderAuthenticationResult { Username = resolvedUser.Username });
             }
 

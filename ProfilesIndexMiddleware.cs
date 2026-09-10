@@ -144,6 +144,14 @@ namespace Jellyfin.Profiles
             IUserManager userManager,
             IDeviceManager deviceManager)
         {
+            // Recorded before anything branches, for every request, because the one place
+            // that needs it is authentication and Jellyfin does not hand a provider anything
+            // about the request. See Auth/RequestDevice.cs.
+            Auth.RequestDevice.Capture(Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                context.Request.Headers["Authorization"],
+                context.Request.Headers["X-Emby-Authorization"],
+                "DeviceId"));
+
             // The login-screen user list, a completely separate job from the index document
             // below and sharing only the capture machinery. Checked first because it is a
             // different path entirely and must not fall through the index logic.
