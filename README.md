@@ -40,8 +40,8 @@ profiles, each with its own watch history, parental controls, and library access
 - **Switcher style.** Each account picks the full-screen "Who's Watching?" gate or a
   **Switch Profile** entry in Jellyfin's own menu, under **Settings → Switcher Style**. It
   is a per-household choice, not a server setting.
-- **Library artwork.** Give a profile its own picture for a library, or none at all, so a
-  Kids profile does not get a Movies tile built from a film it cannot open.
+- **Library artwork.** Give a profile its own picture for a library, or none at all, so a Kids profile does not get a Movies tile built from a film it cannot open.
+- **Televisions and other apps.** Apps that never load the web client — Android TV, Roku, Swiftfin — can offer a household's profiles on their own sign-in screen, opened with a PIN. Off until an administrator turns it on.
 
 ---
 
@@ -69,61 +69,47 @@ If the switcher does not appear, or the settings page reports a problem, see
 
 ## Library Artwork
 
-Jellyfin builds a library tile from the items inside it, and that query does not know who
-is looking. So a Kids profile can end up with a Movies tile showing a poster from a film
-it cannot open.
+Jellyfin builds a library tile from the items inside it without knowing who is looking, so
+a Kids profile can end up with a Movies tile showing a film it cannot open.
 
-Give a profile its own picture for a library, or no artwork at all, under **Edit profile
-→ Library Artwork**. With no artwork the tile falls back to its icon and name. Libraries
-left alone keep Jellyfin's own.
+Give a profile its own picture for a library, or no artwork at all, under **Edit profile →
+Library Artwork**. With no artwork the tile falls back to its icon and name; libraries left
+alone keep Jellyfin's own.
 
-Two limits. The swap happens in the browser, so the picture is never shown but
-jellyfin-web still downloads the original. And it only applies where Bonfire runs: a
-client that cannot load the plugin script shows Jellyfin's artwork as usual.
+Two limits: the swap happens in the browser, so the original is still downloaded, and it
+only applies where Bonfire runs.
 
 ---
 
 ## Client Compatibility
 
-Bonfire works by injecting a script into the web client your server hands out. The
-dividing line is not the operating system. It is whether the app loads Jellyfin's web
-client **from your server** or ships its own copy.
+There are two ways to reach a profile, and between them they cover every client.
 
-**Works:**
+**The switcher** — the full "Who's Watching?" screen — needs an app that loads the web
+client from your server:
 
-- Jellyfin Web (desktop & mobile browsers)
-- Official Jellyfin Android app — a wrapper around your server's web client
+- Jellyfin Web, and the official Jellyfin Android app
 - Jellyfin Media Player (Windows, macOS, Linux)
-- **LG webOS** — the app loads your server's web client into a frame, so the switcher
-  comes with it
+- LG webOS
+- Samsung Tizen, if Bonfire is bundled into the `.wgt` at build time. That package has to
+  be rebuilt to pick up plugin updates.
 
-**Works, with a caveat:**
-
-- **Samsung Tizen** — the Tizen app builds its own copy of the web client into the `.wgt`
-  package rather than fetching yours, so the plugin cannot inject itself at runtime. Users
-  have reported the switcher working anyway, with Bonfire bundled into the package at
-  build time. It works, but the package has to be rebuilt to pick up plugin updates:
-  nothing reaches it automatically.
-
-**Cannot work:**
-
-- Jellyfin for Android TV / Google TV — a native app, not a web client
-- Swiftfin (iOS / tvOS), Findroid, Jellyfin for Roku, Infuse — likewise native
+**The app's own sign-in screen** — for apps that ship their own client and never see the
+switcher, such as Jellyfin for Android TV, Roku and Swiftfin. Turn on the settings under
+**Dashboard → Bonfire → TVs & Apps** and a household's profiles appear in the app's user
+list, each opened with its PIN. Tested on Jellyfin for Android TV.
 
 > [!IMPORTANT]
-> **Parental controls still apply on every client, including the ones above.** Library
-> access, maximum parental rating and tag filters are stored on the Jellyfin user account
-> and enforced by the *server*. A sub-profile signed in on Android TV sees exactly what it
-> is allowed to see. What those clients cannot show is the switcher itself — you sign in
-> as the sub-profile directly instead.
+> **Parental controls apply on every client either way.** Library access, maximum parental
+> rating and tag filters are stored on the Jellyfin account and enforced by the server, so
+> a profile sees exactly what it is allowed to see wherever it is signed in.
 
 ---
 
 ## Bonfire Sharing & Security
 
-Sharing a Bonfire code lets another household see your switcher screen — and switching
-into an account gives the person a real, fully privileged session for it. Two rules
-protect that boundary:
+Sharing a Bonfire code lets another household see your switcher screen, and switching
+into an account gives a real, fully privileged session for it. Two rules protect that:
 
 - **An account with no PIN cannot be opened from a shared Bonfire.** If you want other
   members to be able to switch into your main account, set a profile PIN on it first.
@@ -137,18 +123,13 @@ protect that boundary:
 
 ### Sharing a TV with another adult
 
-Both rules are strict by design, and for two adults who share a living room they are
-strict in the wrong direction: typing a PIN with a TV remote every time you swap accounts
-is miserable.
+Typing a PIN with a TV remote every time two adults swap accounts is miserable, so each
+account can lift both rules **for itself**. In **Settings → Your Bonfire** on the switcher
+screen, tick *"Let my Bonfire switch into my account on this network"*.
 
-So each account can lift them **for itself**. In **Settings → Your Bonfire** on the
-switcher screen, tick *"Let my Bonfire switch into my account on this network"*. People in
-your Bonfire can then enter your account from your home network without your PIN,
-including when you have no PIN at all. Away from home nothing changes: the PIN is still
-required, and an account with no PIN still cannot be opened remotely.
-
-It is off by default, only you can turn it on for your own account, and every switch that
-uses it is written to the profile activity log.
+People in your Bonfire can then enter your account from your home network without your
+PIN, including when you have none. Away from home nothing changes. It is off by default,
+only you can turn it on for your own account, and every switch that uses it is logged.
 
 > [!WARNING]
 > Two things to check first. If your account is a **Jellyfin administrator**, anyone who
@@ -163,38 +144,32 @@ uses it is written to the profile activity log.
 ## Known Limitations
 
 **Skin Manager / custom themes**  
-The Switch Profile button is designed to align with standard Jellyfin layouts. If you use
-custom themes or a skin manager, the button might occasionally appear misaligned or out of
-place. Switching to the **Jellyfin menu** style under *Settings → Switcher Style* removes
-the injected button entirely and puts the switcher on your profile page instead, which
-sidesteps theme conflicts. Either way, please open an issue with the name of the theme you
-are using.
+Custom themes and skin managers can leave the Switch Profile button misaligned. The
+**Jellyfin menu** style under *Settings → Switcher Style* removes the injected button and
+puts the switcher on your profile page instead. Either way, please open an issue with the
+name of the theme.
 
 **Profile creation is on the home screen, not the admin dashboard**  
-Profiles are created and managed via the Switch Profile button on the Jellyfin home
-screen. The admin dashboard page (**Dashboard → Plugins → Bonfire**) is for server-wide
-settings (maximum profile count, require-PIN policy), the avatar library, administrator
-PIN resets, and the emergency disable code.
+Profiles are created and managed from the Switch Profile button on the Jellyfin home
+screen. **Dashboard → Plugins → Bonfire** is for server-wide settings, the avatar library,
+administrator PIN resets, TV and app sign-in, and the emergency disable code.
 
 **Emergency disable code**  
-If Bonfire breaks badly it can make the Jellyfin web interface hard to use, including the
-settings page you would need to uninstall it. Administrators can set a code under
-**Dashboard → Plugins → Bonfire → Advanced → Emergency Disable Code**. Entering it on any
-Bonfire screen, or pressing `Ctrl+Shift+B`, shuts the plugin's client script off **until
-Jellyfin restarts**.
+A code that shuts Bonfire off **until Jellyfin restarts**, for when the plugin has made
+the web interface hard to use — including the settings page you would need to uninstall
+it. Set one under **Dashboard → Plugins → Bonfire → Advanced**, then enter it on any
+Bonfire screen or press `Ctrl+Shift+B`. Off by default.
 
-It is off by default, and worth understanding before you turn it on:
+Before you turn it on:
 
-- It does **not** unlock other profiles — switching still requires that profile's PIN —
-  and it does not widen library access, parental ratings or tag filters, which Jellyfin
-  enforces server-side regardless of this plugin.
+- It does **not** unlock other profiles, and does not widen library access, parental
+  ratings or tag filters. Jellyfin enforces those regardless of this plugin.
 - It **does** skip the profile gate. On a device already signed in to the master account,
-  anyone who knows the code gets that account's full library without being asked to choose
-  a profile.
-- It is submitted without a password, so make it long. Attempts are capped at five per
-  hour per address, and every use is logged.
-- It cannot rescue every failure. If the plugin's script fails to load at all, the code has
-  nothing to run in — restart Jellyfin, or delete the plugin folder, for that case.
+  anyone with the code gets that account's full library.
+- It is submitted without a password, so make it long. Five attempts per hour per address,
+  and every use is logged.
+- If the plugin's script fails to load at all, the code has nothing to run in. Restart
+  Jellyfin, or delete the plugin folder.
 
 ---
 
