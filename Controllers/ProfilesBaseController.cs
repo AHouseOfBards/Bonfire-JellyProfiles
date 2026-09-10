@@ -609,119 +609,43 @@ namespace Jellyfin.Profiles.Controllers
             destination.EnableAudioPlaybackTranscoding = source.EnableAudioPlaybackTranscoding;
         }
 
+        /// <summary>
+        /// Notes the calling device against the caller's household.
+        /// <para>
+        /// The recording itself lives in <see cref="Auth.DeviceRegistry"/>, because this is
+        /// not the only caller any more and was never the important one: a television never
+        /// reaches a Bonfire route at all, so for three releases the map was written
+        /// exclusively by the web switcher — the one client that had no use for it. See
+        /// <see cref="Auth.BonfireSessionListener"/>.
+        /// </para>
+        /// </summary>
         protected void RecordDeviceActivity()
         {
-            var config = Plugin.Instance?.Configuration;
-            if (config == null) return;
-
-            // Trimmed at the door. The id is compared against whitelists with an ordinal
-            // comparison in several places, so a stray space is a different device — and the
-            // record written here is what those comparisons are made against.
-            var deviceId = GetAuthorizationParameter("DeviceId")?.Trim();
-            var deviceName = GetAuthorizationParameter("Device")?.Trim();
-            var client = GetAuthorizationParameter("Client")?.Trim();
-            if (string.IsNullOrEmpty(deviceId)) return;
+            var deviceId = GetAuthorizationParameter("DeviceId");
+            if (string.IsNullOrWhiteSpace(deviceId)) return;
 
             // Attribute the device to the caller's master account so the device picker can be
             // scoped by ownership. KnownDevices is a single server-wide list, so without this
             // every household would see every other household's hardware.
             var callerId = GetCurrentUserId();
-            var ownerId = Guid.Empty;
-            if (callerId != null)
-            {
-                var callerMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == callerId.Value);
-                ownerId = callerMapping != null ? callerMapping.MasterUserId : callerId.Value;
-            }
+            var ownerId = callerId == null
+                ? Guid.Empty
+                : Auth.DeviceRegistry.HouseholdOf(Plugin.Instance?.Configuration, callerId.Value);
 
-            lock (ConfigLock)
-            {
-                var existing = config.KnownDevices.FirstOrDefault(d =>
-                    string.Equals(d.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
-
-                var now = DateTime.UtcNow;
-                var save = false;
-
-                if (existing != null)
-                {
-                    existing.LastSeen = now;
-
-                    // A name only ever improves. A client that sends nothing must not replace
-                    // a good name with a blank — which is how rows ended up reading "Unknown
-                    // Device" despite having been named at some point — and a name an
-                    // administrator typed outranks whatever the client reports, or the rename
-                    // would last until this device's next request.
-                    if (!existing.NameIsCustom && !IsPlaceholderDeviceName(deviceName))
-                        existing.DeviceName = deviceName!;
-                    if (!string.IsNullOrWhiteSpace(client)) existing.Client = client;
-
-                    // LastSeen was in-memory only, to keep a full PluginConfiguration.xml
-                    // rewrite off every request. The cost was that it never survived a
-                    // restart: the device list came back ordered by whenever each record was
-                    // first written, and "last seen" showed a date from before the restart —
-                    // so the column an administrator uses to decide what to revoke was
-                    // reliably wrong after every server update.
-                    //
-                    // Written at most once an hour per device instead. That is far finer than
-                    // the "unseen for 180 days" question the value is actually used to answer,
-                    // and it is one write an hour rather than one a request.
-                    //
-                    // Throttled against when it was last *persisted*, not last seen: LastSeen
-                    // is bumped in memory on every request, so comparing against it would
-                    // never reach an hour on a device that is in regular use — which is every
-                    // device this matters for.
-                    var lastWrite = DevicePersistedAt.TryGetValue(existing.DeviceId, out var at)
-                        ? at
-                        : DateTime.MinValue;
-                    if (now - lastWrite >= DeviceLastSeenWriteInterval)
-                    {
-                        DevicePersistedAt[existing.DeviceId] = now;
-                        save = true;
-                    }
-
-                    // Claim ownership for records written before MasterUserId existed. This is
-                    // the one case worth persisting immediately, so it happens exactly once.
-                    if (existing.MasterUserId == Guid.Empty && ownerId != Guid.Empty)
-                    {
-                        existing.MasterUserId = ownerId;
-                        save = true;
-                    }
-                }
-                else
-                {
-                    // First time we've seen this device — persist it.
-                    config.KnownDevices.Add(new KnownDevice
-                    {
-                        DeviceId = deviceId,
-                        // Left blank rather than stamped "Unknown Device". The picker fills a
-                        // blank in from the client name and, failing that, from the device id,
-                        // so a nameless device still reads as something an administrator can
-                        // tell apart — see DisambiguateDeviceNames. Storing the placeholder
-                        // made every nameless device render as the same row.
-                        DeviceName = IsPlaceholderDeviceName(deviceName) ? string.Empty : deviceName!,
-                        Client = string.IsNullOrWhiteSpace(client) ? string.Empty : client,
-                        LastSeen = now,
-                        MasterUserId = ownerId
-                    });
-                    DevicePersistedAt[deviceId] = now;
-                    save = true;
-                }
-
-                // Only while we are writing anyway, and at most once a day. KnownDevices is a
-                // single server-wide list that only ever grew: every phone that ever hit the
-                // server stayed in it forever, and the device picker is a list an administrator
-                // has to read.
-                if (save) save |= PruneStaleDevices(config, now);
-
-                if (save) Plugin.Instance?.SaveConfiguration();
-            }
+            Auth.DeviceRegistry.RecordAndSave(
+                deviceId,
+                GetAuthorizationParameter("Device"),
+                GetAuthorizationParameter("Client"),
+                ownerId,
+                _logger);
         }
 
         // ── Device housekeeping ─────────────────────────────────────────────────────
 
         /// <summary>When each device's LastSeen was last written to disk. See RecordDeviceActivity.</summary>
-        private static readonly ConcurrentDictionary<string, DateTime> DevicePersistedAt = new();
+        internal static readonly ConcurrentDictionary<string, DateTime> DevicePersistedAt = new();
 
-        private static readonly TimeSpan DeviceLastSeenWriteInterval = TimeSpan.FromHours(1);
+        internal static readonly TimeSpan DeviceLastSeenWriteInterval = TimeSpan.FromHours(1);
 
         /// <summary>How long a device may go unseen before it is dropped from the picker.
         /// <para>
@@ -750,7 +674,7 @@ namespace Jellyfin.Profiles.Controllers
         /// </para>
         /// <para>Caller must hold <see cref="ConfigLock"/>.</para>
         /// </summary>
-        private bool PruneStaleDevices(PluginConfiguration config, DateTime now)
+        internal static bool PruneStaleDevices(PluginConfiguration config, DateTime now, ILogger? logger)
         {
             if (now - _lastDevicePrune < TimeSpan.FromDays(1)) return false;
             _lastDevicePrune = now;
@@ -758,7 +682,7 @@ namespace Jellyfin.Profiles.Controllers
             var removed = RemoveStaleDevices(config, now);
             if (removed > 0)
             {
-                _logger.LogInformation(
+                logger?.LogInformation(
                     "ProfilesPlugin: Dropped {Count} device(s) unseen for {Days} days.",
                     removed, (int)DeviceRetention.TotalDays);
             }

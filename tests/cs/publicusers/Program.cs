@@ -123,6 +123,25 @@ Ok("Guids are dashless, the way Jellyfin writes them",
 Ok("and no dashed Guid is present at all",
    !json.Contains("8e3cdfa5-79a8", StringComparison.OrdinalIgnoreCase));
 
+// Case is not cosmetic here, and the two assertions above cannot see it because they are
+// both OrdinalIgnoreCase.
+//
+// Android TV parses every id through the Kotlin SDK's UUIDSerializer, which re-inserts
+// the dashes with this regex before handing the string to UUID.fromString:
+//
+//     "^([a-z\d]{8})([a-z\d]{4})([a-z\d]{4})([a-z\d]{4})([a-z\d]{12})$"
+//
+// [a-z\d] does not match uppercase hex, so an uppercase id matches nothing, keeps its
+// dashless 32-character form, and UUID.fromString throws. `id` is a non-null UUID field,
+// so deserialize() throws rather than returning null — which fails the WHOLE response,
+// not our row: getPublicServerUsers catches ApiClientException and returns emptyList(),
+// so the picker shows nothing at all, real accounts included, with only a Timber line to
+// say why. .NET's "N" format is lowercase and this has never been wrong; it is asserted
+// because nothing else would notice if it became wrong.
+Ok("Guids are lowercase, which is what the Kotlin SDK's [a-z\\d] regex will accept",
+   json.Contains("8e3cdfa579a84bb9bd9a0e96b7dc974a", StringComparison.Ordinal),
+   "an uppercase id throws in UUIDSerializer and empties the entire user list");
+
 Console.WriteLine();
 Console.WriteLine("── And it survives the round trip ──────────────────────────────");
 
@@ -276,6 +295,180 @@ if (resolve != null)
     cfgType.GetProperty("EnableClientProfileList").SetValue(config, false);
     Ok("and nothing resolves while the setting is off", Resolve("tv-1", MASTER).Count == 0);
     cfgType.GetProperty("EnableClientProfileList").SetValue(config, true);
+
+    Console.WriteLine();
+    Console.WriteLine("-- After the television signs out -----------------------------");
+
+    // THE BLOCKER, and the reason 1.6.1.4 through 1.6.1.6 could never work on the client
+    // they were built for.
+    //
+    // Jellyfin treats a Device row as belonging to a SESSION, not to a device:
+    //
+    //     public async Task Logout(Device device)          // SessionManager
+    //     { await _deviceManager.DeleteDevice(device); }
+    //
+    // and Android TV's "Switch account" destroys the session BEFORE opening the picker:
+    //
+    //     sessionRepository.destroyCurrentSession()
+    //     activity?.startActivity(ActivityDestinations.startup(activity))
+    //
+    // So the exact action that opens the picker deletes the only record we keyed on. It
+    // showed up in Logan's log seconds after a successful sign-in on that same set:
+    //
+    //     user list requested by device "9a6dae35cc29c74f", which nobody has signed in on yet
+    //
+    // Bonfire keeps its own DeviceId -> master record instead, which survives a sign-out
+    // precisely because it is not a session artefact. Every assertion below drives the
+    // device manager EMPTY - the way a real television presents itself at the picker.
+    var devicesList = (System.Collections.IList)cfgType.GetProperty("KnownDevices").GetValue(config);
+    var knownType = asm.GetType("Jellyfin.Profiles.Configuration.KnownDevice", true);
+
+    void Remember(string deviceId, Guid owner, DateTime? seen = null)
+    {
+        var d = Activator.CreateInstance(knownType);
+        knownType.GetProperty("DeviceId").SetValue(d, deviceId);
+        knownType.GetProperty("MasterUserId").SetValue(d, owner);
+        knownType.GetProperty("LastSeen").SetValue(d, seen ?? DateTime.UtcNow);
+        devicesList.Add(d);
+    }
+
+    IReadOnlyList<Guid> ResolveSignedOut(string deviceId)
+    {
+        var dm = DeviceManagerStub.Create(deviceId, null, DateTime.UtcNow);
+        return (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
+        {
+            string.Format(HEADER_FMT, deviceId), null, dm, config, NullLogger.Instance
+        });
+    }
+
+    Remember("tv-signedout", MASTER);
+    var signedOut = ResolveSignedOut("tv-signedout");
+    Ok("a signed-out television still resolves to its household",
+       signedOut.Count == 3, signedOut.Count + " user(s)");
+    Ok("and to the same household the deleted Device row would have given",
+       signedOut.Contains(MASTER) && signedOut.Contains(KID) && signedOut.Contains(GUEST));
+
+    // Ownership is the whole content of the record. Rows written before MasterUserId
+    // existed carry Guid.Empty, and those identify nobody.
+    Remember("tv-unowned", Guid.Empty);
+    Ok("a remembered device with no owner resolves to nothing",
+       ResolveSignedOut("tv-unowned").Count == 0);
+
+    // Our own record must not become a way into a household Bonfire does not run.
+    Remember("tv-stranger", STRANGER);
+    Ok("a remembered device owned by a non-Bonfire account resolves to nothing",
+       ResolveSignedOut("tv-stranger").Count == 0);
+
+    // A device we have no record of stays nothing. This is what stops a forged DeviceId
+    // from walking the server's households.
+    Ok("a television Bonfire has never seen resolves to nothing",
+       ResolveSignedOut("tv-never").Count == 0);
+
+    // Revocation has to mean something once the record is ours rather than Jellyfin's:
+    // removing the row in the dashboard is the only way to forget a television.
+    var savedRows = new List<object>();
+    foreach (var d in devicesList) savedRows.Add(d);
+    devicesList.Clear();
+    Ok("forgetting the device forgets the household",
+       ResolveSignedOut("tv-signedout").Count == 0);
+    foreach (var d in savedRows) devicesList.Add(d);
+
+    // And the live path must keep working. A set somebody IS signed in on has to resolve
+    // from Jellyfin's own record, with nothing of ours to help it.
+    devicesList.Clear();
+    Ok("a signed-in device still resolves with no remembered record",
+       Resolve("tv-1", MASTER).Count == 3);
+
+    Console.WriteLine();
+    Console.WriteLine("-- Who fills the record in ------------------------------------");
+
+    // KnownDevices has existed since the device-restrictions work and already had
+    // everything the map needed: a DeviceId, a MasterUserId, a LastSeen, pruning, and a
+    // dashboard row an administrator can delete. What it did not have was a writer that a
+    // television ever reaches - both call sites were authenticated Bonfire routes, which
+    // only the web switcher calls. The map was populated exclusively by the one client
+    // that had no use for it.
+    var registry = asm.GetType("Jellyfin.Profiles.Auth.DeviceRegistry", false);
+    Ok("device recording is reachable without a controller", registry != null);
+
+    var record = registry?.GetMethod("Record", BindingFlags.Public | BindingFlags.Static);
+    Ok("the registry exposes Record", record != null);
+
+    if (record != null)
+    {
+        devicesList.Clear();
+        var now = DateTime.UtcNow;
+        record.Invoke(null, new object[] { config, "tv-fresh", "Living Room TV", "Android TV", MASTER, now, null });
+        Ok("authenticating on a new television records it", devicesList.Count == 1);
+        Ok("and the household then resolves from that record alone",
+           ResolveSignedOut("tv-fresh").Count == 3);
+
+        // The name rules are shipped behaviour being moved, not rewritten, so they are
+        // pinned here: a client that sends nothing must never blank a name that was good.
+        record.Invoke(null, new object[] { config, "tv-fresh", "", "Android TV", MASTER, now, null });
+        Ok("a later sign-in with no name does not blank the name we had",
+           (string)knownType.GetProperty("DeviceName").GetValue(devicesList[0]) == "Living Room TV");
+
+        // Signing in as a sub-profile must attribute the set to the household, not to the
+        // profile - otherwise the second person to use the television takes it over and
+        // the master's own profiles stop appearing.
+        devicesList.Clear();
+        record.Invoke(null, new object[] { config, "tv-kid", "Bedroom", "Android TV", MASTER, now, null });
+        Ok("a device is attributed to the master, so the household survives a switch",
+           (Guid)knownType.GetProperty("MasterUserId").GetValue(devicesList[0]) == MASTER);
+
+        // An id with surrounding space is a different string to every ordinal comparison
+        // in the plugin, including the whitelist checks. It is trimmed at the door.
+        devicesList.Clear();
+        record.Invoke(null, new object[] { config, "  tv-spaced  ", "TV", "Android TV", MASTER, now, null });
+        Ok("a device id is trimmed before it is stored",
+           devicesList.Count == 1
+           && (string)knownType.GetProperty("DeviceId").GetValue(devicesList[0]) == "tv-spaced");
+
+        // Nothing to key on is nothing to record.
+        devicesList.Clear();
+        record.Invoke(null, new object[] { config, null, "TV", "Android TV", MASTER, now, null });
+        Ok("a sign-in with no device id records nothing", devicesList.Count == 0);
+    }
+
+    // Recording must be scoped to households Bonfire actually runs.
+    //
+    // Every account on the server signs in, not just households with profiles. The
+    // listener asks HouseholdOf for the owning master, and HouseholdOf answers with the
+    // user's OWN id when it finds no mapping — a sensible answer to the question it was
+    // asked, and a wrong one to key a filter on, because it is never Guid.Empty. Left
+    // that way, a forty-user server would write a KnownDevices row for every phone and
+    // browser that ever signed in, into an XML file that is rewritten whole.
+    var isHousehold = registry?.GetMethod("IsHousehold", BindingFlags.Public | BindingFlags.Static);
+    Ok("the registry can say whether an account is a Bonfire household at all",
+       isHousehold != null);
+
+    if (isHousehold != null)
+    {
+        Ok("a master with profiles is a household",
+           (bool)isHousehold.Invoke(null, new object[] { config, MASTER }));
+        Ok("a sub-profile is a household",
+           (bool)isHousehold.Invoke(null, new object[] { config, KID }));
+        Ok("an account with no profiles and no master is not",
+           !(bool)isHousehold.Invoke(null, new object[] { config, STRANGER }));
+        Ok("and neither is nobody",
+           !(bool)isHousehold.Invoke(null, new object[] { config, Guid.Empty }));
+    }
+
+    // The writer is only half of it. A listener nobody registered does nothing at all,
+    // which is the silent-failure shape that has cost this project four releases, so the
+    // subscription is asserted rather than assumed.
+    var listener = asm.GetType("Jellyfin.Profiles.Auth.BonfireSessionListener", false);
+    Ok("something subscribes to authentication so every client feeds the map",
+       listener != null);
+    Ok("and it is a hosted service, so Jellyfin actually starts it",
+       listener != null && typeof(Microsoft.Extensions.Hosting.IHostedService).IsAssignableFrom(listener));
+
+    var registrar = File.ReadAllText(Path.Combine(RepoRoot(), "PluginServiceRegistrator.cs"));
+    Ok("and it is registered with the DI container",
+       registrar.Contains("BonfireSessionListener"));
+
+    devicesList.Clear();
 }
 
 Console.WriteLine();

@@ -50,6 +50,13 @@ namespace Jellyfin.Profiles
             // until an administrator turns the feature on, and Jellyfin filters disabled
             // providers out before it matches a user against one.
             serviceCollection.AddSingleton<IAuthenticationProvider, BonfirePinAuthenticationProvider>();
+
+            // Notes which household a device belongs to, every time anyone signs in on it.
+            //
+            // Without this the sign-in-screen profile list cannot work on a television at
+            // all: Jellyfin deletes its own Device row on logout, and Android TV logs out
+            // before opening the picker. Bonfire's record is the only one that survives.
+            serviceCollection.AddHostedService<BonfireSessionListener>();
         }
     }
 }

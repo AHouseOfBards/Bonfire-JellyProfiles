@@ -81,14 +81,32 @@ namespace Jellyfin.Profiles.Auth
                 return none;
             }
 
-            // Everyone who has ever authenticated on this device, newest first. A device
-            // nobody has signed in on yields nothing, which is the correct answer for a
-            // television that has never seen this household.
-            var devices = deviceManager.GetDevices(new DeviceQuery { DeviceId = deviceId });
-            var newest = devices?.Items?
-                .OrderByDescending(d => d.DateLastActivity)
-                .FirstOrDefault();
-            if (newest == null || newest.UserId == Guid.Empty)
+            // Our own record first, Jellyfin's second.
+            //
+            // Jellyfin's Device rows are session artefacts: SessionManager.Logout calls
+            // DeleteDevice, and Android TV's "Switch account" logs out BEFORE it opens the
+            // picker — so on the client this feature exists for, the action that opens the
+            // sign-in screen deletes the row we used to key on. 1.6.1.4 through 1.6.1.6
+            // asked IDeviceManager alone and were answered, correctly and uselessly, that
+            // nobody had ever signed in on the television somebody had just signed out of.
+            //
+            // DeviceRegistry survives that because it is ours. IDeviceManager is still
+            // consulted afterwards: it covers the still-signed-in case, and it holds
+            // devices from before this record existed.
+            var seenUserId = DeviceRegistry.FindMaster(config, deviceId);
+            var seenFrom = "Bonfire's own record";
+
+            if (seenUserId == Guid.Empty)
+            {
+                var devices = deviceManager.GetDevices(new DeviceQuery { DeviceId = deviceId });
+                var newest = devices?.Items?
+                    .OrderByDescending(d => d.DateLastActivity)
+                    .FirstOrDefault();
+                seenUserId = newest?.UserId ?? Guid.Empty;
+                seenFrom = "Jellyfin's device record";
+            }
+
+            if (seenUserId == Guid.Empty)
             {
                 logger?.LogInformation(
                     "ProfilesPlugin: user list requested by device {DeviceId}, which nobody has signed in on yet. "
@@ -110,23 +128,23 @@ namespace Jellyfin.Profiles.Auth
             // list empty. The sub-profiles pointing AT an account are proof enough that it
             // is a master, so use that instead of demanding a row that may never be written.
             Guid masterId;
-            var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == newest.UserId);
+            var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == seenUserId);
             if (mapping != null)
             {
                 masterId = mapping.MasterUserId;
             }
-            else if (config.Mappings.Any(m => m.MasterUserId == newest.UserId))
+            else if (config.Mappings.Any(m => m.MasterUserId == seenUserId))
             {
-                masterId = newest.UserId;
+                masterId = seenUserId;
             }
             else
             {
                 // Nobody Bonfire knows. Every other account on the server lands here, which
                 // is what keeps them out of a household they have nothing to do with.
                 logger?.LogInformation(
-                    "ProfilesPlugin: user list requested by device {DeviceId}, last used by {UserId}, "
-                    + "which is not a Bonfire account. Nothing added.",
-                    deviceId, newest.UserId);
+                    "ProfilesPlugin: user list requested by device {DeviceId}, last used by {UserId} "
+                    + "(per {Source}), which is not a Bonfire account. Nothing added.",
+                    deviceId, seenUserId, seenFrom);
                 return none;
             }
 
@@ -139,9 +157,9 @@ namespace Jellyfin.Profiles.Auth
                 .Select(m => m.ProfileUserId));
 
             logger?.LogInformation(
-                "ProfilesPlugin: user list requested by device {DeviceId}; resolved to the household of "
-                + "{MasterId} with {Count} member(s).",
-                deviceId, masterId, household.Count);
+                "ProfilesPlugin: user list requested by device {DeviceId}; resolved via {Source} to the "
+                + "household of {MasterId} with {Count} member(s).",
+                deviceId, seenFrom, masterId, household.Count);
 
             return household;
         }
