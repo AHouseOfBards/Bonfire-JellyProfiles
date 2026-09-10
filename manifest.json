@@ -13,7 +13,7 @@
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Changed**\n\n- The server log now says why profiles were or were not added to an app's sign-in screen, instead of saying nothing.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.1.6/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "42c177d3db6edb451639f643768b9da2",
         "timestamp": "2026-09-10T04:12:27Z"
       },
       {
