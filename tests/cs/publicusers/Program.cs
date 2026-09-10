@@ -431,6 +431,100 @@ if (resolve != null)
         Ok("a sign-in with no device id records nothing", devicesList.Count == 0);
     }
 
+    Console.WriteLine();
+    Console.WriteLine("-- One television, two device ids ------------------------------");
+
+    // The defect that made 1.6.1.7 useless, and the reason it looked like nothing was
+    // recorded when the recording was perfect.
+    //
+    // Android TV uses a DIFFERENT device id once a user is chosen. SessionRepository
+    // applies `defaultDeviceInfo.forUser(userId)`, and forUser is:
+    //
+    //     fun DeviceInfo.forUser(user: String): DeviceInfo = copy(
+    //         id = SHA-1("${id}+$user") as lowercase hex)
+    //
+    // At the picker there is no session, so `defaultDeviceInfo` is used unchanged - the
+    // raw ANDROID_ID. So we record a per-user hash and are then asked about the base id,
+    // and the two can never be equal.
+    //
+    // These are Logan's real values, from the 2026-09-10 15:09 log. Keeping the actual
+    // triple means this test fails if the derivation ever changes shape, rather than only
+    // if my re-implementation of it disagrees with itself.
+    static string Sha1(string value) => Convert.ToHexString(
+        System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(value)))
+        .ToLowerInvariant();
+
+    const string TV_BASE = "9a6dae35cc29c74f";
+    const string TV_DERIVED = "7629ac2570f4154e81c8ce3f99a6d4764eb7e734";
+    var LOG_MASTER = Guid.Parse("8615867e-3617-4ad3-8d62-639b3bdc1305");
+
+    devicesList.Clear();
+    mappings.Clear();
+    mappings.Add(Mapping(KID, LOG_MASTER));
+    Remember(TV_DERIVED, LOG_MASTER);
+
+    var viaHash = (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
+    {
+        string.Format(HEADER_FMT, TV_BASE), null,
+        DeviceManagerStub.Create(TV_BASE, null, DateTime.UtcNow), config, NullLogger.Instance
+    });
+    Ok("a television recorded under its per-user hash resolves from the base id",
+       viaHash.Count == 2 && viaHash.Contains(LOG_MASTER),
+       viaHash.Count + " user(s)");
+
+    // Jellyfin for Android derives differently - it appends the user id with no hash and
+    // no separator. Same log, device 6044d6840404e4e8.
+    devicesList.Clear();
+    Remember("6044d6840404e4e8" + LOG_MASTER.ToString(), LOG_MASTER);
+    var viaConcat = (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
+    {
+        string.Format(HEADER_FMT, "6044d6840404e4e8"), null,
+        DeviceManagerStub.Create("6044d6840404e4e8", null, DateTime.UtcNow), config, NullLogger.Instance
+    });
+    Ok("and one recorded with the user id appended resolves too",
+       viaConcat.Count == 2 && viaConcat.Contains(LOG_MASTER));
+
+    // A sub-profile is what gets signed into after the first switch, so the hash is taken
+    // over the PROFILE's id while the record still belongs to the master.
+    devicesList.Clear();
+    Remember(Sha1(TV_BASE + "+" + KID.ToString()), LOG_MASTER);
+    var viaProfile = (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
+    {
+        string.Format(HEADER_FMT, TV_BASE), null,
+        DeviceManagerStub.Create(TV_BASE, null, DateTime.UtcNow), config, NullLogger.Instance
+    });
+    Ok("a hash taken over a sub-profile's id still resolves to the household",
+       viaProfile.Count == 2 && viaProfile.Contains(LOG_MASTER));
+
+    // The derivation must not become a way to guess at households. A hash over an account
+    // Bonfire knows nothing about matches no record.
+    devicesList.Clear();
+    Remember(Sha1(TV_BASE + "+" + STRANGER.ToString()), Guid.Empty);
+    var viaStranger = (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
+    {
+        string.Format(HEADER_FMT, TV_BASE), null,
+        DeviceManagerStub.Create(TV_BASE, null, DateTime.UtcNow), config, NullLogger.Instance
+    });
+    Ok("a hash over an account Bonfire does not know resolves to nothing",
+       viaStranger.Count == 0);
+
+    // And the plain case must not regress: most clients send one id and never derive it.
+    devicesList.Clear();
+    Remember("plain-tv", LOG_MASTER);
+    var viaExact = (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
+    {
+        string.Format(HEADER_FMT, "plain-tv"), null,
+        DeviceManagerStub.Create("plain-tv", null, DateTime.UtcNow), config, NullLogger.Instance
+    });
+    Ok("a client that does not derive its device id still matches exactly",
+       viaExact.Count == 2 && viaExact.Contains(LOG_MASTER));
+
+    // Restore the fixture the later sections expect.
+    devicesList.Clear();
+    mappings.Clear();
+    mappings.Add(Mapping(KID, MASTER));
+    mappings.Add(Mapping(GUEST, MASTER));
+
     // Recording must be scoped to households Bonfire actually runs.
     //
     // Every account on the server signs in, not just households with profiles. The
@@ -615,3 +709,4 @@ sealed class StubXml : MediaBrowser.Model.Serialization.IXmlSerializer
     public object DeserializeFromBytes(Type type, byte[] buffer)
         => throw new NotSupportedException();
 }
+

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Text;
 using System.Linq;
 using Jellyfin.Profiles.Configuration;
 using Jellyfin.Profiles.Controllers;
@@ -67,10 +69,99 @@ namespace Jellyfin.Profiles.Auth
             // id arriving with a stray space is a different string to every ordinal
             // comparison in the plugin.
             var wanted = deviceId.Trim();
+
+            var exact = Lookup(config, wanted);
+            if (exact != Guid.Empty) return exact;
+
+            // ── one television, two device ids ───────────────────────────────────────
+            //
+            // This is what made 1.6.1.7 useless while recording perfectly. Some clients
+            // derive a PER-USER device id once somebody is signed in, and send the plain
+            // one when nobody is — which is exactly the sign-in screen we are answering.
+            //
+            // Jellyfin Android TV, SessionRepository.setCurrentSession:
+            //
+            //     val deviceInfo = session?.let { defaultDeviceInfo.forUser(it.userId) }
+            //         ?: defaultDeviceInfo
+            //
+            //     fun DeviceInfo.forUser(user: String): DeviceInfo = copy(
+            //         id = SHA-1("${id}+$user") as lowercase hex)
+            //
+            // Verified against Logan's 2026-09-10 log:
+            // sha1("9a6dae35cc29c74f" + "+" + "8615867e-3617-4ad3-8d62-639b3bdc1305")
+            //   == "7629ac2570f4154e81c8ce3f99a6d4764eb7e734", the id the session carried,
+            // while the picker asked about "9a6dae35cc29c74f".
+            //
+            // Jellyfin for Android appends instead of hashing, no separator - the same log
+            // shows both "6044d6840404e4e8" and that id with the household guid glued on.
+            //
+            // A hash cannot be reversed, so the derivation is applied FORWARDS: for every
+            // account Bonfire knows, work out what this device's id would have become had
+            // that account signed in on it, and look for that. Bounded by the number of
+            // Bonfire users rather than the server's, and a sign-in screen is opened by
+            // hand — this is not on any hot path.
+            foreach (var userId in HouseholdMembers(config))
+            {
+                var suffix = userId.ToString();
+
+                // Jellyfin for Android: id + userId, no separator.
+                var appended = Lookup(config, wanted + suffix);
+                if (appended != Guid.Empty) return appended;
+
+                // Jellyfin Android TV: sha1(id + "+" + userId), lowercase hex.
+                var hashed = Lookup(config, Sha1Hex(wanted + "+" + suffix));
+                if (hashed != Guid.Empty) return hashed;
+            }
+
+            return Guid.Empty;
+        }
+
+        /// <summary>
+        /// The owning master of the record with this exact device id, or
+        /// <see cref="Guid.Empty"/> when there is none or it names nobody.
+        /// </summary>
+        private static Guid Lookup(PluginConfiguration config, string deviceId)
+        {
             var row = config.KnownDevices.FirstOrDefault(d =>
-                string.Equals(d.DeviceId, wanted, StringComparison.OrdinalIgnoreCase));
+                string.Equals(d.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
 
             return row?.MasterUserId ?? Guid.Empty;
+        }
+
+        /// <summary>
+        /// Every account in any household Bonfire runs — masters and sub-profiles both.
+        /// <para>
+        /// Sub-profiles are included because after the first switch it is a profile, not the
+        /// master, that a television is signed in as, so the per-user id is derived over the
+        /// profile's own guid while the record still belongs to the household.
+        /// </para>
+        /// </summary>
+        private static IEnumerable<Guid> HouseholdMembers(PluginConfiguration config)
+        {
+            if (config.Mappings == null) yield break;
+
+            var seen = new HashSet<Guid>();
+            foreach (var m in config.Mappings)
+            {
+                if (m.MasterUserId != Guid.Empty && seen.Add(m.MasterUserId)) yield return m.MasterUserId;
+                if (m.ProfileUserId != Guid.Empty && seen.Add(m.ProfileUserId)) yield return m.ProfileUserId;
+            }
+        }
+
+        /// <summary>
+        /// Lowercase hex SHA-1, matching Kotlin's
+        /// <c>digest().joinToString("") { "%02x".format(it) }</c>.
+        /// <para>
+        /// Not a security use — it re-derives an identifier another program already chose,
+        /// so the algorithm is theirs to pick and ours to match.
+        /// </para>
+        /// </summary>
+        private static string Sha1Hex(string value)
+        {
+#pragma warning disable CA5350 // matching a client's own identifier, not protecting anything
+            var hash = System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(value));
+#pragma warning restore CA5350
+            return Convert.ToHexString(hash).ToLowerInvariant();
         }
 
         /// <summary>
