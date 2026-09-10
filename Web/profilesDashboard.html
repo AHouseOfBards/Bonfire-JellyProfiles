@@ -382,17 +382,17 @@
                 <span class="injectionFileFix">
                 <br>
                 <strong>How to fix:</strong>
-                Run the command for your platform, then click <strong>Re-check Now</strong> below — no Jellyfin restart needed.
+                Run the command for your platform, then click <strong>Re-check Now</strong> below.
                 </span>
                 <div class="detectedAccountRow jpf-hidden jpf-subtle jpf-mt-1" id="injectionFailureAccountRow">
-                    Jellyfin is running as <code class="detectedAccount"></code>, and the command below grants access to exactly that account.
+                    Jellyfin is running as <code class="detectedAccount"></code>.
                 </div>
                 <ul class="injectionFileFix jpf-sublist">
                     <li class="jpf-mb-2">
                         <strong>Linux (Native):</strong>
                         <br><code id="linuxChownCmd" class="linuxChownCmd">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code>
                         <br><code id="linuxChmodCmd" class="linuxChmodCmd">sudo chmod 664 /usr/share/jellyfin/web/index.html</code>
-                        <br><span style="font-size:0.85em; opacity:0.8;">After Jellyfin restarts and injects the script, you can optionally restore the original permissions with <code>chmod 644</code>.</span>
+                        <br><span style="font-size:0.85em; opacity:0.8;">You can restore the original permissions with <code>chmod 644</code> afterwards.</span>
                     </li>
                     <li class="jpf-mb-2">
                         <strong>Docker (Run on host):</strong>
@@ -412,7 +412,7 @@
 
             <div class="jpf-hidden jpf-note jpf-note-warn" id="staleVersionWarningContainer">
                 <strong class="jpf-note-title" style="color:#ffc078;">⚡ Optional — Client Script Tag Not Up To Date</strong>
-                <strong>Nothing is broken.</strong> The profile switcher is running normally; this only affects how quickly browsers notice a new client script after a plugin update, and they work that out by themselves within about five minutes.
+                Browsers pick up the new client script within about five minutes.
                 <div class="jpf-hidden jpf-note-detail" id="staleReason"></div>
                 <br>
                 <strong>What to do:</strong>
@@ -524,9 +524,7 @@
                 <h2 class="sectionTitle">TVs &amp; Apps</h2>
             </div>
             <div class="fieldDescription jpf-lede">
-                Android TV, Roku and Swiftfin never load the web client, so they never see the
-                Bonfire switcher. These settings let them offer profiles through their own
-                sign-in screen instead. All three are off until you turn them on.
+                Offer profiles on the sign-in screens of apps that never load the web client, such as Android TV and Roku. All three settings are off by default.
             </div>
 
             <div class="checkboxContainer checkboxContainer-withDescription">
@@ -535,10 +533,7 @@
                     <span>Let profiles be opened with their PIN on any app</span>
                 </label>
                 <div class="fieldDescription">
-                    A profile can be signed into by typing its PIN where the app asks for a
-                    password. The PIN is never stored as a Jellyfin password. A profile with no
-                    PIN opens with the box left empty, but only on a device someone in that
-                    household has already signed in on.
+                    Sign into a profile by typing its PIN where the app asks for a password. A profile with no PIN opens with an empty box, on devices its household has used before.
                 </div>
             </div>
 
@@ -548,10 +543,7 @@
                     <span>Show profiles on an app's sign-in screen</span>
                 </label>
                 <div class="fieldDescription">
-                    After someone signs in on a device once, that household's profiles appear in
-                    its user list. Only that household's, and only on devices they have used.
-                    This changes the sign-in list every app on this server reads, so turn it on
-                    when you can test it.
+                    A household's profiles appear in the user list of devices it has signed in on. This changes the sign-in list every app on this server reads.
                 </div>
             </div>
 
@@ -561,12 +553,7 @@
                     <span>Open the PIN field instead of Quick Connect</span>
                 </label>
                 <div class="fieldDescription">
-                    Some TV apps always open on a Quick Connect code, with the password field a
-                    button press away. This sends them straight to the password field, where a
-                    PIN is typed. Only on devices someone has already signed in on — the first
-                    sign-in keeps Quick Connect, because there are no profiles to choose from
-                    yet. Matched on the device's name, so renaming a TV gives it one more
-                    Quick Connect.
+                    Open the password field instead of a Quick Connect code. The first sign-in on a device still gets Quick Connect.
                 </div>
             </div>
 
@@ -580,8 +567,7 @@
                 <h2 class="sectionTitle">Avatar Library</h2>
             </div>
             <div class="fieldDescription jpf-lede">
-                Pictures anyone on this server can pick as their profile picture. On a TV this is the only
-                way to set one — there is no file browser to upload from.
+                Pictures anyone on this server can pick as their profile picture. On a TV this is the only way to set one.
             </div>
 
             <div class="jpf-hidden jpf-note jpf-note-soft" id="avatarMissingWarning">
@@ -594,7 +580,7 @@
                     <span>Only allow avatars from this library</span>
                 </label>
                 <div class="fieldDescription">
-                    Users pick from this set instead of uploading. Pictures already set stay as they are.
+                    Users pick from this set instead of uploading. Existing pictures are unchanged.
                 </div>
             </div>
 
@@ -603,11 +589,11 @@
                 <input class="jpf-hidden" type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" />
                 <button is="emby-button" type="button" id="avatarFolderBtn" class="raised jpf-narrow" style="margin-left:8px;">Upload a folder</button>
                 <input class="jpf-hidden" type="file" id="avatarFolderInput" webkitdirectory directory multiple />
-                <div class="fieldDescription">JPEG, PNG, WebP or GIF. Pick several files or a whole folder; they are squared and resized automatically.</div>
+                <div class="fieldDescription">JPEG, PNG, WebP or GIF. Squared and resized automatically.</div>
                 <div class="inputContainer jpf-form-narrow" style="margin-top:1em;">
                     <label class="inputLabel" for="avatarScanPath">Or import a folder from the server</label>
                     <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" />
-                    <div class="fieldDescription">A path on the server, not on this computer. Pictures are copied in; the folder is left alone.</div>
+                    <div class="fieldDescription">A path on the server, not on this computer. Pictures are copied in.</div>
                 </div>
                 <button is="emby-button" type="button" id="avatarScanBtn" class="raised jpf-narrow">Import from folder</button>
 
@@ -625,8 +611,7 @@
                 <h2 class="sectionTitle">Client Script</h2>
             </div>
             <div class="fieldDescription jpf-lede">
-                How Bonfire gets its script into Jellyfin's web client. A working server does
-                not need this changed.
+                How Bonfire's script reaches the web client. Leave this alone unless something is broken.
             </div>
 
             <div class="selectContainer">
@@ -648,11 +633,7 @@
                 <h2 class="sectionTitle">Backup</h2>
             </div>
             <div class="fieldDescription jpf-lede">
-                Every profile, PIN, Bonfire, device list and avatar record lives in one
-                configuration file with nothing behind it. Export writes a copy you can keep;
-                import replaces everything with that copy. <strong>The file contains PIN
-                hashes</strong> &mdash; they are salted and slow to attack, but treat the file as
-                you would the configuration itself.
+                Export writes a copy of every profile, PIN, Bonfire, device and avatar record. Import replaces all of it. <strong>The file contains PIN hashes</strong>, so keep it somewhere safe.
             </div>
             <div class="jpf-backup-row">
                 <button is="emby-button" type="button" id="exportConfigBtn" class="raised">
@@ -669,8 +650,7 @@
             </div>
             <div class="jpf-note jpf-note-soft" style="padding:14px 18px;font-size:0.94rem;">
                 <strong class="jpf-label-block">&#9888;&nbsp; Read this before turning it on</strong>
-                Entering this code shuts Bonfire down until Jellyfin restarts — for when the plugin
-                breaks badly enough to block this page.
+                Entering this code shuts Bonfire down until Jellyfin restarts.
                 <br><br>
                 <strong>The cost:</strong> anyone with the code can skip the profile prompt on a device that is
                 already signed in. On a TV left on the master account, that means the master's library.
@@ -685,8 +665,7 @@
                 <label class="inputLabel" for="panicCodeInput">Emergency disable code</label>
                 <input is="emby-input" type="text" id="panicCodeInput" autocomplete="off" placeholder="At least 10 characters" />
                 <div class="fieldDescription">
-                    Save blank to turn it off. The code is hashed and cannot be shown again — write it down
-                    somewhere off this server.
+                    Save blank to turn it off. The code cannot be shown again, so write it down somewhere off this server.
                 </div>
             </div>
             <div class="jpf-block-end">
@@ -700,8 +679,7 @@
                 <h2 class="sectionTitle">Accounts &amp; Profiles</h2>
             </div>
             <div class="fieldDescription jpf-lede">
-                Every master account on the server. Expand an account to see the sub-profiles belonging to it.
-                Administrators can reset the PIN of any account or profile.
+                Every master account, and the sub-profiles under it. Administrators can reset any PIN.
             </div>
             <div class="paperList jpf-block-end" id="masterUsersList">
                 <!-- Master accounts, each with its sub-profiles nested inside -->
@@ -710,10 +688,7 @@
                 <h2 class="sectionTitle">Orphaned Profiles</h2>
             </div>
             <div class="fieldDescription jpf-lede">
-                A profile deleted through Jellyfin's user administration rather than through Bonfire
-                leaves its record behind. Those records still count against a household's profile
-                limit, and a sub-profile whose master was deleted cannot be reached or removed from
-                the interface at all. Scanning changes nothing.
+                Records left behind when a profile is deleted through Jellyfin instead of Bonfire. They still count against a household's profile limit. Scanning changes nothing.
             </div>
             <button is="emby-button" type="button" id="scanOrphansBtn" class="raised">
                 <span>Scan for orphans</span>
@@ -724,9 +699,7 @@
                 <h2 class="sectionTitle">Signed-in Devices</h2>
             </div>
             <div class="fieldDescription jpf-lede">
-                Every live session on the server, with the household each sub-profile belongs to.
-                Jellyfin's own Devices page lists these as bare usernames, and sub-profiles are
-                hidden users there, so they read as strangers.
+                Every live session, with the household each sub-profile belongs to.
             </div>
             <button is="emby-button" type="button" id="refreshSessionsBtn" class="raised">
                 <span>Refresh</span>
@@ -739,8 +712,7 @@
                 <h2 class="sectionTitle">Profile Switch Audit Logs</h2>
             </div>
             <div class="fieldDescription jpf-lede">
-                The 1,000 most recent profile switching events on the server. Filtering happens
-                in the page, so it never re-reads the log.
+                The 1,000 most recent profile switches on this server.
             </div>
             <div class="jpf-audit-controls">
                 <div class="jpf-audit-field jpf-audit-filter">
