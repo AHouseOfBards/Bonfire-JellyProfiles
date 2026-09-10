@@ -148,14 +148,21 @@ has(js, 'A library tile takes its picture from whatever is inside the library',
 has(js, 'class="libart-head"', 'the artwork column is labelled');
 
 // ── The admin page ─────────────────────────────────────────────────────────
-const tabNames = ['general', 'avatars', 'accounts', 'activity', 'advanced'];
+const tabNames = ['general', 'tv', 'avatars', 'accounts', 'activity', 'advanced'];
 tabNames.forEach(function (n) {
     ok(count(html, 'data-tab="' + n + '"') === 1, 'one tab button for ' + n);
     ok(count(html, 'data-panel="' + n + '"') === 1, 'one panel for ' + n);
 });
-ok(count(html, 'role="tabpanel"') === 5, 'every panel is announced as one');
-ok(count(html, 'jpf-tab-panel') === 5 + 3, 'five panels plus three style rules');
-ok(count(html, ' hidden>') === 5, 'panels start hidden; show() opens exactly one');
+// Counted against the tab list above rather than a literal, which had to be edited in
+// three places every time a tab was added — and a stale literal is a red harness pointing
+// at working code, which is how a real failure gets waved through.
+const panels = tabNames.length;
+ok(count(html, 'role="tabpanel"') === panels,
+   'every panel is announced as one (' + panels + ')');
+ok(count(html, 'jpf-tab-panel') === panels + 3,
+   'one class per panel, plus the three style rules');
+ok(count(html, ' hidden>') === panels,
+   'panels start hidden; show() opens exactly one');
 // aria-controls must name a real element or the strip lies to a screen reader.
 (html.match(/aria-controls="([^"]+)"/g) || []).forEach(function (m) {
     const id = m.slice(15, -1);

@@ -152,6 +152,37 @@ namespace Jellyfin.Profiles
                 context.Request.Headers["X-Emby-Authorization"],
                 "DeviceId"));
 
+            // Quick Connect on a device somebody has already signed in on. Answered here
+            // rather than passed along, because the client's only route to its password
+            // field is this request failing.
+            if (IsQuickConnectInitiatePath(context)
+                && Auth.QuickConnectGate.ShouldDeny(
+                    Plugin.Instance?.Configuration,
+                    Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                        context.Request.Headers["Authorization"],
+                        context.Request.Headers["X-Emby-Authorization"],
+                        "Device")))
+            {
+                _logger.LogInformation(
+                    "ProfilesPlugin: Quick Connect declined for {Device} ({Client}), a device this "
+                    + "server has seen someone sign in on, so the app opens on its PIN field instead.",
+                    Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                        context.Request.Headers["Authorization"],
+                        context.Request.Headers["X-Emby-Authorization"],
+                        "Device"),
+                    Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                        context.Request.Headers["Authorization"],
+                        context.Request.Headers["X-Emby-Authorization"],
+                        "Client"));
+
+                // The same status and wording Jellyfin itself returns when Quick Connect is
+                // switched off server-wide, so the client is taking a path it already has.
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsync("\"Quick connect is disabled\"").ConfigureAwait(false);
+                return;
+            }
+
             // The login-screen user list, a completely separate job from the index document
             // below and sharing only the capture machinery. Checked first because it is a
             // different path entirely and must not fall through the index logic.
@@ -433,6 +464,24 @@ namespace Jellyfin.Profiles
             }
 
             return path.EndsWith("/Users/Public", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// True for <c>POST /QuickConnect/Initiate</c>, under a base URL or not. The obsolete
+        /// GET form is matched too — <c>InitiateQuickConnectLegacy</c> is still routed and
+        /// simply calls the POST one, so leaving it out would be a way around this.
+        /// </summary>
+        private static bool IsQuickConnectInitiatePath(HttpContext context)
+        {
+            if (!HttpMethods.IsPost(context.Request.Method) && !HttpMethods.IsGet(context.Request.Method))
+            {
+                return false;
+            }
+
+            var path = context.Request.Path.Value;
+            if (string.IsNullOrEmpty(path)) return false;
+
+            return path.EndsWith("/QuickConnect/Initiate", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void Fail(string reason) => LastError = reason;

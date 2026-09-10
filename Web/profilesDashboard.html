@@ -456,6 +456,7 @@
             <div class="jpf-tabs" role="tablist" aria-label="Bonfire settings sections">
                 <button type="button" class="jpf-tab" role="tab" data-tab="general" aria-controls="jpfPanelGeneral">General</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="avatars" aria-controls="jpfPanelAvatars">Avatars</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="tv" aria-controls="jpfPanelTv">TVs &amp; Apps</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="accounts" aria-controls="jpfPanelAccounts">Accounts</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="activity" aria-controls="jpfPanelActivity">Activity</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="advanced" aria-controls="jpfPanelAdvanced">Advanced</button>
@@ -512,44 +513,67 @@
                     <div class="fieldDescription">The menu option adds a row to Settings instead of a second portrait.</div>
                 </div>
 
-                <h3 class="checkboxListLabel jpf-subhead">Televisions and other apps</h3>
-                <div class="fieldDescription jpf-lede">
-                    Android TV, Roku and Swiftfin never load the web client, so they never see
-                    the Bonfire switcher. These two settings let them offer profiles through
-                    their own sign-in screen instead. Both are off until you turn them on.
-                </div>
-
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label>
-                        <input is="emby-checkbox" type="checkbox" id="enableClientPinLogin" />
-                        <span>Let profiles be opened with their PIN on any app</span>
-                    </label>
-                    <div class="fieldDescription">
-                        A profile can be signed into by typing its PIN where the app asks for a
-                        password. The PIN is never stored as a Jellyfin password. A profile with
-                        no PIN opens with the box left empty. Master accounts are never affected.
-                    </div>
-                </div>
-
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label>
-                        <input is="emby-checkbox" type="checkbox" id="enableClientProfileList" />
-                        <span>Show profiles on an app's sign-in screen</span>
-                    </label>
-                    <div class="fieldDescription">
-                        After someone signs in on a device once, that household's profiles appear
-                        in its user list. Only that household's, and only on devices they have
-                        used. This changes the sign-in list every app on this server reads, so
-                        turn it on when you can test it.
-                    </div>
-                </div>
-
-
                 <div class="buttonContainer">
                     <button is="emby-button" type="submit" class="raised button-submit block">Save profile &amp; switcher settings</button>
                 </div>
             </form>
             </div><!-- /general -->
+
+            <div class="jpf-tab-panel" id="jpfPanelTv" data-panel="tv" role="tabpanel" hidden>
+            <div class="sectionTitleContainer jpf-section">
+                <h2 class="sectionTitle">TVs &amp; Apps</h2>
+            </div>
+            <div class="fieldDescription jpf-lede">
+                Android TV, Roku and Swiftfin never load the web client, so they never see the
+                Bonfire switcher. These settings let them offer profiles through their own
+                sign-in screen instead. All three are off until you turn them on.
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+                <label>
+                    <input is="emby-checkbox" type="checkbox" id="enableClientPinLogin" />
+                    <span>Let profiles be opened with their PIN on any app</span>
+                </label>
+                <div class="fieldDescription">
+                    A profile can be signed into by typing its PIN where the app asks for a
+                    password. The PIN is never stored as a Jellyfin password. A profile with no
+                    PIN opens with the box left empty, but only on a device someone in that
+                    household has already signed in on.
+                </div>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+                <label>
+                    <input is="emby-checkbox" type="checkbox" id="enableClientProfileList" />
+                    <span>Show profiles on an app's sign-in screen</span>
+                </label>
+                <div class="fieldDescription">
+                    After someone signs in on a device once, that household's profiles appear in
+                    its user list. Only that household's, and only on devices they have used.
+                    This changes the sign-in list every app on this server reads, so turn it on
+                    when you can test it.
+                </div>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+                <label>
+                    <input is="emby-checkbox" type="checkbox" id="skipQuickConnectOnKnownDevices" />
+                    <span>Open the PIN field instead of Quick Connect</span>
+                </label>
+                <div class="fieldDescription">
+                    Some TV apps always open on a Quick Connect code, with the password field a
+                    button press away. This sends them straight to the password field, where a
+                    PIN is typed. Only on devices someone has already signed in on — the first
+                    sign-in keeps Quick Connect, because there are no profiles to choose from
+                    yet. Matched on the device's name, so renaming a TV gives it one more
+                    Quick Connect.
+                </div>
+            </div>
+
+            <div class="buttonContainer">
+                <button is="emby-button" type="button" id="saveTvSettings" class="raised button-submit block">Save TV &amp; app settings</button>
+            </div>
+            </div><!-- /tv -->
 
             <div class="jpf-tab-panel" id="jpfPanelAvatars" data-panel="avatars" role="tabpanel" hidden>
             <div class="sectionTitleContainer jpf-section">
@@ -825,6 +849,7 @@
                     // itself on because a configuration predates it.
                     page.querySelector('#enableClientPinLogin').checked = !!config.EnableClientPinLogin;
                     page.querySelector('#enableClientProfileList').checked = !!config.EnableClientProfileList;
+                    page.querySelector('#skipQuickConnectOnKnownDevices').checked = !!config.SkipQuickConnectOnKnownDevices;
                     // Absent before 1.4.1 — "both" is the shipped default and the safe one.
                     // Matches IndexInjectionModes.Normalize on the server: anything
                     // unrecognised, including a configuration written before 1.4.1, is
@@ -2169,7 +2194,8 @@
                         defaultSwitcherLocation: page.querySelector('#defaultSwitcherLocation').value === 'menu' ? 'menu' : 'button',
                         indexInjectionMode: page.querySelector('#indexInjectionMode').value,
                         enableClientPinLogin: page.querySelector('#enableClientPinLogin').checked,
-                        enableClientProfileList: page.querySelector('#enableClientProfileList').checked
+                        enableClientProfileList: page.querySelector('#enableClientProfileList').checked,
+                        skipQuickConnectOnKnownDevices: page.querySelector('#skipQuickConnectOnKnownDevices').checked
                     })
                 }).then(function () {
                     Dashboard.hideLoadingMsg();
@@ -2200,6 +2226,15 @@
                 if (saveModeBtn && !saveModeBtn.dataset.bound) {
                     saveModeBtn.dataset.bound = '1';
                     saveModeBtn.addEventListener('click', function () { saveConfiguration(page); });
+                }
+
+                // Same reason as above: these three moved out of the General form into their
+                // own tab, so they are no longer inside that form's submit. saveConfiguration
+                // reads every field by id from the page, so it saves correctly from either.
+                const saveTvBtn = page.querySelector('#saveTvSettings');
+                if (saveTvBtn && !saveTvBtn.dataset.bound) {
+                    saveTvBtn.dataset.bound = '1';
+                    saveTvBtn.addEventListener('click', function () { saveConfiguration(page); });
                 }
                 page.querySelector('form').addEventListener('submit', function (e) {
                     e.preventDefault();

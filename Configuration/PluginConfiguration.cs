@@ -63,6 +63,18 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public bool EnableClientProfileList { get; set; }
 
+        /// <summary>
+        /// Send an app straight to its password field, instead of Quick Connect, once a
+        /// household has signed in on that device.
+        /// <para>
+        /// Off by default, like the other two. It changes the response to
+        /// <c>POST /QuickConnect/Initiate</c> for matching devices, which is a request every
+        /// client on the server can make — see <see cref="Auth.QuickConnectGate"/> for why
+        /// this cannot be decided per profile and why it keys on the device name.
+        /// </para>
+        /// </summary>
+        public bool SkipQuickConnectOnKnownDevices { get; set; }
+
         /// <summary>Default for <see cref="ProfileMapping.SwitcherLocation"/>. See <see cref="DefaultAskOnStartup"/>.</summary>
         public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;
 

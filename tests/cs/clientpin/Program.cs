@@ -604,6 +604,93 @@ if (reconcile != null)
 }
 
 Console.WriteLine();
+Console.WriteLine("── Quick Connect, after the first sign-in ─────────────────────");
+
+// Android TV opens its sign-in screen on Quick Connect and there is no way to ask it not
+// to: ARG_SKIP_QUICKCONNECT exists in UserLoginFragment and no caller ever sets it. The
+// only lever is the response to POST /QuickConnect/Initiate — 401 makes the client take
+// its own UnavailableQuickConnectState path straight to the credentials form.
+//
+// It cannot be decided per profile. initiateQuickConnect() takes no arguments and the
+// client randomises the device id for it:
+//
+//     quickConnectApi.update(baseUrl = server.address,
+//         deviceInfo = defaultDeviceInfo.forUser(UUID.randomUUID()))
+//
+// so the request carries no user and not even the set's usual id. What it does carry
+// unrandomised is the device NAME, which is what this matches on.
+//
+// Deliberately NOT the client name. Logan's installed app reports "Jellyfin Android TV"
+// while the current app source builds "Jellyfin for Android TV" — the string is not stable
+// across versions, so matching it would break silently on an app update.
+//
+// The rule Logan asked for: leave Quick Connect alone the first time, because before
+// anyone has signed in there is no profile list to reach and Quick Connect is the easy way
+// in. Afterwards, go straight to the PIN. "This account's first time" is not observable
+// here — the request has no account — so the observable equivalent is "this is a device we
+// have never seen a household sign in on".
+var gateType = asm.GetType("Jellyfin.Profiles.Auth.QuickConnectGate", false);
+Ok("there is a gate for Quick Connect", gateType != null);
+
+var shouldDeny = gateType?.GetMethod("ShouldDeny", BindingFlags.Public | BindingFlags.Static);
+Ok("and it can be asked about one request", shouldDeny != null);
+
+if (shouldDeny != null)
+{
+    bool Deny(string deviceName) =>
+        (bool)shouldDeny.Invoke(null, new object[] { config, deviceName });
+
+    var skipProp = cfgType.GetProperty("SkipQuickConnectOnKnownDevices");
+    Ok("the setting exists", skipProp != null);
+
+    devicesList.Clear();
+    Remember("family-tv", MASTER);
+    knownType.GetProperty("DeviceName").SetValue(devicesList[0], "Living Room TV");
+
+    // Off is off. Nothing about this feature may change behaviour until it is turned on.
+    skipProp.SetValue(config, false);
+    Ok("while the setting is off, Quick Connect is never touched", !Deny("Living Room TV"));
+
+    skipProp.SetValue(config, true);
+
+    // Rule 2: a device a household has signed in on goes straight to the PIN screen.
+    Ok("a device a household has used is sent to the PIN screen", Deny("Living Room TV"));
+
+    // Rule 1 and 3: the first time, Quick Connect is left alone, because the profile list
+    // does not exist yet and this is how somebody gets in at all.
+    Ok("a device nobody has signed in on keeps Quick Connect", !Deny("Brand New TV"));
+
+    // A record with no owner names no household, so it cannot count as "somebody has
+    // signed in here".
+    devicesList.Clear();
+    Remember("unowned-tv", Guid.Empty);
+    knownType.GetProperty("DeviceName").SetValue(devicesList[0], "Orphan TV");
+    Ok("a device record with no owner keeps Quick Connect", !Deny("Orphan TV"));
+
+    // Names arrive from a header and go out through Jellyfin's session, so neither casing
+    // nor stray spaces may decide this.
+    devicesList.Clear();
+    Remember("case-tv", MASTER);
+    knownType.GetProperty("DeviceName").SetValue(devicesList[0], "Living Room TV");
+    Ok("the name is matched without regard to case", Deny("living room tv"));
+    Ok("and without regard to surrounding space", Deny("  Living Room TV  "));
+
+    // Nothing to match on is not a match. A device that sends no name must keep the easy
+    // way in rather than be locked out of both.
+    Ok("a request with no device name keeps Quick Connect", !Deny(""));
+    Ok("and so does one with a null name", !Deny(null));
+
+    // A blank stored name must not match every nameless request.
+    devicesList.Clear();
+    Remember("nameless-tv", MASTER);
+    knownType.GetProperty("DeviceName").SetValue(devicesList[0], string.Empty);
+    Ok("a stored record with no name matches nothing", !Deny(""));
+
+    skipProp.SetValue(config, false);
+    devicesList.Clear();
+}
+
+Console.WriteLine();
 if (fails.Count > 0)
 {
     foreach (var f in fails) Console.WriteLine("   - " + f);

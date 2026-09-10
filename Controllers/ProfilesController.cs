@@ -3723,6 +3723,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.EnableClientPinLogin = request.EnableClientPinLogin.Value;
                 if (request.EnableClientProfileList.HasValue)
                     config.EnableClientProfileList = request.EnableClientProfileList.Value;
+                if (request.SkipQuickConnectOnKnownDevices.HasValue)
+                    config.SkipQuickConnectOnKnownDevices = request.SkipQuickConnectOnKnownDevices.Value;
 
                 Plugin.Instance?.SaveConfiguration();
             }

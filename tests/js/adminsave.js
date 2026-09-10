@@ -64,7 +64,8 @@ async function run(fieldValues) {
         // the form without adding it here is a failure rather than a silent omission —
         // which is the whole reason this list is written out by hand.
         enableClientPinLogin: false,
-        enableClientProfileList: false
+        enableClientProfileList: false,
+        skipQuickConnectOnKnownDevices: false
     }, fieldValues || {});
 
     // One fake element per id. `value` and `checked` both present, so whichever the
@@ -168,7 +169,8 @@ const expected = [
     'defaultSwitcherLocation',
     'indexInjectionMode',
     'enableClientPinLogin',
-    'enableClientProfileList'
+    'enableClientProfileList',
+    'skipQuickConnectOnKnownDevices'
 ];
 
 if (body) {
