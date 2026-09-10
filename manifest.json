@@ -13,7 +13,7 @@
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- Profiles now appear on the Android TV sign-in screen. The app uses a different device id once somebody is signed in, so the television was never recognised as one we had seen.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.1.9/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "e88f44248aa2f76aee9ec5e368100992",
         "timestamp": "2026-09-10T15:40:00Z"
       },
       {
