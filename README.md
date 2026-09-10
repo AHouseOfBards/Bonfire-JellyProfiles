@@ -97,6 +97,10 @@ browser. Turn on **Dashboard → Bonfire → TVs & Apps**, off by default.
 - Jellyfin for Android TV (tested)
 - Jellyfin for Roku, Swiftfin, Wholphin (untested)
 
+**Your PIN is the password.** These apps ask for a password because that is the only field
+they have. Type the PIN instead — for a sub-profile, and for an account that owns profiles
+and has set one. A master account without a PIN still uses its real password.
+
 Everything else, and why, is in [docs/clients.md](docs/clients.md).
 
 > [!IMPORTANT]
