@@ -313,7 +313,8 @@ namespace Jellyfin.Profiles
                     context.Request.Headers[HeaderNames.Authorization],
                     context.Request.Headers["X-Emby-Authorization"],
                     deviceManager,
-                    config);
+                    config,
+                    _logger);
             }
             catch (Exception ex)
             {

@@ -47,19 +47,39 @@ namespace Jellyfin.Profiles.Auth
         /// The users to add for this request, or an empty list to leave the response alone.
         /// Separated from the JSON work so a harness can drive the decision without a body.
         /// </summary>
+        /// <param name="logger">
+        /// Optional, and the reason this method is not silent. It declines for six different
+        /// reasons and used to report none of them, which left "the profiles do not appear"
+        /// with no way to tell whether the request arrived, whether the device was
+        /// recognised, or whether the household was empty. Every return path now says which
+        /// one it took.
+        /// </param>
         public static IReadOnlyList<Guid> ResolveHousehold(
             string? authorizationHeader,
             string? embyAuthorizationHeader,
             IDeviceManager deviceManager,
-            Configuration.PluginConfiguration? config)
+            Configuration.PluginConfiguration? config,
+            ILogger? logger = null)
         {
             var none = Array.Empty<Guid>();
 
-            if (config?.Mappings == null || !config.EnableClientProfileList) return none;
+            if (config?.Mappings == null || !config.EnableClientProfileList)
+            {
+                logger?.LogInformation(
+                    "ProfilesPlugin: user list requested, but showing profiles on sign-in screens is off.");
+                return none;
+            }
 
             var deviceId = ProfilesBaseController.ParseAuthorizationParameter(
                 authorizationHeader, embyAuthorizationHeader, "DeviceId");
-            if (string.IsNullOrWhiteSpace(deviceId)) return none;
+            if (string.IsNullOrWhiteSpace(deviceId))
+            {
+                logger?.LogInformation(
+                    "ProfilesPlugin: user list requested with no DeviceId in the Authorization header, "
+                    + "so the household cannot be identified. Header was: {Header}",
+                    string.IsNullOrEmpty(authorizationHeader) ? "(absent)" : "present but carried no DeviceId");
+                return none;
+            }
 
             // Everyone who has ever authenticated on this device, newest first. A device
             // nobody has signed in on yields nothing, which is the correct answer for a
@@ -68,7 +88,14 @@ namespace Jellyfin.Profiles.Auth
             var newest = devices?.Items?
                 .OrderByDescending(d => d.DateLastActivity)
                 .FirstOrDefault();
-            if (newest == null || newest.UserId == Guid.Empty) return none;
+            if (newest == null || newest.UserId == Guid.Empty)
+            {
+                logger?.LogInformation(
+                    "ProfilesPlugin: user list requested by device {DeviceId}, which nobody has signed in on yet. "
+                    + "Sign in as the account that owns the profiles once on this device.",
+                    deviceId);
+                return none;
+            }
 
             // Resolve to the household.
             //
@@ -96,6 +123,10 @@ namespace Jellyfin.Profiles.Auth
             {
                 // Nobody Bonfire knows. Every other account on the server lands here, which
                 // is what keeps them out of a household they have nothing to do with.
+                logger?.LogInformation(
+                    "ProfilesPlugin: user list requested by device {DeviceId}, last used by {UserId}, "
+                    + "which is not a Bonfire account. Nothing added.",
+                    deviceId, newest.UserId);
                 return none;
             }
 
@@ -106,6 +137,11 @@ namespace Jellyfin.Profiles.Auth
             household.AddRange(config.Mappings
                 .Where(m => m.MasterUserId == masterId && m.ProfileUserId != masterId)
                 .Select(m => m.ProfileUserId));
+
+            logger?.LogInformation(
+                "ProfilesPlugin: user list requested by device {DeviceId}; resolved to the household of "
+                + "{MasterId} with {Count} member(s).",
+                deviceId, masterId, household.Count);
 
             return household;
         }
@@ -200,7 +236,16 @@ namespace Jellyfin.Profiles.Auth
                 }
             }
 
-            if (added == 0) return null;
+            if (added == 0)
+            {
+                logger.LogInformation(
+                    "ProfilesPlugin: the household was already present in the user list; nothing added.");
+                return null;
+            }
+
+            logger.LogInformation(
+                "ProfilesPlugin: added {Added} profile(s) to the sign-in user list, which now has {Total}.",
+                added, array.Count);
 
             return Encoding.UTF8.GetBytes(array.ToJsonString());
         }

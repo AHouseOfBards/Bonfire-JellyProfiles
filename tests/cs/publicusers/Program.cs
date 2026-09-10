@@ -232,9 +232,18 @@ if (resolve != null)
         var dm = DeviceManagerStub.Create(deviceId, lastUser, when ?? DateTime.UtcNow);
         return (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
         {
-            string.Format(HEADER_FMT, deviceId), null, dm, config
+            string.Format(HEADER_FMT, deviceId), null, dm, config, NullLogger.Instance
         });
     }
+
+    // Silence was its own defect. 1.6.1.4 and 1.6.1.5 declined for six different reasons
+    // and logged none of them, so a household seeing nothing had no way to learn whether
+    // the request even arrived. Asserted rather than trusted, because a logger parameter is
+    // exactly the kind of thing a later refactor drops as unused.
+    var loggerParam = resolve.GetParameters().LastOrDefault();
+    Ok("the lookup accepts a logger, so it can say why it declined",
+       loggerParam != null && typeof(Microsoft.Extensions.Logging.ILogger).IsAssignableFrom(loggerParam.ParameterType),
+       loggerParam?.ParameterType.Name);
 
     // The case that shipped broken.
     var afterMasterSignIn = Resolve("tv-1", MASTER);
@@ -259,7 +268,7 @@ if (resolve != null)
     // The header is the only way we learn the device. Moonfin sends none at all.
     var noHeader = (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
     {
-        null, null, DeviceManagerStub.Create("tv-1", MASTER, DateTime.UtcNow), config
+        null, null, DeviceManagerStub.Create("tv-1", MASTER, DateTime.UtcNow), config, NullLogger.Instance
     });
     Ok("a request with no Authorization header resolves to nothing", noHeader.Count == 0);
 
