@@ -27,10 +27,22 @@ Requires **Dashboard → Bonfire → TVs & Apps**, off by default.
 
 | Client | Status |
 | --- | --- |
-| Jellyfin for Android TV | Tested. |
-| Jellyfin for Roku | Untested. Sends a device id, so it should work. |
-| Swiftfin (iOS, tvOS) | Untested. |
-| Wholphin | Untested. Merges the public user list, so it should work. |
+| Jellyfin for Android TV | Supported, confirmed on hardware. |
+| Jellyfin for Roku | Supported in 1.6.2.1-beta. Not yet confirmed on hardware. |
+| Swiftfin (iOS, tvOS) | Supported in 1.6.2.1-beta. Not yet confirmed on hardware. |
+| Findroid (phone and TV) | Supported in 1.6.2.1-beta. Not yet confirmed on hardware. |
+| Wholphin | Supported in 1.6.2.1-beta. Not yet confirmed on hardware. |
+
+**Turn off automatic sign in.** Every one of these apps can be set to sign straight into
+the last account, which skips the screen the profiles are on.
+
+- **Android TV** — Settings → Login → Automatic sign in → *Disable*
+- **Roku** — turn off *Remember me* when you sign in
+- The others stop at their own user list by default.
+
+If you signed in on the device before installing this, sign out and in once. The device is
+noted when somebody signs in on it, so a session that predates the plugin is not on the map
+yet.
 
 What carries over:
 
@@ -52,12 +64,24 @@ What does not:
 | --- | --- |
 | Moonfin | Sends no `Authorization` header on the public user list, so the server cannot tell which household the device belongs to. PIN entry works if you type the full account name. |
 | Infuse | No Jellyfin user-selection screen to add profiles to. |
-| Findroid | Untested, and its sign-in flow has not been checked. |
-| Kodi (JellyCon) | Untested. |
 | Any client with a hardcoded user list | Nothing to inject into. |
 
-An app not listed here is untested rather than known-broken. If it signs in through
-Jellyfin's own user list and sends a `DeviceId`, selection-only support is likely to work.
+Every other app is untested rather than known-broken. Two things decide it: whether the
+app builds its sign-in screen from `GET /Users/Public`, and whether it sends a `DeviceId`
+with that request. Both are needed.
+
+## Apps with no user list
+
+Streamyfin, Plezy and Tsukimi sign in with a typed username and password and never ask the
+server who its users are, so there is no list to add profiles to. They still work:
+
+1. Sign in once as the account that owns the profiles, with its real name and password.
+2. After that, enter a profile by typing **the profile's name** and its PIN.
+
+Step 1 is what tells the server which household the device belongs to. Needs
+**Let profiles be opened with their PIN on any app** under **TVs & Apps**.
+
+The same applies to any app not listed on this page.
 
 ## Parental controls hold everywhere
 

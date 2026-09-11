@@ -576,6 +576,159 @@ if (resolve != null)
     Ok("a client that does not derive its device id still matches exactly",
        viaExact.Count == 2 && viaExact.Contains(LOG_MASTER));
 
+    Console.WriteLine();
+    Console.WriteLine("-- Roku appends a NAME, not an id -----------------------------");
+
+    // Roku's session.user.SetServerDeviceName():
+    //
+    //     deviceName = localGlobal.device.id            ' getChannelClientID()
+    //     if isChainValid(localGlobal, "session.user.friendlyName")
+    //         deviceName = deviceName + localGlobal.session.user.friendlyName
+    //
+    // so it sends the bare channel client id at its sign-in screen and the appended one
+    // once somebody is in. The Android TV derivations cannot help: those are applied
+    // forwards over household GUIDs, and this suffix is a name - and not always a name we
+    // hold, because AboutMe() asks /Users/{id}, which we do not rewrite, so a token
+    // restore appends the REAL username while a PIN login appends the household's name.
+    //
+    // It is reversed at recording time instead, where SessionInfo.UserName says which name
+    // was used. Concatenation is reversible when the suffix is known; SHA-1 is not, which
+    // is the whole reason the two are handled in opposite directions.
+    var baseController = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController", true);
+    var parseAuth = baseController.GetMethod(
+        "ParseAuthorizationParameter", BindingFlags.Static | BindingFlags.NonPublic);
+    Ok("the header parser is reachable", parseAuth != null);
+
+    var bareFor = registry?.GetMethod("BareDeviceIdFor", BindingFlags.Public | BindingFlags.Static);
+    Ok("the registry can reverse an appended name", bareFor != null);
+
+    if (bareFor != null)
+    {
+        string Bare(string deviceId, string name) =>
+            bareFor.Invoke(null, new object[] { deviceId, name }) as string;
+
+        // A real Roku channel client id is a 36-character UUID.
+        const string ROKU = "b9f2c4a1-7e3d-4f58-a0c6-1d2e3f4a5b6c";
+
+        Ok("the bare id is recovered from an appended account name",
+           Bare(ROKU + "BardFamily", "BardFamily") == ROKU);
+
+        // friendlyName strips everything outside [a-zA-Z0-9\-\_], so the name on the wire
+        // is not the name on the account. Underscores and hyphens survive; spaces and
+        // punctuation do not.
+        Ok("a name with spaces is matched as Roku strips it",
+           Bare(ROKU + "BardFamily", "Bard Family") == ROKU);
+        Ok("an underscore survives the strip, because Roku keeps it",
+           Bare(ROKU + "Bard_Test", "Bard_Test") == ROKU);
+        Ok("and a hyphen does too",
+           Bare(ROKU + "Bard-Test", "Bard-Test") == ROKU);
+        Ok("punctuation is dropped the way Roku drops it",
+           Bare(ROKU + "OBrien", "O'Brien") == ROKU);
+
+        // Every uncertain case must answer null, meaning "this is just a device id".
+        Ok("an id that does not end with the name is left alone",
+           Bare(ROKU + "SomeoneElse", "BardFamily") == null);
+        Ok("a client that never appends anything is left alone",
+           Bare(ROKU, "BardFamily") == null);
+        Ok("no name means no reversal", Bare(ROKU + "BardFamily", null) == null);
+        Ok("and no device id means none either", Bare(null, "BardFamily") == null);
+
+        // A name of one or two characters is a coincidence waiting to happen - and a name
+        // that strips to nothing must never match every device on the server.
+        Ok("a name that strips to nothing is refused", Bare(ROKU + "!!", "!!") == null);
+        Ok("a very short name is refused", Bare(ROKU + "ab", "ab") == null);
+
+        // The remainder must still look like a device id. An account whose name is nearly
+        // the whole id must not leave a two-character stub that some unrelated client
+        // might genuinely send.
+        Ok("a strip that would leave a stub is refused",
+           Bare("abcdXYZlongname", "XYZlongname") == null);
+
+        // Ordinal: Roku appends the stripped name verbatim, so a case-folded comparison
+        // could only ever strip the wrong number of characters.
+        Ok("the suffix is matched with case, as Roku writes it",
+           Bare(ROKU + "BardFamily", "bardfamily") == null);
+
+        // And the point of all of it: the sign-in screen's id resolves to the household.
+        devicesList.Clear();
+        mappings.Clear();
+        mappings.Add(Mapping(KID, LOG_MASTER));
+        Remember(ROKU, LOG_MASTER);
+        var viaRoku = (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
+        {
+            string.Format(HEADER_FMT, ROKU), null,
+            DeviceManagerStub.Create(ROKU, null, DateTime.UtcNow), config, NullLogger.Instance
+        });
+        Ok("a Roku recorded under its bare id is offered the household's profiles",
+           viaRoku.Count == 2 && viaRoku.Contains(LOG_MASTER),
+           viaRoku.Count + " user(s)");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("-- The header each client really sends ------------------------");
+
+    // Read from each client's source. The shapes differ enough that a parser written
+    // against one of them would silently return null for the others, and a null DeviceId
+    // is indistinguishable from a device nobody has used - the exact failure that made
+    // device restrictions unreachable before ParseAuthorizationParameter was fixed.
+    devicesList.Clear();
+    mappings.Clear();
+    mappings.Add(Mapping(KID, LOG_MASTER));
+
+    var realHeaders = new (string Client, string Header, string DeviceId)[]
+    {
+        // jellyfin-roku, source/api/baserequest.bs: quoted, spaces after commas.
+        ("Roku",
+         "MediaBrowser Client=\"Jellyfin Roku\", Device=\"Living Room (4800X)\", "
+         + "Version=\"2.1.0\", DeviceId=\"roku-device-0001\"",
+         "roku-device-0001"),
+
+        // Swiftfin, via jellyfin-sdk-swift's authorizationHeaders: UNQUOTED values, built
+        // from a dictionary so the field order is not fixed either.
+        ("Swiftfin",
+         "MediaBrowser DeviceId=tvOS_9F8E7D6C, Device=Apple TV, Client=Swiftfin tvOS, Version=1.3.0",
+         "tvOS_9F8E7D6C"),
+
+        // Findroid and Wholphin, via the Kotlin SDK's AuthorizationHeaderBuilder: quoted,
+        // and the bare ANDROID_ID either side of a sign-in because neither calls forUser.
+        ("Findroid",
+         "MediaBrowser Client=\"Findroid\", Device=\"Pixel Tablet\", "
+         + "DeviceId=\"9a6dae35cc29c74f\", Version=\"0.16.0\"",
+         "9a6dae35cc29c74f"),
+
+        // tsukimi, crates/tsukimi/src/client/jellyfin_client.rs: unquoted AND no space
+        // after the commas.
+        ("tsukimi",
+         "MediaBrowser Client=Tsukimi,Device=desktop,DeviceId=9d1c7b3a5e2f4086,Version=0.17.0",
+         "9d1c7b3a5e2f4086"),
+
+        // plezy, lib/services/jellyfin_auth_header.dart: quoted and percent-encoded, so a
+        // device name with a space arrives as %20 and must be decoded back.
+        ("plezy",
+         "MediaBrowser Client=\"Plezy%20Android%20TV\", Device=\"Living%20Room%2C%20TV\", "
+         + "DeviceId=\"plezy-7f3a91c4d8e2\", Version=\"1.0.0\"",
+         "plezy-7f3a91c4d8e2"),
+    };
+
+    foreach (var (client, header, expectedId) in realHeaders)
+    {
+        if (parseAuth == null) break;
+        var parsedId = parseAuth.Invoke(null, new object[] { header, null, "DeviceId" }) as string;
+        Ok("the DeviceId is read out of " + client + "'s real header", parsedId == expectedId,
+           parsedId ?? "(null)");
+
+        devicesList.Clear();
+        Remember(expectedId, LOG_MASTER);
+        var viaClient = (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
+        {
+            header, null,
+            DeviceManagerStub.Create(expectedId, null, DateTime.UtcNow), config, NullLogger.Instance
+        });
+        Ok("and " + client + " is offered the household's profiles",
+           viaClient.Count == 2 && viaClient.Contains(LOG_MASTER),
+           viaClient.Count + " user(s)");
+    }
+
     // Restore the fixture the later sections expect.
     devicesList.Clear();
     mappings.Clear();

@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.6.2.1",
+        "changelog": "**Beta release** - please report issues on GitHub.\n\n**Added**\n\n- Jellyfin for Roku, Swiftfin, Findroid and Wholphin can now show your profiles on their own sign-in screen, the same as Android TV. Turn off automatic sign in on the app, or it goes straight into the last account.\n- Apps that have no user list at all, such as Streamyfin, Plezy and Tsukimi, can enter a profile by typing the profile's name and its PIN.\n\n**Fixed**\n\n- Turning on \"Skip Quick Connect on known devices\" took Quick Connect away from apps that already have a password screen. It now only applies to Android TV, which is the one that needs it.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.2.1/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-09-11T05:54:34Z"
+      },
+      {
         "version": "1.6.1.14",
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- A profile went back to showing its full username once you signed into it on a TV. The name you gave it now sticks.",
         "targetAbi": "10.11.0.0",

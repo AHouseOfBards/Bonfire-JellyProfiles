@@ -103,6 +103,37 @@ namespace Jellyfin.Profiles.Auth
                     master,
                     _logger);
 
+                // Roku signs in with one id and browses with another: it appends the
+                // account's name to its device id once a session exists, so the id on its
+                // sign-in screen is the prefix of the id every later request carries. Record
+                // that prefix too, or the screen we are trying to put profiles on is the one
+                // id we never noted.
+                //
+                // Reversed here rather than derived at lookup because this is the only place
+                // that knows WHICH name the client used — Roku uses the real username after
+                // a token restore and the household's name after a PIN login, and only one
+                // of those is in our configuration. See DeviceRegistry.BareDeviceIdFor.
+                //
+                // It is a second row in the administrator's device list for one physical
+                // television, which is honest: two device ids really are in use. Recording
+                // never reassigns a row another household owns, so a coincidental strip
+                // cannot take a device away from anyone.
+                var bare = DeviceRegistry.BareDeviceIdFor(session.DeviceId, session.UserName);
+                if (bare != null)
+                {
+                    DeviceRegistry.RecordAndSave(
+                        bare,
+                        session.DeviceName,
+                        session.Client,
+                        master,
+                        _logger);
+
+                    _logger.LogInformation(
+                        "ProfilesPlugin: device {DeviceId} carries {User}'s name appended to it, so "
+                        + "{Bare} was noted as well — that is what this app sends on its sign-in screen.",
+                        session.DeviceId, session.UserName, bare);
+                }
+
                 // Information, not Debug. This is the half of the feature that WRITES, and
                 // shipping it silent in 1.6.1.7 repeated the exact mistake 1.6.1.6 existed to
                 // fix on the reading half: a device that was never recorded and a device that

@@ -41,7 +41,7 @@ profiles, each with its own watch history, parental controls, and library access
   **Switch Profile** entry in Jellyfin's own menu, under **Settings → Switcher Style**. It
   is a per-household choice, not a server setting.
 - **Library artwork.** Give a profile its own picture for a library, or none at all, so a Kids profile does not get a Movies tile built from a film it cannot open.
-- **Televisions and other apps.** Apps that never load the web client — Android TV, Roku, Swiftfin — can offer a household's profiles on their own sign-in screen, opened with a PIN. Off until an administrator turns it on.
+- **Televisions and other apps.** Apps that never load the web client — Android TV, Roku, Swiftfin, Findroid, Wholphin — can offer a household's profiles on their own sign-in screen, opened with a PIN. Off until an administrator turns it on.
 
 ---
 
@@ -94,8 +94,13 @@ only applies where Bonfire runs.
 PIN. PINs, device restrictions and parental controls all hold; profile management needs a
 browser. Turn on **Dashboard → Bonfire → TVs & Apps**, off by default.
 
-- Jellyfin for Android TV (tested)
-- Jellyfin for Roku, Swiftfin, Wholphin (untested)
+- Jellyfin for Android TV
+- Jellyfin for Roku, Swiftfin, Findroid, Wholphin — new in 1.6.2.1-beta, not yet confirmed
+  on hardware
+
+Turn off automatic sign in, or the app goes straight into the last account and never shows
+the profiles. On Android TV that is **Settings → Login → Automatic sign in → Disable**; on
+Roku, untick *Remember me*.
 
 **Your PIN is the password.** These apps ask for a password because that is the only field
 they have. Type the PIN instead — for a sub-profile, and for an account that owns profiles

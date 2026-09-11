@@ -149,6 +149,88 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
+        /// The shortest device id we will ever store as a derivation of another. Roku's own
+        /// id is a 36-character channel client id, so this rejects nothing real — it exists
+        /// so an account with a short name can never strip a device id down to a stub that
+        /// some unrelated client might genuinely send.
+        /// </summary>
+        internal const int MinimumBareDeviceIdLength = 8;
+
+        /// <summary>
+        /// The id this client would have sent <i>before</i> anyone signed in, when the id it
+        /// is sending now was built by appending the account's name to it — or null when it
+        /// was not built that way.
+        ///
+        /// <para><b>Why this is reversed here and not derived at lookup.</b> Jellyfin Roku
+        /// appends the signed-in account's name to its device id, in
+        /// <c>session.user.SetServerDeviceName()</c>:</para>
+        ///
+        /// <code>
+        /// deviceName = localGlobal.device.id                  ' getChannelClientID()
+        /// if isChainValid(localGlobal, "session.user.friendlyName")
+        ///     deviceName = deviceName + localGlobal.session.user.friendlyName
+        /// </code>
+        ///
+        /// <para>where <c>friendlyName</c> is the account name with everything outside
+        /// <c>[^a-zA-Z0-9\-\_]</c> removed. So a Roku sends the bare id at its sign-in screen
+        /// and the appended one once somebody is in — the same split that made 1.6.1.7
+        /// useless on Android TV.</para>
+        ///
+        /// <para><b>Roku cannot be handled the way Android TV is.</b> That derivation is
+        /// applied forwards over <see cref="HouseholdMembers"/>, which yields Guids; this
+        /// suffix is a <i>name</i>. Worse, it is not always a name we hold:
+        /// <c>ProfileMapping</c> carries <c>ProfileName</c>, but Roku's <c>AboutMe()</c> asks
+        /// <c>/Users/{id}</c> — which Bonfire does not rewrite — so on a launch that restores
+        /// a stored token the suffix is the account's <i>real</i> username, while on a fresh
+        /// PIN login it is the household's name for it. Guessing which would mean trying
+        /// every name we know and hoping.</para>
+        ///
+        /// <para><b>So it is reversed at the moment of recording instead</b>, where
+        /// <c>SessionInfo.UserName</c> says exactly which name the client used. Concatenation
+        /// is reversible when the suffix is known; that is the whole reason the Android TV
+        /// hash has to be applied forwards and this does not.</para>
+        ///
+        /// <para>Ordinal, not case-insensitive: Roku appends the name verbatim after
+        /// stripping, so a case-folded comparison could only ever strip the wrong thing.</para>
+        /// </summary>
+        public static string? BareDeviceIdFor(string? deviceId, string? accountName)
+        {
+            var id = deviceId?.Trim();
+            if (string.IsNullOrEmpty(id) || string.IsNullOrWhiteSpace(accountName)) return null;
+
+            var friendly = RokuFriendlyName(accountName);
+
+            // A very short suffix is a coincidence waiting to happen — "c74f" is a plausible
+            // account name and also the tail of a real ANDROID_ID.
+            if (friendly.Length < 3) return null;
+
+            if (!id.EndsWith(friendly, StringComparison.Ordinal)) return null;
+
+            var bare = id.Substring(0, id.Length - friendly.Length);
+            return bare.Length < MinimumBareDeviceIdLength ? null : bare;
+        }
+
+        /// <summary>
+        /// An account name the way Roku writes it into a device id: everything outside
+        /// <c>[a-zA-Z0-9\-\_]</c> removed, matching its own
+        /// <c>CreateObject("roRegex", "[^a-zA-Z0-9\-\_]", "")</c>.
+        /// </summary>
+        private static string RokuFriendlyName(string name)
+        {
+            var kept = new StringBuilder(name.Length);
+            foreach (var c in name)
+            {
+                if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9') || c == '-' || c == '_')
+                {
+                    kept.Append(c);
+                }
+            }
+
+            return kept.ToString();
+        }
+
+        /// <summary>
         /// Lowercase hex SHA-1, matching Kotlin's
         /// <c>digest().joinToString("") { "%02x".format(it) }</c>.
         /// <para>

@@ -705,8 +705,10 @@ Ok("and it can be asked about one request", shouldDeny != null);
 
 if (shouldDeny != null)
 {
-    bool Deny(string deviceName) =>
-        (bool)shouldDeny.Invoke(null, new object[] { config, deviceName });
+    // Defaulted to the client that actually needs this, so every rule below still reads as
+    // a statement about the device rather than about the app.
+    bool Deny(string deviceName, string client = "Jellyfin Android TV") =>
+        (bool)shouldDeny.Invoke(null, new object[] { config, deviceName, client });
 
     var skipProp = cfgType.GetProperty("SkipQuickConnectOnKnownDevices");
     Ok("the setting exists", skipProp != null);
@@ -753,6 +755,43 @@ if (shouldDeny != null)
     Remember("nameless-tv", MASTER);
     knownType.GetProperty("DeviceName").SetValue(devicesList[0], string.Empty);
     Ok("a stored record with no name matches nothing", !Deny(""));
+
+    // ── only the client that needs it ──────────────────────────────────────────
+    //
+    // Refusing Quick Connect exists to reach a password field the app is standing in
+    // front of. Every other client surveyed has one of its own: Roku's Quick Connect is a
+    // button beside the password box, Swiftfin focuses the password field when a user is
+    // picked, Findroid and Wholphin open on a credentials form. Denying theirs turns a
+    // deliberate press into "Quick Connect not available" and fixes nothing.
+    //
+    // Before this, the gate matched on the device name alone — so a household that turned
+    // this on for its television had silently broken Quick Connect on its Roku, on the
+    // same home network, as soon as both were recorded. Paired with the positive case
+    // above so neither direction can pass by accident.
+    devicesList.Clear();
+    Remember("shared-tv", MASTER);
+    knownType.GetProperty("DeviceName").SetValue(devicesList[0], "Living Room TV");
+
+    Ok("Android TV, which opens on Quick Connect, is still sent to the PIN screen",
+       Deny("Living Room TV", "Jellyfin Android TV"));
+    Ok("and so is the other spelling of it, which is why this is a substring match",
+       Deny("Living Room TV", "Jellyfin for Android TV"));
+
+    Ok("Roku keeps its Quick Connect button", !Deny("Living Room TV", "Jellyfin Roku"));
+    Ok("Swiftfin keeps Quick Connect", !Deny("Living Room TV", "Swiftfin tvOS"));
+    Ok("Findroid keeps Quick Connect", !Deny("Living Room TV", "Findroid"));
+    Ok("Wholphin keeps Quick Connect", !Deny("Living Room TV", "Wholphin"));
+
+    // An unknown client keeps it too. This setting can only take something away, so the
+    // uncertain answer is the one that leaves an app as its authors built it.
+    Ok("an unrecognised client keeps Quick Connect", !Deny("Living Room TV", "Some New App"));
+    Ok("and a request naming no client keeps it", !Deny("Living Room TV", ""));
+    Ok("and so does one with a null client", !Deny("Living Room TV", null));
+
+    // The phone app is a web-client wrapper and gets the full switcher, so it must not be
+    // caught by a loose match on "Android".
+    Ok("the Android phone app is not mistaken for Android TV",
+       !Deny("Living Room TV", "Jellyfin for Android"));
 
     skipProp.SetValue(config, false);
     devicesList.Clear();
