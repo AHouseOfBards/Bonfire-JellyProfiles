@@ -13,7 +13,7 @@
         "changelog": "**Fixed**\n\n- Giving a profile a new library in Dashboard -> Users was undone the next time anyone entered that profile. Grants made there are now kept. To take a library away from a profile, edit the profile. [#30]\n- Turning on \"Skip Quick Connect on known devices\" took Quick Connect away from apps that already have a password screen. It now applies only to Android TV, which is the one that needs it.\n\n**Added**\n\n- Profiles can appear on the sign-in screens of Jellyfin for Roku, Swiftfin, Findroid and Wholphin, the same as Android TV. Turn off automatic sign in on the app, or it goes straight into the last account.\n- Apps that have no user list of their own can enter a profile by typing the profile's name and its PIN.\n\n**Changed**\n\n- The README is shorter. Library artwork, Bonfire sharing and known limitations now have their own pages under docs/.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.3/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "4861d6f862de5dc3c150150efba903c8",
         "timestamp": "2026-09-13T19:32:19Z"
       },
       {
