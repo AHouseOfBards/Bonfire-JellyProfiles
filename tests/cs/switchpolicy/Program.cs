@@ -198,6 +198,128 @@ Ok("SwitchProfile calls ShouldInheritMasterPolicy",
 var oldGuard = "if (masterUser != null && targetUser.Id != callerMasterUserId)";
 Ok("the old unguarded condition is gone", !src.Contains(oldGuard));
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Issue #30: entering a profile reverted library access granted in Dashboard →
+// Users. The stored list was applied unconditionally, so a real, persisted grant
+// was undone the next time somebody used the feature.
+//
+// The rule cannot be "the account's list wins when they differ", because that is
+// also what a reset policy looks like, and healing those is why the stored copy
+// exists. The separator is DIRECTION: a reset can only lose grants, never invent
+// one, so additions are adopted and removals are not.
+//
+// Unlike the #27 half above, these call the real code. Reconcile is pure, so the
+// harness can drive every case directly. The wiring assertions at the end are what
+// bisect — a correct helper nobody calls reads as coverage while changing nothing.
+// ─────────────────────────────────────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── Issue #30: a grant in Dashboard -> Users is not a stale value ");
+
+var reconcilerType = asm.GetType("Jellyfin.Profiles.Auth.LibraryAccessReconciler", false);
+Ok("there is a reconciler for a profile's library list", reconcilerType != null);
+
+var reconcile = reconcilerType?.GetMethod("Reconcile", BindingFlags.Public | BindingFlags.Static);
+Ok("and it can be asked about one profile", reconcile != null);
+
+if (reconcile != null)
+{
+    var MOVIES = Guid.NewGuid();
+    var SHOWS = Guid.NewGuid();
+    var MUSIC = Guid.NewGuid();   // the library added later, in Dashboard -> Users
+
+    object Run(List<Guid> stored, List<Guid> account, bool enableAll) =>
+        reconcile.Invoke(null, new object[] { stored, account, enableAll });
+
+    List<Guid> Authority(object r) =>
+        (List<Guid>)r.GetType().GetProperty("Authority").GetValue(r);
+    List<Guid> Granted(object r) =>
+        (List<Guid>)r.GetType().GetProperty("Granted").GetValue(r);
+    List<Guid> Missing(object r) =>
+        (List<Guid>)r.GetType().GetProperty("Missing").GetValue(r);
+    bool Changed(object r) =>
+        (bool)r.GetType().GetProperty("StoredListChanged").GetValue(r);
+
+    // The reported case: a library granted on the account, absent from the profile's
+    // stored copy. Before the fix the profile's copy was returned verbatim and the
+    // grant was written away.
+    var grant = Run(new List<Guid> { MOVIES, SHOWS }, new List<Guid> { MOVIES, SHOWS, MUSIC }, false);
+    Ok("a library granted outside the plugin survives entering the profile",
+        Authority(grant).Contains(MUSIC));
+    Ok("and the profile keeps everything it already had",
+        Authority(grant).Contains(MOVIES) && Authority(grant).Contains(SHOWS));
+    Ok("the grant is reported, so there is a trail where there was none",
+        Granted(grant).Count == 1 && Granted(grant)[0] == MUSIC);
+    Ok("and the profile's stored list is updated rather than left to revert again",
+        Changed(grant));
+
+    // The other direction, which must NOT change: this is what a reset looks like,
+    // and healing it is the whole reason a stored copy exists.
+    var reset = Run(new List<Guid> { MOVIES, SHOWS }, new List<Guid>(), false);
+    Ok("a profile whose account lost its libraries is still healed",
+        Authority(reset).Count == 2
+        && Authority(reset).Contains(MOVIES) && Authority(reset).Contains(SHOWS));
+    Ok("nothing is adopted from an emptied account", !Changed(reset));
+    Ok("but the mismatch is reported, because it reads as a failed save",
+        Missing(reset).Count == 2);
+
+    // Jellyfin stores "all libraries" as EnableAllFolders = true with an EMPTY
+    // EnabledFolders — the same shape as a reset, and no per-library grant to read.
+    var all = Run(new List<Guid> { MOVIES }, new List<Guid>(), true);
+    Ok("an all-libraries account adopts nothing", !Changed(all));
+    Ok("and the profile's own list is what gets applied",
+        all is not null && Authority(all).Count == 1 && Authority(all)[0] == MOVIES);
+
+    // Agreement is the common case and must be silent in both directions.
+    var same = Run(new List<Guid> { MOVIES, SHOWS }, new List<Guid> { SHOWS, MOVIES }, false);
+    Ok("two lists that agree report no grant", !Changed(same));
+    Ok("and report nothing missing", Missing(same).Count == 0);
+
+    // Degenerate inputs. Guid.Empty is what an unparseable folder id becomes
+    // elsewhere in the plugin, so adopting it would grant nothing under a real name.
+    var empty = Run(new List<Guid> { MOVIES }, new List<Guid> { MOVIES, Guid.Empty }, false);
+    Ok("an empty guid is never adopted as a library", !Granted(empty).Contains(Guid.Empty));
+    Ok("and does not appear in the applied list", !Authority(empty).Contains(Guid.Empty));
+
+    var dupes = Run(new List<Guid> { MOVIES, MOVIES }, new List<Guid> { MOVIES, MUSIC, MUSIC }, false);
+    Ok("a duplicated id is applied once", dupes is not null
+        && Authority(dupes).Count(f => f == MOVIES) == 1
+        && Authority(dupes).Count(f => f == MUSIC) == 1);
+
+    var nulls = reconcile.Invoke(null, new object[] { null, null, false });
+    Ok("null lists on both sides resolve to nothing rather than throwing",
+        Authority(nulls).Count == 0 && !Changed(nulls));
+
+    // A first grant onto a profile stored with an empty list. Adopting here is right:
+    // an empty stored list plus a populated account list is still an addition.
+    var first = Run(new List<Guid>(), new List<Guid> { MOVIES }, false);
+    Ok("a profile stored with no libraries still adopts a grant",
+        Authority(first).Count == 1 && Changed(first));
+}
+
+Console.WriteLine();
+Console.WriteLine("── The reconciler is wired into the switch path ─────────────────");
+
+Ok("SwitchProfile calls the reconciler",
+    src.Contains("Auth.LibraryAccessReconciler.Reconcile("));
+
+// The stored list must no longer be handed straight through. This is the line the
+// issue is about, and its absence is what makes this assertion a bisect.
+var oldApply = "authorityFolders = mapping.EnabledFolders;";
+Ok("the stored list is no longer applied unconditionally", !src.Contains(oldApply));
+
+// The adopted list has to reach the mapping, or it reverts again on the next entry.
+Ok("an adopted grant is persisted to the mapping",
+    src.Contains("liveRow.EnabledFolders = merged;"));
+
+// Re-resolved inside the lock: Jellyfin replaces the whole configuration object when
+// an administrator saves plugin settings, so the row captured earlier can be orphaned.
+Ok("the mapping row is re-resolved inside the config lock",
+    src.Contains("var liveRow = Plugin.Instance?.Configuration?.Mappings?"));
+
+// A sub-profile still cannot exceed its master, whatever was adopted.
+Ok("the result is still intersected with the master's accessible folders",
+    src.Contains("authorityFolders = authorityFolders.Where(id => masterAccessible.Contains(id)).ToList();"));
+
 Console.WriteLine();
 Console.WriteLine("  " + pass + " passed, " + fails.Count + " failed");
 if (fails.Count > 0)

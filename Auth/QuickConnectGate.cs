@@ -55,9 +55,42 @@ namespace Jellyfin.Profiles.Auth
         /// a device that has none yet; allowing wrongly costs an extra keypress.
         /// </para>
         /// </summary>
-        public static bool ShouldDeny(PluginConfiguration? config, string? deviceName)
+        /// <summary>
+        /// The clients whose sign-in screen opens on Quick Connect with no way to ask it not
+        /// to, and which therefore need this at all.
+        ///
+        /// <para><b>Why a list and not every client.</b> Refusing Quick Connect is only ever
+        /// a way to reach a password field that the app is standing in front of. Every other
+        /// client surveyed already offers one: Roku's Quick Connect is a button on a sign-in
+        /// group whose primary control is the password box, Swiftfin fills the username and
+        /// moves focus straight to the password, Findroid and Wholphin open on a credentials
+        /// form. Denying theirs would turn a deliberate Quick Connect press into "Quick
+        /// Connect not available" and fix nothing — a household enabling this for its
+        /// television would have quietly broken it on its Roku.</para>
+        ///
+        /// <para><b>Matched as a substring on purpose.</b> The full client string is not
+        /// stable: the app installed on Logan's television reports
+        /// <c>"Jellyfin Android TV"</c> while current app source builds
+        /// <c>"Jellyfin for Android TV"</c>. Both contain <c>"Android TV"</c>, which is the
+        /// part that has not moved. This is also why the <i>device</i> name, not the client
+        /// name, still decides whether a household has used the device — see below.</para>
+        /// </summary>
+        private static readonly string[] OpensOnQuickConnect = { "Android TV" };
+
+        public static bool ShouldDeny(PluginConfiguration? config, string? deviceName, string? client)
         {
             if (config?.KnownDevices == null || !config.SkipQuickConnectOnKnownDevices)
+            {
+                return false;
+            }
+
+            // A client that has a password field of its own keeps Quick Connect. Unknown
+            // clients keep it too: this can only take away, so the uncertain answer is the
+            // one that leaves the app exactly as its authors built it.
+            var who = client?.Trim();
+            if (string.IsNullOrEmpty(who)
+                || !OpensOnQuickConnect.Any(needle =>
+                       who.Contains(needle, StringComparison.OrdinalIgnoreCase)))
             {
                 return false;
             }

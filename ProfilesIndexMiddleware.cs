@@ -174,16 +174,18 @@ namespace Jellyfin.Profiles
                     context.Request.Headers["X-Emby-Authorization"],
                     "Device");
 
-                if (Auth.QuickConnectGate.ShouldDeny(Plugin.Instance?.Configuration, qcDevice))
+                var qcClient = Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                    context.Request.Headers["Authorization"],
+                    context.Request.Headers["X-Emby-Authorization"],
+                    "Client");
+
+                if (Auth.QuickConnectGate.ShouldDeny(Plugin.Instance?.Configuration, qcDevice, qcClient))
                 {
                     _logger.LogInformation(
                         "ProfilesPlugin: Quick Connect declined for {Device} ({Client}), a device this "
                         + "server has seen someone sign in on, so the app opens on its PIN field instead.",
                         qcDevice,
-                        Controllers.ProfilesBaseController.ParseAuthorizationParameter(
-                            context.Request.Headers["Authorization"],
-                            context.Request.Headers["X-Emby-Authorization"],
-                            "Client"));
+                        qcClient);
 
                 // The same status and wording Jellyfin itself returns when Quick Connect is
                 // switched off server-wide, so the client is taking a path it already has.
