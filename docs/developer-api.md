@@ -31,7 +31,7 @@ unless stated otherwise. Field names are returned camelCase.
 
 ## All routes
 
-Every route the plugin exposes. **Auth** is what the endpoint enforces, not what it
+All 50 endpoints the plugin exposes. **Auth** is what the endpoint enforces, not what it
 ought to: `anon` means reachable with no token at all.
 
 This table is generated from `ProfilesController` and checked by

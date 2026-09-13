@@ -76,6 +76,24 @@ working with Bonfire bundled into the package at build time — but **the packag
 rebuilt to pick up plugin updates**. Nothing reaches it automatically, so a fix released
 today is not on your TV until you rebuild.
 
+## A profile's library access keeps reverting
+
+Edit a profile's libraries in **Edit profile → Libraries**, not in **Dashboard → Users**.
+
+Each profile keeps its own list of libraries, and that list is re-applied every time
+somebody enters the profile — which is what restores a profile's settings after Jellyfin
+resets a user policy.
+
+Since 1.6.2.2 the two are reconciled rather than one overwriting the other:
+
+- **Granting** a library in Dashboard → Users works. The profile picks it up the next time
+  it is entered and keeps it.
+- **Removing** one there does not stick, because that is indistinguishable from a policy
+  reset, and the profile's own list wins. Untick it in **Edit profile → Libraries** instead.
+
+Either way the server log says what happened, beginning `ProfilesPlugin:`. A profile can
+never be given a library its owning account does not have.
+
 ## The interface is unusable and I cannot reach the settings page
 
 Set an **emergency disable code** before you need one, under **Dashboard → Plugins →
@@ -85,7 +103,7 @@ switches the client script off until Jellyfin restarts.
 It cannot rescue every failure: if the script fails to load at all there is nothing for
 the code to run in. For that case, restart Jellyfin or delete the plugin folder.
 
-See **Known Limitations** in the README for what the code does and does not unlock — it
+See [docs/limitations.md](docs/limitations.md) for what the code does and does not unlock — it
 is deliberately not a master key.
 
 ## Reporting something

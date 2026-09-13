@@ -23,7 +23,7 @@ stable one, never on its own, or you will stop being offered stable releases.
 >
 > * A feature may not work at all, may work differently from its description, or may disappear in the next build.
 > * Settings introduced in a beta can change shape before release. Reverting to a stable build afterwards may leave those settings behind or reset them.
-> * The profile switcher itself can break. If that happens the plugin can make the Jellyfin web interface hard to use — see the **Emergency disable code** under *Known Limitations* in the [README](README.md) before you rely on a beta on a machine you need working.
+> * The profile switcher itself can break. If that happens the plugin can make the Jellyfin web interface hard to use — see the **Emergency disable code** in [docs/limitations.md](docs/limitations.md) before you rely on a beta on a machine you need working.
 >
 > Please do report what you find on [GitHub Issues](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues) — that is what the channel is for. Just don't put a beta on a server your household depends on that evening.
 

@@ -261,27 +261,40 @@ console.log('── entry shape (P7-17, reported, not yet a gate) ────�
 }
 
 console.log();
-console.log('── the README says true things about the API ──────────────────');
+console.log('── the docs say true things about the API ─────────────────────');
 
 const readme = fs.readFileSync(path.join(L.ROOT, 'README.md'), 'utf8');
 
-// "All 41 endpoints" was in the README while the controller had 42, and neither the
-// plan nor CLAUDE.md agreed with either. A number in prose that nothing checks is a
-// number that will be wrong.
-const claimed = /All (\d+) endpoints/.exec(readme);
-ok('the README names an endpoint count', !!claimed, claimed ? claimed[1] : '');
-ok('and it is the real one', !!claimed && Number(claimed[1]) === R.length,
-    claimed ? 'README says ' + claimed[1] + ', controller has ' + R.length : '');
+// Both counts used to be asserted against the README. They moved to the API reference
+// when the README was trimmed, and they are CHECKED THERE rather than dropped — a
+// number in prose that nothing checks is a number that will be wrong, wherever it
+// lives. "All 41 endpoints" was in the README while the controller had 42, and neither
+// the plan nor CLAUDE.md agreed with either.
+//
+// Asserted against docs/developer-api.md, which is the document that now owns the
+// claim. If a count is moved again, move the assertion with it; do not delete it.
+const apiClaims = fs.readFileSync(path.join(L.ROOT, 'docs', 'developer-api.md'), 'utf8');
 
-// The anonymous count is quoted in the README too.
-// Whitespace-tolerant: the README is hard-wrapped, and this phrase spans two lines.
-// A single-line regex found nothing and reported the README as silent on a count it
+const claimed = /All (\d+) endpoints/.exec(apiClaims);
+ok('the API reference names an endpoint count', !!claimed, claimed ? claimed[1] : '');
+ok('and it is the real one', !!claimed && Number(claimed[1]) === R.length,
+    claimed ? 'the doc says ' + claimed[1] + ', controller has ' + R.length : '');
+
+// Whitespace-tolerant: the file is hard-wrapped, and this phrase can span two lines.
+// A single-line regex found nothing and reported the document as silent on a count it
 // states plainly — the checker being wrong reads exactly like the document being wrong.
-const anonClaim = /the\s+(\w+)\s+routes\s+that\s+work\s+without\s+a\s+token/.exec(readme);
+const anonClaim = /(\w+)\s+routes\s+are\s+reachable\s+without\s+a\s+token/.exec(apiClaims);
 const WORDS = { five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
-ok('the README names the anonymous count', !!anonClaim);
-ok('and it matches the code', !!anonClaim && WORDS[anonClaim[1]] === anonCode.size,
-    anonClaim ? 'README says ' + anonClaim[1] + ', code has ' + anonCode.size : '');
+ok('the API reference names the anonymous count', !!anonClaim);
+ok('and it matches the code',
+    !!anonClaim && WORDS[anonClaim[1].toLowerCase()] === anonCode.size,
+    anonClaim ? 'the doc says ' + anonClaim[1] + ', code has ' + anonCode.size : '');
+
+// The README no longer restates either count, so it cannot drift from them. If a count
+// is put back into it, it has to be a real one.
+const readmeCount = /All (\d+) endpoints/.exec(readme);
+ok('the README does not restate a stale endpoint count',
+    readmeCount === null || Number(readmeCount[1]) === R.length);
 
 // The profile limit is configurable with per-user overrides; "up to five profiles"
 // described a default as though it were a cap, in two places.
