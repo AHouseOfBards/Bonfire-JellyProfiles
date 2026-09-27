@@ -1062,17 +1062,8 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public ActionResult<object> GetAdminMappings()
         {
-            var currentUserIdVal = GetCurrentUserId();
-            if (currentUserIdVal == null) return Unauthorized();
-
-            var caller = _userManager.GetUserById(currentUserIdVal.Value);
-            if (caller == null) return Unauthorized();
-
-            var callerDto = _userManager.GetUserDto(caller, string.Empty);
-            if (!callerDto.Policy.IsAdministrator)
-            {
-                return Unauthorized("Only administrators can view all mappings.");
-            }
+            var adminError = RequireAdministrator("view all mappings");
+            if (adminError != null) return adminError;
 
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
@@ -1186,19 +1177,10 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public ActionResult<object> RetryInjection()
         {
-            var currentUserIdVal = GetCurrentUserId();
-            if (currentUserIdVal == null) return Unauthorized();
+            var adminError = RequireAdministrator("retry script injection");
+            if (adminError != null) return adminError;
 
-            var caller = _userManager.GetUserById(currentUserIdVal.Value);
-            if (caller == null) return Unauthorized();
-
-            var callerDto = _userManager.GetUserDto(caller, string.Empty);
-            if (!callerDto.Policy.IsAdministrator)
-            {
-                return Unauthorized("Only administrators can retry script injection.");
-            }
-
-            _logger.LogInformation("ProfilesPlugin: Manual injection retry requested by {User}.", caller.Username);
+            _logger.LogInformation("ProfilesPlugin: Manual injection retry requested by {User}.", GetCurrentUserId());
             var succeeded = ProfilesBootstrapTask.RunInjectionNow();
 
             return Ok(new
@@ -1247,17 +1229,8 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public ActionResult ResetPinAdmin([FromBody] DeleteProfileRequest request)
         {
-            var currentUserIdVal = GetCurrentUserId();
-            if (currentUserIdVal == null) return Unauthorized();
-
-            var caller = _userManager.GetUserById(currentUserIdVal.Value);
-            if (caller == null) return Unauthorized();
-
-            var callerDto = _userManager.GetUserDto(caller, string.Empty);
-            if (!callerDto.Policy.IsAdministrator)
-            {
-                return Unauthorized("Only administrators can reset PINs.");
-            }
+            var adminError = RequireAdministrator("reset PINs");
+            if (adminError != null) return adminError;
 
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
@@ -3906,15 +3879,8 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public ActionResult SetProfileLimit([FromBody] SetProfileLimitRequest request)
         {
-            var currentUserIdVal = GetCurrentUserId();
-            if (currentUserIdVal == null) return Unauthorized();
-
-            var caller = _userManager.GetUserById(currentUserIdVal.Value);
-            if (caller == null) return Unauthorized();
-
-            var callerDto = _userManager.GetUserDto(caller, string.Empty);
-            if (!callerDto.Policy.IsAdministrator)
-                return Unauthorized("Only administrators can update profile limits.");
+            var adminError = RequireAdministrator("update profile limits");
+            if (adminError != null) return adminError;
 
             // Checked before the lock, and against both bounds. This used to test only
             // `< 1`, so an override of two billion was accepted and then handed to the gate
@@ -3958,15 +3924,8 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public ActionResult<IEnumerable<AuditLogEntry>> GetAuditLogs()
         {
-            var currentUserIdVal = GetCurrentUserId();
-            if (currentUserIdVal == null) return Unauthorized();
-
-            var caller = _userManager.GetUserById(currentUserIdVal.Value);
-            if (caller == null) return Unauthorized();
-
-            var callerDto = _userManager.GetUserDto(caller, string.Empty);
-            if (!callerDto.Policy.IsAdministrator)
-                return Unauthorized("Only administrators can view audit logs.");
+            var adminError = RequireAdministrator("view audit logs");
+            if (adminError != null) return adminError;
 
             lock (AuditLogLock)
             {

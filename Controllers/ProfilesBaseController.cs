@@ -939,17 +939,6 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// A 429 that says how long the wait actually is, and carries a <c>Retry-After</c>
-        /// header so anything automated can read the same number the person is shown.
-        /// <para>
-        /// Every one of these used to end "please try again in 15 minutes", which is the
-        /// width of the window rather than the wait. The limiter slides: it frees a slot
-        /// when the oldest counted attempt ages out, so the real answer is usually far
-        /// less, and fifteen was not even a safe over-estimate to quote — it was simply a
-        /// different quantity.
-        /// </para>
-        /// </summary>
-        /// <summary>
         /// Counts one PIN attempt for the web switcher, or returns the 429 to send. Per
         /// address and profile, and per profile across every address — see
         /// <see cref="RateLimiter.PinPerProfile"/>. Counted before the PIN is checked, so
@@ -1005,6 +994,17 @@ namespace Jellyfin.Profiles.Controllers
             return true;
         }
 
+        /// <summary>
+        /// A 429 that says how long the wait actually is, and carries a <c>Retry-After</c>
+        /// header so anything automated can read the same number the person is shown.
+        /// <para>
+        /// Every one of these used to end "please try again in 15 minutes", which is the
+        /// width of the window rather than the wait. The limiter slides: it frees a slot
+        /// when the oldest counted attempt ages out, so the real answer is usually far
+        /// less, and fifteen was not even a safe over-estimate to quote — it was simply a
+        /// different quantity.
+        /// </para>
+        /// </summary>
         internal ActionResult TooManyAttempts(RateLimiter limiter, string key, string what)
         {
             var wait = limiter.RetryAfter(key);
@@ -1636,10 +1636,6 @@ namespace Jellyfin.Profiles.Controllers
 
         internal const string DefaultAvatarColor = "#00A4DC";
 
-        /// <summary>
-        /// Returns the colour if it is a plain 6-digit hex triplet, otherwise the default.
-        /// Anything else could break out of the <c>style="..."</c> attribute it lands in.
-        /// </summary>
         /// <summary>The longest name a household may give a profile.</summary>
         internal const int MaxProfileNameLength = 32;
 
@@ -1680,6 +1676,10 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>The inactivity lock, in minutes: zero (off) to a day.</summary>
         internal static int ClampLockoutMinutes(int minutes) => Math.Clamp(minutes, 0, 24 * 60);
 
+        /// <summary>
+        /// Returns the colour if it is a plain 6-digit hex triplet, otherwise the default.
+        /// Anything else could break out of the <c>style="..."</c> attribute it lands in.
+        /// </summary>
         protected static string SanitizeAvatarColor(string? color)
             => !string.IsNullOrWhiteSpace(color) && HexColorRegex.IsMatch(color.Trim())
                 ? color.Trim()

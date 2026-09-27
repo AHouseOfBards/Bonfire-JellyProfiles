@@ -286,7 +286,7 @@ namespace Jellyfin.Profiles.Auth
             // A profile with no PIN opens with an empty box — but only on a device the
             // household has actually signed in on.
             //
-            // The empty box on its own was a hole, and Logan found it by trying: this
+            // The empty box on its own was a hole, found by trying it on a live server: this
             // provider is reached by anything that can POST /Users/AuthenticateByName, it
             // sees no device and no network, and sub-profile usernames are both predictable
             // (`<master>_<profile>`) and published by our own /Users/Public injection. On a

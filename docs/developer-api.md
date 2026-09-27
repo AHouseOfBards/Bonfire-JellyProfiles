@@ -45,7 +45,7 @@ is not the one the code enforces.
 | `GET /plugins/profiles/libraries` | user | Libraries the caller can grant to a sub-profile. |
 | `POST /plugins/profiles/create` | user | Create a sub-profile under the caller. |
 | `POST /plugins/profiles/delete` | user | Delete one of the caller’s sub-profiles. |
-| `POST /plugins/profiles/switch` | admin | Switch to a profile and return a session. |
+| `POST /plugins/profiles/switch` | user | Switch to a profile and return a session. |
 | `POST /plugins/profiles/verify-pin` | user | Check a PIN without switching. |
 | `GET /plugins/profiles/admin/mappings` | admin | Every profile on the server, for the dashboard. |
 | `POST /plugins/profiles/admin/retry-injection` | admin | Re-attempt the client-script injection. |
@@ -267,7 +267,7 @@ Retrieves a list of all profiles (master and sub-profiles) accessible to the aut
 
 ### `POST /plugins/profiles/switch`
 
-**Authorisation:** administrator.
+**Authorisation:** signed-in user — the target must be in the caller's household or a linked Bonfire.
 
 Authenticates a profile selection and returns a scoped session token. Rate limited to 5 failed attempts in 15 minutes.
 

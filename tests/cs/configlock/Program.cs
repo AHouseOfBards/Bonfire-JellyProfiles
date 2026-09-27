@@ -20,8 +20,10 @@ using System.Threading;
 // writes made against the stale reference are thrown away with it.
 //
 // This harness does not take that on trust. It:
-//   1. instantiates the real plugin and calls the real UpdateConfiguration, to
-//      show the instance is genuinely replaced;
+//   1. instantiates the real plugin and calls the real UpdateConfiguration, which
+//      Jellyfin's base class implements by replacing the instance. The plugin now
+//      overrides it to copy onto the instance in use, so this asserts the reference
+//      survives the save (P2-25) — the root of the defect below, not just its symptom;
 //   2. drives two threads through the old pattern, deterministically, and shows
 //      both get inside at once — then drives the same two threads through the
 //      real ConfigLock and shows they do not;
@@ -109,15 +111,23 @@ if (plugin != null)
         var before = configProp.GetValue(plugin);
         Ok("a configuration is available before the save", before != null);
 
-        // Exactly what the dashboard's save does.
+        // Exactly what Jellyfin's generic configuration save does.
+        //
+        // These two assertions used to prove the defect: Jellyfin's own UpdateConfiguration
+        // assigns the new object, so everything that had read the configuration before
+        // taking ConfigLock went on mutating an orphan (P2-25). The plugin now overrides it
+        // to copy the saved values onto the instance in use, so the reference never
+        // changes — and the question is whether the values arrived.
         var replacement = Activator.CreateInstance(cfgType);
+        cfgType.GetProperty("MaxProfilesPerUser").SetValue(replacement, 13);
         update.Invoke(plugin, new[] { replacement });
         var after = configProp.GetValue(plugin);
 
-        Ok("after UpdateConfiguration, Plugin.Instance.Configuration is a DIFFERENT object "
-           + "(this is the whole defect: a monitor held on the old one guards nothing)",
-           !ReferenceEquals(before, after));
-        Ok("and it is the object that was handed in", ReferenceEquals(after, replacement));
+        Ok("after UpdateConfiguration, Plugin.Instance.Configuration is the SAME object "
+           + "(so a reference read before the lock is never an orphan)",
+           ReferenceEquals(before, after));
+        Ok("and the saved values were copied onto it",
+           (int)cfgType.GetProperty("MaxProfilesPerUser").GetValue(after) == 13);
     }
 }
 

@@ -26,8 +26,8 @@ namespace Jellyfin.Profiles.Auth
     /// <c>authenticateFinish</c> out of the account's real DTO — <c>getCurrentUser()</c> on a
     /// token restore, or the authentication response on a PIN login — neither of which was
     /// being rewritten. So the friendly name lasted exactly until the first sign-in, which is
-    /// how Logan's <c>BardFamily</c> read "family" while <c>Bard_test</c>, which he had
-    /// signed into on that television, did not.</para>
+    /// how <c>BardFamily</c> read "family" on the test television while <c>Bard_test</c>,
+    /// which had been signed into on it, did not.</para>
     ///
     /// <para><b>Why not rename the account.</b> The system username is
     /// <c>&lt;master&gt;_&lt;name&gt;</c> so two households on one server can both have a

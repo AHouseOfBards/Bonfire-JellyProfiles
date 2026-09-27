@@ -195,11 +195,6 @@ namespace Jellyfin.Profiles.Configuration
     }
 
     /// <summary>
-    /// Where an account reaches the profile switcher. Independent of whether the startup
-    /// prompt appears — the two were one setting in 1.3.1-beta, which could not express
-    /// "ask me on startup, but put the switcher in Jellyfin's menu" (GitHub issue #14).
-    /// </summary>
-    /// <summary>
     /// Where the client script tag comes from. See
     /// <see cref="PluginConfiguration.IndexInjectionMode"/>.
     /// </summary>
@@ -244,6 +239,11 @@ namespace Jellyfin.Profiles.Configuration
         public static bool UsesMiddleware(string? value) => Normalize(value) != File;
     }
 
+    /// <summary>
+    /// Where an account reaches the profile switcher. Independent of whether the startup
+    /// prompt appears — the two were one setting in 1.3.1-beta, which could not express
+    /// "ask me on startup, but put the switcher in Jellyfin's menu" (GitHub issue #14).
+    /// </summary>
     public static class SwitcherLocations
     {
         /// <summary>Bonfire's own floating button, injected into the client header.</summary>

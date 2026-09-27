@@ -959,14 +959,6 @@ namespace Jellyfin.Profiles
         }
 
         /// <summary>
-        /// Writes via a temp file in the same directory then replaces the original, so a
-        /// crash or a full disk mid-write cannot leave Jellyfin with a truncated index.html
-        /// (which would break the entire web client, not just this plugin).
-        ///
-        /// Falls back to a direct write if the atomic replace isn't permitted — some
-        /// container mounts allow writing a file but not creating siblings.
-        /// </summary>
-        /// <summary>
         /// Cleans index.html once the middleware has proved it is in the pipeline.
         ///
         /// <para>
@@ -1073,6 +1065,14 @@ namespace Jellyfin.Profiles
             }
         }
 
+        /// <summary>
+        /// Writes via a temp file in the same directory then replaces the original, so a
+        /// crash or a full disk mid-write cannot leave Jellyfin with a truncated index.html
+        /// (which would break the entire web client, not just this plugin).
+        ///
+        /// Falls back to a direct write if the atomic replace isn't permitted — some
+        /// container mounts allow writing a file but not creating siblings.
+        /// </summary>
         private void WriteFileAtomic(string path, string contents)
         {
             try
@@ -1115,11 +1115,6 @@ namespace Jellyfin.Profiles
         // ── Path discovery ───────────────────────────────────────────────────────
 
         /// <summary>
-        /// Searches all locations Jellyfin is known to place its web client on every
-        /// supported platform (Windows installer, Linux packages, Docker images,
-        /// portable/Scoop). Returns the full path to index.html or <c>null</c>.
-        /// </summary>
-        /// <summary>
         /// A key that is the same for two paths pointing at the same file.
         ///
         /// The Linux packages ship several of the candidate directories as symlinks to one
@@ -1150,6 +1145,11 @@ namespace Jellyfin.Profiles
             return path;
         }
 
+        /// <summary>
+        /// Searches all locations Jellyfin is known to place its web client on every
+        /// supported platform (Windows installer, Linux packages, Docker images,
+        /// portable/Scoop). Returns the full path to index.html or <c>null</c>.
+        /// </summary>
         private string? FindIndexHtml()
         {
             var candidates = new List<string?>();

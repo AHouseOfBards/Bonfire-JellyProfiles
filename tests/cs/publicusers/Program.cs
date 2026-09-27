@@ -334,7 +334,7 @@ if (resolve != null)
     //     activity?.startActivity(ActivityDestinations.startup(activity))
     //
     // So the exact action that opens the picker deletes the only record we keyed on. It
-    // showed up in Logan's log seconds after a successful sign-in on that same set:
+    // showed up in a production log seconds after a successful sign-in on that same set:
     //
     //     user list requested by device "9a6dae35cc29c74f", which nobody has signed in on yet
     //
@@ -504,7 +504,7 @@ if (resolve != null)
     // raw ANDROID_ID. So we record a per-user hash and are then asked about the base id,
     // and the two can never be equal.
     //
-    // These are Logan's real values, from the 2026-09-10 15:09 log. Keeping the actual
+    // These are real values, from a 2026-09-10 15:09 production log. Keeping the actual
     // triple means this test fails if the derivation ever changes shape, rather than only
     // if my re-implementation of it disagrees with itself.
     static string Sha1(string value) => Convert.ToHexString(
@@ -878,7 +878,7 @@ Console.WriteLine("-- The name a client remembers ------------------------------
 // and `holder.cardView.name = user.name` paints the STORED name. That copy is written by
 // authenticateFinish from the account's real DTO — getCurrentUser() on a token restore,
 // or the authentication response on a PIN login — so the friendly name survived exactly
-// until the first sign-in. Logan found it: BardFamily read "family", Bard_test did not,
+// until the first sign-in. On the test television BardFamily read "family", Bard_test did not,
 // and the difference was that Bard_test had been signed into on that television.
 //
 // So the two endpoints that tell a client who it is are rewritten too.

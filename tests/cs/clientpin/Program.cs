@@ -217,9 +217,9 @@ Ok("an account Bonfire has never heard of is refused",
 
 // THIS USED TO EXPECT A REFUSAL, on the grounds that a master "on many servers
 // administers the whole server". That is true of exactly one account per server — the one
-// that set it up. Logan's has forty masters and thirty-nine administer nothing, so the
+// that set it up. A real forty-household server has one admin among forty masters, so the
 // rule was wrong for almost every user of it, and it came from my test fixture having one
-// master who was also the admin. Allowing administrators too is his decision, taken
+// master who was also the admin. Allowing administrators too is a deliberate decision, taken
 // knowingly, with a warning under the PIN field.
 //
 // A master keeps its real password. Jellyfin binds a user to exactly ONE provider:
@@ -270,7 +270,7 @@ Ok("an empty PIN does not open a PIN-protected profile",
 // reached by anything that can POST /Users/AuthenticateByName. Sub-profile usernames are
 // predictable (`<master>_<profile>`) and published by Bonfire's own /Users/Public
 // injection, so on an internet-facing server a PIN-less profile was an account a stranger
-// could enter by guessing one username. Logan found it by trying it.
+// could enter by guessing one username. It was found by trying it on a live server.
 //
 // The behaviour that was wanted is kept: type nothing, get in — on a device the household
 // signed in on. Everywhere else it is refused.
@@ -840,11 +840,11 @@ Console.WriteLine("── Quick Connect, after the first sign-in ─────
 // so the request carries no user and not even the set's usual id. What it does carry
 // unrandomised is the device NAME, which is what this matches on.
 //
-// Deliberately NOT the client name. Logan's installed app reports "Jellyfin Android TV"
+// Deliberately NOT the client name. The installed test app reports "Jellyfin Android TV"
 // while the current app source builds "Jellyfin for Android TV" — the string is not stable
 // across versions, so matching it would break silently on an app update.
 //
-// The rule Logan asked for: leave Quick Connect alone the first time, because before
+// The rule, as asked for: leave Quick Connect alone the first time, because before
 // anyone has signed in there is no profile list to reach and Quick Connect is the easy way
 // in. Afterwards, go straight to the PIN. "This account's first time" is not observable
 // here — the request has no account — so the observable equivalent is "this is a device we

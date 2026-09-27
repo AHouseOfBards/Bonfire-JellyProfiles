@@ -31,7 +31,7 @@ namespace Jellyfin.Profiles.Auth
     ///
     /// <para><b>Why the device name and not the client name.</b> The name is what survives
     /// unrandomised. The client string does not survive app updates: the app installed on
-    /// Logan's television reports <c>"Jellyfin Android TV"</c> while the current app source
+    /// the test television reports <c>"Jellyfin Android TV"</c> while the current app source
     /// builds <c>"Jellyfin for Android TV"</c>. Matching that would have broken silently on
     /// an upgrade, which is the worst way for a setting to stop working.</para>
     ///
@@ -49,13 +49,6 @@ namespace Jellyfin.Profiles.Auth
     public static class QuickConnectGate
     {
         /// <summary>
-        /// True when this Quick Connect request should be refused.
-        /// <para>
-        /// Every uncertain case answers false. Refusing wrongly takes away the only way into
-        /// a device that has none yet; allowing wrongly costs an extra keypress.
-        /// </para>
-        /// </summary>
-        /// <summary>
         /// The clients whose sign-in screen opens on Quick Connect with no way to ask it not
         /// to, and which therefore need this at all.
         ///
@@ -69,7 +62,7 @@ namespace Jellyfin.Profiles.Auth
         /// television would have quietly broken it on its Roku.</para>
         ///
         /// <para><b>Matched as a substring on purpose.</b> The full client string is not
-        /// stable: the app installed on Logan's television reports
+        /// stable: the app installed on the test television reports
         /// <c>"Jellyfin Android TV"</c> while current app source builds
         /// <c>"Jellyfin for Android TV"</c>. Both contain <c>"Android TV"</c>, which is the
         /// part that has not moved. This is also why the <i>device</i> name, not the client
@@ -77,6 +70,13 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         private static readonly string[] OpensOnQuickConnect = { "Android TV" };
 
+        /// <summary>
+        /// True when this Quick Connect request should be refused.
+        /// <para>
+        /// Every uncertain case answers false. Refusing wrongly takes away the only way into
+        /// a device that has none yet; allowing wrongly costs an extra keypress.
+        /// </para>
+        /// </summary>
         public static bool ShouldDeny(PluginConfiguration? config, string? deviceName, string? client)
         {
             if (config?.KnownDevices == null || !config.SkipQuickConnectOnKnownDevices)

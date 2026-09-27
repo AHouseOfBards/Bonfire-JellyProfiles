@@ -37,9 +37,9 @@ jobs:
       - name: Syntax check the client script
         run: node --check Web/profiles.js
 
-      # Builds the plugin (Release, -warnaserror, both frameworks) and runs all 36
-      # harnesses: 27 JS and 9 C#, ~1,450 assertions. Same command a maintainer runs
-      # locally, so CI and the desk cannot disagree about what "the tests pass" means.
+      # Builds the plugin (Release, -warnaserror, both frameworks) and runs every
+      # harness, JS and C#. Same command a maintainer runs locally, so CI and the desk
+      # cannot disagree about what "the tests pass" means.
       # The C# half runs against net9.0, which is the build that ships.
       - name: Run the test suite
         run: bash tests/run.sh

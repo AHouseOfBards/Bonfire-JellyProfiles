@@ -10,9 +10,10 @@ listed together so it is obvious which ones are still only a promise.
 tests/run.sh          # or tests\run.ps1 on Windows
 ```
 
-Builds the plugin (Release, `-warnaserror`) and runs all 37 harnesses — 28 JavaScript
-and 9 C#, about 1,500 assertions. CI runs the same command, so the desk and the pipeline
-cannot disagree about what "the tests pass" means.
+Builds the plugin (Release, `-warnaserror`) and runs every harness in `tests/js` and
+`tests/cs`; the runner prints how many ran. CI runs the same command, so the desk and the
+pipeline cannot disagree about what "the tests pass" means. No count is written down here:
+three documents each stated a different one, and none matched the tree.
 
 ```
 tests/run.sh cs10     # the C# harnesses again, against the .NET 10 build
@@ -200,10 +201,12 @@ that runs rarely.
 *Check:* `tests/js/routetick.js` counts the DOM work of 100 unchanged ticks and names each
 selector that survives, in both button and menu mode, with and without an active profile.
 
-**Still open, from the same defect:** 24 of those sites read
-`var config = Plugin.Instance?.Configuration;` *before* taking the lock, so a swap between
-the read and the lock leaves them mutating the orphan. The lock now holds, but the
-reference can be stale. The dashboard no longer triggers it — `POST admin/settings` mutates
-in place — but Jellyfin's own `POST /Plugins/{id}/Configuration` still can. Read the
-configuration **inside** the lock in anything new; `UpdateAdminSettings` is the shape to
-copy. Tracked as P2-25.
+**Closed, from the same defect (P2-25):** many sites read
+`var config = Plugin.Instance?.Configuration;` *before* taking the lock, which was only
+safe while nothing swapped the instance. `Plugin.UpdateConfiguration` now copies a saved
+configuration onto the instance in use instead of replacing it, so the reference is fixed
+for the life of the process. Do not remove that override. Reading inside the lock is still
+the better shape in anything new; `UpdateAdminSettings` is the one to copy.
+
+*Check:* `tests/cs/configlock` calls the real `UpdateConfiguration` and fails unless the
+instance is the same afterwards and carries the saved values.

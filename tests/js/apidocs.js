@@ -98,7 +98,12 @@ function routes() {
             // keeps all of them and drops identifiers that merely contain the word. The
             // documented admin routes are what prove it still detects them: loosen this and
             // they flip to "user" and this very assertion fails.
-            if (/\.IsAdministrator\b/.test(body) || /RequireAdministrator/.test(attrs + body)) {
+            // A CHECK, not the token. This matched any ".IsAdministrator", and two route
+            // bodies wrote "targetPolicy.IsAdministrator = false" — data, the opposite of a
+            // check — so /create and /switch were reported, and documented, as
+            // administrator-only when any signed-in user can call them. A detector that cannot
+            // tell data from a check will one day call a public route gated.
+            if (/!\s*\w+\.Policy\.IsAdministrator\b/.test(body) || /RequireAdministrator\(/.test(attrs + body)) {
                 level = 'admin';
             } else if (/GetCurrentUserId\(\)/.test(body)) {
                 level = 'user';

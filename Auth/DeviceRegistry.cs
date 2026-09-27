@@ -87,7 +87,7 @@ namespace Jellyfin.Profiles.Auth
             //     fun DeviceInfo.forUser(user: String): DeviceInfo = copy(
             //         id = SHA-1("${id}+$user") as lowercase hex)
             //
-            // Verified against Logan's 2026-09-10 log:
+            // Verified against a production log from 2026-09-10:
             // sha1("9a6dae35cc29c74f" + "+" + "8615867e-3617-4ad3-8d62-639b3bdc1305")
             //   == "7629ac2570f4154e81c8ce3f99a6d4764eb7e734", the id the session carried,
             // while the picker asked about "9a6dae35cc29c74f".
@@ -359,11 +359,11 @@ namespace Jellyfin.Profiles.Auth
         /// <summary>
         /// <see cref="Record"/>, with the lock and the save around it.
         /// <para>
-        /// The configuration is read <b>inside</b> the lock deliberately. Jellyfin replaces
-        /// <c>Plugin.Configuration</c> wholesale whenever an administrator saves the plugin's
-        /// settings, so a reference taken before the lock can be an orphan by the time the
-        /// lock is held, and the write lands on an object nothing will ever save. Twenty-four
-        /// older sites still read it early (P2-25); this is the shape they are moving to.
+        /// The configuration is read <b>inside</b> the lock deliberately. Jellyfin's own
+        /// save replaced <c>Plugin.Configuration</c> wholesale, so a reference taken before
+        /// the lock could be an orphan by the time the lock was held. Plugin.UpdateConfiguration
+        /// now copies onto the instance in use instead (P2-25), but this remains the shape
+        /// to prefer: it does not depend on that override staying in place.
         /// </para>
         /// </summary>
         public static void RecordAndSave(

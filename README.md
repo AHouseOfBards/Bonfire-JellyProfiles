@@ -117,6 +117,7 @@ Everything else, and why, is in [docs/clients.md](docs/clients.md).
 | [docs/library-artwork.md](docs/library-artwork.md) | Per-profile pictures for a library |
 | [docs/clients.md](docs/clients.md) | Every client, what works on it, and what does not |
 | [docs/limitations.md](docs/limitations.md) | Custom themes, and the emergency disable code |
+| [docs/security.md](docs/security.md) | What Bonfire protects, and what it does not |
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | The switcher does not appear, and other support answers |
 | [BETA-CHANNEL.md](BETA-CHANNEL.md) | Pre-release builds, and why the two version lists differ |
 | [CHANGELOG.md](CHANGELOG.md) | Every release |

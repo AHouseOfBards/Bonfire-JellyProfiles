@@ -13,9 +13,8 @@ dotnet build -c Release      # the plugin
 tests/run.sh                 # everything — tests\run.ps1 on Windows
 ```
 
-`tests/run.sh` builds the plugin with warnings as errors and runs all 26 harnesses (19
-JavaScript, 7 C#, about 1,300 assertions). Pull requests run exactly that, so if it is green
-locally it will be green on CI.
+`tests/run.sh` builds the plugin with warnings as errors and runs every harness, JavaScript
+and C#. Pull requests run exactly that, so if it is green locally it will be green on CI.
 
 To try a build on a real server, copy `bin/Release/net9.0/Jellyfin.Profiles.dll` into your
 Jellyfin plugins directory and **restart the server process** — Jellyfin cannot unload a
