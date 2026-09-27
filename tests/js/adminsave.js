@@ -31,7 +31,8 @@ function ok(name, cond) {
 }
 
 const script = L.dashboardScript(L.readDashboard());
-const source = L.extractFunction(script, 'saveConfiguration');
+const source = L.extractFunction(script, 'normalizeImageQuality') + '\n'
+    + L.extractFunction(script, 'saveConfiguration');
 
 // ── the stub server ──────────────────────────────────────────────────────────
 // Holds a configuration that already contains a profile the administrator has never
@@ -65,7 +66,8 @@ async function run(fieldValues) {
         // which is the whole reason this list is written out by hand.
         enableClientPinLogin: false,
         enableClientProfileList: false,
-        skipQuickConnectOnKnownDevices: false
+        skipQuickConnectOnKnownDevices: false,
+        profileImageQuality: 'standard'
     }, fieldValues || {});
 
     // One fake element per id. `value` and `checked` both present, so whichever the
@@ -170,7 +172,8 @@ const expected = [
     'indexInjectionMode',
     'enableClientPinLogin',
     'enableClientProfileList',
-    'skipQuickConnectOnKnownDevices'
+    'skipQuickConnectOnKnownDevices',
+    'profileImageQuality'
 ];
 
 if (body) {
@@ -229,6 +232,13 @@ ok('disallowCustomAvatarUploads follows the checkbox', flippedBody.disallowCusto
 ok('defaultAskOnStartup follows the checkbox', flippedBody.defaultAskOnStartup === false);
 ok('defaultSwitcherLocation follows the select', flippedBody.defaultSwitcherLocation === 'menu');
 ok('indexInjectionMode follows the select', flippedBody.indexInjectionMode === 'both');
+
+// The picture quality select: its three values go through, anything else is sent as
+// standard, which is the server's own fallback and never a refusal.
+const higher = await run({ profileImageQuality: 'high' });
+ok('profileImageQuality follows the select', sent(higher).profileImageQuality === 'high');
+const unknownQuality = await run({ profileImageQuality: 'ultra' });
+ok('an unknown picture quality is sent as standard', sent(unknownQuality).profileImageQuality === 'standard');
 
 // Anything unrecognised in the location select becomes 'button' rather than being sent
 // on: the server rejects what it does not know, and this is a two-option select.

@@ -1544,7 +1544,12 @@ namespace Jellyfin.Profiles.Controllers
             }
         }
 
-        protected const int MaxProfileImageBytes = 2 * 1024 * 1024;
+        /// <summary>
+        /// The size a picture saved now must fit in: the administrator's picture quality
+        /// setting (<see cref="ImageQualities"/>). Standard is the 2 MB this always was.
+        /// </summary>
+        protected static int MaxProfileImageBytes
+            => ImageQualities.For(Plugin.Instance?.Configuration?.ProfileImageQuality).MaxBytes;
 
         /// <summary>
         /// Streams an image from disk with a cache validator.

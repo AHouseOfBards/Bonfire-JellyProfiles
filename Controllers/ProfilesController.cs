@@ -1645,6 +1645,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.RequireMasterPinForCreation = incoming.RequireMasterPinForCreation;
                 if (TryProperty(root, "DisallowCustomAvatarUploads", out _))
                     config.DisallowCustomAvatarUploads = incoming.DisallowCustomAvatarUploads;
+                if (TryProperty(root, "ProfileImageQuality", out _))
+                    config.ProfileImageQuality = ImageQualities.Normalize(incoming.ProfileImageQuality);
                 if (TryProperty(root, "DefaultAskOnStartup", out _))
                     config.DefaultAskOnStartup = incoming.DefaultAskOnStartup;
                 if (TryProperty(root, "DefaultSwitcherLocation", out _))
@@ -3600,6 +3602,10 @@ namespace Jellyfin.Profiles.Controllers
             return Ok(new
             {
                 AllowCustomUploads = !config.DisallowCustomAvatarUploads,
+                // What the browser should render a picture at before sending it. Every
+                // resize happens on a canvas there, so this is the whole of the quality
+                // setting as far as a client is concerned; the server checks MaxBytes.
+                Image = DescribeImageSpec(config),
                 Avatars = config.AvatarLibrary.Select(a => new
                 {
                     a.Id,
@@ -3617,6 +3623,19 @@ namespace Jellyfin.Profiles.Controllers
         /// administrator published to every user on the server, so there is nothing here
         /// that an authenticated user could not already fetch.
         /// </summary>
+        private static object DescribeImageSpec(PluginConfiguration config)
+        {
+            var spec = ImageQualities.For(config.ProfileImageQuality);
+            return new
+            {
+                Quality = ImageQualities.Normalize(config.ProfileImageQuality),
+                spec.MasterSize,
+                spec.ThumbSize,
+                spec.JpegQuality,
+                spec.MaxBytes
+            };
+        }
+
         [HttpGet("avatars/{id}")]
         public ActionResult GetLibraryAvatar(string id, [FromQuery] string? size = null)
         {
@@ -3678,7 +3697,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             if (extension == null)
-                return BadRequest("That image could not be read, or it is larger than the 2 MB limit.");
+                return BadRequest($"That image could not be read, or it is larger than the {MaxProfileImageBytes / (1024 * 1024)} MB limit.");
 
             var name = string.IsNullOrWhiteSpace(request.DisplayName)
                 ? "Avatar"
@@ -3827,11 +3846,19 @@ namespace Jellyfin.Profiles.Controllers
                                 + $"'{IndexInjectionModes.Middleware}' or '{IndexInjectionModes.Both}'.");
             }
 
+            if (request.ProfileImageQuality != null && !ImageQualities.IsKnown(request.ProfileImageQuality))
+            {
+                return BadRequest($"Picture quality must be '{ImageQualities.Standard}', "
+                                + $"'{ImageQualities.High}' or '{ImageQualities.Maximum}'.");
+            }
+
             lock (ConfigLock)
             {
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return BadRequest("Plugin configuration missing.");
 
+                if (request.ProfileImageQuality != null)
+                    config.ProfileImageQuality = ImageQualities.Normalize(request.ProfileImageQuality);
                 if (request.MaxProfilesPerUser.HasValue)
                     config.MaxProfilesPerUser = request.MaxProfilesPerUser.Value;
                 if (request.RequireMasterPinForCreation.HasValue)

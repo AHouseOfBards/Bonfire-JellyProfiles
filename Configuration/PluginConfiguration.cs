@@ -30,6 +30,13 @@ namespace Jellyfin.Profiles.Configuration
         public bool DisallowCustomAvatarUploads { get; set; } = false;
 
         /// <summary>
+        /// How large profile pictures, library avatars and library artwork are stored. See
+        /// <see cref="ImageQualities"/>. Applies to pictures saved from now on; pictures
+        /// already stored keep the size they were saved at.
+        /// </summary>
+        public string ProfileImageQuality { get; set; } = ImageQualities.Standard;
+
+        /// <summary>
         /// What an account gets before it chooses for itself: whether the "Who's Watching?"
         /// screen appears on startup, and where the switcher is reached from.
         /// <para>
@@ -277,6 +284,59 @@ namespace Jellyfin.Profiles.Configuration
                 Normalize(mapping.SwitcherLocation ?? (legacyNative ? Menu : fallbackLocation))
             );
         }
+    }
+
+    /// <summary>
+    /// The sizes pictures are stored at. Every resize happens in the browser, on a canvas —
+    /// the plugin has no server-side image library and keeps it that way — so this decides
+    /// what the browser is told to render, and the server enforces the matching byte limit.
+    /// <para>
+    /// Standard is what every picture was before this setting existed: 512 pixels square,
+    /// which is sharp on a phone and soft on a large television or a high-density screen.
+    /// The larger tiers cost disk and bandwidth, and every switcher on the server loads the
+    /// full-size picture of whoever is shown large, so they are opt-in.
+    /// </para>
+    /// </summary>
+    public static class ImageQualities
+    {
+        public const string Standard = "standard";
+        public const string High = "high";
+        public const string Maximum = "maximum";
+
+        /// <summary>What one tier means.</summary>
+        public sealed record Spec(int MasterSize, int ThumbSize, double JpegQuality, int MaxBytes);
+
+        private static readonly Spec StandardSpec = new(512, 128, 0.85, 2 * 1024 * 1024);
+        private static readonly Spec HighSpec = new(1024, 256, 0.9, 4 * 1024 * 1024);
+        private static readonly Spec MaximumSpec = new(2048, 256, 0.92, 8 * 1024 * 1024);
+
+        /// <summary>Whether this is one of the three names, exactly (case aside).</summary>
+        public static bool IsKnown(string? quality)
+            => string.Equals(quality, Standard, System.StringComparison.OrdinalIgnoreCase)
+               || string.Equals(quality, High, System.StringComparison.OrdinalIgnoreCase)
+               || string.Equals(quality, Maximum, System.StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>Maps arbitrary input to a known tier, falling back to <see cref="Standard"/>.</summary>
+        public static string Normalize(string? quality)
+        {
+            if (string.Equals(quality, High, System.StringComparison.OrdinalIgnoreCase)) return High;
+            if (string.Equals(quality, Maximum, System.StringComparison.OrdinalIgnoreCase)) return Maximum;
+            return Standard;
+        }
+
+        public static Spec For(string? quality) => Normalize(quality) switch
+        {
+            High => HighSpec,
+            Maximum => MaximumSpec,
+            _ => StandardSpec
+        };
+
+        /// <summary>
+        /// The largest picture the server accepts under any tier. A picture saved while a
+        /// larger tier was set must stay readable after it is lowered, so reading never
+        /// checks against the current tier — only saving does.
+        /// </summary>
+        public static int LargestMaxBytes => MaximumSpec.MaxBytes;
     }
 
     /// <summary>

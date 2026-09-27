@@ -757,7 +757,8 @@ It serves **locally stored images only**. When a profile's picture is an externa
 
 `POST /create` and `POST /update` accept the picture in `profileImage` and, optionally, its
 small rendering in `profileImageThumb`. Both are `data:image/…;base64,…` payloads capped at
-2 MB decoded.
+the server's picture quality limit — 2, 4 or 8 MB decoded; `GET /avatars` says which, and
+the size to render at.
 
 **The plugin does no server-side image processing** — no resizing, no cropping, no format
 conversion. A client is expected to render both sizes itself, which is what keeps the plugin
@@ -1394,6 +1395,13 @@ Lists the available avatars. Any authenticated user may call this.
 ```json
 {
   "allowCustomUploads": true,
+  "image": {
+    "quality": "high",
+    "masterSize": 1024,
+    "thumbSize": 256,
+    "jpegQuality": 0.9,
+    "maxBytes": 4194304
+  },
   "avatars": [
     {
       "id": "9f2c41a0b7d3",
@@ -1408,6 +1416,7 @@ Lists the available avatars. Any authenticated user may call this.
 | Field | Type | Description |
 |---|---|---|
 | `allowCustomUploads` | boolean | False when the administrator has restricted profile pictures to this library. A client should hide its own upload control when false; the server also refuses `data:` payloads in that state. |
+| `image` | object | The administrator's picture quality. Render a picture at `masterSize` pixels square and its thumbnail at `thumbSize`, encode JPEG at `jpegQuality`, and keep each under `maxBytes` decoded, or the server refuses it. `quality` is `standard`, `high` or `maximum`. |
 | `avatars[].id` | string | Opaque identifier. |
 | `avatars[].displayName` | string | Label for the picker. Free text — escape it on render. |
 | `avatars[].url` | string | Full-size image. |
@@ -1441,7 +1450,7 @@ Adds an image to the library. **Administrators only.**
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `image` | string | Yes | Full-size rendering as a data URL. Max 2 MB decoded. |
+| `image` | string | Yes | Full-size rendering as a data URL. At most the picture quality limit decoded — 2, 4 or 8 MB. |
 | `thumb` | string | No | Small rendering. When absent the full-size image is served in its place — that costs bandwidth but never breaks the picture. |
 | `displayName` | string | No | Trimmed to 60 characters. Defaults to `"Avatar"`. |
 
@@ -1630,6 +1639,7 @@ between reading it and writing it back is silently reverted.
 | `enableClientPinLogin` | boolean | No | Allow a sub-profile to be signed into with its PIN from any client. Binds affected accounts to Bonfire's authentication provider; see [Sign-in from other clients](#sign-in-from-other-clients). |
 | `enableClientProfileList` | boolean | No | Add a household's profiles to the user list clients paint their sign-in screen from, and show each profile under the name its household gave it. |
 | `skipQuickConnectOnKnownDevices` | boolean | No | Refuse Quick Connect on devices a household has signed in on, so the app opens its password field instead. |
+| `profileImageQuality` | string | No | `standard` (512 px, 2 MB), `high` (1024 px, 4 MB) or `maximum` (2048 px, 8 MB). Applies to pictures saved from now on. Anything else is refused with `400`. |
 
 * **Response:** `200 OK` on success.
 

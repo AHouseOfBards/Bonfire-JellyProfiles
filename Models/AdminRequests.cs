@@ -52,6 +52,9 @@ namespace Jellyfin.Profiles.Models
         public bool? EnableClientProfileList { get; set; }
 
         public bool? SkipQuickConnectOnKnownDevices { get; set; }
+
+        /// <summary>See <c>ImageQualities</c>: standard, high or maximum. Null leaves it alone.</summary>
+        public string? ProfileImageQuality { get; set; }
     }
 
     /// <summary>Identifies one signed-in device belonging to one user.</summary>

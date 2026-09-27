@@ -4680,6 +4680,27 @@
 
         IMAGE_MASTER_SIZE: 512,
         IMAGE_THUMB_SIZE: 128,
+        IMAGE_JPEG_QUALITY: 0.85,
+
+        /// The sizes to render a picture at, from the server's picture quality setting.
+        /// Anything missing or out of range falls back to the standard sizes above, which
+        /// are what every picture was before the setting existed — and what a server older
+        /// than it expects, since it will refuse anything over 2 MB.
+        parseImageSpec: function (raw) {
+            const pick = (k) => raw ? (raw[k] !== undefined ? raw[k] : raw[k.charAt(0).toUpperCase() + k.slice(1)]) : undefined;
+            const size = Number(pick('masterSize'));
+            const thumb = Number(pick('thumbSize'));
+            const quality = Number(pick('jpegQuality'));
+            return {
+                masterSize: size >= 128 && size <= 4096 ? size : this.IMAGE_MASTER_SIZE,
+                thumbSize: thumb >= 64 && thumb <= 1024 ? thumb : this.IMAGE_THUMB_SIZE,
+                jpegQuality: quality > 0 && quality <= 1 ? quality : this.IMAGE_JPEG_QUALITY
+            };
+        },
+
+        imageSpec: function () {
+            return this._imageSpec || this.parseImageSpec(null);
+        },
 
         /// Formats refused before we even try to decode, each with a reason worth showing.
         /// Everything else is handed to the browser: if it decodes, we can store it.
@@ -4784,7 +4805,7 @@
         /// JPEG would fill the transparent area with black.
         renderCrop: function (img, viewport, crop, outSize, preferPng) {
             const canvas = this._cropCanvas(img, viewport, crop, outSize);
-            return preferPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.85);
+            return preferPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', this.imageSpec().jpegQuality);
         },
 
         /// Reads an image's alpha channel at low resolution and answers the two separate
@@ -5056,7 +5077,8 @@
             };
             dialog.querySelector('#profiles-crop-cancel').addEventListener('click', close);
             dialog.querySelector('#profiles-crop-save').addEventListener('click', () => {
-                const thumbCanvas = this._cropCanvas(img, VIEW, crop, this.IMAGE_THUMB_SIZE);
+                const spec = this.imageSpec();
+                const thumbCanvas = this._cropCanvas(img, VIEW, crop, spec.thumbSize);
 
                 // Read from the cropped result, not the source. Cropping into the opaque
                 // middle of a cut-out leaves a picture with nothing transparent about it,
@@ -5064,10 +5086,10 @@
                 // preferPng stays on the source, where being over-eager costs only bytes.
                 const cutout = this._alphaProfile(thumbCanvas).cutout;
 
-                const image = this.renderCrop(img, VIEW, crop, this.IMAGE_MASTER_SIZE, preferPng);
+                const image = this.renderCrop(img, VIEW, crop, spec.masterSize, preferPng);
                 const thumb = preferPng
                     ? thumbCanvas.toDataURL('image/png')
-                    : thumbCanvas.toDataURL('image/jpeg', 0.85);
+                    : thumbCanvas.toDataURL('image/jpeg', spec.jpegQuality);
                 close();
                 onDone({ image: image, thumb: thumb, cutout: cutout });
             });
@@ -5083,6 +5105,12 @@
                 headers: this.getAuthHeaders(token)
             })
             .then(res => res.ok ? res.json() : Promise.reject(new Error('unavailable')))
+            .then(data => {
+                // The administrator's picture quality rides along with the avatar list,
+                // because every picker that could save a picture has already asked for it.
+                this._imageSpec = this.parseImageSpec(data.image || data.Image);
+                return data;
+            })
             .then(data => ({
                 allowCustomUploads: (data.allowCustomUploads !== undefined ? data.allowCustomUploads : data.AllowCustomUploads) !== false,
                 avatars: (data.avatars || data.Avatars || []).map(a => ({

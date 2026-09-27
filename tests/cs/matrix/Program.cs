@@ -569,6 +569,41 @@ Check("profile creation is one at a time, so the limit holds",
 Check("every master-PIN check on an edit is limited",
     !controllerSrc.Contains("VerifyPinAndUpgrade(request.MasterPin"), true);
 
+
+Console.WriteLine();
+Console.WriteLine("── Picture quality ─────────────────────────────────────────────");
+
+// The byte limit a saved picture must fit in follows the administrator's setting, and the
+// avatar list tells the browser what size to render at. Standard is what every picture was
+// before the setting existed, so an upgrade changes nothing until somebody chooses.
+var iqType = asm.GetType("Jellyfin.Profiles.Configuration.ImageQualities");
+Check("there are picture quality tiers", iqType != null, true);
+if (iqType != null)
+{
+    var forTier = iqType.GetMethod("For", Flags);
+    var normalizeTier = iqType.GetMethod("Normalize", Flags);
+    int Bytes(string q) { var s = forTier.Invoke(null, new object[] { q }); return (int)s.GetType().GetProperty("MaxBytes").GetValue(s); }
+    int Size(string q) { var s = forTier.Invoke(null, new object[] { q }); return (int)s.GetType().GetProperty("MasterSize").GetValue(s); }
+
+    Check("standard is the 512-pixel, 2 MB picture of every earlier release", (Size("standard"), Bytes("standard")), (512, 2 * 1024 * 1024));
+    Check("high is 1024 pixels, 4 MB", (Size("high"), Bytes("high")), (1024, 4 * 1024 * 1024));
+    Check("maximum is 2048 pixels, 8 MB", (Size("maximum"), Bytes("maximum")), (2048, 8 * 1024 * 1024));
+    Check("an unknown name is standard", normalizeTier.Invoke(null, new object[] { "ultra" }), "standard");
+    Check("so is none", normalizeTier.Invoke(null, new object[] { null }), "standard");
+
+    var cfgType2 = asm.GetType("Jellyfin.Profiles.Configuration.PluginConfiguration", true);
+    var cfg2 = Activator.CreateInstance(cfgType2);
+    Check("a new or upgraded server starts on standard", cfgType2.GetProperty("ProfileImageQuality").GetValue(cfg2), "standard");
+}
+
+var baseSrc = System.IO.File.ReadAllText(RepoPath("Controllers", "ProfilesBaseController.cs"));
+Check("the save limit is the setting's, not a constant",
+    baseSrc.Contains("=> ImageQualities.For(Plugin.Instance?.Configuration?.ProfileImageQuality).MaxBytes;"), true);
+Check("the avatar list tells the browser what to render", controllerSrc.Contains("Image = DescribeImageSpec(config),"), true);
+Check("an unknown tier is refused when an administrator saves it",
+    controllerSrc.Contains("if (request.ProfileImageQuality != null && !ImageQualities.IsKnown(request.ProfileImageQuality))"), true);
+Check("and an import carries it", controllerSrc.Contains("config.ProfileImageQuality = ImageQualities.Normalize(incoming.ProfileImageQuality);"), true);
+
 Console.WriteLine();
 Console.WriteLine($"{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;
