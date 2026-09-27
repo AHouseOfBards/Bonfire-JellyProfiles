@@ -207,8 +207,9 @@ function countOutsideHelper(needle) {
 }
 ok('the switch calls reloadAtHome',
     /localStorage\.setItem\(this\.config\.switchingKey, '1'\);\s*\r?\n\s*this\.reloadAtHome\(\);/.test(src));
-ok('so does the revert-to-master path',
-    countOutsideHelper('this.reloadAtHome();') >= 2);
+// There was a second reload site, the revert-to-master path. It is gone with the master
+// token it put back (see tests/js/mastertoken.js), so the switch is the one site left.
+ok('and it is the only reload site left', countOutsideHelper('this.reloadAtHome();') === 1);
 
 // ── #24: the badge no longer reads as "someone is watching" ─────────────────
 console.log();
@@ -342,15 +343,22 @@ ok('the picture panel no longer carries the row',
     src.slice(src.indexOf('renderAvatarPicker: function'), src.indexOf('initAvatarPicker: function'))
        .indexOf('transparent-row') === -1);
 
-// The header avatar and the gate badge read who-is-active from two different places.
-// Distance-based anchors have bitten before, so bound this to the enclosing branch
-// rather than a character count: the clear must sit between the revert and its reload.
+// The header avatar and the gate badge read who-is-active from two different places. This
+// used to check that the revert-to-master path cleared the cached active profile before
+// reloading, so the header stopped naming the profile being left. There is no revert any
+// more: the session in use stays in use (tests/js/mastertoken.js). What remains of the
+// concern is the lock and the switcher button, which both drop the marker before the gate
+// opens so nothing on screen claims a profile is still active.
 (function () {
-    const i = src.indexOf('apiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);');
-    const j = src.indexOf('this.reloadAtHome();', i);
-    const branch = (i === -1 || j === -1) ? '' : src.slice(i, j);
-    ok('reverting to the master clears the cached active profile, before it reloads',
-        branch.indexOf('this.clearProfileSession();') !== -1);
+    function bodyOf(name) {
+        const at = src.indexOf(name + ': function');
+        const next = src.indexOf('\n        },', at);
+        return at === -1 || next === -1 ? '' : src.slice(at, next);
+    }
+    ok('the inactivity lock clears the cached active profile',
+        bodyOf('lockActiveProfile').indexOf('this.clearProfileSession();') !== -1);
+    ok('and so does opening the switcher',
+        bodyOf('handleBubbleClick').indexOf('this.clearProfileSession();') !== -1);
 })();
 
 console.log();

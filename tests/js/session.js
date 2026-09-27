@@ -188,35 +188,15 @@ ok('the value is still readable within the page',
 ok('and it still reached the mirror',
     typeof noSession.localStorage.data['jpf-persist-' + ACTIVE] === 'string');
 
-console.log();
-console.log('── The revert loop has a backstop ──────────────────────────────');
-
-let guard = load({}, {});
-if (typeof guard.plugin._revertReloadAllowed !== 'function') {
-    ok('the revert path has a loop backstop at all', false);
-} else {
-const first = [
-    guard.plugin._revertReloadAllowed(),
-    guard.plugin._revertReloadAllowed(),
-    guard.plugin._revertReloadAllowed()
-];
-ok('three reverts in a row are allowed', first.every(Boolean));
-ok('the fourth within the window is not', guard.plugin._revertReloadAllowed() === false);
-ok('and it stays refused while the loop continues',
-    guard.plugin._revertReloadAllowed() === false);
-
-// The guard lives in localStorage, so it counts across reloads — which is the only place
-// it matters, since each revert IS a reload.
-let guardCarry = load(Object.assign({}, guard.localStorage.data), {});
-ok('the count survives a reload', guardCarry.plugin._revertReloadAllowed() === false);
-
-// A revert half an hour later is not part of that loop.
-const old = Object.assign({}, guard.localStorage.data);
-old['jpf-revert-guard'] = JSON.stringify({ n: 9, t: Date.now() - 1800000 });
-let later = load(old, {});
-ok('a revert long afterwards starts a fresh window',
-    later.plugin._revertReloadAllowed() === true);
-}
+// ── The revert loop, and why there is no backstop for it any more ─────────────
+//
+// This section used to drive _revertReloadAllowed, the guard that stopped the
+// revert-to-master path reloading forever when the active-profile marker kept vanishing.
+// That path no longer exists: it existed to put a stored master token back in use when a
+// tab was reopened, and no master token is stored now. With no revert there is no reload,
+// and so no loop to guard. tests/js/mastertoken.js asserts both behaviourally — a reopened
+// tab keeps its profile and does not reload — rather than this file asserting the guard's
+// absence, which would be a restatement.
 
 console.log();
 console.log('── No platform sniffing left ───────────────────────────────────');
@@ -229,8 +209,16 @@ ok('the mirror key is unchanged, so upgrades keep their marker',
 // Structural, not behavioural: _revealPage depends on DOM state this sandbox does not
 // model. What matters is that the flag the mirror trusts is cleared once the reload it
 // was raised for has landed, and not while another is in flight.
+// Pairwise, not a count: each call site of reloadAtHome must mark itself. A count of
+// markers could be right while one site had none and another had two.
+const reloadSites = [];
+for (let i = text.indexOf('this.reloadAtHome();'); i !== -1; i = text.indexOf('this.reloadAtHome();', i + 1)) {
+    reloadSites.push(i);
+}
+ok('there is at least one reload of our own', reloadSites.length > 0);
 ok('every reload we perform marks itself',
-    (text.match(/this._reloading = true;/g) || []).length === 2);
+    reloadSites.every(i => text.lastIndexOf('this._reloading = true;', i) > i - 400
+        && text.lastIndexOf('this._reloading = true;', i) !== -1));
 const revealAt = text.indexOf('this._pageRevealed = true;');
 const clearAt = text.indexOf('removeItem(this.config.switchingKey)', revealAt);
 ok('the reveal clears the switching flag',

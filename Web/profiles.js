@@ -336,6 +336,8 @@
         'switcher.reloadFailedBody': 'Close and reopen the app to finish switching profiles.',
         'switcher.notSavedTitle': 'Switch not saved',
         'switcher.notSavedBody': 'This device would not store the change, so you are still signed in as before.',
+        'switcher.manageTitle': 'Manage Profiles',
+        'switcher.manageNeedsMaster': 'Open {name} first, then choose Manage Profiles.',
 
         'bonfire.yourBonfireTitle': 'Your Bonfire',
         'bonfire.hostedTitle': 'Your Hosted Bonfire',
@@ -847,6 +849,64 @@
         /// So: match by id, fall back to the address ApiClient is actually talking to,
         /// fall back to a single stored server, and then read back what was written. The
         /// caller decides what to do with a false; it must not be a reload.
+        /// The household this device belongs to, and the session to act as.
+        ///
+        /// Only the master account's id is stored. Its TOKEN used to be kept here too, in
+        /// localStorage, for as long as any profile was in use — so anybody at that browser
+        /// with the developer tools open, or any other script running on the page, had the
+        /// master account: every PIN, every parental control and every library restriction
+        /// on the profiles was a picture over it. Closing the tab even put it back in use
+        /// behind the gate.
+        ///
+        /// Nothing needs it. The server resolves the household from whatever session calls
+        /// it, so listing and switching work from a profile's own token, and entering the
+        /// master goes through /switch with the master's PIN like entering anything else.
+        /// `token` here is simply the session in use now.
+        readMasterState: function () {
+            let stored = null;
+            try {
+                stored = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
+            } catch (e) { /* unreadable: treat as unknown */ }
+            if (!stored || !stored.masterUserId) return null;
+
+            let token = null;
+            try { token = (typeof ApiClient !== 'undefined' && ApiClient) ? ApiClient.accessToken() : null; } catch (e) { /* no client yet */ }
+
+            // Left behind by an earlier version. Take it out of the browser, and if it is not
+            // the session in use, end it on the server too: it is a live master session that
+            // nothing on this device should be holding any more.
+            if (stored.masterToken) {
+                if (stored.masterToken !== token) this._endSession(stored.masterToken);
+                this.writeMasterState(stored.masterUserId);
+            }
+
+            return { masterUserId: stored.masterUserId, token: token };
+        },
+
+        /// Whether the session in use is the household's master account itself.
+        isSignedInAsMaster: function (state) {
+            const st = state || this.readMasterState();
+            if (!st || typeof ApiClient === 'undefined' || !ApiClient) return false;
+            const current = typeof ApiClient.getCurrentUserId === 'function' ? ApiClient.getCurrentUserId() : '';
+            return !!current && this.normalizeGuid(current) === this.normalizeGuid(st.masterUserId);
+        },
+
+        writeMasterState: function (masterUserId) {
+            try {
+                localStorage.setItem(this.config.masterStorageKey, JSON.stringify({ masterUserId: masterUserId }));
+            } catch (e) { /* full or blocked: the next list fetch writes it again */ }
+        },
+
+        /// Signs one session out on the server. Best-effort and silent: the token has
+        /// already been dropped from this browser, which is what matters here.
+        _endSession: function (token) {
+            try {
+                if (!token || typeof ApiClient === 'undefined' || !ApiClient || typeof ApiClient.getUrl !== 'function') return;
+                fetch(ApiClient.getUrl('Sessions/Logout'), { method: 'POST', headers: this.getAuthHeaders(token) })
+                    .catch(() => { /* already gone, or offline */ });
+            } catch (e) { /* never worth failing over */ }
+        },
+
         updateStoredCredentials: function (newToken, newUserId) {
             try {
                 const credsStr = localStorage.getItem('jellyfin_credentials');
@@ -1112,14 +1172,14 @@
         fetchSharedFormData: function (apiClient, masterState) {
             if (this._sharedForm) return this._sharedForm;
 
-            const headers = this.getAuthHeaders(masterState.masterToken);
+            const headers = this.getAuthHeaders(masterState.token);
             this._sharedForm = Promise.all([
                 fetch(apiClient.getUrl('plugins/profiles/libraries'), { headers })
                     .then(res => res.json()),
                 fetch(apiClient.getUrl('plugins/profiles/devices'), { headers })
                     .then(res => res.json()).catch(() => []),
-                this.fetchLibraryTags(apiClient, masterState.masterToken, masterState.masterUserId),
-                this.fetchAvatarLibrary(apiClient, masterState.masterToken)
+                this.fetchLibraryTags(apiClient, masterState.token, masterState.masterUserId),
+                this.fetchAvatarLibrary(apiClient, masterState.token)
             ]).then(([libraries, devices, libraryTags, avatarLibrary]) => ({
                 libraries, devices, libraryTags, avatarLibrary
             })).catch(err => {
@@ -2111,8 +2171,8 @@
             }
             this.isMonitoringUsers = true;
 
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
-            const token = masterState ? masterState.masterToken : apiClient.accessToken();
+            const masterState = this.readMasterState();
+            const token = masterState ? masterState.token : apiClient.accessToken();
             if (!token) return;
 
             const url = apiClient.getUrl('plugins/profiles/admin/mappings');
@@ -2515,7 +2575,7 @@
                 const cachedMaster = this.normalizeGuid(cached.masterUserId);
                 const currentUserId = (typeof ApiClient !== 'undefined' && ApiClient)
                     ? this.normalizeGuid(ApiClient.getCurrentUserId()) : '';
-                const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
+                const masterState = this.readMasterState();
                 const knownMaster = masterState ? this.normalizeGuid(masterState.masterUserId) : '';
                 if (!cachedMaster || (cachedMaster !== currentUserId && cachedMaster !== knownMaster)) return null;
 
@@ -2568,7 +2628,7 @@
         _deviceGateIds: function () {
             let master = '';
             try {
-                const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
+                const masterState = this.readMasterState();
                 if (masterState) master = this.normalizeGuid(masterState.masterUserId);
             } catch (e) { /* unreadable — the signed-in user will do */ }
 
@@ -2854,86 +2914,21 @@
                 return;
             }
 
-            // Dual-token check: if tab/app was closed, sessionStorage is wiped out.
-            // If the current token in Jellyfin is NOT the master token, but sessionStorage is empty,
-            // we must revert the browser to the master token and force the selection gate to display.
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
-            if (masterState && masterState.masterToken) {
-                const currentUserId = apiClient.getCurrentUserId();
-                if (this.normalizeGuid(currentUserId) === this.normalizeGuid(masterState.masterUserId)) {
-                    if (currentToken !== masterState.masterToken) {
-                        masterState.masterToken = currentToken;
-                        localStorage.setItem(this.config.masterStorageKey, JSON.stringify(masterState));
-                        console.log("ProfilesPlugin: Master session token updated to match new valid token.");
-                    }
-                } else if (currentToken !== masterState.masterToken && !this.isProfileSessionActive()) {
-                    if (!this._revertReloadAllowed()) {
-                        // Reverting has not stuck, and reverting again means reloading again,
-                        // which is what turns this into the picker over and over. Accept the
-                        // session actually in play and record it so every later check agrees.
-                        // The cost is a profile staying signed in where it would have dropped
-                        // back to the master — the safer of the two, since the master is the
-                        // less restricted account.
-                        console.warn(
-                            'ProfilesPlugin: session revert is looping; keeping the active profile instead.');
-                        this._sessionSet(this.config.activeSessionKey, currentToken);
-                        return;
-                    }
-                    this.updateStoredCredentials(masterState.masterToken, masterState.masterUserId);
-                    apiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
-
-                    // The cached "who is active" record survives this reload, and nothing
-                    // here was clearing it — so the header avatar went on naming the
-                    // profile we just reverted away from while the gate, which reads the
-                    // signed-in user from ApiClient, correctly showed the master. Two
-                    // places disagreeing about who you are is worse than either being
-                    // wrong. The active-token key is already absent (it is what put us in
-                    // this branch), so this only clears the stale name and picture.
-                    this.clearProfileSession();
-                    // Hide current page instantly so there is no visible frame
-                    // between old page unloading and new page's head script running.
-                    // Held in the colour the page is already painted in, not a fixed
-                    // dark one — see _captureLeavingBackground.
-                    const leavingBg = this._captureLeavingBackground();
-                    document.documentElement.style.cssText =
-                        'opacity:0;background:' + leavingBg + ';color-scheme:'
-                        + (this._isLightColour(leavingBg) ? 'light' : 'dark');
-                    this._reloading = true;
-                    localStorage.setItem(this.config.switchingKey, '1');
-                    // Same reasoning as the switch itself (issue #22): the signed-in
-                    // identity just changed back to the master, so the page on screen
-                    // belonged to a profile that is no longer active.
-                    this.reloadAtHome();
-                }
-            }
-        },
-
-        /// Whether the revert-to-master path may reload again.
-        ///
-        /// That path exists for "the app was closed while a profile was active": put the
-        /// master token back and reload, so the picker appears. It assumes the reload fixes
-        /// the condition that triggered it. If anything makes the active marker vanish on
-        /// every load, the same decision is reached every time and the user is stuck in a
-        /// reload loop with no way out of it from inside the app.
-        ///
-        /// Three in thirty seconds is not a session being restored, it is a loop. The window
-        /// resets itself, so a reload an hour later starts from zero and no cleanup is owed.
-        _revertReloadAllowed: function () {
-            const KEY = 'jpf-revert-guard';
-            const now = Date.now();
-
-            let state = null;
-            try { state = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { /* unreadable */ }
-            if (!state || typeof state.n !== 'number' || typeof state.t !== 'number'
-                || now - state.t > 30000) {
-                state = { n: 0, t: now };
-            }
-
-            state.n += 1;
-            state.t = now;
-            try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* full */ }
-
-            return state.n <= 3;
+            // Reading the state also retires a master token an earlier version left in this
+            // browser, ending that session on the server; see readMasterState.
+            //
+            // This used to go on to a second step. If the app had been closed while a profile
+            // was in use, it put the stored master token back and reloaded, so the gate came
+            // up signed in as the master. That step was the reason the master token lived in
+            // the browser at all, and it meant closing a tab left the least restricted account
+            // in the house signed in behind a picture of a picker. It also needed a backstop
+            // against reloading forever (_revertReloadAllowed), which went with it.
+            //
+            // Now the session in use stays in use. checkRoute still raises the gate over it
+            // when the household asks on startup, because the active-profile marker is gone
+            // with the tab — and every way out of the gate, the master included, is a /switch
+            // the server checks.
+            this.readMasterState();
         },
 
         handleSessionExpired: function () {
@@ -2958,19 +2953,17 @@
             const apiClient = ApiClient;
             if (!apiClient) return;
 
-            const masterUserId = apiClient.getCurrentUserId();
-            const masterToken = apiClient.accessToken();
+            const currentUserId = apiClient.getCurrentUserId();
+            const token = apiClient.accessToken();
 
-            if (!masterUserId || !masterToken) return;
+            if (!currentUserId || !token) return;
 
-            let masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey)) || {};
-            if (!masterState.masterToken) {
-                masterState.masterToken = masterToken;
-                masterState.masterUserId = masterUserId;
-                localStorage.setItem(this.config.masterStorageKey, JSON.stringify(masterState));
-            }
-
-            this.fetchAndRenderProfiles(apiClient, masterUserId, masterToken);
+            // Listed as whoever is signed in. The household's master is learned from the list
+            // (fetchAndRenderProfiles) rather than assumed to be the current user, which it is
+            // not when a profile was signed into directly — a profile's PIN works on the web
+            // sign-in page too once other apps' sign-in is on.
+            const known = this.readMasterState();
+            this.fetchAndRenderProfiles(apiClient, known ? known.masterUserId : currentUserId, token);
         },
 
         /// Drops the prefetch cache so the next render is guaranteed to hit the server.
@@ -3023,6 +3016,10 @@
             .then(profiles => {
                 if (!this.navIsCurrent(ticket)) return;
                 const normalized = this.normalizeProfiles(profiles);
+                // The household's own master: the master tile that is not a linked Bonfire.
+                // Only its id is kept — see readMasterState.
+                const ownMaster = normalized.find(p => p.isMaster && !p.isBonfire);
+                if (ownMaster) this.writeMasterState(ownMaster.profileUserId);
                 // Deliberately NOT stored in cachedProfiles: that field is the one-shot
                 // prefetch buffer, and repopulating it here made the *next* call short-circuit
                 // to data that was already stale.
@@ -3044,8 +3041,10 @@
             // the difference between instant and the several-second wait that made
             // people click a second time.
             try {
-                const warmState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
-                if (warmState && warmState.masterToken) {
+                // Only for the master: the forms are the master's, and a profile's own
+                // session would fetch the profile's libraries rather than the household's.
+                const warmState = this.readMasterState();
+                if (warmState && warmState.token && this.isSignedInAsMaster(warmState)) {
                     this.fetchSharedFormData(ApiClient, warmState).catch(() => {
                         // A cold prefetch failing is not an error anyone needs to see;
                         // the form will retry and report it properly if it still fails.
@@ -3150,7 +3149,7 @@
             }
             showArtwork(false);
             const state = {};
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || "null");
+            const masterState = this.readMasterState();
 
             // A value safe to drop into a CSS url(): a data payload or our own endpoint.
             // Anything else previews as empty rather than as a broken rule.
@@ -3210,10 +3209,10 @@
             });
 
             // Existing choices arrive after the form is drawn; the rows work meanwhile.
-            if (masterState && masterState.masterToken && rows.length) {
+            if (masterState && masterState.token && rows.length) {
                 fetch(ApiClient.getUrl("plugins/profiles/library-artwork/" + profileId), {
                     cache: "no-store",
-                    headers: this.getAuthHeaders(masterState.masterToken)
+                    headers: this.getAuthHeaders(masterState.token)
                 })
                 .then(res => res.ok ? res.json() : Promise.reject(new Error("unavailable")))
                 .then(entries => {
@@ -3257,7 +3256,7 @@
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/json",
-                                ...this.getAuthHeaders(masterState ? masterState.masterToken : ApiClient.accessToken())
+                                ...this.getAuthHeaders(masterState ? masterState.token : ApiClient.accessToken())
                             },
                             body: JSON.stringify({
                                 profileId: targetProfileId,
@@ -3282,8 +3281,8 @@
         /// implementation of any of it.
         pickLibraryArtwork: function (onPicked) {
             const apiClient = ApiClient;
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || "null");
-            const token = masterState ? masterState.masterToken : apiClient.accessToken();
+            const masterState = this.readMasterState();
+            const token = masterState ? masterState.token : apiClient.accessToken();
 
             this.fetchAvatarLibrary(apiClient, token).then(library => {
                 if (document.getElementById("profiles-libart-dialog")) return;
@@ -3820,8 +3819,8 @@
         initLockoutTimer: function () {
             if (!this.isProfileSessionActive()) return;
 
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
-            if (!masterState || !masterState.masterToken) return;
+            const masterState = this.readMasterState();
+            if (!masterState || !masterState.token) return;
 
             const apiClient = ApiClient;
             if (!apiClient) return;
@@ -3831,7 +3830,7 @@
             if (!currentUserId) return;
 
             const url = apiClient.getUrl('plugins/profiles/list');
-            fetch(url, { headers: this.getAuthHeaders(masterState.masterToken) })
+            fetch(url, { headers: this.getAuthHeaders(masterState.token) })
             .then(res => { if (!res.ok) throw new Error('fail'); return res.json(); })
             .then(profiles => {
                 const active = (profiles || []).find(p => {
@@ -3902,14 +3901,15 @@
 
         // Called when the inactivity timer fires. Clears the active session,
         // restores master credentials, then shows the profile selector.
+        //
+        // It used to restore the master's credentials here, which made the lock the least
+        // secure moment in the product: the device went from a restricted profile to the
+        // master account, with only the picker drawn over it. The profile's own session is
+        // kept instead; getting back into it — or into anything else — goes through the
+        // gate, and the server asks for the PIN.
         lockActiveProfile: function () {
             this.stopInactivityTimer();
             this.clearProfileSession();
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
-            if (masterState) {
-                this.updateStoredCredentials(masterState.masterToken, masterState.masterUserId);
-                ApiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
-            }
             this.interceptHomeAndShowProfiles();
         },
 
@@ -3926,7 +3926,7 @@
             const subProfileCount = profiles.filter(p => !p.isMaster && !p.isBonfire).length;
             const atLimit = subProfileCount >= maxSubProfiles;
 
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+            const masterState = this.readMasterState();
             const localMasterId = masterState ? this.normalizeGuid(masterState.masterUserId) : '';
 
             // Same condition the two settings tiles used, so Settings shows up in exactly
@@ -4243,6 +4243,17 @@
                         this.renderOverlayContent(overlay, profiles);
                     } else {
                         const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
+
+                        // Managing profiles is the master account's to do, and the server
+                        // refuses it from any other. It used to work from a profile only
+                        // because the master's token was kept in the browser; now a profile
+                        // opens the master first, like any other switch.
+                        if (!this.isSignedInAsMaster()) {
+                            this.showAlert(t('switcher.manageTitle'),
+                                t('switcher.manageNeedsMaster', { name: escapeHtml(masterProfile ? masterProfile.profileName : '') }));
+                            return;
+                        }
+
                         if (masterProfile && masterProfile.requiresPin) {
                             this.promptMasterPinEntry('manage', () => {
                                 this.isManageMode = true;
@@ -4310,7 +4321,7 @@
                 if (verifyController) verifyController.abort();
                 verifyController = typeof AbortController !== 'undefined' ? new AbortController() : null;
 
-                const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+                const masterState = this.readMasterState();
                 if (!masterState) return;
 
                 // Silent verify — no error shown on failure, user just keeps typing
@@ -4318,7 +4329,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        ...this.getAuthHeaders(masterState.masterToken)
+                        ...this.getAuthHeaders(masterState.token)
                     },
                     body: JSON.stringify({ profileId: profileId, pin: currentValue }),
                     ...(verifyController ? { signal: verifyController.signal } : {})
@@ -4423,7 +4434,7 @@
                 if (verifyController) verifyController.abort();
                 verifyController = typeof AbortController !== 'undefined' ? new AbortController() : null;
 
-                const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+                const masterState = this.readMasterState();
                 if (!masterState) return;
 
                 // Silent verify — no error on failure, user keeps typing
@@ -4431,7 +4442,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        ...this.getAuthHeaders(masterState.masterToken)
+                        ...this.getAuthHeaders(masterState.token)
                     },
                     body: JSON.stringify({ profileId: masterProfile.profileUserId, pin: currentValue }),
                     ...(verifyController ? { signal: verifyController.signal } : {})
@@ -4458,7 +4469,7 @@
                 verifyController = null;
                 const pin = pinInput.value;
                 if (!pin) return;
-                const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+                const masterState = this.readMasterState();
                 if (!masterState) return;
 
                 verifyInProgress = true;
@@ -4466,7 +4477,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        ...this.getAuthHeaders(masterState.masterToken)
+                        ...this.getAuthHeaders(masterState.token)
                     },
                     body: JSON.stringify({ profileId: masterProfile.profileUserId, pin: pin })
                 })
@@ -4542,7 +4553,7 @@
             if (this._switchLock) return;
 
             const apiClient = ApiClient;
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+            const masterState = this.readMasterState();
             if (!masterState) return;
 
             this._switchLock = true;
@@ -4553,7 +4564,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    ...this.getAuthHeaders(masterState.masterToken)
+                    ...this.getAuthHeaders(masterState.token)
                 },
                 body: JSON.stringify({ profileId: profileId, pin: pin })
             })
@@ -4578,10 +4589,8 @@
                 const activeProfileToken = data.activeProfileToken || data.ActiveProfileToken;
                 const jellyfinUserId = data.jellyfinUserId || data.JellyfinUserId;
 
-                if (this.normalizeGuid(jellyfinUserId) === this.normalizeGuid(masterState.masterUserId)) {
-                    masterState.masterToken = activeProfileToken;
-                    localStorage.setItem(this.config.masterStorageKey, JSON.stringify(masterState));
-                }
+                // The session being left, ended once the new one is safely stored below.
+                const leavingToken = masterState.token;
 
                 // Before anything else is written, because this is the one write that has
                 // to survive the reload. Without it the token lives only on this page's
@@ -4596,6 +4605,13 @@
                 }
 
                 this._sessionSet(this.config.activeSessionKey, activeProfileToken);
+
+                // Nothing on this device should go on holding the account it just left —
+                // above all when that was the master. Its token was the thing the switcher
+                // is meant to stand in front of, and a copy kept "for later" is a copy anyone
+                // at this browser can use. Coming back is a /switch like any other.
+                if (leavingToken && leavingToken !== activeProfileToken) this._endSession(leavingToken);
+
                 // Cached against the profile being switched into, before the reload, so the
                 // next load starts with the right rules already in place.
                 this.cacheLibraryArtwork(jellyfinUserId, data.libraryArtwork || data.LibraryArtwork || []);
@@ -5402,7 +5418,7 @@
 
         showAddProfileModal: function () {
             const apiClient = ApiClient;
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+            const masterState = this.readMasterState();
             if (!masterState) return;
 
             const ticket = this.beginNavigation();
@@ -5663,7 +5679,7 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            ...this.getAuthHeaders(masterState.masterToken)
+                            ...this.getAuthHeaders(masterState.token)
                         },
                         body: JSON.stringify({
                             profileName: name,
@@ -5691,7 +5707,7 @@
                         return res.json();
                     })
                     .then(() => {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
+                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
                     })
                     .catch(err => {
                         const el = document.getElementById('create-error-msg');
@@ -5700,7 +5716,7 @@
                 });
 
                 document.getElementById('create-cancel-btn').addEventListener('click', () => {
-                    this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
+                    this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
                 });
                 this.initTVCheckboxes(content);
                 this.initTagEditors(content);
@@ -5709,7 +5725,7 @@
 
         showEditProfileModal: function (profile) {
             const apiClient = ApiClient;
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+            const masterState = this.readMasterState();
             if (!masterState) return;
 
             const ticket = this.beginNavigation();
@@ -5720,7 +5736,7 @@
 
             Promise.all([
                 this.fetchSharedFormData(apiClient, masterState),
-                fetch(userUrl, { headers: this.getAuthHeaders(masterState.masterToken) }).then(res => res.json())
+                fetch(userUrl, { headers: this.getAuthHeaders(masterState.token) }).then(res => res.json())
             ])
             .then(([shared, userDetails]) => [shared.libraries, userDetails, shared.devices, shared.libraryTags, shared.avatarLibrary])
             .then(([libraries, userDetails, devices, libraryTags, avatarLibrary]) => {
@@ -6015,7 +6031,7 @@
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
-                                    ...this.getAuthHeaders(masterState.masterToken)
+                                    ...this.getAuthHeaders(masterState.token)
                                 },
                                 body: JSON.stringify({ deviceId: devId })
                             })
@@ -6067,7 +6083,7 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            ...this.getAuthHeaders(masterState.masterToken)
+                            ...this.getAuthHeaders(masterState.token)
                         }
                     };
                     if (body !== null && body !== undefined) init.body = JSON.stringify(body);
@@ -6115,7 +6131,7 @@
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                                ...this.getAuthHeaders(masterState.masterToken)
+                                ...this.getAuthHeaders(masterState.token)
                             }
                         })
                         .then(res => res.json())
@@ -6254,7 +6270,7 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            ...this.getAuthHeaders(masterState.masterToken)
+                            ...this.getAuthHeaders(masterState.token)
                         },
                         body: JSON.stringify({
                             profileId: profile.profileUserId,
@@ -6280,7 +6296,7 @@
                         // Artwork is stored per library, so it is saved after the profile
                         // itself rather than folded into that one request.
                         return artworkEditor.save(profile.profileUserId).then(() => {
-                            this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
+                            this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
                         });
                     })
                     .catch(err => this.showAlert(t('errors.error'), t('errors.savingProfile', { message: escapeHtml(err.message) })));
@@ -6297,7 +6313,7 @@
                 }
 // Cancel handler
                 document.getElementById('edit-cancel-btn').addEventListener('click', () => {
-                    this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
+                    this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
                 });
                 const artworkEditor = this.initLibraryArtworkEditor(content, profile.profileUserId);
                 this.initTVCheckboxes(content);
@@ -6305,7 +6321,7 @@
             })
             .catch(err => {
                 this.showAlert(t('errors.error'), t('errors.loadProfileDetails', { message: escapeHtml(err.message) }));
-                this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
+                this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
             });
         },
 
@@ -6313,7 +6329,7 @@
             // Kept, so a slow render cannot draw over a screen the user moved on to.
             const navTicket = this.beginNavigation();
             const apiClient = ApiClient;
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+            const masterState = this.readMasterState();
             if (!masterState) return;
 
             const content = document.querySelector('.profiles-modal-content');
@@ -6337,14 +6353,14 @@
                 const btn = content.querySelector('#bonfire-back-btn');
                 if (btn) {
                     btn.addEventListener('click', () => {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
+                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
                     });
                 }
             };
 
             attachBackBtnListener();
 
-            this.loadBonfireStatus(content, apiClient, masterState.masterToken);
+            this.loadBonfireStatus(content, apiClient, masterState.token);
 
             // Auto-focus first focusable element for TV D-pad navigation
             setTimeout(() => {
@@ -6413,9 +6429,9 @@
             const back = content.querySelector('#settings-back-btn');
             if (back) {
                 back.addEventListener('click', () => {
-                    const st = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+                    const st = this.readMasterState();
                     if (st) {
-                        this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.masterToken, /* forceRefresh */ true);
+                        this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.token, /* forceRefresh */ true);
                     }
                 });
             }
@@ -6425,7 +6441,7 @@
         showSwitcherModeModal: function () {
             this.beginNavigation();
             const apiClient = ApiClient;
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
+            const masterState = this.readMasterState();
             if (!masterState) return;
 
             const content = document.querySelector('.profiles-modal-content');
@@ -6517,7 +6533,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        ...this.getAuthHeaders(masterState.masterToken)
+                        ...this.getAuthHeaders(masterState.token)
                     },
                     body: JSON.stringify({ askOnStartup: askOnStartup, switcherLocation: location })
                 })
@@ -6633,7 +6649,7 @@
 
         executeProfileDeletion: function (profileId) {
             const apiClient = ApiClient;
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
+            const masterState = this.readMasterState();
             if (!masterState) return;
 
             const url = apiClient.getUrl('plugins/profiles/delete');
@@ -6642,7 +6658,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    ...this.getAuthHeaders(masterState.masterToken)
+                    ...this.getAuthHeaders(masterState.token)
                 },
                 body: JSON.stringify({ 
                     profileId: profileId,
@@ -6651,7 +6667,7 @@
             })
             .then(res => {
                 if (!res.ok) throw new Error(t('errors.failedDeleteProfile'));
-                this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
+                this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
             })
             .catch(err => this.showAlert(t('errors.error'), t('errors.deletingProfile', { message: escapeHtml(err.message) })));
         },
@@ -7565,12 +7581,12 @@
         // consumed by fetchAndRenderProfiles for instant, flash-free overlay display.
         _prefetchProfiles: function () {
             if (this._profilePrefetchPending || (this.cachedProfiles && this.cachedProfiles.length)) return;
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey));
-            if (!masterState || !masterState.masterToken) return;
+            const masterState = this.readMasterState();
+            if (!masterState || !masterState.token) return;
 
             this._profilePrefetchPending = true;
             const url = ApiClient.getUrl('plugins/profiles/list');
-            fetch(url, { headers: this.getAuthHeaders(masterState.masterToken) })
+            fetch(url, { headers: this.getAuthHeaders(masterState.token) })
                 .then(res => {
                     if (!res.ok) throw new Error();
                     return res.json();
@@ -7973,41 +7989,31 @@
             // a theme rebuilt, say — must not be able to raise the gate again.
             if (this._panicDisabled) return;
 
-            const masterState = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
+            // Opening the switcher deliberately is a reversible act, so remember enough to
+            // undo it. Nothing is signed out and no credentials change — the list is fetched
+            // with the session in use, which the server resolves to its household — so
+            // backing out costs no PIN and no reload. Without this there is no way off the
+            // picker at all once it is open, which on a TV means the Back button lands on a
+            // dead end.
+            //
+            // This used to put the master's credentials back in memory first, on the belief
+            // that a profile's token could not list its siblings. /list resolves the caller's
+            // master and always could; the swap only meant the master account was live
+            // behind the picker for as long as it was open.
+            const priorUserId = ApiClient.getCurrentUserId();
+            const priorToken = this._sessionGet(this.config.activeSessionKey);
+            this._resumeState = (priorToken && priorUserId)
+                ? {
+                    token: priorToken,
+                    userId: priorUserId,
+                    info: this._sessionGet('jellyfin_profiles_active_info')
+                }
+                // No profile session marked active, which is the normal case in menu mode:
+                // nobody passed through the gate. Closing is still a valid answer, and
+                // without it there is no way off the picker at all.
+                : { closeOnly: true };
 
-            if (masterState && masterState.masterToken) {
-                // Opening the switcher deliberately is a reversible act, so remember enough to
-                // undo it. The profile's token is still valid — nothing has been signed out —
-                // so backing out costs no PIN and no reload. Without this there is no way off
-                // the picker at all once it is open, which on a TV means the Back button lands
-                // on a dead end.
-                const priorUserId = ApiClient.getCurrentUserId();
-                const priorToken = this._sessionGet(this.config.activeSessionKey);
-                this._resumeState = (priorToken && priorUserId)
-                    ? {
-                        token: priorToken,
-                        userId: priorUserId,
-                        info: this._sessionGet('jellyfin_profiles_active_info')
-                    }
-                    // No profile session to restore, which is the normal case in menu mode:
-                    // the master never passed through the gate. Closing is still a valid
-                    // answer, and without it there is no way off the picker at all.
-                    : { closeOnly: true };
-
-                // Put the master's credentials back in memory before listing profiles — the
-                // active sub-profile's token cannot see its siblings.
-                this.clearProfileSession();
-                this.updateStoredCredentials(masterState.masterToken, masterState.masterUserId);
-                ApiClient.setAuthenticationInfo(masterState.masterToken, masterState.masterUserId);
-            } else {
-                // Signed in as the master with nothing stored: closing is all that is
-                // needed to get back to where they were.
-                this._resumeState = { closeOnly: true };
-            }
-
-            // With no stored master state we are still signed in as the master — that is the
-            // normal case in native mode, where the user never passes through the gate.
-            // interceptHomeAndShowProfiles() records the state and takes it from there.
+            this.clearProfileSession();
             this.interceptHomeAndShowProfiles();
         },
 

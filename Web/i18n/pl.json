@@ -246,6 +246,8 @@
   "switcher.reloadFailedBody": "Zamknij i otwórz aplikację ponownie, aby dokończyć zmianę profilu.",
   "switcher.notSavedTitle": "Nie zapisano zmiany",
   "switcher.notSavedBody": "To urządzenie nie zapisało zmiany, więc nadal jesteś zalogowany jak wcześniej.",
+  "switcher.manageTitle": "Zarządzaj profilami",
+  "switcher.manageNeedsMaster": "Najpierw otwórz {name}, a potem wybierz Zarządzaj profilami.",
   "profileForm.tidyDevices": "Uporządkuj duplikaty",
   "profileForm.tidyNone": "Nie znaleziono duplikatów.",
   "profileForm.tidyFound": "Znaleziono {count} urządzeń, które wyglądają na duplikaty. Scalić je?"

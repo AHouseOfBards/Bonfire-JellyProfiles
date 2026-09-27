@@ -246,6 +246,8 @@
   "switcher.reloadFailedBody": "Fermez puis rouvrez l’application pour terminer le changement de profil.",
   "switcher.notSavedTitle": "Changement non enregistré",
   "switcher.notSavedBody": "Cet appareil n’a pas enregistré le changement ; vous êtes toujours connecté comme avant.",
+  "switcher.manageTitle": "Gérer les profils",
+  "switcher.manageNeedsMaster": "Ouvrez d'abord {name}, puis choisissez Gérer les profils.",
   "profileForm.tidyDevices": "Nettoyer les doublons",
   "profileForm.tidyNone": "Aucun doublon trouvé.",
   "profileForm.tidyFound": "{count} appareil(s) semblent être des doublons d'un appareil existant. Les fusionner ?"
