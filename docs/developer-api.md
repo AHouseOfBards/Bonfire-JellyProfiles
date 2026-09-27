@@ -43,7 +43,7 @@ is not the one the code enforces.
 |---|---|---|
 | `GET /plugins/profiles/list` | user | Every profile the caller may switch to, for the gate. |
 | `GET /plugins/profiles/libraries` | user | Libraries the caller can grant to a sub-profile. |
-| `POST /plugins/profiles/create` | admin | Create a sub-profile under the caller. |
+| `POST /plugins/profiles/create` | user | Create a sub-profile under the caller. |
 | `POST /plugins/profiles/delete` | user | Delete one of the caller’s sub-profiles. |
 | `POST /plugins/profiles/switch` | admin | Switch to a profile and return a session. |
 | `POST /plugins/profiles/verify-pin` | user | Check a PIN without switching. |
@@ -353,7 +353,7 @@ Validates a profile PIN without switching the active session. Rate limited to 5 
 
 ### `POST /plugins/profiles/create`
 
-**Authorisation:** administrator.
+**Authorisation:** signed-in user — a master account, not one of its profiles.
 
 Creates a new sub-profile.
 

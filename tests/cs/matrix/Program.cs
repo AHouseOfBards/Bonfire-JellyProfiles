@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Reflection;
 
@@ -490,6 +491,83 @@ var kickEnd = kickStart < 0 ? -1 : controllerSrc.IndexOf("[Http", kickStart, Str
 var kickBody = kickStart < 0 || kickEnd < 0 ? "" : controllerSrc.Substring(kickStart, kickEnd - kickStart);
 Check("kicking a member replaces the code", kickBody.Contains("group.BonfireCode = GenerateSecureCode();"), true);
 Check("and the owner can replace it on demand", controllerSrc.Contains("[HttpPost(\"bonfire/regenerate-code\")]"), true);
+
+
+Console.WriteLine();
+Console.WriteLine("── A limit holds under parallel requests ───────────────────────");
+
+// Checking and then recording left the whole PIN verification in between, so a burst of
+// parallel requests all passed the check before any failure was counted.
+var limiterType = asm.GetType("Jellyfin.Profiles.Controllers.RateLimiter", true);
+var tryBegin = limiterType.GetMethod("TryBegin", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+Check("attempts can be counted and checked in one step", tryBegin != null, true);
+if (tryBegin != null)
+{
+    var ctor = limiterType.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic).First();
+    var limiter = ctor.Invoke(new object[] { 5, 15 });
+    var admitted = 0;
+    System.Threading.Tasks.Parallel.For(0, 64, _ =>
+    {
+        if ((bool)tryBegin.Invoke(limiter, new object[] { "one-key" })) System.Threading.Interlocked.Increment(ref admitted);
+    });
+    Check("64 parallel attempts against a limit of five admit five", admitted, 5);
+}
+
+Console.WriteLine();
+Console.WriteLine("── What a profile is called ────────────────────────────────────");
+
+// Nothing checked the name: null threw a 500, empty created an account called
+// "master_", and a character Jellyfin refuses in a username failed as a 500 with no text.
+var validateName = baseType.GetMethod("ValidateProfileName", Flags);
+Check("names are validated", validateName != null, true);
+if (validateName != null)
+{
+    bool Accepts(string n) => validateName.Invoke(null, new object[] { n }) == null;
+    Check("an ordinary name", Accepts("Kids"), true);
+    Check("with a space and an apostrophe", Accepts("Mum's TV"), true);
+    Check("in another script", Accepts("Élodie"), true);
+    Check("no name", Accepts(null), false);
+    Check("only spaces", Accepts("   "), false);
+    Check("markup", Accepts("<b>kids</b>"), false);
+    Check("a slash", Accepts("kids/tv"), false);
+    Check("thirty-three characters", Accepts(new string('a', 33)), false);
+}
+
+var validPin = baseType.GetMethod("IsValidPin", Flags);
+Check("PINs are validated in one place", validPin != null, true);
+if (validPin != null)
+{
+    Check("four ASCII digits", (bool)validPin.Invoke(null, new object[] { "0123" }), true);
+    // char.IsDigit says yes to these, and no television remote can type them.
+    Check("Arabic-Indic digits", (bool)validPin.Invoke(null, new object[] { "٠١٢٣" }), false);
+    Check("nine digits", (bool)validPin.Invoke(null, new object[] { "123456789" }), false);
+}
+
+Console.WriteLine();
+Console.WriteLine("── Pictures from outside the server ────────────────────────────");
+
+// A picture may be any http(s) address, drawn straight from there by every switcher that
+// shows it — so a linked household could collect everyone's address from its own server.
+var ctlType = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesController", true);
+var forViewer = ctlType.GetMethod("ImageForViewer", Flags);
+Check("pictures are filtered for who is looking", forViewer != null, true);
+if (forViewer != null)
+{
+    string View(string img, bool own) => (string)forViewer.Invoke(null, new object[] { img, own });
+    Check("an outside picture is shown to its own household", View("https://example.com/a.png", true), "https://example.com/a.png");
+    Check("and not to another one", View("https://example.com/a.png", false), null);
+    Check("a picture stored here is shown to both", View("/plugins/profiles/image/x", false), "/plugins/profiles/image/x");
+}
+
+Console.WriteLine();
+Console.WriteLine("── Smaller things ──────────────────────────────────────────────");
+
+Check("the sessions page survives a duplicated mapping",
+    controllerSrc.Contains(".GroupBy(m => m.ProfileUserId)\n                .ToDictionary(g => g.Key, g => g.First());"), true);
+Check("profile creation is one at a time, so the limit holds",
+    controllerSrc.Contains("await CreateGate.WaitAsync().ConfigureAwait(false);"), true);
+Check("every master-PIN check on an edit is limited",
+    !controllerSrc.Contains("VerifyPinAndUpgrade(request.MasterPin"), true);
 
 Console.WriteLine();
 Console.WriteLine($"{pass} passed, {fail} failed");

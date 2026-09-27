@@ -5425,7 +5425,7 @@
                 const createAppearance = `
                     <div class="form-group">
                         <label for="create-name-input">${t('profileForm.profileName')}</label>
-                        <input type="text" id="create-name-input" placeholder="${t('profileForm.namePlaceholder')}" required />
+                        <input type="text" id="create-name-input" maxlength="32" placeholder="${t('profileForm.namePlaceholder')}" required />
                     </div>
                     ${this.renderTransparentToggle('create', null, false)}
                     <div class="form-group avatar-color-group" id="create-color-group">
@@ -5746,7 +5746,7 @@
                 const appearanceBody = `
                     <div class="form-group">
                         <label for="edit-name-input">${t('profileForm.profileName')}</label>
-                        <input type="text" id="edit-name-input" value="${escapeHtml(profile.profileName)}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
+                        <input type="text" id="edit-name-input" maxlength="32" value="${escapeHtml(profile.profileName)}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
                         ${profile.isMaster ? `<div class="form-hint">${t('profileForm.masterNameHint')}</div>` : ''}
                     </div>
                     ${this.renderTransparentToggle('edit', profile.profileImage, !!profile.transparentAvatar)}

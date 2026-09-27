@@ -123,7 +123,7 @@ namespace Jellyfin.Profiles.Controllers
                         ? (linkedMapping?.AllowedDeviceIds ?? new List<string>())
                         : new List<string>(),
                     IsBonfire = (linkedId != masterUserId),
-                    ProfileImage = linkedMapping?.ProfileImage,
+                    ProfileImage = ImageForViewer(linkedMapping?.ProfileImage, linkedId == masterUserId),
                     MasterUserId = linkedId
                 });
 
@@ -183,7 +183,7 @@ namespace Jellyfin.Profiles.Controllers
                                 BypassPinOnLocalNetwork = m.BypassPinOnLocalNetwork,
                                 AllowedDeviceIds = ownerView ? (m.AllowedDeviceIds ?? new List<string>()) : new List<string>(),
                                 IsBonfire = (linkedId != masterUserId),
-                                m.ProfileImage,
+                                ProfileImage = ImageForViewer(m.ProfileImage, linkedId == masterUserId),
                                 m.MasterUserId
                             };
                         });
@@ -194,6 +194,20 @@ namespace Jellyfin.Profiles.Controllers
 
             return Ok(profileList);
         }
+
+        /// <summary>
+        /// A profile picture as another household may see it. A picture can be any http(s)
+        /// address, and the gate draws it straight from there — so a linked household could
+        /// point one at a server of its own and learn the address, browser and hours of
+        /// everyone who opened the switcher. Pictures stored on this server are unaffected;
+        /// an outside address is only drawn for its own household.
+        /// </summary>
+        private static string? ImageForViewer(string? image, bool ownHousehold)
+            => ownHousehold || string.IsNullOrEmpty(image)
+               || !(image.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                    || image.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                ? image
+                : null;
 
         [HttpGet("libraries")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -261,13 +275,36 @@ namespace Jellyfin.Profiles.Controllers
                 var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
                 if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
                 {
-                    if (!VerifyPinAndUpgrade(request.MasterPin, masterMapping, config))
+                    if (!VerifyMasterPinLimited(request.MasterPin, masterMapping, config, out var pinRefusal))
                     {
-                        return BadRequest("Invalid Master PIN code.");
+                        return pinRefusal!;
                     }
                 }
             }
 
+            var nameError = ValidateProfileName(request.ProfileName);
+            if (nameError != null) return BadRequest(nameError);
+
+            // One creation at a time. The limit is counted before the account is created and
+            // the mapping written after it, so two requests arriving together both counted
+            // the same number and both got past a limit meant to stop the second.
+            await CreateGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                return await CreateProfileCore(request, config, masterUserId, request.ProfileName.Trim())
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                CreateGate.Release();
+            }
+        }
+
+        private static readonly System.Threading.SemaphoreSlim CreateGate = new(1, 1);
+
+        private async Task<ActionResult<object>> CreateProfileCore(
+            CreateProfileRequest request, PluginConfiguration config, Guid masterUserId, string profileName)
+        {
             var masterUser = _userManager.GetUserById(masterUserId);
             if (masterUser == null) return NotFound("Master user not found.");
 
@@ -282,7 +319,7 @@ namespace Jellyfin.Profiles.Controllers
             // PIN validation (4-8 digits numeric)
             if (!string.IsNullOrEmpty(request.Pin))
             {
-                if (request.Pin.Length < 4 || request.Pin.Length > 8 || !request.Pin.All(char.IsDigit))
+                if (!IsValidPin(request.Pin))
                 {
                     return BadRequest("PIN code must be a numeric value between 4 and 8 digits.");
                 }
@@ -299,7 +336,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // Standardize username to avoid global collisions
-            string systemUsername = $"{masterUser.Username}_{request.ProfileName.Replace(" ", "")}";
+            string systemUsername = $"{masterUser.Username}_{profileName.Replace(" ", "")}";
 
             // Ensure name uniqueness in system
             var existingUser = GetAllUsers().FirstOrDefault(u => string.Equals(u.Username, systemUsername, StringComparison.OrdinalIgnoreCase));
@@ -400,12 +437,12 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     ProfileUserId = targetUser.Id,
                     MasterUserId = masterUserId,
-                    ProfileName = request.ProfileName,
+                    ProfileName = profileName,
                     PinHash = HashPin(request.Pin),
                     AvatarColor = SanitizeAvatarColor(request.AvatarColor),
                     TransparentAvatar = request.TransparentAvatar ?? false,
                     IsHidden = true,
-                    LockoutMinutes = request.LockoutMinutes ?? 5,
+                    LockoutMinutes = ClampLockoutMinutes(request.LockoutMinutes ?? 5),
                     // Store the selected libraries as the plugin's own ground truth
                     EnabledFolders = validatedFolders,
                     BlockedTags = profileBlockedTags,
@@ -423,7 +460,7 @@ namespace Jellyfin.Profiles.Controllers
             return Ok(new
             {
                 ProfileUserId = targetUser.Id,
-                ProfileName = request.ProfileName
+                ProfileName = profileName
             });
         }
 
@@ -460,9 +497,9 @@ namespace Jellyfin.Profiles.Controllers
             var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
             if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
             {
-                if (!VerifyPinAndUpgrade(request.MasterPin, masterMapping, config))
+                if (!VerifyMasterPinLimited(request.MasterPin, masterMapping, config, out var pinRefusal))
                 {
-                    return BadRequest("Invalid Master PIN code.");
+                    return pinRefusal!;
                 }
             }
 
@@ -1370,7 +1407,11 @@ namespace Jellyfin.Profiles.Controllers
                 mappings = config.Mappings.ToList();
             }
 
-            var byProfile = mappings.ToDictionary(m => m.ProfileUserId, m => m);
+            // Grouped first: a duplicated row — from an import, or two requests racing — made
+            // ToDictionary throw and the whole page a 500.
+            var byProfile = mappings
+                .GroupBy(m => m.ProfileUserId)
+                .ToDictionary(g => g.Key, g => g.First());
 
             var sessions = _sessionManager.Sessions
                 .Where(s => s.UserId != Guid.Empty)
@@ -1661,15 +1702,18 @@ namespace Jellyfin.Profiles.Controllers
             var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
             if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
             {
-                if (!VerifyPinAndUpgrade(request.MasterPin, masterMapping, config))
+                if (!VerifyMasterPinLimited(request.MasterPin, masterMapping, config, out var pinRefusal))
                 {
-                    return BadRequest("Invalid Master PIN code.");
+                    return pinRefusal!;
                 }
             }
 
             // Enforce ownership: the profile being edited must belong to the caller's master account.
             if (request.ProfileId != masterUserId)
             {
+                var nameError = ValidateProfileName(request.ProfileName);
+                if (nameError != null) return BadRequest(nameError);
+
                 var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
                 if (mapping == null || mapping.MasterUserId != masterUserId)
                 {
@@ -1680,7 +1724,7 @@ namespace Jellyfin.Profiles.Controllers
             // PIN validation (4-8 digits numeric if provided)
             if (!string.IsNullOrEmpty(request.Pin))
             {
-                if (request.Pin.Length < 4 || request.Pin.Length > 8 || !request.Pin.All(char.IsDigit))
+                if (!IsValidPin(request.Pin))
                 {
                     return BadRequest("PIN code must be a numeric value between 4 and 8 digits.");
                 }
@@ -1713,7 +1757,7 @@ namespace Jellyfin.Profiles.Controllers
             // Renaming logic
             if (request.ProfileId != masterUserId)
             {
-                string systemUsername = $"{masterUser.Username}_{request.ProfileName.Replace(" ", "")}";
+                string systemUsername = $"{masterUser.Username}_{request.ProfileName.Trim().Replace(" ", "")}";
                 if (!string.Equals(targetUser.Username, systemUsername, StringComparison.OrdinalIgnoreCase))
                 {
                     var existingUser = GetAllUsers().FirstOrDefault(u => string.Equals(u.Username, systemUsername, StringComparison.OrdinalIgnoreCase));
@@ -1806,7 +1850,7 @@ namespace Jellyfin.Profiles.Controllers
                     // Update basic mapping properties (only for sub-profiles; master name is read-only)
                     if (request.ProfileId != masterUserId)
                     {
-                        mappingEntry.ProfileName = request.ProfileName;
+                        mappingEntry.ProfileName = request.ProfileName.Trim();
                     }
 
                     mappingEntry.AvatarColor = SanitizeAvatarColor(request.AvatarColor);
@@ -1840,7 +1884,7 @@ namespace Jellyfin.Profiles.Controllers
                     // Handle lockout timer update
                     if (request.LockoutMinutes.HasValue)
                     {
-                        mappingEntry.LockoutMinutes = request.LockoutMinutes.Value;
+                        mappingEntry.LockoutMinutes = ClampLockoutMinutes(request.LockoutMinutes.Value);
                     }
 
                     // Update stored library list (plugin's ground truth)
@@ -2292,14 +2336,18 @@ namespace Jellyfin.Profiles.Controllers
             if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
                 return Unauthorized("Only the master profile can join Bonfire groups.");
 
+            // Counted before the code is looked up, per address and per account, so neither
+            // parallel requests nor a second address buy extra guesses.
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
-            if (RateLimiter.Bonfire.IsRateLimited(ip))
+            var accountKey = "account:" + masterId.ToString("N");
+            if (!RateLimiter.Bonfire.TryBegin(ip))
                 return TooManyAttempts(RateLimiter.Bonfire, ip, "Too many failed attempts.");
+            if (!RateLimiter.Bonfire.TryBegin(accountKey))
+                return TooManyAttempts(RateLimiter.Bonfire, accountKey, "Too many failed attempts.");
 
             var code = request.Code?.Trim().ToUpperInvariant();
             if (string.IsNullOrEmpty(code) || code.Length != 6)
             {
-                RateLimiter.Bonfire.RecordFailure(ip);
                 return BadRequest("Invalid code format.");
             }
 
@@ -2312,7 +2360,6 @@ namespace Jellyfin.Profiles.Controllers
                     string.Equals(g.BonfireCode, code, StringComparison.OrdinalIgnoreCase));
                 if (group == null)
                 {
-                    RateLimiter.Bonfire.RecordFailure(ip);
                     return BadRequest("Invalid Bonfire Code.");
                 }
 
@@ -2332,7 +2379,10 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             if (newlyJoined)
+            {
                 RateLimiter.Bonfire.Reset(ip);
+                RateLimiter.Bonfire.Reset(accountKey);
+            }
 
             return Ok(new
             {
@@ -2825,9 +2875,9 @@ namespace Jellyfin.Profiles.Controllers
             var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
             if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
             {
-                if (!VerifyPinAndUpgrade(request.MasterPin, masterMapping, config))
+                if (!VerifyMasterPinLimited(request.MasterPin, masterMapping, config, out var pinRefusal))
                 {
-                    return BadRequest("Invalid Master PIN code.");
+                    return pinRefusal!;
                 }
             }
 
@@ -3414,7 +3464,7 @@ namespace Jellyfin.Profiles.Controllers
             // Checking it afterwards would make an armed server answer 429 on the sixth
             // attempt while an unarmed one kept answering 400 — the very oracle the matching
             // error messages exist to close.
-            if (RateLimiter.Panic.IsRateLimited(ip))
+            if (!RateLimiter.Panic.TryBegin(ip))
             {
                 _logger.LogWarning(
                     "ProfilesPlugin: Emergency disable code rate limit hit from {Ip}. Someone is guessing.", ip);
@@ -3426,7 +3476,6 @@ namespace Jellyfin.Profiles.Controllers
             // cannot be used to discover whether a server has the feature armed.
             if (string.IsNullOrEmpty(config.PanicCodeHash) || !VerifyPinHash(request.Code, config.PanicCodeHash))
             {
-                RateLimiter.Panic.RecordFailure(ip);
                 return BadRequest("Incorrect code.");
             }
 

@@ -1635,6 +1635,46 @@ namespace Jellyfin.Profiles.Controllers
         /// Returns the colour if it is a plain 6-digit hex triplet, otherwise the default.
         /// Anything else could break out of the <c>style="..."</c> attribute it lands in.
         /// </summary>
+        /// <summary>The longest name a household may give a profile.</summary>
+        internal const int MaxProfileNameLength = 32;
+
+        // The characters Jellyfin accepts in a username, since the name becomes part of one.
+        private static readonly Regex ProfileNameRegex = new(@"^[\w\-'.@+ ]+$", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Why a profile name cannot be used, or null when it can.
+        /// <para>
+        /// Nothing checked the name before. A null one threw a 500; an empty one created an
+        /// account called <c>master_</c>; one with a character Jellyfin refuses in a
+        /// username failed inside <c>CreateUserAsync</c> as a 500 with no message; and a
+        /// long one went unchecked into every screen that shows it, other households'
+        /// switchers included.
+        /// </para>
+        /// </summary>
+        internal static string? ValidateProfileName(string? name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return "Enter a name for the profile.";
+
+            var trimmed = name.Trim();
+            if (trimmed.Length > MaxProfileNameLength)
+                return $"A profile name can be at most {MaxProfileNameLength} characters.";
+            if (!ProfileNameRegex.IsMatch(trimmed))
+                return "A profile name can use letters, numbers, spaces and - ' . _ @ +.";
+
+            return null;
+        }
+
+        /// <summary>
+        /// A PIN as Bonfire stores one: four to eight ASCII digits. <c>char.IsDigit</c> also
+        /// accepts every other script's digits, so a PIN could be saved that no television
+        /// remote can type and that the sign-in provider would never try.
+        /// </summary>
+        internal static bool IsValidPin(string pin)
+            => pin.Length >= 4 && pin.Length <= 8 && pin.All(char.IsAsciiDigit);
+
+        /// <summary>The inactivity lock, in minutes: zero (off) to a day.</summary>
+        internal static int ClampLockoutMinutes(int minutes) => Math.Clamp(minutes, 0, 24 * 60);
+
         protected static string SanitizeAvatarColor(string? color)
             => !string.IsNullOrWhiteSpace(color) && HexColorRegex.IsMatch(color.Trim())
                 ? color.Trim()
