@@ -320,6 +320,119 @@ Ok("the mapping row is re-resolved inside the config lock",
 Ok("the result is still intersected with the master's accessible folders",
     src.Contains("authorityFolders = authorityFolders.Where(id => masterAccessible.Contains(id)).ToList();"));
 
+
+Console.WriteLine();
+Console.WriteLine("── A profile carries its master's restrictions ─────────────────");
+
+// A profile is a real Jellyfin account, and anything CopyUserPolicy does not write is
+// whatever Jellyfin gives a brand-new user. It used to copy eight fields, so a master an
+// administrator had restricted — LAN only, a schedule, a bitrate cap, no downloads — could
+// create a profile with none of it, and with sign-in from other apps, enter that profile
+// remotely on its own.
+var copy3 = baseCtl.GetMethod("CopyUserPolicy", Any, null,
+    new[] { typeof(MediaBrowser.Model.Users.UserPolicy), typeof(MediaBrowser.Model.Users.UserPolicy), typeof(Guid) }, null);
+var copy2 = baseCtl.GetMethod("CopyUserPolicy", Any, null,
+    new[] { typeof(MediaBrowser.Model.Users.UserPolicy), typeof(MediaBrowser.Model.Users.UserPolicy) }, null);
+
+var profileId = Guid.NewGuid();
+void Inherit(MediaBrowser.Model.Users.UserPolicy from, MediaBrowser.Model.Users.UserPolicy to)
+{
+    if (copy3 != null)
+    {
+        copy3.Invoke(null, new object[] { from, to, profileId });
+        return;
+    }
+
+    // An older build: the same method as an instance member with no user id. Run it all
+    // the same, so what fails below fails on what it did rather than on its signature.
+    var ctl = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
+        asm.GetType("Jellyfin.Profiles.Controllers.ProfilesController", true));
+    copy2.Invoke(ctl, new object[] { from, to });
+}
+
+var channel = Guid.NewGuid();
+var master = new MediaBrowser.Model.Users.UserPolicy
+{
+    IsAdministrator = true,
+    EnableRemoteAccess = false,
+    EnableContentDownloading = false,
+    EnableLiveTvAccess = false,
+    EnableAllChannels = false,
+    EnabledChannels = new[] { channel },
+    EnableAllDevices = false,
+    EnabledDevices = new[] { "living-room-tv" },
+    RemoteClientBitrateLimit = 4_000_000,
+    MaxActiveSessions = 2,
+    SyncPlayAccess = Jellyfin.Database.Implementations.Enums.SyncPlayUserAccessType.None,
+    EnableContentDeletion = true,
+    EnableSubtitleManagement = false,
+    AccessSchedules = new[]
+    {
+        new Jellyfin.Database.Implementations.Entities.AccessSchedule(
+            Jellyfin.Database.Implementations.Enums.DynamicDayOfWeek.Weekday, 8, 20, Guid.NewGuid())
+    }
+};
+
+// What a brand-new account looks like, plus two grants a default may carry.
+var profile = new MediaBrowser.Model.Users.UserPolicy
+{
+    EnableRemoteAccess = true,
+    EnableContentDownloading = true,
+    EnableLiveTvAccess = true,
+    EnableSubtitleManagement = true,
+    EnableContentDeletion = false,
+    RemoteClientBitrateLimit = 1_000_000,
+};
+
+Inherit(master, profile);
+
+Ok("remote access follows the master", profile.EnableRemoteAccess == false);
+Ok("so do downloads", profile.EnableContentDownloading == false);
+Ok("and Live TV", profile.EnableLiveTvAccess == false);
+Ok("and the channel list", !profile.EnableAllChannels && profile.EnabledChannels.SequenceEqual(new[] { channel }));
+Ok("and the device list", !profile.EnableAllDevices && profile.EnabledDevices.SequenceEqual(new[] { "living-room-tv" }));
+Ok("the access schedule is the master's", profile.AccessSchedules?.Length == 1
+    && profile.AccessSchedules[0].StartHour == 8 && profile.AccessSchedules[0].EndHour == 20);
+Ok("as new rows owned by the profile, not the master's own",
+    profile.AccessSchedules?.Length == 1
+    && profile.AccessSchedules[0].UserId == profileId
+    && !ReferenceEquals(profile.AccessSchedules[0], master.AccessSchedules[0]));
+Ok("a bitrate cap keeps whichever is lower", profile.RemoteClientBitrateLimit == 1_000_000);
+Ok("a session limit is inherited", profile.MaxActiveSessions == 2);
+Ok("SyncPlay can only get stricter", profile.SyncPlayAccess == Jellyfin.Database.Implementations.Enums.SyncPlayUserAccessType.None);
+Ok("a management permission the master lacks is removed", profile.EnableSubtitleManagement == false);
+Ok("and one the master has is not granted", profile.EnableContentDeletion == false);
+Ok("a profile is never an administrator", profile.IsAdministrator == false);
+
+Console.WriteLine();
+Console.WriteLine("── A profile's rating never exceeds its master's ───────────────");
+
+// The switch path restored the profile's own rating after inheriting and never compared
+// it again, so tightening a master to PG-13 left its profiles where they were created.
+var clamp = baseCtl.GetMethod("ClampRating", Any);
+Ok("there is one rule for it", clamp != null);
+(int?, int?) Clamp(int? ps, int? pss, int? ms, int? mss)
+{
+    var r = clamp.Invoke(null, new object[] { ps, pss, ms, mss });
+    var t = r.GetType();
+    return ((int?)t.GetField("Item1").GetValue(r), (int?)t.GetField("Item2").GetValue(r));
+}
+
+if (clamp != null)
+{
+    Ok("no limit on the profile takes the master's", Clamp(null, null, 13, null) == (13, null));
+    Ok("a higher profile rating comes down to the master's", Clamp(18, null, 13, 5) == (13, 5));
+    Ok("a lower one is kept", Clamp(10, 9, 13, 5) == (10, 9));
+    Ok("the same score keeps the lower sub-score", Clamp(13, 7, 13, 5) == (13, 5));
+    Ok("the same score with no sub-score takes the master's", Clamp(13, null, 13, 5) == (13, 5));
+    Ok("a master without a limit leaves the profile alone", Clamp(15, 1, null, null) == (15, 1));
+}
+
+Ok("the switch path clamps the restored rating",
+    src.Contains("ClampRating(\n                    childMaxParentalRating, childMaxParentalSubRating,"));
+Ok("and no longer restores it unchecked",
+    !src.Contains("targetPolicy.MaxParentalRating = childMaxParentalRating;"));
+
 Console.WriteLine();
 Console.WriteLine("  " + pass + " passed, " + fails.Count + " failed");
 if (fails.Count > 0)

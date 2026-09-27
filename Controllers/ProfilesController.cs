@@ -311,23 +311,20 @@ namespace Jellyfin.Profiles.Controllers
             // null and cause UpdatePolicyAsync to throw. (Fix by PepeTechs, PR #6)
             var targetUserDto = _userManager.GetUserDto(targetUser, string.Empty);
             var targetPolicy = targetUserDto.Policy;
-            CopyUserPolicy(masterPolicy, targetPolicy);
+            CopyUserPolicy(masterPolicy, targetPolicy, targetUser.Id);
             targetPolicy.IsAdministrator = false;
             targetPolicy.IsHidden = true;
             targetPolicy.IsDisabled = false;
 
-            // Set parental rating limit (enforce parent rating if set)
+            // The requested rating, never above the master's.
             if (!string.IsNullOrEmpty(request.MaxParentalRating) && int.TryParse(request.MaxParentalRating, out var rating))
             {
                 targetPolicy.MaxParentalRating = rating;
+                targetPolicy.MaxParentalSubRating = null;
             }
-            if (masterPolicy.MaxParentalRating.HasValue)
-            {
-                if (!targetPolicy.MaxParentalRating.HasValue || targetPolicy.MaxParentalRating.Value > masterPolicy.MaxParentalRating.Value)
-                {
-                    targetPolicy.MaxParentalRating = masterPolicy.MaxParentalRating.Value;
-                }
-            }
+            (targetPolicy.MaxParentalRating, targetPolicy.MaxParentalSubRating) = ClampRating(
+                targetPolicy.MaxParentalRating, targetPolicy.MaxParentalSubRating,
+                masterPolicy.MaxParentalRating, masterPolicy.MaxParentalSubRating);
 
             // Tag-based filtering. Stored on the mapping as the profile's own lists; the master's
             // tags are merged in here and re-merged on every switch.
@@ -739,17 +736,22 @@ namespace Jellyfin.Profiles.Controllers
 
                 // Sync streaming, transcoding, and bitrate policies
                 var childMaxParentalRating = targetPolicy.MaxParentalRating;
+                var childMaxParentalSubRating = targetPolicy.MaxParentalSubRating;
                 var childBlockedFolders = targetPolicy.BlockedMediaFolders;
                 var childEnableAllFolders = targetPolicy.EnableAllFolders;
                 var childEnabledFolders = targetPolicy.EnabledFolders;
 
-                CopyUserPolicy(masterPolicy, targetPolicy);
+                CopyUserPolicy(masterPolicy, targetPolicy, targetUser.Id);
 
-                // Restore child-specific overrides
+                // Restore child-specific overrides. The profile keeps its own rating, but
+                // compared with the master's as it is NOW: restoring it unchecked meant
+                // tightening a master's rating never reached profiles it already had.
                 targetPolicy.IsAdministrator = false;
                 targetPolicy.IsHidden = true;
                 targetPolicy.IsDisabled = false;
-                targetPolicy.MaxParentalRating = childMaxParentalRating;
+                (targetPolicy.MaxParentalRating, targetPolicy.MaxParentalSubRating) = ClampRating(
+                    childMaxParentalRating, childMaxParentalSubRating,
+                    masterPolicy.MaxParentalRating, masterPolicy.MaxParentalSubRating);
 
                 // Re-apply the profile's tag filters. CopyUserPolicy above just overwrote them with
                 // the master's, so without this every profile switch would silently drop them.
@@ -1772,7 +1774,7 @@ namespace Jellyfin.Profiles.Controllers
                 var targetUserDto = _userManager.GetUserDto(targetUser, string.Empty);
                 var targetPolicy = targetUserDto.Policy;
 
-                // Set parental rating
+                // Set parental rating, never above the master's.
                 if (!string.IsNullOrEmpty(request.MaxParentalRating) && int.TryParse(request.MaxParentalRating, out var rating))
                 {
                     targetPolicy.MaxParentalRating = rating;
@@ -1781,14 +1783,11 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     targetPolicy.MaxParentalRating = null;
                 }
+                targetPolicy.MaxParentalSubRating = null;
 
-                if (masterPolicy.MaxParentalRating.HasValue)
-                {
-                    if (!targetPolicy.MaxParentalRating.HasValue || targetPolicy.MaxParentalRating.Value > masterPolicy.MaxParentalRating.Value)
-                    {
-                        targetPolicy.MaxParentalRating = masterPolicy.MaxParentalRating.Value;
-                    }
-                }
+                (targetPolicy.MaxParentalRating, targetPolicy.MaxParentalSubRating) = ClampRating(
+                    targetPolicy.MaxParentalRating, targetPolicy.MaxParentalSubRating,
+                    masterPolicy.MaxParentalRating, masterPolicy.MaxParentalSubRating);
 
                 // Tag-based filtering (clamped so it can never exceed the master's)
                 var (resolvedBlockedTags, resolvedAllowedTags) =

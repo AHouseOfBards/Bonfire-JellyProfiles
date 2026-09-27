@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
 using Jellyfin.Profiles.Auth;
+using AccessSchedule = Jellyfin.Database.Implementations.Entities.AccessSchedule;
 
 namespace Jellyfin.Profiles.Controllers
 {
@@ -614,18 +615,135 @@ namespace Jellyfin.Profiles.Controllers
         protected bool IsAdministratorAccount(Jellyfin.Database.Implementations.Entities.User user)
             => _userManager.GetUserDto(user, string.Empty).Policy?.IsAdministrator ?? false;
 
-        protected void CopyUserPolicy(
+        /// <summary>
+        /// Makes a profile's policy inherit its master's, on creation and on every switch.
+        /// <para>
+        /// A profile is a real Jellyfin account, and anything not written here is whatever
+        /// Jellyfin gives a brand-new user. This used to copy eight fields, so every
+        /// restriction an administrator set on a master — no remote access, an access
+        /// schedule, a bitrate cap, no downloads, no Live TV — was absent from the master's
+        /// profiles. Creating a profile was a way out of your own restrictions, and with
+        /// sign-in from other apps the profile could be entered remotely on its own.
+        /// </para>
+        /// <para>Three kinds of field, so the rule for each is plain:</para>
+        /// <list type="bullet">
+        /// <item><description><b>Copied.</b> What the account may see and do, which a
+        /// profile takes from its master exactly: folders, tags, rating (re-clamped by the
+        /// caller), transcoding, remote access, playback, downloads, Live TV, channels,
+        /// devices, schedules.</description></item>
+        /// <item><description><b>The stricter of the two.</b> Limits a profile may tighten
+        /// but never loosen: bitrate, session count, SyncPlay, forced transcoding, blocked
+        /// unrated items.</description></item>
+        /// <item><description><b>Never more than the master.</b> Management permissions a
+        /// new account may get by default: a profile keeps one only if its master has it.
+        /// </description></item>
+        /// </list>
+        /// <para>Static so tests/cs/switchpolicy can drive it with real policies.</para>
+        /// </summary>
+        internal static void CopyUserPolicy(
             MediaBrowser.Model.Users.UserPolicy source,
-            MediaBrowser.Model.Users.UserPolicy destination)
+            MediaBrowser.Model.Users.UserPolicy destination,
+            Guid destinationUserId)
         {
+            // ── copied ──
             destination.EnabledFolders = source.EnabledFolders;
             destination.EnableAllFolders = source.EnableAllFolders;
             destination.MaxParentalRating = source.MaxParentalRating;
+            destination.MaxParentalSubRating = source.MaxParentalSubRating;
             destination.BlockedTags = source.BlockedTags;
             destination.AllowedTags = source.AllowedTags;
             destination.EnablePlaybackRemuxing = source.EnablePlaybackRemuxing;
             destination.EnableVideoPlaybackTranscoding = source.EnableVideoPlaybackTranscoding;
             destination.EnableAudioPlaybackTranscoding = source.EnableAudioPlaybackTranscoding;
+            destination.EnableRemoteAccess = source.EnableRemoteAccess;
+            destination.EnableMediaPlayback = source.EnableMediaPlayback;
+            destination.EnableContentDownloading = source.EnableContentDownloading;
+            destination.EnableSyncTranscoding = source.EnableSyncTranscoding;
+            destination.EnableMediaConversion = source.EnableMediaConversion;
+            destination.EnableLiveTvAccess = source.EnableLiveTvAccess;
+            destination.EnableAllChannels = source.EnableAllChannels;
+            destination.EnabledChannels = source.EnabledChannels ?? Array.Empty<Guid>();
+            destination.BlockedChannels = source.BlockedChannels ?? Array.Empty<Guid>();
+            destination.EnableAllDevices = source.EnableAllDevices;
+            destination.EnabledDevices = source.EnabledDevices ?? Array.Empty<string>();
+
+            // New rows owned by the profile. Jellyfin adds whatever objects it is handed to
+            // the user's schedule set; handing it the master's own rows would try to move
+            // them, keyed by the master's id, onto another account.
+            destination.AccessSchedules = (source.AccessSchedules ?? Array.Empty<AccessSchedule>())
+                .Select(s => new AccessSchedule(s.DayOfWeek, s.StartHour, s.EndHour, destinationUserId))
+                .ToArray();
+
+            // ── the stricter of the two ──
+            destination.RemoteClientBitrateLimit = StricterLimit(source.RemoteClientBitrateLimit, destination.RemoteClientBitrateLimit);
+            destination.MaxActiveSessions = StricterLimit(source.MaxActiveSessions, destination.MaxActiveSessions);
+            destination.ForceRemoteSourceTranscoding = source.ForceRemoteSourceTranscoding || destination.ForceRemoteSourceTranscoding;
+            // CreateAndJoinGroups, JoinGroups, None: a larger value allows less.
+            if ((int)source.SyncPlayAccess > (int)destination.SyncPlayAccess)
+            {
+                destination.SyncPlayAccess = source.SyncPlayAccess;
+            }
+
+            var masterUnrated = source.BlockUnratedItems;
+            var profileUnrated = destination.BlockUnratedItems;
+            destination.BlockUnratedItems = masterUnrated == null ? profileUnrated
+                : profileUnrated == null ? masterUnrated
+                : masterUnrated.Union(profileUnrated).ToArray();
+
+            // ── never more than the master ──
+            destination.IsAdministrator = false;
+            destination.EnableUserPreferenceAccess &= source.EnableUserPreferenceAccess;
+            destination.EnableRemoteControlOfOtherUsers &= source.EnableRemoteControlOfOtherUsers;
+            destination.EnableSharedDeviceControl &= source.EnableSharedDeviceControl;
+            destination.EnableLiveTvManagement &= source.EnableLiveTvManagement;
+            destination.EnableContentDeletion &= source.EnableContentDeletion;
+            destination.EnableCollectionManagement &= source.EnableCollectionManagement;
+            destination.EnableSubtitleManagement &= source.EnableSubtitleManagement;
+            destination.EnableLyricManagement &= source.EnableLyricManagement;
+            destination.EnablePublicSharing &= source.EnablePublicSharing;
+            if (!destination.EnableContentDeletion)
+            {
+                destination.EnableContentDeletionFromFolders = Array.Empty<string>();
+            }
+        }
+
+        /// <summary>The smaller of two limits where zero means "none".</summary>
+        private static int StricterLimit(int a, int b)
+        {
+            if (a <= 0) return Math.Max(b, 0);
+            if (b <= 0) return a;
+            return Math.Min(a, b);
+        }
+
+        /// <summary>
+        /// A profile's parental rating, never above its master's.
+        /// <para>
+        /// A rating is a score and a sub-score, compared in that order; a null score means
+        /// no limit, and a null sub-score means no limit within that score. The switch path
+        /// used to restore the profile's own rating after inheriting and never compare it
+        /// with the master's again, so tightening a master to PG-13 left its profiles at
+        /// whatever they were created with. The sub-score (new in 10.11) was never looked
+        /// at anywhere.
+        /// </para>
+        /// </summary>
+        internal static (int? Score, int? SubScore) ClampRating(
+            int? profileScore, int? profileSubScore, int? masterScore, int? masterSubScore)
+        {
+            if (!masterScore.HasValue) return (profileScore, profileSubScore);
+
+            if (!profileScore.HasValue || profileScore.Value > masterScore.Value)
+            {
+                return (masterScore, masterSubScore);
+            }
+
+            if (profileScore.Value < masterScore.Value || !masterSubScore.HasValue)
+            {
+                return (profileScore, profileSubScore);
+            }
+
+            // Same score: the sub-score may not be above the master's either.
+            return (profileScore,
+                profileSubScore.HasValue ? Math.Min(profileSubScore.Value, masterSubScore.Value) : masterSubScore);
         }
 
         /// <summary>

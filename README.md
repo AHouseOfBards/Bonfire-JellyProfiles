@@ -23,7 +23,8 @@ profiles, each with its own watch history, parental controls, and library access
 ## Features
 
 - **Several profiles per Jellyfin account**, each with its own watch history, library
-  access and parental rating. Five by default; an administrator can set anything from 1
+  access and parental rating. A profile never gets more than its account: it keeps any
+  restriction an administrator set there, such as remote access, schedules or bitrate. Five by default; an administrator can set anything from 1
   to 20, and can raise or lower it for individual accounts.
 - **Tag filters.** Block or allow content per profile using Jellyfin's own tags
   (`adults`, `kids`, and so on). Tags are inherited, so tagging a series or a whole
