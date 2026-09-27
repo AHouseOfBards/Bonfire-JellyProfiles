@@ -396,6 +396,101 @@ Console.WriteLine("Configuration import: absence is not emptiness");
     }
 }
 
+
+Console.WriteLine();
+Console.WriteLine("── Across a Bonfire, profiles have the same protection as accounts ─");
+
+// A link runs both ways, and a sub-profile in another household used to open with or
+// without a PIN, from anywhere. Joining somebody's Bonfire — or being joined — let every
+// member into your PIN-less profiles. /switch, /verify-pin and /list now ask one function,
+// so they cannot disagree about it either.
+var evalSwitch = baseType.GetMethod("EvaluateSwitch", Flags);
+Check("there is one rule for /switch, /verify-pin and /list", evalSwitch != null, true);
+
+if (evalSwitch != null)
+{
+    var mine = Guid.NewGuid();
+    var theirs = Guid.NewGuid();
+    var stranger = Guid.NewGuid();
+    var myKid = Guid.NewGuid();
+    var theirKidNoPin = Guid.NewGuid();
+    var theirKidPin = Guid.NewGuid();
+    var strangersKid = Guid.NewGuid();
+
+    object Row(Guid profile, Guid master, bool pin)
+    {
+        var m = Activator.CreateInstance(mappingType);
+        mappingType.GetProperty("ProfileUserId").SetValue(m, profile);
+        mappingType.GetProperty("MasterUserId").SetValue(m, master);
+        mappingType.GetProperty("PinHash").SetValue(m, pin ? "pbkdf2.sha256$150000$c2FsdA==$aGFzaA==" : null);
+        return m;
+    }
+
+    var listType = typeof(System.Collections.Generic.List<>).MakeGenericType(mappingType);
+    System.Collections.IList Rows(bool ownerConsents, bool ownerHides, bool iHide)
+    {
+        var rows = (System.Collections.IList)Activator.CreateInstance(listType);
+        var myRow = Row(mine, mine, false);
+        mappingType.GetProperty("HideOthersSubProfilesFromMe").SetValue(myRow, iHide);
+        var theirRow = Row(theirs, theirs, true);
+        mappingType.GetProperty("AllowHouseholdLanBypass").SetValue(theirRow, ownerConsents);
+        mappingType.GetProperty("HideMySubProfilesFromOthers").SetValue(theirRow, ownerHides);
+        rows.Add(myRow);
+        rows.Add(theirRow);
+        rows.Add(Row(myKid, mine, false));
+        rows.Add(Row(theirKidNoPin, theirs, false));
+        rows.Add(Row(theirKidPin, theirs, true));
+        rows.Add(Row(strangersKid, stranger, false));
+        return rows;
+    }
+
+    var linked = new System.Collections.Generic.HashSet<Guid> { mine, theirs };
+
+    string Outcome(Guid target, bool isLocal, bool consent = false, bool ownerHides = false, bool iHide = false)
+    {
+        var r = evalSwitch.Invoke(null, new object[] { Rows(consent, ownerHides, iHide), mine, target, linked, isLocal });
+        var ty = r.GetType();
+        if ((bool)ty.GetProperty("Unauthorized").GetValue(r)) return "unauthorized";
+        if (ty.GetProperty("Refusal").GetValue(r) != null) return "refused";
+        var cross = (bool)ty.GetProperty("CrossHousehold").GetValue(r);
+        var bypass = (bool)ty.GetProperty("HouseholdLanBypass").GetValue(r);
+        return cross ? (bypass ? "cross, no PIN" : "cross, PIN") : "own";
+    }
+
+    Check("my own profile, no PIN", Outcome(myKid, false), "own");
+    Check("my own account", Outcome(mine, false), "own");
+    Check("their profile with a PIN", Outcome(theirKidPin, false), "cross, PIN");
+    Check("their profile with no PIN, from away", Outcome(theirKidNoPin, false), "refused");
+    Check("their profile with no PIN, at home, owner has not consented", Outcome(theirKidNoPin, true), "refused");
+    Check("their profile with no PIN, at home, owner consented", Outcome(theirKidNoPin, true, consent: true), "cross, no PIN");
+    Check("their profile with no PIN, away, owner consented", Outcome(theirKidNoPin, false, consent: true), "refused");
+    Check("their profile, owner hides their profiles", Outcome(theirKidPin, true, ownerHides: true), "unauthorized");
+    Check("their profile, I hide other people's profiles", Outcome(theirKidPin, true, iHide: true), "unauthorized");
+    Check("their master is not hidden by either", Outcome(theirs, false, ownerHides: true, iHide: true), "cross, PIN");
+    Check("a household I am not linked to", Outcome(strangersKid, true, consent: true), "unauthorized");
+}
+
+var controllerSrc = System.IO.File.ReadAllText(RepoPath("Controllers", "ProfilesController.cs"));
+Check("/switch uses it",
+    controllerSrc.Contains("var rules = EvaluateSwitch(config.Mappings, callerMasterUserId, request.ProfileId, linkedMasterIds, isLocal);\n            if (rules.Unauthorized)\n            {\n                return Unauthorized(\"Unauthorized profile switch attempt.\");"), true);
+Check("/verify-pin uses it",
+    controllerSrc.Contains("return Unauthorized(\"Unauthorized profile PIN verification.\");")
+    && System.Text.RegularExpressions.Regex.Matches(controllerSrc, @"EvaluateSwitch\(").Count >= 3, true);
+Check("/list drops what /switch would refuse",
+    controllerSrc.Contains(".Where(x => !x.Rules.Unauthorized && x.Rules.Refusal == null)"), true);
+Check("/list sends a profile's restrictions to its own master only",
+    controllerSrc.Contains("AllowedDeviceIds = ownerView ? (m.AllowedDeviceIds ?? new List<string>()) : new List<string>(),"), true);
+
+Console.WriteLine();
+Console.WriteLine("── A kick lasts ────────────────────────────────────────────────");
+
+// The kicked member still had the code, and could type it again straight away.
+var kickStart = controllerSrc.IndexOf("public ActionResult KickBonfireMember", StringComparison.Ordinal);
+var kickEnd = kickStart < 0 ? -1 : controllerSrc.IndexOf("[Http", kickStart, StringComparison.Ordinal);
+var kickBody = kickStart < 0 || kickEnd < 0 ? "" : controllerSrc.Substring(kickStart, kickEnd - kickStart);
+Check("kicking a member replaces the code", kickBody.Contains("group.BonfireCode = GenerateSecureCode();"), true);
+Check("and the owner can replace it on demand", controllerSrc.Contains("[HttpPost(\"bonfire/regenerate-code\")]"), true);
+
 Console.WriteLine();
 Console.WriteLine($"{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;

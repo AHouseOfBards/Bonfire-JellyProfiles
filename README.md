@@ -119,7 +119,7 @@ Everything else, and why, is in [docs/clients.md](docs/clients.md).
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | The switcher does not appear, and other support answers |
 | [BETA-CHANNEL.md](BETA-CHANNEL.md) | Pre-release builds, and why the two version lists differ |
 | [CHANGELOG.md](CHANGELOG.md) | Every release |
-| [docs/developer-api.md](docs/developer-api.md) | All 50 routes, and the Jellyfin routes the plugin changes |
+| [docs/developer-api.md](docs/developer-api.md) | Every route, and the Jellyfin routes the plugin changes |
 
 ---
 

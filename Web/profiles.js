@@ -362,7 +362,11 @@
         'bonfire.leaveCurrentTitle': 'Leave your current Bonfire?',
         'bonfire.leaveCurrentBody': 'Joining this Bonfire removes you from your current one.',
         'bonfire.kickConfirmTitle': 'Kick Member',
-        'bonfire.kickConfirmBody': 'Are you sure you want to kick this user from your Bonfire group?',
+        'bonfire.kickConfirmBody': 'Remove this user from your Bonfire? Your code changes so they can’t rejoin with it.',
+        'bonfire.newCode': 'New code',
+        'bonfire.newCodeConfirmTitle': 'Replace Code',
+        'bonfire.newCodeConfirmBody': 'The old code stops working. Members already in your Bonfire stay in.',
+        'bonfire.failedNewCode': 'Could not replace the code.',
         'bonfire.failedKick': 'Failed to kick member.',
         'bonfire.deleteGroupConfirmTitle': 'Delete Group',
         'bonfire.deleteGroupConfirmBody': 'Delete your Bonfire? Members are disconnected and drop out of your switcher.',
@@ -378,8 +382,8 @@
         'bonfire.hideOthers': "Hide other people's sub-profiles from me",
         'bonfire.hideOthersHint': 'You see only the master profiles of connected homes.',
         'bonfire.lanSwitchLabel': 'Let my Bonfire switch into my account on this network',
-        'bonfire.lanSwitchHint': 'No PIN needed on your home network. Away from home it still is{extra}.',
-        'bonfire.lanSwitchHintExtra': ', and until you set one your account cannot be opened remotely at all',
+        'bonfire.lanSwitchHint': 'No PIN needed on your home network, for your account or your profiles. Away from home it still is{extra}.',
+        'bonfire.lanSwitchHintExtra': ', and anything without a PIN cannot be opened remotely at all',
         'bonfire.settingsSaved': 'Saved.',
         'bonfire.settingsSaveFailed': 'Could not save. Nothing was changed.',
         'bonfire.adminAccountWarning': 'This is an admin account.',
@@ -6694,7 +6698,8 @@
                         <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.hostedTitle')}</label>
                             <span style="font-size: 0.88rem; opacity: 0.75; display: block;">${t('bonfire.shareCode')}</span>
-                            <div style="font-size: 2rem; font-weight: 700; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 12px; border-radius: var(--jpf-r-md); border: 1px solid var(--jpf-accent-a30);">${ownedCode}</div>
+                            <div style="font-size: 2rem; font-weight: 700; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 12px; border-radius: var(--jpf-r-md); border: 1px solid var(--jpf-accent-a30);">${escapeHtml(ownedCode)}</div>
+                            <button type="button" id="bonfire-newcode-btn" class="profiles-btn btn-danger-quiet" style="padding: 8px 16px !important; font-size: 0.9rem !important; margin: 0 auto !important; display: block !important;">${t('bonfire.newCode')}</button>
                         </div>
 
                         <div class="bonfire-form-group">
@@ -6852,6 +6857,26 @@
                     });
                 });
             });
+
+            // Replaces a code that has gone further than intended. Members stay in; the old
+            // code stops working. A kick does the same on its own, since the kicked member
+            // otherwise just joined again with the code they already had.
+            const newCodeBtn = container.querySelector('#bonfire-newcode-btn');
+            if (newCodeBtn) {
+                newCodeBtn.addEventListener('click', () => {
+                    this.showConfirmDialog(t('bonfire.newCodeConfirmTitle'), t('bonfire.newCodeConfirmBody'), () => {
+                        fetch(apiClient.getUrl('plugins/profiles/bonfire/regenerate-code'), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) }
+                        })
+                        .then(res => {
+                            if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
+                            else this.showAlert(t('errors.error'), t('bonfire.failedNewCode'));
+                        })
+                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
+                    });
+                });
+            }
 
             // Event Listeners: Delete Group
             const deleteBtn = container.querySelector('#bonfire-delete-btn');

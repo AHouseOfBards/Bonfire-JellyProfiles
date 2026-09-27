@@ -4,17 +4,22 @@ Link two accounts with a 6-character code so they share one switcher screen.
 
 > [!TIP]
 > A Bonfire code is a credential. Anyone who has it can join, and you can only be in one
-> Bonfire at a time — joining a new one removes you from your current one.
+> Bonfire at a time — joining a new one removes you from your current one. Removing a
+> member gives your Bonfire a new code, so they cannot rejoin with the old one; **New code**
+> does the same without removing anybody.
 
-## The two rules that protect it
+## The rules that protect it
 
-Switching into an account gives a real, fully privileged session for it, so:
+A link runs both ways: everyone in a Bonfire can see everyone else's profiles. Switching
+into any of them gives a real session for it, so:
 
-- **An account with no PIN cannot be opened from a shared Bonfire.** If you want other
-  members to be able to switch into your main account, set a profile PIN on it first.
-  Sub-profiles are unaffected — they work with or without a PIN.
+- **Nothing with no PIN can be opened from another household.** That covers your main
+  account and your profiles alike. Set a PIN on each one you want other members to be
+  able to enter.
 - **The LAN bypass never applies across accounts.** Being on the same network as someone
   in your Bonfire does not skip their PIN; it only skips your own.
+- **Hidden means hidden.** *Hide my profiles from others*, and *hide others' profiles
+  from me*, also stop those profiles being opened, not only being shown.
 
 ## Sharing a TV with another adult
 
@@ -22,8 +27,8 @@ Typing a PIN with a TV remote every time two adults swap accounts is miserable, 
 account can lift both rules **for itself**. In **Settings → Your Bonfire** on the switcher
 screen, tick *"Let my Bonfire switch into my account on this network"*.
 
-People in your Bonfire can then enter your account from your home network without your
-PIN, including when you have none. Away from home nothing changes. It is off by default,
+People in your Bonfire can then enter your account and your profiles from your home
+network without a PIN, including ones that have none. Away from home nothing changes. It is off by default,
 only you can turn it on for your own account, and every switch that uses it is logged.
 
 > [!WARNING]

@@ -326,16 +326,113 @@ namespace Jellyfin.Profiles.Controllers
         /// </returns>
         protected internal static (bool HouseholdLanBypass, bool BlockedUnprotected) EvaluateCrossAccountSwitch(
             ProfileMapping? targetMapping, bool isLocal)
-        {
-            // Consent has to come from the account being entered. Remote requests never
-            // qualify, so a leaked Bonfire code is worth nothing outside the house.
-            bool householdLanBypass = isLocal && (targetMapping?.AllowHouseholdLanBypass ?? false);
+            => EvaluateCrossHouseholdEntry(targetMapping?.PinHash, targetMapping, isLocal);
 
-            // An account with no PIN has nothing to prove ownership with; the opt-in is the
+        /// <summary>
+        /// The same rule for anything in another household: its master or one of its
+        /// sub-profiles. The PIN is the target's own; the consent is always the owning
+        /// master's.
+        /// </summary>
+        internal static (bool HouseholdLanBypass, bool BlockedUnprotected) EvaluateCrossHouseholdEntry(
+            string? targetPinHash, ProfileMapping? ownerMapping, bool isLocal)
+        {
+            // Consent has to come from the household being entered. Remote requests never
+            // qualify, so a leaked Bonfire code is worth nothing outside the house.
+            bool householdLanBypass = isLocal && (ownerMapping?.AllowHouseholdLanBypass ?? false);
+
+            // Anything with no PIN has nothing to prove ownership with; the opt-in is the
             // only thing that can stand in for one, and only on the local network.
-            bool blocked = string.IsNullOrEmpty(targetMapping?.PinHash) && !householdLanBypass;
+            bool blocked = string.IsNullOrEmpty(targetPinHash) && !householdLanBypass;
 
             return (householdLanBypass, blocked);
+        }
+
+        /// <summary>What a switch into <see cref="EvaluateSwitch"/>'s target is allowed to do.</summary>
+        internal sealed class SwitchRules
+        {
+            /// <summary>The target is not reachable from the caller's household at all.</summary>
+            public bool Unauthorized { get; init; }
+
+            /// <summary>Reachable in principle, refused as it stands; the text says why.</summary>
+            public string? Refusal { get; init; }
+
+            /// <summary>The target is in another household, reached through a Bonfire.</summary>
+            public bool CrossHousehold { get; init; }
+
+            /// <summary>The owning household consented to PIN-less entry on this network.</summary>
+            public bool HouseholdLanBypass { get; init; }
+
+            /// <summary>The target's own mapping row, if it has one.</summary>
+            public ProfileMapping? Target { get; init; }
+        }
+
+        /// <summary>
+        /// Who may enter what: the one rule behind /switch, /verify-pin and /list, so the
+        /// three cannot drift. If they drift, the client is told a switch will work and
+        /// the server then refuses it, or the list offers a door that does not open.
+        /// <para>
+        /// Across a Bonfire link, the rules that protect a master account now protect its
+        /// sub-profiles too. They used to open freely with or without a PIN, so joining
+        /// somebody's Bonfire — or being joined, since the link runs both ways — let every
+        /// member into your PIN-less profiles from anywhere. A profile in another household
+        /// now needs its PIN, or its owner's "Allow household switching on this network"
+        /// on the local network. The same owner's "hide my sub-profiles" setting, and the
+        /// caller's "hide others' sub-profiles", now refuse the switch rather than only
+        /// hiding the tile.
+        /// </para>
+        /// </summary>
+        internal static SwitchRules EvaluateSwitch(
+            IReadOnlyList<ProfileMapping> mappings,
+            Guid callerMasterUserId,
+            Guid targetId,
+            ICollection<Guid> linkedMasterIds,
+            bool isLocal)
+        {
+            var target = mappings.FirstOrDefault(m => m.ProfileUserId == targetId);
+
+            Guid household;
+            if (targetId == callerMasterUserId) household = callerMasterUserId;
+            else if (linkedMasterIds.Contains(targetId)) household = targetId;
+            else if (target != null && target.MasterUserId != Guid.Empty && linkedMasterIds.Contains(target.MasterUserId))
+                household = target.MasterUserId;
+            else return new SwitchRules { Unauthorized = true, Target = target };
+
+            if (household == callerMasterUserId)
+            {
+                return new SwitchRules { Target = target };
+            }
+
+            ProfileMapping? Row(Guid id) => mappings.FirstOrDefault(m => m.ProfileUserId == id && m.MasterUserId == id);
+            var owner = Row(household);
+            bool isMaster = targetId == household;
+
+            if (!isMaster)
+            {
+                var mine = Row(callerMasterUserId);
+                if ((owner?.HideMySubProfilesFromOthers ?? false) || (mine?.HideOthersSubProfilesFromMe ?? false))
+                {
+                    return new SwitchRules { Unauthorized = true, Target = target };
+                }
+            }
+
+            var (bypass, blocked) = EvaluateCrossHouseholdEntry(target?.PinHash, owner, isLocal);
+            if (blocked)
+            {
+                return new SwitchRules
+                {
+                    Target = target,
+                    CrossHousehold = true,
+                    Refusal = isMaster
+                        ? "This account has no PIN set, so it cannot be opened from a shared Bonfire. "
+                          + "Its owner must either set a profile PIN, or turn on \"Allow household "
+                          + "switching on this network\" in their Bonfire settings."
+                        : "This profile has no PIN, so it cannot be opened from a shared Bonfire. "
+                          + "Its owner must either set a PIN on it, or turn on \"Allow household "
+                          + "switching on this network\" in their Bonfire settings."
+                };
+            }
+
+            return new SwitchRules { Target = target, CrossHousehold = true, HouseholdLanBypass = bypass };
         }
 
         /// <summary>
@@ -852,6 +949,62 @@ namespace Jellyfin.Profiles.Controllers
         /// different quantity.
         /// </para>
         /// </summary>
+        /// <summary>
+        /// Counts one PIN attempt for the web switcher, or returns the 429 to send. Per
+        /// address and profile, and per profile across every address — see
+        /// <see cref="RateLimiter.PinPerProfile"/>. Counted before the PIN is checked, so
+        /// concurrent guesses cannot all pass together. Pair with <see cref="EndPinAttempt"/>
+        /// on success.
+        /// </summary>
+        protected ActionResult? BeginPinAttempt(string addressKey, Guid profileId)
+        {
+            if (!RateLimiter.Pin.TryBegin(addressKey))
+            {
+                return TooManyAttempts(RateLimiter.Pin, addressKey, "Too many failed PIN attempts.");
+            }
+
+            var profileKey = profileId.ToString("N");
+            if (!RateLimiter.PinPerProfile.TryBegin(profileKey))
+            {
+                return TooManyAttempts(RateLimiter.PinPerProfile, profileKey, "Too many failed PIN attempts.");
+            }
+
+            return null;
+        }
+
+        /// <summary>The right PIN, or none needed: both allowances start again.</summary>
+        protected static void EndPinAttempt(string addressKey, Guid profileId)
+        {
+            RateLimiter.Pin.Reset(addressKey);
+            RateLimiter.PinPerProfile.Reset(profileId.ToString("N"));
+        }
+
+        /// <summary>
+        /// Counts a master-PIN check on a profile edit. Keyed on the account: the caller is
+        /// already signed in as that master, but these checks had no limit at all, which
+        /// made every edit endpoint an unthrottled way to learn the master's PIN — the one
+        /// that also opens the account on other apps and across a Bonfire.
+        /// </summary>
+        protected bool VerifyMasterPinLimited(string? pin, ProfileMapping masterMapping, PluginConfiguration config, out ActionResult? refusal)
+        {
+            var key = "master-pin:" + masterMapping.ProfileUserId.ToString("N");
+            if (!RateLimiter.PinPerProfile.TryBegin(key))
+            {
+                refusal = TooManyAttempts(RateLimiter.PinPerProfile, key, "Too many failed PIN attempts.");
+                return false;
+            }
+
+            if (!VerifyPinAndUpgrade(pin, masterMapping, config))
+            {
+                refusal = BadRequest("Invalid Master PIN code.");
+                return false;
+            }
+
+            RateLimiter.PinPerProfile.Reset(key);
+            refusal = null;
+            return true;
+        }
+
         internal ActionResult TooManyAttempts(RateLimiter limiter, string key, string what)
         {
             var wait = limiter.RetryAfter(key);

@@ -31,7 +31,7 @@ unless stated otherwise. Field names are returned camelCase.
 
 ## All routes
 
-All 50 endpoints the plugin exposes. **Auth** is what the endpoint enforces, not what it
+All 51 endpoints the plugin exposes. **Auth** is what the endpoint enforces, not what it
 ought to: `anon` means reachable with no token at all.
 
 This table is generated from `ProfilesController` and checked by
@@ -61,7 +61,8 @@ is not the one the code enforces.
 | `GET /plugins/profiles/bonfire/status` | user | The caller’s Bonfire group and its members. |
 | `POST /plugins/profiles/bonfire/generate` | user | Mint a join code. |
 | `POST /plugins/profiles/bonfire/join` | user | Join a group with a code. |
-| `POST /plugins/profiles/bonfire/kick` | user | Remove a member from the caller’s group. |
+| `POST /plugins/profiles/bonfire/kick` | user | Remove a member from the caller’s group, and replace the code. |
+| `POST /plugins/profiles/bonfire/regenerate-code` | user | Replace the caller’s Bonfire code. |
 | `POST /plugins/profiles/bonfire/leave` | user | Leave the group the caller is in. |
 | `POST /plugins/profiles/bonfire/delete-group` | user | Delete the caller’s own group. |
 | `POST /plugins/profiles/bonfire/settings` | user | Change the caller’s Bonfire options. |
@@ -1209,7 +1210,28 @@ Kicks a guest master user from the owned bonfire group.
 |---|---|---|---|
 | `memberId` | string (GUID) | Yes | The user ID of the guest member to remove. |
 
-* **Response:** `200 OK` on success.
+* **Response:** `200 OK`, with the group's new code. The code the removed member joined with
+  stops working, so they cannot simply join again; members who stay are unaffected.
+```json
+{
+  "bonfireCode": "Q7M2KX"
+}
+```
+
+### `POST /plugins/profiles/bonfire/regenerate-code`
+
+**Authorisation:** signed-in user.
+
+Replaces the code of the group the caller owns. Members already in the group stay in; the
+old code stops working. Returns `400` if the caller owns no group.
+
+* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
+* **Response:** `200 OK`
+```json
+{
+  "bonfireCode": "Q7M2KX"
+}
+```
 
 ### `POST /plugins/profiles/bonfire/leave`
 
