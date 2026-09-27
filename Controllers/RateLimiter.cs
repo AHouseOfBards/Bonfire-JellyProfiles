@@ -28,6 +28,29 @@ namespace Jellyfin.Profiles.Controllers
         /// </summary>
         internal static readonly RateLimiter Panic = new(maxAttempts: 5, windowMinutes: 60);
 
+        /// <summary>
+        /// Per profile, across every address: the web switcher's PIN check. <see cref="Pin"/>
+        /// is keyed on address and profile together, which a caller with more than one
+        /// address (any IPv6 host has billions) simply walks around.
+        /// </summary>
+        internal static readonly RateLimiter PinPerProfile = new(maxAttempts: 10, windowMinutes: 15);
+
+        /// <summary>
+        /// Per account, for a PIN typed into another app's sign-in screen. That path is
+        /// reachable by anyone who can POST /Users/AuthenticateByName, and Jellyfin's own
+        /// lockout does not cover it: <c>LoginAttemptsBeforeLockout</c> is null on every
+        /// account Bonfire creates, which Jellyfin reads as "never lock". Keyed on the
+        /// account, not the address, for the same reason as <see cref="PinPerProfile"/>.
+        /// </summary>
+        internal static readonly RateLimiter ClientPin = new(maxAttempts: 5, windowMinutes: 15);
+
+        /// <summary>
+        /// The same accounts, over a day. Five every fifteen minutes is still 480 a day,
+        /// which gets through a four-digit PIN in about three weeks; twenty a day makes it
+        /// most of a year.
+        /// </summary>
+        internal static readonly RateLimiter ClientPinDaily = new(maxAttempts: 20, windowMinutes: 24 * 60);
+
         // ── State ──────────────────────────────────────────────────────────────────
         private readonly int _maxAttempts;
         private readonly int _windowMinutes;
@@ -57,6 +80,43 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
             return false;
+        }
+
+        /// <summary>
+        /// Counts an attempt before it is made, and says whether it may be made at all.
+        /// <para>
+        /// <see cref="IsRateLimited"/> followed by <see cref="RecordFailure"/> leaves the
+        /// whole verification in between — a PBKDF2 derivation, tens of milliseconds — for
+        /// concurrent requests to pass the check together, so a hundred parallel guesses
+        /// all got through a limit of five. Here the check and the count are one step under
+        /// one lock. Call <see cref="Reset"/> when the attempt succeeds.
+        /// </para>
+        /// </summary>
+        public bool TryBegin(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return true;
+            PruneExpiredEntries();
+
+            while (true)
+            {
+                var list = _attempts.GetOrAdd(key, _ => new List<DateTime>());
+                lock (list)
+                {
+                    // The sweep may have dropped this list from the dictionary between the
+                    // lookup and the lock. Counting into an orphan would lose the attempt.
+                    if (!_attempts.TryGetValue(key, out var current) || !ReferenceEquals(current, list))
+                    {
+                        continue;
+                    }
+
+                    var now = DateTime.UtcNow;
+                    list.RemoveAll(t => t < now.AddMinutes(-_windowMinutes));
+                    if (list.Count >= _maxAttempts) return false;
+
+                    list.Add(now);
+                    return true;
+                }
+            }
         }
 
         public void RecordFailure(string ipAddress)

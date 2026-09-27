@@ -40,11 +40,20 @@ namespace Jellyfin.Profiles.Auth
     /// </para>
     ///
     /// <para>
-    /// 2. <b>Decline anything that is not a Bonfire sub-profile, immediately.</b> When a
-    /// user has no <c>AuthenticationProviderId</c>, Jellyfin tries every enabled provider
-    /// in turn and accepts the first success, so this method is reachable for accounts
-    /// that have nothing to do with Bonfire. A wrong success here is an authentication
-    /// bypass on somebody else's account.
+    /// 2. <b>Never succeed for an account that is not a Bonfire profile.</b> When a user
+    /// has no <c>AuthenticationProviderId</c>, Jellyfin tries every enabled provider in
+    /// turn and accepts the first success, so this method is reachable for accounts that
+    /// have nothing to do with Bonfire. A wrong success here is an authentication bypass on
+    /// somebody else's account. The one thing done for an account that is not a profile is
+    /// to hand its password to Jellyfin's own provider, and only when the account is bound
+    /// to this one — see <see cref="IsBoundHere"/>.
+    /// </para>
+    ///
+    /// <para>
+    /// 3. <b>Nobody bound to this provider may be left without a way in.</b> Jellyfin
+    /// offers a bound account this provider and nothing else, and maps it to
+    /// <c>InvalidAuthProvider</c> when this one reports itself disabled. So every refusal
+    /// below that is not about a PIN falls through to the account's real password.
     /// </para>
     /// </summary>
     public class BonfirePinAuthenticationProvider : IAuthenticationProvider, IRequiresResolvedUser
@@ -73,13 +82,24 @@ namespace Jellyfin.Profiles.Auth
         public string Name => "Bonfire PIN";
 
         /// <summary>
-        /// Off unless an administrator has turned the feature on. A disabled provider is
-        /// filtered out before <c>GetAuthenticationProviders</c> matches on id, so any
-        /// profile still bound to it falls back to Jellyfin's own provider and its
-        /// unknowable random password — which is exactly the state before this existed.
+        /// Off unless an administrator has turned the feature on.
+        /// <para>
+        /// A disabled provider does NOT fall back to Jellyfin's own. <c>GetAuthenticationProviders</c>
+        /// filters disabled providers out and then matches the user's bound id against what
+        /// is left; when nothing matches, the user is handed <c>InvalidAuthProvider</c>, which
+        /// refuses everything. That is why turning the feature off re-points every bound
+        /// account first (<see cref="ProfilesBootstrapTask.ReconcileAuthProvidersNow"/>).
+        /// </para>
+        /// <para>
+        /// The emergency disable deliberately does not touch this. It used to, and a master
+        /// bound here for its PIN then could not sign in with its password at all — during
+        /// the one event that exists because the web interface has become hard to use.
+        /// While it is tripped, <see cref="Authenticate(string, string, User)"/> accepts no
+        /// PIN and passes every bound master's password to Jellyfin instead.
+        /// </para>
         /// </summary>
         public bool IsEnabled =>
-            Plugin.Instance?.Configuration?.EnableClientPinLogin == true && !Plugin.IsPanicDisabled;
+            Plugin.Instance?.Configuration?.EnableClientPinLogin == true;
 
         /// <summary>
         /// Whether the client should show a password box at all.
@@ -132,6 +152,9 @@ namespace Jellyfin.Profiles.Auth
             var config = Plugin.Instance?.Configuration;
             if (config?.Mappings == null || !config.EnableClientPinLogin) throw Decline();
 
+            // Only ever reaches a sub-profile, and the emergency disable turns PIN entry off.
+            if (Plugin.IsPanicDisabled) throw Decline();
+
             var deviceId = RequestDevice.Current;
             var master = DeviceRegistry.FindMaster(config, deviceId);
             if (master == Guid.Empty)
@@ -179,14 +202,12 @@ namespace Jellyfin.Profiles.Auth
             // real Jellyfin password and must go on being able to use it.
             //
             // "Masters administer the server" was the reason this used to refuse them, and
-            // it is only true of the one account that set the server up. Logan's server has
-            // forty masters and thirty-nine of them administer nothing, so the rule was
-            // wrong for almost every user of it. Administrator accounts are allowed too, by
-            // his decision, with a warning under the PIN field.
+            // it is only true of the one account that set the server up — on a server with
+            // many households, most masters administer nothing. Administrator accounts are
+            // allowed too, deliberately, with a warning under the PIN field.
             if (mapping == null)
             {
                 var master = FindMasterWithPin(resolvedUser.Id);
-                if (master == null) throw Decline();
 
                 // The PIN first, then the account's real password. Jellyfin binds a user to
                 // exactly one provider — GetAuthenticationProviders filters on
@@ -195,16 +216,43 @@ namespace Jellyfin.Profiles.Auth
                 // in front of an account that may administer the server. Delegating is what
                 // makes both work at once, and it is also the safety net: if anything here
                 // is wrong, the real password still gets you in.
-                if (PinHasher.Verify(password, master.PinHash) == PinHasher.PinResult.Match)
+                //
+                // Only something PIN-shaped is tried as a PIN, and only that is counted
+                // against the throttle. A master's ordinary password sign-in, on the web or
+                // anywhere else, comes through here too and must never use up the PIN
+                // allowance or be slowed by it.
+                if (master != null && !Plugin.IsPanicDisabled && LooksLikePin(password))
                 {
-                    _logger.LogInformation(
-                        "ProfilesPlugin: master account {UserId} entered by PIN on a client.",
-                        master.MasterUserId);
-                    return Task.FromResult(new ProviderAuthenticationResult { Username = resolvedUser.Username });
+                    if (!BeginPinAttempt(resolvedUser.Id))
+                    {
+                        _logger.LogWarning(
+                            "ProfilesPlugin: too many wrong PINs for master account {UserId}; PIN sign-in is "
+                            + "paused for it, and only its password is being checked.",
+                            resolvedUser.Id);
+                    }
+                    else if (PinHasher.Verify(password, master.PinHash) == PinHasher.PinResult.Match)
+                    {
+                        EndPinAttempt(resolvedUser.Id);
+                        _logger.LogInformation(
+                            "ProfilesPlugin: master account {UserId} entered by PIN on a client.",
+                            master.MasterUserId);
+                        return Task.FromResult(new ProviderAuthenticationResult { Username = resolvedUser.Username });
+                    }
                 }
+
+                // A master with no PIN — never set, since cleared, or its last profile
+                // deleted — that is still bound here. This used to refuse outright, and
+                // because Jellyfin offers a bound account nothing but this provider, clearing
+                // your PIN locked your real password out everywhere until the binding was
+                // repaired by hand. Rule 3: the password always gets through.
+                if (master == null && !IsBoundHere(resolvedUser)) throw Decline();
 
                 return DelegateToJellyfin(resolvedUser, password);
             }
+
+            // Every PIN below belongs to a sub-profile, and the emergency disable turns PIN
+            // entry off. A sub-profile has no password of its own to fall back to.
+            if (Plugin.IsPanicDisabled) throw Decline();
 
             // A profile limited to particular devices is limited here too.
             //
@@ -279,6 +327,26 @@ namespace Jellyfin.Profiles.Auth
                 return Task.FromResult(new ProviderAuthenticationResult { Username = resolvedUser.Username });
             }
 
+            // Nothing that is not PIN-shaped can match, so it is refused without spending a
+            // key derivation on it or an attempt from the allowance.
+            if (!LooksLikePin(password)) throw Decline();
+
+            // Jellyfin's own lockout does not cover this: LoginAttemptsBeforeLockout is null
+            // on every account Bonfire creates, and Jellyfin reads null as "never lock". A
+            // four-digit PIN behind no limit at all is ten thousand requests from anywhere.
+            // Counted per account rather than per address, so more addresses buy nothing.
+            // The price is that somebody hammering a profile's name can pause PIN sign-in
+            // for it on other apps for a while; the web switcher is limited separately and
+            // is unaffected.
+            if (!BeginPinAttempt(mapping.ProfileUserId))
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: too many wrong PINs for profile {ProfileId}; PIN sign-in on other "
+                    + "apps is paused for it.",
+                    mapping.ProfileUserId);
+                throw Decline();
+            }
+
             var result = PinHasher.Verify(password, mapping.PinHash);
             if (result == PinHasher.PinResult.MalformedHash)
             {
@@ -290,10 +358,10 @@ namespace Jellyfin.Profiles.Auth
 
             if (result != PinHasher.PinResult.Match)
             {
-                // Jellyfin counts the failure and applies its own lockout, because it is the
-                // one that sees the AuthenticationException.
                 throw Decline();
             }
+
+            EndPinAttempt(mapping.ProfileUserId);
 
             _logger.LogInformation(
                 "ProfilesPlugin: profile {ProfileId} entered by PIN on a client.",
@@ -303,25 +371,70 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Jellyfin calls this when an administrator changes the account password. Bonfire
-        /// PINs are changed through the plugin, and writing one here would silently create
-        /// a second place a PIN lives. Refused rather than ignored, so a caller is told
-        /// nothing happened instead of believing it did.
-        /// </summary>
-        public Task ChangePassword(User user, string newPassword)
-            => throw new AuthenticationException(
-                "A Bonfire profile's PIN is changed in Bonfire, not as an account password.");
-
-        /// <summary>
-        /// The mapping for a Bonfire <b>sub-profile</b>, or null for anything else.
-        ///
+        /// Jellyfin calls this when a password is changed or reset, and it calls the
+        /// provider the account is bound to.
         /// <para>
-        /// A master maps to itself, and returning it here would let a master account be
-        /// opened with its profile PIN — which is a decision for the settings that govern
-        /// the master, not a side effect of this lookup. So the mapping is only returned
-        /// when the user is genuinely somebody's sub-profile.
+        /// For a sub-profile it is refused rather than ignored: Bonfire PINs are changed
+        /// through the plugin, writing one here would silently create a second place a PIN
+        /// lives, and a caller should be told nothing happened instead of believing it did.
+        /// </para>
+        /// <para>
+        /// For a master it is Jellyfin's to do. A master bound here for its PIN still owns a
+        /// real password, and refusing this left it unable to change that password, or have
+        /// an administrator reset it, for as long as the binding lasted.
         /// </para>
         /// </summary>
+        public Task ChangePassword(User user, string newPassword)
+        {
+            if (user != null && FindSubProfile(user.Id) == null)
+            {
+                var jellyfins = FindJellyfinsProvider();
+                if (jellyfins != null) return jellyfins.ChangePassword(user, newPassword);
+
+                _logger.LogError(
+                    "ProfilesPlugin: could not find Jellyfin's own authentication provider, so the "
+                    + "password for {Username} cannot be changed.",
+                    user.Username);
+            }
+
+            throw new AuthenticationException(
+                "A Bonfire profile's PIN is changed in Bonfire, not as an account password.");
+        }
+
+        /// <summary>A PIN as Bonfire accepts one: four to eight digits.</summary>
+        private static bool LooksLikePin(string? value)
+            => !string.IsNullOrEmpty(value)
+               && value.Length >= 4 && value.Length <= 8
+               && value.All(char.IsAsciiDigit);
+
+        /// <summary>
+        /// Counts one PIN attempt against this account and says whether it may be made.
+        /// Counted before the PIN is checked, so parallel guesses cannot all pass the check
+        /// together. Both windows are consulted every time.
+        /// </summary>
+        private static bool BeginPinAttempt(Guid userId)
+        {
+            var key = userId.ToString("N");
+            var shortWindow = Controllers.RateLimiter.ClientPin.TryBegin(key);
+            var day = Controllers.RateLimiter.ClientPinDaily.TryBegin(key);
+            return shortWindow && day;
+        }
+
+        /// <summary>A PIN was right: the account's allowance starts again.</summary>
+        private static void EndPinAttempt(Guid userId)
+        {
+            var key = userId.ToString("N");
+            Controllers.RateLimiter.ClientPin.Reset(key);
+            Controllers.RateLimiter.ClientPinDaily.Reset(key);
+        }
+
+        /// <summary>
+        /// Whether Jellyfin has this account bound to this provider — the one case where
+        /// Jellyfin offers it no other, so a refusal here is a refusal everywhere.
+        /// </summary>
+        private bool IsBoundHere(User user)
+            => string.Equals(user.AuthenticationProviderId, GetType().FullName, StringComparison.OrdinalIgnoreCase);
+
         /// <summary>
         /// The mapping row of a master that has set a PIN, or null.
         /// <para>
@@ -362,11 +475,7 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         private Task<ProviderAuthenticationResult> DelegateToJellyfin(User user, string password)
         {
-            var providers = _services?.GetService(typeof(IEnumerable<IAuthenticationProvider>))
-                as IEnumerable<IAuthenticationProvider>;
-
-            var jellyfins = providers?.FirstOrDefault(p =>
-                string.Equals(p.GetType().Name, "DefaultAuthenticationProvider", StringComparison.Ordinal));
+            var jellyfins = FindJellyfinsProvider();
 
             if (jellyfins == null)
             {
@@ -383,6 +492,26 @@ namespace Jellyfin.Profiles.Auth
                 : jellyfins.Authenticate(user.Username, password);
         }
 
+        /// <summary>Jellyfin's own <c>DefaultAuthenticationProvider</c>; see <see cref="DelegateToJellyfin"/>.</summary>
+        private IAuthenticationProvider? FindJellyfinsProvider()
+        {
+            var providers = _services?.GetService(typeof(IEnumerable<IAuthenticationProvider>))
+                as IEnumerable<IAuthenticationProvider>;
+
+            return providers?.FirstOrDefault(p =>
+                string.Equals(p.GetType().Name, "DefaultAuthenticationProvider", StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// The mapping for a Bonfire <b>sub-profile</b>, or null for anything else.
+        ///
+        /// <para>
+        /// A master maps to itself, and returning it here would let a master account be
+        /// opened with its profile PIN — which is a decision for the settings that govern
+        /// the master, not a side effect of this lookup. So the mapping is only returned
+        /// when the user is genuinely somebody's sub-profile.
+        /// </para>
+        /// </summary>
         private static ProfileMapping? FindSubProfile(Guid? userId)
         {
             if (userId == null || userId == Guid.Empty) return null;

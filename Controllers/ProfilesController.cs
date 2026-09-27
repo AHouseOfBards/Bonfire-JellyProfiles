@@ -555,6 +555,10 @@ namespace Jellyfin.Profiles.Controllers
                         Plugin.Instance?.SaveConfiguration();
                     }
                 }
+
+                // The master's last profile may just have gone, and a master with no
+                // profiles is no longer one the PIN provider should hold.
+                ProfilesBootstrapTask.ReconcileAuthProvidersNow();
             }
 
             return Ok();
@@ -1269,6 +1273,10 @@ namespace Jellyfin.Profiles.Controllers
                 Plugin.Instance?.SaveConfiguration();
             }
 
+            // Resetting a master's PIN takes it off the PIN provider, or its password would
+            // be refused there.
+            ProfilesBootstrapTask.ReconcileAuthProvidersNow();
+
             return Ok();
         }
 
@@ -1306,6 +1314,7 @@ namespace Jellyfin.Profiles.Controllers
             // the set is small. Doing it inside would hold the lock across all of them.
             bool Exists(Guid id) => id != Guid.Empty && _userManager.GetUserById(id) != null;
 
+            (int Mappings, int Groups, int Members) removed;
             lock (ConfigLock)
             {
                 var orphans = config.Mappings
@@ -1357,14 +1366,20 @@ namespace Jellyfin.Profiles.Controllers
                 // device". Device housekeeping has its own rules; see RemoveStaleDevices.
                 Plugin.Instance?.SaveConfiguration();
 
-                return Ok(new
-                {
-                    applied = true,
-                    removedMappings = orphans.Count,
-                    removedGroups = deadGroups.Count,
-                    removedMembers = deadMembers.Count
-                });
+                removed = (orphans.Count, deadGroups.Count, deadMembers.Count);
             }
+
+            // A master whose profiles were all orphans is no longer one the PIN provider
+            // should hold.
+            ProfilesBootstrapTask.ReconcileAuthProvidersNow();
+
+            return Ok(new
+            {
+                applied = true,
+                removedMappings = removed.Mappings,
+                removedGroups = removed.Groups,
+                removedMembers = removed.Members
+            });
         }
 
         /// <summary>
@@ -1644,6 +1659,9 @@ namespace Jellyfin.Profiles.Controllers
                 Plugin.Instance?.SaveConfiguration();
             }
 
+            // Every profile, PIN and the feature switch itself may have changed.
+            ProfilesBootstrapTask.ReconcileAuthProvidersNow();
+
             return Ok(new
             {
                 mappings = (incoming.Mappings ?? new List<ProfileMapping>()).Count - droppedMappings.Count,
@@ -1901,6 +1919,14 @@ namespace Jellyfin.Profiles.Controllers
                 }
 
                 Plugin.Instance?.SaveConfiguration();
+            }
+
+            // A master setting its PIN becomes enterable by it on other apps at once, rather
+            // than after the next restart. A master clearing it must come off the PIN provider
+            // just as fast, or its password is refused there.
+            if (request.ProfileId == masterUserId && request.Pin != null)
+            {
+                ProfilesBootstrapTask.ReconcileAuthProvidersNow();
             }
 
             return Ok();

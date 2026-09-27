@@ -11,6 +11,7 @@ using Microsoft.Extensions.Hosting;
 using System.Linq;
 using MediaBrowser.Controller.Library;
 using Jellyfin.Profiles.Auth;
+using Jellyfin.Profiles.Controllers;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Profiles
@@ -331,21 +332,10 @@ namespace Jellyfin.Profiles
             "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider";
 
         /// <summary>
-        /// Points each sub-profile at the provider the current settings call for: Bonfire's
-        /// when client PIN login is on, and the master's own provider when it is off.
-        /// <para>
-        /// Runs at startup and again whenever the setting is saved, so switching the
-        /// feature off takes effect immediately instead of at the next restart — a profile
-        /// left pointing at a disabled provider has no provider at all, and the web
-        /// switcher would stop being able to enter it.
-        /// </para>
-        /// </summary>
-        /// <summary>
-        /// Re-points sub-profiles after an administrator changes the client PIN setting, so
-        /// turning it OFF takes effect at once. Waiting for the next restart would leave
-        /// every profile pointing at a provider that is no longer enabled, and a profile
-        /// with no enabled provider cannot be entered at all — including by the web
-        /// switcher, which has nothing to do with this feature.
+        /// Re-points accounts after something that changes which provider they belong on:
+        /// the client PIN setting, a master setting or clearing its PIN, a profile being
+        /// deleted or imported. Waiting for the next restart would leave an account bound to
+        /// a provider that no longer wants it, and Jellyfin offers a bound account no other.
         /// </summary>
         internal static void ReconcileAuthProvidersNow()
         {
@@ -362,57 +352,51 @@ namespace Jellyfin.Profiles
             }
         }
 
+        /// <summary>
+        /// Points each account at the provider the current settings call for.
+        /// <list type="bullet">
+        /// <item><description>A sub-profile: Bonfire's when client PIN login is on, its
+        /// master's own provider when it is off.</description></item>
+        /// <item><description>A master that has a PIN and owns profiles: Bonfire's while the
+        /// feature is on, so its PIN can be reached.</description></item>
+        /// <item><description>Any other master still bound to Bonfire's: back to Jellyfin's
+        /// own. This case is why the method looks at every master rather than only the ones
+        /// with a PIN — a master that cleared its PIN, or deleted its last profile, used to
+        /// stay bound for good, and the provider then refused its real password.</description></item>
+        /// </list>
+        /// <para>
+        /// Runs at startup and after each of those changes.
+        /// </para>
+        /// </summary>
         internal void ReconcileAuthProviders()
         {
             var config = Plugin.Instance?.Configuration;
             if (config?.Mappings == null) return;
 
-            var wanted = config.EnableClientPinLogin
-                ? typeof(BonfirePinAuthenticationProvider).FullName
-                : null;   // null = restore whatever the master uses
+            var ours = typeof(BonfirePinAuthenticationProvider).FullName!;
+            var enabled = config.EnableClientPinLogin;
 
-            var subProfiles = config.Mappings
-                .Where(m => m.MasterUserId != m.ProfileUserId)
-                .Select(m => (Profile: m.ProfileUserId, Master: m.MasterUserId))
-                .ToList();
-
-            // A master that has set a PIN is bound too, so it can be entered on a television
-            // without its full password. Only when it HAS a PIN: binding one without would
-            // hand an account with a real password to a provider with nothing to check, and
-            // the provider keeps the password working by delegating to Jellyfin's own — see
-            // BonfirePinAuthenticationProvider.DelegateToJellyfin.
-            //
-            // Restoring is the literal default provider rather than MasterProviderId, which
-            // for a master would read back whatever it is currently bound to — this provider
-            // — and pin it there permanently.
-            var mastersWithPins = config.Mappings
-                .Where(m => m.MasterUserId == m.ProfileUserId
-                            && !string.IsNullOrEmpty(m.PinHash)
-                            && config.Mappings.Any(o => o.MasterUserId == m.MasterUserId
-                                                        && o.ProfileUserId != m.MasterUserId))
-                .Select(m => (Profile: m.ProfileUserId, Master: Guid.Empty))
-                .ToList();
-
-            subProfiles.AddRange(mastersWithPins);
+            List<ProfileMapping> rows;
+            lock (ProfilesBaseController.ConfigLock)
+            {
+                rows = config.Mappings.ToList();
+            }
 
             int changed = 0;
-            foreach (var (profileId, masterId) in subProfiles)
+
+            void Point(Guid userId, Func<string?, string?> choose)
             {
                 try
                 {
-                    var user = _userManager.GetUserById(profileId);
-                    if (user == null) continue;
+                    var user = _userManager.GetUserById(userId);
+                    if (user == null) return;
 
-                    // Guid.Empty marks a master: there is no owning account to read a
-                    // provider from, so the restore target is Jellyfin's own.
-                    var target = wanted ?? (masterId == Guid.Empty
-                        ? "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider"
-                        : MasterProviderId(masterId));
+                    var target = choose(user.AuthenticationProviderId);
 
                     // The whole point of this method's history. Never write an empty or
                     // null id: it makes the row unreadable rather than merely unusable.
-                    if (string.IsNullOrEmpty(target)) continue;
-                    if (string.Equals(user.AuthenticationProviderId, target, StringComparison.Ordinal)) continue;
+                    if (string.IsNullOrEmpty(target)) return;
+                    if (string.Equals(user.AuthenticationProviderId, target, StringComparison.Ordinal)) return;
 
                     user.AuthenticationProviderId = target;
                     _userManager.UpdateUserAsync(user).GetAwaiter().GetResult();
@@ -420,19 +404,59 @@ namespace Jellyfin.Profiles
                 }
                 catch (Exception ex)
                 {
-                    // One bad profile must not stop the rest, and must not stop startup.
+                    // One bad account must not stop the rest, and must not stop startup.
                     _logger.LogError(ex,
-                        "ProfilesPlugin: could not set the authentication provider for profile {ProfileId}.",
-                        profileId);
+                        "ProfilesPlugin: could not set the authentication provider for account {UserId}.",
+                        userId);
                 }
+            }
+
+            // Sub-profiles. Restored from the master rather than a hardcoded id when the
+            // feature is off; MasterProviderId never answers with ours, so a master that is
+            // itself still bound cannot be copied onto its profiles.
+            foreach (var m in rows.Where(m => m.MasterUserId != m.ProfileUserId && m.MasterUserId != Guid.Empty))
+            {
+                var masterId = m.MasterUserId;
+                Point(m.ProfileUserId, _ => enabled ? ours : MasterProviderId(masterId));
+            }
+
+            // Masters. A master that has set a PIN is bound so it can be entered on a
+            // television without its full password; the provider keeps the password working
+            // by delegating to Jellyfin's own (BonfirePinAuthenticationProvider.DelegateToJellyfin).
+            //
+            // Only a master on Jellyfin's own provider is ever bound. Delegation goes to that
+            // provider, so binding an account that signs in through LDAP or SSO would swap
+            // its real password check for one that cannot succeed.
+            //
+            // Restoring is the literal default provider rather than MasterProviderId, which
+            // for a master would read back whatever it is currently bound to — this provider
+            // — and pin it there permanently.
+            foreach (var masterId in rows.Select(m => m.MasterUserId).Where(id => id != Guid.Empty).Distinct())
+            {
+                var qualifies = enabled
+                    && rows.Any(m => m.ProfileUserId == masterId && m.MasterUserId == masterId
+                                     && !string.IsNullOrEmpty(m.PinHash))
+                    && rows.Any(m => m.MasterUserId == masterId && m.ProfileUserId != masterId);
+
+                Point(masterId, current =>
+                {
+                    var boundHere = string.Equals(current, ours, StringComparison.OrdinalIgnoreCase);
+                    if (qualifies)
+                    {
+                        return boundHere || string.Equals(current, DefaultProviderIdFallback, StringComparison.OrdinalIgnoreCase)
+                            ? ours
+                            : null;
+                    }
+
+                    return boundHere ? DefaultProviderIdFallback : null;
+                });
             }
 
             if (changed > 0)
             {
                 _logger.LogInformation(
-                    config.EnableClientPinLogin
-                        ? "ProfilesPlugin: {Count} profile(s) can now be entered by PIN from any client."
-                        : "ProfilesPlugin: {Count} profile(s) returned to the default authentication provider.",
+                    "ProfilesPlugin: re-pointed {Count} account(s) at the authentication provider the "
+                    + "TVs & Apps settings call for.",
                     changed);
             }
         }

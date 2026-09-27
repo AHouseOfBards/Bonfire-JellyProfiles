@@ -125,14 +125,21 @@ The two are told apart by the status code, never by the shape of the body.
 
 ## Rate limits
 
-Three limiters, each keyed on the caller's IP address. Exceeding one returns `429` and
-does not count as an attempt, so a client cannot extend its own lockout by retrying.
+Exceeding a limit returns `429` and does not count as an attempt, so a client cannot extend
+its own lockout by retrying. Every attempt is counted before it is checked, so parallel
+requests cannot all pass the limit together.
 
-| Limiter | Endpoint | Attempts | Window |
-|---|---|---|---|
-| Bonfire | `POST /plugins/profiles/bonfire/join` | 3 | 15 minutes |
-| PIN | `POST /plugins/profiles/switch`, `POST /plugins/profiles/verify-pin` | 5 | 15 minutes |
-| panic | `POST /plugins/profiles/panic` | 5 | 60 minutes |
+| Limiter | Endpoint | Attempts | Window | Keyed on |
+|---|---|---|---|---|
+| Bonfire | `POST /plugins/profiles/bonfire/join` | 3 | 15 minutes | address |
+| PIN | `POST /plugins/profiles/switch`, `POST /plugins/profiles/verify-pin` | 5 | 15 minutes | address + profile |
+| panic | `POST /plugins/profiles/panic` | 5 | 60 minutes | address |
+| client PIN | `POST /Users/AuthenticateByName` with a PIN | 5, and 20 a day | 15 minutes, 24 hours | account |
+
+The client PIN limit covers a PIN typed into another app's sign-in screen. Jellyfin's own
+lockout does not: `LoginAttemptsBeforeLockout` is unset on the accounts Bonfire creates,
+which Jellyfin treats as "never lock". When it is reached, the response is the usual
+`Invalid username or password`, and a master account's real password keeps working.
 
 A successful attempt resets that limiter for the address. The panic limiter is checked
 **before** the code is compared, so a wrong code and a missing one are indistinguishable

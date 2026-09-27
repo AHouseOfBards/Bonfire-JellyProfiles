@@ -481,6 +481,114 @@ catch (TargetInvocationException ex) { changed = ex.InnerException.GetType().Nam
 Ok("setting an account password on a profile is refused, not silently ignored",
    changed == "AuthenticationException", changed);
 
+// A master's real password is Jellyfin's to change. Refusing it here left a master bound
+// for its PIN unable to change its password, or have an administrator reset it.
+try
+{
+    changePassword.Invoke(provider, new object[] { MakeUser(MASTER, "bard"), "hunter2" });
+    changed = "returned";
+}
+catch (TargetInvocationException ex) { changed = ex.InnerException.GetType().Name; }
+Ok("but a master's own password change is handed to Jellyfin", changed == "returned", changed);
+
+Console.WriteLine();
+Console.WriteLine("── Guessing a PIN is limited, per account ─────────────────────");
+
+// Jellyfin's lockout never applied here: LoginAttemptsBeforeLockout is null on every
+// account Bonfire creates, and Jellyfin reads null as "never lock". So a four-digit PIN
+// sat behind no limit at all, reachable by anything that can POST /Users/AuthenticateByName.
+var rlType = asm.GetType("Jellyfin.Profiles.Controllers.RateLimiter", true);
+var limiters = new[] { "ClientPin", "ClientPinDaily" }
+    .Select(n => rlType.GetField(n, Any)?.GetValue(null))
+    .ToArray();
+var rlReset = rlType.GetMethod("Reset", Any);
+Ok("the provider has its own PIN limits", limiters.All(l => l != null));
+
+void ForgetAttempts(Guid id)
+{
+    foreach (var l in limiters.Where(l => l != null)) rlReset.Invoke(l, new object[] { id.ToString("N") });
+}
+
+ForgetAttempts(KID);
+for (int i = 0; i < 5; i++) Try(MakeUser(KID, "Bardkids"), "000" + i);
+Ok("after five wrong PINs, even the right one is refused for a while",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
+ForgetAttempts(KID);
+Ok("and once the window has passed it opens again", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+
+// Checked and counted as one step. A check followed later by a count let every one of a
+// burst of parallel guesses through, because each passed the check before any failure
+// had been recorded.
+ForgetAttempts(KID);
+var burst = Enumerable.Range(0, 40).Select(i => Task.Run(() => Try(MakeUser(KID, "Bardkids"), (1000 + i).ToString()))).ToArray();
+Task.WaitAll(burst);
+Ok("forty guesses at once still use up the allowance",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
+ForgetAttempts(KID);
+
+// Something that cannot be a PIN is refused without spending an attempt on it.
+for (int i = 0; i < 8; i++) Try(MakeUser(KID, "Bardkids"), "not-a-pin-" + i);
+Ok("a password that is not PIN-shaped does not use up the allowance",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+
+// A master's real password goes through this provider every time it signs in, on the web
+// as much as anywhere. That must neither count against the PIN nor be blocked by it.
+ForgetAttempts(MASTER);
+for (int i = 0; i < 8; i++) Try(MakeUser(MASTER, "bard"), DefaultAuthenticationProvider.ThePassword);
+Ok("a master signing in with its password does not use up its PIN allowance",
+   Try(MakeUser(MASTER, "bard"), "9999") == "bard");
+
+for (int i = 0; i < 5; i++) Try(MakeUser(MASTER, "bard"), "000" + i);
+Ok("a master's PIN is limited too", Try(MakeUser(MASTER, "bard"), "9999") == "!AuthenticationException");
+Ok("but its real password still works while the PIN is paused",
+   Try(MakeUser(MASTER, "bard"), DefaultAuthenticationProvider.ThePassword) == "bard");
+ForgetAttempts(MASTER);
+
+Console.WriteLine();
+Console.WriteLine("── A master bound here always keeps its password ──────────────");
+
+// Jellyfin offers an account bound to this provider no other, so a refusal here is a
+// refusal everywhere. A master that cleared its PIN, or deleted its last profile, stayed
+// bound until something repaired it — and every sign-in with its real password was refused.
+var DROPPED = Guid.NewGuid();
+mappings.Add(Mapping(DROPPED, DROPPED, null));    // a master row with no PIN any more
+User BoundUser(Guid id, string name)
+{
+    var u = MakeUser(id, name);
+    u.AuthenticationProviderId = providerType.FullName;
+    return u;
+}
+
+Ok("a bound master with no PIN still signs in with its real password",
+   Try(BoundUser(DROPPED, "dropped"), DefaultAuthenticationProvider.ThePassword) == "dropped");
+Ok("and a wrong password is still refused",
+   Try(BoundUser(DROPPED, "dropped"), "not-the-password") == "!AuthenticationException");
+Ok("an account that is not bound here is still declined outright",
+   Try(MakeUser(OUTSID, "someone-else"), DefaultAuthenticationProvider.ThePassword) == "!AuthenticationException");
+
+Console.WriteLine();
+Console.WriteLine("── The emergency disable must not lock anyone out ─────────────");
+
+// It used to report the provider disabled, and Jellyfin then handed every bound account
+// InvalidAuthProvider — so a master bound for its PIN lost its password on the one day the
+// administrator most needs to sign in.
+var panicField = pluginType.GetField("_panicDisabled", Any);
+panicField.SetValue(null, true);
+try
+{
+    Ok("the provider stays enabled while Bonfire is disabled", (bool)isEnabled.GetValue(provider));
+    Ok("a bound master's password still works",
+       Try(BoundUser(MASTER, "bard"), DefaultAuthenticationProvider.ThePassword) == "bard");
+    Ok("but its PIN does not", Try(BoundUser(MASTER, "bard"), "9999") == "!AuthenticationException");
+    Ok("and no sub-profile opens with its PIN", Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
+}
+finally
+{
+    panicField.SetValue(null, false);
+}
+ForgetAttempts(MASTER);
+ForgetAttempts(KID);
+
 Console.WriteLine();
 Console.WriteLine("── An empty provider id makes a user row UNREADABLE ────────────");
 
@@ -571,6 +679,50 @@ if (reconcile != null)
        users[LONER].AuthenticationProviderId
            == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
        users[LONER].AuthenticationProviderId);
+
+    // A master that clears its PIN must come off this provider straight away. It used to
+    // stay bound for good: the reconciliation only ever looked at masters that HAD a PIN,
+    // so one that no longer did was never visited again.
+    var masterRow = mappings.Cast<object>().First(m =>
+        (Guid)mappingType.GetProperty("ProfileUserId").GetValue(m) == MASTER);
+    var masterPin = mappingType.GetProperty("PinHash").GetValue(masterRow);
+    mappingType.GetProperty("PinHash").SetValue(masterRow, string.Empty);
+    reconcile.Invoke(task, null);
+    Ok("a master that clears its PIN is put back on Jellyfin's provider",
+       users[MASTER].AuthenticationProviderId
+           == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
+       users[MASTER].AuthenticationProviderId);
+    Ok("while its profiles stay where the feature wants them",
+       users[KID].AuthenticationProviderId == providerType.FullName, users[KID].AuthenticationProviderId);
+    mappingType.GetProperty("PinHash").SetValue(masterRow, masterPin);
+    reconcile.Invoke(task, null);
+    Ok("and bound again once it sets one", users[MASTER].AuthenticationProviderId == providerType.FullName,
+       users[MASTER].AuthenticationProviderId);
+
+    // Delegation goes to Jellyfin's own provider, so a master that signs in some other way
+    // (LDAP, SSO) must never be bound: its real password would then be checked by a
+    // provider that has never heard of it.
+    const string Ldap = "Jellyfin.Plugin.LDAP_Auth.LdapAuthenticationProviderPlugin";
+    var LDAPM = Guid.NewGuid();
+    var LDAPKID = Guid.NewGuid();
+    var ldapUser = MakeUser(LDAPM, "ldapuser");
+    ldapUser.AuthenticationProviderId = Ldap;
+    users[LDAPM] = ldapUser;
+    users[LDAPKID] = MakeUser(LDAPKID, "ldapuser_kids");
+    mappings.Add(Mapping(LDAPM, LDAPM, "2468"));
+    mappings.Add(Mapping(LDAPKID, LDAPM, null));
+    reconcile.Invoke(task, null);
+    Ok("a master that signs in through another provider is never bound",
+       users[LDAPM].AuthenticationProviderId == Ldap, users[LDAPM].AuthenticationProviderId);
+
+    // Out of the fixture again: the end-state checks below expect Jellyfin's own
+    // provider everywhere.
+    foreach (var id in new[] { LDAPM, LDAPKID })
+    {
+        users.Remove(id);
+        var row = mappings.Cast<object>().First(m => (Guid)mappingType.GetProperty("ProfileUserId").GetValue(m) == id);
+        mappings.Remove(row);
+    }
 
     // Feature OFF: they go back to whatever the MASTER uses — read from the master rather
     // than hardcoded, so an upstream rename cannot strand them.
