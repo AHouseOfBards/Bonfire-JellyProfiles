@@ -898,11 +898,13 @@
         },
 
         /// Signs one session out on the server. Best-effort and silent: the token has
-        /// already been dropped from this browser, which is what matters here.
+        /// already been dropped from this browser, which is what matters here. keepalive,
+        /// because the switch that calls this reloads the page straight afterwards, and a
+        /// plain request in flight is cancelled by the navigation.
         _endSession: function (token) {
             try {
                 if (!token || typeof ApiClient === 'undefined' || !ApiClient || typeof ApiClient.getUrl !== 'function') return;
-                fetch(ApiClient.getUrl('Sessions/Logout'), { method: 'POST', headers: this.getAuthHeaders(token) })
+                fetch(ApiClient.getUrl('Sessions/Logout'), { method: 'POST', headers: this.getAuthHeaders(token), keepalive: true })
                     .catch(() => { /* already gone, or offline */ });
             } catch (e) { /* never worth failing over */ }
         },
