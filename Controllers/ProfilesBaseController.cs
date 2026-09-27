@@ -541,8 +541,12 @@ namespace Jellyfin.Profiles.Controllers
 
         protected void RecordAuditLog(string masterUsername, string targetUsername)
         {
-            var device = GetAuthorizationParameter("Device") ?? "Unknown Device";
-            var client = GetAuthorizationParameter("Client") ?? "Unknown Client";
+            // Client-supplied, and shown on the administrator's dashboard. The dashboard escapes
+            // it; the cap stops one request from writing a megabyte into a log kept on disk.
+            var device = Cap(GetAuthorizationParameter("Device") ?? "Unknown Device");
+            var client = Cap(GetAuthorizationParameter("Client") ?? "Unknown Client");
+
+            static string Cap(string value) => value.Length > 128 ? value.Substring(0, 128) : value;
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
 
             List<AuditLogEntry> snapshot;

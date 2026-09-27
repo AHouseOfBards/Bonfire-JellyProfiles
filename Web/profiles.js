@@ -6041,10 +6041,10 @@
                                 return res.text().then(body => {
                                     this.showAlert(
                                         t('errors.error'),
-                                        (body && body.trim()) || t('errors.failedDeleteDevice'));
+                                        escapeHtml(body && body.trim()) || t('errors.failedDeleteDevice'));
                                 });
                             })
-                            .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
+                            .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
                         });
                     });
                 });
@@ -6076,10 +6076,10 @@
                             return null;
                         }
                         return res.text().then(text => {
-                            this.showAlert(t('errors.error'), (text && text.trim()) || t(failKey));
+                            this.showAlert(t('errors.error'), escapeHtml(text && text.trim()) || t(failKey));
                         });
                     })
-                    .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
+                    .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
                 };
 
                 content.querySelectorAll('.device-rename-btn').forEach(btn => {
@@ -6129,7 +6129,7 @@
                                                    'errors.failedMergeDevice'));
                         })
                         .catch(err => this.showAlert(t('errors.error'),
-                            t('errors.withMessage', { message: err.message })));
+                            t('errors.withMessage', { message: escapeHtml(err.message) })));
                     });
                 }
 
@@ -6279,7 +6279,7 @@
                             this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
                         });
                     })
-                    .catch(err => this.showAlert(t('errors.error'), t('errors.savingProfile', { message: err.message })));
+                    .catch(err => this.showAlert(t('errors.error'), t('errors.savingProfile', { message: escapeHtml(err.message) })));
                 });
 
                 // Delete handler
@@ -6300,7 +6300,7 @@
                 this.initTagEditors(content);
             })
             .catch(err => {
-                this.showAlert(t('errors.error'), t('errors.loadProfileDetails', { message: err.message }));
+                this.showAlert(t('errors.error'), t('errors.loadProfileDetails', { message: escapeHtml(err.message) }));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken);
             });
         },
@@ -6649,7 +6649,7 @@
                 if (!res.ok) throw new Error(t('errors.failedDeleteProfile'));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.masterToken, /* forceRefresh */ true);
             })
-            .catch(err => this.showAlert(t('errors.error'), t('errors.deletingProfile', { message: err.message })));
+            .catch(err => this.showAlert(t('errors.error'), t('errors.deletingProfile', { message: escapeHtml(err.message) })));
         },
 
         loadBonfireStatus: function (content, apiClient, masterToken) {
@@ -6676,7 +6676,7 @@
             })
             .catch(err => {
                 if (!this.navIsCurrent(ticket)) return;
-                container.innerHTML = `<div style="color: var(--jpf-danger); font-size: 0.9rem;">${t('bonfire.failedLoadStatus', { message: err.message })}</div>`;
+                container.innerHTML = `<div style="color: var(--jpf-danger); font-size: 0.9rem;">${t('bonfire.failedLoadStatus', { message: escapeHtml(err.message) })}</div>`;
             });
         },
 
@@ -6685,7 +6685,7 @@
             const isMember = status.isMember !== undefined ? status.isMember : status.IsMember;
             const ownedCode = status.ownedCode || status.OwnedCode || '';
             const ownedMembers = status.ownedMembers || status.OwnedMembers || [];
-            const joinedOwnerName = status.joinedOwnerName || status.JoinedOwnerName || '';
+            const joinedOwnerName = escapeHtml(status.joinedOwnerName || status.JoinedOwnerName || '');
 
             let hostSectionHtml = '';
             if (isOwner) {
@@ -6702,11 +6702,11 @@
                             <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--jpf-r-md); padding: 8px;">
                                 ${ownedMembers.length > 0 ? ownedMembers.map(m => {
                                     const mUserId = m.userId || m.UserId;
-                                    const mUsername = m.username || m.Username || t('bonfire.unknownUser');
+                                    const mUsername = escapeHtml(m.username || m.Username) || t('bonfire.unknownUser');
                                     return `
                                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: var(--jpf-r-sm);">
                                         <span style="font-size: 0.95rem; font-weight: 500;">${mUsername}</span>
-                                        <button type="button" class="bonfire-kick-btn" data-id="${mUserId}" style="background: var(--jpf-danger) !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">${t('bonfire.kick')}</button>
+                                        <button type="button" class="bonfire-kick-btn" data-id="${escapeHtml(mUserId)}" style="background: var(--jpf-danger) !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">${t('bonfire.kick')}</button>
                                     </div>
                                     `;
                                 }).join('') : '<div style="font-size: 0.9rem; opacity: 0.5; font-style: italic; text-align: center; padding: 12px;">' + t('bonfire.noMembersYet') + '</div>'}
@@ -6848,7 +6848,7 @@
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedKick'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
+                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
                     });
                 });
             });
@@ -6866,7 +6866,7 @@
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedDeleteGroup'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
+                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
                     });
                 });
             }
@@ -6884,7 +6884,7 @@
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedLeaveGroup'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: err.message })));
+                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
                     });
                 });
             }
@@ -6907,7 +6907,7 @@
                     .catch(err => {
                         generateBtn.disabled = false;
                         generateBtn.textContent = t('bonfire.generateJoinCode');
-                        this.showAlert(t('errors.error'), t('bonfire.failedGenerateCode', { message: err.message }));
+                        this.showAlert(t('errors.error'), t('bonfire.failedGenerateCode', { message: escapeHtml(err.message) }));
                     });
                 });
             }

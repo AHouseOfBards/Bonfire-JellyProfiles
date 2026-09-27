@@ -746,9 +746,14 @@
         (function () {
             const pluginId = "b1462fca-774b-4b13-8d02-e2d4f2bc18b9";
 
+            // Every value this page renders came from the server, and a lot of it came to the
+            // server from a request header somebody else wrote: a device name, a client
+            // name, a profile name typed by any account holder. This page runs with the
+            // administrator's token, so an unescaped one of those is script running as the
+            // administrator. Escape anything that is not a literal written in this file.
             function escapeHtml(str) {
-                if (!str) return '';
-                return str
+                if (str === null || str === undefined) return '';
+                return String(str)
                     .replace(/&/g, "&amp;")
                     .replace(/</g, "&lt;")
                     .replace(/>/g, "&gt;")
@@ -1150,10 +1155,10 @@
                 }
                 let html = '<div style="margin-bottom:8px;">Found ' + total + ' record(s) pointing at deleted users:</div><ul style="margin:0 0 12px 1.2em;">';
                 data.orphans.forEach(function (o) {
-                    html += '<li>' + (o.profileName || '(unnamed profile)') + ' — ' + o.reason + '</li>';
+                    html += '<li>' + escapeHtml(o.profileName || '(unnamed profile)') + ' — ' + escapeHtml(o.reason) + '</li>';
                 });
                 data.deadGroups.forEach(function (g) {
-                    html += '<li>Bonfire ' + g.code + ' — its owner was deleted</li>';
+                    html += '<li>Bonfire ' + escapeHtml(g.code) + ' — its owner was deleted</li>';
                 });
                 if (data.deadMembers.length) {
                     html += '<li>' + data.deadMembers.length + ' Bonfire membership(s) naming deleted accounts</li>';
@@ -1455,13 +1460,17 @@
                     return;
                 }
 
+                // Device and client are copied out of the Authorization header of whoever
+                // switched, and any account on the server can switch into itself. Before these
+                // were escaped, a device named <img onerror=…> ran as the administrator the
+                // moment this page loaded.
                 container.innerHTML = view.rows.map(function (log) {
-                    const dateStr = new Date(auditField(log, 'Timestamp')).toLocaleString();
-                    const master = auditField(log, 'MasterUsername') || 'Unknown';
-                    const target = auditField(log, 'TargetUsername') || 'Unknown';
-                    const device = auditField(log, 'DeviceName') || 'Unknown Device';
-                    const client = auditField(log, 'Client') || 'Unknown Client';
-                    const ip = auditField(log, 'IpAddress') || 'Unknown IP';
+                    const dateStr = escapeHtml(new Date(auditField(log, 'Timestamp')).toLocaleString());
+                    const master = escapeHtml(auditField(log, 'MasterUsername') || 'Unknown');
+                    const target = escapeHtml(auditField(log, 'TargetUsername') || 'Unknown');
+                    const device = escapeHtml(auditField(log, 'DeviceName') || 'Unknown Device');
+                    const client = escapeHtml(auditField(log, 'Client') || 'Unknown Client');
+                    const ip = escapeHtml(auditField(log, 'IpAddress') || 'Unknown IP');
 
                     return '<div class="listItem jpf-audit-row">' +
                            '<div class="jpf-audit-meta">' +
@@ -1518,6 +1527,45 @@
             }
 
             // -- Signed-in devices -----------------------------------------------
+            // Every field here except the ids is client-supplied: device name, client name
+            // and even the device id come straight from the Authorization header of a
+            // session this page did not create, and the title playing comes from library
+            // metadata. Separate from loadProfileSessions so tests/js/dashboardxss.js can
+            // run it.
+            function sessionRowsHtml(sessions) {
+                return sessions.map(function (s) {
+                    const who = s.isSubProfile
+                        ? escapeHtml(s.username) + ' <span class="jpf-session-tag">profile of ' + escapeHtml(s.masterUsername || 'unknown') + '</span>'
+                        : escapeHtml(s.username);
+                    const playing = s.nowPlaying ? ' &middot; playing ' + escapeHtml(s.nowPlaying) : '';
+                    const seen = s.lastActivity ? escapeHtml(new Date(s.lastActivity).toLocaleString()) : 'unknown';
+                    return '<div class="listItem jpf-session-row">' +
+                           '<div class="jpf-session-main">' +
+                           '<div class="jpf-session-who">' + who + '</div>' +
+                           '<div class="jpf-session-where">' +
+                           escapeHtml(s.deviceName || 'Unknown device') + ' (' + escapeHtml(s.client || 'unknown client') + ')' +
+                           ' &middot; last seen ' + seen + playing +
+                           '</div></div>' +
+                           '<button is="emby-button" type="button" class="raised jpf-signout-btn"' +
+                           ' data-user="' + escapeHtml(s.userId) + '" data-device="' + escapeHtml(s.deviceId) + '"' +
+                           ' data-name="' + escapeHtml(s.username) + '"><span>Sign out</span></button>' +
+                           '</div>';
+                }).join('');
+            }
+
+            // Plain text. The skipped names are profile names out of the imported file, which
+            // is exactly as trustworthy as wherever that file has been.
+            function importSummary(res) {
+                let msg = 'Imported ' + res.mappings + ' profile(s), '
+                    + res.devices + ' device(s) and ' + res.bonfires + ' Bonfire(s).';
+                if (res.droppedMappings && res.droppedMappings.length) {
+                    msg += ' Skipped ' + res.droppedMappings.length
+                        + ' profile(s) naming Jellyfin users this server does not have: '
+                        + res.droppedMappings.join(', ') + '.';
+                }
+                return msg;
+            }
+
             function loadProfileSessions(page) {
                 const container = page.querySelector('#profileSessionsList');
                 if (!container) return;
@@ -1528,24 +1576,7 @@
                             container.innerHTML = '<div class="listItem jpf-list-pad"><div class="listItemBody">Nobody is signed in right now.</div></div>';
                             return;
                         }
-                        container.innerHTML = sessions.map(function (s) {
-                            const who = s.isSubProfile
-                                ? s.username + ' <span class="jpf-session-tag">profile of ' + (s.masterUsername || 'unknown') + '</span>'
-                                : s.username;
-                            const playing = s.nowPlaying ? ' &middot; playing ' + s.nowPlaying : '';
-                            const seen = s.lastActivity ? new Date(s.lastActivity).toLocaleString() : 'unknown';
-                            return '<div class="listItem jpf-session-row">' +
-                                   '<div class="jpf-session-main">' +
-                                   '<div class="jpf-session-who">' + who + '</div>' +
-                                   '<div class="jpf-session-where">' +
-                                   (s.deviceName || 'Unknown device') + ' (' + (s.client || 'unknown client') + ')' +
-                                   ' &middot; last seen ' + seen + playing +
-                                   '</div></div>' +
-                                   '<button is="emby-button" type="button" class="raised jpf-signout-btn"' +
-                                   ' data-user="' + s.userId + '" data-device="' + s.deviceId + '"' +
-                                   ' data-name="' + s.username + '"><span>Sign out</span></button>' +
-                                   '</div>';
-                        }).join('');
+                        container.innerHTML = sessionRowsHtml(sessions);
 
                         container.querySelectorAll('.jpf-signout-btn').forEach(function (btn) {
                             btn.addEventListener('click', function () {
@@ -1654,14 +1685,7 @@
                                 dataType: 'json'
                             }).then(function (res) {
                                 Dashboard.hideLoadingMsg();
-                                let msg = 'Imported ' + res.mappings + ' profile(s), '
-                                    + res.devices + ' device(s) and ' + res.bonfires + ' Bonfire(s).';
-                                if (res.droppedMappings && res.droppedMappings.length) {
-                                    msg += ' Skipped ' + res.droppedMappings.length
-                                        + ' profile(s) naming Jellyfin users this server does not have: '
-                                        + res.droppedMappings.join(', ') + '.';
-                                }
-                                box.innerHTML = '<span class="jpf-dim">' + msg + '</span>';
+                                box.innerHTML = '<span class="jpf-dim">' + escapeHtml(importSummary(res)) + '</span>';
                                 loadConfiguration(page);
                                 loadMappings(page);
                             }, function () {
