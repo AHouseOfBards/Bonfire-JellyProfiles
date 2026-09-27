@@ -238,7 +238,7 @@
         'profileForm.lockout1Hour': '1 hour',
         'profileForm.enabledLibraries': 'Enabled Libraries',
         'profileForm.libraries': 'Libraries',
-        'profileForm.librariesInheritHint': 'Tick nothing and this profile sees the same libraries as your account.',
+        'profileForm.librariesInheritHint': 'Tick nothing and this profile sees every library your account does.',
         'profileForm.libraryHeader': 'Library',
         'profileForm.artworkHeader': 'Artwork',
         'profileForm.artworkForAria': 'Artwork for {name}',

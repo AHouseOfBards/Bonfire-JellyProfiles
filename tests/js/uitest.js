@@ -141,7 +141,7 @@ ok(/\.picture-sources \{[^}]*box-sizing: border-box;[^}]*padding:/.test(CSS.repl
     'the sources panel is border-box, so padding does not push it out of its card');
 has(js, 'const anyArt = rows.some(', 'a profile that already uses artwork opens the section');
 has(js, 'showArtwork(false);', 'and it is off otherwise');
-has(js, 'Tick nothing and this profile sees the same libraries as your account.',
+has(js, 'Tick nothing and this profile sees every library your account does.',
     'the list says what an empty list means');
 has(js, 'A library tile takes its picture from whatever is inside the library',
     'and the artwork explainer is separate from it');

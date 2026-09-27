@@ -353,6 +353,26 @@ body.profiles-no-scroll [id*="spinner"] {
     overflow-y: auto; padding: 2rem 0; box-sizing: border-box;
     opacity: 1; transition: opacity 0.22s ease;
 }
+/* Our own scroll areas get a scrollbar drawn to match them. Otherwise they take
+   whatever the page's theme gives the page, which on several themes is the accent
+   colour: a bright red bar down the side of a dark form. Two rules, not one, so a
+   browser that does not know one of the forms keeps the other. */
+#profiles-gate-overlay, .create-profile-container {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+#profiles-gate-overlay::-webkit-scrollbar,
+.create-profile-container::-webkit-scrollbar {
+    width: 8px;
+}
+#profiles-gate-overlay::-webkit-scrollbar-track,
+.create-profile-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+#profiles-gate-overlay::-webkit-scrollbar-thumb,
+.create-profile-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22); border-radius: var(--jpf-r-sm);
+}
 .profiles-modal-content {
     text-align: center; max-width: 900px; width: 90%;
     display: flex; flex-direction: column; align-items: center;
@@ -1116,10 +1136,14 @@ body.profiles-no-scroll [id*="spinner"] {
 .color-dot.active {
     border-color: #fff; transform: scale(1.1);
 }
+/* No max-height, for the same reason as .libart-list below. Capped at 140px it
+   showed about four libraries of a real server's twenty, in a box that scrolled
+   inside a form that scrolled — so choosing a profile's libraries, the setting that
+   matters most on this form, was the fiddliest thing on it. */
 .library-checklist {
     background: var(--jpf-surface-2); border-radius: var(--jpf-r-md);
     padding: 10px; display: flex; flex-direction: column; gap: 0.5rem;
-    max-height: 140px; overflow-y: auto; border: 1px solid var(--jpf-border-1);
+    border: 1px solid var(--jpf-border-1);
 }
 /* Per-library artwork rows in the edit form (issue #19). */
 /* Deliberately no max-height and no overflow. This list used to scroll
