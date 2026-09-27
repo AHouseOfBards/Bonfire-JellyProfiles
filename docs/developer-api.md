@@ -17,7 +17,7 @@ unless stated otherwise. Field names are returned camelCase.
 - [Rate limits](#rate-limits)
 - [Stability](#stability) — what is guaranteed, and what may change
 - [Profiles API](#profiles-api)
-- [Sign-in from other clients](#sign-in-from-other-clients) — what the TVs & Apps settings change in Jellyfin's own routes
+- [Sign-in from other clients](#sign-in-from-other-clients) — what the TVs & Apps settings change in Jellyfin's own routes
 - [Client Script](#client-script)
 - [Translations](#translations)
 - [Images API](#images-api)

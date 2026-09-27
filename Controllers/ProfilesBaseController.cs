@@ -1022,7 +1022,7 @@ namespace Jellyfin.Profiles.Controllers
             foreach (var byName in devices
                 .Where(d => !string.IsNullOrEmpty(d.DeviceId))
                 .GroupBy(d => (d.DeviceName ?? string.Empty).Trim().ToLowerInvariant()
-                              + " " + (d.Client ?? string.Empty).Trim().ToLowerInvariant()))
+                              + "\0" + (d.Client ?? string.Empty).Trim().ToLowerInvariant()))
             {
                 var candidates = byName.OrderByDescending(d => d.LastSeen).ToList();
                 if (candidates.Count < 2) continue;
