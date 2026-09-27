@@ -9,6 +9,34 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.6.3.1-beta  — 2026-09-27
+
+**Fixed**
+
+- Security: any account could run script in an administrator's browser through the Bonfire settings page. Please update.
+- Security: a PIN typed into a TV or app sign-in screen could be guessed with no limit.
+- Security: someone using a profile in a browser could take over the main account behind it.
+- A profile kept its old rating after its account's rating was lowered.
+- Clearing your PIN, or using the emergency disable code, could stop your password working.
+- An account with a PIN could not change its Jellyfin password.
+- Creating two profiles at once could go over the profile limit.
+- The Signed-in devices list in the dashboard could fail to load.
+- The create form showed only four libraries at a time.
+
+**Changed**
+
+- A profile keeps every restriction set on its account, such as remote access, schedules and bitrate.
+- Profiles in another household's Bonfire need a PIN, unless their owner allows switching on the home network.
+- Hidden Bonfire profiles can no longer be opened.
+- Removing someone from your Bonfire changes its code, so they cannot rejoin with the old one.
+- Reopening the app keeps the profile you were using. Going back to your main profile asks for its PIN.
+- Manage Profiles needs your main profile open.
+
+**Added**
+
+- Picture quality for profile pictures and avatars: Dashboard -> Bonfire -> Picture quality.
+- A New code button for your Bonfire.
+
 ## 1.6.2  — 2026-09-10
 
 **Added**
