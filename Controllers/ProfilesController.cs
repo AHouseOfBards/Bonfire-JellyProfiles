@@ -236,7 +236,12 @@ namespace Jellyfin.Profiles.Controllers
                 folders = folders.Where(f => Guid.TryParse(f.ItemId, out var id) && enabled.Contains(id) && !blocked.Contains(id)).ToList();
             }
 
-            var libraries = folders.Select(f => new
+            // A library with no item id — never scanned, or its folder is gone — cannot be
+            // granted to anybody, and listing it put an "undefined" checkbox in the form that
+            // failed the whole create the moment it was ticked (issue #33).
+            var libraries = folders
+                .Where(f => Guid.TryParse(f.ItemId, out var parsed) && parsed != Guid.Empty)
+                .Select(f => new
             {
                 Id = f.ItemId,
                 Name = f.Name,
@@ -392,7 +397,7 @@ namespace Jellyfin.Profiles.Controllers
             if (request.EnabledFolders != null)
             {
                 var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
-                validatedFolders = request.EnabledFolders.Where(id => masterAccessible.Contains(id)).ToList();
+                validatedFolders = (ParseFolderIds(request.EnabledFolders) ?? new List<Guid>()).Where(id => masterAccessible.Contains(id)).ToList();
 
                 targetPolicy.EnableAllFolders = false;
                 targetPolicy.EnabledFolders = validatedFolders.ToArray();
@@ -1777,7 +1782,7 @@ namespace Jellyfin.Profiles.Controllers
                 if (request.EnabledFolders != null)
                 {
                     var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
-                    validatedFolders = request.EnabledFolders.Where(id => masterAccessible.Contains(id)).ToList();
+                    validatedFolders = (ParseFolderIds(request.EnabledFolders) ?? new List<Guid>()).Where(id => masterAccessible.Contains(id)).ToList();
 
                     targetPolicy.EnableAllFolders = false;
                     targetPolicy.EnabledFolders = validatedFolders.ToArray();

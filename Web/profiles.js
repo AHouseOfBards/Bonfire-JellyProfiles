@@ -26,6 +26,11 @@
     const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
     const DEFAULT_AVATAR_COLOR = '#00A4DC';
 
+    /// A library or user id as the server writes one: 32 hex digits, dashed or not.
+    function isGuidLike(value) {
+        return /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(String(value || ''));
+    }
+
     function safeColor(color) {
         return HEX_COLOR_RE.test(color || '') ? color : DEFAULT_AVATAR_COLOR;
     }
@@ -5681,7 +5686,9 @@
                     
                     const checkedLibs = [];
                     content.querySelectorAll('.library-checkbox:checked').forEach(cb => {
-                        checkedLibs.push(cb.value);
+                        // Only an id. A library listed without one gave its checkbox the
+                        // value "undefined", and that one entry failed the whole create (#33).
+                        if (isGuidLike(cb.value)) checkedLibs.push(cb.value);
                     });
 
                     const checkedDevices = [];
@@ -6242,7 +6249,8 @@
                         rating = document.getElementById('edit-rating-select').value;
                         const rawLibs = [];
                         content.querySelectorAll('.library-checkbox:checked').forEach(cb => {
-                            rawLibs.push(cb.value);
+                            // Same guard as the create form (#33).
+                            if (isGuidLike(cb.value)) rawLibs.push(cb.value);
                         });
                         // Send null (not empty array) when no libraries are checked.
                         // An empty array tells the server "allow no libraries",

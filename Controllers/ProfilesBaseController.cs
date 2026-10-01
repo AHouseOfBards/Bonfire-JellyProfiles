@@ -1636,6 +1636,22 @@ namespace Jellyfin.Profiles.Controllers
 
         internal const string DefaultAvatarColor = "#00A4DC";
 
+        /// <summary>
+        /// Library ids from a request, keeping the ones that are ids and dropping the rest.
+        /// Null stays null: it means "inherit the master's libraries", which is not the same
+        /// as an empty list. See <see cref="Models.CreateProfileRequest.EnabledFolders"/>.
+        /// </summary>
+        internal static List<Guid>? ParseFolderIds(IEnumerable<string>? ids)
+        {
+            if (ids == null) return null;
+
+            return ids
+                .Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty)
+                .Where(g => g != Guid.Empty)
+                .Distinct()
+                .ToList();
+        }
+
         /// <summary>The longest name a household may give a profile.</summary>
         internal const int MaxProfileNameLength = 32;
 

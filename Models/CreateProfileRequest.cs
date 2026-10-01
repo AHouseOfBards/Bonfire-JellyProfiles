@@ -13,7 +13,17 @@ namespace Jellyfin.Profiles.Models
         /// </summary>
         public bool? TransparentAvatar { get; set; }
         public string? MaxParentalRating { get; set; }
-        public List<Guid>? EnabledFolders { get; set; }
+        /// <summary>
+        /// Library ids, as strings, parsed by the controller (ProfilesBaseController.ParseFolderIds).
+        /// <para>
+        /// Typed as Guid this failed the whole request on a single entry that was not one —
+        /// Jellyfin's Guid converter throws a FormatException rather than a JsonException, so
+        /// model binding reported "The supplied value is invalid" against no field at all and
+        /// handed the action a null request (issue #33). A library with no item id, which
+        /// /libraries used to list, put exactly such an entry in the form.
+        /// </para>
+        /// </summary>
+        public List<string>? EnabledFolders { get; set; }
         /// <summary>Tags this profile is blocked from seeing. Null = block nothing.</summary>
         public List<string>? BlockedTags { get; set; }
         /// <summary>When non-empty, restricts this profile to items carrying one of these tags.</summary>
