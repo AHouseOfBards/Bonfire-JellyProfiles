@@ -93,6 +93,19 @@ namespace Jellyfin.Profiles.Auth
                         "ProfilesPlugin: {User} signed in on device {DeviceId} ({Client}), which is not a "
                         + "Bonfire household, so nothing was noted for its sign-in screen.",
                         session.UserName, session.DeviceId, session.Client);
+
+                    // But its television's NAME is noted, so the Quick Connect skip never takes
+                    // Quick Connect away from this person because a household owns the same
+                    // model. See QuickConnectGate.NoteSharedName. Names only, and only for the
+                    // clients the skip applies to.
+                    if (QuickConnectGate.NoteSharedNameAndSave(session.DeviceName, session.Client))
+                    {
+                        _logger.LogInformation(
+                            "ProfilesPlugin: {Device} is also used by an account outside any household, so "
+                            + "Quick Connect is no longer skipped on televisions of that name.",
+                            session.DeviceName);
+                    }
+
                     return;
                 }
 

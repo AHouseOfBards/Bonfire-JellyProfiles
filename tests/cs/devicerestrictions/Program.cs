@@ -115,7 +115,12 @@ IList KnownList(params object[] devices)
 }
 
 string Access(object mapping, string deviceId, IEnumerable known)
-    => evaluate.Invoke(null, new object[] { mapping, deviceId, known }).ToString();
+    // From 1.6.3.3 it also takes the mappings (null here: exact comparison, which is what
+    // this file tests). Passed only when the build has the parameter, so this still runs
+    // against an older one.
+    => evaluate.Invoke(null, evaluate.GetParameters().Length == 4
+        ? new object[] { mapping, deviceId, known, null }
+        : new object[] { mapping, deviceId, known }).ToString();
 
 var master = Guid.NewGuid();
 var child = Guid.NewGuid();
@@ -421,6 +426,92 @@ if (decodeLegacy != null)
     Ok("an ordinary name is untouched", D("Living room TV") == "Living room TV");
     Ok("an empty name stays empty", D("") == "");
     Ok("null is handled", D(null) == "");
+}
+
+Console.WriteLine();
+Console.WriteLine("── One television, several ids (1.6.3.3) ───────────────────────");
+
+// A television sends its bare id from its sign-in screen and a derived one once somebody
+// is signed in, and Jellyfin starts a session under each — so one set is two rows in the
+// device list, both named after it. Restricting a profile by ticking the signed-in row hid
+// it from that television's own sign-in screen and refused its PIN there: the screen asks
+// with the bare id, and the check compared ids exactly. Reproduced against 1.6.3.2 before
+// this was written.
+{
+    static string Sha1(string v) => Convert.ToHexString(
+        System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(v))).ToLowerInvariant();
+
+    var HOUSE = Guid.NewGuid();
+    var KIDS = Guid.NewGuid();
+    var OTHER = Guid.NewGuid();      // another household's master
+    const string TV = "9a6dae35cc29c74f";             // Android TV's bare id
+    const string PHONE = "6044d6840404e4e8";          // Jellyfin for Android's bare id
+    const string ROKU = "1f2e3d4c-5b6a-4789-8abc-def012345678";
+    var tvSignedIn = Sha1(TV + "+" + HOUSE);          // what the set sends once the master is in
+    var tvAsKids = Sha1(TV + "+" + KIDS);             // and once the kids' profile is
+
+    IList Maps(params object[] rows)
+    {
+        var list = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(mappingType));
+        foreach (var r in rows) list.Add(r);
+        return list;
+    }
+
+    var canSeeHousehold = evaluate != null && evaluate.GetParameters().Length == 4;
+    Ok("the device check can see the profile's household", canSeeHousehold);
+
+    string Check(object mapping, string deviceId, IList known, IList maps)
+        => canSeeHousehold
+            ? evaluate.Invoke(null, new object[] { mapping, deviceId, known, maps }).ToString()
+            : "unavailable";
+
+    // The bug, end to end: the sign-in list a television asks for.
+    var injector = asm.GetType("Jellyfin.Profiles.Auth.PublicUserInjector", true);
+    var resolve = injector.GetMethod("ResolveHousehold", Any);
+    var kids = Mapping(KIDS, HOUSE, tvSignedIn);
+    var cfg = Activator.CreateInstance(cfgType);
+    cfgType.GetProperty("EnableClientProfileList").SetValue(cfg, true);
+    cfgType.GetProperty("Mappings").SetValue(cfg, Maps(kids));
+    cfgType.GetProperty("KnownDevices").SetValue(cfg, KnownList(
+        Device(TV, "SHIELD Android TV", "Jellyfin Android TV", HOUSE),
+        Device(tvSignedIn, "SHIELD Android TV", "Jellyfin Android TV", HOUSE)));
+    var listed = (IEnumerable<Guid>)resolve.Invoke(null, new object[] {
+        "MediaBrowser Client=\"Jellyfin Android TV\", DeviceId=\"" + TV + "\"", null, null, cfg, null });
+    Ok("a profile restricted to a television's signed-in row is offered on that television's sign-in screen",
+       listed.Contains(KIDS));
+
+    var known = KnownList(
+        Device(TV, "SHIELD Android TV", "Jellyfin Android TV", HOUSE),
+        Device(tvSignedIn, "SHIELD Android TV", "Jellyfin Android TV", HOUSE),
+        Device(ROKU, "Living Room Roku", "Jellyfin Roku", HOUSE),
+        Device(ROKU + "Bard_kids", "Living Room Roku", "Jellyfin Roku", HOUSE));
+    var maps = Maps(kids, Mapping(HOUSE, HOUSE));
+
+    Ok("and its PIN is accepted from that sign-in screen",
+       Check(kids, TV, known, maps) == "Allowed");
+    Ok("ticked the other way round — the sign-in row — it is accepted once the kids are signed in",
+       Check(Mapping(KIDS, HOUSE, TV), tvAsKids, known, maps) == "Allowed");
+    Ok("Jellyfin for Android, which appends the account id, is matched too",
+       Check(Mapping(KIDS, HOUSE, PHONE + HOUSE), PHONE, known, maps) == "Allowed");
+    Ok("Roku, which appends the account name, is matched when both ids are on record for the household",
+       Check(Mapping(KIDS, HOUSE, ROKU + "Bard_kids"), ROKU, known, maps) == "Allowed");
+
+    // And nothing wider. Each of these is a different device, or a derivation over
+    // somebody outside the profile's household.
+    Ok("a different television is still refused",
+       Check(kids, "aaaabbbbccccdddd", known, maps) != "Allowed");
+    Ok("a derivation over an account outside the household is not the same television",
+       Check(Mapping(KIDS, HOUSE, Sha1(TV + "+" + OTHER)), TV, known, maps) != "Allowed");
+    Ok("a Roku-shaped suffix is not enough when the bare id was never recorded",
+       Check(Mapping(KIDS, HOUSE, "77777777-aaaa-4bbb-8ccc-ddddeeeeffffBard_kids"),
+             "77777777-aaaa-4bbb-8ccc-ddddeeeeffff", known, maps) != "Allowed");
+    var crossKnown = KnownList(
+        Device(ROKU, "Their Roku", "Jellyfin Roku", OTHER),
+        Device(ROKU + "Bard_kids", "Living Room Roku", "Jellyfin Roku", HOUSE));
+    Ok("nor when the two ids are on record for different households",
+       Check(Mapping(KIDS, HOUSE, ROKU + "Bard_kids"), ROKU, crossKnown, maps) != "Allowed");
+    Ok("and with no household to work from, ids are compared exactly, as before",
+       Check(kids, TV, known, null) != "Allowed");
 }
 
 Console.WriteLine();

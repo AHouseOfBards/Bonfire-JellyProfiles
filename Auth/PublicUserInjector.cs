@@ -180,7 +180,7 @@ namespace Jellyfin.Profiles.Auth
             ProfileMapping mapping, string? deviceId, Configuration.PluginConfiguration config)
         {
             var access = ProfilesBaseController.EvaluateDeviceRestriction(
-                mapping, deviceId, config.KnownDevices);
+                mapping, deviceId, config.KnownDevices, config.Mappings);
 
             return access == ProfilesBaseController.DeviceAccess.NotRestricted
                 || access == ProfilesBaseController.DeviceAccess.Allowed;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using MediaBrowser.Model.Plugins;
 
 namespace Jellyfin.Profiles.Configuration
@@ -23,6 +24,35 @@ namespace Jellyfin.Profiles.Configuration
         public List<AvatarLibraryItem> AvatarLibrary { get; set; } = new List<AvatarLibraryItem>();
 
         /// <summary>
+        /// A copy to read from outside <c>ConfigLock</c>, taken while holding it
+        /// (<c>ProfilesBaseController.ReadConfigSnapshot</c>). Never save one.
+        /// <para>
+        /// For the code that runs on Jellyfin's own requests rather than on Bonfire's: the
+        /// authentication provider, and the sign-in list, own-name and Quick Connect rewrites.
+        /// Those walked <see cref="Mappings"/> and <see cref="KnownDevices"/> unlocked, and a
+        /// television signing in is exactly when the session listener appends a device row,
+        /// so a sign-in could meet "collection was modified" — an InvalidOperationException
+        /// Jellyfin does not catch from a provider, which turns a refusal into a 500.
+        /// </para>
+        /// <para>
+        /// The lists are copied, and so is each mapping, because a profile's
+        /// <see cref="ProfileMapping.AllowedDeviceIds"/> is edited in place too. Everything
+        /// else is a value or an immutable string and is shared.
+        /// </para>
+        /// </summary>
+        public PluginConfiguration SnapshotForReading()
+        {
+            var copy = (PluginConfiguration)MemberwiseClone();
+            copy.Mappings = Mappings?.Select(m => m.CopyForReading()).ToList() ?? new List<ProfileMapping>();
+            copy.KnownDevices = KnownDevices?.ToList() ?? new List<KnownDevice>();
+            copy.BonfireGroups = BonfireGroups?.ToList() ?? new List<BonfireGroup>();
+            copy.UserProfileLimitOverrides = UserProfileLimitOverrides?.ToList() ?? new List<UserProfileLimitOverride>();
+            copy.AvatarLibrary = AvatarLibrary?.ToList() ?? new List<AvatarLibraryItem>();
+            copy.QuickConnectSharedDeviceNames = QuickConnectSharedDeviceNames?.ToList() ?? new List<string>();
+            return copy;
+        }
+
+        /// <summary>
         /// When true, profile pictures can only be chosen from <see cref="AvatarLibrary"/>;
         /// uploading an arbitrary image is refused. For households that want a curated,
         /// consistent set rather than whatever each family member picks.
@@ -37,6 +67,16 @@ namespace Jellyfin.Profiles.Configuration
         /// their own copy.
         /// </summary>
         public bool EnableStarterAvatars { get; set; } = true;
+
+        /// <summary>
+        /// Television names an account outside every household has signed in on, so
+        /// <see cref="SkipQuickConnectOnKnownDevices"/> leaves them alone. See
+        /// <c>Auth.QuickConnectGate</c>: a Quick Connect request names only the device, and
+        /// a model name such as "SHIELD Android TV" is shared by every set of that model on
+        /// the server, so without this a household's television took Quick Connect away from
+        /// everyone else's of the same make. Names only, Android TV only, capped.
+        /// </summary>
+        public List<string> QuickConnectSharedDeviceNames { get; set; } = new List<string>();
 
         /// <summary>
         /// How large profile pictures, library avatars and library artwork are stored. See
@@ -458,6 +498,19 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public bool AllowHouseholdLanBypass { get; set; } = false;
         public List<string> AllowedDeviceIds { get; set; } = new List<string>();
+
+        /// <summary>A copy for <see cref="PluginConfiguration.SnapshotForReading"/>.</summary>
+        public ProfileMapping CopyForReading()
+        {
+            var copy = (ProfileMapping)MemberwiseClone();
+            copy.AllowedDeviceIds = AllowedDeviceIds?.ToList() ?? new List<string>();
+            copy.EnabledFolders = EnabledFolders?.ToList();
+            copy.BlockedTags = BlockedTags?.ToList();
+            copy.AllowedTags = AllowedTags?.ToList();
+            copy.LibraryArtwork = LibraryArtwork?.ToList() ?? new List<LibraryArtwork>();
+            return copy;
+        }
+
         public string? ProfileImage { get; set; }
         /// <summary>
         /// Per-library tile artwork for this profile. Only libraries the profile has been

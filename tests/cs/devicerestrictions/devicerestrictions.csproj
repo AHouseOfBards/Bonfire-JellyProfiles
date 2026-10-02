@@ -18,6 +18,9 @@
   <ItemGroup>
     <PackageReference Include="Jellyfin.Common" Version="10.11.5" />
     <PackageReference Include="Jellyfin.Model" Version="10.11.5" />
+    <!-- IDeviceManager, in PublicUserInjector.ResolveHousehold's signature: the derived-id
+         section asks the real sign-in list whether a restricted profile is offered. -->
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.5" />
   </ItemGroup>
   <!-- Deliberately NO <Reference> to Jellyfin.Profiles. Everything here goes through
        reflection on a path chosen at run time, and a project reference would put a copy

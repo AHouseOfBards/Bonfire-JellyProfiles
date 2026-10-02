@@ -698,7 +698,7 @@ namespace Jellyfin.Profiles.Controllers
 
             // Enforce device restrictions for sub-profiles
             var deviceAccess = EvaluateDeviceRestriction(
-                mapping, GetAuthorizationParameter("DeviceId"), config.KnownDevices);
+                mapping, GetAuthorizationParameter("DeviceId"), config.KnownDevices, config.Mappings);
             if (deviceAccess != DeviceAccess.NotRestricted && deviceAccess != DeviceAccess.Allowed)
             {
                 _logger.LogWarning(
@@ -1018,7 +1018,7 @@ namespace Jellyfin.Profiles.Controllers
             // Enforce device restrictions for sub-profiles
             var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
             var deviceAccess = EvaluateDeviceRestriction(
-                mapping, GetAuthorizationParameter("DeviceId"), config.KnownDevices);
+                mapping, GetAuthorizationParameter("DeviceId"), config.KnownDevices, config.Mappings);
             if (deviceAccess != DeviceAccess.NotRestricted && deviceAccess != DeviceAccess.Allowed)
             {
                 _logger.LogWarning(

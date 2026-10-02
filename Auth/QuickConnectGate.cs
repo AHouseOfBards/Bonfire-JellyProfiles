@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Jellyfin.Profiles.Configuration;
+using Jellyfin.Profiles.Controllers;
 
 namespace Jellyfin.Profiles.Auth
 {
@@ -41,10 +42,16 @@ namespace Jellyfin.Profiles.Auth
     /// observable here, because the request carries no account, so the observable equivalent
     /// is "a device no household has signed in on yet".</para>
     ///
-    /// <para><b>What it costs when it is wrong.</b> Device names are not unique, so a second
-    /// television with the same name as one already in use would be sent to the password
-    /// field on its first sign-in — a mild inconvenience, and a username and password still
-    /// work. A renamed device gets Quick Connect once more. Both are logged.</para>
+    /// <para><b>What it costs when it is wrong.</b> Device names are not unique — Android TV
+    /// reports the model, so every set of one make shares a name. Until 1.6.3.3 that meant a
+    /// household's television took Quick Connect away from <i>everyone</i> on the server
+    /// with the same model, including people who never use Bonfire, for good: their devices
+    /// are never recorded, so nothing could ever say the name was theirs too. Now a sign-in
+    /// by an account outside every household notes the name
+    /// (<see cref="NoteSharedName"/>), and a noted name keeps Quick Connect for everybody.
+    /// The household's set then opens on Quick Connect as it would without Bonfire, and its
+    /// password field is one button away. A name nobody else has signed in with yet is still
+    /// refused once, and a username and password still work. Logged both ways.</para>
     /// </summary>
     public static class QuickConnectGate
     {
@@ -87,23 +94,91 @@ namespace Jellyfin.Profiles.Auth
             // A client that has a password field of its own keeps Quick Connect. Unknown
             // clients keep it too: this can only take away, so the uncertain answer is the
             // one that leaves the app exactly as its authors built it.
-            var who = client?.Trim();
-            if (string.IsNullOrEmpty(who)
-                || !OpensOnQuickConnect.Any(needle =>
-                       who.Contains(needle, StringComparison.OrdinalIgnoreCase)))
-            {
-                return false;
-            }
+            if (!OpensOnQuickConnectFirst(client)) return false;
 
             // Nothing to match on is not a match — and must not be, or a stored record with
             // a blank name would answer for every device that sends none.
             var wanted = deviceName?.Trim();
             if (string.IsNullOrEmpty(wanted)) return false;
 
+            // Somebody outside every household uses a television by this name. Refusing
+            // would take Quick Connect away from them, and the request cannot say whose
+            // television this is.
+            if (config.QuickConnectSharedDeviceNames != null
+                && config.QuickConnectSharedDeviceNames.Any(n =>
+                       string.Equals(n?.Trim(), wanted, StringComparison.OrdinalIgnoreCase)))
+            {
+                return false;
+            }
+
             return config.KnownDevices.Any(d =>
                 d.MasterUserId != Guid.Empty
                 && !string.IsNullOrWhiteSpace(d.DeviceName)
                 && string.Equals(d.DeviceName.Trim(), wanted, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// True for the clients whose sign-in screen opens on Quick Connect with no way to ask
+        /// it not to. See <see cref="OpensOnQuickConnect"/>.
+        /// </summary>
+        public static bool OpensOnQuickConnectFirst(string? client)
+        {
+            var who = client?.Trim();
+            return !string.IsNullOrEmpty(who)
+                && OpensOnQuickConnect.Any(needle => who.Contains(needle, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>The most names kept. Oldest are dropped first.</summary>
+        internal const int MaxSharedNames = 500;
+
+        /// <summary>
+        /// Notes that an account outside every household signed in on a television of this
+        /// name. Returns true when the list changed and is worth saving.
+        /// <para><b>Caller must hold <c>ConfigLock</c>.</b> Called by the session listener for
+        /// sign-ins it otherwise ignores; only for clients this gate could refuse, and never
+        /// for a blank or placeholder name, so the list stays short.</para>
+        /// </summary>
+        public static bool NoteSharedName(PluginConfiguration? config, string? deviceName, string? client)
+        {
+            if (config == null || !OpensOnQuickConnectFirst(client)) return false;
+
+            var name = deviceName?.Trim();
+            if (string.IsNullOrEmpty(name) || ProfilesBaseController.IsPlaceholderDeviceName(name)) return false;
+
+            config.QuickConnectSharedDeviceNames ??= new System.Collections.Generic.List<string>();
+            if (config.QuickConnectSharedDeviceNames.Any(n => string.Equals(n?.Trim(), name, StringComparison.OrdinalIgnoreCase)))
+            {
+                return false;
+            }
+
+            config.QuickConnectSharedDeviceNames.Add(name);
+            while (config.QuickConnectSharedDeviceNames.Count > MaxSharedNames)
+            {
+                config.QuickConnectSharedDeviceNames.RemoveAt(0);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// <see cref="NoteSharedName"/> with the lock and the save around it, the configuration
+        /// read inside the lock — the same shape as <see cref="DeviceRegistry.RecordAndSave"/>.
+        /// Returns true when a name was added.
+        /// </summary>
+        public static bool NoteSharedNameAndSave(string? deviceName, string? client)
+        {
+            // Nothing to note is decided without the lock, so the sign-ins this ignores — which
+            // is nearly all of them — never wait on it.
+            if (!OpensOnQuickConnectFirst(client) || string.IsNullOrWhiteSpace(deviceName)) return false;
+
+            lock (ProfilesBaseController.ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (!NoteSharedName(config, deviceName, client)) return false;
+
+                Plugin.Instance?.SaveConfiguration();
+                return true;
+            }
         }
     }
 }

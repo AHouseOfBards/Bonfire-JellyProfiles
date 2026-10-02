@@ -77,6 +77,23 @@ namespace Jellyfin.Profiles.Controllers
         internal static readonly object ConfigLock = new();
 
         /// <summary>
+        /// The configuration as it stands, copied under <see cref="ConfigLock"/> so it can be
+        /// read without holding it. See <see cref="PluginConfiguration.SnapshotForReading"/>.
+        /// <para>
+        /// The lock is held for the copy and nothing else. The provider calls this from inside
+        /// Jellyfin's own per-user sign-in lock, so nothing may run under ConfigLock here that
+        /// could wait on Jellyfin; a list copy cannot.
+        /// </para>
+        /// </summary>
+        internal static PluginConfiguration? ReadConfigSnapshot()
+        {
+            lock (ConfigLock)
+            {
+                return Plugin.Instance?.Configuration?.SnapshotForReading();
+            }
+        }
+
+        /// <summary>
         /// Should a switch to <paramref name="targetUserId"/> rewrite that account's policy
         /// from its master's? True only for a genuine sub-profile.
         /// </summary>
@@ -1117,8 +1134,16 @@ namespace Jellyfin.Profiles.Controllers
         /// halves of a rule drift apart.
         /// </para>
         /// </summary>
+        /// <param name="mappings">
+        /// The configuration's mappings, so the profile's household can be worked out and a
+        /// television's derived ids matched to its bare one (Auth.DeviceRegistry.IsSameDevice).
+        /// Null compares ids exactly, which is what every caller did before 1.6.3.3 — and why
+        /// a profile restricted to a television's signed-in row could not be entered from
+        /// that television's sign-in screen.
+        /// </param>
         internal static DeviceAccess EvaluateDeviceRestriction(
-            ProfileMapping? mapping, string? deviceId, IEnumerable<KnownDevice>? knownDevices)
+            ProfileMapping? mapping, string? deviceId, IEnumerable<KnownDevice>? knownDevices,
+            IEnumerable<ProfileMapping>? mappings)
         {
             // A master account is not a sub-profile and is never device-restricted; without
             // this an owner could lock themselves out of their own household.
@@ -1144,6 +1169,24 @@ namespace Jellyfin.Profiles.Controllers
             if (allowed.Any(id => string.Equals(id, candidate, StringComparison.OrdinalIgnoreCase)))
             {
                 return DeviceAccess.Allowed;
+            }
+
+            if (mappings != null)
+            {
+                // The household, master included: whoever is signed in on the television is
+                // the account its derived id was built over.
+                var members = mappings
+                    .Where(m => m.MasterUserId == mapping.MasterUserId)
+                    .Select(m => m.ProfileUserId)
+                    .Append(mapping.MasterUserId)
+                    .Distinct()
+                    .ToList();
+                var known = knownDevices?.ToList();
+
+                if (allowed.Any(id => Auth.DeviceRegistry.IsSameDevice(candidate, id, members, known)))
+                {
+                    return DeviceAccess.Allowed;
+                }
             }
 
             if (knownDevices != null)

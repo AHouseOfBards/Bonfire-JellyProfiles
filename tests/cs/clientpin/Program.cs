@@ -945,8 +945,172 @@ if (shouldDeny != null)
     Ok("the Android phone app is not mistaken for Android TV",
        !Deny("Living Room TV", "Jellyfin for Android"));
 
+    // ── other people's televisions of the same model (1.6.3.3) ─────────────────
+    //
+    // Android TV reports its model as its name, so every set of one make shares it. Until
+    // 1.6.3.3 a household's "SHIELD Android TV" took Quick Connect away from every other
+    // SHIELD on the server, including people who never use Bonfire, for good: their
+    // devices are never recorded, so nothing could say the name was theirs too. Now a
+    // sign-in by an account outside every household notes the name, and a noted name
+    // keeps Quick Connect for everybody.
+    var sharedProp = cfgType.GetProperty("QuickConnectSharedDeviceNames");
+    var note = gateType.GetMethod("NoteSharedName", BindingFlags.Public | BindingFlags.Static);
+    Ok("there is a record of television names used outside every household", sharedProp != null && note != null);
+
+    if (sharedProp != null && note != null)
+    {
+        bool Note(string name, string client) => (bool)note.Invoke(null, new object[] { config, name, client });
+        var shared = (System.Collections.IList)sharedProp.GetValue(config);
+
+        devicesList.Clear();
+        shared.Clear();
+        Remember("household-shield", MASTER);
+        knownType.GetProperty("DeviceName").SetValue(devicesList[0], "SHIELD Android TV");
+        Ok("a household's own television goes to the PIN screen", Deny("SHIELD Android TV"));
+
+        Ok("somebody outside every household signing in on a set of that name is noted",
+           Note("SHIELD Android TV", "Jellyfin Android TV"));
+        Ok("after which nobody's set of that name loses Quick Connect", !Deny("SHIELD Android TV"));
+        Ok("matched without regard to case", !Deny("shield android tv"));
+        Ok("and noting the same name again changes nothing to save",
+           !Note("  shield ANDROID tv ", "Jellyfin for Android TV"));
+
+        Remember("household-kitchen", MASTER);
+        knownType.GetProperty("DeviceName").SetValue(devicesList[1], "Kitchen TV");
+        Ok("a name nobody else uses still goes to the PIN screen", Deny("Kitchen TV"));
+
+        Ok("only the client this applies to is noted", !Note("Bedroom Roku", "Jellyfin Roku"));
+        Ok("never a blank name", !Note("   ", "Jellyfin Android TV") && !Note(null, "Jellyfin Android TV"));
+
+        for (int i = 0; i < 600; i++) Note("Set " + i, "Jellyfin Android TV");
+        Ok("and the record is bounded (" + shared.Count + " names)", shared.Count <= 500);
+
+        // The listener is what calls it, for the sign-ins it otherwise ignores. Driving the
+        // listener needs a Jellyfin session manager; this pins the call to the right branch.
+        var listenerSrc = File.ReadAllText(Path.Combine(RepoRoot(), "Auth", "BonfireSessionListener.cs"));
+        var branch = listenerSrc.IndexOf("if (master == Guid.Empty)", StringComparison.Ordinal);
+        var noted = listenerSrc.IndexOf("NoteSharedNameAndSave", StringComparison.Ordinal);
+        var recorded = listenerSrc.IndexOf("DeviceRegistry.RecordAndSave", StringComparison.Ordinal);
+        Ok("the sign-in listener notes names for accounts outside every household, and only there",
+           branch > 0 && noted > branch && noted < recorded);
+
+        shared.Clear();
+    }
+
     skipProp.SetValue(config, false);
     devicesList.Clear();
+}
+
+Console.WriteLine();
+Console.WriteLine("── The way Jellyfin calls it (1.6.3.3) ────────────────────────");
+
+// Everything above calls the provider's methods directly. Jellyfin does not. This is its
+// own dispatch, copied from Jellyfin.Server.Implementations/Users/UserManager.cs at
+// v10.11.5, line 852 (unchanged on master):
+//
+//     var authenticationResult = provider is IRequiresResolvedUser requiresResolvedUser
+//         ? await requiresResolvedUser.Authenticate(username, password, resolvedUser)
+//         : await provider.Authenticate(username, password);
+//
+// When a name does not resolve — "kids" off a sign-in screen, rather than the system
+// username — resolvedUser is null, and the three-argument form is still the one called.
+// It refused a null user outright, so from 1.6.1.11 to 1.6.3.2 every sub-profile chosen
+// from a sign-in screen was refused, while the section above, calling the two-argument
+// overload by hand, passed.
+async Task<(string Username, bool Success)> AuthenticateWithProvider(
+    IAuthenticationProvider p, string username, string password, User? resolvedUser)
+{
+    try
+    {
+        var authenticationResult = p is IRequiresResolvedUser requiresResolvedUser
+            ? await requiresResolvedUser.Authenticate(username, password, resolvedUser).ConfigureAwait(false)
+            : await p.Authenticate(username, password).ConfigureAwait(false);
+        return (authenticationResult.Username, true);
+    }
+    catch (AuthenticationException)
+    {
+        return (username, false);
+    }
+}
+
+(string Username, bool Success) Sign(string username, string password, User? resolved = null)
+    => AuthenticateWithProvider((IAuthenticationProvider)provider, username, password, resolved).GetAwaiter().GetResult();
+
+// A clean allowance: sections above spend wrong guesses on these accounts.
+var rateLimiter = asm.GetType("Jellyfin.Profiles.Controllers.RateLimiter", true);
+void ResetAllowance(Guid id)
+{
+    foreach (var f in new[] { "ClientPin", "ClientPinDaily" })
+    {
+        var limiter = rateLimiter.GetField(f, Any)?.GetValue(null) ?? rateLimiter.GetProperty(f, Any)?.GetValue(null);
+        limiter?.GetType().GetMethod("Reset", Any)?.Invoke(limiter, new object[] { id.ToString("N") });
+    }
+}
+ResetAllowance(KID);
+
+devicesList.Clear();
+Remember("family-tv", MASTER);
+FromDevice("family-tv");
+
+var picked = Sign("kids", "4821");
+Ok("choosing the \"kids\" card and typing its PIN opens the profile (" + picked.Username + ")",
+   picked.Success && picked.Username == "Bardkids");
+Ok("the wrong PIN is refused", !Sign("kids", "4822").Success);
+ResetAllowance(KID);
+var pinless = Sign("guest", "");
+Ok("a profile with no PIN opens with an empty box on its household's television (" + pinless.Username + ")",
+   pinless.Success && pinless.Username == "Bardguest");
+Ok("a name that is no profile of this household is refused", !Sign("stranger", "4821").Success);
+Ok("a master is never reached through a short name", !Sign("bard", "9999").Success);
+
+FromDevice("some-strangers-laptop");
+Ok("from a device no household has signed in on, a short name opens nothing", !Sign("kids", "4821").Success);
+FromDevice(null);
+Ok("nor with no device at all", !Sign("kids", "4821").Success);
+
+Console.WriteLine();
+Console.WriteLine("── Read under the lock, not while sign-ins write (1.6.3.3) ────");
+
+// The provider walked Mappings and KnownDevices unlocked, and a television signing in is
+// exactly when the session listener appends a device row: "collection was modified",
+// which Jellyfin does not catch from a provider, so a refusal became a 500. A race is not
+// reproducible on demand, so this asks the question it reduces to instead: does a sign-in
+// walk either list without holding ConfigLock? Tripwire<T> counts the walks that do.
+// (LINQ takes its span fast path only for an exact List<T>, so a subclass is enumerated.)
+var lockObj = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController", true)
+    .GetField("ConfigLock", Any)?.GetValue(null);
+Ok("there is a configuration lock to hold", lockObj != null);
+
+var mappingsProp = cfgType.GetProperty("Mappings");
+var knownProp = cfgType.GetProperty("KnownDevices");
+var liveMappings = mappingsProp.GetValue(config);
+var liveDevices = knownProp.GetValue(config);
+var mapTrip = (System.Collections.IList)Activator.CreateInstance(typeof(Tripwire<>).MakeGenericType(mappingType));
+foreach (var m in (System.Collections.IEnumerable)liveMappings) mapTrip.Add(m);
+var devTrip = (System.Collections.IList)Activator.CreateInstance(typeof(Tripwire<>).MakeGenericType(knownType));
+foreach (var d in (System.Collections.IEnumerable)liveDevices) devTrip.Add(d);
+
+try
+{
+    mappingsProp.SetValue(config, mapTrip);
+    knownProp.SetValue(config, devTrip);
+    TripwireState.Lock = lockObj;
+    TripwireState.Unlocked = 0;
+
+    FromDevice("family-tv");
+    ResetAllowance(KID);
+    Sign("kids", "4821");
+    Sign("Bardkids", "4821", MakeUser(KID, "Bardkids"));
+    Sign("Bardguest", "", MakeUser(GUEST, "Bardguest"));
+
+    Ok("a sign-in walks the profile and device lists only while holding ConfigLock ("
+       + TripwireState.Unlocked + " unlocked walks)", lockObj != null && TripwireState.Unlocked == 0);
+}
+finally
+{
+    TripwireState.Lock = null;
+    mappingsProp.SetValue(config, liveMappings);
+    knownProp.SetValue(config, liveDevices);
 }
 
 Console.WriteLine();
@@ -1080,6 +1244,27 @@ public class UserManagerStub : DispatchProxy
         }
 
         return _known.TryGetValue((Guid)args![0]!, out var user) ? user : null;
+    }
+}
+
+// Counts walks of a list made without the configuration lock held. See "Read under the
+// lock". Non-generic state, because each closed Tripwire<T> would otherwise have its own.
+public static class TripwireState
+{
+    public static object? Lock;
+    public static int Unlocked;
+}
+
+public class Tripwire<T> : List<T>, IEnumerable<T>
+{
+    IEnumerator<T> IEnumerable<T>.GetEnumerator()
+    {
+        if (TripwireState.Lock != null && !System.Threading.Monitor.IsEntered(TripwireState.Lock))
+        {
+            TripwireState.Unlocked++;
+        }
+
+        return GetEnumerator();
     }
 }
 

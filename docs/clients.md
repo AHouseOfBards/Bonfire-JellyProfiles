@@ -42,13 +42,14 @@ the last account, which skips the screen the profiles are on.
 
 If you signed in on the device before installing this, sign out and in once. The device is
 noted when somebody signs in on it, so a session that predates the plugin is not on the map
-yet.
+yet. Quick Connect counts: approving the code from your phone is enough.
 
 What carries over:
 
 - PINs, including a profile with no PIN, which opens with an empty box.
 - Device restrictions. A profile limited to particular devices is not offered on any other,
-  and is refused if asked for.
+  and is refused if asked for. A television appears in the device list once for its sign-in
+  screen and once for each account signed in on it; ticking any of its rows allows it.
 - Library access, parental rating and tag filters, which Jellyfin enforces server-side.
 - The profile's own name, rather than the `master_profile` account name.
 

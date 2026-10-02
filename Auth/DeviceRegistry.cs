@@ -117,6 +117,80 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
+        /// Whether two device ids are one television, by the three derivations the clients
+        /// this plugin supports apply to their own id once somebody is signed in.
+        ///
+        /// <para><b>Why device restrictions need this.</b> A television sends its bare id from
+        /// its sign-in screen and a derived one afterwards, and Jellyfin starts a session
+        /// under each — so one television is two rows in the device list, both named after
+        /// the set. A profile restricted to "the living-room TV" by ticking the signed-in row
+        /// was hidden from that television's sign-in screen and refused there, because the
+        /// screen asks with the bare id and the check compared ids exactly.
+        /// <see cref="FindMaster"/> had always known the derivations; the restriction check
+        /// did not.</para>
+        ///
+        /// <para>Applied in both directions, over <paramref name="householdMembers"/> only:
+        /// the derivation is over whoever is signed in, which for a restricted profile's
+        /// television is somebody in that profile's household.</para>
+        ///
+        /// <para><b>Roku</b> appends a <i>name</i>, which is not in the configuration in every
+        /// form Roku uses (see <see cref="BareDeviceIdFor"/>). So a Roku pair is accepted only
+        /// when both ids are on record for the same household — the session listener records
+        /// the bare id beside the appended one for exactly this reason — and one is the other
+        /// plus a suffix Roku could have written.</para>
+        /// </summary>
+        public static bool IsSameDevice(
+            string? a,
+            string? b,
+            IEnumerable<Guid>? householdMembers,
+            IEnumerable<KnownDevice>? knownDevices)
+        {
+            var x = a?.Trim();
+            var y = b?.Trim();
+            if (string.IsNullOrEmpty(x) || string.IsNullOrEmpty(y)) return false;
+            if (string.Equals(x, y, StringComparison.OrdinalIgnoreCase)) return true;
+
+            foreach (var userId in householdMembers ?? Enumerable.Empty<Guid>())
+            {
+                if (userId == Guid.Empty) continue;
+                var suffix = userId.ToString();
+
+                if (DerivedFrom(x, y, suffix) || DerivedFrom(y, x, suffix)) return true;
+            }
+
+            return IsRokuPair(x, y, knownDevices) || IsRokuPair(y, x, knownDevices);
+        }
+
+        /// <summary>
+        /// True when <paramref name="derived"/> is what <paramref name="bare"/> becomes once
+        /// the account <paramref name="userSuffix"/> signs in: Jellyfin for Android appends
+        /// the id, Jellyfin Android TV hashes <c>bare + "+" + id</c>.
+        /// </summary>
+        private static bool DerivedFrom(string bare, string derived, string userSuffix)
+            => string.Equals(derived, bare + userSuffix, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(derived, Sha1Hex(bare + "+" + userSuffix), StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// True when <paramref name="appended"/> is <paramref name="bare"/> with a Roku-style
+        /// name appended, and both are recorded for the same household.
+        /// </summary>
+        private static bool IsRokuPair(string bare, string appended, IEnumerable<KnownDevice>? knownDevices)
+        {
+            if (knownDevices == null) return false;
+            if (bare.Length < MinimumBareDeviceIdLength) return false;
+            if (appended.Length < bare.Length + 3) return false;
+            if (!appended.StartsWith(bare, StringComparison.Ordinal)) return false;
+
+            var suffix = appended.Substring(bare.Length);
+            if (RokuFriendlyName(suffix) != suffix) return false;
+
+            var rows = knownDevices.ToList();
+            var owner = rows.FirstOrDefault(d => string.Equals(d.DeviceId?.Trim(), bare, StringComparison.OrdinalIgnoreCase))?.MasterUserId;
+            var other = rows.FirstOrDefault(d => string.Equals(d.DeviceId?.Trim(), appended, StringComparison.OrdinalIgnoreCase))?.MasterUserId;
+            return owner.HasValue && owner.Value != Guid.Empty && owner == other;
+        }
+
+        /// <summary>
         /// The owning master of the record with this exact device id, or
         /// <see cref="Guid.Empty"/> when there is none or it names nobody.
         /// </summary>

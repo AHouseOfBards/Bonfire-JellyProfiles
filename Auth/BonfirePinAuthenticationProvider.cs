@@ -114,7 +114,7 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         public bool HasPassword(User user)
         {
-            var mapping = FindSubProfile(user?.Id);
+            var mapping = FindSubProfile(Controllers.ProfilesBaseController.ReadConfigSnapshot(), user?.Id);
 
             // Not ours: say the account has a password rather than claiming otherwise about
             // a user we know nothing about. With a blank AuthenticationProviderId this
@@ -126,9 +126,19 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Reached when Jellyfin could not resolve the username to a user — which is the
-        /// normal case now, because the sign-in screen offers a household's own name for a
-        /// profile rather than the system username underneath it.
+        /// Translates the name a household gave a profile back into the account, when
+        /// Jellyfin could not resolve the username itself — which is the normal case on a
+        /// sign-in screen, because it offers a household's own name for a profile rather than
+        /// the system username underneath it.
+        ///
+        /// <para><b>Jellyfin never calls this overload.</b> This provider implements
+        /// <see cref="IRequiresResolvedUser"/>, and <c>UserManager.AuthenticateWithProvider</c>
+        /// (10.11.5 line 852, unchanged on master) calls the three-argument form on any provider
+        /// that does — with a null user when the name did not resolve. That form refused a null
+        /// user outright, so from 1.6.1.11, when sign-in screens started showing "kids", until
+        /// 1.6.3.3, every sub-profile chosen from one was refused. The harness called this
+        /// overload directly and passed. It now goes through Jellyfin's own dispatch, copied
+        /// from that file (tests/cs/clientpin, "the way Jellyfin calls it").</para>
         ///
         /// <para>A profile is created as <c>&lt;master&gt;_&lt;name&gt;</c> so that two
         /// households on one server can both have a "kids", and that system username is what
@@ -149,7 +159,7 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         public Task<ProviderAuthenticationResult> Authenticate(string username, string password)
         {
-            var config = Plugin.Instance?.Configuration;
+            var config = Controllers.ProfilesBaseController.ReadConfigSnapshot();
             if (config?.Mappings == null || !config.EnableClientPinLogin) throw Decline();
 
             // Only ever reaches a sub-profile, and the emergency disable turns PIN entry off.
@@ -194,9 +204,15 @@ namespace Jellyfin.Profiles.Auth
 
         public Task<ProviderAuthenticationResult> Authenticate(string username, string password, User? resolvedUser)
         {
-            if (resolvedUser == null) throw Decline();
+            // No user means Jellyfin could not resolve the name — "kids" off a sign-in screen
+            // rather than the system username. This is the only overload Jellyfin calls, so
+            // the translation has to be reached from here. It resolves within the household
+            // of the device asking, and comes back through this method with the user it found.
+            if (resolvedUser == null) return Authenticate(username, password);
 
-            var mapping = FindSubProfile(resolvedUser.Id);
+            // One snapshot for the whole decision: see ReadConfigSnapshot.
+            var config = Controllers.ProfilesBaseController.ReadConfigSnapshot();
+            var mapping = FindSubProfile(config, resolvedUser.Id);
 
             // A master with a PIN of its own, which is a different case entirely: it keeps a
             // real Jellyfin password and must go on being able to use it.
@@ -207,7 +223,7 @@ namespace Jellyfin.Profiles.Auth
             // allowed too, deliberately, with a warning under the PIN field.
             if (mapping == null)
             {
-                var master = FindMasterWithPin(resolvedUser.Id);
+                var master = FindMasterWithPin(config, resolvedUser.Id);
 
                 // The PIN first, then the account's real password. Jellyfin binds a user to
                 // exactly one provider — GetAuthenticationProviders filters on
@@ -266,7 +282,8 @@ namespace Jellyfin.Profiles.Auth
             var access = Controllers.ProfilesBaseController.EvaluateDeviceRestriction(
                 mapping,
                 RequestDevice.Current,
-                Plugin.Instance?.Configuration?.KnownDevices);
+                config?.KnownDevices,
+                config?.Mappings);
 
             if (access != Controllers.ProfilesBaseController.DeviceAccess.NotRestricted
                 && access != Controllers.ProfilesBaseController.DeviceAccess.Allowed)
@@ -307,7 +324,7 @@ namespace Jellyfin.Profiles.Auth
                 if (!string.IsNullOrEmpty(password)) throw Decline();
 
                 var deviceId = RequestDevice.Current;
-                var seenFor = DeviceRegistry.FindMaster(Plugin.Instance?.Configuration, deviceId);
+                var seenFor = DeviceRegistry.FindMaster(config, deviceId);
 
                 if (seenFor == Guid.Empty || seenFor != mapping.MasterUserId)
                 {
@@ -386,7 +403,7 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         public Task ChangePassword(User user, string newPassword)
         {
-            if (user != null && FindSubProfile(user.Id) == null)
+            if (user != null && FindSubProfile(Controllers.ProfilesBaseController.ReadConfigSnapshot(), user.Id) == null)
             {
                 var jellyfins = FindJellyfinsProvider();
                 if (jellyfins != null) return jellyfins.ChangePassword(user, newPassword);
@@ -443,9 +460,8 @@ namespace Jellyfin.Profiles.Auth
         /// none, and a master with no PIN is simply not a candidate here.
         /// </para>
         /// </summary>
-        private static ProfileMapping? FindMasterWithPin(Guid userId)
+        private static ProfileMapping? FindMasterWithPin(PluginConfiguration? config, Guid userId)
         {
-            var config = Plugin.Instance?.Configuration;
             if (config?.Mappings == null || userId == Guid.Empty) return null;
 
             var row = config.Mappings.FirstOrDefault(m =>
@@ -512,14 +528,11 @@ namespace Jellyfin.Profiles.Auth
         /// when the user is genuinely somebody's sub-profile.
         /// </para>
         /// </summary>
-        private static ProfileMapping? FindSubProfile(Guid? userId)
+        private static ProfileMapping? FindSubProfile(PluginConfiguration? config, Guid? userId)
         {
             if (userId == null || userId == Guid.Empty) return null;
 
-            // Read once. Jellyfin replaces the whole configuration object when an
-            // administrator saves plugin settings, so a second read could land on a
-            // different instance than the first.
-            var config = Plugin.Instance?.Configuration;
+            // The caller's snapshot, so a decision is made against one consistent copy.
             if (config?.Mappings == null) return null;
 
             var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == userId.Value);

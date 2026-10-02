@@ -546,6 +546,11 @@ to their password field.
 The first sign-in on a device is never refused: matching is by device name, and a device
 nobody has signed in on has no record to match.
 
+Only Android TV is refused; every other client has a password field of its own. And a name
+somebody outside every household has signed in with is never refused, because Android TV
+names itself after its model and a Quick Connect request carries nothing else to tell two
+sets apart. Those names are kept in `QuickConnectSharedDeviceNames`, at most 500.
+
 ### Authentication provider
 
 With `enableClientPinLogin` on, affected accounts have their `AuthenticationProviderId` set
@@ -553,6 +558,12 @@ to Bonfire's provider, and it is restored when the setting is turned off.
 
 A **sub-profile** is opened by its PIN. One with no PIN is opened by an empty box, but only
 from a device its household has signed in on.
+
+A sign-in screen offers a profile under the name its household gave it, and the app sends
+that name back. Jellyfin cannot resolve it, so it asks the provider with no user, and the
+provider resolves it within the household of the device asking. Before 1.6.3.3 that call was
+refused, so a profile chosen from a sign-in screen could only be opened by typing its full
+system username.
 
 A **master** keeps its real password. Jellyfin binds an account to exactly one provider, so
 Bonfire's checks the PIN first and hands anything else to

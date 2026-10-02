@@ -179,7 +179,10 @@ namespace Jellyfin.Profiles
                     context.Request.Headers["X-Emby-Authorization"],
                     "Client");
 
-                if (Auth.QuickConnectGate.ShouldDeny(Plugin.Instance?.Configuration, qcDevice, qcClient))
+                // A snapshot: the gate walks KnownDevices, which a sign-in elsewhere may be
+                // appending to at this moment. See ReadConfigSnapshot.
+                if (Auth.QuickConnectGate.ShouldDeny(
+                        Controllers.ProfilesBaseController.ReadConfigSnapshot(), qcDevice, qcClient))
                 {
                     _logger.LogInformation(
                         "ProfilesPlugin: Quick Connect declined for {Device} ({Client}), a device this "
@@ -362,7 +365,10 @@ namespace Jellyfin.Profiles
         private async Task InjectPublicUsersAsync(
             HttpContext context, IUserManager userManager, IDeviceManager deviceManager)
         {
-            var config = Plugin.Instance?.Configuration;
+            // A snapshot, read without the lock afterwards. The household is resolved by
+            // walking Mappings and KnownDevices, and a sign-in on another device can be
+            // appending a device row at the same moment.
+            var config = Controllers.ProfilesBaseController.ReadConfigSnapshot();
 
             // Resolved BEFORE the response is captured, so a device we do not recognise -
             // the overwhelmingly common case on a busy server - costs one header parse and
@@ -590,7 +596,7 @@ namespace Jellyfin.Profiles
                     rewritten = Auth.ProfileNameRewriter.Rewrite(
                         produced,
                         context.Response.ContentType,
-                        Plugin.Instance?.Configuration,
+                        Controllers.ProfilesBaseController.ReadConfigSnapshot(),
                         _logger);
                 }
                 catch (Exception ex)
