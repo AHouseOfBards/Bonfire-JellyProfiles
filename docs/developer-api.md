@@ -588,7 +588,8 @@ Under `middleware`, `index.html` on disk contains no plugin tags. Do not treat i
 as a failure: read `mechanism` instead (see `GET /plugins/profiles/admin/mappings`).
 
 A client that supplies its own copy of the web client — a Tizen `.wgt`, for example — is
-not served by any of them and must bundle the script itself.
+not served by any of them. `Web/tizen/bonfire-loader.js` goes into such a package once and
+loads this route from whichever server the app connects to; see TROUBLESHOOTING.md.
 
 ### `GET /plugins/profiles/profiles.js`
 

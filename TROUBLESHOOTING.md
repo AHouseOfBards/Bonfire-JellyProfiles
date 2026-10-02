@@ -71,10 +71,26 @@ Jellyfin user account and are enforced by the server.
 ## Samsung Tizen
 
 The Tizen app builds its own copy of the web client into the `.wgt` package rather than
-fetching yours, so the plugin cannot inject itself at runtime. It has been reported
-working with Bonfire bundled into the package at build time — but **the package has to be
-rebuilt to pick up plugin updates**. Nothing reaches it automatically, so a fix released
-today is not on your TV until you rebuild.
+fetching yours, so the plugin cannot add itself the way it does in a browser. Add the
+**Bonfire loader** to the package once, and it loads Bonfire from your server every time the
+app starts — so plugin updates reach the TV with no rebuild.
+
+1. Get the package's files: the `.wgt` you build, or the one Apps2Samsung prepares.
+2. Copy [`Web/tizen/bonfire-loader.js`](Web/tizen/bonfire-loader.js) into its `www/` folder.
+3. In `www/index.html`, add this line just before `</body>`:
+
+   ```html
+   <script src="bonfire-loader.js"></script>
+   ```
+
+4. If you added Bonfire before, remove the old `<script>` tag for `profiles.js` and the copied
+   file. Two copies would put two pickers on screen, so the loader stays out of the way
+   while the old one is there.
+5. Install the package as usual. This is the last rebuild Bonfire needs.
+
+The loader waits until the app is connected to a server, then fetches
+`/plugins/profiles/profiles.js` from it. If nothing appears, open the app's web inspector:
+a message beginning `Bonfire loader:` says what it found.
 
 ## A profile's library access keeps reverting
 

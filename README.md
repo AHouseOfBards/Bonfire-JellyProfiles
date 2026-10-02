@@ -76,7 +76,8 @@ If the switcher does not appear, or the settings page reports a problem, see
 - Jellyfin Web, and Jellyfin for Android
 - Jellyfin Media Player (Windows, macOS, Linux)
 - LG webOS
-- Samsung Tizen, if Bonfire is bundled into the `.wgt` at build time
+- Samsung Tizen, with the Bonfire loader added to the `.wgt` once — see
+  [TROUBLESHOOTING.md](TROUBLESHOOTING.md#samsung-tizen)
 
 **Selection only** — profiles appear in the app's own sign-in screen and open with their
 PIN. PINs, device restrictions and parental controls all hold; profile management needs a

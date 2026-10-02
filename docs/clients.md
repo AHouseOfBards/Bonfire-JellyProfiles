@@ -16,7 +16,7 @@ library artwork, Bonfire sharing.
 | Jellyfin for Android | A wrapper around your server's web client. |
 | Jellyfin Media Player | Windows, macOS, Linux. |
 | LG webOS | Loads your server's web client into a frame. |
-| Samsung Tizen | Only if Bonfire is bundled into the `.wgt` at build time. The package must be rebuilt to pick up plugin updates. |
+| Samsung Tizen | With the Bonfire loader added to the `.wgt` once; it loads Bonfire from your server, so updates need no rebuild. See [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#samsung-tizen). |
 
 ## Selection only
 
@@ -28,10 +28,14 @@ Requires **Dashboard → Bonfire → TVs & Apps**, off by default.
 | Client | Status |
 | --- | --- |
 | Jellyfin for Android TV | Supported, confirmed on hardware. |
-| Jellyfin for Roku | Supported in 1.6.2.1-beta. Not yet confirmed on hardware. |
-| Swiftfin (iOS, tvOS) | Supported in 1.6.2.1-beta. Not yet confirmed on hardware. |
-| Findroid (phone and TV) | Supported in 1.6.2.1-beta. Not yet confirmed on hardware. |
-| Wholphin | Supported in 1.6.2.1-beta. Not yet confirmed on hardware. |
+| Jellyfin for Roku | Supported. Not yet confirmed on hardware. |
+| Swiftfin (iOS, tvOS) | Supported. Not yet confirmed on hardware. |
+| Findroid (phone and TV) | Supported. Not yet confirmed on hardware. |
+| Wholphin | Supported. Not yet confirmed on hardware. |
+
+Before 1.6.3.3, a sub-profile chosen from any of these sign-in screens was refused, because
+the name shown on the card was not translated back to the account. Typing the full account
+name worked. If you tried one of these apps and gave up, try again.
 
 **Turn off automatic sign in.** Every one of these apps can be set to sign straight into
 the last account, which skips the screen the profiles are on.
