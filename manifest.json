@@ -13,7 +13,7 @@
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Added**\n\n- Thirty starter avatars to pick from, on by default. Turn them off in Dashboard -> Bonfire -> Avatar Library. (#32)",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.3.2/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "fa956bd981dbd0e122d127710d720d39",
         "timestamp": "2026-10-02T23:00:00Z"
       },
       {
