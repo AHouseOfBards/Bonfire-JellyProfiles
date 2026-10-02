@@ -1781,6 +1781,15 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .jpf-tv .profiles-grid {
     gap: 4rem;
+    max-width: none;
+}
+/* The gate's content was capped at 900px on every screen, so a 1920px
+   television fitted two 300px tiles to a row and four profiles became two
+   rows that ran off the bottom (issue #31). Wider rows first; the tiles
+   only shrink if that is still not enough (fitGateToScreen). */
+.jpf-tv .profiles-modal-content {
+    max-width: 1640px;
+    width: 92%;
 }
 .jpf-no-flex-gap.jpf-tv .profiles-grid > * {
     margin: 0 2rem 4rem;
@@ -1825,4 +1834,41 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-tv .profile-section :focus-visible {
     outline: 4px solid var(--jpf-accent);
     outline-offset: 4px;
+}
+
+/* ── The gate, fitted to the screen (issue #31) ───────────────────
+   fitGateToScreen sets --jpf-tile and .jpf-fitted on the gate's content only
+   when the gate would otherwise scroll. Every other screen in the overlay is
+   new markup without the class, so none of them is resized by it. var() and calc() are both Chromium
+   49+, so these hold on the webOS 5 and Tizen sets the .jpf-tv block is for. */
+/* The routine sets the real size inline; this is what the class means without
+   one, so a var() here can never be left with nothing to resolve to. */
+#profiles-gate-overlay .profiles-modal-content.jpf-fitted {
+    --jpf-tile: 140px;
+}
+#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid .profile-avatar-container {
+    width: var(--jpf-tile);
+    height: var(--jpf-tile);
+}
+#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid .profile-card {
+    width: calc(var(--jpf-tile) + 20px);
+}
+#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid .profile-avatar {
+    font-size: calc(var(--jpf-tile) / 2.6);
+}
+#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid {
+    gap: calc(var(--jpf-tile) / 5);
+}
+.jpf-no-flex-gap #profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid > * {
+    margin: 0 calc(var(--jpf-tile) / 10) calc(var(--jpf-tile) / 5);
+}
+/* Fitted means space is short, so the gaps around the grid give some back
+   before the tiles have to. 4rem above and below them on a television is
+   170px of a 720px screen. */
+#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-title {
+    margin-top: 0;
+    margin-bottom: calc(var(--jpf-tile) / 6);
+}
+#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-footer {
+    margin-top: calc(var(--jpf-tile) / 6);
 }

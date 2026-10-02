@@ -106,6 +106,21 @@ the code to run in. For that case, restart Jellyfin or delete the plugin folder.
 See [docs/limitations.md](docs/limitations.md) for what the code does and does not unlock — it
 is deliberately not a master key.
 
+## Where do I get a set of avatars?
+
+Bonfire does not ship one: pictures of characters belong to their studios, and a library
+redistributed with the plugin would have to be licensed for that. Bring your own, then
+load it in **Dashboard → Plugins → Bonfire → Avatar Library**:
+
+- **Upload a folder** takes a whole directory from the computer you are on.
+- **Import from folder** copies from a path on the server, such as `/config/avatars` on
+  Docker — the easier route for a large set.
+
+Any square-ish JPEG, PNG, WebP or GIF works; pictures are cropped and resized on the way
+in, at the quality chosen above the buttons. A set of the characters your household
+actually watches is closest to what Netflix does. Turn on **Only allow avatars from this
+library** if you want profiles to pick from it rather than upload their own.
+
 ## Reporting something
 
 Please open an issue at

@@ -26,6 +26,11 @@
     const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
     const DEFAULT_AVATAR_COLOR = '#00A4DC';
 
+    /// A library or user id as the server writes one: 32 hex digits, dashed or not.
+    function isGuidLike(value) {
+        return /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(String(value || ''));
+    }
+
     function safeColor(color) {
         return HEX_COLOR_RE.test(color || '') ? color : DEFAULT_AVATAR_COLOR;
     }
@@ -4138,6 +4143,75 @@
             `;
 
             this.attachOverlayInteractions(overlay, profiles);
+            this.fitGateToScreen(overlay);
+        },
+
+        /// Shrinks the profile tiles, only as far as needed, until the whole gate fits on
+        /// the screen without scrolling (issue #31).
+        ///
+        /// The tiles were a fixed size per device class — 280px on a television — so four
+        /// profiles on a 1080p set ran 247px past the bottom, and a remote had to scroll to
+        /// reach half the household. Two profiles still get the full size; more get smaller.
+        ///
+        /// Measured rather than calculated. How many tiles share a row depends on the names
+        /// under them, the sections a linked Bonfire adds, manage mode's extra controls and
+        /// the theme's fonts, and a formula would have to know all of that. Instead the
+        /// tile size is a custom property, and this halves the gap between "fits" and
+        /// "too big" a few times, reading the overlay's scroll height after each try. Only
+        /// ever runs when the gate is drawn or the window is resized — never on the route
+        /// poll, which is why it is not called from checkRoute.
+        ///
+        /// Below the floor it stops shrinking and lets the gate scroll: on a phone with
+        /// nine profiles, scrolling is better than tiles too small to read.
+        fitGateToScreen: function (overlay) {
+            if (!overlay || !overlay.querySelector) return;
+
+            // A television rotating its UI, a desktop window being resized: fit again. Bound
+            // once, and finds whatever gate is on screen when it fires.
+            if (!this._gateResizeBound && typeof window !== 'undefined' && window.addEventListener) {
+                this._gateResizeBound = true;
+                let pending = null;
+                window.addEventListener('resize', () => {
+                    if (pending) clearTimeout(pending);
+                    pending = setTimeout(() => {
+                        pending = null;
+                        const open = document.getElementById('profiles-gate-overlay');
+                        if (open && open.querySelector('.profiles-grid')) this.fitGateToScreen(open);
+                    }, 150);
+                });
+            }
+
+            // The class and the size go on the gate's own content, not on the overlay. The
+            // PIN, create and settings screens are drawn into the same overlay and share
+            // .profiles-title; a class left on the overlay would carry over to them. On the
+            // content it is replaced along with the markup it was measured for.
+            const grid = overlay.querySelector('.profiles-grid');
+            const content = grid && grid.closest('.profiles-modal-content');
+            if (!content) return;
+            const fits = () => overlay.scrollHeight <= overlay.clientHeight + 1;
+
+            content.classList.remove('jpf-fitted');
+            content.style.removeProperty('--jpf-tile');
+            if (fits()) return;
+
+            const sample = grid.querySelector('.profile-avatar-container');
+            if (!sample) return;
+            const natural = Math.round(sample.getBoundingClientRect().width);
+            if (!natural) return;
+
+            const isTv = document.documentElement.classList.contains('jpf-tv');
+            const floor = Math.min(natural, isTv ? 120 : 88);
+            const tryTile = (px) => { content.style.setProperty('--jpf-tile', px + 'px'); return fits(); };
+
+            content.classList.add('jpf-fitted');
+            let lo = floor;
+            let hi = natural;
+            if (!tryTile(lo)) return;             // already at the floor; leave it scrolling
+            for (let i = 0; i < 8 && hi - lo > 2; i++) {
+                const mid = Math.floor((lo + hi) / 2);
+                if (tryTile(mid)) lo = mid; else hi = mid;
+            }
+            tryTile(lo);
         },
 
         attachOverlayInteractions: function (overlay, profiles) {
@@ -5681,7 +5755,9 @@
                     
                     const checkedLibs = [];
                     content.querySelectorAll('.library-checkbox:checked').forEach(cb => {
-                        checkedLibs.push(cb.value);
+                        // Only an id. A library listed without one gave its checkbox the
+                        // value "undefined", and that one entry failed the whole create (#33).
+                        if (isGuidLike(cb.value)) checkedLibs.push(cb.value);
                     });
 
                     const checkedDevices = [];
@@ -6242,7 +6318,8 @@
                         rating = document.getElementById('edit-rating-select').value;
                         const rawLibs = [];
                         content.querySelectorAll('.library-checkbox:checked').forEach(cb => {
-                            rawLibs.push(cb.value);
+                            // Same guard as the create form (#33).
+                            if (isGuidLike(cb.value)) rawLibs.push(cb.value);
                         });
                         // Send null (not empty array) when no libraries are checked.
                         // An empty array tells the server "allow no libraries",
