@@ -9,6 +9,19 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.6.3.3-beta  — 2026-10-02
+
+**Fixed**
+
+- On Android TV, Roku and other TV apps, choosing a profile and entering its PIN was refused.
+- A profile limited to one TV could be missing from that TV's sign-in screen.
+- Skipping Quick Connect on known TVs also removed it for other people with the same TV model.
+- Signing in on a TV could occasionally fail with a server error.
+
+**Added**
+
+- A loader for the Samsung Tizen app, so Bonfire updates reach the TV without rebuilding the app. (#16)
+
 ## 1.6.3.2-beta  — 2026-10-02
 
 **Added**
