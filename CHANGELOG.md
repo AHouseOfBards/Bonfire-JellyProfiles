@@ -9,7 +9,7 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
-## 1.6.3.1-beta  — 2026-09-27
+## 1.6.3.1-beta  — 2026-10-02
 
 **Fixed**
 
@@ -22,6 +22,8 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 - Creating two profiles at once could go over the profile limit.
 - The Signed-in devices list in the dashboard could fail to load.
 - The create form showed only four libraries at a time.
+- Creating a profile could fail with "The supplied value is invalid". (#33)
+- The profile picker ran off the bottom of the screen on a TV. (#31)
 
 **Changed**
 
