@@ -68,6 +68,10 @@
          makes the 1.5.2 failure impossible at the language level. -->
     <EmbeddedResource Include="Web/styles.css" />
     <EmbeddedResource Include="Web/i18n/*.json" />
+    <!-- The starter avatars (StarterAvatars.cs) and their licence. Named explicitly: the
+         default manifest name would mangle the hyphen in the folder and in polar-bear. -->
+    <EmbeddedResource Include="Web/starter-avatars/*.webp" LogicalName="Jellyfin.Profiles.StarterAvatars.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Web/starter-avatars/LICENSE.txt" LogicalName="Jellyfin.Profiles.StarterAvatars.LICENSE.txt" />
   </ItemGroup>
 
 </Project>

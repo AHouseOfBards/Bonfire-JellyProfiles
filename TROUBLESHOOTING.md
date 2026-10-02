@@ -108,9 +108,14 @@ is deliberately not a master key.
 
 ## Where do I get a set of avatars?
 
-Bonfire does not ship one: pictures of characters belong to their studios, and a library
-redistributed with the plugin would have to be licensed for that. Bring your own, then
-load it in **Dashboard → Plugins → Bonfire → Avatar Library**:
+Bonfire ships thirty starter avatars — animals and a few faces, from Microsoft's Fluent
+Emoji — and offers them on every server until you turn off **Include the starter avatars**
+in **Dashboard → Plugins → Bonfire → Avatar Library**. Profiles that already picked one keep
+it when you do.
+
+Pictures of characters from films and shows are not included: they belong to their studios,
+and a set redistributed with the plugin would have to be licensed for that. For those, bring
+your own and load them on the same page:
 
 - **Upload a folder** takes a whole directory from the computer you are on.
 - **Import from folder** copies from a path on the server, such as `/config/avatars` on

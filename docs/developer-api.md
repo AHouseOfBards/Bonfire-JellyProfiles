@@ -1379,7 +1379,12 @@ Updates the calling account's switcher preferences.
 
 ## Avatar Library API
 
-Profile pictures an administrator publishes for everyone on the server to choose from.
+Profile pictures an administrator publishes for everyone on the server to choose from, plus
+thirty built-in **starter avatars** (Fluent Emoji by Microsoft, MIT) while the administrator
+leaves them switched on. Starter avatars are listed after the administrator's own and behave
+like any other library entry: they are served by `GET /avatars/{id}` and can be chosen by
+`avatarLibraryId`. Switched off, they are neither listed, served nor accepted; profiles that
+already chose one keep their own copy.
 
 Choosing one **copies** it to the profile rather than referencing it, so each user can crop the
 same picture differently and removing a library entry cannot break profiles already using it.
@@ -1395,6 +1400,7 @@ Lists the available avatars. Any authenticated user may call this.
 ```json
 {
   "allowCustomUploads": true,
+  "starterAvatarsEnabled": true,
   "image": {
     "quality": "high",
     "masterSize": 1024,
@@ -1407,7 +1413,15 @@ Lists the available avatars. Any authenticated user may call this.
       "id": "9f2c41a0b7d3",
       "displayName": "Fox",
       "url": "/plugins/profiles/avatars/9f2c41a0b7d3",
-      "thumbUrl": "/plugins/profiles/avatars/9f2c41a0b7d3?size=thumb"
+      "thumbUrl": "/plugins/profiles/avatars/9f2c41a0b7d3?size=thumb",
+      "isStarter": false
+    },
+    {
+      "id": "starter-fox",
+      "displayName": "Fox",
+      "url": "/plugins/profiles/avatars/starter-fox",
+      "thumbUrl": "/plugins/profiles/avatars/starter-fox",
+      "isStarter": true
     }
   ]
 }
@@ -1421,6 +1435,8 @@ Lists the available avatars. Any authenticated user may call this.
 | `avatars[].displayName` | string | Label for the picker. Free text — escape it on render. |
 | `avatars[].url` | string | Full-size image. |
 | `avatars[].thumbUrl` | string | Small variant — use this in grids. |
+| `avatars[].isStarter` | boolean | True for a built-in starter avatar. Its id is `starter-` and a word; it cannot be removed, only switched off as a set. One 256px WebP serves as both sizes. |
+| `starterAvatarsEnabled` | boolean | Whether the starter avatars are on. |
 
 ### `GET /plugins/profiles/avatars/{id}`
 
@@ -1428,7 +1444,7 @@ Lists the available avatars. Any authenticated user may call this.
 
 Serves a library image. Unauthenticated, for the same reason as `/image/{profileId}`: it is
 rendered as an `<img src>` and browsers do not attach the Authorization header to image
-requests. Returns `404` if the id is unknown or its file is missing.
+requests. Returns `404` if the id is unknown, its file is missing, or it is a starter avatar while those are switched off.
 
 | Query | Description |
 |---|---|
@@ -1493,6 +1509,7 @@ their own copy and are unaffected.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `disallowCustomAvatarUploads` | boolean | No | When true, profile pictures may only come from the library. Omit to leave unchanged. |
+| `enableStarterAvatars` | boolean | No | Offer the thirty built-in starter avatars. On by default. Omit to leave unchanged. |
 
 ---
 
@@ -1619,6 +1636,7 @@ between reading it and writing it back is silently reverted.
   "maxProfilesPerUser": 5,
   "requireMasterPinForCreation": true,
   "disallowCustomAvatarUploads": false,
+  "enableStarterAvatars": true,
   "defaultAskOnStartup": true,
   "defaultSwitcherLocation": "button",
   "indexInjectionMode": "middleware",
@@ -1633,6 +1651,7 @@ between reading it and writing it back is silently reverted.
 | `maxProfilesPerUser` | integer | No | Server-wide profile limit. 1–20. |
 | `requireMasterPinForCreation` | boolean | No | Require the account's PIN before creating a profile. |
 | `disallowCustomAvatarUploads` | boolean | No | Restrict profile pictures to the avatar library. |
+| `enableStarterAvatars` | boolean | No | Offer the thirty built-in starter avatars. On by default. |
 | `defaultAskOnStartup` | boolean | No | Default for accounts that have not chosen: show the gate on startup. |
 | `defaultSwitcherLocation` | string | No | `button` or `menu`. |
 | `indexInjectionMode` | string | No | `file`, `middleware` or `both`. |

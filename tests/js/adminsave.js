@@ -52,12 +52,13 @@ const serverConfig = {
 };
 
 async function run(fieldValues) {
-    const calls = { getPluginConfiguration: 0, updatePluginConfiguration: 0, ajax: [] };
+    const calls = { getPluginConfiguration: 0, updatePluginConfiguration: 0, ajax: [], libraryReloads: 0 };
 
     const fields = Object.assign({
         maxProfiles: '5',
         requireMasterPin: true,
         disallowCustomAvatars: false,
+        enableStarterAvatars: true,
         defaultAskOnStartup: true,
         defaultSwitcherLocation: 'button',
         indexInjectionMode: 'middleware',
@@ -113,9 +114,12 @@ async function run(fieldValues) {
     };
 
     // eslint-disable-next-line no-new-func
-    const factory = new Function('ApiClient', 'Dashboard', 'pluginId',
+    // The avatar grid is redrawn after a save, because the starter-avatar switch changes
+    // what it shows. Counted, so the redraw is asserted rather than merely survived.
+    const loadAvatarLibrary = function () { calls.libraryReloads++; };
+    const factory = new Function('ApiClient', 'Dashboard', 'pluginId', 'loadAvatarLibrary',
         source + '; return saveConfiguration;');
-    factory(ApiClient, Dashboard, 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9')(page);
+    factory(ApiClient, Dashboard, 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9', loadAvatarLibrary)(page);
 
     // The old version did its work inside `getPluginConfiguration().then(...)`, so its
     // PUT lands a microtask later than the call that starts it. Drain the queue before
@@ -167,6 +171,7 @@ const expected = [
     'maxProfilesPerUser',
     'requireMasterPinForCreation',
     'disallowCustomAvatarUploads',
+    'enableStarterAvatars',
     'defaultAskOnStartup',
     'defaultSwitcherLocation',
     'indexInjectionMode',
@@ -194,6 +199,17 @@ if (body) {
                !Object.prototype.hasOwnProperty.call(body, k));
         });
 }
+
+console.log('\n── The starter-avatar switch (issue #32) ───────────────────────');
+
+ok('it sends the switch as it stands', body && body.enableStarterAvatars === true);
+const offRun = await run({ enableStarterAvatars: false });
+ok('and sends it off when it is off', sent(offRun).enableStarterAvatars === false);
+ok('the saved message is the success one, not the failure one ("'
+   + ((base.calls.alert || {}).message || 'no alert') + '")',
+   !!base.calls.alert && /saved/i.test(base.calls.alert.message));
+ok('and the avatar grid is redrawn, since the switch changes what it shows',
+   base.calls.libraryReloads === 1);
 
 console.log('\n── The profile limit is clamped, not passed through ───────────');
 

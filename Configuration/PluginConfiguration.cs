@@ -30,6 +30,15 @@ namespace Jellyfin.Profiles.Configuration
         public bool DisallowCustomAvatarUploads { get; set; } = false;
 
         /// <summary>
+        /// Offers the thirty built-in <see cref="StarterAvatars"/> alongside
+        /// <see cref="AvatarLibrary"/>. On by default, including for a configuration saved by
+        /// an older version: the serializer leaves a missing element at this initializer.
+        /// Turning it off removes them from the picker; profiles that already chose one keep
+        /// their own copy.
+        /// </summary>
+        public bool EnableStarterAvatars { get; set; } = true;
+
+        /// <summary>
         /// How large profile pictures, library avatars and library artwork are stored. See
         /// <see cref="ImageQualities"/>. Applies to pictures saved from now on; pictures
         /// already stored keep the size they were saved at.

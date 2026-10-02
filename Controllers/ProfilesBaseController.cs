@@ -1921,6 +1921,36 @@ namespace Jellyfin.Profiles.Controllers
         protected bool CopyLibraryAvatar(string libraryAvatarId, string destFolder, string baseName)
         {
             var config = Plugin.Instance?.Configuration;
+
+            // A starter avatar is written out of the assembly. One file, no thumbnail: at
+            // 256px it already is thumbnail size, and FindImageFile falls back to the master.
+            if (StarterAvatars.IsStarterId(libraryAvatarId))
+            {
+                var starter = StarterAvatars.Find(libraryAvatarId);
+                if (starter == null || !StarterAvatars.Enabled(config))
+                {
+                    _logger.LogWarning(
+                        "ProfilesPlugin: Asked for starter avatar '{Avatar}', which is unknown or switched off.",
+                        libraryAvatarId);
+                    return false;
+                }
+
+                using var source = StarterAvatars.Open(starter.Value.Slug);
+                if (source == null)
+                {
+                    _logger.LogWarning("ProfilesPlugin: Starter avatar {Slug} is missing from the plugin assembly.", starter.Value.Slug);
+                    return false;
+                }
+
+                Directory.CreateDirectory(destFolder);
+                DeleteImageFiles(destFolder, baseName);
+                using (var target = System.IO.File.Create(Path.Combine(destFolder, baseName + StarterAvatars.Extension)))
+                {
+                    source.CopyTo(target);
+                }
+                return true;
+            }
+
             var item = config?.AvatarLibrary.FirstOrDefault(a =>
                 string.Equals(a.Id, libraryAvatarId, StringComparison.OrdinalIgnoreCase));
             if (item == null)

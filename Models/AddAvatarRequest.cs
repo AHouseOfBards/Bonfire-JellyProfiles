@@ -23,5 +23,10 @@ namespace Jellyfin.Profiles.Models
         /// setting unchanged.
         /// </summary>
         public bool? DisallowCustomAvatarUploads { get; set; }
+
+        /// <summary>
+        /// Whether the built-in starter avatars are offered. Null leaves the setting unchanged.
+        /// </summary>
+        public bool? EnableStarterAvatars { get; set; }
     }
 }

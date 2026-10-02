@@ -3584,13 +3584,26 @@ namespace Jellyfin.Profiles.Controllers
                 // resize happens on a canvas there, so this is the whole of the quality
                 // setting as far as a client is concerned; the server checks MaxBytes.
                 Image = DescribeImageSpec(config),
+                StarterAvatarsEnabled = StarterAvatars.Enabled(config),
+                // The administrator's own first: a household that went to the trouble of
+                // uploading pictures wants those seen before the built-in set.
                 Avatars = config.AvatarLibrary.Select(a => new
                 {
                     a.Id,
                     a.DisplayName,
                     Url = $"/plugins/profiles/avatars/{a.Id}",
-                    ThumbUrl = $"/plugins/profiles/avatars/{a.Id}?size=thumb"
-                }).ToList()
+                    ThumbUrl = $"/plugins/profiles/avatars/{a.Id}?size=thumb",
+                    IsStarter = false
+                }).Concat((StarterAvatars.Enabled(config) ? StarterAvatars.All : Enumerable.Empty<(string Slug, string DisplayName)>())
+                    .Select(s => new
+                    {
+                        Id = StarterAvatars.IdFor(s.Slug),
+                        s.DisplayName,
+                        // 256px already, which is thumbnail size; there is no second rendering.
+                        Url = $"/plugins/profiles/avatars/{StarterAvatars.IdFor(s.Slug)}",
+                        ThumbUrl = $"/plugins/profiles/avatars/{StarterAvatars.IdFor(s.Slug)}",
+                        IsStarter = true
+                    })).ToList()
             });
         }
 
@@ -3619,6 +3632,27 @@ namespace Jellyfin.Profiles.Controllers
         {
             var config = Plugin.Instance?.Configuration;
             if (config == null) return NotFound();
+
+            // A starter avatar is served from the assembly. Gone the moment the set is
+            // switched off, like any other avatar the administrator withdraws; profiles that
+            // chose one hold their own copy and are served from /image, not from here.
+            if (StarterAvatars.IsStarterId(id))
+            {
+                var starter = StarterAvatars.Find(id);
+                if (starter == null || !StarterAvatars.Enabled(config)) return NotFound();
+                var stream = StarterAvatars.Open(starter.Value.Slug);
+                if (stream == null)
+                {
+                    _logger.LogWarning("ProfilesPlugin: Starter avatar {Slug} is missing from the plugin assembly.", starter.Value.Slug);
+                    return NotFound();
+                }
+
+                Response.Headers["Cache-Control"] = "private, max-age=3600";
+                // Streamed from the manifest resource, which is already mapped memory, and
+                // answers If-None-Match itself: the validator changes with the plugin version.
+                return File(stream, StarterAvatars.ContentType, null,
+                    new Microsoft.Net.Http.Headers.EntityTagHeaderValue(StarterAvatars.ETagFor(starter.Value.Slug)));
+            }
 
             // Look the id up rather than trusting it as a filename — it arrives from the
             // URL, and joining unvalidated input to a path is how directory traversal works.
@@ -3763,6 +3797,8 @@ namespace Jellyfin.Profiles.Controllers
             {
                 if (request.DisallowCustomAvatarUploads.HasValue)
                     config.DisallowCustomAvatarUploads = request.DisallowCustomAvatarUploads.Value;
+                if (request.EnableStarterAvatars.HasValue)
+                    config.EnableStarterAvatars = request.EnableStarterAvatars.Value;
                 Plugin.Instance?.SaveConfiguration();
             }
 
@@ -3843,6 +3879,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.RequireMasterPinForCreation = request.RequireMasterPinForCreation.Value;
                 if (request.DisallowCustomAvatarUploads.HasValue)
                     config.DisallowCustomAvatarUploads = request.DisallowCustomAvatarUploads.Value;
+                if (request.EnableStarterAvatars.HasValue)
+                    config.EnableStarterAvatars = request.EnableStarterAvatars.Value;
                 if (request.DefaultAskOnStartup.HasValue)
                     config.DefaultAskOnStartup = request.DefaultAskOnStartup.Value;
                 if (request.DefaultSwitcherLocation != null)

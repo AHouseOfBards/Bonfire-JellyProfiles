@@ -35,10 +35,10 @@ profiles, each with its own watch history, parental controls, and library access
 - **Device limits.** Restrict a profile to particular devices.
 - **Your Bonfire.** Link accounts with a 6-character code so two households share one
   switcher screen.
-- **Avatar library.** Upload a set of pictures everyone on the server can pick from, and
-  optionally require them. Pictures are stored at standard, high or maximum quality, as
-  the administrator chooses. On a TV this is the only practical way to set a picture, since
-  there is no file browser.
+- **Avatar library.** Thirty starter avatars out of the box, plus any pictures you upload
+  for everyone on the server to pick from, optionally required. Pictures are stored at
+  standard, high or maximum quality, as the administrator chooses. On a TV this is the only
+  practical way to set a picture, since there is no file browser.
 - **Switcher style.** Each account picks the full-screen "Who's Watching?" gate or a
   **Switch Profile** entry in Jellyfin's own menu, under **Settings → Switcher Style**. It
   is a per-household choice, not a server setting.
@@ -128,3 +128,7 @@ Everything else, and why, is in [docs/clients.md](docs/clients.md).
 ## License
 
 MIT — see [LICENSE](LICENSE)
+
+The starter avatars are [Fluent Emoji](https://github.com/microsoft/fluentui-emoji) by
+Microsoft, used under the MIT License; the notice is in
+[Web/starter-avatars/LICENSE.txt](Web/starter-avatars/LICENSE.txt) and ships inside the plugin.
