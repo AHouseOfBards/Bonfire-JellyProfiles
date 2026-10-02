@@ -9,6 +9,12 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.6.3.2-beta  — 2026-10-02
+
+**Added**
+
+- Thirty starter avatars to pick from, on by default. Turn them off in Dashboard -> Bonfire -> Avatar Library. (#32)
+
 ## 1.6.3.1-beta  — 2026-10-02
 
 **Fixed**
