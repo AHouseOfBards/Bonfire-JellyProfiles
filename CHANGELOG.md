@@ -9,6 +9,12 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.6.3.5-beta  — 2026-10-03
+
+**Fixed**
+
+- On Android TV, choosing a profile and entering its PIN was still refused in 1.6.3.4.
+
 ## 1.6.3.4-beta  — 2026-10-03
 
 **Fixed**

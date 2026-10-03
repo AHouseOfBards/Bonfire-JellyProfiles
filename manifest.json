@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.6.3.5",
+        "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- On Android TV, choosing a profile and entering its PIN was still refused in 1.6.3.4.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.3.5/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-10-03T02:30:00Z"
+      },
+      {
         "version": "1.6.3.4",
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- On Android TV, choosing a profile and entering its PIN was refused in 1.6.3.3.",
         "targetAbi": "10.11.0.0",
