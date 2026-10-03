@@ -1069,6 +1069,65 @@ FromDevice(null);
 Ok("nor with no device at all", !Sign("kids", "4821").Success);
 
 Console.WriteLine();
+Console.WriteLine("── What an Android TV actually sends (1.6.3.4) ─────────────────");
+
+// The section above sends the television's plain id with the sign-in. Jellyfin Android
+// TV never does. Signing in by name it builds a one-off id out of the NAME typed:
+//
+//     // AuthenticationRepository.authenticateCredential
+//     jellyfin.createApi(server.address, deviceInfo = defaultDeviceInfo.forUser(username))
+//     // forUser(user: String) = copy(id = SHA-1("${id}+$user") as lowercase hex)
+//
+// 1.6.3.3 did not recognise that id, so every profile chosen from an Android TV sign-in
+// screen was refused as "a device no household has signed in on" — on a television that
+// had listed the household two seconds earlier. Replayed here from that server's log.
+static string Sha1Hex(string v) => Convert.ToHexString(
+    System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(v))).ToLowerInvariant();
+
+const string TV = "9a6dae35cc29c74f";     // the set's own id, from the log
+Ok("the derivation matches the production log: sha1(\"9a6dae35cc29c74f+Family\") is the id that set signed in with",
+   Sha1Hex(TV + "+Family") == "24053dca55e8da2b71665754eac6a3887ae1c6f7");
+
+devicesList.Clear();
+Remember(TV, MASTER);                       // recorded when the master signed in on it
+ResetAllowance(KID);
+
+FromDevice(Sha1Hex(TV + "+kids"));
+var fromCard = Sign("kids", "4821");
+Ok("choosing the \"kids\" card on that television opens the profile (" + fromCard.Username + ")",
+   fromCard.Success && fromCard.Username == "Bardkids");
+
+FromDevice(Sha1Hex(TV + "+guest"));
+var pinlessCard = Sign("guest", "");
+Ok("and a profile with no PIN opens there with an empty box (" + pinlessCard.Username + ")",
+   pinlessCard.Success && pinlessCard.Username == "Bardguest");
+
+// Typing the full account name hashes that name instead, and reaches Jellyfin with a
+// resolved user. A profile restricted to this television must still be let in.
+var kidRow = mappings.Cast<object>().First(m => (Guid)mappingType.GetProperty("ProfileUserId").GetValue(m) == KID);
+var kidAllowed = (System.Collections.IList)mappingType.GetProperty("AllowedDeviceIds").GetValue(kidRow);
+kidAllowed.Clear();
+kidAllowed.Add(TV);
+ResetAllowance(KID);
+FromDevice(Sha1Hex(TV + "+Bardkids"));
+var typed = Sign("Bardkids", "4821", MakeUser(KID, "Bardkids"));
+Ok("typing the full account name on the one television a profile is restricted to is let in",
+   typed.Success);
+
+// Nothing wider. Another set's derivation is another set, and a hash of a different name
+// than the one sent is not this sign-in.
+ResetAllowance(KID);
+FromDevice(Sha1Hex("0123456789abcdef" + "+Bardkids"));
+Ok("the same name typed on a television nobody has signed in on is still refused by the restriction",
+   !Sign("Bardkids", "4821", MakeUser(KID, "Bardkids")).Success);
+kidAllowed.Clear();
+
+FromDevice(Sha1Hex("0123456789abcdef" + "+kids"));
+Ok("a short name from a television no household uses still opens nothing", !Sign("kids", "4821").Success);
+FromDevice(Sha1Hex(TV + "+guest"));
+Ok("an id hashed from one name does not admit another", !Sign("kids", "4821").Success);
+
+Console.WriteLine();
 Console.WriteLine("── Read under the lock, not while sign-ins write (1.6.3.3) ────");
 
 // The provider walked Mappings and KnownDevices unlocked, and a television signing in is

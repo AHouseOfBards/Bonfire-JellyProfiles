@@ -117,6 +117,56 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
+        /// The recorded device a sign-in came from, when the client built the id it signed
+        /// in with out of the <i>name being signed in as</i> — or the id as sent, otherwise.
+        ///
+        /// <para><b>Why.</b> Jellyfin Android TV signs in by name through a one-off device id:</para>
+        ///
+        /// <code>
+        /// // AuthenticationRepository.authenticateCredential
+        /// jellyfin.createApi(server.address, deviceInfo = defaultDeviceInfo.forUser(username))
+        /// // forUser(user: String) = copy(id = SHA-1("${id}+$user") as lowercase hex)
+        /// </code>
+        ///
+        /// <para>So choosing the "Family" card on a television whose id is
+        /// <c>9a6dae35cc29c74f</c> signs in as <c>sha1("9a6dae35cc29c74f+Family")</c> — an id
+        /// recorded nowhere, derived from a <i>name</i> rather than an account id, so neither
+        /// <see cref="FindMaster"/>'s forward derivation nor <see cref="IsSameDevice"/> could
+        /// place it. 1.6.3.3 refused every profile chosen from an Android TV sign-in screen
+        /// with "no household has signed in on" this device. Taken from a production log
+        /// (2026-10-02), where the television had listed that household seconds earlier.</para>
+        ///
+        /// <para>Applied backwards from the records: for every device a household has signed
+        /// in on, what would its id be had this name been typed on it? One hash per recorded
+        /// device, on a sign-in — not on any hot path. Only a 40-character hex id can be a
+        /// SHA-1, so anything else is returned untouched without hashing at all.</para>
+        /// </summary>
+        public static string? ResolveSignInDevice(PluginConfiguration? config, string? deviceId, string? username)
+        {
+            var sent = deviceId?.Trim();
+            if (config?.KnownDevices == null || string.IsNullOrEmpty(sent) || string.IsNullOrEmpty(username)) return sent;
+
+            // Already an id we hold: nothing to resolve.
+            if (Lookup(config, sent) != Guid.Empty) return sent;
+
+            if (sent.Length != 40 || !sent.All(Uri.IsHexDigit)) return sent;
+
+            foreach (var row in config.KnownDevices.ToList())
+            {
+                var recorded = row.DeviceId?.Trim();
+                if (string.IsNullOrEmpty(recorded) || row.MasterUserId == Guid.Empty) continue;
+
+                // The name exactly as sent: the client hashed the string it was about to send.
+                if (string.Equals(Sha1Hex(recorded + "+" + username), sent, StringComparison.OrdinalIgnoreCase))
+                {
+                    return recorded;
+                }
+            }
+
+            return sent;
+        }
+
+        /// <summary>
         /// Whether two device ids are one television, by the three derivations the clients
         /// this plugin supports apply to their own id once somebody is signed in.
         ///

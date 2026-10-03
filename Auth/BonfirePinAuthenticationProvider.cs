@@ -165,7 +165,10 @@ namespace Jellyfin.Profiles.Auth
             // Only ever reaches a sub-profile, and the emergency disable turns PIN entry off.
             if (Plugin.IsPanicDisabled) throw Decline();
 
-            var deviceId = RequestDevice.Current;
+            // The id this sign-in came from, resolved to the television's recorded one when
+            // the app derived it from the name typed. See DeviceRegistry.ResolveSignInDevice.
+            var sent = RequestDevice.Current;
+            var deviceId = DeviceRegistry.ResolveSignInDevice(config, sent, username);
             var master = DeviceRegistry.FindMaster(config, deviceId);
             if (master == Guid.Empty)
             {
@@ -173,7 +176,7 @@ namespace Jellyfin.Profiles.Auth
                     "ProfilesPlugin: sign-in as {Name} from device {DeviceId}, which no household has "
                     + "signed in on, so there is no way to tell which profile was meant.",
                     username,
-                    string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId);
+                    string.IsNullOrEmpty(sent) ? "(none sent)" : sent);
                 throw Decline();
             }
 
@@ -199,7 +202,9 @@ namespace Jellyfin.Profiles.Auth
                 throw Decline();
             }
 
-            return Authenticate(user.Username, password, user);
+            // The device as resolved from the name the app hashed — "Family", not the
+            // account's system username, which the app never saw.
+            return AuthenticateResolved(password, user, config, deviceId);
         }
 
         public Task<ProviderAuthenticationResult> Authenticate(string username, string password, User? resolvedUser)
@@ -207,11 +212,24 @@ namespace Jellyfin.Profiles.Auth
             // No user means Jellyfin could not resolve the name — "kids" off a sign-in screen
             // rather than the system username. This is the only overload Jellyfin calls, so
             // the translation has to be reached from here. It resolves within the household
-            // of the device asking, and comes back through this method with the user it found.
+            // of the device asking, and comes back with the user it found.
             if (resolvedUser == null) return Authenticate(username, password);
 
             // One snapshot for the whole decision: see ReadConfigSnapshot.
             var config = Controllers.ProfilesBaseController.ReadConfigSnapshot();
+
+            // A name typed in full ("Bard_Family") is hashed into the device id the same way.
+            var deviceId = DeviceRegistry.ResolveSignInDevice(config, RequestDevice.Current, username);
+            return AuthenticateResolved(password, resolvedUser, config, deviceId);
+        }
+
+        /// <summary>
+        /// The decision for a resolved account, against one configuration snapshot and the
+        /// device the sign-in came from (already resolved by the caller).
+        /// </summary>
+        private Task<ProviderAuthenticationResult> AuthenticateResolved(
+            string password, User resolvedUser, PluginConfiguration? config, string? deviceId)
+        {
             var mapping = FindSubProfile(config, resolvedUser.Id);
 
             // A master with a PIN of its own, which is a different case entirely: it keeps a
@@ -281,7 +299,7 @@ namespace Jellyfin.Profiles.Auth
             // the two halves of a rule drift apart.
             var access = Controllers.ProfilesBaseController.EvaluateDeviceRestriction(
                 mapping,
-                RequestDevice.Current,
+                deviceId,
                 config?.KnownDevices,
                 config?.Mappings);
 
@@ -292,7 +310,7 @@ namespace Jellyfin.Profiles.Auth
                     "ProfilesPlugin: refused a client sign-in to profile {ProfileId} from device "
                     + "{DeviceId} ({Reason}).",
                     mapping.ProfileUserId,
-                    string.IsNullOrEmpty(RequestDevice.Current) ? "(none sent)" : RequestDevice.Current,
+                    string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId,
                     access);
 
                 // Declined with the message every other refusal carries, so a response
@@ -323,7 +341,6 @@ namespace Jellyfin.Profiles.Auth
                 // box does anything would otherwise be let in.
                 if (!string.IsNullOrEmpty(password)) throw Decline();
 
-                var deviceId = RequestDevice.Current;
                 var seenFor = DeviceRegistry.FindMaster(config, deviceId);
 
                 if (seenFor == Guid.Empty || seenFor != mapping.MasterUserId)
