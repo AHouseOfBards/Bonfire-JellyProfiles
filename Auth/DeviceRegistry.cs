@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text;
 using System.Linq;
@@ -151,20 +152,87 @@ namespace Jellyfin.Profiles.Auth
 
             if (sent.Length != 40 || !sent.All(Uri.IsHexDigit)) return sent;
 
-            foreach (var row in config.KnownDevices.ToList())
-            {
-                var recorded = row.DeviceId?.Trim();
-                if (string.IsNullOrEmpty(recorded) || row.MasterUserId == Guid.Empty) continue;
+            // The television's plain id is the one thing that would let us check this hash —
+            // and it is never recorded. Android TV sends it from its sign-in screen only:
+            // signing in uses the name-derived id above, and the session afterwards uses
+            // sha1(id + "+" + accountId), which is what the session listener writes down.
+            // 1.6.3.4 searched the records alone and so could never succeed on a real set.
+            // The sign-in screen's own request is where the plain id is seen, so those are
+            // remembered (NoteSignInScreen) and tried first; the records second.
+            var candidates = RecentSignInScreens()
+                .Concat(config.KnownDevices.ToList()
+                    .Where(r => r.MasterUserId != Guid.Empty)
+                    .Select(r => r.DeviceId?.Trim()))
+                .Where(id => !string.IsNullOrEmpty(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
 
+            foreach (var candidate in candidates)
+            {
                 // The name exactly as sent: the client hashed the string it was about to send.
-                if (string.Equals(Sha1Hex(recorded + "+" + username), sent, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(Sha1Hex(candidate + "+" + username), sent, StringComparison.OrdinalIgnoreCase))
                 {
-                    return recorded;
+                    return candidate;
                 }
             }
 
             return sent;
         }
+
+        // ── sign-in screens recently seen ────────────────────────────────────────────
+
+        /// <summary>
+        /// Plain device ids whose sign-in screen was recently answered with a household's
+        /// profiles, and when. In memory only: this is evidence for the sign-in that follows a
+        /// list, seconds later, not a record. Bounded, and old entries lapse.
+        /// </summary>
+        private static readonly ConcurrentDictionary<string, DateTime> _signInScreens =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>How long a sign-in screen is remembered. A set left on the PIN field
+        /// overnight asks for the list again when it wakes.</summary>
+        internal static readonly TimeSpan SignInScreenMemory = TimeSpan.FromHours(12);
+
+        internal const int MaxSignInScreens = 512;
+
+        /// <summary>
+        /// Notes that this device's sign-in screen was offered a household's profiles. Called
+        /// by <see cref="PublicUserInjector.ResolveHousehold"/> once it has placed the device
+        /// in a household — never for a device it could not place, so a stranger's request
+        /// adds nothing a sign-in could use.
+        /// </summary>
+        public static void NoteSignInScreen(string? deviceId)
+        {
+            var id = deviceId?.Trim();
+            if (string.IsNullOrEmpty(id)) return;
+
+            var now = DateTime.UtcNow;
+            _signInScreens[id] = now;
+
+            if (_signInScreens.Count > MaxSignInScreens)
+            {
+                foreach (var stale in _signInScreens
+                    .OrderBy(kv => kv.Value)
+                    .Take(_signInScreens.Count - MaxSignInScreens)
+                    .Select(kv => kv.Key)
+                    .ToList())
+                {
+                    _signInScreens.TryRemove(stale, out _);
+                }
+            }
+        }
+
+        private static IEnumerable<string> RecentSignInScreens()
+        {
+            var cutoff = DateTime.UtcNow - SignInScreenMemory;
+            return _signInScreens
+                .Where(kv => kv.Value >= cutoff)
+                .OrderByDescending(kv => kv.Value)
+                .Select(kv => kv.Key)
+                .ToList();
+        }
+
+        /// <summary>For harnesses: forget every sign-in screen.</summary>
+        internal static void ForgetSignInScreens() => _signInScreens.Clear();
 
         /// <summary>
         /// Whether two device ids are one television, by the three derivations the clients

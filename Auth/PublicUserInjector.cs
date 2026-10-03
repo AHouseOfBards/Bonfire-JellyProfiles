@@ -163,6 +163,10 @@ namespace Jellyfin.Profiles.Auth
                             && IsOfferedOn(m, deviceId, config))
                 .Select(m => m.ProfileUserId));
 
+            // The sign-in that follows hashes the name typed with THIS id, and this id is
+            // recorded nowhere. See DeviceRegistry.ResolveSignInDevice.
+            DeviceRegistry.NoteSignInScreen(deviceId);
+
             logger?.LogInformation(
                 "ProfilesPlugin: user list requested by device {DeviceId}; resolved via {Source} to the "
                 + "household of {MasterId} with {Count} member(s).",

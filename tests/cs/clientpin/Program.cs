@@ -1069,7 +1069,7 @@ FromDevice(null);
 Ok("nor with no device at all", !Sign("kids", "4821").Success);
 
 Console.WriteLine();
-Console.WriteLine("── What an Android TV actually sends (1.6.3.4) ─────────────────");
+Console.WriteLine("── What an Android TV actually sends (1.6.3.5) ─────────────────");
 
 // The section above sends the television's plain id with the sign-in. Jellyfin Android
 // TV never does. Signing in by name it builds a one-off id out of the NAME typed:
@@ -1081,6 +1081,13 @@ Console.WriteLine("── What an Android TV actually sends (1.6.3.4) ───�
 // 1.6.3.3 did not recognise that id, so every profile chosen from an Android TV sign-in
 // screen was refused as "a device no household has signed in on" — on a television that
 // had listed the household two seconds earlier. Replayed here from that server's log.
+//
+// And 1.6.3.4 did not either, because this section then RECORDED the set's plain id and
+// checked the hash against it. A real set never causes that record. Its plain id is sent
+// only by the sign-in screen; it signs in as sha1(id + "+" + name) and browses as
+// sha1(id + "+" + accountId), and those two are all the session listener ever writes. So the
+// fixture below is exactly what Bonfire holds for the television in that log, and the
+// sequence is the app's: the list from the sign-in screen, then the sign-in.
 static string Sha1Hex(string v) => Convert.ToHexString(
     System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(v))).ToLowerInvariant();
 
@@ -1088,10 +1095,32 @@ const string TV = "9a6dae35cc29c74f";     // the set's own id, from the log
 Ok("the derivation matches the production log: sha1(\"9a6dae35cc29c74f+Family\") is the id that set signed in with",
    Sha1Hex(TV + "+Family") == "24053dca55e8da2b71665754eac6a3887ae1c6f7");
 
+// What the session listener recorded when the master signed in on this set by name and
+// then browsed: never the plain id.
 devicesList.Clear();
-Remember(TV, MASTER);                       // recorded when the master signed in on it
+Remember(Sha1Hex(TV + "+bard"), MASTER);
+Remember(Sha1Hex(TV + "+" + MASTER), MASTER);
 ResetAllowance(KID);
 
+var registry = asm.GetType("Jellyfin.Profiles.Auth.DeviceRegistry", true);
+registry.GetMethod("ForgetSignInScreens", Any)?.Invoke(null, null);
+
+// No sign-in screen seen: nothing ties this hash to any household. Refused, as it must be.
+FromDevice(Sha1Hex(TV + "+kids"));
+Ok("a name-derived id from a set whose sign-in screen was never seen places no household",
+   !Sign("kids", "4821").Success);
+
+// The sign-in screen asks for the list with the plain id — through the real code path.
+var injectorType = asm.GetType("Jellyfin.Profiles.Auth.PublicUserInjector", true);
+var listFlag = cfgType.GetProperty("EnableClientProfileList");
+var listWas = (bool)listFlag.GetValue(config);
+listFlag.SetValue(config, true);
+var listed = (System.Collections.Generic.IEnumerable<Guid>)injectorType.GetMethod("ResolveHousehold", Any)
+    .Invoke(null, new object[] { "MediaBrowser Client=\"Jellyfin Android TV\", DeviceId=\"" + TV + "\"", null, null, config, null });
+listFlag.SetValue(config, listWas);
+Ok("the sign-in screen, asking with the plain id, is offered the household", listed.Contains(KID));
+
+ResetAllowance(KID);
 FromDevice(Sha1Hex(TV + "+kids"));
 var fromCard = Sign("kids", "4821");
 Ok("choosing the \"kids\" card on that television opens the profile (" + fromCard.Username + ")",
@@ -1107,7 +1136,7 @@ Ok("and a profile with no PIN opens there with an empty box (" + pinlessCard.Use
 var kidRow = mappings.Cast<object>().First(m => (Guid)mappingType.GetProperty("ProfileUserId").GetValue(m) == KID);
 var kidAllowed = (System.Collections.IList)mappingType.GetProperty("AllowedDeviceIds").GetValue(kidRow);
 kidAllowed.Clear();
-kidAllowed.Add(TV);
+kidAllowed.Add(Sha1Hex(TV + "+" + MASTER));     // the row an administrator sees for this set
 ResetAllowance(KID);
 FromDevice(Sha1Hex(TV + "+Bardkids"));
 var typed = Sign("Bardkids", "4821", MakeUser(KID, "Bardkids"));
