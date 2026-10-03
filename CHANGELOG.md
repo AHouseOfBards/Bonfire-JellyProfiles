@@ -9,6 +9,42 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.6.4  — 2026-10-03
+
+**Fixed**
+
+- Security: any account could run script in an administrator's browser through the Bonfire settings page. Please update.
+- Security: a PIN typed into a TV or app sign-in screen could be guessed with no limit.
+- Security: someone using a profile in a browser could take over the main account behind it.
+- On Android TV, Roku and other TV apps, choosing a profile and entering its PIN was refused.
+- A profile limited to one TV could be missing from that TV's sign-in screen.
+- Skipping Quick Connect on known TVs also removed it for other people with the same TV model.
+- Signing in on a TV could occasionally fail with a server error.
+- Creating a profile could fail with "The supplied value is invalid". [#33]
+- The profile picker ran off the bottom of the screen on a TV. [#31]
+- A profile kept its old rating after its account's rating was lowered.
+- Clearing your PIN, or using the emergency disable code, could stop your password working.
+- An account with a PIN could not change its Jellyfin password.
+- Creating two profiles at once could go over the profile limit.
+- The Signed-in devices list in the dashboard could fail to load.
+- The create form showed only four libraries at a time.
+
+**Changed**
+
+- A profile keeps every restriction set on its account, such as remote access, schedules and bitrate.
+- Profiles in another household's Bonfire need a PIN, unless their owner allows switching on the home network.
+- Hidden Bonfire profiles can no longer be opened.
+- Removing someone from your Bonfire changes its code, so they cannot rejoin with the old one.
+- Reopening the app keeps the profile you were using. Going back to your main profile asks for its PIN.
+- Manage Profiles needs your main profile open.
+
+**Added**
+
+- Thirty starter avatars to pick from, on by default. Turn them off in Dashboard -> Bonfire -> Avatar Library. [#32]
+- Picture quality for profile pictures and avatars: Dashboard -> Bonfire -> Picture quality.
+- A New code button for your Bonfire.
+- A loader for the Samsung Tizen app, so Bonfire updates reach the TV without rebuilding the app. [#16]
+
 ## 1.6.3.5-beta  — 2026-10-03
 
 **Fixed**
