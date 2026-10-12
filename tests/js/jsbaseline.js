@@ -8,7 +8,8 @@
  * switcher, no message. That is the shape of the defect that made 1.5.2 and 1.5.3
  * dead on arrival, arriving by a different door.
  *
- * The floor is Chromium 68 (webOS 5, the LG set in issue #16). Tizen 6.0 is 76.
+ * The floor is Chromium 53: webOS 4.5, the 2019 LG sets. webOS 5 (the LG set in
+ * issue #16) is 68, Tizen 6.0 is 76.
  * `node --check` cannot answer this: it runs today's V8, where every one of these
  * parses perfectly.
  *
@@ -20,7 +21,7 @@
 const fs = require('fs');
 const L = require('./_lib');
 
-const FLOOR = 68;
+const FLOOR = 53;
 
 let pass = 0;
 const fails = [];
@@ -87,8 +88,18 @@ const FEATURES = [
     // object literals: 74 false positives, which is how a check gets ignored.
     ['private class members  #x',    /this\.#\w/g,                   74],
     ['exponent assignment  **=',     /\*\*=/g,                       52],
+    ['async functions',              /\basync\s+(function\b|\(|[\w$]+\s*(=>|\())/g, 55],
+    ['optional catch binding',       /\bcatch\s*\{/g,                 66],
+    ['trailing comma in a call  f(a,)', /,\s*\)/g,                     58],
+    ['regex lookbehind  (?<=',       /\(\?<[=!]/g,                   62],
+    ['regex named groups  (?<x>',    /\(\?<[A-Za-z]/g,               64],
+    // Object spread and rest are counted separately, below: `...` is also array and call
+    // spread, which are Chromium 46, and only the enclosing bracket tells them apart.
 
     // Library and DOM. These throw where they are called.
+    ['Object.entries / values',      /Object\.(entries|values)\b/g,  54],
+    ['String.padStart / padEnd',     /\.(padStart|padEnd)\s*\(/g,    57],
+    ['Promise.prototype.finally',    /\.finally\s*\(/g,               63],
     ['String.replaceAll',            /\.replaceAll\s*\(/g,           85],
     ['Array/String .at()',           /\.at\s*\(\s*-?\d/g,            92],
     ['Array.flat / flatMap',         /\.(flat|flatMap)\s*\(/g,       69],
@@ -109,10 +120,26 @@ const FEATURES = [
     ['scrollIntoView(options)',      /\.scrollIntoView\s*\(\s*\{/g,  61],
 ];
 
+/// `...` whose innermost open bracket is a brace: object spread or rest, Chromium 60.
+function objectSpreads(code) {
+    const open = [];
+    let hits = 0;
+    for (let i = 0; i < code.length; i++) {
+        const c = code[i];
+        if (c === '{' || c === '[' || c === '(') open.push(c);
+        else if (c === '}' || c === ']' || c === ')') open.pop();
+        else if (code.startsWith('...', i)) {
+            if (open[open.length - 1] === '{') hits++;
+            i += 2;
+        }
+    }
+    return hits;
+}
+
 // ── the detector has to be able to go red ──────────────────────────────────
 // A baseline check that only ever runs over clean source is indistinguishable from one
-// that matches nothing at all. Three of the patterns are put to a file that really
-// carries the feature, with the same stripper in front of them.
+// that matches nothing at all. Three of the patterns, and the object spread count, are
+// put to a file that really carries the feature, with the same stripper in front of them.
 console.log();
 console.log('── The detector itself ────────────────────────────────────────');
 {
@@ -135,6 +162,9 @@ console.log('── The detector itself ─────────────�
     ok('replaceAll is detected in code', hit('String.replaceAll') === 1);
     ok('and none of the three is counted inside a comment or a string',
         hit('optional chaining  ?.') === 1 && hit('nullish coalescing  ??') === 1);
+    ok('object spread is detected, and array and call spread are not',
+        objectSpreads(stripCommentsAndStrings(
+            'const f = { a: 1, ...b }; const g = [...b]; h(...b); const { x, ...rest } = f;')) === 2);
 }
 
 // ── the client ─────────────────────────────────────────────────────────────
@@ -166,6 +196,9 @@ for (const m of code.matchAll(/\bclass\s+\w+[^{]*\{/g)) {
     }
     classBodies.push(code.slice(start, i - 1));
 }
+const spreads = objectSpreads(code);
+if (spreads) over.push(`object spread / rest needs Chromium 60, ${spreads} use(s)`);
+
 const fieldy = classBodies.filter(b => /^\s*(static\s+)?#?[\w$]+\s*=[^=]/m.test(b));
 if (fieldy.length) over.push(`class fields need Chromium 74, in ${fieldy.length} class body/ies`);
 ok('the client declares no classes, so no class-field syntax to carry',
@@ -187,6 +220,8 @@ if (fs.existsSync(dash)) {
         const hits = (dashCode.match(re) || []).length;
         if (hits && since > FLOOR) dashOver.push(`${name} (${since}) x${hits}`);
     }
+    const dashSpreads = objectSpreads(dashCode);
+    if (dashSpreads) dashOver.push(`object spread / rest (60) x${dashSpreads}`);
     console.log('        dashboard, for information: '
         + (dashOver.length ? dashOver.join('; ') : 'also nothing newer'));
 }

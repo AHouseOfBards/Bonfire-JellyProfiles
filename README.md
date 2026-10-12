@@ -75,7 +75,7 @@ If the switcher does not appear, or the settings page reports a problem, see
 
 - Jellyfin Web, and Jellyfin for Android
 - Jellyfin Media Player (Windows, macOS, Linux)
-- LG webOS
+- LG webOS 4.5 (2019 sets) and later
 - Samsung Tizen, with the Bonfire loader added to the `.wgt` once — see
   [TROUBLESHOOTING.md](TROUBLESHOOTING.md#samsung-tizen)
 
