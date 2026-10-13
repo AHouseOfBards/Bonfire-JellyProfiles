@@ -533,6 +533,12 @@
             };
         },
 
+        /// Object.assign rather than object spread: spread is Chromium 60, and webOS 4.5
+        /// (Chromium 53) rejects the whole file over it.
+        jsonHeaders: function (token) {
+            return Object.assign({ 'Content-Type': 'application/json' }, this.getAuthHeaders(token));
+        },
+
         /// A one-field dialog. Used where a value has to be typed rather than chosen, which
         /// so far is renaming a device.
         ///
@@ -3292,10 +3298,7 @@
                         const entry = state[id];
                         return fetch(ApiClient.getUrl("plugins/profiles/library-artwork"), {
                             method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                ...this.getAuthHeaders(masterState ? masterState.token : ApiClient.accessToken())
-                            },
+                            headers: this.jsonHeaders(masterState ? masterState.token : ApiClient.accessToken()),
                             body: JSON.stringify({
                                 profileId: targetProfileId,
                                 libraryId: id,
@@ -3617,8 +3620,11 @@
                 const h = window.innerHeight || document.documentElement.clientHeight;
                 // Only scroll when it is actually out of the viewport — an unconditional
                 // scrollIntoView jerks the picker around on every arrow press.
+                // The boolean form scrolls like { block: 'nearest' } for an element out of
+                // view on one side; the options object is Chromium 61 and reads as `true`
+                // before that.
                 if (r.top < 0 || r.bottom > h) {
-                    el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                    el.scrollIntoView(r.top < 0);
                 }
             } catch (e) { /* no layout information — focus alone will do */ }
         },
@@ -4439,12 +4445,9 @@
                 // Silent verify — no error shown on failure, user just keeps typing
                 fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...this.getAuthHeaders(masterState.token)
-                    },
+                    headers: this.jsonHeaders(masterState.token),
                     body: JSON.stringify({ profileId: profileId, pin: currentValue }),
-                    ...(verifyController ? { signal: verifyController.signal } : {})
+                    signal: verifyController ? verifyController.signal : undefined
                 })
                 .then(res => {
                     if (res.status === 401) {
@@ -4552,12 +4555,9 @@
                 // Silent verify — no error on failure, user keeps typing
                 fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...this.getAuthHeaders(masterState.token)
-                    },
+                    headers: this.jsonHeaders(masterState.token),
                     body: JSON.stringify({ profileId: masterProfile.profileUserId, pin: currentValue }),
-                    ...(verifyController ? { signal: verifyController.signal } : {})
+                    signal: verifyController ? verifyController.signal : undefined
                 })
                 .then(res => {
                     if (res.status === 401) {
@@ -4587,10 +4587,7 @@
                 verifyInProgress = true;
                 fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...this.getAuthHeaders(masterState.token)
-                    },
+                    headers: this.jsonHeaders(masterState.token),
                     body: JSON.stringify({ profileId: masterProfile.profileUserId, pin: pin })
                 })
                 .then(res => {
@@ -4674,10 +4671,7 @@
 
             fetch(url, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders(masterState.token)
-                },
+                headers: this.jsonHeaders(masterState.token),
                 body: JSON.stringify({ profileId: profileId, pin: pin })
             })
             .then(res => {
@@ -5819,10 +5813,7 @@
                     const createUrl = apiClient.getUrl('plugins/profiles/create');
                     fetch(createUrl, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...this.getAuthHeaders(masterState.token)
-                        },
+                        headers: this.jsonHeaders(masterState.token),
                         body: JSON.stringify({
                             profileName: name,
                             pin: pin,
@@ -6171,10 +6162,7 @@
                             const delDevUrl = apiClient.getUrl('plugins/profiles/devices/delete');
                             fetch(delDevUrl, {
                                 method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    ...this.getAuthHeaders(masterState.token)
-                                },
+                                headers: this.jsonHeaders(masterState.token),
                                 body: JSON.stringify({ deviceId: devId })
                             })
                             .then(res => {
@@ -6223,10 +6211,7 @@
                     // binds it as an explicit null, which is a different thing from absent.
                     const init = {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...this.getAuthHeaders(masterState.token)
-                        }
+                        headers: this.jsonHeaders(masterState.token)
                     };
                     if (body !== null && body !== undefined) init.body = JSON.stringify(body);
 
@@ -6271,10 +6256,7 @@
                         const url = apiClient.getUrl('plugins/profiles/devices/merge-duplicates');
                         fetch(url, {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                ...this.getAuthHeaders(masterState.token)
-                            }
+                            headers: this.jsonHeaders(masterState.token)
                         })
                         .then(res => res.json())
                         .then(data => {
@@ -6411,10 +6393,7 @@
                     const updateUrl = apiClient.getUrl('plugins/profiles/update');
                     fetch(updateUrl, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...this.getAuthHeaders(masterState.token)
-                        },
+                        headers: this.jsonHeaders(masterState.token),
                         body: JSON.stringify({
                             profileId: profile.profileUserId,
                             profileName: name,
@@ -6674,10 +6653,7 @@
                 errDiv.style.display = 'none';
                 return fetch(apiClient.getUrl('plugins/profiles/preferences'), {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...this.getAuthHeaders(masterState.token)
-                    },
+                    headers: this.jsonHeaders(masterState.token),
                     body: JSON.stringify({ askOnStartup: askOnStartup, switcherLocation: location })
                 })
                 .then(res => res.ok ? res.json() : Promise.reject(new Error(t('errors.couldNotSaveThat'))))
@@ -6799,10 +6775,7 @@
 
             fetch(url, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders(masterState.token)
-                },
+                headers: this.jsonHeaders(masterState.token),
                 body: JSON.stringify({ 
                     profileId: profileId,
                     masterPin: this.masterPin
@@ -7005,7 +6978,7 @@
                     this.showConfirmDialog(t('bonfire.kickConfirmTitle'), t('bonfire.kickConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/kick'), {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) },
+                            headers: this.jsonHeaders(masterToken),
                             body: JSON.stringify({ memberId: mId })
                         })
                         .then(res => {
@@ -7026,7 +6999,7 @@
                     this.showConfirmDialog(t('bonfire.newCodeConfirmTitle'), t('bonfire.newCodeConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/regenerate-code'), {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) }
+                            headers: this.jsonHeaders(masterToken)
                         })
                         .then(res => {
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
@@ -7128,7 +7101,7 @@
                     joinBtn.textContent = t('bonfire.joining');
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/join'), {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) },
+                        headers: this.jsonHeaders(masterToken),
                         body: JSON.stringify({ code: code })
                     })
                     .then(res => {
@@ -7218,10 +7191,7 @@
 
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/settings'), {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...this.getAuthHeaders(masterToken)
-                        },
+                        headers: this.jsonHeaders(masterToken),
                         body: JSON.stringify(body)
                     })
                     .then(res => {

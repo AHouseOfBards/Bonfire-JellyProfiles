@@ -15,7 +15,7 @@ library artwork, Bonfire sharing.
 | Jellyfin Web | Desktop and mobile browsers. |
 | Jellyfin for Android | A wrapper around your server's web client. |
 | Jellyfin Media Player | Windows, macOS, Linux. |
-| LG webOS | Loads your server's web client into a frame. |
+| LG webOS | Loads your server's web client into a frame. webOS 4.5 (2019 sets) and later. |
 | Samsung Tizen | With the Bonfire loader added to the `.wgt` once; it loads Bonfire from your server, so updates need no rebuild. See [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#samsung-tizen). |
 
 ## Selection only

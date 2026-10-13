@@ -48,9 +48,10 @@ stylesheet template literal produced valid JavaScript that threw on the first ca
 startup path instead of reading it.
 
 It is also the wrong engine. `node --check` runs today's V8, where `?.` parses happily;
-webOS 5 is Chromium 68 and one token it cannot parse takes the **whole file** down — no
-gate, no switcher, no message. `tests/js/jsbaseline.js` holds the floor, and its first
-four assertions are the detector proving it can go red.
+webOS 4.5 is Chromium 53 and one token it cannot parse takes the **whole file** down — no
+gate, no switcher, no message. Object spread `{ ...x }` is the one that is easy to reach
+for: it is Chromium 60, so use `Object.assign`. `tests/js/jsbaseline.js` holds the floor,
+and its first five assertions are the detector proving it can go red.
 
 ## The rules
 

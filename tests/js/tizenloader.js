@@ -40,8 +40,8 @@ const src = fs.readFileSync(LOADER, 'utf8');
 const baseline = spawnSync(process.execPath, [path.join(__dirname, 'jsbaseline.js'), LOADER], { encoding: 'utf8' });
 ok('nothing in it is newer than the engine floor jsbaseline holds', baseline.status === 0);
 if (baseline.status !== 0) console.log(baseline.stdout.split('\n').filter(l => /FAIL/.test(l)).join('\n'));
-// jsbaseline's floor is Chromium 68; Tizen 4 is 56. The gap is ES2017 and later, so the
-// loader is held to ES5 outright: no arrow, no let/const, no template, no class.
+// Tizen 4 is Chromium 56, above jsbaseline's floor. The loader is held to ES5 regardless,
+// a stricter bar it has always met: no arrow, no let/const, no template, no class.
 const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '').replace(/'(?:[^'\\]|\\.)*'/g, "''");
 ok('and it is plain ES5, which parses on Tizen 4 (Chromium 56)',
    !/=>|\blet\b|\bconst\b|`|\bclass\b|\basync\b|\bawait\b|\?\.|\?\?/.test(code));
