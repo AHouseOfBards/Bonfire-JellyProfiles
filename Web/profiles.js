@@ -533,6 +533,12 @@
             };
         },
 
+        /// Object.assign rather than object spread: spread is Chromium 60, and webOS 4.5
+        /// (Chromium 53) rejects the whole file over it.
+        jsonHeaders: function (token) {
+            return Object.assign({ 'Content-Type': 'application/json' }, this.getAuthHeaders(token));
+        },
+
         /// A one-field dialog. Used where a value has to be typed rather than chosen, which
         /// so far is renaming a device.
         ///
@@ -886,6 +892,26 @@
             }
 
             return { masterUserId: stored.masterUserId, token: token };
+        },
+
+        /// Makes the stored master agree with a list the server has just sent.
+        ///
+        /// The grid groups profiles by this id and the manage check compares against it,
+        /// so when it is missing the household's own profiles are drawn as a linked
+        /// "<master>'s Bonfire" and Manage Profiles tells the master to open the master.
+        /// Seen on the iPad app. The list is the server's answer to "whose household is
+        /// this" for the session in use — the same rule fetchAndRenderProfiles applies when
+        /// it stores the id — so it wins. Only an id is stored, and every action is still
+        /// authorised by the server.
+        ///
+        /// Safe only because no list from a previous account survives to be rendered: the
+        /// sign-in screen drops the in-memory one (evaluateFloatingBubbleVisibility).
+        _syncMasterFromProfiles: function (masterProfile) {
+            if (!masterProfile || !masterProfile.profileUserId) return;
+            const st = this.readMasterState();
+            if (!st || this.normalizeGuid(st.masterUserId) !== this.normalizeGuid(masterProfile.profileUserId)) {
+                this.writeMasterState(masterProfile.profileUserId);
+            }
         },
 
         /// Whether the session in use is the household's master account itself.
@@ -2032,7 +2058,18 @@
                 path.includes('dashboard')       || path.includes('/admin')
             );
 
-            const viewType = (isActivePlayer || hasOsdDom) ? 'videoosd'
+            // The sign-in and server-select screens belong to nobody. validateSessionState
+            // already forgets the previous account there, but only once, at init — and the
+            // iOS app signs out without reloading, so init never runs again and the old
+            // account's profile and master carried straight into the next sign-in. Classified
+            // here, from the URL this tick already read, so the bubble can act on it without
+            // a second look at location. Same four tests validateSessionState uses: the two
+            // must agree on what a sign-in screen is.
+            const isSignIn = hash.includes('login') || hash.includes('selectserver')
+                          || path.includes('login') || path.includes('selectserver');
+
+            const viewType = isSignIn                        ? 'signin'
+                           : (isActivePlayer || hasOsdDom) ? 'videoosd'
                            : isDashboard                   ? 'dashboard'
                            : isHome                        ? 'home'
                                                           : 'other';
@@ -3261,10 +3298,7 @@
                         const entry = state[id];
                         return fetch(ApiClient.getUrl("plugins/profiles/library-artwork"), {
                             method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                ...this.getAuthHeaders(masterState ? masterState.token : ApiClient.accessToken())
-                            },
+                            headers: this.jsonHeaders(masterState ? masterState.token : ApiClient.accessToken()),
                             body: JSON.stringify({
                                 profileId: targetProfileId,
                                 libraryId: id,
@@ -3586,8 +3620,11 @@
                 const h = window.innerHeight || document.documentElement.clientHeight;
                 // Only scroll when it is actually out of the viewport — an unconditional
                 // scrollIntoView jerks the picker around on every arrow press.
+                // The boolean form scrolls like { block: 'nearest' } for an element out of
+                // view on one side; the options object is Chromium 61 and reads as `true`
+                // before that.
                 if (r.top < 0 || r.bottom > h) {
-                    el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                    el.scrollIntoView(r.top < 0);
                 }
             } catch (e) { /* no layout information — focus alone will do */ }
         },
@@ -3929,6 +3966,8 @@
             const manageBtnText = this.isManageMode ? t('common.done') : t('gate.manageProfiles');
 
             const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
+            // Before readMasterState below, which decides which group is "yours".
+            this._syncMasterFromProfiles(masterProfile);
             const maxSubProfiles = masterProfile ? masterProfile.maxSubProfiles : 5;
             const subProfileCount = profiles.filter(p => !p.isMaster && !p.isBonfire).length;
             const atLimit = subProfileCount >= maxSubProfiles;
@@ -4319,6 +4358,9 @@
                         this.renderOverlayContent(overlay, profiles);
                     } else {
                         const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
+                        // isSignedInAsMaster compares against the stored id; without it the
+                        // master was told to open the master.
+                        this._syncMasterFromProfiles(masterProfile);
 
                         // Managing profiles is the master account's to do, and the server
                         // refuses it from any other. It used to work from a profile only
@@ -4403,12 +4445,9 @@
                 // Silent verify — no error shown on failure, user just keeps typing
                 fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...this.getAuthHeaders(masterState.token)
-                    },
+                    headers: this.jsonHeaders(masterState.token),
                     body: JSON.stringify({ profileId: profileId, pin: currentValue }),
-                    ...(verifyController ? { signal: verifyController.signal } : {})
+                    signal: verifyController ? verifyController.signal : undefined
                 })
                 .then(res => {
                     if (res.status === 401) {
@@ -4516,12 +4555,9 @@
                 // Silent verify — no error on failure, user keeps typing
                 fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...this.getAuthHeaders(masterState.token)
-                    },
+                    headers: this.jsonHeaders(masterState.token),
                     body: JSON.stringify({ profileId: masterProfile.profileUserId, pin: currentValue }),
-                    ...(verifyController ? { signal: verifyController.signal } : {})
+                    signal: verifyController ? verifyController.signal : undefined
                 })
                 .then(res => {
                     if (res.status === 401) {
@@ -4551,10 +4587,7 @@
                 verifyInProgress = true;
                 fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...this.getAuthHeaders(masterState.token)
-                    },
+                    headers: this.jsonHeaders(masterState.token),
                     body: JSON.stringify({ profileId: masterProfile.profileUserId, pin: pin })
                 })
                 .then(res => {
@@ -4638,10 +4671,7 @@
 
             fetch(url, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders(masterState.token)
-                },
+                headers: this.jsonHeaders(masterState.token),
                 body: JSON.stringify({ profileId: profileId, pin: pin })
             })
             .then(res => {
@@ -5783,10 +5813,7 @@
                     const createUrl = apiClient.getUrl('plugins/profiles/create');
                     fetch(createUrl, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...this.getAuthHeaders(masterState.token)
-                        },
+                        headers: this.jsonHeaders(masterState.token),
                         body: JSON.stringify({
                             profileName: name,
                             pin: pin,
@@ -6135,10 +6162,7 @@
                             const delDevUrl = apiClient.getUrl('plugins/profiles/devices/delete');
                             fetch(delDevUrl, {
                                 method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    ...this.getAuthHeaders(masterState.token)
-                                },
+                                headers: this.jsonHeaders(masterState.token),
                                 body: JSON.stringify({ deviceId: devId })
                             })
                             .then(res => {
@@ -6187,10 +6211,7 @@
                     // binds it as an explicit null, which is a different thing from absent.
                     const init = {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...this.getAuthHeaders(masterState.token)
-                        }
+                        headers: this.jsonHeaders(masterState.token)
                     };
                     if (body !== null && body !== undefined) init.body = JSON.stringify(body);
 
@@ -6235,10 +6256,7 @@
                         const url = apiClient.getUrl('plugins/profiles/devices/merge-duplicates');
                         fetch(url, {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                ...this.getAuthHeaders(masterState.token)
-                            }
+                            headers: this.jsonHeaders(masterState.token)
                         })
                         .then(res => res.json())
                         .then(data => {
@@ -6375,10 +6393,7 @@
                     const updateUrl = apiClient.getUrl('plugins/profiles/update');
                     fetch(updateUrl, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...this.getAuthHeaders(masterState.token)
-                        },
+                        headers: this.jsonHeaders(masterState.token),
                         body: JSON.stringify({
                             profileId: profile.profileUserId,
                             profileName: name,
@@ -6638,10 +6653,7 @@
                 errDiv.style.display = 'none';
                 return fetch(apiClient.getUrl('plugins/profiles/preferences'), {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...this.getAuthHeaders(masterState.token)
-                    },
+                    headers: this.jsonHeaders(masterState.token),
                     body: JSON.stringify({ askOnStartup: askOnStartup, switcherLocation: location })
                 })
                 .then(res => res.ok ? res.json() : Promise.reject(new Error(t('errors.couldNotSaveThat'))))
@@ -6763,10 +6775,7 @@
 
             fetch(url, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders(masterState.token)
-                },
+                headers: this.jsonHeaders(masterState.token),
                 body: JSON.stringify({ 
                     profileId: profileId,
                     masterPin: this.masterPin
@@ -6969,7 +6978,7 @@
                     this.showConfirmDialog(t('bonfire.kickConfirmTitle'), t('bonfire.kickConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/kick'), {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) },
+                            headers: this.jsonHeaders(masterToken),
                             body: JSON.stringify({ memberId: mId })
                         })
                         .then(res => {
@@ -6990,7 +6999,7 @@
                     this.showConfirmDialog(t('bonfire.newCodeConfirmTitle'), t('bonfire.newCodeConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/regenerate-code'), {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) }
+                            headers: this.jsonHeaders(masterToken)
                         })
                         .then(res => {
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
@@ -7092,7 +7101,7 @@
                     joinBtn.textContent = t('bonfire.joining');
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/join'), {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders(masterToken) },
+                        headers: this.jsonHeaders(masterToken),
                         body: JSON.stringify({ code: code })
                     })
                     .then(res => {
@@ -7182,10 +7191,7 @@
 
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/settings'), {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...this.getAuthHeaders(masterToken)
-                        },
+                        headers: this.jsonHeaders(masterToken),
                         body: JSON.stringify(body)
                     })
                     .then(res => {
@@ -7543,6 +7549,24 @@
         evaluateFloatingBubbleVisibility: function (viewType) {
             let bubble = document.getElementById('profiles-floating-bubble');
 
+            // Nobody is signed in here, whatever storage says — see isSignIn in checkRoute.
+            // Forget the previous account the first time the screen is seen, exactly as
+            // validateSessionState would have on a reload: its profile session, its master,
+            // and the in-memory list, which would otherwise be the next account's first grid
+            // (and, through _syncMasterFromProfiles, its master). Ahead of the menu-location
+            // check because menu mode carries the same state.
+            if (viewType === 'signin') {
+                if (!this._signInScreenCleared) {
+                    this._signInScreenCleared = true;
+                    try { localStorage.removeItem(this.config.masterStorageKey); } catch (e) { /* blocked */ }
+                    this.clearProfileSession();
+                    this.invalidateProfileCache();
+                }
+                if (bubble) bubble.remove();
+                return;
+            }
+            this._signInScreenCleared = false;
+
             // With the switcher in Jellyfin's menu, keeping the floating button as well
             // would be two controls doing one job — and the second portrait beside the
             // native user icon is precisely what issue #14 reported as confusing.
@@ -7557,10 +7581,27 @@
                 return;
             }
 
+            // The active-profile marker is set by the gate and lives in sessionStorage, so it
+            // is gone on every fresh load. With "Ask who's watching on startup" off nobody
+            // passes through the gate, the marker never exists, and in button mode that left
+            // no switcher at all — no button, and no menu row either. So with the gate off the
+            // button stands whenever someone is signed in; handleBubbleClick already copes
+            // with no marker, because menu mode never has one.
+            //
+            // The access token is required as well as the preferences: the preference cache
+            // outlives sign-out (it matches the stored master), and on its own would keep the
+            // button on screen with nobody behind it. getSwitcherPrefs costs nothing extra
+            // here — isMenuLocation has just asked it the same question.
             if (!this.isProfileSessionActive()) {
-                // No active session — remove entirely (will be re-created when needed)
-                if (bubble) bubble.remove();
-                return;
+                let signedIn = false;
+                try { signedIn = !!(typeof ApiClient !== 'undefined' && ApiClient && ApiClient.accessToken()); } catch (e) { /* no client yet */ }
+                const gateOff = signedIn && this.getSwitcherPrefs() !== null && !this.shouldAskOnStartup();
+                if (!gateOff) {
+                    // No session and the gate will provide one — remove entirely (it is
+                    // re-created when needed).
+                    if (bubble) bubble.remove();
+                    return;
+                }
             }
 
             // ── Strategy 1: find the header button container by class name ─────────
@@ -7688,8 +7729,17 @@
         // consumed by fetchAndRenderProfiles for instant, flash-free overlay display.
         _prefetchProfiles: function () {
             if (this._profilePrefetchPending || (this.cachedProfiles && this.cachedProfiles.length)) return;
+            // With the gate off the button stands without a profile session, so this is
+            // reached on every home tick before any master state exists — a storage read and
+            // a JSON.parse twice a second, for nothing. Back off three seconds after finding
+            // none, the same interval the header searches use.
+            if (this._prefetchNoMasterAt && Date.now() - this._prefetchNoMasterAt < 3000) return;
             const masterState = this.readMasterState();
-            if (!masterState || !masterState.token) return;
+            if (!masterState || !masterState.token) {
+                this._prefetchNoMasterAt = Date.now();
+                return;
+            }
+            this._prefetchNoMasterAt = 0;
 
             this._profilePrefetchPending = true;
             const url = ApiClient.getUrl('plugins/profiles/list');

@@ -832,6 +832,16 @@ body.profiles-no-scroll [id*="spinner"] {
 #profiles-floating-bubble .profiles-header-avatar {
     flex: 0 0 auto;
 }
+/* jellyfin-web's emby-button.scss, identical in release-10.11.z and master:
+       .paper-icon-button-light > div { max-height: 100%; transform: scale(1.8); … }
+   It is meant for icon glyphs. The button carries that class (see _buildHeaderBubble) and
+   the avatar is a div directly inside it, so the thumbnail was drawn 1.8x its size, zoomed
+   and blurry. Both layouts, since the class is set before the toolbar is known.
+   (1,2,0) against (0,1,1); the inline style sets neither property. */
+#profiles-floating-bubble.paper-icon-button-light > .profiles-header-avatar {
+    transform: none;
+    max-height: none;
+}
 
 /* Standing in the modern toolbar rather than the legacy header.
    Its neighbour is a 40px MUI Avatar inside an IconButton with padding:0 —
