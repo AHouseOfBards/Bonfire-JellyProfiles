@@ -9,6 +9,25 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.6.5  — 2026-10-13
+
+**Fixed**
+
+- On 2019 LG TVs (webOS 4.5), Bonfire did not start at all. [#34]
+- With "Ask who's watching on startup" off, there was no Switch Profile button and no way to switch.
+- After signing out of the iOS app, the previous account's profile stayed on the sign-in screen and carried over to the next account.
+- On iPad, your own profiles could appear as a linked Bonfire, and Manage Profiles asked you to open yourself first.
+- The profile picture in the header was drawn zoomed in and blurry.
+
+## 1.6.4.1-beta  — 2026-10-13
+
+**Fixed**
+
+- With "Ask who's watching on startup" off, there was no Switch Profile button and no way to switch.
+- After signing out of the iOS app, the previous account's profile stayed on the sign-in screen and carried over to the next account.
+- On iPad, your own profiles could appear as a linked Bonfire, and Manage Profiles asked you to open yourself first.
+- The profile picture in the header was drawn zoomed in and blurry.
+
 ## 1.6.4  — 2026-10-03
 
 **Fixed**
