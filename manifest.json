@@ -13,7 +13,7 @@
         "changelog": "**Fixed**\n\n- On 2019 LG TVs (webOS 4.5), Bonfire did not start at all. [#34]\n- With \"Ask who's watching on startup\" off, there was no Switch Profile button and no way to switch.\n- After signing out of the iOS app, the previous account's profile stayed on the sign-in screen and carried over to the next account.\n- On iPad, your own profiles could appear as a linked Bonfire, and Manage Profiles asked you to open yourself first.\n- The profile picture in the header was drawn zoomed in and blurry.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.5/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "67ccec055b315fdfe0923b0f6b9c64cb",
         "timestamp": "2026-10-13T16:33:00Z"
       },
       {
