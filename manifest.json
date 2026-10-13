@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.6.4.1",
+        "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- With \"Ask who's watching on startup\" off, there was no Switch Profile button and no way to switch.\n- After signing out of the iOS app, the previous account's profile stayed on the sign-in screen and carried over to the next account.\n- On iPad, your own profiles could appear as a linked Bonfire, and Manage Profiles asked you to open yourself first.\n- The profile picture in the header was drawn zoomed in and blurry.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.4.1/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-10-13T04:59:00Z"
+      },
+      {
         "version": "1.6.3.5",
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- On Android TV, choosing a profile and entering its PIN was still refused in 1.6.3.4.",
         "targetAbi": "10.11.0.0",
