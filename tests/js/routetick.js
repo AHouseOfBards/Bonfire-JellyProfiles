@@ -211,6 +211,13 @@ p._libraryArtLoaded = true;
 // First tick primes whatever caching exists; the measurement is of the ones after it,
 // which is what 119 of every 120 ticks in a minute actually are.
 p.checkRoute();
+// Gate off and signed in: since 1.6.4.1 the button stands here with no profile session
+// (before, nothing at all was shown and there was no way to switch), so this fixture goes
+// through the header search and starts inside its startup grace. Retire the grace and pay
+// the one-off searches, exactly as the "profile active" section below explains — what is
+// measured is the steady state, and the grace is bounded separately further down.
+p._headerAnchorWaitFrom = 0;
+p.checkRoute();
 env.reset();
 
 const TICKS = 100;
@@ -270,10 +277,12 @@ Object.keys(bySelector).forEach(function (sel) {
 
 console.log('\n── With a profile actually active, which is the normal case ────');
 
-// The measurement above has no active profile session, and that turns out to matter a
-// great deal: evaluateFloatingBubbleVisibility returns early without one, so the header
-// search underneath it never runs. A household using this plugin is signed into a profile
-// essentially all the time, so the numbers that count are these.
+// The measurement above has no active profile session. Until 1.6.4.1 that mattered a great
+// deal: evaluateFloatingBubbleVisibility returned early without one, so the header search
+// underneath it never ran and the numbers above were of a page with no button on it. With
+// the gate off it now stands regardless; with the gate on it still needs the session the
+// gate provides, and a household using this plugin is signed into a profile essentially
+// all the time, so these numbers are the ones that count.
 const live = build({});
 live.plugin._switcherPrefs = { askOnStartup: false, location: 'button' };
 live.plugin._panicLinkAvailable = false;

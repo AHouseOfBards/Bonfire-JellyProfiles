@@ -888,6 +888,26 @@
             return { masterUserId: stored.masterUserId, token: token };
         },
 
+        /// Makes the stored master agree with a list the server has just sent.
+        ///
+        /// The grid groups profiles by this id and the manage check compares against it,
+        /// so when it is missing the household's own profiles are drawn as a linked
+        /// "<master>'s Bonfire" and Manage Profiles tells the master to open the master.
+        /// Seen on the iPad app. The list is the server's answer to "whose household is
+        /// this" for the session in use — the same rule fetchAndRenderProfiles applies when
+        /// it stores the id — so it wins. Only an id is stored, and every action is still
+        /// authorised by the server.
+        ///
+        /// Safe only because no list from a previous account survives to be rendered: the
+        /// sign-in screen drops the in-memory one (evaluateFloatingBubbleVisibility).
+        _syncMasterFromProfiles: function (masterProfile) {
+            if (!masterProfile || !masterProfile.profileUserId) return;
+            const st = this.readMasterState();
+            if (!st || this.normalizeGuid(st.masterUserId) !== this.normalizeGuid(masterProfile.profileUserId)) {
+                this.writeMasterState(masterProfile.profileUserId);
+            }
+        },
+
         /// Whether the session in use is the household's master account itself.
         isSignedInAsMaster: function (state) {
             const st = state || this.readMasterState();
@@ -2032,7 +2052,18 @@
                 path.includes('dashboard')       || path.includes('/admin')
             );
 
-            const viewType = (isActivePlayer || hasOsdDom) ? 'videoosd'
+            // The sign-in and server-select screens belong to nobody. validateSessionState
+            // already forgets the previous account there, but only once, at init — and the
+            // iOS app signs out without reloading, so init never runs again and the old
+            // account's profile and master carried straight into the next sign-in. Classified
+            // here, from the URL this tick already read, so the bubble can act on it without
+            // a second look at location. Same four tests validateSessionState uses: the two
+            // must agree on what a sign-in screen is.
+            const isSignIn = hash.includes('login') || hash.includes('selectserver')
+                          || path.includes('login') || path.includes('selectserver');
+
+            const viewType = isSignIn                        ? 'signin'
+                           : (isActivePlayer || hasOsdDom) ? 'videoosd'
                            : isDashboard                   ? 'dashboard'
                            : isHome                        ? 'home'
                                                           : 'other';
@@ -3929,6 +3960,8 @@
             const manageBtnText = this.isManageMode ? t('common.done') : t('gate.manageProfiles');
 
             const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
+            // Before readMasterState below, which decides which group is "yours".
+            this._syncMasterFromProfiles(masterProfile);
             const maxSubProfiles = masterProfile ? masterProfile.maxSubProfiles : 5;
             const subProfileCount = profiles.filter(p => !p.isMaster && !p.isBonfire).length;
             const atLimit = subProfileCount >= maxSubProfiles;
@@ -4319,6 +4352,9 @@
                         this.renderOverlayContent(overlay, profiles);
                     } else {
                         const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
+                        // isSignedInAsMaster compares against the stored id; without it the
+                        // master was told to open the master.
+                        this._syncMasterFromProfiles(masterProfile);
 
                         // Managing profiles is the master account's to do, and the server
                         // refuses it from any other. It used to work from a profile only
@@ -7543,6 +7579,24 @@
         evaluateFloatingBubbleVisibility: function (viewType) {
             let bubble = document.getElementById('profiles-floating-bubble');
 
+            // Nobody is signed in here, whatever storage says — see isSignIn in checkRoute.
+            // Forget the previous account the first time the screen is seen, exactly as
+            // validateSessionState would have on a reload: its profile session, its master,
+            // and the in-memory list, which would otherwise be the next account's first grid
+            // (and, through _syncMasterFromProfiles, its master). Ahead of the menu-location
+            // check because menu mode carries the same state.
+            if (viewType === 'signin') {
+                if (!this._signInScreenCleared) {
+                    this._signInScreenCleared = true;
+                    try { localStorage.removeItem(this.config.masterStorageKey); } catch (e) { /* blocked */ }
+                    this.clearProfileSession();
+                    this.invalidateProfileCache();
+                }
+                if (bubble) bubble.remove();
+                return;
+            }
+            this._signInScreenCleared = false;
+
             // With the switcher in Jellyfin's menu, keeping the floating button as well
             // would be two controls doing one job — and the second portrait beside the
             // native user icon is precisely what issue #14 reported as confusing.
@@ -7557,10 +7611,27 @@
                 return;
             }
 
+            // The active-profile marker is set by the gate and lives in sessionStorage, so it
+            // is gone on every fresh load. With "Ask who's watching on startup" off nobody
+            // passes through the gate, the marker never exists, and in button mode that left
+            // no switcher at all — no button, and no menu row either. So with the gate off the
+            // button stands whenever someone is signed in; handleBubbleClick already copes
+            // with no marker, because menu mode never has one.
+            //
+            // The access token is required as well as the preferences: the preference cache
+            // outlives sign-out (it matches the stored master), and on its own would keep the
+            // button on screen with nobody behind it. getSwitcherPrefs costs nothing extra
+            // here — isMenuLocation has just asked it the same question.
             if (!this.isProfileSessionActive()) {
-                // No active session — remove entirely (will be re-created when needed)
-                if (bubble) bubble.remove();
-                return;
+                let signedIn = false;
+                try { signedIn = !!(typeof ApiClient !== 'undefined' && ApiClient && ApiClient.accessToken()); } catch (e) { /* no client yet */ }
+                const gateOff = signedIn && this.getSwitcherPrefs() !== null && !this.shouldAskOnStartup();
+                if (!gateOff) {
+                    // No session and the gate will provide one — remove entirely (it is
+                    // re-created when needed).
+                    if (bubble) bubble.remove();
+                    return;
+                }
             }
 
             // ── Strategy 1: find the header button container by class name ─────────
@@ -7688,8 +7759,17 @@
         // consumed by fetchAndRenderProfiles for instant, flash-free overlay display.
         _prefetchProfiles: function () {
             if (this._profilePrefetchPending || (this.cachedProfiles && this.cachedProfiles.length)) return;
+            // With the gate off the button stands without a profile session, so this is
+            // reached on every home tick before any master state exists — a storage read and
+            // a JSON.parse twice a second, for nothing. Back off three seconds after finding
+            // none, the same interval the header searches use.
+            if (this._prefetchNoMasterAt && Date.now() - this._prefetchNoMasterAt < 3000) return;
             const masterState = this.readMasterState();
-            if (!masterState || !masterState.token) return;
+            if (!masterState || !masterState.token) {
+                this._prefetchNoMasterAt = Date.now();
+                return;
+            }
+            this._prefetchNoMasterAt = 0;
 
             this._profilePrefetchPending = true;
             const url = ApiClient.getUrl('plugins/profiles/list');
