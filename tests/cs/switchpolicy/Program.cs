@@ -172,7 +172,8 @@ Console.WriteLine("        -> a user with " + library.Length + " libraries keeps
 Console.WriteLine();
 Console.WriteLine("── The two the report did not mention ──────────────────────────");
 var src = System.IO.File.ReadAllText(
-    System.IO.Path.Combine(root, "Controllers", "ProfilesController.cs"));
+    System.IO.Path.Combine(root, "Controllers", "ProfilesController.cs"))
+    .Replace("\r\n", "\n");
 
 var blockStart = src.IndexOf("Inherit/synchronize streaming policies", StringComparison.Ordinal);
 Ok("the inheritance block is still findable in the source", blockStart > 0);

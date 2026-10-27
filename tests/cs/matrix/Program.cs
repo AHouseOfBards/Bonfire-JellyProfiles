@@ -471,7 +471,8 @@ if (evalSwitch != null)
     Check("a household I am not linked to", Outcome(strangersKid, true, consent: true), "unauthorized");
 }
 
-var controllerSrc = System.IO.File.ReadAllText(RepoPath("Controllers", "ProfilesController.cs"));
+var controllerSrc = System.IO.File.ReadAllText(RepoPath("Controllers", "ProfilesController.cs"))
+    .Replace("\r\n", "\n");
 Check("/switch uses it",
     controllerSrc.Contains("var rules = EvaluateSwitch(config.Mappings, callerMasterUserId, request.ProfileId, linkedMasterIds, isLocal);\n            if (rules.Unauthorized)\n            {\n                return Unauthorized(\"Unauthorized profile switch attempt.\");"), true);
 Check("/verify-pin uses it",

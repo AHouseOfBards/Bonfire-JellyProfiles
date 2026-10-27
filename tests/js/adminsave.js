@@ -117,9 +117,10 @@ async function run(fieldValues) {
     // The avatar grid is redrawn after a save, because the starter-avatar switch changes
     // what it shows. Counted, so the redraw is asserted rather than merely survived.
     const loadAvatarLibrary = function () { calls.libraryReloads++; };
-    const factory = new Function('ApiClient', 'Dashboard', 'pluginId', 'loadAvatarLibrary',
+    const factory = new Function('ApiClient', 'Dashboard', 'pluginId', 'loadAvatarLibrary', 'adminTranslation',
         source + '; return saveConfiguration;');
-    factory(ApiClient, Dashboard, 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9', loadAvatarLibrary)(page);
+    factory(ApiClient, Dashboard, 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9', loadAvatarLibrary,
+        function (text) { return text; })(page);
 
     // The old version did its work inside `getPluginConfiguration().then(...)`, so its
     // PUT lands a microtask later than the call that starts it. Drain the queue before
