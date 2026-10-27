@@ -76,15 +76,15 @@ A key translated wrongly does not. Partial files are fine and ship happily.
 a television at three metres. If a translation is much longer than the English, check it
 on a narrow window before opening the pull request.
 
-## What is not translated
+## Admin settings page
 
-The **admin settings page** (`Web/profilesDashboard.html`) is deliberately English only.
-It is read by whoever runs the server, its wording changes often, and much of it is
-diagnostics and shell commands. Translating it would triple the catalogue for the one
-audience most able to read the original.
+The admin settings page (`Web/profilesDashboard.html`) includes Turkish copy and selects
+it when the browser's preferred language is Turkish. Otherwise it stays in English. Its
+translation is kept with the page rather than in this household-facing catalogue, because
+the admin panel has its own technical diagnostics and server commands.
 
 Everything a household member sees — the gate, the switcher, profile forms, PIN prompts,
-errors — is translated.
+errors — uses the locale files described above.
 
 ## It is not showing up
 

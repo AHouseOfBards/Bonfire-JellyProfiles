@@ -766,6 +766,383 @@
         (function () {
             const pluginId = "b1462fca-774b-4b13-8d02-e2d4f2bc18b9";
 
+            const ADMIN_TR = {
+                "↻ Restart Jellyfin to finish updating Bonfire": "↻ Bonfire güncellemesini tamamlamak için Jellyfin'i yeniden başlatın",
+                "Bonfire has been installed or updated since Jellyfin started. The new version cannot serve the client script until the server restarts — until then the previous version keeps running, so profiles will still work.": "Jellyfin başlatıldıktan sonra Bonfire kuruldu veya güncellendi. Sunucu yeniden başlatılana kadar yeni sürüm istemci betiğini sunamaz; bu sırada önceki sürüm çalışmaya devam eder ve profiller kullanılabilir.",
+                "On Docker, restart the container.": "Docker kullanıyorsanız kapsayıcıyı yeniden başlatın.",
+                "button does not restart the process on most container images, so the notice stays until the container comes back.": "düğmesi çoğu kapsayıcı imajında işlemi yeniden başlatmaz; bu nedenle kapsayıcı yeniden başlayana kadar bu uyarı görünür.",
+                "⚠️ Client Script Auto-Injection Failed": "⚠️ İstemci betiği otomatik olarak eklenemedi",
+                "The plugin was unable to automatically modify Jellyfin's": "Eklenti Jellyfin'in",
+                "Without this script, the \"Who's Watching?\" profile gate and switcher will not load.": "Bu betik olmadan \"Kim izliyor?\" profil ekranı ve profil seçici yüklenmez.",
+                "How to fix:": "Nasıl düzeltilir:",
+                "Run the command for your platform, then click": "İşletim sisteminize uygun komutu çalıştırın ve ardından aşağıdaki",
+                "below.": "düğmesine tıklayın.",
+                "Jellyfin is running as": "Jellyfin şu kullanıcı olarak çalışıyor:",
+                "You can restore the original permissions with": "İzinleri daha sonra şu komutla eski hâline getirebilirsiniz:",
+                "Jellyfin's own": "Jellyfin'in kendi",
+                "Restart": "Yeniden başlat",
+                "Linux (Native):": "Linux (yerel kurulum):",
+                "Docker (Run on host):": "Docker (ana makinede çalıştırın):",
+                "Windows (Admin Command Prompt):": "Windows (yönetici Komut İstemi):",
+                "Re-check Now": "Şimdi yeniden kontrol et",
+                "⚡ Optional — Client Script Tag Not Up To Date": "⚡ İsteğe bağlı — İstemci betiği etiketi güncel değil",
+                "Browsers pick up the new client script within about five minutes.": "Tarayıcılar yeni istemci betiğini yaklaşık beş dakika içinde alır.",
+                "What to do:": "Yapılması gerekenler:",
+                "If new features (like tag filtering) do not appear:": "Etiket filtreleme gibi yeni özellikler görünmüyorsa:",
+                "Perform a hard refresh in your browser (": "Önbelleği temizlemek için tarayıcınızda zorla yenileme yapın (",
+                "or": "veya",
+                ") to clear cached scripts.": ") ve önbellekteki betikleri temizleyin.",
+                "To allow automatic script tag updates on future releases:": "Gelecek sürümlerde betik etiketlerinin otomatik güncellenmesi için:",
+                "Grant write permissions on": "şu dosya için yazma izni verin:",
+                "— the command below grants access to exactly that account.": "— aşağıdaki komut yalnızca bu hesaba erişim izni verir.",
+                "Dismiss until next update": "Sonraki güncellemeye kadar kapat",
+                "🧪 You are running a pre-release build.": "🧪 Ön sürüm kullanıyorsunuz.",
+                "Features may change and bugs are more likely than in a stable release. If something looks wrong, please": "Özellikler değişebilir ve hatalar kararlı sürüme göre daha olasıdır. Bir sorunla karşılaşırsanız lütfen",
+                "open an issue on GitHub": "GitHub'da bir sorun bildirimi açın",
+                "✅ Client script is installed and up to date.": "✅ İstemci betiği yüklü ve güncel.",
+                "The profile switcher will load for all users.": "Profil seçici tüm kullanıcılar için yüklenecek.",
+                "General": "Genel",
+                "Avatars": "Avatarlar",
+                "TVs & Apps": "TV'ler ve uygulamalar",
+                "Accounts": "Hesaplar",
+                "Activity": "Etkinlik",
+                "Advanced": "Gelişmiş",
+                "Bonfire Settings": "Bonfire ayarları",
+                "ℹ  Where to manage profiles": "ℹ  Profillerin yönetileceği yer",
+                "Profiles are managed from the Jellyfin home screen — look for the": "Profiller Jellyfin ana ekranından yönetilir — üst çubuktaki",
+                "Switch Profile": "Profili değiştir",
+                "button in the top bar. This page sets the server-wide limits.": "düğmesini bulun. Bu sayfada sunucu genelindeki sınırlar ayarlanır.",
+                "Maximum Profiles Per User": "Kullanıcı başına en fazla profil",
+                "Default 5.": "Varsayılan: 5.",
+                "Require Master PIN for creating new profiles": "Yeni profil oluşturmak için ana PIN gerektir",
+                "Users enter their PIN before adding a sub-profile.": "Kullanıcılar alt profil eklemeden önce PIN'lerini girer.",
+                "Switcher defaults": "Profil seçici varsayılanları",
+                "What new accounts get. Anyone who picks their own setting keeps it.": "Yeni hesaplara uygulanır. Kendi ayarını seçen kullanıcıların tercihi korunur.",
+                "Ask \"Who's watching?\" on startup": "Başlangıçta \"Kim izliyor?\" diye sor",
+                "Shown once when the app opens.": "Uygulama açıldığında bir kez gösterilir.",
+                "Where to switch from": "Profilin değiştirileceği yer",
+                "Bonfire button in the header": "Üst çubuktaki Bonfire düğmesi",
+                "Jellyfin's own menu": "Jellyfin'in kendi menüsü",
+                "The menu option adds a row to Settings instead of a second portrait.": "Menü seçeneği, ikinci bir profil simgesi yerine Ayarlar'a bir satır ekler.",
+                "Save profile & switcher settings": "Profil ve profil seçici ayarlarını kaydet",
+                "Offer profiles on the sign-in screens of apps that never load the web client — Android TV, Roku, Swiftfin, Findroid and Wholphin. Turn off automatic sign in on the app, or it goes straight into the last account. All three settings are off by default.": "Web istemcisini hiç yüklemeyen uygulamaların (Android TV, Roku, Swiftfin, Findroid ve Wholphin) oturum açma ekranlarında profilleri gösterin. Uygulamada otomatik oturum açmayı kapatın; aksi hâlde son kullanılan hesap doğrudan açılır. Üç ayarın da varsayılanı kapalıdır.",
+                "Let profiles be opened with their PIN on any app": "Profillerin PIN ile tüm uygulamalarda açılmasına izin ver",
+                "Sign into a profile by typing its PIN where the app asks for a password. A profile with no PIN opens with an empty box, on devices its household has used before.": "Uygulama parola istediğinde profilin PIN'ini girerek oturum açın. PIN'i olmayan bir profil, hanenin daha önce kullandığı cihazlarda parola alanı boş bırakılarak açılır.",
+                "Show profiles on an app's sign-in screen": "Profilleri uygulamanın oturum açma ekranında göster",
+                "A household's profiles appear in the user list of devices it has signed in on. This changes the sign-in list every app on this server reads.": "Bir hanenin profilleri, daha önce oturum açtığı cihazların kullanıcı listesinde görünür. Bu ayar, sunucudaki tüm uygulamaların gördüğü oturum açma listesini değiştirir.",
+                "Open the PIN field instead of Quick Connect": "Quick Connect yerine PIN alanını aç",
+                "Open the password field instead of a Quick Connect code. The first sign-in on a device still gets Quick Connect.": "Quick Connect kodu yerine parola alanını açar. Bir cihazdaki ilk oturum açmada yine Quick Connect kullanılır.",
+                "Save TV & app settings": "TV ve uygulama ayarlarını kaydet",
+                "Avatar Library": "Avatar kitaplığı",
+                "Pictures anyone on this server can pick as their profile picture. On a TV this is the only way to set one.": "Bu sunucudaki herkesin profil fotoğrafı olarak seçebileceği görseller. TV'de profil fotoğrafı belirlemenin tek yolu budur.",
+                "Include the starter avatars": "Başlangıç avatarlarını dahil et",
+                "30 built-in pictures. Fluent Emoji by Microsoft, MIT licence.": "Yerleşik 30 görsel. Microsoft Fluent Emoji, MIT lisanslıdır.",
+                "Only allow avatars from this library": "Yalnızca bu kitaplıktaki avatarlara izin ver",
+                "Users pick from this set instead of uploading. Existing pictures are unchanged.": "Kullanıcılar görsel yüklemek yerine bu koleksiyondan seçim yapar. Mevcut fotoğraflar değişmez.",
+                "Picture quality": "Fotoğraf kalitesi",
+                "Standard — 512 px, up to 2 MB": "Standart — 512 piksel, en fazla 2 MB",
+                "High — 1024 px, up to 4 MB": "Yüksek — 1024 piksel, en fazla 4 MB",
+                "Maximum — 2048 px, up to 8 MB": "En yüksek — 2048 piksel, en fazla 8 MB",
+                "Sharper on big screens, more disk. Applies to new pictures.": "Büyük ekranlarda daha net görüntü, daha fazla disk alanı. Yeni fotoğraflara uygulanır.",
+                "Upload avatars": "Avatar yükle",
+                "Upload a folder": "Klasör yükle",
+                "JPEG, PNG, WebP or GIF. Squared and resized automatically.": "JPEG, PNG, WebP veya GIF. Kare biçimine getirilip otomatik boyutlandırılır.",
+                "Or import a folder from the server": "Veya sunucudan bir klasör içe aktarın",
+                "A path on the server, not on this computer. Pictures are copied in.": "Bu bilgisayardaki değil, sunucudaki bir yol. Fotoğraflar kopyalanır.",
+                "Import from folder": "Klasörden içe aktar",
+                "Client Script": "İstemci betiği",
+                "How Bonfire's script reaches the web client. Leave this alone unless something is broken.": "Bonfire betiğinin web istemcisine nasıl ulaştığı. Bir sorun yoksa bu ayarı değiştirmeyin.",
+                "Method": "Yöntem",
+                "Serve it live, never touch index.html": "Canlı sun; index.html dosyasına dokunma",
+                "Patch index.html, fall back to serving it live (legacy)": "index.html dosyasını değiştir; olmazsa canlı sun (eski yöntem)",
+                "Patch index.html only (legacy)": "Yalnızca index.html dosyasını değiştir (eski yöntem)",
+                "The default. index.html is left alone, and any tags Bonfire added earlier are taken back out. Nothing to re-apply after a Jellyfin update, and no write permission needed.": "Varsayılan yöntem. index.html dosyasına dokunulmaz ve Bonfire'ın daha önce eklediği etiketler kaldırılır. Jellyfin güncellemesinden sonra yeniden işlem yapmak gerekmez ve yazma izni istenmez.",
+                "Legacy. index.html is patched as well, and if that write fails the script is added to the page as it is served. Mainly for a proxy that caches index.html.": "Eski yöntem. index.html de değiştirilir; yazma başarısız olursa betik sayfa sunulurken eklenir. Genellikle index.html dosyasını önbelleğe alan proxy'ler içindir.",
+                "Legacy. How every release up to 1.4.0 worked. Needs write access to index.html, and has to be redone after each Jellyfin update.": "Eski yöntem. 1.4.0'a kadarki sürümler bu şekilde çalışıyordu. index.html dosyasına yazma izni gerekir ve her Jellyfin güncellemesinden sonra yeniden uygulanmalıdır.",
+                "Save method": "Yöntemi kaydet",
+                "Backup": "Yedekleme",
+                "Export writes a copy of every profile, PIN, Bonfire, device and avatar record. Import replaces all of it.": "Dışa aktarma tüm profil, PIN, Bonfire, cihaz ve avatar kayıtlarının bir kopyasını oluşturur. İçe aktarma bunların tamamını değiştirir.",
+                "The file contains PIN hashes": "Dosya PIN özetlerini içerir",
+                ", so keep it somewhere safe.": ", bu nedenle güvenli bir yerde saklayın.",
+                "Export configuration": "Yapılandırmayı dışa aktar",
+                "Import configuration": "Yapılandırmayı içe aktar",
+                "Emergency Disable Code": "Acil kapatma kodu",
+                "⚠  Read this before turning it on": "⚠  Etkinleştirmeden önce okuyun",
+                "Entering this code shuts Bonfire down until Jellyfin restarts.": "Bu kod girildiğinde Jellyfin yeniden başlatılana kadar Bonfire kapanır.",
+                "The cost:": "Güvenlik etkisi:",
+                "anyone with the code can skip the profile prompt on a device that is": "kodu bilen herkes, oturumun zaten açık olduğu bir cihazda profil seçimini atlayabilir.",
+                "already signed in. On a TV left on the master account, that means the master's library.": "Ana hesapta bırakılmış bir TV'de bu, ana hesabın kütüphanesine erişim demektir.",
+                "Other profiles still need their PIN, and parental controls are unaffected.": "Diğer profiller için PIN gerekir ve ebeveyn denetimleri etkilenmez.",
+                "anyone with the code can skip the profile prompt on a device that is already signed in. On a TV left on the master account, that means the master's library. Other profiles still need their PIN, and parental controls are unaffected.": "Kodu bilen herkes, oturumun zaten açık olduğu bir cihazda profil seçimini atlayabilir. Ana hesapta bırakılmış bir TV'de bu, ana hesabın kütüphanesine erişim demektir. Diğer profiller için PIN gerekir ve ebeveyn denetimleri etkilenmez.",
+                "No password is asked for, so make it long.": "Parola sorulmadığı için kodu uzun seçin.",
+                "Emergency disable code": "Acil kapatma kodu",
+                "At least 10 characters": "En az 10 karakter",
+                "Save blank to turn it off. The code cannot be shown again, so write it down somewhere off this server.": "Kapatmak için alanı boş kaydedin. Kod tekrar gösterilemez; bu sunucu dışında güvenli bir yere not edin.",
+                "Save code": "Kodu kaydet",
+                "Accounts & Profiles": "Hesaplar ve profiller",
+                "Every master account, and the sub-profiles under it. Administrators can reset any PIN.": "Tüm ana hesaplar ve bunların alt profilleri. Yöneticiler tüm PIN'leri sıfırlayabilir.",
+                "Orphaned Profiles": "Bağlantısız profiller",
+                "Records left behind when a profile is deleted through Jellyfin instead of Bonfire. They still count against a household's profile limit. Scanning changes nothing.": "Profil Bonfire yerine Jellyfin üzerinden silindiğinde geride kalan kayıtlar. Hane halkının profil sınırına dahil olmaya devam ederler. Tarama hiçbir şeyi değiştirmez.",
+                "Scan for orphans": "Bağlantısız kayıtları tara",
+                "Signed-in Devices": "Oturum açmış cihazlar",
+                "Every live session, with the household each sub-profile belongs to.": "Her etkin oturum ve alt profillerin bağlı olduğu hane.",
+                "Refresh": "Yenile",
+                "Profile Switch Audit Logs": "Profil geçişi denetim kayıtları",
+                "The 1,000 most recent profile switches on this server.": "Bu sunucudaki en son 1.000 profil geçişi.",
+                "Account or profile": "Hesap veya profil",
+                "Any name": "Tüm adlar",
+                "From": "Başlangıç",
+                "To": "Bitiş",
+                "Clear": "Temizle",
+                "Download JSON": "JSON indir",
+                "Success": "Başarılı",
+                "Unknown": "Bilinmiyor",
+                "unknown": "bilinmiyor",
+                "Unknown Device": "Bilinmeyen cihaz",
+                "Unknown device": "Bilinmeyen cihaz",
+                "Unknown Client": "Bilinmeyen istemci",
+                "unknown client": "bilinmeyen istemci",
+                "Unknown IP": "Bilinmeyen IP",
+                "Live injection": "Canlı ekleme",
+                "Bonfire settings sections": "Bonfire ayar bölümleri",
+                "Nothing orphaned. Every profile and Bonfire still points at a Jellyfin user that exists.": "Bağlantısız kayıt yok. Tüm profiller ve Bonfire grupları mevcut bir Jellyfin kullanıcısına bağlı.",
+                "Cleanup failed.": "Temizleme başarısız oldu.",
+                "Scan failed.": "Tarama başarısız oldu.",
+                "PIN protected": "PIN korumalı",
+                "No PIN": "PIN yok",
+                "Reset PIN": "PIN'i sıfırla",
+                "Limit": "Sınır",
+                "Set": "Ayarla",
+                "Reset": "Sıfırla",
+                "No sub-profiles": "Alt profil yok",
+                "Status:": "Durum:",
+                "Unlinked sub-profiles": "Bağlantısız alt profiller",
+                "These profiles point at a master account that no longer exists.": "Bu profiller artık mevcut olmayan bir ana hesaba bağlı.",
+                "Are you sure you want to reset and clear the PIN for this profile?": "Bu profilin PIN'ini sıfırlayıp kaldırmak istediğinizden emin misiniz?",
+                "No profile switch events recorded yet.": "Henüz profil geçişi kaydı yok.",
+                "No events match this filter.": "Bu filtreyle eşleşen etkinlik yok.",
+                "Master": "Ana hesap",
+                "switched to profile": "şu profile geçti:",
+                "Device:": "Cihaz:",
+                "profile of": "profilinin alt profili",
+                "playing": "oynatıyor:",
+                "last seen": "son görülme:",
+                "Sign out": "Oturumu kapat",
+                "Nobody is signed in right now.": "Şu anda oturum açmış kimse yok.",
+                "Could not load sessions.": "Oturumlar yüklenemedi.",
+                "Exported. Keep it somewhere you would keep a password.": "Dışa aktarıldı. Parolanızı saklayacağınız kadar güvenli bir yerde tutun.",
+                "Export failed.": "Dışa aktarma başarısız oldu.",
+                "That file is not valid JSON.": "Dosya geçerli JSON biçiminde değil.",
+                "That does not look like a Bonfire export.": "Bu dosya bir Bonfire dışa aktarımı gibi görünmüyor.",
+                "Import failed. Nothing was changed.": "İçe aktarma başarısız oldu. Hiçbir şey değiştirilmedi.",
+                "Error loading audit logs.": "Denetim kayıtları yüklenirken hata oluştu.",
+                "Error": "Hata",
+                "Failed to update profile limit.": "Profil sınırı güncellenemedi.",
+                "Failed to reset PIN. Check the server logs for details.": "PIN sıfırlanamadı. Ayrıntılar için sunucu günlüklerini kontrol edin.",
+                "No avatars yet. Upload some, or turn on the starter avatars.": "Henüz avatar yok. Avatar yükleyin veya başlangıç avatarlarını etkinleştirin.",
+                "missing": "eksik",
+                "Built-in": "Yerleşik",
+                "Remove": "Kaldır",
+                "Could not remove that avatar.": "Bu avatar kaldırılamadı.",
+                "That file could not be read.": "Dosya okunamadı.",
+                "That image format isn’t supported. Save it as a JPEG or PNG first.": "Bu görsel biçimi desteklenmiyor. Önce JPEG veya PNG olarak kaydedin.",
+                "That image could not be resized.": "Görsel yeniden boyutlandırılamadı.",
+                "The server rejected it. It may be over the": "Sunucu dosyayı kabul etmedi. Yeniden boyutlandırıldıktan sonra sınır olan",
+                "MB limit after resizing, or the picture quality was changed without saving.": "MB'ı aşıyor olabilir veya fotoğraf kalitesi kaydedilmeden değiştirilmiş olabilir.",
+                "No pictures in that folder.": "Bu klasörde fotoğraf yok.",
+                "The folder holds more than can be listed at once.": "Klasörde tek seferde listelenebilecekten fazla dosya var.",
+                "That folder could not be read. Check the path as the server sees it.": "Klasör okunamadı. Sunucuya göre yolu kontrol edin.",
+                "profile has": "profilin",
+                "profiles have": "profilin",
+                "a picture that is no longer on disk.": "fotoğrafı artık diskte bulunmuyor.",
+                "They fall back to the initial and colour, so nothing is broken.": "Bunlar baş harf ve renkle gösterilir; bir şey bozulmuş değildir.",
+                "Set a new picture on each to clear this.": "Bu uyarıyı kaldırmak için her birine yeni fotoğraf belirleyin.",
+                "Bonfire is currently disabled.": "Bonfire şu anda devre dışı.",
+                "Restart Jellyfin to bring the switcher back.": "Profil seçiciyi yeniden etkinleştirmek için Jellyfin'i yeniden başlatın.",
+                "A code is set.": "Bir kod ayarlanmış.",
+                "Enter it from the link on the profile screen, or press Ctrl+Shift+B on a keyboard.": "Profil ekranındaki bağlantıdan kodu girin veya klavyede Ctrl+Shift+B tuşlarına basın.",
+                "No code is set. The feature is off.": "Kod ayarlanmamış. Özellik kapalı.",
+                "Could not read the current status.": "Geçerli durum okunamadı.",
+                "The code must be at least 10 characters.": "Kod en az 10 karakter olmalıdır.",
+                "Code saved. Write it down — it cannot be shown again.": "Kod kaydedildi. Tekrar gösterilemeyeceği için not edin.",
+                "Code cleared. The feature is off.": "Kod kaldırıldı. Özellik kapalı.",
+                "The server rejected that code.": "Sunucu bu kodu reddetti.",
+                "Settings saved.": "Ayarlar kaydedildi.",
+                "Failed to save settings.": "Ayarlar kaydedilemedi.",
+                "Sign out failed": "Oturum kapatılamadı",
+                "That session could not be signed out.": "Bu oturum kapatılamadı.",
+                "This replaces every profile, PIN, Bonfire and device list with the contents of that file. It cannot be undone.": "Bu işlem tüm profil, PIN, Bonfire ve cihaz listelerini dosyanın içeriğiyle değiştirir. Geri alınamaz.",
+                "The server rejected it. It may be over the 2 MB limit after resizing, or the picture quality was changed without saving.": "Sunucu dosyayı kabul etmedi. Yeniden boyutlandırıldıktan sonra 2 MB sınırını aşıyor olabilir veya fotoğraf kalitesi kaydedilmeden değiştirilmiş olabilir.",
+                "The server rejected it. It may be over the 4 MB limit after resizing, or the picture quality was changed without saving.": "Sunucu dosyayı kabul etmedi. Yeniden boyutlandırıldıktan sonra 4 MB sınırını aşıyor olabilir veya fotoğraf kalitesi kaydedilmeden değiştirilmiş olabilir.",
+                "The server rejected it. It may be over the 8 MB limit after resizing, or the picture quality was changed without saving.": "Sunucu dosyayı kabul etmedi. Yeniden boyutlandırıldıktan sonra 8 MB sınırını aşıyor olabilir veya fotoğraf kalitesi kaydedilmeden değiştirilmiş olabilir.",
+                "could not be determined": "belirlenemedi",
+                "Live injection could not attach to Jellyfin. Only patching index.html will work here.": "Canlı ekleme Jellyfin'e bağlanamadı. Burada yalnızca index.html dosyasını değiştirme yöntemi çalışır.",
+                "Live injection is loaded, but no page request has reached it yet. Reload this page to confirm.": "Canlı ekleme yüklendi ancak henüz hiçbir sayfa isteği ulaşmadı. Doğrulamak için bu sayfayı yenileyin.",
+                "Live injection is loaded and index.html is already patched, so it has nothing to do.": "Canlı ekleme yüklendi ve index.html zaten güncel; bu nedenle yapılacak işlem yok.",
+                "Pre-release build — please report any issues on GitHub.": "Ön sürüm — lütfen sorunları GitHub'da bildirin.",
+                "Running {running}. Version {newest} is installed and starts once the server process restarts.": "Çalışan sürüm {running}. {newest} sürümü yüklendi; sunucu yeniden başlatıldığında çalışmaya başlayacak.",
+                "Still not resolved — see the reason above.": "Sorun hâlâ çözülmedi — nedeni yukarıda görebilirsiniz.",
+                "The client script is now installed and up to date. Users may need one hard refresh (Ctrl+Shift+R) to pick it up.": "İstemci betiği yüklendi ve güncel. Kullanıcıların betiği alabilmesi için sayfayı bir kez zorla yenilemesi (Ctrl+Shift+R) gerekebilir.",
+                "Re-check failed — see console.": "Yeniden kontrol başarısız — konsola bakın.",
+                "Found {count} record(s) pointing at deleted users:": "Silinmiş kullanıcılara bağlı {count} kayıt bulundu:",
+                "Remove these {count} record(s)": "Bu {count} kaydı kaldır",
+                "Removed {mappings} profile record(s), {groups} Bonfire(s) and {members} membership(s). Devices were left alone.": "{mappings} profil kaydı, {groups} Bonfire grubu ve {members} üyelik kaldırıldı. Cihazlara dokunulmadı.",
+                "— its owner was deleted": "— sahibi silindi",
+                "{count} sub-profile": "{count} alt profil",
+                "{count} sub-profiles": "{count} alt profil",
+                "Showing {shown} of {total} events.": "{total} etkinlikten {shown} tanesi gösteriliyor.",
+                "{count} event(s).": "{count} etkinlik.",
+                "Sign {name} out of this device?": "{name} bu cihazdan çıkarılsın mı?",
+                "Imported {profiles} profile(s), {devices} device(s) and {bonfires} Bonfire(s).": "{profiles} profil, {devices} cihaz ve {bonfires} Bonfire grubu içe aktarıldı.",
+                "Skipped {count} profile(s) naming Jellyfin users this server does not have: {names}.": "Bu sunucuda bulunmayan Jellyfin kullanıcılarını belirten {count} profil atlandı: {names}.",
+                "Failed to load sessions.": "Oturumlar yüklenemedi.",
+                "No master accounts found.": "Ana hesap bulunamadı.",
+                "1 sub-profile": "1 alt profil",
+                "1 of {total} events.": "{total} etkinlikten 1 tanesi gösteriliyor.",
+                "Live injection is working — {count} page served.": "Canlı ekleme çalışıyor — {count} sayfa sunuldu.",
+                "Live injection is working — {count} pages served.": "Canlı ekleme çalışıyor — {count} sayfa sunuldu."
+            };
+
+            const ADMIN_TR_PATTERNS = [
+                [/^The plugin was unable to automatically modify Jellyfin’s? index\.html\. Without this script, the "Who’s Watching\?" profile gate and switcher will not load\.$/, function () {
+                    return "Eklenti Jellyfin'in index.html dosyasını otomatik olarak değiştiremedi. Bu betik olmadan \"Kim izliyor?\" profil ekranı ve profil seçici yüklenmez.";
+                }],
+                [/^Bonfire is set to serve the client script live, and it is not reaching the page\. index\.html is not involved, so there is nothing to change on disk\.$/, function () {
+                    return "Bonfire istemci betiğini canlı sunacak şekilde ayarlanmış ancak betik sayfaya ulaşmıyor. index.html bu yöntemde kullanılmaz; diskte değiştirilecek bir şey yok.";
+                }],
+                [/^Sign (.+) out of this device\?$/, function (m) {
+                    return m[1] + " bu cihazdan çıkarılsın mı?";
+                }],
+                [/^Imported (\d+) profile\(s\), (\d+) device\(s\) and (\d+) Bonfire\(s\)\.(?: Skipped (\d+) profile\(s\) naming Jellyfin users this server does not have: (.+)\.)?$/, function (m) {
+                    return m[1] + " profil, " + m[2] + " cihaz ve " + m[3] + " Bonfire grubu içe aktarıldı."
+                        + (m[4] ? " Bu sunucuda bulunmayan Jellyfin kullanıcılarını belirten " + m[4] + " profil atlandı: " + m[5] + "." : "");
+                }],
+                [/^⚠\s*(\d+) profile(?:s)? (?:has|have) a picture that is no longer on disk\.$/, function (m) {
+                    return "⚠ " + m[1] + " profilin fotoğrafı artık diskte bulunmuyor.";
+                }],
+                [/^(\d+) Bonfire membership\(s\) naming deleted accounts$/, function (m) {
+                    return "Silinmiş hesapları belirten " + m[1] + " Bonfire üyeliği";
+                }],
+                [/^Uploading (\d+) of (\d+)…$/, function (m) {
+                    return m[2] + " dosyadan " + m[1] + " tanesi yükleniyor…";
+                }],
+                [/^(\d+) of (\d+) uploaded\.$/, function (m) {
+                    return m[2] + " dosyadan " + m[1] + " tanesi yüklendi.";
+                }],
+                [/^(\d+) of (\d+) imported\.( The folder holds more than can be listed at once\.)?$/, function (m) {
+                    return m[2] + " dosyadan " + m[1] + " tanesi içe aktarıldı."
+                        + (m[3] ? " Klasörde tek seferde listelenebilecekten fazla dosya var." : "");
+                }],
+                [/^The server rejected it\. It may be over the (\d+) MB limit after resizing, or the picture quality was changed without saving\.$/, function (m) {
+                    return "Sunucu dosyayı kabul etmedi. Yeniden boyutlandırıldıktan sonra " + m[1] + " MB sınırını aşıyor olabilir veya fotoğraf kalitesi kaydedilmeden değiştirilmiş olabilir.";
+                }],
+                [/^Live injection is working — (\d+) page(?:s)? served\.( Last problem: .+)?$/, function (m) {
+                    return "Canlı ekleme çalışıyor — " + m[1] + " sayfa sunuldu."
+                        + (m[2] ? " Son sorun: " + m[2].slice(" Last problem:".length) : "");
+                }],
+                [/^Running (.+)\. Version (.+) is installed and starts once the server process restarts\.$/, function (m) {
+                    return "Çalışan sürüm " + m[1] + ". " + m[2] + " sürümü yüklendi; sunucu yeniden başlatıldığında çalışmaya başlayacak.";
+                }],
+                [/^Showing (\d+) of (\d+) events\.$/, function (m) {
+                    return m[2] + " etkinlikten " + m[1] + " tanesi gösteriliyor.";
+                }],
+                [/^(\d+) event\(s\)\.$/, function (m) {
+                    return m[1] + " etkinlik.";
+                }],
+                [/^Found (\d+) record\(s\) pointing at deleted users:$/, function (m) {
+                    return "Silinmiş kullanıcılara bağlı " + m[1] + " kayıt bulundu:";
+                }],
+                [/^Remove these (\d+) record\(s\)$/, function (m) {
+                    return "Bu " + m[1] + " kaydı kaldır";
+                }],
+                [/^Removed (\d+) profile record\(s\), (\d+) Bonfire\(s\) and (\d+) membership\(s\)\. Devices were left alone\.$/, function (m) {
+                    return m[1] + " profil kaydı, " + m[2] + " Bonfire grubu ve " + m[3] + " üyelik kaldırıldı. Cihazlara dokunulmadı.";
+                }],
+                [/^(\d+) sub-profiles?$/, function (m) {
+                    return m[1] + " alt profil";
+                }]
+            ];
+
+            const adminLanguage = (navigator.languages && navigator.languages.length
+                ? navigator.languages
+                : [navigator.language || ""]).some(function (language) {
+                    return String(language).toLowerCase().split("-")[0] === "tr";
+                }) ? "tr" : "en";
+
+            function adminTranslation(text) {
+                if (adminLanguage !== "tr") return text;
+                const normalized = String(text).replace(/\s+/g, " ").trim();
+                if (Object.prototype.hasOwnProperty.call(ADMIN_TR, normalized)) return ADMIN_TR[normalized];
+                for (let i = 0; i < ADMIN_TR_PATTERNS.length; i++) {
+                    const match = normalized.match(ADMIN_TR_PATTERNS[i][0]);
+                    if (match) return ADMIN_TR_PATTERNS[i][1](match);
+                }
+                return text;
+            }
+
+            function translateAdminTree(root) {
+                if (!root || adminLanguage !== "tr") return;
+                if (root.nodeType === 3) {
+                    if (root.parentElement && root.parentElement.closest('code, script, style, [data-jpf-no-translate]')) return;
+                    const current = root.nodeValue;
+                    const leading = (current.match(/^\s*/) || [""])[0];
+                    const trailing = (current.match(/\s*$/) || [""])[0];
+                    const content = current.slice(leading.length, current.length - trailing.length);
+                    if (content) {
+                        const translated = adminTranslation(content);
+                        if (translated !== content) root.nodeValue = leading + translated + trailing;
+                    }
+                    return;
+                }
+                const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+                let node;
+                while ((node = walker.nextNode())) {
+                    if (node.parentElement && node.parentElement.closest('code, script, style, [data-jpf-no-translate]')) continue;
+                    const current = node.nodeValue;
+                    const leading = (current.match(/^\s*/) || [""])[0];
+                    const trailing = (current.match(/\s*$/) || [""])[0];
+                    const content = current.slice(leading.length, current.length - trailing.length);
+                    if (content) {
+                        const translated = adminTranslation(content);
+                        if (translated !== content) node.nodeValue = leading + translated + trailing;
+                    }
+                }
+                const elements = [];
+                if (root.nodeType === 1 && root.matches('[label], [placeholder], [title], [aria-label]')) elements.push(root);
+                if (root.querySelectorAll) {
+                    Array.prototype.push.apply(elements, root.querySelectorAll('[label], [placeholder], [title], [aria-label]'));
+                }
+                elements.forEach(function (element) {
+                    ["label", "placeholder", "title", "aria-label"].forEach(function (name) {
+                        if (!element.hasAttribute(name)) return;
+                        const value = element.getAttribute(name);
+                        const translated = adminTranslation(value);
+                        if (translated !== value) element.setAttribute(name, translated);
+                    });
+                });
+            }
+
+            if (adminLanguage === "tr") {
+                document.documentElement.lang = "tr";
+                const adminPage = document.getElementById("profilesConfigurationPage");
+                translateAdminTree(adminPage);
+                if (adminPage && typeof MutationObserver !== "undefined") {
+                    new MutationObserver(function (changes) {
+                        changes.forEach(function (change) {
+                            Array.prototype.forEach.call(change.addedNodes, function (node) {
+                                if (node.nodeType === 1 || node.nodeType === 3) translateAdminTree(node);
+                            });
+                            if (change.type === "attributes") translateAdminTree(change.target);
+                        });
+                    }).observe(adminPage, {
+                        attributes: true,
+                        attributeFilter: ["label", "placeholder", "title", "aria-label"],
+                        childList: true,
+                        subtree: true
+                    });
+                }
+            }
+
             // Every value this page renders came from the server, and a lot of it came to the
             // server from a request header somebody else wrote: a device name, a client
             // name, a profile name typed by any account holder. This page runs with the
@@ -1151,9 +1528,9 @@
                         });
                         if (ok) {
                             Dashboard.alert({
-                                title: 'Success',
-                                message: 'The client script is now installed and up to date. '
-                                       + 'Users may need one hard refresh (Ctrl+Shift+R) to pick it up.'
+                                title: adminTranslation('Success'),
+                                message: adminTranslation('The client script is now installed and up to date. '
+                                       + 'Users may need one hard refresh (Ctrl+Shift+R) to pick it up.')
                             });
                         }
                     })
@@ -1178,10 +1555,10 @@
                 }
                 let html = '<div style="margin-bottom:8px;">Found ' + total + ' record(s) pointing at deleted users:</div><ul style="margin:0 0 12px 1.2em;">';
                 data.orphans.forEach(function (o) {
-                    html += '<li>' + escapeHtml(o.profileName || '(unnamed profile)') + ' — ' + escapeHtml(o.reason) + '</li>';
+                    html += '<li><span data-jpf-no-translate="1">' + escapeHtml(o.profileName || (adminLanguage === 'tr' ? '(adsız profil)' : '(unnamed profile)')) + '</span> — <span data-jpf-no-translate="1">' + escapeHtml(o.reason) + '</span></li>';
                 });
                 data.deadGroups.forEach(function (g) {
-                    html += '<li>Bonfire ' + escapeHtml(g.code) + ' — its owner was deleted</li>';
+                    html += '<li>Bonfire <span data-jpf-no-translate="1">' + escapeHtml(g.code) + '</span> — its owner was deleted</li>';
                 });
                 if (data.deadMembers.length) {
                     html += '<li>' + data.deadMembers.length + ' Bonfire membership(s) naming deleted accounts</li>';
@@ -1275,7 +1652,7 @@
                         return '<div class="listItem" style="display:flex; align-items:center; padding:10px 15px 10px 28px; border-top:1px solid rgba(255,255,255,0.05);">' +
                                '<span class="material-icons" style="font-size:1.1rem; opacity:0.35; margin-right:10px;">subdirectory_arrow_right</span>' +
                                '<div class="listItemBody jpf-grow">' +
-                               '<div class="listItemBodyText" style="font-weight:600; color:#fff;">' + pName + '</div>' +
+                               '<div class="listItemBodyText" data-jpf-no-translate="1" style="font-weight:600; color:#fff;">' + pName + '</div>' +
                                '<div class="listItemBodyText secondary" style="font-size:0.85rem; opacity:0.75; margin-top:2px;">Status: ' + pinStatusHtml(reqPin) + '</div>' +
                                '</div>' +
                                resetPinBtnHtml(pId, reqPin) +
@@ -1328,7 +1705,7 @@
                             return '<div class="listItem-group jpf-divider">' +
                                    '<div class="listItem" style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:10px 15px;">' +
                                    '<div style="flex:1 1 220px; min-width:0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
-                                   '<span style="font-weight:600; font-size:1rem; color:#fff;">' + pName + '</span>' +
+                                   '<span data-jpf-no-translate="1" style="font-weight:600; font-size:1rem; color:#fff;">' + pName + '</span>' +
                                    pinStatusHtml(reqPin) +
                                    toggle +
                                    '</div>' +
@@ -1381,7 +1758,10 @@
                     page.querySelectorAll('.reset-pin-btn').forEach(function (btn) {
                         btn.addEventListener('click', function () {
                             const profileId = btn.getAttribute('data-id');
-                            Dashboard.confirm('Are you sure you want to reset and clear the PIN for this profile?', 'Reset PIN').then(function () {
+                            Dashboard.confirm(
+                                adminTranslation('Are you sure you want to reset and clear the PIN for this profile?'),
+                                adminTranslation('Reset PIN')
+                            ).then(function () {
                                 resetPin(page, profileId);
                             });
                         });
@@ -1489,22 +1869,22 @@
                 // moment this page loaded.
                 container.innerHTML = view.rows.map(function (log) {
                     const dateStr = escapeHtml(new Date(auditField(log, 'Timestamp')).toLocaleString());
-                    const master = escapeHtml(auditField(log, 'MasterUsername') || 'Unknown');
-                    const target = escapeHtml(auditField(log, 'TargetUsername') || 'Unknown');
-                    const device = escapeHtml(auditField(log, 'DeviceName') || 'Unknown Device');
-                    const client = escapeHtml(auditField(log, 'Client') || 'Unknown Client');
-                    const ip = escapeHtml(auditField(log, 'IpAddress') || 'Unknown IP');
+                    const master = escapeHtml(auditField(log, 'MasterUsername') || (adminLanguage === 'tr' ? 'Bilinmiyor' : 'Unknown'));
+                    const target = escapeHtml(auditField(log, 'TargetUsername') || (adminLanguage === 'tr' ? 'Bilinmiyor' : 'Unknown'));
+                    const device = escapeHtml(auditField(log, 'DeviceName') || (adminLanguage === 'tr' ? 'Bilinmeyen cihaz' : 'Unknown Device'));
+                    const client = escapeHtml(auditField(log, 'Client') || (adminLanguage === 'tr' ? 'Bilinmeyen istemci' : 'Unknown Client'));
+                    const ip = escapeHtml(auditField(log, 'IpAddress') || (adminLanguage === 'tr' ? 'Bilinmeyen IP' : 'Unknown IP'));
 
                     return '<div class="listItem jpf-audit-row">' +
                            '<div class="jpf-audit-meta">' +
                            '<span>' + dateStr + '</span>' +
-                           '<span>IP: ' + ip + '</span>' +
+                           '<span>IP: <span data-jpf-no-translate="1">' + ip + '</span></span>' +
                            '</div>' +
                            '<div class="jpf-audit-what">' +
-                           'Master <strong>' + master + '</strong> switched to profile <strong>' + target + '</strong>' +
+                           'Master <strong data-jpf-no-translate="1">' + master + '</strong> switched to profile <strong data-jpf-no-translate="1">' + target + '</strong>' +
                            '</div>' +
                            '<div class="jpf-audit-where">' +
-                           'Device: ' + device + ' (' + client + ')' +
+                           'Device: <span data-jpf-no-translate="1">' + device + '</span> (<span data-jpf-no-translate="1">' + client + '</span>)' +
                            '</div>' +
                            '</div>';
                 }).join('');
@@ -1558,16 +1938,17 @@
             function sessionRowsHtml(sessions) {
                 return sessions.map(function (s) {
                     const who = s.isSubProfile
-                        ? escapeHtml(s.username) + ' <span class="jpf-session-tag">profile of ' + escapeHtml(s.masterUsername || 'unknown') + '</span>'
-                        : escapeHtml(s.username);
-                    const playing = s.nowPlaying ? ' &middot; playing ' + escapeHtml(s.nowPlaying) : '';
-                    const seen = s.lastActivity ? escapeHtml(new Date(s.lastActivity).toLocaleString()) : 'unknown';
+                        ? '<span data-jpf-no-translate="1">' + escapeHtml(s.username) + '</span> <span class="jpf-session-tag">profile of <span data-jpf-no-translate="1">' + escapeHtml(s.masterUsername || (adminLanguage === 'tr' ? 'bilinmiyor' : 'unknown')) + '</span></span>'
+                        : '<span data-jpf-no-translate="1">' + escapeHtml(s.username) + '</span>';
+                    const playing = s.nowPlaying ? ' &middot; playing <span data-jpf-no-translate="1">' + escapeHtml(s.nowPlaying) + '</span>' : '';
+                    const seen = s.lastActivity ? escapeHtml(new Date(s.lastActivity).toLocaleString()) : (adminLanguage === 'tr' ? 'bilinmiyor' : 'unknown');
                     return '<div class="listItem jpf-session-row">' +
                            '<div class="jpf-session-main">' +
                            '<div class="jpf-session-who">' + who + '</div>' +
                            '<div class="jpf-session-where">' +
-                           escapeHtml(s.deviceName || 'Unknown device') + ' (' + escapeHtml(s.client || 'unknown client') + ')' +
-                           ' &middot; last seen ' + seen + playing +
+                           '<span data-jpf-no-translate="1">' + escapeHtml(s.deviceName || (adminLanguage === 'tr' ? 'Bilinmeyen cihaz' : 'Unknown device')) + '</span> (' +
+                           '<span data-jpf-no-translate="1">' + escapeHtml(s.client || (adminLanguage === 'tr' ? 'Bilinmeyen istemci' : 'unknown client')) + '</span>)' +
+                           ' &middot; last seen <span data-jpf-no-translate="1">' + seen + '</span>' + playing +
                            '</div></div>' +
                            '<button is="emby-button" type="button" class="raised jpf-signout-btn"' +
                            ' data-user="' + escapeHtml(s.userId) + '" data-device="' + escapeHtml(s.deviceId) + '"' +
@@ -1606,8 +1987,8 @@
                                 // Signing somebody out interrupts whatever they are watching,
                                 // and the administrator is often not in the same room.
                                 Dashboard.confirm(
-                                    'Sign ' + btn.getAttribute('data-name') + ' out of this device?',
-                                    'Sign out'
+                                    adminTranslation('Sign ' + btn.getAttribute('data-name') + ' out of this device?'),
+                                    adminTranslation('Sign out')
                                 ).then(function () {
                                     Dashboard.showLoadingMsg();
                                     ApiClient.ajax({
@@ -1624,8 +2005,8 @@
                                     }, function () {
                                         Dashboard.hideLoadingMsg();
                                         Dashboard.alert({
-                                            title: 'Sign out failed',
-                                            message: 'That session could not be signed out.'
+                                            title: adminTranslation('Sign out failed'),
+                                            message: adminTranslation('That session could not be signed out.')
                                         });
                                     });
                                 });
@@ -1696,8 +2077,8 @@
                         }
 
                         Dashboard.confirm(
-                            'This replaces every profile, PIN, Bonfire and device list with the contents of that file. It cannot be undone.',
-                            'Import configuration'
+                            adminTranslation('This replaces every profile, PIN, Bonfire and device list with the contents of that file. It cannot be undone.'),
+                            adminTranslation('Import configuration')
                         ).then(function () {
                             Dashboard.showLoadingMsg();
                             ApiClient.ajax({
@@ -1755,7 +2136,7 @@
                 }).catch(function (err) {
                     console.error("Failed to update limit:", err);
                     Dashboard.hideLoadingMsg();
-                    Dashboard.alert({ message: 'Failed to update profile limit.', title: 'Error' });
+                    Dashboard.alert({ message: adminTranslation('Failed to update profile limit.'), title: adminTranslation('Error') });
                 });
             }
 
@@ -1772,7 +2153,7 @@
                 }).catch(function (err) {
                     console.error("Failed to reset PIN:", err);
                     Dashboard.hideLoadingMsg();
-                    Dashboard.alert({ message: 'Failed to reset PIN. Check the server logs for details.', title: 'Error' });
+                    Dashboard.alert({ message: adminTranslation('Failed to reset PIN. Check the server logs for details.'), title: adminTranslation('Error') });
                 });
             }
 
@@ -1869,7 +2250,7 @@
                             '<img src="' + escapeHtml(thumb) + '" alt="" onerror="this.remove()" ' +
                             'style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;" />' +
                             '</div>' +
-                            '<div style="font-size:0.8rem; margin-top:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(name) + '</div>' +
+                            '<div data-jpf-no-translate="1" style="font-size:0.8rem; margin-top:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(name) + '</div>' +
                             (builtIn
                                 ? '<div class="fieldDescription" style="margin-top:4px; font-size:0.75rem;">Built-in</div>'
                                 : '<button is="emby-button" type="button" class="raised avatarDeleteBtn" data-id="' + escapeHtml(id) + '" ' +
@@ -1897,7 +2278,7 @@
                     loadAvatarLibrary(page);
                 }).catch(function (err) {
                     console.error('Failed to delete avatar:', err);
-                    Dashboard.alert({ message: 'Could not remove that avatar.', title: 'Error' });
+                    Dashboard.alert({ message: adminTranslation('Could not remove that avatar.'), title: adminTranslation('Error') });
                 });
             }
 
@@ -2138,7 +2519,7 @@
                 el.innerHTML = '<strong>&#9888;&nbsp; ' + missing.length +
                     (missing.length === 1 ? ' profile has' : ' profiles have') +
                     ' a picture that is no longer on disk.</strong><br>' +
-                    escapeHtml(missing.join(', ')) +
+                    '<span data-jpf-no-translate="1">' + escapeHtml(missing.join(', ')) + '</span>' +
                     '<br><span style="opacity:0.8;">They fall back to the initial and colour, so nothing is broken. ' +
                     'Set a new picture on each to clear this.</span>';
             }
@@ -2240,11 +2621,11 @@
                 }).then(function () {
                     Dashboard.hideLoadingMsg();
                     loadAvatarLibrary(page);
-                    Dashboard.alert({ message: 'Settings saved.', title: 'Bonfire' });
+                    Dashboard.alert({ message: adminTranslation('Settings saved.'), title: 'Bonfire' });
                 }).catch(function (err) {
                     console.error('Failed to save settings:', err);
                     Dashboard.hideLoadingMsg();
-                    Dashboard.alert({ message: 'Failed to save settings.', title: 'Error' });
+                    Dashboard.alert({ message: adminTranslation('Failed to save settings.'), title: adminTranslation('Error') });
                 });
             }
 

@@ -134,15 +134,26 @@ jobs:
           # placeholder checksum. Releasing 1.4.0 to stable did exactly that on
           # 2026-08-23, because its entry was still sitting in the beta manifest too.
           if [ "$BRANCH" = "main" ]; then OTHER_BRANCH="beta"; else OTHER_BRANCH="main"; fi
-          git fetch origin "+refs/heads/${OTHER_BRANCH}:refs/remotes/origin/${OTHER_BRANCH}"
-          OTHER_COUNT=$(git show "origin/${OTHER_BRANCH}:manifest.json" \
-            | jq --arg v "$V" '[.[0].versions[] | select(.version == $v)] | length')
-          if [ "$OTHER_COUNT" -ne 0 ]; then
-            echo "::error::${V} is also in the manifest on '${OTHER_BRANCH}'."
-            echo "::error::Only the '${BRANCH}' manifest gets a checksum here, so the other copy"
-            echo "::error::would keep its placeholder and offer users an install that fails."
-            echo "::error::Remove the ${V} entry from '${OTHER_BRANCH}' and re-run."
-            exit 1
+          set +e
+          OTHER_REF=$(git ls-remote --exit-code --heads origin "refs/heads/${OTHER_BRANCH}" 2>&1)
+          LS_REMOTE_STATUS=$?
+          set -e
+          if [ "$LS_REMOTE_STATUS" -eq 0 ]; then
+            git fetch origin "+refs/heads/${OTHER_BRANCH}:refs/remotes/origin/${OTHER_BRANCH}"
+            OTHER_COUNT=$(git show "origin/${OTHER_BRANCH}:manifest.json" \
+              | jq --arg v "$V" '[.[0].versions[] | select(.version == $v)] | length')
+            if [ "$OTHER_COUNT" -ne 0 ]; then
+              echo "::error::${V} is also in the manifest on '${OTHER_BRANCH}'."
+              echo "::error::Only the '${BRANCH}' manifest gets a checksum here, so the other copy"
+              echo "::error::would keep its placeholder and offer users an install that fails."
+              echo "::error::Remove the ${V} entry from '${OTHER_BRANCH}' and re-run."
+              exit 1
+            fi
+          elif [ "$LS_REMOTE_STATUS" -eq 2 ]; then
+            echo "No '${OTHER_BRANCH}' branch exists; skipping the cross-channel manifest check."
+          else
+            echo "::error::Could not check whether '${OTHER_BRANCH}' exists: ${OTHER_REF}"
+            exit "$LS_REMOTE_STATUS"
           fi
 
           # Fail loudly when the entry is missing. jq's map() silently matches nothing and
