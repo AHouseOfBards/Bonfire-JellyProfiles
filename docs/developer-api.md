@@ -313,6 +313,11 @@ Authenticates a profile selection and returns a scoped session token. Rate limit
 | `jellyfinUserId` | string (GUID) | Jellyfin user ID of the target profile. |
 | `libraryArtwork` | array | The target profile's library artwork choices, in the same shape as `GET /library-artwork`. Included so a client can apply them before reloading. Added in 1.4.0. |
 
+A switch re-applies the profile's library access and the master's restrictions. It does not
+touch the profile's audio language, subtitle language or subtitle mode: those are copied
+from the master once, at `/create`, and belong to the profile after that. Before 1.6.6 every
+switch copied them again (issue #36).
+
 * **Error Responses:**
   * `400 Bad Request`: Incorrect PIN, device restrictions not met, target is an unprotected master account reached via Bonfire, invalid parameters, or the session for the target profile could not be created (device not permitted for that user, or its maximum active sessions reached). The body carries the reason.
   * `401 Unauthorized`: Caller is not authenticated, or unauthorized profile switch attempt.
@@ -565,6 +570,12 @@ provider resolves it within the household of the device asking. Before 1.6.3.3 t
 refused, so a profile chosen from a sign-in screen could only be opened by typing its full
 system username.
 
+Jellyfin Android TV signs in with a third device id, `sha1("<ANDROID_ID>+<name typed>")`,
+which matches no device record. The provider places it by remembering the bare id from the
+sign-in screen's `/Users/Public` request (in memory, 12 hours, at most 512 devices) and
+checking which of those, with the name sent, gives the id. A sign-in with no sign-in screen
+before it is placed only against recorded devices. Since 1.6.3.5.
+
 A **master** keeps its real password. Jellyfin binds an account to exactly one provider, so
 Bonfire's checks the PIN first and hands anything else to
 `DefaultAuthenticationProvider` — both work. Only masters that have set a PIN are bound.
@@ -697,7 +708,7 @@ verbatim. These strings reach `innerHTML`, so a dropped closing tag breaks the l
 around it. `validate.js` checks both.
 
 **Partial files are fine.** Omit a key and it renders in English. Do not ship an empty
-string for it — that renders as nothing at all.
+string for it: `validate.js` rejects one, and `t()` would show the English anyway.
 
 **Scope.** `Web/profilesDashboard.html` — the admin settings page — is deliberately English
 only. It is read by whoever runs the server, its wording changes with almost every
@@ -713,7 +724,7 @@ There is no endpoint listing them, deliberately — it would be a request every 
 reader also paid for. The list is written into `profiles.js` as it is served:
 
 ```js
-let SUPPORTED_LOCALES = ['fr', 'pl']; // __BONFIRE_LOCALES__
+let SUPPORTED_LOCALES = ['fr', 'pl', 'tr']; // __BONFIRE_LOCALES__
 ```
 
 The file on disk carries an empty list and that marker comment. If you consume

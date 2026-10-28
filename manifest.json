@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.6.6.0",
+        "changelog": "**Fixed**\n\n- Switching profiles reset a profile's audio and subtitle language to the main account's. [#36]\n\n**Added**\n\n- Turkish translation. [#35]",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.6/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-10-28T00:00:00Z"
+      },
+      {
         "version": "1.6.5.0",
         "changelog": "**Fixed**\n\n- On 2019 LG TVs (webOS 4.5), Bonfire did not start at all. [#34]\n- With \"Ask who's watching on startup\" off, there was no Switch Profile button and no way to switch.\n- After signing out of the iOS app, the previous account's profile stayed on the sign-in screen and carried over to the next account.\n- On iPad, your own profiles could appear as a linked Bonfire, and Manage Profiles asked you to open yourself first.\n- The profile picture in the header was drawn zoomed in and blurry.",
         "targetAbi": "10.11.0.0",

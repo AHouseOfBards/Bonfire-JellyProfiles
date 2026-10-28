@@ -907,14 +907,9 @@ namespace Jellyfin.Profiles.Controllers
 
                 await _userManager.UpdatePolicyAsync(targetUser.Id, targetPolicy).ConfigureAwait(false);
 
-                // Sync basic configuration settings (language settings, subtitles preference)
-                var masterConfig = masterUserDto.Configuration;
-                var targetConfig = targetUserDto.Configuration;
-                targetConfig.AudioLanguagePreference = masterConfig.AudioLanguagePreference;
-                targetConfig.SubtitleLanguagePreference = masterConfig.SubtitleLanguagePreference;
-                targetConfig.SubtitleMode = masterConfig.SubtitleMode;
-
-                await _userManager.UpdateConfigurationAsync(targetUser.Id, targetConfig).ConfigureAwait(false);
+                // Language and subtitle preferences are seeded from the master when the profile is
+                // created and are the profile's own after that. Copying them again here would undo
+                // whatever was set on the profile (e.g. a child's Polish audio vs. an English master).
             }
 
             var client = GetAuthorizationParameter("Client");
