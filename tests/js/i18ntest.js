@@ -162,6 +162,18 @@ checks.push(loadWith(['fr'], ['fr'],
         env.i18n.t('common.cancel') === 'Cancel');
 }));
 
+checks.push(loadWith(['tr-TR'], ['tr'],
+    () => Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(JSON.parse(fs.readFileSync('Web/i18n/tr.json', 'utf8')))
+    })
+).then(env => {
+    ok('a Turkish regional browser requests the Turkish file',
+        env.fetched.length === 1 && env.fetched[0].includes('/plugins/profiles/i18n/tr.json'));
+    ok('the Turkish translation is applied',
+        env.i18n.t('gate.whosWatching') === 'Kim izliyor?');
+}));
+
 checks.push(loadWith(['de'], ['fr']).then(env => {
     ok('an unsupported language fetches nothing at all', env.fetched.length === 0);
     ok('and stays on English', env.i18n.t('common.cancel') === 'Cancel');
