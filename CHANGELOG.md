@@ -9,6 +9,16 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.6.6  — 2026-10-28
+
+**Fixed**
+
+- Switching profiles reset a profile's audio and subtitle language to the main account's. [#36]
+
+**Added**
+
+- Turkish translation. [#35]
+
 ## 1.6.5  — 2026-10-13
 
 **Fixed**
