@@ -33,12 +33,10 @@ node Web/i18n/validate.js de
 That checks missing keys, keys that do not exist, dropped `{placeholders}` and dropped
 HTML tags. CI runs it over every file, so a broken catalogue cannot merge.
 
-Three things the validator cannot check for you:
+Two things the validator cannot check for you:
 
 - **Leave a key out rather than guessing.** An omitted key falls back to English on its
   own; a wrong translation does not.
-- **Keep every `{placeholder}` and every HTML tag.** They are filled in and rendered at
-  runtime.
 - **Watch the length.** These strings sit on buttons and in a grid that has to work on a
   television at three metres. French runs 1.7–2.75× English on short labels. Check a long
   one against a narrow window.

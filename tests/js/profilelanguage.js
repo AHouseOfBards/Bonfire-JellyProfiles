@@ -6,7 +6,7 @@
  * profile used to copy them again, so a child set to Polish under an English master was
  * back on English after every switch (issue #36). The switch path must not write them.
  *
- *   node tests/js/profilelanguage.js
+ *   node tests/js/profilelanguage.js [path/to/ProfilesController.cs]
  */
 'use strict';
 
@@ -25,7 +25,9 @@ function ok(name, cond, detail) {
 }
 
 // Strip comments so the prose explaining the rule cannot satisfy or break the check.
-const src = fs.readFileSync(path.join(L.ROOT, 'Controllers', 'ProfilesController.cs'), 'utf8')
+const CONTROLLER = process.argv[2]
+    || path.join(L.ROOT, 'Controllers', 'ProfilesController.cs');
+const src = fs.readFileSync(CONTROLLER, 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/\/\/.*$/gm, '');
 
