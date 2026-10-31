@@ -191,6 +191,23 @@ if (readLocale != null && cachedCodes != null)
         var again = readLocale.Invoke(null, new object[] { real, null });
         Ok("a second read returns the same content", Equals(again, content));
     }
+
+    // The endpoint matches a code without regard to case, and the assembly's resource
+    // lookup is case-sensitive. A caller asking for "pt-br" when the file is pt-BR.json
+    // passed the first and failed the second, and was told 503 on every request. Each
+    // embedded code is asked for in both other cases, one at a time.
+    foreach (var code in embedded)
+    {
+        foreach (var variant in new[] { code.ToUpperInvariant(), code.ToLowerInvariant() })
+        {
+            if (variant == code) continue;
+            var read = readLocale.Invoke(null, new object[] { variant, null });
+            Ok("asking for " + variant + " reads " + code + ".json", read is string v && v.Length > 0);
+        }
+    }
+    Ok("and the cache holds each language once, under its file's own spelling "
+       + "(cached: " + string.Join(", ", Cached()) + ")",
+       Cached().All(c => embedded.Contains(c, StringComparer.Ordinal)));
 }
 
 Console.WriteLine();

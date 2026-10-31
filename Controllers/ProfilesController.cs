@@ -2007,6 +2007,14 @@ namespace Jellyfin.Profiles.Controllers
         /// </summary>
         internal static string? ReadLocaleJson(string code, ILogger? logger = null)
         {
+            // The set ignores case and the resource lookup does not. "pt-br" passed the
+            // endpoint's membership check, then asked the assembly for a resource named
+            // pt-br.json when the file is pt-BR.json, got null, and was answered 503 — "ask
+            // again" — forever. Resolved to the embedded spelling first, which also keys the
+            // cache by the file rather than by however the caller happened to type it.
+            if (!EmbeddedLocales.Value.TryGetValue(code, out var canonical)) return null;
+            code = canonical;
+
             if (CachedI18nJson.TryGetValue(code, out var cached) && cached != null) return cached;
 
             string? json = null;
@@ -2045,7 +2053,8 @@ namespace Jellyfin.Profiles.Controllers
 
             // Checked before the cache is touched, so an unknown code cannot grow the
             // dictionary — the key would otherwise be whatever the caller sent.
-            if (!EmbeddedLocales.Value.Contains(code)) return NotFound();
+            if (!EmbeddedLocales.Value.TryGetValue(code, out var canonical)) return NotFound();
+            code = canonical;
 
             var json = ReadLocaleJson(code, _logger);
 
