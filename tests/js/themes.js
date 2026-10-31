@@ -416,7 +416,94 @@ if (constants && names.every(n => methods[n])) {
     ok('a theme is sent as its id', w.obj.readThemePicker('edit') === 'glass');
 }
 
-// ── 6. Wiring ───────────────────────────────────────────────────────────────────
+// ── 6. The startup cover wears the theme from the first frame ────────────────────
+console.log('\n── The startup cover is the theme\'s colour before the sheet loads ');
+
+const HEAD_CS = fs.readFileSync(process.argv[6] || path.join(L.ROOT, 'WebInjection.cs'), 'utf8');
+/** The head script, reassembled from the C# constant the way headscript.js does it. */
+const headBody = (function () {
+    const at = HEAD_CS.indexOf('internal const string HeadScript =');
+    if (at === -1) return '';
+    const end = HEAD_CS.indexOf('";', at);
+    const region = HEAD_CS.slice(at, end + 2).split('\n')
+        .map(line => { const c = line.indexOf('//'); return c === -1 ? line : line.slice(0, c); })
+        .join('\n');
+    return (region.match(/"(?:[^"\\]|\\.)*"/g) || [])
+        .map(p => p.slice(1, -1).replace(/\\(["'\\])/g, '$1')).join('')
+        .replace(/^<script id="jpf-eh">/, '').replace(/<\/script>$/, '');
+})();
+
+const headBackgrounds = (function () {
+    const m = /var tb=\{([\s\S]*?)\},tc=/.exec(headBody);
+    const out = {};
+    if (!m) return out;
+    const re = /([a-z]+):'([^']*)'/g;
+    let x;
+    while ((x = re.exec(m[1])) !== null) out[x[1]] = x[2];
+    return out;
+})();
+const squash = v => String(v || '').replace(/\s+/g, '');
+serverIds.forEach(id => {
+    const sheet = theme[id] && theme[id]['--jpf-gate-bg'];
+    ok('the head script\'s ' + id + ' background is the stylesheet\'s',
+       headBackgrounds[id] !== undefined && squash(headBackgrounds[id]) === squash(sheet),
+       'head: ' + headBackgrounds[id] + ' / sheet: ' + sheet);
+});
+Object.keys(headBackgrounds).forEach(id =>
+    ok('the head script\'s ' + id + ' is a server theme', serverIds.indexOf(id) !== -1));
+
+if (headBody) {
+    const vm = require('vm');
+    /** Runs the head script on a signed-in home page with the given theme cache. */
+    function runHead(themeCache) {
+        const attrs = {};
+        const styles = [];
+        const store = {
+            jellyfin_credentials: JSON.stringify({ Servers: [{ AccessToken: 't', UserId: 'AAAA-1111' }] }),
+            jellyfin_profiles_switcher_mode: JSON.stringify({ askOnStartup: true, location: 'button', masterUserId: 'aaaa1111' }),
+            jellyfin_profiles_theme: themeCache === undefined ? null : JSON.stringify(themeCache)
+        };
+        const root = {
+            style: {},
+            setAttribute: (k, v) => { attrs[k] = String(v); },
+            removeAttribute: k => { delete attrs[k]; },
+            getAttribute: k => (k in attrs ? attrs[k] : null)
+        };
+        const sandbox = {
+            localStorage: { getItem: k => (store[k] === undefined ? null : store[k]), removeItem() {}, setItem() {} },
+            sessionStorage: { getItem: () => null },
+            location: { pathname: '/web/home', hash: '' },
+            document: {
+                documentElement: root,
+                head: { appendChild: el => styles.push(el) },
+                createElement: () => ({}),
+                addEventListener() {}
+            },
+            setTimeout: () => 1, clearTimeout() {},
+            JSON, String, Object, Array
+        };
+        sandbox.window = sandbox;
+        vm.createContext(sandbox);
+        new vm.Script(headBody).runInContext(sandbox);
+        return { attrs: attrs, css: styles.map(s => s.textContent).join('') };
+    }
+
+    const mine = runHead({ userId: 'aaaa1111', theme: 'crimson' });
+    ok('the cover goes up on a signed-in home page that asks', 'data-jpf-cover' in mine.attrs);
+    ok('and wears this account\'s cached theme', mine.attrs['data-jpf-theme'] === 'crimson');
+    ok('with a rule giving each theme its own cover colour',
+       serverIds.every(id => mine.css.indexOf('html[data-jpf-cover][data-jpf-theme=' + id + ']::before{background:') !== -1));
+    const theirs = runHead({ userId: 'bbbb2222', theme: 'glass' });
+    ok('someone else\'s cached theme is not applied', theirs.attrs['data-jpf-theme'] === undefined
+       && 'data-jpf-cover' in theirs.attrs);
+    const unknown = runHead({ userId: 'aaaa1111', theme: 'neon' });
+    ok('a theme the head script does not know is not applied', unknown.attrs['data-jpf-theme'] === undefined);
+    const none = runHead(undefined);
+    ok('no cache: the cover is Bonfire\'s, as before', none.attrs['data-jpf-theme'] === undefined
+       && 'data-jpf-cover' in none.attrs);
+}
+
+// ── 7. Wiring ───────────────────────────────────────────────────────────────────
 console.log('\n── Wiring ────────────────────────────────────────────────────');
 
 ok('the create form renders the picker', /renderThemePicker\('create', null\)/.test(SRC));

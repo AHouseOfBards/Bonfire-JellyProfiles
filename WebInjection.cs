@@ -157,11 +157,28 @@ namespace Jellyfin.Profiles
                     "var m=ph.match(/\\/web\\/(.*)$/),r=m?m[1].replace(/\\/+$/,''):'';" +
                     "if(r&&r!=='index.html'){if(r!=='home'&&r!=='home.html')return;}" +
                     "else if(hs&&hs!=='#/'&&hs.indexOf('home')===-1)return;" +
+                    // The theme, so the cover is the gate's own colour from the first frame.
+                    // The stylesheet that defines --jpf-gate-bg arrives with profiles.js,
+                    // well after this, so each theme's background is repeated here — and
+                    // tests/js/themes.js fails if one stops matching styles.css. Applied
+                    // only when the cache belongs to the account signed in now, as
+                    // applyCachedTheme does; unquoted in the selectors, because a
+                    // double quote before a semicolon ends this constant for the tests.
+                    "var tb={bonfire:'radial-gradient(circle at 50% 40%, #1e1e2e 0%, #0d0d12 100%)'," +
+                        "crimson:'#141414'," +
+                        "starlight:'radial-gradient(ellipse at 50% -10%, #17234d 0%, #0d1435 45%, #050817 100%)'," +
+                        "harbor:'#0f171e'," +
+                        "nightfall:'linear-gradient(180deg, #0b1d5a 0%, #061033 40%, #02040d 100%)'," +
+                        "glass:'radial-gradient(circle at 50% 25%, #3a3a3c 0%, #1c1c1e 45%, #000 100%)'},tc='',k;" +
+                    "var th=g('jellyfin_profiles_theme'),su=[];" +
+                    "for(i=0;sv&&i<sv.length;i++)if(sv[i]&&sv[i].AccessToken&&sv[i].UserId)su.push(n(sv[i].UserId));" +
+                    "if(th&&typeof th.theme==='string'&&tb.hasOwnProperty(th.theme)&&su.indexOf(n(th.userId))!==-1)h.setAttribute('data-jpf-theme',th.theme);" +
+                    "for(k in tb)if(tb.hasOwnProperty(k))tc+='html[data-jpf-cover][data-jpf-theme='+k+']::before{background:'+tb[k]+'}';" +
                     "var s=document.createElement('style');" +
                     "s.id='jpf-cover-css';" +
                     // content: comes last on purpose. A quote followed by a semicolon is
                     // where tests/js/headscript.js decides this constant ends.
-                    "s.textContent='html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#0d0d12;background:var(--jpf-gate-bg,radial-gradient(circle at 50% 40%,#1e1e2e 0%,#0d0d12 100%));content:\"\"}';" +
+                    "s.textContent='html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#0d0d12;background:var(--jpf-gate-bg,radial-gradient(circle at 50% 40%,#1e1e2e 0%,#0d0d12 100%));content:\"\"}'+tc;" +
                     "(document.head||h).appendChild(s);" +
                     "h.setAttribute('data-jpf-cover','');" +
                     "var u=function(){h.removeAttribute('data-jpf-cover');clearTimeout(window.__jpCoverT);window.__jpCoverT=null;};" +

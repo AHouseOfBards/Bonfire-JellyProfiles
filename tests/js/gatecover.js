@@ -602,7 +602,13 @@ console.log('\n── 5. One rule, in the gate\'s colour ───────�
     const css = L.extractCss(js);
     const gate = (/#profiles-gate-overlay\s*\{[^}]*?background:\s*([^;]+);/.exec(css) || [])[1] || '';
     const fallback = (/var\(--jpf-gate-bg,(radial-gradient\([^;]*\))\)/.exec(headRule) || [])[1] || '';
-    const squash = s => L.resolveCssValue(css, s).replace(/\s+/g, '').replace(/^var\(--jpf-gate-bg,(.*)\)$/, '$1');
+    // Since themes, the gate reads --jpf-gate-bg, and Bonfire's value for it lives in the
+    // block every theme starts from rather than the first token block resolveCssValue
+    // reads. The cover's fallback must be that value: it is what shows before any theme.
+    const bonfireBg = (/:root, body, \[data-jpf-theme="bonfire"\]\s*\{[^}]*?--jpf-gate-bg:\s*([^;]+);/.exec(css) || [])[1];
+    const squash = s => L.resolveCssValue(css, s)
+        .replace(/^var\(--jpf-gate-bg\)$/, bonfireBg || 'var(--jpf-gate-bg)')
+        .replace(/\s+/g, '').replace(/^var\(--jpf-gate-bg,(.*)\)$/, '$1');
     ok('and its colour is the gate\'s background, so dropping it under the gate shows nothing',
         !!fallback && squash(gate) === squash(fallback),
         'gate: ' + gate + '\n          cover: ' + fallback);
