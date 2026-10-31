@@ -81,4 +81,4 @@ downloads that one file, and falls back to English for any missing key. English 
 download nothing extra.
 
 The endpoint and its caching are described in
-[`docs/developer-api.md`](../../docs/developer-api.md#adding-a-translation).
+[`docs/developer-api.md`](../../docs/developer-api.md#translations).

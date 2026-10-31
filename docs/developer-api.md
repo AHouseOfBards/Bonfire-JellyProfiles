@@ -1,118 +1,134 @@
-# Bonfire — Developer API Reference
+# Bonfire API
 
-**Plugin ID:** `b1462fca-774b-4b13-8d02-e2d4f2bc18b9`  
-**Base path:** `/plugins/profiles`  
-**Server:** Jellyfin 10.11.x and 12.0  
+| | |
+| --- | --- |
+| Plugin ID | `b1462fca-774b-4b13-8d02-e2d4f2bc18b9` |
+| Base path | `/plugins/profiles` |
+| Server | Jellyfin 10.11.x and 12.0 |
 
-All paths below are relative to the base path. All request and response bodies are JSON
-unless stated otherwise. Field names are returned camelCase.
-
----
+Bodies are JSON unless stated otherwise, and fields are returned camelCase. The API exists
+for Bonfire's own client. It's documented because other people build against it too.
 
 ## Contents
 
-- [All routes](#all-routes) — every endpoint in one table
-- [Authentication](#authentication) — how authorisation works, and the seven public routes
-- [Errors](#errors) — status codes, and what an error body actually looks like
+- [All routes](#all-routes)
+- [Authentication](#authentication)
+- [Errors](#errors)
 - [Rate limits](#rate-limits)
-- [Stability](#stability) — what is guaranteed, and what may change
-- [Profiles API](#profiles-api)
-- [Sign-in from other clients](#sign-in-from-other-clients) — what the TVs & Apps settings change in Jellyfin's own routes
-- [Client Script](#client-script)
+- [Stability](#stability)
+- [Profiles](#profiles)
+- [Sign-in from other apps](#sign-in-from-other-apps)
+- [Client script](#client-script)
 - [Translations](#translations)
-- [Images API](#images-api)
-- [Library Artwork API](#library-artwork-api)
-- [Devices API](#devices-api)
-- [Bonfire API](#bonfire-api)
-- [Preferences API](#preferences-api)
-- [Avatar Library API](#avatar-library-api)
-- [Emergency Disable API](#emergency-disable-api)
-- [Admin API](#admin-api)
+- [Images](#images)
+- [Library artwork](#library-artwork)
+- [Devices](#devices)
+- [Bonfire](#bonfire)
+- [Preferences](#preferences)
+- [Avatar library](#avatar-library)
+- [Emergency disable](#emergency-disable)
+- [Admin](#admin)
 
 ## All routes
 
-All 51 endpoints the plugin exposes. **Auth** is what the endpoint enforces, not what it
-ought to: `anon` means reachable with no token at all.
-
-This table is generated from `ProfilesController` and checked by
-`tests/js/apidocs.js`, which fails the build if a route is added without an entry, if
-an entry names a route that no longer exists, or if a documented authorisation level
-is not the one the code enforces.
+All 51 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+`anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
-|---|---|---|
-| `GET /plugins/profiles/list` | user | Every profile the caller may switch to, for the gate. |
-| `GET /plugins/profiles/libraries` | user | Libraries the caller can grant to a sub-profile. |
-| `POST /plugins/profiles/create` | user | Create a sub-profile under the caller. |
-| `POST /plugins/profiles/delete` | user | Delete one of the caller’s sub-profiles. |
-| `POST /plugins/profiles/switch` | user | Switch to a profile and return a session. |
+| --- | --- | --- |
+| `GET /plugins/profiles/list` | user | Profiles the caller can switch to. |
+| `GET /plugins/profiles/libraries` | user | Libraries the caller can give a profile. |
+| `POST /plugins/profiles/create` | user | Create a profile. |
+| `POST /plugins/profiles/update` | user | Change a profile. |
+| `POST /plugins/profiles/delete` | user | Delete a profile and its account. |
+| `POST /plugins/profiles/switch` | user | Switch to a profile and get its token. |
 | `POST /plugins/profiles/verify-pin` | user | Check a PIN without switching. |
-| `GET /plugins/profiles/admin/mappings` | admin | Every profile on the server, for the dashboard. |
-| `POST /plugins/profiles/admin/retry-injection` | admin | Re-attempt the client-script injection. |
-| `POST /plugins/profiles/admin/reset-pin` | admin | Clear a profile’s PIN. |
-| `POST /plugins/profiles/admin/cleanup-orphans` | admin | Find, and optionally remove, records pointing at deleted users. |
-| `GET /plugins/profiles/admin/sessions` | admin | Live sessions, with the household each belongs to. |
-| `POST /plugins/profiles/admin/sessions/sign-out` | admin | Revoke one device's token. |
-| `GET /plugins/profiles/admin/config/export` | admin | The whole configuration as JSON. |
-| `POST /plugins/profiles/admin/config/import` | admin | Replace the configuration with an export. |
-| `POST /plugins/profiles/update` | user | Change a sub-profile’s settings. |
-| `GET /plugins/profiles/profiles.js` | anon | The client script itself. |
-| `GET /plugins/profiles/i18n/{locale}` | anon | One translation file. |
-| `GET /plugins/profiles/bonfire/status` | user | The caller’s Bonfire group and its members. |
-| `POST /plugins/profiles/bonfire/generate` | user | Mint a join code. |
-| `POST /plugins/profiles/bonfire/join` | user | Join a group with a code. |
-| `POST /plugins/profiles/bonfire/kick` | user | Remove a member from the caller’s group, and replace the code. |
-| `POST /plugins/profiles/bonfire/regenerate-code` | user | Replace the caller’s Bonfire code. |
-| `POST /plugins/profiles/bonfire/leave` | user | Leave the group the caller is in. |
-| `POST /plugins/profiles/bonfire/delete-group` | user | Delete the caller’s own group. |
-| `POST /plugins/profiles/bonfire/settings` | user | Change the caller’s Bonfire options. |
-| `GET /plugins/profiles/preferences` | user | The caller’s switcher preferences. |
-| `POST /plugins/profiles/preferences` | user | Change them. |
-| `GET /plugins/profiles/admin/avatars/scan` | admin | List importable images in a server folder. |
-| `GET /plugins/profiles/admin/avatars/scan/file` | admin | Read one of those images. |
-| `GET /plugins/profiles/library-artwork` | user | The caller’s library artwork rules. |
-| `GET /plugins/profiles/library-artwork/{profileId}` | user | One profile’s rules. |
-| `POST /plugins/profiles/library-artwork` | user | Set them. |
-| `GET /plugins/profiles/library-art/{profileId}/{libraryId}` | anon | One library tile image. |
-| `GET /plugins/profiles/devices` | user | Devices seen on the caller’s account. |
-| `POST /plugins/profiles/devices/delete` | user | Forget one. |
-| `POST /plugins/profiles/devices/merge` | user | Fold two records for one machine into one. |
-| `POST /plugins/profiles/devices/merge-duplicates` | user | Find, and optionally merge, records that are one machine. |
-| `POST /plugins/profiles/devices/rename` | user | Give a device a name that sticks. |
+| `GET /plugins/profiles/profiles.js` | anon | The client script. |
+| `GET /plugins/profiles/i18n/{locale}` | anon | One translation. |
 | `GET /plugins/profiles/image/{profileId}` | anon | A profile picture. |
-| `POST /plugins/profiles/panic` | anon | Emergency disable, with the code. |
-| `GET /plugins/profiles/panic-state` | anon | Whether the plugin is disabled. |
-| `GET /plugins/profiles/admin/panic-status` | admin | Whether a panic code is configured. |
-| `POST /plugins/profiles/admin/panic-code` | admin | Set or clear the panic code. |
-| `GET /plugins/profiles/avatars` | user | The shared avatar library. |
-| `GET /plugins/profiles/avatars/{id}` | anon | One library avatar image. |
-| `POST /plugins/profiles/admin/avatars` | admin | Add an image to the library. |
-| `DELETE /plugins/profiles/admin/avatars/{id}` | admin | Remove one. |
-| `POST /plugins/profiles/admin/avatars/settings` | admin | Change avatar-library options. |
-| `POST /plugins/profiles/admin/settings` | admin | Change the plugin’s settings. |
-| `POST /plugins/profiles/admin/set-profile-limit` | admin | Change the per-user profile cap. |
-| `GET /plugins/profiles/admin/audit-logs` | admin | Read the audit log. |
+| `GET /plugins/profiles/library-artwork` | user | The caller's library artwork. |
+| `GET /plugins/profiles/library-artwork/{profileId}` | user | One profile's library artwork. |
+| `POST /plugins/profiles/library-artwork` | user | Set library artwork. |
+| `GET /plugins/profiles/library-art/{profileId}/{libraryId}` | anon | One library tile picture. |
+| `GET /plugins/profiles/devices` | user | The household's devices. |
+| `POST /plugins/profiles/devices/delete` | user | Forget a device. |
+| `POST /plugins/profiles/devices/merge` | user | Merge two records for one device. |
+| `POST /plugins/profiles/devices/merge-duplicates` | user | Find, and optionally merge, duplicate records. |
+| `POST /plugins/profiles/devices/rename` | user | Rename a device. |
+| `GET /plugins/profiles/bonfire/status` | user | The caller's Bonfire. |
+| `POST /plugins/profiles/bonfire/settings` | user | Change Bonfire sharing options. |
+| `POST /plugins/profiles/bonfire/generate` | user | Start a Bonfire and get its code. |
+| `POST /plugins/profiles/bonfire/join` | user | Join a Bonfire with a code. |
+| `POST /plugins/profiles/bonfire/kick` | user | Remove a member and change the code. |
+| `POST /plugins/profiles/bonfire/regenerate-code` | user | Change the code. |
+| `POST /plugins/profiles/bonfire/leave` | user | Leave a Bonfire. |
+| `POST /plugins/profiles/bonfire/delete-group` | user | End your Bonfire. |
+| `GET /plugins/profiles/preferences` | user | Switcher preferences. |
+| `POST /plugins/profiles/preferences` | user | Change them. |
+| `GET /plugins/profiles/avatars` | user | The avatar library. |
+| `GET /plugins/profiles/avatars/{id}` | anon | One avatar image. |
+| `POST /plugins/profiles/admin/avatars` | admin | Add an avatar. |
+| `DELETE /plugins/profiles/admin/avatars/{id}` | admin | Remove an avatar. |
+| `POST /plugins/profiles/admin/avatars/settings` | admin | Avatar library options. |
+| `GET /plugins/profiles/admin/avatars/scan` | admin | List pictures in a server folder. |
+| `GET /plugins/profiles/admin/avatars/scan/file` | admin | Read one of them. |
+| `POST /plugins/profiles/panic` | anon | Emergency disable. |
+| `GET /plugins/profiles/panic-state` | anon | Whether Bonfire is disabled. |
+| `GET /plugins/profiles/admin/panic-status` | admin | Whether a code is set. |
+| `POST /plugins/profiles/admin/panic-code` | admin | Set or clear the code. |
+| `POST /plugins/profiles/admin/settings` | admin | Server-wide settings. |
+| `GET /plugins/profiles/admin/mappings` | admin | Every profile, plus script status. |
+| `POST /plugins/profiles/admin/reset-pin` | admin | Clear a profile's PIN. |
+| `POST /plugins/profiles/admin/cleanup-orphans` | admin | Remove records for deleted users. |
+| `GET /plugins/profiles/admin/sessions` | admin | Live sessions by household. |
+| `POST /plugins/profiles/admin/sessions/sign-out` | admin | Sign one device out. |
+| `GET /plugins/profiles/admin/config/export` | admin | Export the configuration. |
+| `POST /plugins/profiles/admin/config/import` | admin | Import a configuration. |
+| `POST /plugins/profiles/admin/retry-injection` | admin | Retry writing the script tag. |
+| `POST /plugins/profiles/admin/set-profile-limit` | admin | One account's profile limit. |
+| `GET /plugins/profiles/admin/audit-logs` | admin | The switch log. |
+
+## Authentication
+
+Send Jellyfin's usual header. Manage profiles with the main account's token; after a
+switch, use the token it returns.
+
+```http
+Authorization: MediaBrowser Client="<Client>", Device="<Device>", DeviceId="<DeviceId>", Version="<Version>", Token="<token>"
+```
+
+Seven routes are reachable without a token, because they're needed before anyone signs in.
+
+| Endpoint | Why it is anonymous |
+| --- | --- |
+| `GET /profiles.js` | Loaded by the sign-in page. |
+| `GET /i18n/{locale}` | Fetched by that script before sign-in. |
+| `GET /image/{profileId}` | Pictures on the profile screen, which is shown before sign-in. |
+| `GET /avatars/{id}` | Same. |
+| `GET /library-art/{profileId}/{libraryId}` | Same. |
+| `POST /panic` | Has to work when Bonfire is what's blocking the interface. Rate limited. |
+| `GET /panic-state` | Says only whether Bonfire is disabled. |
+
+The image routes can be reached by anyone who knows the id. Ids are GUIDs, so they can't
+be guessed.
+
+Every other route checks the caller itself, because the controller is
+`[AllowAnonymous]` so the routes above work. A new route with no check is public.
 
 ## Errors
 
-Status codes are used consistently across every endpoint.
+| Code | Meaning |
+| --- | --- |
+| `200` | Done, including when there was nothing to change. |
+| `400` | Refused. The body says why. |
+| `401` | No valid token, or not allowed. |
+| `404` | Unknown profile, image or library. |
+| `429` | Rate limited. See below. |
+| `500` | A bug. The body is Jellyfin's. |
+| `503` | A translation could not be read. Try again. |
 
-| Code | Meaning | When |
-|---|---|---|
-| `200` | Success | Includes operations that changed nothing, such as forgetting a device that was already gone. |
-| `400` | The request was understood and rejected | A malformed body, a PIN that is not 4–8 digits, a profile limit outside 1–20, an invalid Bonfire code. |
-| `401` | Not signed in | No usable `Jellyfin-UserId` claim. Every non-anonymous route returns this rather than `403` when there is no token at all. |
-| `403` | Signed in, but not permitted | Administrator-only routes reached by a normal user, and switching to a profile outside the caller's household. |
-| `404` | Not found | An unknown profile or image id. Also returned instead of a redirect when a profile picture is an external URL. |
-| `429` | Rate limited | See below. |
-| `500` | Unhandled | A bug. The response body is Jellyfin's, not the plugin's. |
-
-### What an error body looks like
-
-**Most error responses are a bare string, not JSON.** `BadRequest("Invalid PIN code.")`
-serialises as a quoted string, and a client that calls `response.json()` and reads
-`.message` gets `undefined` rather than the reason. Read the body as text and show it
-directly; it is written to be shown to a person.
+**Error bodies are plain text, not JSON.** Read the body as text and show it to the user;
+it's written for them.
 
 ```
 HTTP/1.1 400 Bad Request
@@ -121,95 +137,42 @@ Content-Type: text/plain; charset=utf-8
 Invalid PIN code.
 ```
 
-Endpoints that return structured data on success still return a bare string on failure.
-The two are told apart by the status code, never by the shape of the body.
-
 ## Rate limits
 
-Exceeding a limit returns `429` and does not count as an attempt, so a client cannot extend
-its own lockout by retrying. Every attempt is counted before it is checked, so parallel
-requests cannot all pass the limit together.
+Attempts are counted before they're checked, so parallel requests can't slip past. A
+correct attempt resets the count. A refused request returns `429`.
 
-| Limiter | Endpoint | Attempts | Window | Keyed on |
-|---|---|---|---|---|
-| Bonfire | `POST /plugins/profiles/bonfire/join` | 3 | 15 minutes | address |
-| PIN | `POST /plugins/profiles/switch`, `POST /plugins/profiles/verify-pin` | 5 | 15 minutes | address + profile |
-| panic | `POST /plugins/profiles/panic` | 5 | 60 minutes | address |
-| client PIN | `POST /Users/AuthenticateByName` with a PIN | 5, and 20 a day | 15 minutes, 24 hours | account |
+| Limiter | Applies to | Attempts | Window | Counted per |
+| --- | --- | --- | --- | --- |
+| PIN | `POST /switch`, `POST /verify-pin` | 5 | 15 minutes | address and profile |
+| PIN, per profile | the same, plus the main account's PIN on edits | 10 | 15 minutes | profile, all addresses |
+| client PIN | a PIN typed into another app's sign-in | 5, and 20 a day | 15 minutes, 24 hours | account |
+| Bonfire | `POST /bonfire/join` | 3 | 15 minutes | address |
+| panic | `POST /panic` | 5 | 60 minutes | address |
 
-The client PIN limit covers a PIN typed into another app's sign-in screen. Jellyfin's own
-lockout does not: `LoginAttemptsBeforeLockout` is unset on the accounts Bonfire creates,
-which Jellyfin treats as "never lock". When it is reached, the response is the usual
-`Invalid username or password`, and a master account's real password keeps working.
-
-A successful attempt resets that limiter for the address. The panic limiter is checked
-**before** the code is compared, so a wrong code and a missing one are indistinguishable
-from the outside.
+A client PIN that hits its limit gets Jellyfin's usual `Invalid username or password`. A
+main account's real password keeps working.
 
 ## Stability
 
-This API exists for the plugin's own client, and is documented because other people
-have built against it anyway. What that means in practice:
-
-- **Fields documented here are guaranteed** for the current major version. A field will
-  not change type or meaning without the version changing.
-- **Ignore fields you do not recognise.** New ones are added in minor releases, and a
-  client that rejects unknown fields will break on an upgrade that breaks nothing else.
-- **Do not depend on field order**, or on the absence of a field.
-- **Routes are not removed within a major version.** A route that is being retired keeps
-  working and is marked deprecated here first.
-- **Request bodies accept more than they require.** Optional fields left out keep their
-  stored value; this is how an older cached copy of `profiles.js` keeps working after
-  the server is updated, and it is deliberate.
-
-## Authentication
-
-Almost every request requires a Jellyfin authorization header. Profile management
-endpoints must be authenticated with the master user's token; after a profile switch, the
-returned active profile token is used for subsequent requests.
-
-```http
-Authorization: MediaBrowser Client="<ClientName>", Device="<DeviceName>", DeviceId="<DeviceId>", Version="<Version>", Token="<token>"
-```
-
-#### The endpoints that do not
-
-Seven routes are reachable without a token, each because it has to work *before* anyone
-has signed in. They are listed here so an integrator does not mistake one for a hole, and
-so anyone adding a route knows this list is meant to stay this short.
-
-| Endpoint | Why it is anonymous |
-|---|---|
-| `GET /profiles.js` | Loaded by a `<script>` tag on the sign-in page itself. |
-| `GET /i18n/{locale}` | Fetched by that script, before sign-in, for the same reason. |
-| `GET /image/{profileId}` | Avatars are drawn on the profile gate, which is pre-auth. |
-| `GET /avatars/{id}` | The avatar library, same. |
-| `GET /library-art/{profileId}/{libraryId}` | Library tile artwork, same. |
-| `POST /panic` | The emergency disable. It has to work when the plugin is what is blocking the interface. Rate limited, and a wrong code and a missing one return the same error. |
-| `GET /panic-state` | Reports only whether the plugin is disabled — already visible on screen. |
-
-The image endpoints allow enumeration by GUID. That is accepted: they must be pre-auth for
-the gate to render, and a GUID is not guessable.
-
-The controller carries a class-level `[AllowAnonymous]` because the script and image
-endpoints must be reachable pre-auth and Jellyfin's authorization policy name is not part
-of the public plugin API. **Authorization is therefore hand-rolled per endpoint** — every
-other route calls `GetCurrentUserId()` and returns `401`, or checks
-`Policy.IsAdministrator`. There is no framework backstop, so a new route without a check
-is silently public.
+- Fields documented here keep their type and meaning within a major version.
+- Ignore fields you don't recognise. New ones arrive in minor releases.
+- Don't rely on field order.
+- Routes aren't removed within a major version. One being retired is marked deprecated
+  here first.
+- Optional request fields that you leave out keep their stored value, unless the field
+  says otherwise.
 
 ---
 
-## Profiles API
+## Profiles
 
 ### `GET /plugins/profiles/list`
 
 **Authorisation:** signed-in user.
 
-Retrieves a list of all profiles (master and sub-profiles) accessible to the authenticated master session.
+Every profile the caller can switch to: their own household, then any linked Bonfire.
 
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Response `200 OK`:**
 ```json
 [
   {
@@ -233,137 +196,96 @@ Retrieves a list of all profiles (master and sub-profiles) accessible to the aut
 ```
 
 | Field | Type | Description |
-|---|---|---|
-| `profileUserId` | string (GUID) | Jellyfin user ID assigned to the profile. |
-| `profileName` | string | Display name of the profile. |
-| `avatarInitial` | string | Single character representing the profile avatar. |
-| `avatarColor` | string | Hex color code for the fallback avatar display. |
-| `transparentAvatar` | boolean | When true, do not paint `avatarColor` behind `profileImage`. Set for pictures that are cut out rather than rectangular, where a colour would otherwise show in the corners. Always false when there is no picture. |
-| `requiresPin` | boolean | Whether a PIN must be entered to switch to this profile **right now**. This is false when `bypassPinOnLocalNetwork` is set and the caller is on the local network, even though a PIN exists. Use this to decide whether to prompt. |
-| `hasPin` | boolean | Whether a PIN is configured on this profile at all, regardless of whether one will be prompted for. Use this — never `requiresPin` — to display PIN state in a settings or edit screen. See the note below. |
-| `isMaster` | boolean | Indicates if this is the master user account. |
-| `isAdministrator` | boolean | Whether this account has Jellyfin administrator rights. Sent for masters only. Provided so a client can warn that this account's PIN opens an account that can reach server settings; it is not an authorisation signal. |
-| `lockoutMinutes` | integer | Inactivity timeout in minutes before auto-lock. `0` indicates disabled. |
-| `maxSubProfiles` | integer | Maximum sub-profiles allowed (present only when `isMaster` is true). |
-| `enabledFolders` | string[] (GUIDs) | Library GUIDs accessible to this sub-profile (present only when `isMaster` is false). |
-| `blockedTags` | string[] | Tags this sub-profile is blocked from seeing. This is the profile's own list; the master's blocked tags are merged in when the policy is applied, so it may be narrower than what the underlying Jellyfin user enforces. |
-| `allowedTags` | string[] | Tags this sub-profile is restricted to. Empty means no allow-list. Same "profile's own list" caveat as `blockedTags`. |
-| `bypassPinOnLocalNetwork` | boolean | If true, PIN entry is bypassed when the client is on a local network (LAN). |
-| `allowedDeviceIds` | string[] | Device IDs permitted to access this profile. Empty or null indicates no device restrictions. |
-| `isBonfire` | boolean | Indicates if the profile belongs to a linked Bonfire guest home. |
-| `profileImage` | string | The profile picture: either `/plugins/profiles/image/{id}?v=…` for a stored image, or an absolute http(s) URL the user pasted. Null if none. Append `size=thumb` to a stored URL for the small variant — see the note below. |
-| `masterUserId` | string (GUID) | Jellyfin user ID of the master user account this profile belongs to. |
+| --- | --- | --- |
+| `profileUserId` | GUID | The profile's Jellyfin user id. |
+| `profileName` | string | Display name. |
+| `avatarInitial` | string | One letter for a picture-less avatar. |
+| `avatarColor` | string | Hex colour behind the avatar. |
+| `transparentAvatar` | boolean | Don't paint `avatarColor` behind the picture. |
+| `requiresPin` | boolean | Ask for a PIN before switching **now**. False on the home network when the bypass is on. |
+| `hasPin` | boolean | A PIN is set. Use this, not `requiresPin`, to show PIN state in a form. |
+| `isMaster` | boolean | This is the main account. |
+| `isAdministrator` | boolean | Main accounts only. The account is a Jellyfin administrator. For warnings, not for access checks. |
+| `lockoutMinutes` | integer | Minutes of inactivity before the profile locks. `0` is never. |
+| `maxSubProfiles` | integer | Main accounts only. How many profiles it may have. |
+| `enabledFolders` | GUID[] | Profiles only. The libraries it was given. |
+| `allLibraries` | boolean | Profiles only. It was saved with no library ticked, so it follows the main account's libraries, including ones added later. |
+| `blockedTags` | string[] | The profile's own blocked tags. The main account's are added when it's opened. |
+| `allowedTags` | string[] | The profile's own allowed tags. Empty means no allow-list. |
+| `bypassPinOnLocalNetwork` | boolean | Skip the PIN on the home network. |
+| `allowedDeviceIds` | string[] | Devices it may be opened on. Empty means any. |
+| `isBonfire` | boolean | Belongs to another household in the caller's Bonfire. |
+| `profileImage` | string | `/plugins/profiles/image/{id}?v=…`, an `http(s)` URL, or null. |
+| `masterUserId` | GUID | The main account it belongs to. |
 
-> **`requiresPin` vs `hasPin`.** These answer different questions and are not interchangeable.
-> `requiresPin` means *"prompt for a PIN before switching"*; it is deliberately false on the LAN
-> when the bypass is enabled. `hasPin` means *"a PIN is stored"*.
->
-> A client that uses `requiresPin` to render PIN state in an edit screen will show a correctly
-> saved PIN as "not set" for every user on their own network — which looks exactly like the save
-> having failed. Prompt on `requiresPin`; display on `hasPin`.
->
-> PINs are stored as salted PBKDF2-SHA256 hashes and are never returned by any endpoint, so a
-> client can show *that* a PIN exists but never the PIN itself.
+`enabledFolders`, the tag lists and `allowedDeviceIds` are empty for profiles in another
+household. PINs are stored hashed and never returned.
 
 ### `POST /plugins/profiles/switch`
 
-**Authorisation:** signed-in user — the target must be in the caller's household or a linked Bonfire.
+**Authorisation:** signed-in user. The target must be in the caller's household or Bonfire.
 
-Authenticates a profile selection and returns a scoped session token. Rate limited to 5 failed attempts in 15 minutes.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Request Body:**
 ```json
-{
-  "profileId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
-  "pin": "1234"
-}
+{ "profileId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b", "pin": "1234" }
 ```
 
 | Field | Type | Required | Description |
-|---|---|---|---|
-| `profileId` | string (GUID) | Yes | The Jellyfin user ID of the target profile. |
-| `pin` | string | Conditional | Required if `requiresPin` is true for the target profile. |
+| --- | --- | --- | --- |
+| `profileId` | GUID | Yes | The profile to switch to. |
+| `pin` | string | When `requiresPin` | The profile's PIN. |
 
-> **Cross-account switches (Bonfire).** Switching into *another master account* linked via a Bonfire group returns a fully privileged session for that account, so two extra rules apply:
-> * If the target master account has no PIN set, the switch is refused with `400` — an unprotected account is not reachable through a shared Bonfire.
-> * `bypassPinOnLocalNetwork` is ignored for these switches. It is the caller's own convenience setting and does not carry across a link, so the PIN is required even on the LAN.
->
-> Both rules are lifted for a target account whose **owner** has set `allowHouseholdLanBypass`
-> (see `POST /bonfire/settings`) *and* whose request Jellyfin classifies as local. Consent comes
-> from the account being entered, never from the caller. Remote requests are unaffected in every
-> case, and each bypass is written to the audit log.
->
-> None of this affects switching to your own account or its sub-profiles.
->
-> `requiresPin` in `/list` mirrors all of the above, so clients that trust that flag need no
-> special handling.
+Response:
 
-* **Response `200 OK`:**
 ```json
 {
   "activeProfileToken": "7ef4a378297b470183b0b3e6cda7670e",
-  "jellyfinUserId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b"
+  "jellyfinUserId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
+  "libraryArtwork": []
 }
 ```
 
 | Field | Type | Description |
-|---|---|---|
-| `activeProfileToken` | string | Scoped Jellyfin session token for the target profile. |
-| `jellyfinUserId` | string (GUID) | Jellyfin user ID of the target profile. |
-| `libraryArtwork` | array | The target profile's library artwork choices, in the same shape as `GET /library-artwork`. Included so a client can apply them before reloading. Added in 1.4.0. |
+| --- | --- | --- |
+| `activeProfileToken` | string | A Jellyfin token for the profile. |
+| `jellyfinUserId` | GUID | The profile's user id. |
+| `libraryArtwork` | array | The profile's library artwork, as `GET /library-artwork` returns it, so it can be applied before the page reloads. |
 
-A switch re-applies the profile's library access and the master's restrictions. It does not
-touch the profile's audio language, subtitle language or subtitle mode: those are copied
-from the master once, at `/create`, and belong to the profile after that. Before 1.6.6 every
-switch copied them again (issue #36).
+Before the token is made, the main account's restrictions are applied to the profile again:
+libraries, rating, tags, schedules, bitrate and the rest. Language and subtitle settings
+are left alone; they belong to the profile once it exists. The same thing happens when a
+profile signs in on another app.
 
-* **Error Responses:**
-  * `400 Bad Request`: Incorrect PIN, device restrictions not met, target is an unprotected master account reached via Bonfire, invalid parameters, or the session for the target profile could not be created (device not permitted for that user, or its maximum active sessions reached). The body carries the reason.
-  * `401 Unauthorized`: Caller is not authenticated, or unauthorized profile switch attempt.
-  * `404 Not Found`: Target profile or underlying system user does not exist.
-  * `429 Too Many Requests`: PIN authentication rate limit exceeded (5 failed attempts per 15 minutes).
+**Another household's account** needs its PIN, even on the home network, and one with no
+PIN can't be entered. Both rules are lifted on the home network when that account's owner
+has turned on `allowHouseholdLanBypass`. `requiresPin` in `/list` already reflects this.
 
-> **A `401` from this endpoint is about the caller, never the target.** Every way the target
-> profile can fail to authenticate is returned as a `400` with a reason in the body, so a client
-> can safely treat `401` as "my own token is no longer valid" and nothing else. Before 1.3.3 a
-> failure to create the target's session surfaced as a `401`, and clients that read it as session
-> expiry signed the user out of an account that was working fine (issue #15).
+Errors:
+
+- `400`: wrong PIN, not allowed on this device, an unprotected account in another
+  household, an account turned off in Dashboard → Users, or no session could be made
+  (device not allowed, or too many sessions).
+- `401`: the caller's own token is invalid, or the target isn't theirs to open. A `401`
+  never means the target failed, so a client can treat it as "sign the caller in again".
+- `404`: the profile doesn't exist.
+- `429`: too many wrong PINs.
 
 ### `POST /plugins/profiles/verify-pin`
 
 **Authorisation:** signed-in user.
 
-Validates a profile PIN without switching the active session. Rate limited to 5 failed attempts in 15 minutes.
+Checks a profile's PIN without switching.
 
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Request Body:**
 ```json
-{
-  "profileId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
-  "pin": "1234"
-}
+{ "profileId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b", "pin": "1234" }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `profileId` | string (GUID) | Yes | The Jellyfin user ID of the profile. |
-| `pin` | string | Yes | The numeric PIN to validate. |
-
-* **Response `200 OK`:** PIN is correct.
-* **Error Responses:**
-  * `400 Bad Request`: Incorrect PIN, device restrictions not met, or invalid parameters.
-  * `401 Unauthorized`: Caller is not authenticated, or unauthorized profile PIN verification.
-  * `429 Too Many Requests`: PIN authentication rate limit exceeded (5 failed attempts per 15 minutes).
+Returns `200` when it's correct. Errors: `400` wrong PIN or not allowed on this device,
+`401`, `429`.
 
 ### `POST /plugins/profiles/create`
 
-**Authorisation:** signed-in user — a master account, not one of its profiles.
+**Authorisation:** signed-in user. A main account, not one of its profiles.
 
-Creates a new sub-profile.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Request Body:**
 ```json
 {
   "profileName": "Kids",
@@ -382,475 +304,266 @@ Creates a new sub-profile.
 ```
 
 | Field | Type | Required | Description |
-|---|---|---|---|
-| `profileName` | string | Yes | Display name for the new profile. |
-| `pin` | string | No | Numeric PIN for the profile (4-8 digits). Pass null or omit for no PIN. |
-| `avatarColor` | string | No | Hex color code for the fallback avatar. Defaults to `#1F77B4`. |
-| `transparentAvatar` | boolean | No | Suppresses `avatarColor` behind the picture. Defaults to false. |
-| `maxParentalRating` | string | No | Maximum parental rating allowed (e.g., "6", "10", "14", "17"). Omit for no restriction. |
-| `enabledFolders` | string[] (GUIDs) | No | Array of library GUIDs accessible to this profile. Empty array denies all library access. |
-| `blockedTags` | string[] | No | Tags this profile must never see. Merged with the master's blocked tags — a sub-profile can add blocks but never remove the master's. Null or empty blocks nothing. |
-| `allowedTags` | string[] | No | When non-empty, restricts the profile to items carrying at least one of these tags. Intersected with the master's allow-list when it has one; returns `400` if the two share no tags. **Untagged content is hidden by an allow-list.** |
-| `lockoutMinutes` | integer | No | Inactivity timeout in minutes before auto-lock. `0` to disable. Defaults to `5`. |
-| `masterPin` | string | Conditional | Required if the master account has a PIN set. |
-| `bypassPinOnLocalNetwork` | boolean | No | Bypasses PIN entry when the client is on a local network. Defaults to `false`. |
-| `allowedDeviceIds` | string[] | No | Specific device IDs permitted to switch to this profile. Empty or null for no restriction. |
-| `profileImage` | string | No | Base64-encoded JPEG data-URL or image URL representing the profile picture. |
+| --- | --- | --- | --- |
+| `profileName` | string | Yes | Display name. |
+| `pin` | string | No | 4 to 8 digits. Omit for no PIN. |
+| `avatarColor` | string | No | Hex colour. Defaults to `#1F77B4`. |
+| `transparentAvatar` | boolean | No | Don't paint the colour behind the picture. |
+| `maxParentalRating` | string | No | A rating score, such as `"6"`, `"10"`, `"14"` or `"17"`. Never above the main account's. Omit for no limit of its own. |
+| `enabledFolders` | GUID[] | No | The libraries it may see. `[]` is none. Omit or `null` for every library the main account has, including ones added later. |
+| `blockedTags` | string[] | No | Tags it must not see, on top of the main account's. |
+| `allowedTags` | string[] | No | If set, it sees only items with one of these tags. Untagged items are hidden too. `400` if none of them is allowed for the main account. |
+| `lockoutMinutes` | integer | No | Minutes before it locks. `0` is never. Defaults to 5. |
+| `masterPin` | string | When the main account has a PIN | The main account's PIN. |
+| `bypassPinOnLocalNetwork` | boolean | No | Skip the PIN on the home network. |
+| `allowedDeviceIds` | string[] | No | Devices it may be opened on. Empty means any. |
+| `profileImage` | string | No | See [Uploading a picture](#uploading-a-picture). |
+| `profileImageThumb` | string | No | The picture's small version. |
+| `avatarLibraryId` | string | No | A picture from the avatar library. Wins over `profileImage`. |
 
-* **Response `200 OK`:**
-```json
-{
-  "profileUserId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
-  "profileName": "Kids"
-}
-```
+Response: `{ "profileUserId": "…", "profileName": "Kids" }`.
 
-| Field | Type | Description |
-|---|---|---|
-| `profileUserId` | string (GUID) | Jellyfin user ID assigned to the new profile. |
-| `profileName` | string | Display name of the new profile. |
+Errors: `400` for a bad PIN, a taken name, the profile limit, or allowed tags the main
+account doesn't allow.
 
 ### `POST /plugins/profiles/update`
 
 **Authorisation:** signed-in user.
 
-Updates settings for an existing sub-profile.
+Takes the same fields as `/create`, plus `profileId`. Most fields left out stay as they
+are; these don't:
 
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Request Body:**
-```json
-{
-  "profileId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
-  "profileName": "Kids (Edited)",
-  "pin": "",
-  "avatarColor": "#D946EF",
-  "maxParentalRating": "10",
-  "enabledFolders": ["e67b2d5a39cb400ba45a7b0a70198de7"],
-  "blockedTags": ["adults"],
-  "allowedTags": [],
-  "lockoutMinutes": 30,
-  "masterPin": "1234",
-  "bypassPinOnLocalNetwork": false,
-  "allowedDeviceIds": [],
-  "profileImage": ""
-}
-```
+| Field | Left out or `null` |
+| --- | --- |
+| `profileName` | Required. |
+| `avatarColor` | Resets to `#1F77B4`. |
+| `maxParentalRating` | Removes the profile's own limit. The main account's still applies. |
+| `enabledFolders` | Every library the main account has, including ones added later. |
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `profileId` | string (GUID) | Yes | Jellyfin user ID of the profile to update. |
-| `profileName` | string | Yes | New display name. |
-| `pin` | string | No | New numeric PIN. Pass `""` to clear the PIN. Pass `null` to leave unchanged. |
-| `avatarColor` | string | No | New hex color code. |
-| `transparentAvatar` | boolean | No | Suppresses `avatarColor` behind the picture. Omit or send `null` to leave unchanged. |
-| `maxParentalRating` | string | No | New maximum parental rating code. Pass `null` to leave unchanged. |
-| `enabledFolders` | string[] (GUIDs) | No | Updated library GUIDs. Pass `null` to leave unchanged. |
-| `blockedTags` | string[] | No | Updated blocked tags. Pass `[]` to clear, `null` to leave unchanged. Ignored for the master profile. |
-| `allowedTags` | string[] | No | Updated allow-list. Pass `[]` to clear, `null` to leave unchanged. Returns `400` if it shares no tags with the master's allow-list. Ignored for the master profile. |
-| `lockoutMinutes` | integer | No | New inactivity timeout in minutes. Pass `null` to leave unchanged. |
-| `masterPin` | string | Conditional | Required if the master account has a PIN set. |
-| `bypassPinOnLocalNetwork` | boolean | No | Updated local network PIN bypass setting. Pass `null` to leave unchanged. |
-| `allowedDeviceIds` | string[] | No | Updated list of allowed device IDs. Pass `null` to leave unchanged. |
-| `profileImage` | string | No | Base64-encoded JPEG data-URL or image URL representing the profile picture. Pass `""` to clear the picture, or `null` to leave unchanged. |
+Other values worth knowing:
 
-* **Response:** `200 OK` on success.
+- **`pin`:** `""` clears it, `null` keeps it.
+- **`profileImage`:** `""` clears it, `null` keeps it.
+- **`blockedTags`, `allowedTags`:** `[]` clears them, `null` keeps them. Ignored for the
+  main account.
+- **Rating sub-score:** a sub-score set in Dashboard → Users (TV-PG against TV-PG-V) is kept
+  while the rating stays the same.
+
+Returns `200`. Errors as for `/create`.
 
 ### `POST /plugins/profiles/delete`
 
 **Authorisation:** signed-in user.
 
-Permanently deletes a sub-profile and its underlying Jellyfin account.
+Deletes a profile and its Jellyfin account.
 
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Request Body:**
 ```json
-{
-  "profileId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
-  "masterPin": "1234"
-}
+{ "profileId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b", "masterPin": "1234" }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `profileId` | string (GUID) | Yes | Jellyfin user ID of the profile to delete. |
-| `masterPin` | string | Conditional | Required if the master account has a PIN set. |
-
-* **Response:** `200 OK` on success.
+Returns `200`. `500` if the account couldn't be deleted; it's disabled instead, so it can't
+be signed in to, and the profile stays listed so you can try again.
 
 ### `GET /plugins/profiles/libraries`
 
 **Authorisation:** signed-in user.
 
-Retrieves media library folders visible to the master user.
+The libraries the main account can see, which are the ones it can give a profile.
 
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Response `200 OK`:**
 ```json
-[
-  {
-    "id": "e67b2d5a39cb400ba45a7b0a70198de7",
-    "name": "Movies",
-    "collectionType": "movies"
-  }
-]
+[{ "id": "e67b2d5a39cb400ba45a7b0a70198de7", "name": "Movies", "collectionType": "movies" }]
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | string (GUID) | Library folder GUID. |
-| `name` | string | Display name of the library. |
-| `collectionType` | string | Type of media collection (e.g., "movies", "tvshows"). |
+### How restrictions reach a profile
+
+A profile is a hidden Jellyfin account. Every time it's opened, through the switcher or by
+signing in on another app, Bonfire writes its policy from the main account's:
+
+- **Copied:** libraries, rating, tags, remote access, playback, downloads, Live TV,
+  channels, allowed devices and schedules.
+- **The stricter of the two:** bitrate, session count, forced transcoding, SyncPlay and
+  blocked unrated items. A limit set on the profile's own account in Dashboard → Users
+  counts as the profile's. Everything else follows the main account, both tighter and
+  looser.
+- **Never more than the main account:** management permissions. A profile is never an
+  administrator.
+
+A library granted to a profile in Dashboard → Users is kept. A library removed there comes
+back, because the profile's own list wins; edit the profile instead.
+
+If none of a profile's allowed tags is still allowed for its main account, it's given a
+placeholder tag that no item carries, so it sees nothing until it's edited.
 
 ---
 
-## Sign-in from other clients
+## Sign-in from other apps
 
-Three settings under **TVs & Apps** change requests that belong to Jellyfin rather than to
-this plugin. Nothing here is a plugin route, and all three are off by default. They exist
-because apps such as Android TV and Roku never load the web client, so they never see the
-switcher.
+Three settings under **TVs & Apps** change Jellyfin's own routes, for apps that never load
+the web client. All three are off by default.
 
 | Setting | What changes |
 | --- | --- |
-| `enableClientPinLogin` | Sub-profiles, and masters that have set a PIN, are bound to Bonfire's `IAuthenticationProvider`. Their PIN is accepted where the client asks for a password. |
-| `enableClientProfileList` | `GET /Users/Public` gains the calling device's household. `GET /Users/Me` and `POST /Users/AuthenticateByName` report a sub-profile under the name its household gave it. |
-| `skipQuickConnectOnKnownDevices` | `POST /QuickConnect/Initiate` is refused for devices a household has signed in on. |
+| `enableClientPinLogin` | Profiles, and main accounts with a PIN, can be signed in to with the PIN where an app asks for a password. |
+| `enableClientProfileList` | `GET /Users/Public` includes the household of the device asking, and profiles show under their own name. |
+| `skipQuickConnectOnKnownDevices` | `POST /QuickConnect/Initiate` is refused on a TV a household has used, so the app shows its password box. |
 
 ### `GET /Users/Public`
 
-With `enableClientProfileList` on, the household of the device making the request is added
-to whatever Jellyfin returned. The household is resolved from the `DeviceId` in the
-`Authorization` header, against the devices Bonfire has recorded a sign-in on. An
-unrecognised device gets Jellyfin's own answer unchanged.
+The household is found from the `DeviceId` in the request, against the devices Bonfire has
+seen a sign-in on. Profiles are added to Jellyfin's list; nothing is removed. An
+unrecognised device gets Jellyfin's answer unchanged. Device limits apply.
 
-Entries are added, never removed, so a server that hides every user still returns only the
-household. The response is serialized with Jellyfin's own `JsonDefaults`, so casing,
-enum names and Guid format match every other entry in the list.
-
-**Some clients derive a per-user device id.** Jellyfin Android TV sends
-`sha1("<ANDROID_ID>+<userId>")` once somebody is signed in and the bare id at the sign-in
-screen; Jellyfin for Android appends the user id. Both forms are recognised.
+Android TV and Jellyfin for Android send a device id derived from the signed-in user. Both
+forms are recognised.
 
 ### `GET /Users/Me` and `POST /Users/AuthenticateByName`
 
-With `enableClientProfileList` on, a sub-profile's `Name` is replaced with the name its
-household gave it — `kids` rather than `Bard_kids`. The account is not renamed: the system
-username is what keeps two households' profiles apart, and it is what the audit log,
-Jellyfin's user administration and every device record still show.
-
-Both are rewritten because a client stores whichever it sees first and paints that
-afterwards.
+A profile's `Name` is reported as the name its household gave it, `kids` rather than
+`Bard_kids`. The account isn't renamed.
 
 ### `POST /QuickConnect/Initiate`
 
-With `skipQuickConnectOnKnownDevices` on, a request from a device a household has signed in
-on is answered `401 "Quick connect is disabled"` — the same response Jellyfin gives when
-Quick Connect is off server-wide. Clients that open on a Quick Connect code then fall back
-to their password field.
+Refused with `401 "Quick connect is disabled"` on an Android TV whose name a household has
+signed in with. The first sign-in on a TV is never refused. A TV name that someone outside
+every household has also used is never refused either, since two sets of the same model
+look the same.
 
-The first sign-in on a device is never refused: matching is by device name, and a device
-nobody has signed in on has no record to match.
+### Signing in with a PIN
 
-Only Android TV is refused; every other client has a password field of its own. And a name
-somebody outside every household has signed in with is never refused, because Android TV
-names itself after its model and a Quick Connect request carries nothing else to tell two
-sets apart. Those names are kept in `QuickConnectSharedDeviceNames`, at most 500.
+- **A profile** opens with its PIN. A profile with no PIN opens with an empty password,
+  but only on a device its household has signed in on.
+- **The username** can be the full one (`Bard_kids`) from anywhere, or the profile's own
+  name (`kids`) on a device its household has signed in on.
+- **A main account** keeps its real password; the PIN works as well.
+- **Every refusal** returns the same message, so nobody can tell which accounts are
+  profiles.
 
-### Authentication provider
+---
 
-With `enableClientPinLogin` on, affected accounts have their `AuthenticationProviderId` set
-to Bonfire's provider, and it is restored when the setting is turned off.
+## Client script
 
-A **sub-profile** is opened by its PIN. One with no PIN is opened by an empty box, but only
-from a device its household has signed in on.
+The browser has to load `profiles.js` for any of the switcher to appear. How it's added is
+set under **Advanced → Client Script** and reported as `mechanism.mode`:
 
-A sign-in screen offers a profile under the name its household gave it, and the app sends
-that name back. Jellyfin cannot resolve it, so it asks the provider with no user, and the
-provider resolves it within the household of the device asking. Before 1.6.3.3 that call was
-refused, so a profile chosen from a sign-in screen could only be opened by typing its full
-system username.
-
-Jellyfin Android TV signs in with a third device id, `sha1("<ANDROID_ID>+<name typed>")`,
-which matches no device record. The provider places it by remembering the bare id from the
-sign-in screen's `/Users/Public` request (in memory, 12 hours, at most 512 devices) and
-checking which of those, with the name sent, gives the id. A sign-in with no sign-in screen
-before it is placed only against recorded devices. Since 1.6.3.5.
-
-A **master** keeps its real password. Jellyfin binds an account to exactly one provider, so
-Bonfire's checks the PIN first and hands anything else to
-`DefaultAuthenticationProvider` — both work. Only masters that have set a PIN are bound.
-
-Every refusal returns the same message, so a response cannot be used to find out which
-accounts on a server are Bonfire profiles.
-
-## Client Script
-
-The plugin serves one script, which the browser must load for any of the switcher UI to
-exist. Delivery is set server-wide under **Advanced → Client script** on the plugin
-configuration page, and reported by `mechanism.mode`:
-
-| `mode` | Behaviour |
+| `mode` | How |
 | --- | --- |
-| `middleware` | Default since 1.5. The plugin holds a place in the ASP.NET request pipeline and adds its tags to `index.html` as it is served. The file on disk is not modified, and any tags an earlier version wrote are removed. |
-| `both` | Legacy. `index.html` is patched on disk, and the pipeline is used as a fallback if that write fails. |
-| `file` | Legacy. `index.html` is patched on disk only. This is what every release up to 1.4 did. |
+| `middleware` | The default. Tags are added to `index.html` as it's served. The file on disk is untouched. |
+| `both` | Legacy. `index.html` is edited on disk, with the middleware as a fallback. |
+| `file` | Legacy. `index.html` is edited on disk only. |
 
-Under `middleware`, `index.html` on disk contains no plugin tags. Do not treat its absence
-as a failure: read `mechanism` instead (see `GET /plugins/profiles/admin/mappings`).
-
-A client that supplies its own copy of the web client — a Tizen `.wgt`, for example — is
-not served by any of them. `Web/tizen/bonfire-loader.js` goes into such a package once and
-loads this route from whichever server the app connects to; see TROUBLESHOOTING.md.
+An `index.html` with no Bonfire tags is normal under `middleware`. Read `mechanism` from
+`GET /admin/mappings` instead. Samsung Tizen packages need the loader described in
+[TROUBLESHOOTING.md](../TROUBLESHOOTING.md#samsung-tizen).
 
 ### `GET /plugins/profiles/profiles.js`
 
 **Authorisation:** anonymous.
 
-Serves the web client script. Unauthenticated — it is loaded by a `<script>` tag in Jellyfin's `index.html`.
-
-Native clients do not need this endpoint; it exists for the browser client. It is documented because its caching behaviour interacts with the injection status reported by the admin endpoints.
-
-* **Response:**
-  * `200 OK`: `application/javascript`
-  * `304 Not Modified`: when the request's `If-None-Match` matches the current `ETag`.
+The client script, as `application/javascript`.
 
 | Header | Value |
-|---|---|
-| `ETag` | The running plugin version, quoted. |
+| --- | --- |
+| `ETag` | The plugin version. |
 | `Cache-Control` | `public, max-age=300, must-revalidate` |
 
-The script tag written into `index.html` normally carries a `?v={version}` cache-buster. On servers where the plugin cannot rewrite `index.html` — a read-only web root, or a Windows install under `Program Files` — that query string stays pinned to an older version, so a long immutable cache would serve stale client code indefinitely.
-
-Tagging the response with the plugin version and requiring revalidation means a stale URL still picks up new code within `max-age`, while unchanged content costs only a `304`. This is why `isVersionStale` is advisory rather than an error.
+Returns `304` when `If-None-Match` matches. A browser picks up a new version within five
+minutes even if the `?v=` on its script tag is out of date.
 
 ---
 
 ## Translations
 
-The gate, the switcher, the profile forms, the PIN prompts and their errors are all
-translatable. The admin settings page is not — see *Scope* below.
+English is built into `profiles.js`. Other languages are one JSON file each in
+`Web/i18n/`. The browser's language decides which file is fetched, and an English browser
+fetches nothing. If a file is missing or fails, the text stays English.
 
-English is compiled into `profiles.js` as `EN_STRINGS` and is the fallback for every
-lookup. Other languages are one JSON file each under `Web/i18n/`, embedded in the plugin
-assembly and served by the endpoint below.
-
-The client picks a language from `navigator.languages`, not from any Jellyfin setting, and
-fetches at most one file. **A reader whose browser asks for English causes no request at
-all.** A missing file, a failed request or a malformed payload all leave English in place;
-nothing about translation can stop the switcher loading.
-
-Lookups fall back per key, so a file that is missing newer keys renders those keys in
-English rather than blank.
+To add a language, see [Web/i18n/README.md](../Web/i18n/README.md).
 
 ### `GET /plugins/profiles/i18n/{locale}`
 
 **Authorisation:** anonymous.
 
-Returns one language's strings. Unauthenticated — it is fetched before anyone signs in,
-for the same reason `profiles.js` is.
-
-`{locale}` may be given with or without a `.json` suffix. Only codes with a file embedded
-in the assembly are served; anything else is `404`, and an unknown code is rejected before
-any cache is touched.
-
-* **Response:**
-  * `200 OK`: `application/json` — a flat object of key/value strings.
-  * `304 Not Modified`: when `If-None-Match` matches the current `ETag`.
-  * `404 Not Found`: no translation for that code.
-  * `503 Service Unavailable`: the code is one the server advertises, but the file could
-    not be read. Retryable — a failed read is never cached, so the next request tries
-    again. A client should fall back to English and carry on rather than give up on the
-    language.
-
-| Header | Value |
-|---|---|
-| `ETag` | `"{pluginVersion}-{locale}"` |
-| `Cache-Control` | `public, max-age=300, must-revalidate` |
-
-Same caching contract as `profiles.js`, and for the same reason: the plugin version is the
-cache-buster, so an updated translation is picked up within `max-age` without a hard
-refresh.
+One language's strings, as a flat object. `{locale}` may end in `.json`.
 
 ```json
-{
-  "gate.whosWatching": "Qui regarde ?",
-  "common.cancel": "Annuler",
-  "profilePage.body": "Vous regardez en tant que <strong>{name}</strong>."
-}
+{ "gate.whosWatching": "Qui regarde ?", "common.cancel": "Annuler" }
 ```
 
-#### Adding a translation
+| Status | Meaning |
+| --- | --- |
+| `200` | The strings. |
+| `304` | `If-None-Match` matched. |
+| `404` | No translation for that code. |
+| `503` | The file couldn't be read. Stay on English and try later. |
 
-**One JSON file in `Web/i18n/`. Nothing else.** The `.csproj` embeds `Web/i18n/*.json` by
-wildcard, the server discovers locale codes by reading its own embedded resource names,
-and it rewrites the client's locale list as it serves `profiles.js`. There is no list to
-register a language in, in any of the three languages this plugin is written in.
-
-1. Copy `Web/i18n/fr.json` to `Web/i18n/{code}.json`.
-2. Translate the values. **Leave the keys exactly as they are** — they are identifiers.
-3. Run `node Web/i18n/validate.js {code}` (no dependencies).
-4. `dotnet build -c Release`, restart Jellyfin, set your browser's language, open the gate.
-
-`Web/i18n/README.md` is the contributor-facing version of this, including what to do when
-a new translation does not appear.
-
-**Naming.** The filename is the locale code, matched against what the browser sends:
-`de.json`, `pt-BR.json`, `zh-Hans.json`. Two or three letters, optionally with region or
-script subtags. Matching is case-insensitive and prefers the longest match — a browser
-asking for `zh-Hans-CN` takes `zh-Hans.json` over `zh.json`, and falls back to `zh.json`
-when there is no more specific file. Use a bare language code unless regional differences
-genuinely matter.
-
-**Placeholders and markup.** Values may contain `{token}` placeholders and inline HTML
-such as `<strong>`. Both must survive translation: `t()` substitutes only the tokens its
-caller passes, so a dropped `{name}` renders a gap and an invented one renders the braces
-verbatim. These strings reach `innerHTML`, so a dropped closing tag breaks the layout
-around it. `validate.js` checks both.
-
-**Partial files are fine.** Omit a key and it renders in English. Do not ship an empty
-string for it: `validate.js` rejects one, and `t()` would show the English anyway.
-
-**Scope.** `Web/profilesDashboard.html` — the admin settings page — is deliberately English
-only. It is read by whoever runs the server, its wording changes with almost every
-release, and much of it is diagnostics and copy-pasteable shell commands.
-
-**Length.** These strings sit on buttons and in a grid that has to stay usable on a
-television at three metres, navigated by a D-pad. A translation much longer than the
-English is worth checking in a narrow window before submitting.
-
-#### Reading the available languages
-
-There is no endpoint listing them, deliberately — it would be a request every English
-reader also paid for. The list is written into `profiles.js` as it is served:
-
-```js
-let SUPPORTED_LOCALES = ['fr', 'pl', 'tr']; // __BONFIRE_LOCALES__
-```
-
-The file on disk carries an empty list and that marker comment. If you consume
-`profiles.js` directly, read that line; if you are looking for what a given server has,
-request a locale and treat `404` as "not available".
-
+`ETag` is `"{pluginVersion}-{locale}"` and `Cache-Control` is the same as
+`profiles.js`. There's no route listing the languages. They're written into
+`profiles.js` as it's served, on the line marked `__BONFIRE_LOCALES__`.
 
 ---
 
-## Images API
+## Images
 
 ### `GET /plugins/profiles/image/{profileId}`
 
 **Authorisation:** anonymous.
 
-Serves the custom profile picture file for the specified profile.
+A profile's stored picture. Add `?size=thumb` for the small version. If there's no small
+version, the full one is sent, so `size=thumb` is always safe; use it in grids.
 
-* **Parameters:**
-  * `profileId`: string (GUID) in path.
-  * `size`: optional query. Pass `thumb` for the small variant.
-* **Response:**
-  * `200 OK`: Binary image file (JPEG, PNG, WebP, or GIF).
-  * `304 Not Modified`: when `If-None-Match` or `If-Modified-Since` matches.
-  * `404 Not Found`: Profile or image not found, or the profile's picture is an externally hosted URL.
+Returns `404` if there's no stored picture, including when the picture is an `http(s)`
+link. Load that link directly from `profileImage` in `/list`.
 
-**Caching.** All four image endpoints — this one, `avatars/{id}`,
-`library-art/{p}/{l}` and `admin/avatars/scan/file` — send:
+All four image routes send:
 
 | Header | Value |
-|---|---|
+| --- | --- |
 | `Cache-Control` | `private, max-age=3600` |
-| `ETag` | `"{length:x}-{lastWriteUtcTicks:x}"`, strong |
-| `Last-Modified` | the file's last-write time |
+| `ETag` | From the file's size and modified time. |
+| `Last-Modified` | The file's modified time. |
 
-`private` because these are one household's faces and the endpoints are anonymous, so a
-shared proxy must not keep them. The validator is the file's length and modification time
-rather than a hash of its contents: it changes whenever the image does, without reading
-the file to decide whether to read the file. Send `If-None-Match` — the gate is redrawn on
-every page load, so a client that does not will re-download every avatar in the household
-each time.
+Send `If-None-Match`, or every picture is downloaded again on every page load.
 
-This endpoint is intentionally unauthenticated: the URL is consumed directly as an image source and browsers do not send the `Authorization` header on image requests. This matches how Jellyfin serves its own user images, and the content is a low-sensitivity avatar.
+### Uploading a picture
 
-It serves **locally stored images only**. When a profile's picture is an external `http(s)` URL, that URL is returned in the `profileImage` field of `GET /plugins/profiles/list` and clients should load it directly — this endpoint returns `404` rather than redirecting to it. (It previously issued a `302`, which made an anonymous endpoint into an open redirect.)
+`profileImage` and `profileImageThumb` on `/create` and `/update` take a
+`data:image/…;base64,…` value. The size limit is set by the server's picture quality: 2, 4
+or 8 MB. `GET /avatars` reports it, and the size to draw at.
 
-> **Use `size=thumb` in grids.** Every stored picture is written twice — a full-size master and
-> a small thumbnail — because a switcher screen showing twenty full-size avatars decodes tens of
-> megabytes of bitmap, which is enough to stall the TV browsers this plugin supports. If no
-> thumbnail was stored (an image saved before this existed, or a client that sent only the
-> master) the full-size file is served instead, so the parameter is always safe to pass.
-
-#### Uploading a picture
-
-`POST /create` and `POST /update` accept the picture in `profileImage` and, optionally, its
-small rendering in `profileImageThumb`. Both are `data:image/…;base64,…` payloads capped at
-the server's picture quality limit — 2, 4 or 8 MB decoded; `GET /avatars` says which, and
-the size to render at.
-
-**The plugin does no server-side image processing** — no resizing, no cropping, no format
-conversion. A client is expected to render both sizes itself, which is what keeps the plugin
-free of an image-processing dependency. The bundled client produces a 512×512 master and a
-128×128 thumbnail from a square crop the user positions.
-
-`profileImage` also accepts an absolute `http(s)` URL, which is stored as a link rather than a
-file. Those have no thumbnail variant and are returned unchanged in `/list`.
+The server doesn't resize or convert anything, so the client draws both sizes itself, at
+the sizes `GET /avatars` gives. JPEG, PNG, WebP and GIF are accepted; SVG isn't. `profileImage` can also be an `http(s)` URL, which is stored as a
+link.
 
 ---
 
-## Library Artwork API
+## Library artwork
 
-Per-profile artwork for library tiles (issue #19). These four lived under
-**Profiles API**, which is where a reader would never look for them.
+Jellyfin draws one picture per library from whatever is inside it, so a child's profile can
+see a tile showing a film it can't open. These routes let a profile replace or hide that
+picture. The client does the swap, so it only applies where Bonfire's script runs.
 
 ### `GET /plugins/profiles/library-artwork`
 
 **Authorisation:** signed-in user.
 
-Returns the calling profile's library tile artwork choices. Added in 1.4.0.
-
-* **Headers:** `Authorization: MediaBrowser Token="<token>"`
-* **Response `200 OK`:**
+The caller's choices.
 
 ```json
-[
-  {
-    "libraryId": "f137a2dd21bbc1b99aa5c0f6bf02a805",
-    "mode": "custom",
-    "url": "/plugins/profiles/library-art/<profileId>/<libraryId>?v=638..."
-  }
-]
+[{ "libraryId": "f137a2dd21bbc1b99aa5c0f6bf02a805", "mode": "custom", "url": "/plugins/profiles/library-art/<profileId>/<libraryId>?v=638..." }]
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `libraryId` | string (GUID) | The library the choice applies to. |
-| `mode` | string | `custom` (use `url`) or `none` (show no artwork). `inherit` is never returned — it is the default and is stored as absence. |
-| `url` | string | Path to the stored picture, or null unless the mode is `custom`. |
-
-> **Why a client has to do this.** Jellyfin builds one image per library and caches it on
-> the folder (`CollectionFolderImageProvider`, a collage of up to eight random items). The
-> query behind it has no user attached, so the artwork cannot respect who is asking: a
-> profile restricted to children's films still gets a tile drawn from whatever else lives
-> in the library. There is no per-user image for the server to hand out, so a client that
-> wants this has to substitute it. The bundled `profiles.js` does it with one `!important`
-> stylesheet rule per library, keyed on the `data-id` jellyfin-web puts on every card.
-
-The same list is included in the `POST /switch` response as `libraryArtwork`, so a client
-can apply the incoming profile's choices before it reloads rather than after — fetching
-afterwards leaves a window in which the restricted artwork is on screen.
+`mode` is `custom` (use `url`) or `none` (no picture). Libraries left on the default aren't
+listed.
 
 ### `GET /plugins/profiles/library-artwork/{profileId}`
 
 **Authorisation:** signed-in user.
 
-The same list for another profile. Master-only, like every other profile setting.
-
-  * `401 Unauthorized`: Caller is not the master of that profile.
+The same list for one of the caller's profiles. `401` if it isn't theirs.
 
 ### `POST /plugins/profiles/library-artwork`
 
 **Authorisation:** signed-in user.
-
-Sets or clears one profile's artwork for one library.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Body:**
 
 ```json
 {
@@ -865,231 +578,120 @@ Sets or clears one profile's artwork for one library.
 ```
 
 | Field | Type | Required | Description |
-|---|---|---|---|
-| `profileId` | string (GUID) | Yes | The profile whose view is being changed. |
-| `libraryId` | string (GUID) | Yes | Must be a library Jellyfin currently knows about. |
-| `mode` | string | Yes | `inherit`, `custom` or `none`. Unrecognised values normalise to `inherit`. |
-| `image` | string | No | Full-size picture as a data URL. Only read when the mode is `custom`. |
-| `thumb` | string | No | Small rendering of the same picture. |
-| `avatarLibraryId` | string | No | Use a picture from the administrator's avatar library instead of `image`. Copied server-side, which is what makes "only allow avatars from this library" enforceable. |
-| `masterPin` | string | No | Required when the master account has a PIN. |
+| --- | --- | --- | --- |
+| `profileId` | GUID | Yes | The profile. |
+| `libraryId` | GUID | Yes | A library the server has. |
+| `mode` | string | Yes | `inherit`, `custom` or `none`. |
+| `image`, `thumb` | string | No | The picture, for `custom`. |
+| `avatarLibraryId` | string | No | Use an avatar-library picture instead. |
+| `masterPin` | string | When the main account has a PIN | The main account's PIN. |
 
-`inherit` and `none` both delete any stored picture for that pair. Sending `custom` with
-neither `image` nor `avatarLibraryId` keeps whatever is already stored, and is refused if
-nothing is.
-
-  * `400 Bad Request`: Unknown library, invalid master PIN, an image that could not be
-    stored, or `custom` with no picture available.
-  * `401 Unauthorized`: Caller is not the master of that profile.
+`custom` with no picture keeps the stored one, or is refused if there isn't one. Errors:
+`400` unknown library, wrong PIN or bad picture; `401` not the caller's profile.
 
 ### `GET /plugins/profiles/library-art/{profileId}/{libraryId}`
 
 **Authorisation:** anonymous.
 
-Serves a stored picture. Unauthenticated, like the other image routes, and serves only
-pairs the configuration currently lists as `custom` — a file left behind by an earlier
-choice stops being reachable.
+The stored picture for a `custom` choice. `?size=thumb` for the small one.
 
-* **Query:** `size=thumb` for the small rendering.
+---
 
-## Devices API
+## Devices
 
 ### `GET /plugins/profiles/devices`
 
 **Authorisation:** signed-in user.
 
-Retrieves the devices belonging to the caller's household, for populating an allowed-devices picker.
+The devices the caller's household has used, for the allowed-devices picker. A profile
+calling this gets its main account's devices.
 
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Response `200 OK`:**
 ```json
-[
-  {
-    "deviceId": "57bfa7e8d35f492b950bf93c9d747a11",
-    "deviceName": "Chrome",
-    "client": "Jellyfin Web",
-    "lastSeen": "2026-06-12T09:41:46.806Z",
-    "masterUserId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a"
-  }
-]
+[{
+  "deviceId": "57bfa7e8d35f492b950bf93c9d747a11",
+  "deviceName": "Chrome",
+  "client": "Jellyfin Web",
+  "lastSeen": "2026-06-12T09:41:46.806Z",
+  "masterUserId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a"
+}]
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `deviceId` | string | Recorded device identifier. |
-| `deviceName` | string | Display name of the device. |
-| `client` | string | Client application name. |
-| `lastSeen` | string (ISO-8601) | Timestamp of the last interaction. `0001-01-01T00:00:00Z` for a placeholder entry (see below) — treat that as "unknown", not as a real date. |
-| `masterUserId` | string (GUID) | Master account this device is recorded against. |
+Every device already on one of the household's allowed lists is included, even if it
+hasn't been seen for months. One with no record left comes back as "Previously allowed
+device" with a `lastSeen` of `0001-01-01`.
 
-**Scoping.** Results are limited to devices recorded against the caller's master account. Devices are attributed on first use, so a device that has never contacted this household does not appear. A sub-profile calling this endpoint sees its master's devices.
-
-> **Writing an editor: do not drop devices you were not shown.**
->
-> The response always includes every device already present in one of this account's
-> `allowedDeviceIds` lists, **even if that device is switched off, has not been seen in months,
-> or is no longer in the device log at all**. Entries synthesised for that last case carry
-> `deviceName: "Previously allowed device"` and a zero `lastSeen`.
->
-> This exists because an edit form that rebuilds `allowedDeviceIds` purely from the checkboxes it
-> rendered will silently delete any whitelisted device missing from this list — and a whitelist
-> that empties out stops restricting anything at all, quietly turning the restriction off. Either
-> render every returned entry, or preserve unknown IDs when submitting.
+**When you save a profile, keep allowed devices you weren't shown.** An empty
+`allowedDeviceIds` means any device, so dropping them removes the restriction.
 
 ### `POST /plugins/profiles/devices/delete`
 
 **Authorisation:** signed-in user.
 
-Deletes a device from the known devices log.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Request Body:**
 ```json
-{
-  "deviceId": "57bfa7e8d35f492b950bf93c9d747a11"
-}
+{ "deviceId": "57bfa7e8d35f492b950bf93c9d747a11" }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `deviceId` | string | Yes | The device ID to remove. |
-
-* **Response:** `200 OK` on success.
-* **Response `400 Bad Request`:** the device is the only one some profile is allowed on. The
-  body names those profiles. Forgetting it would leave their `allowedDeviceIds` empty, and an
-  empty list means *any* device — so the request is refused rather than silently widening the
-  restriction. Allow another device for those profiles first, or clear their list deliberately.
-
----
+`400` if it's the only device a profile is allowed on, since removing it would allow every
+device. The message names those profiles.
 
 ### `POST /plugins/profiles/devices/merge`
 
-**Authorisation:** signed-in user; must be the master account, and must own both devices.
+**Authorisation:** signed-in user. Must be the main account and own both devices.
 
-Folds one device record into another, for the case no client-supplied identifier can detect:
-**one physical machine holding two device IDs.**
+For one machine with two records, which happens when the same browser reaches the server by
+two addresses.
 
-jellyfin-web stores its device ID in `localStorage` (`_deviceId2`), which is scoped to the
-origin — so reaching the same server as `http://192.168.1.10:8096` and as
-`https://jellyfin.example.com` produces two devices for one computer. A new browser profile,
-cleared site data, or a reinstalled app do the same. Nothing in the request distinguishes that
-from two genuinely different machines, and merging two that are actually different would widen
-a whitelist, so the plugin never merges on its own.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Request Body:**
 ```json
-{
-  "fromDeviceId": "57bfa7e8d35f492b950bf93c9d747a11",
-  "intoDeviceId": "9c1e04b7a8f34d2ab6e5107d3f8c22ee"
-}
+{ "fromDeviceId": "57bfa7e8…", "intoDeviceId": "9c1e04b7…" }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `fromDeviceId` | string | Yes | The record to drop. |
-| `intoDeviceId` | string | Yes | The record to keep. |
-
-Every profile allowed on `fromDeviceId` becomes allowed on `intoDeviceId`. The new ID is added
-**before** the old one is removed, so no whitelist passes through empty — an empty list would
-mean "any device" to anything reading it mid-operation. The surviving record keeps the more
-recent `lastSeen` and takes a real name over a placeholder.
-
-* **Response:** `200 OK` on success.
-* **Response `400 Bad Request`:** either ID is unknown, they are the same device, or one of
-  them is not recorded against the calling account. The last case is a scoping check, not a
-  formality: the device log is server-wide, so without it one account could fold another
-  household's device into its own and inherit its whitelist entries.
-
----
+Profiles allowed on `fromDeviceId` become allowed on `intoDeviceId`, and the old record is
+removed. `400` if either is unknown, they're the same, or one isn't the caller's.
 
 ### `POST /plugins/profiles/devices/merge-duplicates`
 
-**Authorisation:** signed-in user; must be the master account.
+**Authorisation:** signed-in user. Must be the main account.
 
-Finds device records that are almost certainly one machine, and — only when asked twice —
-folds each group into its most recently seen member.
+Finds records that look like one machine: same client, same name, and device ids from the
+same browser version. With `?apply=false`, the default, it only reports.
 
-The evidence is stronger than it looks. A jellyfin-web device id is
-`btoa(navigator.userAgent + '|' + Date.now())`, so two ids sharing a long prefix are two ids
-whose **user agents are byte-identical**: the same browser, at the same version, on the same
-operating system. Add the same client and the same reported name, and that is about as good a
-case as a client-supplied identifier can make.
-
-It is still a suggestion. Nothing merges on its own, because two people with the same phone and
-the same browser version would land in one group, and merging them would widen a whitelist —
-the one outcome device housekeeping may never reach by itself. Grouping is scoped to a single
-household, and then a person confirms.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Query:** `apply` (boolean, default `false`)
-
-* **Response `200 OK`** (dry run):
 ```json
 {
   "applied": false,
-  "groups": [
-    {
-      "keep": { "deviceId": "TW96aWxsY…MDAw", "deviceName": "Chrome", "client": "Jellyfin Web", "lastSeen": "2026-08-31T10:02:00Z" },
-      "merge": [ { "deviceId": "TW96aWxsY…NTAw", "deviceName": "Chrome", "lastSeen": "2026-08-23T18:40:00Z" } ]
-    }
-  ]
+  "groups": [{
+    "keep": { "deviceId": "TW96aWxsY…MDAw", "deviceName": "Chrome", "client": "Jellyfin Web", "lastSeen": "2026-08-31T10:02:00Z" },
+    "merge": [{ "deviceId": "TW96aWxsY…NTAw", "deviceName": "Chrome", "lastSeen": "2026-08-23T18:40:00Z" }]
+  }]
 }
 ```
 
-* **Response `200 OK`** (`apply=true`): `{ "applied": true, "merged": 3, "groups": 1 }`
-
-Each merge follows the same rule as `devices/merge`: the surviving id is added to a profile's
-`allowedDeviceIds` **before** the old one is removed, so no whitelist passes through empty.
+With `?apply=true` it merges each group into its most recent record and returns
+`{ "applied": true, "merged": 3, "groups": 1 }`.
 
 ### `POST /plugins/profiles/devices/rename`
 
-**Authorisation:** signed-in user; must be the master account, and must own the device.
+**Authorisation:** signed-in user. Must be the main account and own the device.
 
-Renames a device in the picker. The name **sticks**: the record is flagged as
-custom-named, so the next request from that device does not overwrite it with whatever the
-client reports. Without that the rename would last until the device's next page load, which
-makes it useless for its actual purpose — telling apart two records that are one machine.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Request Body:**
 ```json
-{
-  "deviceId": "57bfa7e8d35f492b950bf93c9d747a11",
-  "deviceName": "Living room TV"
-}
+{ "deviceId": "57bfa7e8d35f492b950bf93c9d747a11", "deviceName": "Living room TV" }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `deviceId` | string | Yes | The device to rename. |
-| `deviceName` | string | Yes | The new name. Trimmed, and truncated to 64 characters. |
-
-* **Response:** `200 OK` on success.
-* **Response `400 Bad Request`:** unknown device, or a blank name.
+The name is kept even when the device reports a different one. Trimmed to 64 characters.
+`400` for an unknown device or a blank name.
 
 ---
 
-## Bonfire API
+## Bonfire
 
 ### `GET /plugins/profiles/bonfire/status`
 
 **Authorisation:** signed-in user.
 
-Retrieves the bonfire group status and visibility settings for the caller.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Response `200 OK`:**
 ```json
 {
   "isOwner": true,
   "ownedCode": "B7F8XA",
-  "ownedMembers": [
-    {
-      "userId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
-      "username": "FriendMaster"
-    }
-  ],
+  "ownedMembers": [{ "userId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b", "username": "FriendMaster" }],
   "isMember": false,
   "joinedOwnerName": null,
   "joinedOwnerId": null,
@@ -1101,196 +703,90 @@ Retrieves the bonfire group status and visibility settings for the caller.
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `isOwner` | boolean | Indicates if the master user owns a Bonfire group. |
-| `ownedCode` | string | 6-character alphanumeric join code for the owned group. Null if none. |
-| `ownedMembers` | array | List of guest master users in the owned group. Each member has `userId` and `username`. |
-| `isMember` | boolean | Indicates if the master user has joined another user's Bonfire group. |
-| `joinedOwnerName` | string | Username of the owner of the joined group. Null if none. |
-| `joinedOwnerId` | string (GUID) | User ID of the owner of the joined group. Null if none. |
-| `hideMySubProfilesFromOthers` | boolean | If true, local sub-profiles are hidden from Bonfire group members. |
-| `hideOthersSubProfilesFromMe` | boolean | If true, remote sub-profiles are hidden locally. |
-| `allowHouseholdLanBypass` | boolean | If true, Bonfire members may switch into this account from the local network without its PIN. See `POST /bonfire/settings`. |
-| `isAdministrator` | boolean | Whether the caller's account has Jellyfin administrator rights. Provided so a client can warn about what `allowHouseholdLanBypass` gives away; it is not an authorisation signal. |
-| `hasPin` | boolean | Whether the caller's master account has a PIN configured. |
+| Field | Description |
+| --- | --- |
+| `isOwner`, `ownedCode`, `ownedMembers` | The Bonfire the caller started, if any. |
+| `isMember`, `joinedOwnerName`, `joinedOwnerId` | The Bonfire the caller joined, if any. |
+| `hideMySubProfilesFromOthers` | Others in the Bonfire can't see or open the caller's profiles. |
+| `hideOthersSubProfilesFromMe` | The caller doesn't see others' profiles. |
+| `allowHouseholdLanBypass` | Others may open this account on the home network without its PIN. |
+| `isAdministrator` | The caller is a Jellyfin administrator, for warning before turning the bypass on. |
+| `hasPin` | The caller's main account has a PIN. |
 
 ### `POST /plugins/profiles/bonfire/settings`
 
 **Authorisation:** signed-in user.
 
-Updates the visibility preferences for sharing profiles in Bonfire crossover homes.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Request Body:**
 ```json
-{
-  "hideMySubProfilesFromOthers": false,
-  "hideOthersSubProfilesFromMe": false,
-  "allowHouseholdLanBypass": false
-}
+{ "hideMySubProfilesFromOthers": false, "hideOthersSubProfilesFromMe": false, "allowHouseholdLanBypass": false }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `hideMySubProfilesFromOthers` | boolean | Yes | Hide local sub-profiles from Bonfire group members. |
-| `hideOthersSubProfilesFromMe` | boolean | Yes | Hide remote sub-profiles locally. |
-| `allowHouseholdLanBypass` | boolean | No | Let Bonfire members switch into **this** account from the local network without entering its PIN. Omit the field to leave the current value alone — sending `false` turns it off. |
+The two hide flags are required. Leave `allowHouseholdLanBypass` out to keep it as it is.
 
-* **Response:** `200 OK` on success.
+Before turning the bypass on, a client should warn about two things:
 
-> **`allowHouseholdLanBypass` is a grant, not a convenience setting.** It is the only Bonfire
-> setting that widens access rather than narrowing visibility, and it is deliberately written by
-> the account's own owner: `bypassPinOnLocalNetwork` belongs to the caller and never reaches
-> across a link.
->
-> When set, both cross-account rules described under `POST /switch` are lifted for this account —
-> including the refusal to enter an account with no PIN at all. Requests Jellyfin does not
-> classify as local are unaffected, so remote access still needs the PIN.
->
-> Two things a client should surface before writing `true`:
-> * If the account is an administrator (`isAdministrator` in `/bonfire/status`), anyone who
->   switches into it gets server and user management.
-> * "Local" is decided by Jellyfin's network settings and is relative to the *server*. If the
->   server sits behind a reverse proxy that is not in **Networking → Known Proxies**, every
->   request arrives with the proxy's address and is classified as local.
->
-> The field is nullable so a client that predates it — or a cached older script — cannot clear
-> the setting by posting the two hide flags alone.
+- **An administrator account** gives anyone who opens it control of the server.
+- **"Home network"** is whatever Jellyfin counts as local. Behind a reverse proxy missing
+  from **Networking → Known Proxies**, that's everyone.
 
 ### `POST /plugins/profiles/bonfire/generate`
 
 **Authorisation:** signed-in user.
 
-Generates a new 6-character alphanumeric bonfire join code.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Response `200 OK`:**
-```json
-{
-  "groupId": "4f5c9e2b",
-  "bonfireCode": "B7F8XA",
-  "members": []
-}
-```
-
-| Field | Type | Description |
-|---|---|---|
-| `groupId` | string | Identifier of the generated Bonfire group. |
-| `bonfireCode` | string | Alphanumeric code needed to join the group. |
-| `members` | array | List of group members. |
+Starts a Bonfire. Returns `{ "groupId": "4f5c9e2b", "bonfireCode": "B7F8XA", "members": [] }`.
 
 ### `POST /plugins/profiles/bonfire/join`
 
 **Authorisation:** signed-in user.
 
-Joins a target group using its 6-character code. Rate limited to 3 failed attempts in 15 minutes.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Request Body:**
 ```json
-{
-  "code": "B7F8XA"
-}
+{ "code": "B7F8XA" }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `code` | string | Yes | 6-character alphanumeric Bonfire join code. |
-
-* **Response `200 OK`:**
-```json
-{
-  "message": "Successfully joined Bonfire group.",
-  "ownerName": "FriendMaster"
-}
-```
-
-| Field | Type | Description |
-|---|---|---|
-| `message` | string | Confirmation message of successful group joining. |
-| `ownerName` | string | Username of the bonfire group owner. |
-
-* **Error Responses:**
-  * `400 Bad Request`: Invalid code format, invalid Bonfire Code, or attempting to join owned group.
-  * `401 Unauthorized`: Caller is not authenticated, or caller is not a master profile.
-  * `429 Too Many Requests`: Join rate limit exceeded (3 failed attempts per 15 minutes).
+Returns `{ "message": "Successfully joined Bonfire group.", "ownerName": "FriendMaster" }`.
+Joining leaves any Bonfire the caller was already in. Errors: `400` bad code or your own
+Bonfire, `401` not a main account, `429` too many tries.
 
 ### `POST /plugins/profiles/bonfire/kick`
 
 **Authorisation:** signed-in user.
 
-Kicks a guest master user from the owned bonfire group.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Request Body:**
 ```json
-{
-  "memberId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b"
-}
+{ "memberId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b" }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `memberId` | string (GUID) | Yes | The user ID of the guest member to remove. |
-
-* **Response:** `200 OK`, with the group's new code. The code the removed member joined with
-  stops working, so they cannot simply join again; members who stay are unaffected.
-```json
-{
-  "bonfireCode": "Q7M2KX"
-}
-```
+Removes the member and changes the code so they can't rejoin. Returns the new code:
+`{ "bonfireCode": "Q7M2KX" }`.
 
 ### `POST /plugins/profiles/bonfire/regenerate-code`
 
 **Authorisation:** signed-in user.
 
-Replaces the code of the group the caller owns. Members already in the group stay in; the
-old code stops working. Returns `400` if the caller owns no group.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Response:** `200 OK`
-```json
-{
-  "bonfireCode": "Q7M2KX"
-}
-```
+Changes the code without removing anyone. Returns `{ "bonfireCode": "Q7M2KX" }`. `400` if
+the caller hasn't started a Bonfire.
 
 ### `POST /plugins/profiles/bonfire/leave`
 
 **Authorisation:** signed-in user.
 
-Leaves the currently joined bonfire group.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Response:** `200 OK` on success.
+Leaves the Bonfire the caller joined.
 
 ### `POST /plugins/profiles/bonfire/delete-group`
 
 **Authorisation:** signed-in user.
 
-Dissolves the owned bonfire group. All member associations are removed.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Response:** `200 OK` on success.
+Ends the caller's Bonfire and removes everyone from it.
 
 ---
 
-## Preferences API
+## Preferences
 
-Settings the account holder chooses for themselves. These are not server policy: an
-administrator cannot set them on someone else's behalf, and each household's answer applies
-only to its own accounts.
+Each household chooses these for itself. A profile reads its main account's, and only the
+main account can change them.
 
 ### `GET /plugins/profiles/preferences`
 
 **Authorisation:** signed-in user.
-
-Returns the calling account's switcher preferences.
-
-* **Headers:** `Authorization: MediaBrowser Token="<token>"`
-* **Response `200 OK`:**
 
 ```json
 {
@@ -1302,779 +798,353 @@ Returns the calling account's switcher preferences.
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `askOnStartup` | boolean | Whether the "Who's Watching?" screen appears when the client loads. Shown once per browser session, not on every visit to the home screen. This is the *household* answer; since 1.6.1.1 a device may keep its own — see below. |
-| `switcherLocation` | string | `"button"` or `"menu"`. See below. |
-| `switcherMode` | string | **Deprecated.** Derived from `askOnStartup` for clients written against the 1.3.1 API. |
-| `masterUserId` | string (GUID) | The master account these preferences belong to. |
-| `emergencyCodeConfigured` | boolean | Whether an administrator has set an emergency disable code. A client should offer the emergency entry point only when this is true. Server-wide, not per-account, and it says nothing about the code itself. Added in 1.3.3. |
+| Field | Description |
+| --- | --- |
+| `askOnStartup` | Show "Who's watching?" once per browser session. |
+| `switcherLocation` | `button`: a Bonfire button in the header. `menu`: a **Switch Profile** entry in Jellyfin's user menu. |
+| `switcherMode` | Deprecated. `gate` is `askOnStartup: true` with `button`; `native` is `false` with `menu`. |
+| `masterUserId` | The account these belong to, for caching. |
+| `emergencyCodeConfigured` | An administrator has set an emergency code. Only then offer the emergency option. |
 
-| `switcherLocation` | Behaviour |
-|---|---|
-| `button` | The default. Bonfire injects its own switcher button into the client header, beside Jellyfin's user icon. |
-| `menu` | No injected button. A "Switch Profile" row is added above *Sign out* in Jellyfin's own user menu, and a Bonfire section is added to the user profile page. |
+An account that hasn't chosen gets the server's defaults. Unknown stored values come back
+as the defaults.
 
-A sub-profile token may call this and receives its **master's** preferences, so the switcher
-behaves the same way throughout a household rather than changing as profiles are switched.
-Unrecognised stored values normalise to the defaults, so a client never has to handle a third
-value for either field.
-
-An account that has never set either field inherits the server-wide defaults an administrator
-configures under Dashboard → Plugins → Bonfire (`DefaultAskOnStartup` and
-`DefaultSwitcherLocation` in the plugin configuration, added in 1.3.4). Choosing for the
-account writes the fields and pins them; the default only ever fills a blank. Both endpoints
-return the resolved values, so a client never has to know which of the two it is looking at.
-
-`masterUserId` is returned so a client can cache the preferences against the account they
-belong to. The bundled `profiles.js` mirrors them into `localStorage`, because the decision of
-whether to raise the gate has to be made on page load, long before a request could answer it —
-a cache keyed by account is what stops the next person to sign in on a shared browser from
-inheriting the previous one's choice.
-
-#### A device may keep its own `askOnStartup` (1.6.1.1)
-
-`askOnStartup` is a household setting: set it on the phone and the television follows. That
-is wrong for the homes where the living-room television should always ask and the tablet one
-person uses never should, so the bundled client offers a checkbox — *Use the same answer on
-all my devices*, ticked by default — that takes one device out of the household answer.
-
-**This is entirely client-side and there is no API for it.** The override lives in
-`localStorage` under `jellyfin_profiles_device_gate`, filed by master account id, and is
-never posted. Two consequences for anyone writing against this API:
-
-* **`GET` still returns the household answer, and always will.** It is not the answer a
-  particular device is acting on. A client that wants Bonfire's behaviour has to decide,
-  itself, whether to honour a local override; a client that ignores the whole idea gets the
-  household answer and behaves exactly as it did before 1.6.1.1.
-* **The override is deliberately not a preference.** Storing it on the server would mean one
-  device opting out dragged every other device into per-device mode as well — a change made
-  somewhere the household cannot see, to a setting nobody touched there.
-
-Re-ticking the box `POST`s that device's current answer as `askOnStartup`, so the household
-adopts what is on screen at that moment rather than snapping back to whatever the server
-still held.
-
-Only `askOnStartup` works this way. `switcherLocation` stays household-wide, because it
-decides whether the injected button exists at all and a household with no consistent answer
-to that has no consistent place to reach the switcher. A client changing only the location
-should therefore send back the `askOnStartup` it read from `GET`, not whatever a local
-override says, or it will publish one device's private choice to the whole household.
-
-> **`switcherMode` is deprecated.** It was a single setting in 1.3.1 and could not express
-> "ask on startup, but put the switcher in Jellyfin's menu" — the combination requested in
-> issue #14. It is still accepted on `POST` and still returned on `GET`, mapped as
-> `gate` ⇄ `askOnStartup: true, switcherLocation: "button"` and
-> `native` ⇄ `askOnStartup: false, switcherLocation: "menu"`. New clients should read and
-> write the two fields; a value posted in `switcherMode` is expanded first and then overridden
-> by either newer field present in the same request.
+Bonfire's own client lets one device keep its own `askOnStartup`. That's stored in the
+browser only, so this route always returns the household's answer.
 
 ### `POST /plugins/profiles/preferences`
 
 **Authorisation:** signed-in user.
 
-Updates the calling account's switcher preferences.
-
-* **Headers:** `Authorization: MediaBrowser Token="<masterToken>"`
-* **Request Body:**
-
 ```json
-{
-  "askOnStartup": true,
-  "switcherLocation": "menu"
-}
+{ "askOnStartup": true, "switcherLocation": "menu" }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `askOnStartup` | boolean | No | Omit to leave unchanged. |
-| `switcherLocation` | string | No | `"button"` or `"menu"`. Anything else normalises to `"button"`. Omit to leave unchanged. |
-| `switcherMode` | string | No | Deprecated; see above. |
-
-* **Response `200 OK`:** the stored values after normalisation, in the same shape as the `GET`
-  response. Clients should cache what comes back rather than what they sent.
-* **Error Responses:**
-  * `401 Unauthorized`: Caller is not authenticated, or is a sub-profile. Unlike the `GET`, only
-    the master account may write — a sub-profile changing this would silently rewrite the whole
-    household's experience.
+Both are optional. Returns the stored values in the `GET` shape; cache those rather than
+what you sent. `401` for a profile.
 
 ---
 
-## Avatar Library API
+## Avatar library
 
-Profile pictures an administrator publishes for everyone on the server to choose from, plus
-thirty built-in **starter avatars** (Fluent Emoji by Microsoft, MIT) while the administrator
-leaves them switched on. Starter avatars are listed after the administrator's own and behave
-like any other library entry: they are served by `GET /avatars/{id}` and can be chosen by
-`avatarLibraryId`. Switched off, they are neither listed, served nor accepted; profiles that
-already chose one keep their own copy.
-
-Choosing one **copies** it to the profile rather than referencing it, so each user can crop the
-same picture differently and removing a library entry cannot break profiles already using it.
+Pictures an administrator publishes for everyone to choose from, plus thirty built-in
+starter avatars unless they're turned off. Choosing one copies it to the profile, so
+removing it from the library later doesn't affect profiles that use it.
 
 ### `GET /plugins/profiles/avatars`
 
 **Authorisation:** signed-in user.
 
-Lists the available avatars. Any authenticated user may call this.
-
-* **Response `200 OK`:**
-
 ```json
 {
   "allowCustomUploads": true,
   "starterAvatarsEnabled": true,
-  "image": {
-    "quality": "high",
-    "masterSize": 1024,
-    "thumbSize": 256,
-    "jpegQuality": 0.9,
-    "maxBytes": 4194304
-  },
+  "image": { "quality": "high", "masterSize": 1024, "thumbSize": 256, "jpegQuality": 0.9, "maxBytes": 4194304 },
   "avatars": [
-    {
-      "id": "9f2c41a0b7d3",
-      "displayName": "Fox",
-      "url": "/plugins/profiles/avatars/9f2c41a0b7d3",
-      "thumbUrl": "/plugins/profiles/avatars/9f2c41a0b7d3?size=thumb",
-      "isStarter": false
-    },
-    {
-      "id": "starter-fox",
-      "displayName": "Fox",
-      "url": "/plugins/profiles/avatars/starter-fox",
-      "thumbUrl": "/plugins/profiles/avatars/starter-fox",
-      "isStarter": true
-    }
+    { "id": "9f2c41a0b7d3", "displayName": "Fox", "url": "/plugins/profiles/avatars/9f2c41a0b7d3", "thumbUrl": "/plugins/profiles/avatars/9f2c41a0b7d3?size=thumb", "isStarter": false }
   ]
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `allowCustomUploads` | boolean | False when the administrator has restricted profile pictures to this library. A client should hide its own upload control when false; the server also refuses `data:` payloads in that state. |
-| `image` | object | The administrator's picture quality. Render a picture at `masterSize` pixels square and its thumbnail at `thumbSize`, encode JPEG at `jpegQuality`, and keep each under `maxBytes` decoded, or the server refuses it. `quality` is `standard`, `high` or `maximum`. |
-| `avatars[].id` | string | Opaque identifier. |
-| `avatars[].displayName` | string | Label for the picker. Free text — escape it on render. |
-| `avatars[].url` | string | Full-size image. |
-| `avatars[].thumbUrl` | string | Small variant — use this in grids. |
-| `avatars[].isStarter` | boolean | True for a built-in starter avatar. Its id is `starter-` and a word; it cannot be removed, only switched off as a set. One 256px WebP serves as both sizes. |
-| `starterAvatarsEnabled` | boolean | Whether the starter avatars are on. |
+| Field | Description |
+| --- | --- |
+| `allowCustomUploads` | False when pictures must come from this library. The server then refuses uploads and links. Use `avatarLibraryId`. |
+| `image` | The picture size and quality to send, and the byte limit. `quality` is `standard`, `high` or `maximum`. |
+| `avatars[].displayName` | Free text. Escape it. |
+| `avatars[].thumbUrl` | The small version, for grids. |
+| `avatars[].isStarter` | A built-in avatar. Its id starts with `starter-`. |
 
 ### `GET /plugins/profiles/avatars/{id}`
 
 **Authorisation:** anonymous.
 
-Serves a library image. Unauthenticated, for the same reason as `/image/{profileId}`: it is
-rendered as an `<img src>` and browsers do not attach the Authorization header to image
-requests. Returns `404` if the id is unknown, its file is missing, or it is a starter avatar while those are switched off.
-
-| Query | Description |
-|---|---|
-| `size=thumb` | Serves the small variant, falling back to the full-size image if no thumbnail was stored. |
+One avatar. `?size=thumb` for the small version. `404` if it's unknown, or it's a starter
+avatar while those are off.
 
 ### `POST /plugins/profiles/admin/avatars`
 
 **Authorisation:** administrator.
 
-Adds an image to the library. **Administrators only.**
-
 ```json
-{
-  "image": "data:image/jpeg;base64,…",
-  "thumb": "data:image/jpeg;base64,…",
-  "displayName": "Fox"
-}
+{ "image": "data:image/jpeg;base64,…", "thumb": "data:image/jpeg;base64,…", "displayName": "Fox" }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `image` | string | Yes | Full-size rendering as a data URL. At most the picture quality limit decoded — 2, 4 or 8 MB. |
-| `thumb` | string | No | Small rendering. When absent the full-size image is served in its place — that costs bandwidth but never breaks the picture. |
-| `displayName` | string | No | Trimmed to 60 characters. Defaults to `"Avatar"`. |
-
-#### Setting a profile's picture from the library
-
-`POST /create` and `POST /update` accept **`avatarLibraryId`**, which takes precedence over
-`profileImage`. The server copies the library file to the profile byte for byte — nothing is
-decoded, and the only bytes that can land are ones an administrator published.
-
-That distinction matters when `allowCustomUploads` is false. Under copy-on-pick, a client that
-crops a library image and posts the result sends something the server cannot tell apart from
-any other upload, so a locked-down server refuses `profileImage` data payloads and `http(s)`
-URLs outright and accepts `avatarLibraryId` only. The trade is that such a server gives up
-per-user cropping — reasonable for a setting whose purpose is a consistent set.
-
-When `allowCustomUploads` is true, either route works: the bundled client crops library picks
-and posts them as `profileImage`, so each user can frame the same picture differently.
-
-* **Response `200 OK`:** the created entry, in the same shape as one `avatars[]` element.
-* **Error Responses:** `400` if the payload is not a readable image or exceeds the size limit.
-
-> **The plugin does no server-side image processing.** Both renderings are produced by the
-> client, which is why two are sent rather than one. Accepted stored formats are JPEG, PNG,
-> WebP and GIF; SVG is rejected deliberately, since these files are served back from the
-> server's own origin and SVG can carry script.
+`image` is required and must fit the picture quality's limit. `displayName` is trimmed to
+60 characters and defaults to "Avatar". Returns the new entry. `400` for an unreadable or
+oversized image.
 
 ### `DELETE /plugins/profiles/admin/avatars/{id}`
 
 **Authorisation:** administrator.
 
-Removes a library entry and its files. **Administrators only.** Profiles created from it keep
-their own copy and are unaffected.
+Removes an avatar. Profiles using it keep their copy.
 
 ### `POST /plugins/profiles/admin/avatars/settings`
 
 **Authorisation:** administrator.
 
-**Administrators only.**
+| Field | Description |
+| --- | --- |
+| `disallowCustomAvatarUploads` | Pictures may only come from the library. |
+| `enableStarterAvatars` | Offer the starter avatars. |
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `disallowCustomAvatarUploads` | boolean | No | When true, profile pictures may only come from the library. Omit to leave unchanged. |
-| `enableStarterAvatars` | boolean | No | Offer the thirty built-in starter avatars. On by default. Omit to leave unchanged. |
-
----
+Leave a field out to keep it as it is.
 
 ### `GET /plugins/profiles/admin/avatars/scan`
 
 **Authorisation:** administrator.
 
-Lists the pictures in a folder on the server, for importing a prepared set into the avatar
-library. Administrator only. Added in 1.4.0.
+Lists pictures in a folder on the server, for importing a set. `?path=` is the folder as
+the server sees it.
 
-* **Query:** `path` — a folder path as the *server* sees it.
-* **Response `200 OK`:** `{ "folder": "/config/avatars", "truncated": false, "files": [{ "name": "kid.png", "size": 20481 }] }`
+```json
+{ "folder": "/config/avatars", "truncated": false, "files": [{ "name": "kid.png", "size": 20481 }] }
+```
 
-Only extensions the plugin can store are listed, and at most 200 files; `truncated` says when
-there were more.
+At most 200 files; `truncated` says there were more.
 
 ### `GET /plugins/profiles/admin/avatars/scan/file`
 
 **Authorisation:** administrator.
 
-Returns one file from a scanned folder. Administrator only.
+One file from that folder: `?path=` the folder, `?name=` the file name. The client resizes
+it and posts it to `POST /admin/avatars`.
 
-* **Query:** `path` — the folder; `name` — the file, a bare name with no separators.
+---
 
-> **Why the client reads the bytes.** The plugin has no server-side image library and keeps
-> it that way — every resize in Bonfire happens on a canvas in the browser. A folder import
-> therefore lists on the server, reads each file through this endpoint, resizes it in the
-> page, and posts the result to `POST /admin/avatars` like any other upload. The server never
-> decodes an image, and one code path produces every stored avatar.
+## Emergency disable
 
-## Emergency Disable API
-
-An escape hatch for when the plugin itself is what is making the interface unusable.
-
-> **This is a gate bypass, not an escalation.** It does not unlock other profiles — `/switch`
-> still requires the target's PIN — and it does not widen library access, parental ratings or
-> tag filters, all of which Jellyfin enforces server-side. What it does remove is the profile
-> gate, so on a device already signed in to a master account, anyone holding the code reaches
-> that account's library without being asked to pick a profile.
+Turns Bonfire's client script off until Jellyfin restarts, for when Bonfire is what's making
+the interface unusable. It doesn't open other profiles or loosen any restriction. It does
+skip the profile screen, so on a device signed in to a main account, the code gives that
+account.
 
 ### `POST /plugins/profiles/panic`
 
 **Authorisation:** anonymous.
 
-Validates the emergency code and, on success, disables the plugin's client script until the
-server restarts. `/plugins/profiles/profiles.js` then serves an inert script that tears down
-any overlay a previously loaded copy left behind.
-
-**Deliberately unauthenticated.** An administrator locked behind a broken switcher may be
-holding a sub-profile's token or none at all, so requiring admin rights would make the feature
-useless exactly when it is needed.
-
 ```json
 { "code": "correct-horse-battery-staple" }
 ```
 
-* **Response `200 OK`:** `{ "disabled": true }`
-* **Error Responses:**
-  * `400 Bad Request`: Incorrect code. Returned identically when no code is configured, so the
-    response cannot be used to discover whether a server has the feature armed.
-  * `429 Too Many Requests`: More than 5 attempts from this address in the last hour.
-
-The disable flag lives in memory and is never persisted — a flag that survived a restart could
-leave a server stuck in a state whose own settings page is the thing you need it to reach.
+Returns `{ "disabled": true }`. `400` for a wrong code, and also when no code is set, so
+the response doesn't reveal which. `429` after 5 tries in an hour.
 
 ### `GET /plugins/profiles/panic-state`
 
 **Authorisation:** anonymous.
 
-Whether the plugin is currently shut down by the emergency disable.
-
-Unauthenticated, and deliberately so: `profiles.js` reads it before anyone has signed in,
-which is the situation the emergency disable exists for. It reveals only whether the
-plugin is running — already obvious to anyone looking at the screen — and never whether a
-code is configured. Served `no-store`, because a cached answer here would outlive the
-condition it describes.
-
-```json
-{ "disabled": false }
-```
+`{ "disabled": false }`. Sent with `no-store`.
 
 ### `GET /plugins/profiles/admin/panic-status`
 
 **Authorisation:** administrator.
 
-**Administrators only.** The code itself is stored as a PBKDF2 hash and is never returned.
-
-```json
-{ "isConfigured": true, "isCurrentlyDisabled": false }
-```
+`{ "isConfigured": true, "isCurrentlyDisabled": false }`. The code itself is never returned.
 
 ### `POST /plugins/profiles/admin/panic-code`
 
 **Authorisation:** administrator.
 
-**Administrators only.** Sets or clears the code.
-
-| Field | Type | Description |
-|---|---|---|
-| `code` | string | At least 10 characters, at most 128. Empty or whitespace clears the code and turns the feature off. |
-
-The minimum length is doing the work an authenticated endpoint would normally get from a
-login, since `POST /panic` has no credentials of its own.
+`{ "code": "…" }`, 10 to 128 characters. An empty code turns the feature off.
 
 ---
 
-## Admin API
+## Admin
 
 ### `POST /plugins/profiles/admin/settings`
 
 **Authorisation:** administrator.
 
-Saves the nine server-wide settings the plugin's settings page owns.
+Changes only the fields you send. Use this instead of Jellyfin's
+`POST /Plugins/{id}/Configuration`, which replaces the whole configuration and loses
+anything added since you read it.
 
-Every field is optional and only the fields present in the request are changed. Use this
-rather than Jellyfin's generic `POST /Plugins/{id}/Configuration`: that endpoint replaces
-the whole plugin configuration document, so a profile, device, group or avatar added
-between reading it and writing it back is silently reverted.
+| Field | Type | Description |
+| --- | --- | --- |
+| `maxProfilesPerUser` | integer | Profiles per account, 1 to 20. |
+| `requireMasterPinForCreation` | boolean | Ask for the main account's PIN to create a profile. |
+| `disallowCustomAvatarUploads` | boolean | Pictures only from the avatar library. |
+| `enableStarterAvatars` | boolean | Offer the starter avatars. |
+| `defaultAskOnStartup` | boolean | Default for accounts that haven't chosen. |
+| `defaultSwitcherLocation` | string | `button` or `menu`. |
+| `indexInjectionMode` | string | `middleware`, `both` or `file`. |
+| `enableClientPinLogin` | boolean | See [Sign-in from other apps](#sign-in-from-other-apps). |
+| `enableClientProfileList` | boolean | Same. |
+| `skipQuickConnectOnKnownDevices` | boolean | Same. |
+| `profileImageQuality` | string | `standard` (512 px, 2 MB), `high` (1024 px, 4 MB) or `maximum` (2048 px, 8 MB). |
 
-* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
-* **Request Body:**
-```json
-{
-  "maxProfilesPerUser": 5,
-  "requireMasterPinForCreation": true,
-  "disallowCustomAvatarUploads": false,
-  "enableStarterAvatars": true,
-  "defaultAskOnStartup": true,
-  "defaultSwitcherLocation": "button",
-  "indexInjectionMode": "middleware",
-  "enableClientPinLogin": false,
-  "enableClientProfileList": false,
-  "skipQuickConnectOnKnownDevices": false
-}
-```
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `maxProfilesPerUser` | integer | No | Server-wide profile limit. 1–20. |
-| `requireMasterPinForCreation` | boolean | No | Require the account's PIN before creating a profile. |
-| `disallowCustomAvatarUploads` | boolean | No | Restrict profile pictures to the avatar library. |
-| `enableStarterAvatars` | boolean | No | Offer the thirty built-in starter avatars. On by default. |
-| `defaultAskOnStartup` | boolean | No | Default for accounts that have not chosen: show the gate on startup. |
-| `defaultSwitcherLocation` | string | No | `button` or `menu`. |
-| `indexInjectionMode` | string | No | `file`, `middleware` or `both`. |
-| `enableClientPinLogin` | boolean | No | Allow a sub-profile to be signed into with its PIN from any client. Binds affected accounts to Bonfire's authentication provider; see [Sign-in from other clients](#sign-in-from-other-clients). |
-| `enableClientProfileList` | boolean | No | Add a household's profiles to the user list clients paint their sign-in screen from, and show each profile under the name its household gave it. |
-| `skipQuickConnectOnKnownDevices` | boolean | No | Refuse Quick Connect on devices a household has signed in on, so the app opens its password field instead. |
-| `profileImageQuality` | string | No | `standard` (512 px, 2 MB), `high` (1024 px, 4 MB) or `maximum` (2048 px, 8 MB). Applies to pictures saved from now on. Anything else is refused with `400`. |
-
-* **Response:** `200 OK` on success.
-
-* **Error Responses:**
-  * `400 Bad Request`: A field is out of range or not one of its permitted values. The
-    message names the bound or the permitted values. Nothing is applied — a request with
-    one bad field is rejected whole.
-  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
+`400` if any field is out of range, and then nothing is changed.
 
 ### `GET /plugins/profiles/admin/mappings`
 
 **Authorisation:** administrator.
 
-Retrieves all user profile mappings configured on the server.
+Every account and profile, and whether the client script is reaching browsers.
 
-* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
-* **Response `200 OK`:**
 ```json
 {
-  "masterUsers": [
-    {
-      "profileUserId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a",
-      "profileName": "john",
-      "requiresPin": true,
-      "maxProfiles": 5,
-      "limitOverride": null
-    }
-  ],
-  "subProfiles": [
-    {
-      "profileUserId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
-      "profileName": "Kids",
-      "masterName": "john",
-      "masterUserId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a",
-      "requiresPin": false
-    }
-  ],
+  "masterUsers": [{ "profileUserId": "8e3cdfa5-…", "profileName": "john", "requiresPin": true, "maxProfiles": 5, "limitOverride": null }],
+  "subProfiles": [{ "profileUserId": "a90f11cb-…", "profileName": "Kids", "masterName": "john", "masterUserId": "8e3cdfa5-…", "requiresPin": false }],
   "injectionSucceeded": true,
   "isVersionStale": false,
   "indexPath": "/usr/share/jellyfin/web/index.html",
   "failureReason": null,
   "serviceAccount": "NT AUTHORITY\\NETWORK SERVICE",
   "isWindows": true,
-  "pluginVersion": "1.3.0"
+  "pluginVersion": "1.6.6",
+  "mechanism": { "mode": "middleware", "restartRequired": false, "middlewareActive": true }
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `masterUsers` | array | Master accounts. Each entry has `profileUserId`, `profileName`, `requiresPin`, `maxProfiles`, and `limitOverride`. |
-| `subProfiles` | array | Sub-profiles. Each entry has `profileUserId`, `profileName`, `masterName`, `masterUserId`, and `requiresPin`. Group by `masterUserId`, not `masterName` — names change on rename and are not guaranteed unique. |
-| `injectionSucceeded` | boolean | Whether the script is reaching the browser. Under `middleware` this comes from `mechanism`; under the legacy modes it means the tags are present in `index.html`. |
-| `isVersionStale` | boolean | True when the script is present but `index.html` is not fully current. The switcher works; this is advisory. |
-| `indexPath` | string | Resolved absolute path to Jellyfin's `index.html` on the host. |
-| `failureReason` | string \| null | Human-readable description of the specific problem, or null when everything is correct. |
-| `serviceAccount` | string \| null | OS account the Jellyfin process is running under (e.g. `NT AUTHORITY\NETWORK SERVICE`, `DESKTOP-PC\alice`, `jellyfin`). Null if it could not be determined. Use it to generate an exact permission command instead of guessing between service and desktop installs. |
-| `isWindows` | boolean | Whether the server is running on Windows, for choosing between `icacls` and `chown`/`chmod` guidance. |
-| `pluginVersion` | string | Running plugin version. Carries a pre-release suffix (e.g. `1.3.1-beta`) on pre-release builds; a stable build has no suffix. |
-| `mechanism` | object | How the script is being delivered. See below. |
+| Field | Description |
+| --- | --- |
+| `subProfiles` | Group them by `masterUserId`. Names change. |
+| `injectionSucceeded` | The script is reaching browsers. |
+| `isVersionStale` | The script tag on disk is an older version. The switcher still works. Always false under `middleware`. |
+| `failureReason` | What's wrong, or null. |
+| `serviceAccount`, `isWindows` | The account Jellyfin runs as, for writing a permissions command. |
+| `pluginVersion` | Includes `-beta` on beta builds. |
 
 `mechanism`:
 
-```json
-{
-  "mode": "middleware",
-  "restartRequired": false,
-  "runningVersion": "1.5.6-beta",
-  "newestInstalledVersion": "1.5.6.0",
-  "newerVersionInstalled": false,
-  "middlewareRegistered": true,
-  "middlewareActive": true,
-  "middlewareServed": 42,
-  "middlewareLastServedUtc": "2026-08-25T15:04:11.000Z",
-  "middlewareError": null
-}
-```
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `mode` | string | `middleware`, `both` or `file`. See **Client Script**. |
-| `restartRequired` | boolean | This build was installed or updated after Jellyfin started, so its pipeline hook was never registered and cannot be until the server restarts. Treat as "not finished installing", not as a failure — the previously loaded build usually keeps serving, so the switcher still works. Suppress any injection warning while this is true. |
-| `runningVersion` | string | The version actually executing, informational label and all. |
-| `newestInstalledVersion` | string \| null | The highest version present on disk. Jellyfin installs each into its own folder and loads one of them, so this differs from `runningVersion` exactly while an update is waiting for a restart. Null when the plugin was not loaded from a plugin folder and there is nothing to compare against. |
-| `newerVersionInstalled` | boolean \| null | Whether `newestInstalledVersion` is higher than `runningVersion`. **Null means "cannot tell"**, which is not the same as `false` — do not render it as "up to date". |
-| `middlewareRegistered` | boolean | The pipeline hook was registered, which happens once per plugin during server startup. False means this build was loaded afterwards — see `restartRequired`. True does **not** mean the hook is working; use `middlewareActive` for that. |
-| `middlewareActive` | boolean | The hook has handled at least one request for the web page. This is the signal that it is live. |
-| `middlewareServed` | number | Pages served with the tags added, since the server started. |
-| `middlewareLastServedUtc` | string \| null | When the last one was served. |
-| `middlewareError` | string \| null | Why the most recent handled request could not have the tags added, or null. Reset per request. |
-
-In `middleware` mode, `injectionSucceeded` is derived from `middlewareActive` and
-`middlewareError`, not from the contents of `index.html`. `isVersionStale` is always false,
-because the tags are generated per request and cannot be out of date.
-
-This endpoint re-reads `index.html` on every call, so in the two legacy modes the injection
-fields reflect the file as it is now rather than as it was at server startup.
-
-* **Error Responses:**
-  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
+| Field | Description |
+| --- | --- |
+| `mode` | `middleware`, `both` or `file`. |
+| `restartRequired` | This version was installed after Jellyfin started. It isn't fully active until a restart. Don't show it as a failure. |
+| `runningVersion` | The version running now. |
+| `newestInstalledVersion` | The newest version on disk, or null. |
+| `newerVersionInstalled` | An update is waiting for a restart. Null means unknown, not "no". |
+| `middlewareRegistered` | The middleware was set up at startup. |
+| `middlewareActive` | It has served the web page at least once. This is the "working" signal. |
+| `middlewareServed`, `middlewareLastServedUtc` | Pages served since startup, and when last. |
+| `middlewareError` | Why the last page couldn't have the tags added, or null. |
 
 ### `POST /plugins/profiles/admin/reset-pin`
 
 **Authorisation:** administrator.
 
-Removes the PIN requirement from the specified profile.
-
-* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
-* **Request Body:**
-```json
-{
-  "profileId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b"
-}
-```
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `profileId` | string (GUID) | Yes | The user ID of the target profile. |
-
-* **Response:** `200 OK` on success.
-
-* **Error Responses:**
-  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
-  * `404 Not Found`: Profile mapping not found.
+`{ "profileId": "…" }`. Clears that profile's PIN. `404` if it isn't a profile.
 
 ### `POST /plugins/profiles/admin/cleanup-orphans`
 
 **Authorisation:** administrator.
 
-Finds plugin records that point at Jellyfin users who no longer exist, and — only when asked
-twice — removes them.
+Finds records for Jellyfin users that were deleted outside Bonfire. They still count
+against the profile limit. `?apply=false`, the default, only reports:
 
-A profile deleted through Jellyfin's own user administration rather than through Bonfire leaves
-its mapping behind, and nothing else ever collects it. The leftovers are not inert: a mapping
-still counts against its master's profile limit and still appears in the household's device
-scoping, and a sub-profile whose **master** was deleted is unreachable and unremovable from the
-interface.
-
-* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
-* **Query:** `apply` (boolean, default `false`)
-
-`apply=false` reports and changes nothing. Call it first — this deletes configuration and there
-is no undo.
-
-* **Response `200 OK`** (dry run):
 ```json
 {
   "applied": false,
-  "orphans": [
-    {
-      "profileUserId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
-      "masterUserId": "5f2c8a11-9d34-4e1b-8a77-1c0b6d2e4f90",
-      "profileName": "Sam",
-      "reason": "the profile's Jellyfin user was deleted"
-    }
-  ],
+  "orphans": [{ "profileUserId": "a90f11cb-…", "masterUserId": "5f2c8a11-…", "profileName": "Sam", "reason": "the profile's Jellyfin user was deleted" }],
   "deadGroups": [],
   "deadMembers": []
 }
 ```
 
-* **Response `200 OK`** (`apply=true`):
-```json
-{ "applied": true, "removedMappings": 1, "removedGroups": 0, "removedMembers": 0 }
-```
-
-**Devices are never touched by this.** A device outliving the profile that used it is normal —
-the hardware is still in the house — and removing one that another profile still names would
-empty that profile's `allowedDeviceIds`, which means *any* device. Device housekeeping has its
-own rules.
-
-* **Error Responses:**
-  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
+`?apply=true` removes them and returns
+`{ "applied": true, "removedMappings": 1, "removedGroups": 0, "removedMembers": 0 }`.
+There's no undo. Devices are never removed by this.
 
 ### `GET /plugins/profiles/admin/sessions`
 
 **Authorisation:** administrator.
 
-Every live Jellyfin session, annotated with the Bonfire household it belongs to.
+Every live session, with the household it belongs to, most recent first.
 
-Jellyfin's own Devices page lists these too, but as bare usernames with no notion that half of
-them are sub-profiles of one account — and sub-profiles are hidden users, so that page reads as
-a list of strangers.
-
-* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
-* **Response `200 OK`:**
 ```json
-[
-  {
-    "sessionId": "8a1c...",
-    "userId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
-    "username": "Sam",
-    "masterUsername": "Dad",
-    "isSubProfile": true,
-    "deviceId": "57bfa7e8d35f492b950bf93c9d747a11",
-    "deviceName": "Living room TV",
-    "client": "Jellyfin Android",
-    "appVersion": "2.6.3",
-    "lastActivity": "2026-08-31T18:04:11Z",
-    "remoteEndPoint": "192.168.1.44",
-    "nowPlaying": "The Great British Bake Off"
-  }
-]
+[{
+  "sessionId": "8a1c...",
+  "userId": "a90f11cb-…",
+  "username": "Sam",
+  "masterUsername": "Dad",
+  "isSubProfile": true,
+  "deviceId": "57bfa7e8d35f492b950bf93c9d747a11",
+  "deviceName": "Living room TV",
+  "client": "Jellyfin Android",
+  "appVersion": "2.6.3",
+  "lastActivity": "2026-08-31T18:04:11Z",
+  "remoteEndPoint": "192.168.1.44",
+  "nowPlaying": "The Great British Bake Off"
+}]
 ```
 
-`masterUsername` is `null` for a plain Jellyfin account Bonfire knows nothing about. Sessions
-are ordered most recently active first.
+`masterUsername` is null for an account outside Bonfire.
 
 ### `POST /plugins/profiles/admin/sessions/sign-out`
 
 **Authorisation:** administrator.
 
-Signs one device out, revoking its token.
-
-* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
-* **Request Body:**
 ```json
-{
-  "userId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
-  "deviceId": "57bfa7e8d35f492b950bf93c9d747a11"
-}
+{ "userId": "a90f11cb-…", "deviceId": "57bfa7e8d35f492b950bf93c9d747a11" }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `userId` | string (GUID) | Yes | Whose session to end. |
-| `deviceId` | string | Yes | Which device to end it on. |
-
-**Both are required, and that is the point.** A device id alone would sign every profile on that
-television out at once; a Jellyfin token belongs to a (user, device) pair, and this ends exactly
-one of them.
-
-* **Response:** `200 OK` — `{ "signedOut": 1 }`
-* **Response `400 Bad Request`:** either field missing, or no such session.
+Signs out that one account on that one device. Both fields are required, so other profiles
+on the same TV stay signed in. Returns `{ "signedOut": 1 }`. `400` if either is missing or
+there's no such session.
 
 ### `GET /plugins/profiles/admin/config/export`
 
 **Authorisation:** administrator.
 
-The whole plugin configuration as JSON, wrapped with the plugin version and a timestamp.
+The whole configuration, with the version and time.
 
-Every profile, PIN, Bonfire, device whitelist and avatar record lives in one
-`PluginConfiguration.xml` with nothing behind it.
-
-> **The export contains PIN hashes.** They are PBKDF2-SHA256 with a per-PIN salt, so the file is
-> no more sensitive than the configuration it came from — but it is exactly as sensitive as that,
-> and unlike the configuration it is a file that can be copied somewhere careless. A backup that
-> cannot restore a working PIN would not be a backup, so they are included deliberately.
-
-* **Response `200 OK`:**
 ```json
-{
-  "exportedUtc": "2026-08-31T18:04:11Z",
-  "pluginVersion": "1.5.10.0",
-  "configuration": { "MaxProfilesPerUser": 5, "Mappings": [], "KnownDevices": [] }
-}
+{ "exportedUtc": "2026-08-31T18:04:11Z", "pluginVersion": "1.6.6.0", "configuration": { "MaxProfilesPerUser": 5, "Mappings": [], "KnownDevices": [] } }
 ```
+
+It includes every PIN, hashed. A four-digit PIN can be recovered from its hash quickly, so
+keep the file as safe as a password.
 
 ### `POST /plugins/profiles/admin/config/import`
 
 **Authorisation:** administrator.
 
-Replaces the configuration with a previously exported one. The body is the `configuration`
-object — the export wrapper is accepted by the dashboard, which unwraps it before sending.
+The body is the `configuration` object from an export.
 
-**All-or-nothing per section, deliberately.** A merge *within* a section would have to decide
-what to do about a profile that exists in both copies with a different PIN, different libraries
-and a different master, and every answer to that is a guess about what the administrator meant.
-So each section the file carries replaces the corresponding one wholesale.
+- **Sections:** profiles, devices, Bonfires and the avatar library are each replaced
+  whole. A section the file doesn't include is left alone.
+- **Field names** are matched ignoring case.
+- **Profiles for users this server doesn't have** are dropped and named in the response.
 
-**A section the file does not carry is left alone**, and this is a safety property rather than a
-convenience. `PluginConfiguration` initialises every list it owns, so a body that fails to bind
-arrives as a *pristine default* rather than as null — it does not throw, and a naive import would
-write that emptiness over every profile, device and Bonfire while reporting success. Properties
-are therefore read off the JSON explicitly, and **property names are matched without regard to
-case**, so a file that has round-tripped through another tool and come back camelCased is still
-understood rather than silently treated as empty.
-
-A body carrying none of `Mappings`, `KnownDevices`, `BonfireGroups` or `AvatarLibrary` is refused
-outright: it is not a Bonfire configuration, whatever else it is.
-
-Mappings naming Jellyfin users this server does not have are **dropped, not imported**, so
-restoring onto a different server produces a smaller consistent configuration rather than a set of
-orphans. They are named in the response, because silently discarding somebody's profile is worse
-than refusing outright.
-
-* **Response `200 OK`:**
 ```json
-{
-  "mappings": 4,
-  "droppedMappings": ["Sam"],
-  "devices": 7,
-  "bonfires": 1
-}
+{ "mappings": 4, "droppedMappings": ["Sam"], "devices": 7, "bonfires": 1 }
 ```
 
-* **Response `400 Bad Request`:** the body is not a JSON object, or carries none of the expected sections. Nothing is changed.
+`400` if the body isn't a Bonfire configuration. Nothing is changed then.
 
 ### `POST /plugins/profiles/admin/retry-injection`
 
 **Authorisation:** administrator.
 
-Re-runs the on-disk injection into Jellyfin's `index.html` and returns the resulting status.
-Lets an administrator apply a file-permission fix and confirm it worked without restarting
-the server.
-
-Only meaningful in the `both` and `file` modes. Under `middleware` there is nothing on disk
-to retry, and the call reports the current state without writing anything.
-
-* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
-* **Request Body:** none.
-
-* **Response `200 OK`:**
-```json
-{
-  "injectionSucceeded": true,
-  "isVersionStale": false,
-  "indexPath": "/usr/share/jellyfin/web/index.html",
-  "failureReason": null,
-  "serviceAccount": "NT AUTHORITY\\NETWORK SERVICE",
-  "isWindows": true,
-  "pluginVersion": "1.3.0"
-}
-```
-
-Returns the same injection-status fields as `GET /plugins/profiles/admin/mappings`, including
-`mechanism`, reflecting the state *after* the retry.
-
-`injectionSucceeded: true` with `isVersionStale: false` means the script is installed and
-current. `isVersionStale: true` alone is advisory: the switcher is running, and clients pick
-up new script versions within `max-age` on their own (see `GET /plugins/profiles/profiles.js`).
-
-`failureReason` names the cause, including whether Jellyfin can write `index.html`, which is
-tested directly rather than inferred. Combine it with `serviceAccount` to present an exact
-permission command.
-
-* **Error Responses:**
-  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
+Tries writing the script tag into `index.html` again, for after fixing file permissions.
+Only does anything in the `both` and `file` modes. Returns the same status fields as
+`GET /admin/mappings`.
 
 ### `POST /plugins/profiles/admin/set-profile-limit`
 
 **Authorisation:** administrator.
 
-Overrides the maximum number of profiles a master user is allowed to create.
-
-* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
-* **Request Body:**
 ```json
-{
-  "userId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a",
-  "maxProfiles": 8
-}
+{ "userId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a", "maxProfiles": 8 }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `userId` | string (GUID) | Yes | The user ID of the master account to override. |
-| `maxProfiles` | integer | No | The custom limit, 1–20. Pass null to remove the override. |
-
-* **Response:** `200 OK` on success.
-
-* **Error Responses:**
-  * `400 Bad Request`: Maximum profiles must be between 1 and 20, or plugin configuration missing.
-  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
+`maxProfiles` is 1 to 20, or null to use the server-wide limit again. `400` if it's out of
+range.
 
 ### `GET /plugins/profiles/admin/audit-logs`
 
 **Authorisation:** administrator.
 
-Retrieves recent profile switching event logs.
+Recent switches.
 
-* **Headers:** `Authorization: MediaBrowser Token="<adminToken>"`
-* **Response `200 OK`:**
 ```json
-[
-  {
-    "timestamp": "2026-06-12T20:52:00Z",
-    "masterUsername": "john",
-    "targetUsername": "Kids",
-    "deviceName": "Chrome",
-    "client": "Jellyfin Web",
-    "ipAddress": "192.168.1.50"
-  }
-]
+[{
+  "timestamp": "2026-06-12T20:52:00Z",
+  "masterUsername": "john",
+  "targetUsername": "Kids",
+  "deviceName": "Chrome",
+  "client": "Jellyfin Web",
+  "ipAddress": "192.168.1.50"
+}]
 ```
-
-| Field | Type | Description |
-|---|---|---|
-| `timestamp` | string (ISO-8601) | Timestamp of the profile switch event. |
-| `masterUsername` | string | Username of the master account owner. |
-| `targetUsername` | string | Username of the profile switched to. |
-| `deviceName` | string | Recorded device name. |
-| `client` | string | Recorded client name. |
-| `ipAddress` | string | Client IP address. |
-
-* **Error Responses:**
-  * `401 Unauthorized`: Caller is not authenticated, or caller is not an administrator.
