@@ -1257,7 +1257,9 @@ Console.WriteLine("── Why a profile goes missing from one television ──�
         var cfgLock = baseCtl.GetField("ConfigLock", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
             .GetValue(null);
         var lg = Activator.CreateInstance(typeof(CapLogger<>).MakeGenericType(listenerType));
-        var listener = Activator.CreateInstance(listenerType, new object[] { null, lg });
+        // Every constructor argument, the optional service provider included: reflection
+        // does not fill in optional parameters. Null keeps the policy sync out of this test.
+        var listener = Activator.CreateInstance(listenerType, new object[] { null, lg, null });
         var handler = listenerType.GetMethod("OnSessionStarted", BindingFlags.Instance | BindingFlags.NonPublic);
 
         var sessionType = typeof(MediaBrowser.Controller.Session.SessionInfo);

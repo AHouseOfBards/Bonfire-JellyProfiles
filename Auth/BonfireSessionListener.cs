@@ -216,7 +216,9 @@ namespace Jellyfin.Profiles.Auth
         {
             if (userId == Guid.Empty) return;
 
-            var config = Plugin.Instance?.Configuration;
+            // A snapshot, taken under ConfigLock, for the same reason as OnSessionStarted:
+            // walking the live list while a save replaces it can throw.
+            var config = Controllers.ProfilesBaseController.ReadConfigSnapshot();
             var isSubProfile = config?.Mappings?.Any(m => m.ProfileUserId == userId && m.MasterUserId != userId) == true;
             if (!isSubProfile) return;
 
