@@ -317,14 +317,14 @@ const constants = (function () {
 })();
 ok('THEMES, THEME_NAMES and normalizeTheme are in the client', !!constants);
 
-const names = ['applyTheme', 'applyCachedTheme', '_setThemeSettings', 'renderThemePicker', 'readThemePicker'];
+const names = ['applyTheme', '_readThemeCache', 'applyCachedTheme', '_setThemeSettings', 'renderThemePicker', 'readThemePicker'];
 const methods = {};
 names.forEach(n => { methods[n] = method(n); ok(n + ' exists', !!methods[n]); });
 
 if (constants && names.every(n => methods[n])) {
-    function makeWorld(currentUser) {
+    function makeWorld(currentUser, sharedStore) {
         const attrs = {};
-        const store = {};
+        const store = sharedStore || {};
         const els = {};
         const world = {
             attrs: attrs, store: store, els: els,
@@ -369,7 +369,33 @@ if (constants && names.every(n => methods[n])) {
     w.obj._setThemeSettings({ theme: 'glass', defaultTheme: 'harbor', allowProfileThemes: true });
     ok('the server\'s theme is applied', w.attrs['data-jpf-theme'] === 'glass');
     const cached = JSON.parse(w.store.jellyfin_profiles_theme || 'null');
-    ok('and cached for this account', !!cached && cached.theme === 'glass' && cached.userId === 'aaaa-1111');
+    ok('and cached for this account', !!cached && !!cached.users && cached.users.aaaa1111 === 'glass'
+       && cached.last === 'glass');
+
+    // One entry per account. With one for the device, moving from the main account to a
+    // child's profile replaced the parent's theme, and the next start drew the gate in
+    // Bonfire's colours.
+    const shared = {};
+    makeWorld('aaaa-1111', shared).obj._setThemeSettings({ theme: 'crimson', defaultTheme: 'bonfire', allowProfileThemes: true });
+    makeWorld('cccc-3333', shared).obj._setThemeSettings({ theme: 'starlight', defaultTheme: 'bonfire', allowProfileThemes: true });
+    const parent = makeWorld('aaaa-1111', shared);
+    parent.obj.applyCachedTheme();
+    ok('after a child\'s profile is used, the parent still opens in the parent\'s theme',
+       parent.attrs['data-jpf-theme'] === 'crimson');
+    const child = makeWorld('cccc-3333', shared);
+    child.obj.applyCachedTheme();
+    ok('and the child in the child\'s', child.attrs['data-jpf-theme'] === 'starlight');
+    const nobody = makeWorld('', shared);
+    nobody.obj.applyCachedTheme();
+    ok('before sign-in, the last one used on this device', nobody.attrs['data-jpf-theme'] === 'starlight');
+
+    const many = {};
+    for (let i = 0; i < 25; i++) {
+        makeWorld('user-' + i, many).obj._setThemeSettings({ theme: 'glass', defaultTheme: 'bonfire', allowProfileThemes: true });
+    }
+    const kept = Object.keys(JSON.parse(many.jellyfin_profiles_theme).users);
+    ok('a browser that has seen many accounts keeps the latest twenty (' + kept.length + ')',
+       kept.length === 20 && kept.indexOf('user24') !== -1 && kept.indexOf('user0') === -1);
 
     w = makeWorld('aaaa-1111');
     w.obj._setThemeSettings({ Theme: 'Starlight', DefaultTheme: 'Crimson', AllowProfileThemes: false });
@@ -461,7 +487,7 @@ if (headBody) {
         const store = {
             jellyfin_credentials: JSON.stringify({ Servers: [{ AccessToken: 't', UserId: 'AAAA-1111' }] }),
             jellyfin_profiles_switcher_mode: JSON.stringify({ askOnStartup: true, location: 'button', masterUserId: 'aaaa1111' }),
-            jellyfin_profiles_theme: themeCache === undefined ? null : JSON.stringify(themeCache)
+            jellyfin_profiles_theme: themeCache === undefined ? undefined : JSON.stringify(themeCache)
         };
         const root = {
             style: {},
@@ -488,15 +514,15 @@ if (headBody) {
         return { attrs: attrs, css: styles.map(s => s.textContent).join('') };
     }
 
-    const mine = runHead({ userId: 'aaaa1111', theme: 'crimson' });
+    const mine = runHead({ last: 'glass', users: { cccc3333: 'glass', aaaa1111: 'crimson' } });
     ok('the cover goes up on a signed-in home page that asks', 'data-jpf-cover' in mine.attrs);
     ok('and wears this account\'s cached theme', mine.attrs['data-jpf-theme'] === 'crimson');
     ok('with a rule giving each theme its own cover colour',
        serverIds.every(id => mine.css.indexOf('html[data-jpf-cover][data-jpf-theme=' + id + ']::before{background:') !== -1));
-    const theirs = runHead({ userId: 'bbbb2222', theme: 'glass' });
+    const theirs = runHead({ last: 'glass', users: { bbbb2222: 'glass' } });
     ok('someone else\'s cached theme is not applied', theirs.attrs['data-jpf-theme'] === undefined
        && 'data-jpf-cover' in theirs.attrs);
-    const unknown = runHead({ userId: 'aaaa1111', theme: 'neon' });
+    const unknown = runHead({ users: { aaaa1111: 'neon' } });
     ok('a theme the head script does not know is not applied', unknown.attrs['data-jpf-theme'] === undefined);
     const none = runHead(undefined);
     ok('no cache: the cover is Bonfire\'s, as before', none.attrs['data-jpf-theme'] === undefined

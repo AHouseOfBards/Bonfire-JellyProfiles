@@ -3071,13 +3071,34 @@
             if (root.getAttribute('data-jpf-theme') !== id) root.setAttribute('data-jpf-theme', id);
         },
 
-        /// The theme last stored for whoever is signed in, applied before the server answers.
+        /// The stored themes: { last, users: { normalisedUserId: theme } }.
+        ///
+        /// One entry per account, not one for the device. It was one, and a household
+        /// overwrote it every time it moved between profiles: open as the main account,
+        /// pick a child's profile, and the child's theme replaced the parent's — so the next
+        /// start drew the "Who's watching?" screen, and the cover before it, in Bonfire's
+        /// colours instead of the parent's. Reads the 1.6.6.1 development shape too.
+        _readThemeCache: function () {
+            let raw = null;
+            try { raw = JSON.parse(localStorage.getItem(this.config.themeKey) || 'null'); } catch (e) { /* unreadable */ }
+            const cache = { last: null, users: {} };
+            if (!raw || typeof raw !== 'object') return cache;
+            if (raw.users && typeof raw.users === 'object') {
+                Object.keys(raw.users).forEach(k => {
+                    if (typeof raw.users[k] === 'string') cache.users[k] = raw.users[k];
+                });
+            } else if (raw.userId && typeof raw.theme === 'string') {
+                cache.users[this.normalizeGuid(raw.userId)] = raw.theme;
+            }
+            cache.last = typeof raw.last === 'string' ? raw.last : (typeof raw.theme === 'string' ? raw.theme : null);
+            return cache;
+        },
+
+        /// The theme stored for whoever is signed in, applied before the server answers.
         /// Before anyone is signed in it applies the last one stored on this device, which is
         /// the person most likely to be signing in.
         applyCachedTheme: function () {
-            let cached = null;
-            try { cached = JSON.parse(localStorage.getItem(this.config.themeKey) || 'null'); } catch (e) { /* unreadable */ }
-            if (!cached || typeof cached !== 'object' || !cached.theme) return;
+            const cache = this._readThemeCache();
 
             let current = '';
             try {
@@ -3085,9 +3106,9 @@
                     current = this.normalizeGuid(ApiClient.getCurrentUserId());
                 }
             } catch (e) { /* no client yet */ }
-            if (current && this.normalizeGuid(cached.userId) !== current) return;
 
-            this.applyTheme(cached.theme);
+            const theme = current ? cache.users[current] : cache.last;
+            if (theme) this.applyTheme(theme);
         },
 
         /// Records and applies what the server said, from loadSwitcherPrefs.
@@ -3109,9 +3130,17 @@
             this.applyTheme(settings.theme);
 
             try {
-                const userId = (typeof ApiClient !== 'undefined' && ApiClient) ? ApiClient.getCurrentUserId() : '';
+                const userId = (typeof ApiClient !== 'undefined' && ApiClient) ? this.normalizeGuid(ApiClient.getCurrentUserId()) : '';
                 if (userId) {
-                    localStorage.setItem(this.config.themeKey, JSON.stringify({ userId: userId, theme: settings.theme }));
+                    const cache = this._readThemeCache();
+                    // Re-inserted so the most recent is last, and capped: a browser that
+                    // has seen many accounts keeps only the most recent twenty.
+                    delete cache.users[userId];
+                    cache.users[userId] = settings.theme;
+                    const ids = Object.keys(cache.users);
+                    ids.slice(0, Math.max(0, ids.length - 20)).forEach(k => { delete cache.users[k]; });
+                    cache.last = settings.theme;
+                    localStorage.setItem(this.config.themeKey, JSON.stringify(cache));
                 }
             } catch (e) { /* storage full or blocked — it still applies for this page */ }
         },

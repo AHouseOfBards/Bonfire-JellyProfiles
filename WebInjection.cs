@@ -170,9 +170,11 @@ namespace Jellyfin.Profiles
                         "harbor:'#0f171e'," +
                         "nightfall:'linear-gradient(180deg, #0b1d5a 0%, #061033 40%, #02040d 100%)'," +
                         "glass:'radial-gradient(circle at 50% 25%, #3a3a3c 0%, #1c1c1e 45%, #000 100%)'},tc='',k;" +
-                    "var th=g('jellyfin_profiles_theme'),su=[];" +
-                    "for(i=0;sv&&i<sv.length;i++)if(sv[i]&&sv[i].AccessToken&&sv[i].UserId)su.push(n(sv[i].UserId));" +
-                    "if(th&&typeof th.theme==='string'&&tb.hasOwnProperty(th.theme)&&su.indexOf(n(th.userId))!==-1)h.setAttribute('data-jpf-theme',th.theme);" +
+                    // { last, users: { id: theme } }, one entry per account; see
+                    // _readThemeCache in profiles.js.
+                    "var th=g('jellyfin_profiles_theme'),tu=th&&th.users,tt=null;" +
+                    "for(i=0;tu&&sv&&!tt&&i<sv.length;i++)if(sv[i]&&sv[i].AccessToken&&sv[i].UserId&&typeof tu[n(sv[i].UserId)]==='string')tt=tu[n(sv[i].UserId)];" +
+                    "if(tt&&tb.hasOwnProperty(tt))h.setAttribute('data-jpf-theme',tt);" +
                     "for(k in tb)if(tb.hasOwnProperty(k))tc+='html[data-jpf-cover][data-jpf-theme='+k+']::before{background:'+tb[k]+'}';" +
                     "var s=document.createElement('style');" +
                     "s.id='jpf-cover-css';" +
