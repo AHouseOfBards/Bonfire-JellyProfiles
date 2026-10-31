@@ -436,6 +436,28 @@ namespace Jellyfin.Profiles.Configuration
         public string Mode { get; set; } = LibraryArtworkModes.Inherit;
     }
 
+    /// <summary>
+    /// The five limits a profile takes as the stricter of its own and its master's. Each
+    /// field's "no limit" value — 0, false, CreateAndJoinGroups, empty — is also what an
+    /// unset field means, so a profile with no limits of its own is simply the default.
+    /// See <see cref="Auth.InheritedLimits"/>.
+    /// </summary>
+    public class ProfileLimits
+    {
+        public int RemoteClientBitrateLimit { get; set; }
+        public int MaxActiveSessions { get; set; }
+        public bool ForceRemoteSourceTranscoding { get; set; }
+        public Jellyfin.Database.Implementations.Enums.SyncPlayUserAccessType SyncPlayAccess { get; set; }
+        public List<Jellyfin.Data.Enums.UnratedItem> BlockUnratedItems { get; set; } = new();
+
+        public ProfileLimits Copy()
+        {
+            var copy = (ProfileLimits)MemberwiseClone();
+            copy.BlockUnratedItems = BlockUnratedItems?.ToList() ?? new();
+            return copy;
+        }
+    }
+
     public class ProfileMapping
     {
         public Guid ProfileUserId { get; set; }
@@ -499,10 +521,38 @@ namespace Jellyfin.Profiles.Configuration
         public bool AllowHouseholdLanBypass { get; set; } = false;
         public List<string> AllowedDeviceIds { get; set; } = new List<string>();
 
+        /// <summary>
+        /// The profile was saved with no library ticked, which the form promises means "every
+        /// library your account does". <see cref="EnabledFolders"/> still holds the list as it
+        /// was at that save, but it is not what is applied: the master's libraries are, as they
+        /// are when the profile is opened, so a library added later reaches it too.
+        /// <para>
+        /// Default false, so a profile saved before this existed keeps its fixed list. Nothing
+        /// in an old configuration can tell "ticked nothing" apart from "ticked everything",
+        /// and guessing the first would widen the second.
+        /// </para>
+        /// </summary>
+        public bool AllLibraries { get; set; } = false;
+
+        /// <summary>
+        /// Limits that belong to the profile itself rather than to its master — set on the
+        /// profile's own account in Dashboard -> Users. Null until the profile is first opened
+        /// on this version. See <see cref="Auth.InheritedLimits"/>.
+        /// </summary>
+        public ProfileLimits? OwnLimits { get; set; }
+
+        /// <summary>
+        /// What Bonfire last wrote for those limits, so a later change on the account can be
+        /// told apart from Bonfire's own earlier write. See <see cref="Auth.InheritedLimits"/>.
+        /// </summary>
+        public ProfileLimits? LastAppliedLimits { get; set; }
+
         /// <summary>A copy for <see cref="PluginConfiguration.SnapshotForReading"/>.</summary>
         public ProfileMapping CopyForReading()
         {
             var copy = (ProfileMapping)MemberwiseClone();
+            copy.OwnLimits = OwnLimits?.Copy();
+            copy.LastAppliedLimits = LastAppliedLimits?.Copy();
             copy.AllowedDeviceIds = AllowedDeviceIds?.ToList() ?? new List<string>();
             copy.EnabledFolders = EnabledFolders?.ToList();
             copy.BlockedTags = BlockedTags?.ToList();

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Controller.Session;
@@ -33,13 +34,22 @@ namespace Jellyfin.Profiles.Auth
         private readonly ISessionManager _sessionManager;
         private readonly ILogger<BonfireSessionListener> _logger;
 
+        /// <param name="services">
+        /// Asked for the user and library managers only when a profile signs in, rather than
+        /// injected with them, so nothing about building this listener can fail the server's
+        /// start — the same reason the PIN provider takes it.
+        /// </param>
         public BonfireSessionListener(
             ISessionManager sessionManager,
-            ILogger<BonfireSessionListener> logger)
+            ILogger<BonfireSessionListener> logger,
+            IServiceProvider? services = null)
         {
             _sessionManager = sessionManager;
             _logger = logger;
+            _services = services;
         }
+
+        private readonly IServiceProvider? _services;
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
@@ -71,7 +81,11 @@ namespace Jellyfin.Profiles.Auth
             try
             {
                 var session = e?.SessionInfo;
-                if (session == null || string.IsNullOrWhiteSpace(session.DeviceId)) return;
+                if (session == null) return;
+
+                SyncProfilePolicy(session.UserId);
+
+                if (string.IsNullOrWhiteSpace(session.DeviceId)) return;
 
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return;
@@ -166,6 +180,65 @@ namespace Jellyfin.Profiles.Auth
                     "ProfilesPlugin: could not record the device a session started on. "
                     + "Profiles may not appear on that client's sign-in screen.");
             }
+        }
+
+        /// <summary>
+        /// How long after a sign-in the policy is applied a second time. See
+        /// <see cref="SyncProfilePolicy"/>.
+        /// </summary>
+        private static readonly TimeSpan SecondPass = TimeSpan.FromSeconds(5);
+
+        /// <summary>
+        /// Applies a sub-profile's master policy when it signs in anywhere. Until this, only
+        /// the web switch did it, so a profile used only on a television never heard about a
+        /// library taken from its master or a lowered rating. See <see cref="ProfilePolicySync"/>.
+        ///
+        /// <para><b>Why twice.</b> The event is raised from inside
+        /// <c>SessionManager.LogSessionActivity</c>, which, straight after, saves the
+        /// <c>User</c> it was handed — read before this sign-in, so before anything we write —
+        /// and Jellyfin's <c>UpdateUserAsync</c> writes that object's permissions and
+        /// preferences back whole (verified in release-10.11.z
+        /// Jellyfin.Server.Implementations/Users/UserManager.cs). A policy written in that
+        /// window is reverted. The event is queued on the thread pool, so which comes first is
+        /// a race. The first pass covers the requests the television makes straight away; the
+        /// second runs after that save has happened, and is a no-op when nothing was reverted
+        /// (ProfilePolicySync leaves an account that is already right alone). After that save
+        /// the activity date is fresh, and Jellyfin does not save the user again for a minute.</para>
+        ///
+        /// <para>A web switch applies the policy itself before the session exists, and then
+        /// lands here as well. The runs are serialized and the repeats write nothing.</para>
+        /// </summary>
+        private void SyncProfilePolicy(Guid userId)
+        {
+            if (userId == Guid.Empty) return;
+
+            var config = Plugin.Instance?.Configuration;
+            var isSubProfile = config?.Mappings?.Any(m => m.ProfileUserId == userId && m.MasterUserId != userId) == true;
+            if (!isSubProfile) return;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var userManager = _services?.GetService(typeof(MediaBrowser.Controller.Library.IUserManager))
+                        as MediaBrowser.Controller.Library.IUserManager;
+                    var libraryManager = _services?.GetService(typeof(MediaBrowser.Controller.Library.ILibraryManager))
+                        as MediaBrowser.Controller.Library.ILibraryManager;
+                    if (userManager == null || libraryManager == null) return;
+
+                    await ProfilePolicySync.ApplyAsync(userManager, libraryManager, _logger, userId).ConfigureAwait(false);
+                    await Task.Delay(SecondPass).ConfigureAwait(false);
+                    await ProfilePolicySync.ApplyAsync(userManager, libraryManager, _logger, userId).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "ProfilesPlugin: could not apply the main account's limits to profile {ProfileId} "
+                        + "after it signed in. They are applied again the next time it is opened.",
+                        userId);
+                }
+            });
         }
     }
 }

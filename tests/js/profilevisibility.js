@@ -25,7 +25,7 @@
  * Enumerated rather than counted, and each call named with its line, because "all the
  * writes are fine" is the shape of check this repository has shipped three bugs past.
  *
- *   node tests/js/profilevisibility.js [path/to/ProfilesController.cs]
+ *   node tests/js/profilevisibility.js [path/to/ProfilesController.cs] [path/to/ProfilePolicySync.cs]
  */
 'use strict';
 
@@ -45,8 +45,19 @@ function ok(name, cond, detail) {
 
 const CONTROLLER = process.argv[2]
     || path.join(L.ROOT, 'Controllers', 'ProfilesController.cs');
-const src = fs.readFileSync(CONTROLLER, 'utf8');
-const lineOf = idx => src.slice(0, idx).split('\n').length;
+// The switch's policy write moved to Auth/ProfilePolicySync.cs, which every sign-in now
+// runs, so it is read alongside the controller. Line numbers past the controller's last
+// line are reported against that file.
+const SYNC = process.argv[3]
+    || path.join(L.ROOT, 'Auth', 'ProfilePolicySync.cs');
+const controllerSrc = fs.readFileSync(CONTROLLER, 'utf8');
+const syncSrc = fs.existsSync(SYNC) ? fs.readFileSync(SYNC, 'utf8') : '';
+const src = controllerSrc + '\n' + syncSrc;
+const controllerLines = controllerSrc.split('\n').length;
+const lineOf = idx => {
+    const n = src.slice(0, idx).split('\n').length;
+    return n <= controllerLines ? String(n) : 'ProfilePolicySync.cs:' + (n - controllerLines);
+};
 
 console.log('\n── a new profile is hidden the moment it exists ────────────────');
 

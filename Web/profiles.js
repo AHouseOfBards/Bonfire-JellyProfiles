@@ -259,6 +259,8 @@
         'profileForm.oneDeviceAllowed': '1 Device Allowed',
         'profileForm.devicesAllowed': '{count} Devices Allowed',
         'profileForm.noDevicesYet': 'No devices found for your account yet',
+        'profileForm.devicesUnavailable': "Couldn't load your devices. Saving won't change this profile's devices.",
+        'profileForm.devicesUnchanged': 'Devices unchanged',
         'profileForm.noDevicesConnected': 'No connected devices found',
         'profileForm.devicesHint': 'If no devices are selected, this profile can be accessed from any device.',
         'profileForm.unknownDevice': 'Unknown Device',
@@ -285,6 +287,7 @@
         'profileForm.ratingPG': 'PG / TV-PG (10+)',
         'profileForm.ratingPG13': 'PG-13 / TV-14 (14+)',
         'profileForm.ratingR': 'R / TV-MA (17+)',
+        'profileForm.ratingCurrent': 'Current limit (level {score})',
         'profileForm.blockedTags': 'Blocked tags',
         'profileForm.blockedTagsHint': 'Hides anything with these tags. A tag on a series or library covers everything inside it.',
         'profileForm.allowedTags': 'Allowed tags',
@@ -1054,6 +1057,7 @@
                 bypassPinOnLocalNetwork: pick(p, 'bypassPinOnLocalNetwork', false),
                 allowedDeviceIds: pick(p, 'allowedDeviceIds', []),
                 enabledFolders: pick(p, 'enabledFolders', []),
+                allLibraries: pick(p, 'allLibraries', false),
                 blockedTags: pick(p, 'blockedTags', []),
                 allowedTags: pick(p, 'allowedTags', []),
                 isBonfire: pick(p, 'isBonfire', false),
@@ -1209,8 +1213,13 @@
             this._sharedForm = Promise.all([
                 fetch(apiClient.getUrl('plugins/profiles/libraries'), { headers })
                     .then(res => res.json()),
+                // null, not [], when the list could not be read. The edit form rebuilds a
+                // profile's allowed devices from the boxes it draws, so an empty list here
+                // used to save as "any device" and switch the restriction off.
                 fetch(apiClient.getUrl('plugins/profiles/devices'), { headers })
-                    .then(res => res.json()).catch(() => []),
+                    .then(res => res.ok ? res.json() : null)
+                    .then(list => Array.isArray(list) ? list : null)
+                    .catch(() => null),
                 this.fetchLibraryTags(apiClient, masterState.token, masterState.masterUserId),
                 this.fetchAvatarLibrary(apiClient, masterState.token)
             ]).then(([libraries, devices, libraryTags, avatarLibrary]) => ({
@@ -1289,6 +1298,12 @@
             const isEdit = mode === 'edit';
             const p = isEdit ? '' : 'create-';
             const boxClass = isEdit ? 'device-checkbox' : 'create-device-checkbox';
+            // The server matches device ids ignoring case, and so must this. A whitelisted id
+            // in a different case from the device's record drew an unticked box, and the next
+            // save dropped it from the list.
+            const allowedIds = (isEdit && profile && profile.allowedDeviceIds || [])
+                .map(id => String(id).toLowerCase());
+            const unavailable = devices === null;
 
             const items = (devices && devices.length > 0)
                 ? devices.map(dev => {
@@ -1303,9 +1318,8 @@
                         ? lastSeenDate.toLocaleDateString() : t('profileForm.unknown');
                     // Both spellings, because the list can come from the plugin's own
                     // camelCase JSON or straight off a Jellyfin DTO.
-                    const isChecked = isEdit && profile && profile.allowedDeviceIds
-                        && (profile.allowedDeviceIds.includes(deviceId)
-                            || (dev.DeviceId && profile.allowedDeviceIds.includes(dev.DeviceId)));
+                    const isChecked = allowedIds.indexOf(deviceId.toLowerCase()) !== -1
+                        || (!!dev.DeviceId && allowedIds.indexOf(String(dev.DeviceId).toLowerCase()) !== -1);
                     // Housekeeping actions belong to the edit form only: the create form is
                     // listing devices to tick, and a half-made profile is the wrong place to
                     // be reorganising the household's hardware.
@@ -1337,7 +1351,7 @@
                     `;
                 }).join('')
                 : `
-                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">${t('profileForm.noDevicesYet')}</div>
+                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">${t(unavailable ? 'profileForm.devicesUnavailable' : 'profileForm.noDevicesYet')}</div>
                 `;
 
             return `
@@ -1345,7 +1359,7 @@
                     <label>${t('profileForm.allowedDevices')}</label>
                     <div class="devices-dropdown-container" style="position: relative;">
                         <div id="${p}devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
-                            <span id="${p}devices-dropdown-selected-text">${t('profileForm.allDevicesAllowed')}</span>
+                            <span id="${p}devices-dropdown-selected-text">${t(unavailable && isEdit ? 'profileForm.devicesUnchanged' : 'profileForm.allDevicesAllowed')}</span>
                         </div>
                         <div id="${p}devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
                             ${items}
@@ -1368,16 +1382,23 @@
         /// quietly reset the profile's rating on the next save.
         renderRatingSelect: function (mode, maxRating) {
             const id = mode + '-rating-select';
-            const opts = [
+            const choices = [
                 ['', 'profileForm.noRestrictions'],
                 ['6', 'profileForm.ratingG'],
                 ['10', 'profileForm.ratingPG'],
                 ['14', 'profileForm.ratingPG13'],
                 ['17', 'profileForm.ratingR'],
-            ].map(([value, key]) => {
+            ];
+            // A limit set in Dashboard -> Users is any score, not one of these five. With no
+            // option to preselect, the select fell back to "No Restrictions" and the next save
+            // cleared the limit, whatever the save was for. It gets an option of its own.
+            const unlisted = typeof maxRating === 'number'
+                && !choices.some(([value]) => value !== '' && Number(value) === maxRating);
+            if (unlisted) choices.push([String(maxRating), 'profileForm.ratingCurrent']);
+            const opts = choices.map(([value, key]) => {
                 const current = value === '' ? maxRating === null || maxRating === undefined
                     : maxRating === Number(value);
-                return `<option value="${value}" ${current ? 'selected' : ''}>${t(key)}</option>`;
+                return `<option value="${value}" ${current ? 'selected' : ''}>${t(key, { score: value })}</option>`;
             }).join('\n                            ');
 
             return `
@@ -5969,7 +5990,12 @@
                             ${normalizedLibs.map(lib => {
                                 const storedFolders = profile.enabledFolders;
                                 let isChecked;
-                                if (storedFolders !== null && storedFolders !== undefined) {
+                                // "Every library" is saved as nothing ticked, so it is shown
+                                // that way. Drawn with every box ticked, the next save would
+                                // send them all and turn it into a fixed list.
+                                if (profile.allLibraries) {
+                                    isChecked = false;
+                                } else if (storedFolders !== null && storedFolders !== undefined) {
                                     isChecked = storedFolders.some(id => this.normalizeGuid(id) === this.normalizeGuid(lib.id));
                                 } else {
                                     isChecked = enableAll || !blockedFolders.some(bf => this.normalizeGuid(bf) === this.normalizeGuid(lib.id));
@@ -6137,7 +6163,9 @@
                 const updateSelectedText = () => {
                     const checked = Array.from(content.querySelectorAll('.device-checkbox:checked'));
                     const txt = document.getElementById('devices-dropdown-selected-text');
-                    if (txt) {
+                    if (txt && devices === null) {
+                        txt.textContent = t('profileForm.devicesUnchanged');
+                    } else if (txt) {
                         if (checked.length === 0) {
                             txt.textContent = t('profileForm.allDevicesAllowed');
                         } else if (checked.length === 1) {
@@ -6343,10 +6371,14 @@
                         // An empty array tells the server "allow no libraries",
                         // while null means "inherit all accessible libraries from master".
                         checkedLibs = rawLibs.length > 0 ? rawLibs : null;
-                        checkedDevices = [];
-                        content.querySelectorAll('.device-checkbox:checked').forEach(cb => {
-                            checkedDevices.push(cb.value);
-                        });
+                        // Null leaves the list as it is. With no device list to draw there
+                        // are no boxes, and [] would mean "any device".
+                        if (devices !== null) {
+                            checkedDevices = [];
+                            content.querySelectorAll('.device-checkbox:checked').forEach(cb => {
+                                checkedDevices.push(cb.value);
+                            });
+                        }
                     }
                     const lockoutSel = document.getElementById('edit-lockout-select');
                     const lockoutMinutes = lockoutSel ? parseInt(lockoutSel.value, 10) : undefined;

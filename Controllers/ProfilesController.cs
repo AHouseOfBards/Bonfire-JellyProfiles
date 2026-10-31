@@ -178,6 +178,7 @@ namespace Jellyfin.Profiles.Controllers
                                 IsMaster = false,
                                 m.LockoutMinutes,
                                 EnabledFolders = ownerView ? (m.EnabledFolders ?? new List<Guid>()) : new List<Guid>(),
+                                AllLibraries = ownerView && m.AllLibraries,
                                 BlockedTags = ownerView ? (m.BlockedTags ?? new List<string>()) : new List<string>(),
                                 AllowedTags = ownerView ? (m.AllowedTags ?? new List<string>()) : new List<string>(),
                                 BypassPinOnLocalNetwork = m.BypassPinOnLocalNetwork,
@@ -450,6 +451,8 @@ namespace Jellyfin.Profiles.Controllers
                     LockoutMinutes = ClampLockoutMinutes(request.LockoutMinutes ?? 5),
                     // Store the selected libraries as the plugin's own ground truth
                     EnabledFolders = validatedFolders,
+                    // Nothing ticked means every library the master has, then and later.
+                    AllLibraries = request.EnabledFolders == null,
                     BlockedTags = profileBlockedTags,
                     AllowedTags = profileAllowedTags,
                     BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork ?? false,
@@ -749,167 +752,31 @@ namespace Jellyfin.Profiles.Controllers
             var targetUser = _userManager.GetUserById(request.ProfileId);
             if (targetUser == null) return NotFound("Underlying system user missing.");
 
+            // An account turned off in Dashboard -> Users stays off. AuthenticateDirect does
+            // not check IsDisabled at all, and the block below used to write
+            // IsDisabled = false on every switch into a sub-profile, so disabling a profile's
+            // account was undone the next time anyone picked it. That included the account
+            // the delete route disables as its fallback "so it cannot log in".
+            if (_userManager.GetUserDto(targetUser, string.Empty).Policy?.IsDisabled == true)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: refused a switch into {ProfileId}, whose account is disabled.",
+                    request.ProfileId);
+                return BadRequest("This profile's account is turned off on the server.");
+            }
+
             // Inherit/synchronize streaming policies and configurations from master user dynamically during switch
             var targetMasterUserId = mapping != null ? mapping.MasterUserId : request.ProfileId;
             var masterUser = _userManager.GetUserById(targetMasterUserId);
 
             // Only a genuine sub-profile inherits. See ShouldInheritMasterPolicy for what
-            // this block did to a main account when it ran there (issue #27): it cleared the
+            // this did to a main account when it ran there (issue #27): it cleared the
             // account's library access permanently, demoted an administrator, and hid them.
+            // The work itself is shared with every other sign-in; see ProfilePolicySync.
             if (masterUser != null && ShouldInheritMasterPolicy(mapping, targetUser.Id, callerMasterUserId))
             {
-                var masterUserDto = _userManager.GetUserDto(masterUser, string.Empty);
-                var masterPolicy = masterUserDto.Policy;
-
-                var targetUserDto = _userManager.GetUserDto(targetUser, string.Empty);
-                var targetPolicy = targetUserDto.Policy;
-
-                // Sync streaming, transcoding, and bitrate policies
-                var childMaxParentalRating = targetPolicy.MaxParentalRating;
-                var childMaxParentalSubRating = targetPolicy.MaxParentalSubRating;
-                var childBlockedFolders = targetPolicy.BlockedMediaFolders;
-                var childEnableAllFolders = targetPolicy.EnableAllFolders;
-                var childEnabledFolders = targetPolicy.EnabledFolders;
-
-                CopyUserPolicy(masterPolicy, targetPolicy, targetUser.Id);
-
-                // Restore child-specific overrides. The profile keeps its own rating, but
-                // compared with the master's as it is NOW: restoring it unchecked meant
-                // tightening a master's rating never reached profiles it already had.
-                targetPolicy.IsAdministrator = false;
-                targetPolicy.IsHidden = true;
-                targetPolicy.IsDisabled = false;
-                (targetPolicy.MaxParentalRating, targetPolicy.MaxParentalSubRating) = ClampRating(
-                    childMaxParentalRating, childMaxParentalSubRating,
-                    masterPolicy.MaxParentalRating, masterPolicy.MaxParentalSubRating);
-
-                // Re-apply the profile's tag filters. CopyUserPolicy above just overwrote them with
-                // the master's, so without this every profile switch would silently drop them.
-                // Resolving from the mapping (rather than the current policy) also heals tags reset
-                // by a Jellyfin restart and picks up changes to the master's own tag policy.
-                var (reapplyBlockedTags, reapplyAllowedTags) =
-                    ResolveTagPolicy(masterPolicy, mapping?.BlockedTags, mapping?.AllowedTags);
-                targetPolicy.BlockedTags = reapplyBlockedTags;
-                targetPolicy.AllowedTags = reapplyAllowedTags;
-
-                // Determine the authoritative enabled-folder list:
-                //  - If the plugin mapping has a stored list (EnabledFolders != null), use it as ground truth.
-                //    This survives Jellyfin restarts that reset user policies.
-                //  - If EnabledFolders is null (profile predates this field), fall back to the Jellyfin policy
-                //    and auto-migrate by saving the list into the mapping now.
-                List<Guid> authorityFolders;
-                if (mapping?.EnabledFolders != null)
-                {
-                    // Issue #30: a library granted in Dashboard → Users is not a stale value.
-                    // Applying the stored list unconditionally silently reverted it. See
-                    // LibraryAccessReconciler for why the account's list cannot simply win,
-                    // and why additions are adopted while removals are not.
-                    var reconciled = Auth.LibraryAccessReconciler.Reconcile(
-                        mapping.EnabledFolders, childEnabledFolders, childEnableAllFolders);
-
-                    authorityFolders = reconciled.Authority;
-
-                    if (reconciled.StoredListChanged)
-                    {
-                        // Re-resolved inside the lock rather than mutating the mapping we
-                        // captured above, because Jellyfin replaces the whole configuration
-                        // object when an administrator saves the plugin's settings, and the
-                        // row we are holding may belong to the one it replaced.
-                        lock (ConfigLock)
-                        {
-                            var liveRow = Plugin.Instance?.Configuration?.Mappings?
-                                .FirstOrDefault(m => m.ProfileUserId == targetUser.Id);
-
-                            if (liveRow?.EnabledFolders != null)
-                            {
-                                var merged = liveRow.EnabledFolders
-                                    .Concat(reconciled.Granted)
-                                    .Distinct()
-                                    .ToList();
-
-                                if (merged.Count != liveRow.EnabledFolders.Count)
-                                {
-                                    liveRow.EnabledFolders = merged;
-                                    Plugin.Instance?.SaveConfiguration();
-                                }
-                            }
-                        }
-
-                        // Said out loud because the absence of any trail is most of what made
-                        // this expensive to find: nothing errored, and Jellyfin does not log
-                        // policy writes at all.
-                        _logger.LogInformation(
-                            "ProfilesPlugin: profile {ProfileId} was granted {Count} library/libraries "
-                            + "outside the plugin since it was last entered; adopted, so entering the "
-                            + "profile no longer reverts them.",
-                            targetUser.Id,
-                            reconciled.Granted.Count);
-                    }
-                    else if (reconciled.Missing.Count > 0)
-                    {
-                        // The other direction, which is the one that reads as "my save did
-                        // not take". Not adopted — this is also the shape a reset takes — but
-                        // it must not be silent.
-                        _logger.LogInformation(
-                            "ProfilesPlugin: profile {ProfileId} is missing {Count} library/libraries "
-                            + "that the profile itself is set to have, so the profile's own list was "
-                            + "re-applied. To take a library away from a profile, edit the profile "
-                            + "rather than the account in Dashboard -> Users.",
-                            targetUser.Id,
-                            reconciled.Missing.Count);
-                    }
-                }
-                else
-                {
-                    // Legacy profile: read from Jellyfin policy and migrate
-                    var legacyEnabled = childEnableAllFolders
-                        ? (masterPolicy.EnabledFolders ?? Array.Empty<Guid>()).ToList()
-                        : (childEnabledFolders ?? Array.Empty<Guid>()).ToList();
-
-                    // If still empty, derive from BlockedMediaFolders
-                    if (legacyEnabled.Count == 0 && childBlockedFolders != null && childBlockedFolders.Length > 0)
-                    {
-                        var allFolderIds = _libraryManager.GetVirtualFolders()
-                            .Select(f => Guid.TryParse(f.ItemId, out var fid) ? fid : Guid.Empty)
-                            .Where(fid => fid != Guid.Empty)
-                            .ToList();
-                        legacyEnabled = allFolderIds.Where(fid => !childBlockedFolders.Contains(fid)).ToList();
-                    }
-
-                    authorityFolders = legacyEnabled;
-
-                    // Persist the migration so we never need this fallback again
-                    if (mapping != null)
-                    {
-                        lock (ConfigLock)
-                        {
-                            mapping.EnabledFolders = authorityFolders;
-                            Plugin.Instance?.SaveConfiguration();
-                        }
-                    }
-                }
-
-                // Intersect authorityFolders with the master's current accessible folders
-                var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
-                authorityFolders = authorityFolders.Where(id => masterAccessible.Contains(id)).ToList();
-
-                // Re-apply the stored library policy (heals resets caused by Jellyfin restarts)
-                targetPolicy.EnableAllFolders = false;
-                targetPolicy.EnabledFolders = authorityFolders.ToArray();
-
-                var allFolders2 = _libraryManager.GetVirtualFolders();
-                var reapplyBlocked = allFolders2
-                    .Select(f => Guid.TryParse(f.ItemId, out var id2) ? id2 : Guid.Empty)
-                    .Where(id2 => id2 != Guid.Empty && !authorityFolders.Contains(id2))
-                    .ToArray();
-                var masterBlocked2 = masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>();
-                targetPolicy.BlockedMediaFolders = reapplyBlocked.Union(masterBlocked2).ToArray();
-
-                await _userManager.UpdatePolicyAsync(targetUser.Id, targetPolicy).ConfigureAwait(false);
-
-                // Language and subtitle preferences are seeded from the master when the profile is
-                // created and are the profile's own after that. Copying them again here would undo
-                // whatever was set on the profile (e.g. a child's Polish audio vs. an English master).
+                await Auth.ProfilePolicySync.ApplyAsync(_userManager, _libraryManager, _logger, targetUser.Id)
+                    .ConfigureAwait(false);
             }
 
             var client = GetAuthorizationParameter("Client");
@@ -1753,15 +1620,20 @@ namespace Jellyfin.Profiles.Controllers
                 var targetPolicy = targetUserDto.Policy;
 
                 // Set parental rating, never above the master's.
-                if (!string.IsNullOrEmpty(request.MaxParentalRating) && int.TryParse(request.MaxParentalRating, out var rating))
+                //
+                // The form has no sub-score, so the one on the account survives as long as the
+                // score is the one already set. Dropping it on every save loosened a TV-PG
+                // limit set in Dashboard -> Users to "anything scored PG" whenever the profile
+                // was saved for any reason, a new avatar included.
+                int? requestedRating = !string.IsNullOrEmpty(request.MaxParentalRating)
+                    && int.TryParse(request.MaxParentalRating, out var rating)
+                    ? rating
+                    : null;
+                if (requestedRating != targetPolicy.MaxParentalRating)
                 {
-                    targetPolicy.MaxParentalRating = rating;
+                    targetPolicy.MaxParentalRating = requestedRating;
+                    targetPolicy.MaxParentalSubRating = null;
                 }
-                else
-                {
-                    targetPolicy.MaxParentalRating = null;
-                }
-                targetPolicy.MaxParentalSubRating = null;
 
                 (targetPolicy.MaxParentalRating, targetPolicy.MaxParentalSubRating) = ClampRating(
                     targetPolicy.MaxParentalRating, targetPolicy.MaxParentalSubRating,
@@ -1866,6 +1738,8 @@ namespace Jellyfin.Profiles.Controllers
                     if (validatedFolders != null)
                     {
                         mappingEntry.EnabledFolders = validatedFolders;
+                        // Nothing ticked means every library the master has, then and later.
+                        mappingEntry.AllLibraries = request.EnabledFolders == null;
                     }
 
                     // Store the profile's own tag lists, not the master-merged result, so later
