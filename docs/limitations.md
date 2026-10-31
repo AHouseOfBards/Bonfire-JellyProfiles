@@ -1,32 +1,31 @@
 # Known Limitations
 
-## Skin Manager / custom themes
+## Custom themes
 
-Custom themes and skin managers can leave the Switch Profile button misaligned. The
-**Jellyfin menu** style under *Settings → Switcher Style* removes the injected button and
-puts the switcher on your profile page instead. Either way, please open an issue with the
-name of the theme.
+Some themes and skin managers push the Bonfire button out of place. Switch to
+**Jellyfin's user menu** under **Settings → Switcher Style**, which removes the button.
+Please also open an issue naming the theme.
 
-## Profile creation is on the home screen, not the admin dashboard
+## Profiles are managed from the home screen
 
-Profiles are created and managed from the Switch Profile button on the Jellyfin home
-screen. **Dashboard → Plugins → Bonfire** is for server-wide settings, the avatar library,
-administrator PIN resets, TV and app sign-in, and the emergency disable code.
+Create and edit profiles from the switcher, not the admin dashboard.
+**Dashboard → Plugins → Bonfire** holds the server-wide settings, the avatar library,
+PIN resets, TV and app sign-in, and the emergency disable code.
 
 ## Emergency disable code
 
-A code that shuts Bonfire off **until Jellyfin restarts**, for when the plugin has made
-the web interface hard to use — including the settings page you would need to uninstall
-it. Set one under **Dashboard → Plugins → Bonfire → Advanced**, then enter it on any
-Bonfire screen or press `Ctrl+Shift+B`. Off by default.
+Turns Bonfire off until Jellyfin restarts. It's for when Bonfire has made the web
+interface hard to use, including the page you'd need to uninstall it.
 
-Before you turn it on:
+Set one under **Dashboard → Plugins → Bonfire → Advanced**. To use it, enter it on any
+Bonfire screen or press `Ctrl+Shift+B`. It's off until you set one.
 
-- It does **not** unlock other profiles, and does not widen library access, parental
-  ratings or tag filters. Jellyfin enforces those regardless of this plugin.
-- It **does** skip the profile gate. On a device already signed in to the master account,
-  anyone with the code gets that account's full library.
-- It is submitted without a password, so make it long. Five attempts per hour per address,
+Things to know:
+
+- It does **not** unlock other profiles or loosen any parental controls.
+- It **does** skip the profile screen. On a device signed in to a main account, anyone
+  with the code gets that account.
+- No password is asked for, so make it long. It allows five tries an hour per address,
   and every use is logged.
-- If the plugin's script fails to load at all, the code has nothing to run in. Restart
-  Jellyfin, or delete the plugin folder.
+- If Bonfire's script doesn't load at all, the code can't run. Restart Jellyfin or delete
+  the plugin folder instead.

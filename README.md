@@ -21,8 +21,8 @@ Works with Jellyfin 10.11 and 12.0.
 - **Avatars.** Thirty built in, plus any pictures you upload for the whole server.
 - **Per-profile library artwork.** A Kids profile can show its own picture for a library
   instead of a poster from a film it can't open.
-- **Your choice of switcher.** A full-screen "Who's Watching?" screen, or a
-  **Switch Profile** entry in Jellyfin's menu.
+- **Your choice of switcher.** A Bonfire button in the header or a **Switch Profile**
+  entry in Jellyfin's own menu, with an optional "Who's watching?" screen on startup.
 
 ![The create-profile form](images/create-profile.png)
 

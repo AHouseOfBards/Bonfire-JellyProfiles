@@ -1,50 +1,48 @@
-# What Bonfire protects, and what it does not
+# Security
 
-Profiles are a convenience for a household and a control for its children. Some of what
-Bonfire does is enforced by the server and holds against anyone; some of it only works
-against people who are not trying to get round it. This page says which is which.
+Some of what Bonfire does is enforced by the server and holds against anyone. Some of it
+only works against people who aren't trying to get around it. This page says which is
+which.
 
 ## Enforced by the server
 
-These hold on every client, including apps Bonfire never runs in, and cannot be switched
-off from a browser.
+These hold in every app and can't be turned off from a browser.
 
-- **What a profile can see.** Library access, the parental rating and tag filters are set
-  on the profile's Jellyfin account. So is everything an administrator restricted on the
-  account that owns it — remote access, access schedules, bitrate, downloads, Live TV. A
-  profile never gets more than its account.
-- **PINs.** Every switch and every sign-in checks the PIN on the server.
-  - The web switcher allows 5 wrong PINs per 15 minutes from one address, and 10 per
-    profile from all addresses together.
+- **What a profile can see.** Library access, parental rating and tag filters live on
+  the profile's Jellyfin account. So does every restriction an administrator put on the
+  main account, such as remote access, schedules, bitrate, downloads and Live TV. A profile
+  never gets more than its main account.
+- **PINs.** Every switch and sign-in checks the PIN on the server.
+  - The switcher allows 5 wrong PINs per 15 minutes from one address, and 10 per profile
+    from all addresses together.
   - Other apps' sign-in screens allow 5 per 15 minutes and 20 a day, per account.
-- **Other households.** Across a shared Bonfire, entering an account or a profile needs its
-  PIN, or its owner's *Allow household switching on this network* while on the local
-  network. Hidden profiles cannot be opened, only hidden.
-- **The browser holds one session.** It is the session of whoever is signed in now. Going
-  from a profile to the account that owns it asks for that account's PIN, like any other
-  switch.
+- **Other households.** In a shared Bonfire, opening someone else's account or profile
+  needs its PIN. The exception is when its owner has turned on *Let my Bonfire switch
+  into my account on this network* and you're on their network. Hidden profiles can't be
+  opened at all.
+- **Going back to the main account** from a profile asks for the main account's PIN,
+  like any other switch.
 
-## Not a boundary
+## Not a security boundary
 
-- **A master account with no PIN.** Any of its profiles can switch into it. If the profiles
-  are for children, set a PIN on the master.
-- **Device restrictions.** A device is recognised by the id its app sends, and an app can
-  send any id. Limiting a profile to the living-room TV keeps it off other devices in
-  normal use, not from someone who copies that TV's id. The same goes for profiles with no
-  PIN on other apps' sign-in screens, which open only on a device the household has used.
-- **"Your home network".** It is whatever the Jellyfin server counts as local. Behind a
-  reverse proxy that is not listed under **Dashboard → Networking → Known Proxies**, every
-  visitor looks local, and every LAN bypass applies to all of them.
-- **The profile screen itself.** It is a screen, not a lock. Anyone at a browser can do
-  whatever the profile signed in there can do.
-- **Profile names on other apps.** With *TVs & Apps* on, a device the household has used
-  is shown the household's profile names on its sign-in screen.
+- **A main account with no PIN.** Any of its profiles can switch into it. If the profiles
+  are for children, give the main account a PIN.
+- **Device limits.** A device is identified by the ID its app sends, and an app can send
+  any ID. A device limit stops normal use on other devices, not someone who copies the
+  allowed device's ID. The same goes for PIN-less profiles on other apps' sign-in screens.
+- **"Your home network".** This is whatever Jellyfin counts as local. Behind a reverse
+  proxy that isn't listed under **Dashboard → Networking → Known Proxies**, every visitor
+  looks local.
+- **The profile screen.** It's a screen, not a lock. Anyone at the browser can do what
+  the signed-in profile can do.
+- **Profile names in other apps.** With *TVs & Apps* on, a device your household has used
+  shows your profile names on its sign-in screen.
 
 ## For administrators
 
-- **Settings export.** It contains every PIN, hashed. A four-digit PIN can be recovered
-  from its hash offline in seconds, so keep the file as you would keep passwords.
+- **Configuration export.** It contains every PIN, hashed. A four-digit PIN can be
+  recovered from its hash in seconds, so keep the file safe like a password.
 - **Emergency disable code.** It skips the profile screen on any browser signed in to a
-  master account. Make it long.
-- **The Bonfire settings page** shows device and app names that any account can set. The
-  page displays them as text; if you build tools on the API, do the same.
+  main account. Make it long.
+- **Device and app names** on the Bonfire settings page can be set by any account.
+  The page shows them as plain text. If you build tools on the API, do the same.
