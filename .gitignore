@@ -23,3 +23,7 @@ packages/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local working notes for Claude Code
+CLAUDE.md
+.claude/worktrees/
