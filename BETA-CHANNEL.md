@@ -1,69 +1,43 @@
 # Beta Channel
 
-This branch serves the **pre-release manifest** for Bonfire/JellyProfiles.
+Beta builds let you try new work before it reaches everyone.
 
-## Repository URLs
-
-| Channel | Repository URL | Contains |
-|---|---|---|
-| **Stable** (default) | `https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json` | Milestone releases — 1.0, 1.1, 1.1.13, 1.2, 1.2.12, 1.3, 1.4, 1.5, 1.6, 1.6.1, 1.6.2, 1.6.3, 1.6.4, 1.6.5, 1.6.6 |
-| **Beta** | `https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/beta/manifest.json` | Pre-release builds, and point releases that never became milestones |
-
-The two lists **do not overlap**: every published version appears in exactly one of
-them. See *Why nothing appears twice* below.
-
-Most people want the stable channel. Add the beta URL only if you are testing
-pre-release builds or need a specific point release — and add it **as well as** the
-stable one, never on its own, or you will stop being offered stable releases.
-
-## What you are agreeing to
+| Channel | Repository URL |
+| --- | --- |
+| **Stable** | `https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json` |
+| **Beta** | `https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/beta/manifest.json` |
 
 > [!WARNING]
-> **Beta builds are unfinished and features in them may be broken.** They exist so new work can be tested before it reaches everyone, which means:
->
-> * A feature may not work at all, may work differently from its description, or may disappear in the next build.
-> * Settings introduced in a beta can change shape before release. Reverting to a stable build afterwards may leave those settings behind or reset them.
-> * The profile switcher itself can break. If that happens the plugin can make the Jellyfin web interface hard to use — see the **Emergency disable code** in [docs/limitations.md](docs/limitations.md) before you rely on a beta on a machine you need working.
->
-> Please do report what you find on [GitHub Issues](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues) — that is what the channel is for. Just don't put a beta on a server your household depends on that evening.
+> **Beta builds are unfinished and features in them may be broken.** Settings added in a
+> beta can change before release, and going back to stable may reset them. If the
+> switcher breaks, the [emergency disable code](docs/limitations.md#emergency-disable-code)
+> can switch Bonfire off. Don't run a beta on a server your household needs that evening.
 
-## How to use the beta channel
+Please report what you find on
+[GitHub Issues](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues).
 
-In Jellyfin: **Dashboard → Plugins → Repositories → ＋**, then paste the beta URL
-above and save. Bonfire will then offer the full version list under
-**Plugins → Catalog**.
+## Using it
 
-Add the beta repository *alongside* the stable one. Both describe the same plugin
-GUID, so Jellyfin merges them into a single version list. Because no version is in
-both files, nothing appears twice and the merged list is simply every build there
-is. Remove the beta repository to go back to milestones only.
+In Jellyfin, open **Dashboard → Plugins → Repositories → ＋**, add the beta URL and save.
+The beta builds then appear under **Plugins → Catalog**.
 
-## Why the two lists differ
+**Add it alongside the stable repository, not instead of it.** Each version is listed in
+only one of the two, so the beta repository on its own never offers stable releases.
+Remove the beta repository to go back to stable only.
 
-The stable manifest deliberately lists only a handful of versions. The 1.1 and
-1.2 lines each went through a long run of point releases, and listing all of
-them in the catalogue made it hard to tell which build anyone should actually be
-on. Both lines are represented twice: the `.0` that opened the line, and the
-final fully-patched build of it.
+## What's in each
 
-Note that `1.1.0` and `1.2.0` are the *opening* builds of their lines and have
-known issues that were fixed later — `1.1.13` fixes a loader crash on Jellyfin
-10.11.5, and `1.2.12` fixes a device-whitelist data-loss bug present in `1.2.0`.
-If you are choosing between them, take the higher one.
+**Stable** lists milestone releases only: 1.0, 1.1, 1.1.13, 1.2, 1.2.12, 1.3, 1.4, 1.5,
+1.6, 1.6.1, 1.6.2, 1.6.3, 1.6.4, 1.6.5 and 1.6.6.
 
-## Release assets
+**Beta** lists every pre-release, plus point releases that never became milestones.
 
-Nothing here changes where downloads come from. Every version in both manifests
-points at its original GitHub release asset, so no download URL is affected by
-which channel you use.
+If you're choosing between an older line's two stable versions, take the higher one.
+1.1.13 fixes a crash loading the plugin on Jellyfin 10.11.5, and 1.2.12 fixes a bug in
+1.2.0 that could lose device restrictions.
 
-## Why nothing appears twice
+## Why no version is in both
 
-Both manifests declare the same plugin GUID, so Jellyfin concatenates their version
-lists for anyone subscribed to both. A version listed in each file would show up
-twice, and the two copies could disagree: a release only writes its checksum into
-the channel it was published to, so the other copy would keep its placeholder and
-offer an install that fails the checksum.
-
-So each version lives in exactly one manifest, and the release workflow refuses to
-publish a version that is already listed on the other branch.
+Both repositories describe the same plugin, so Jellyfin merges their lists. A version in
+both would appear twice, and one copy would fail to install. The release workflow
+refuses to publish a version that's already in the other list.

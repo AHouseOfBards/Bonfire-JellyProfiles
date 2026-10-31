@@ -1,101 +1,77 @@
-# Clients
+# Apps
 
-Which apps can reach a Bonfire profile, and how.
+Bonfire works in two ways, depending on the app. Apps that load the web client from your
+server get the full switcher. Apps with their own sign-in screen can list your profiles
+there instead.
 
-There are two ways in. Which one an app gets depends on whether it loads the web client
-from your server or ships its own copy.
+## Full support
 
-## Fully compatible
+The switcher, profile management, avatars, library artwork and shared Bonfires.
 
-The full switcher: the "Who's Watching?" gate, profile creation and editing, avatars,
-library artwork, Bonfire sharing.
-
-| Client | Notes |
+| App | Notes |
 | --- | --- |
 | Jellyfin Web | Desktop and mobile browsers. |
-| Jellyfin for Android | A wrapper around your server's web client. |
+| Jellyfin for Android | |
 | Jellyfin Media Player | Windows, macOS, Linux. |
-| LG webOS | Loads your server's web client into a frame. webOS 4.5 (2019 sets) and later. |
-| Samsung Tizen | With the Bonfire loader added to the `.wgt` once; it loads Bonfire from your server, so updates need no rebuild. See [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#samsung-tizen). |
+| LG webOS | webOS 4.5 (2019 sets) and later. |
+| Samsung Tizen | Needs the Bonfire loader added once. See [Samsung Tizen](../TROUBLESHOOTING.md#samsung-tizen). |
 
-## Selection only
+## Profile sign-in
 
-Profiles appear in the app's own sign-in screen and are opened with their PIN. No switcher,
-no profile management — those need a browser or one of the clients above.
+Your profiles appear on the app's own sign-in screen and open with their PIN. Creating
+and editing profiles still needs one of the apps above.
 
-Requires **Dashboard → Bonfire → TVs & Apps**, off by default.
+Turn it on under **Dashboard → Bonfire → TVs & Apps**.
 
-| Client | Status |
+| App | Status |
 | --- | --- |
-| Jellyfin for Android TV | Supported, confirmed on hardware. |
-| Jellyfin for Roku | Supported. Not yet confirmed on hardware. |
-| Swiftfin (iOS, tvOS) | Supported. Not yet confirmed on hardware. |
-| Findroid (phone and TV) | Supported. Not yet confirmed on hardware. |
-| Wholphin | Supported. Not yet confirmed on hardware. |
+| Jellyfin for Android TV | Confirmed on hardware. |
+| Jellyfin for Roku | Not yet confirmed on hardware. |
+| Swiftfin (iOS, tvOS) | Not yet confirmed on hardware. |
+| Findroid (phone and TV) | Not yet confirmed on hardware. |
+| Wholphin | Not yet confirmed on hardware. |
 
-Before 1.6.3.3, a sub-profile chosen from any of these sign-in screens was refused, because
-the name shown on the card was not translated back to the account. Typing the full account
-name worked. If you tried one of these apps and gave up, try again.
+**Turn off automatic sign-in**, or the app skips the screen your profiles are on:
 
-**Turn off automatic sign in.** Every one of these apps can be set to sign straight into
-the last account, which skips the screen the profiles are on.
+- **Android TV:** Settings → Login → Automatic sign in → *Disable*
+- **Roku:** untick *Remember me* when you sign in
+- The others show their user list by default.
 
-- **Android TV** — Settings → Login → Automatic sign in → *Disable*
-- **Roku** — turn off *Remember me* when you sign in
-- The others stop at their own user list by default.
+**Type the PIN where the app asks for a password.** A main account with no PIN still uses
+its real password. A profile with no PIN opens with the box left empty.
 
-If you signed in on the device before installing this, sign out and in once. The device is
-noted when somebody signs in on it, so a session that predates the plugin is not on the map
-yet. Quick Connect counts: approving the code from your phone is enough.
+**Signed in before installing Bonfire?** Sign out and back in once so the server
+recognises the device. Approving a Quick Connect code counts.
 
-What carries over:
+These still apply: PINs, device limits, library access, parental ratings and tag filters.
+The profile shows under its own name.
 
-- PINs, including a profile with no PIN, which opens with an empty box.
-- Device restrictions. A profile limited to particular devices is not offered on any other,
-  and is refused if asked for. A television appears in the device list once for its sign-in
-  screen and once for each account signed in on it; ticking any of its rows allows it.
-- Library access, parental rating and tag filters, which Jellyfin enforces server-side.
-- The profile's own name, rather than the `master_profile` account name.
-
-What does not:
-
-- Creating, editing or deleting profiles.
-- Library artwork, which is applied in the browser.
-- The switcher itself, including Bonfire sharing screens.
-
-## Not supported
-
-| Client | Why |
-| --- | --- |
-| Moonfin | Sends no `Authorization` header on the public user list, so the server cannot tell which household the device belongs to. PIN entry works if you type the full account name. |
-| Infuse | No Jellyfin user-selection screen to add profiles to. |
-| Any client with a hardcoded user list | Nothing to inject into. |
-
-Every other app is untested rather than known-broken. Two things decide it: whether the
-app builds its sign-in screen from `GET /Users/Public`, and whether it sends a `DeviceId`
-with that request. Both are needed.
+Not available: creating or editing profiles, library artwork, and the switcher itself.
 
 ## Apps with no user list
 
-Streamyfin, Plezy and Tsukimi sign in with a typed username and password and never ask the
-server who its users are, so there is no list to add profiles to. They still work:
+Streamyfin, Plezy and Tsukimi only offer a username and password box. They still work:
 
-1. Sign in once as the account that owns the profiles, with its real name and password.
-2. After that, enter a profile by typing **the profile's name** and its PIN.
+1. Sign in once as the main account, with its real name and password.
+2. From then on, type a **profile's name** and its PIN.
 
-Step 1 is what tells the server which household the device belongs to. Needs
-**Let profiles be opened with their PIN on any app** under **TVs & Apps**.
+This needs **Let profiles be opened with their PIN on any app** under **TVs & Apps**. It
+works the same way for any app not listed here.
 
-The same applies to any app not listed on this page.
+## Not supported
 
-## Parental controls hold everywhere
+| App | Why |
+| --- | --- |
+| Moonfin | Doesn't identify the device when it asks for the user list. Typing the full account name and PIN works. |
+| Infuse | Has no Jellyfin user list. |
+| Apps with a fixed user list | Nothing for Bonfire to add to. |
 
-Library access, maximum parental rating and tag filters live on the Jellyfin account and
-are enforced by the server. A profile sees only what it is allowed to see on every client,
-including the ones listed as unsupported here.
+Any other app is untested, not known to be broken.
 
-## Reporting a client
+Parental controls are enforced by the server, so they hold in every app, including the
+ones on this list.
 
-Open an issue with the app name and version, whether profiles appeared in its sign-in
-screen, and the server log lines beginning `ProfilesPlugin:` from the attempt. Those lines
-say whether the request arrived, whether the device was recognised and what was returned.
+## Reporting an app
+
+Open an issue with the app name and version, whether your profiles appeared, and the
+server log lines starting with `ProfilesPlugin:` from that attempt.

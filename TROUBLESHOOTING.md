@@ -1,79 +1,57 @@
 # Troubleshooting
 
-## "Client script injection failed", or the switcher never appears
+## The switcher doesn't appear
 
-### First, the one that catches most people
+### Restart the server
 
-**Bonfire does not edit `index.html` by default, and has not since 1.4.1.** An
-`index.html` with no plugin tags in it is a **healthy** install, not a failed one. If you
-have opened the file looking for a `<script>` tag and not found one, nothing is wrong.
+Jellyfin can't unload a plugin. After you install or update Bonfire, the old version
+keeps running until the server process restarts. The settings page shows both the version
+that's running and the one that's installed, so you can see when this is the problem.
 
-Since 1.5 the script is added **as the page is served**. Nothing is written to disk, so
-there is nothing to re-apply after a Jellyfin update and no file permissions to grant.
+On Docker, the dashboard's **Restart** button often doesn't restart the process. Restart
+the container instead.
 
-Check **Dashboard → Plugins → Bonfire → Advanced → Client script**. It reports which
-mechanism is in use and how many pages it has served.
+Installing on a running server can also make the settings page report that the script
+failed, while the switcher keeps working. A restart fixes that too.
 
-### After an update, the old version keeps running
+### No script tag in `index.html` is normal
 
-Jellyfin cannot unload a plugin assembly. After an update the **old code keeps running
-until the server process restarts** — so the interface can change while the behaviour
-does not.
+Bonfire does not edit `index.html` by default, and hasn't since 1.4.1. It adds its
+script as the page is served, so nothing is written to disk and nothing needs redoing
+after a Jellyfin update.
 
-On Docker, the dashboard's **Restart** button often does not restart the process. Only
-restarting the container does.
+To check it's working, open **Dashboard → Plugins → Bonfire → Advanced → Client Script**.
+It shows which method is in use and how many pages it has served.
 
-The settings page names both versions — "running 1.5.6, 1.5.8 installed, starts on next
-server start" — so you can tell this apart from a real failure without guessing.
+### It works in a browser but not in an app
 
-### The plugin loaded after Jellyfin had already started
+Bonfire can only appear in apps that load the web client from your server. Apps that
+ship their own copy never see it. See [docs/clients.md](docs/clients.md) for which apps
+work and how.
 
-Installing or updating on a running server loads the assembly too late to hook the
-request pipeline: Jellyfin calls `RegisterServices` on every plugin during host startup,
-and that is the only place the hook can be added.
+Parental controls still apply in every app, because the server enforces them.
 
-The symptom is confusing on purpose to nobody: the previous build's middleware is
-usually still in the pipeline, so **the switcher keeps working** while the settings page
-reports that injection failed. The fix is a restart, and only a restart.
+## Writing to `index.html` (legacy modes)
 
-## Editing `index.html` — the legacy modes
-
-Under **Advanced → Client script** on the plugin configuration page:
+Under **Advanced → Client Script** you can choose how the script is added:
 
 | Method | What it does |
 | --- | --- |
-| **Serve it live, never touch index.html** | The default. Any tags an earlier version wrote are taken back out. |
-| **Patch index.html, fall back to serving it live** *(legacy)* | For a setup that needs the tag physically in the file, such as a proxy that caches the page. |
-| **Patch index.html only** *(legacy)* | What every release up to 1.4 did. No fallback. |
+| **Serve it live, never touch index.html** | The default. Removes any tags an older version wrote. |
+| **Patch index.html, fall back to serving it live** *(legacy)* | For setups that need the tag in the file, such as a proxy that caches the page. |
+| **Patch index.html only** *(legacy)* | How every release up to 1.4 worked. |
 
 Both legacy modes need Jellyfin to be able to write to its own web files, which it often
-cannot on Docker, on Linux packages, or in a protected Windows directory. If that write
-fails, the configuration page prints the exact command for your host and the account
-Jellyfin is running under.
+can't on Docker, Linux packages or protected Windows folders. If the write fails, the
+settings page shows the command to fix it for your system.
 
-**Unless you have deliberately picked one of these modes, there is no reason to grant
-that access.**
-
-## The switcher works in a browser but not in an app
-
-This is a question about the app, not about your server. Bonfire adds a script to the
-web client your server hands out, so it can only appear in an app that **loads that web
-client from your server**. An app that ships its own copy, or that is natively written,
-never sees the script.
-
-See [Client Compatibility](README.md#client-compatibility) in the README for which is
-which.
-
-**Parental controls still apply on every client**, including the ones that cannot show
-the switcher. Library access, maximum parental rating and tag filters live on the
-Jellyfin user account and are enforced by the server.
+If you haven't chosen a legacy mode, you don't need to grant that access.
 
 ## Samsung Tizen
 
-The Tizen app builds its own copy of the web client into the `.wgt` package rather than
-fetching yours, so the plugin cannot add itself the way it does in a browser. Add the
-**Bonfire loader** to the package once, and it loads Bonfire from your server every time the
-app starts — so plugin updates reach the TV with no rebuild.
+The Tizen app builds the web client into its `.wgt` package instead of loading yours.
+Add the **Bonfire loader** to the package once, and it loads Bonfire from your server
+each time the app starts. Plugin updates then reach the TV without another rebuild.
 
 1. Get the package's files: the `.wgt` you build, or the one Apps2Samsung prepares.
 2. Copy [`Web/tizen/bonfire-loader.js`](Web/tizen/bonfire-loader.js) into its `www/` folder.
@@ -83,74 +61,62 @@ app starts — so plugin updates reach the TV with no rebuild.
    <script src="bonfire-loader.js"></script>
    ```
 
-4. If you added Bonfire before, remove the old `<script>` tag for `profiles.js` and the copied
-   file. Two copies would put two pickers on screen, so the loader stays out of the way
-   while the old one is there.
-5. Install the package as usual. This is the last rebuild Bonfire needs.
+4. If you added Bonfire the old way, remove the `<script>` tag for `profiles.js` and the
+   copied file. The loader stays out of the way while the old copy is there.
+5. Install the package as usual.
 
-The loader waits until the app is connected to a server, then fetches
-`/plugins/profiles/profiles.js` from it. If nothing appears, open the app's web inspector:
-a message beginning `Bonfire loader:` says what it found.
+If nothing appears, open the app's web inspector and look for a message starting with
+`Bonfire loader:`.
 
 ## A profile's library access keeps reverting
 
-Edit a profile's libraries in **Edit profile → Libraries**, not in **Dashboard → Users**.
+Change a profile's libraries in **Edit Profile → Libraries**, not in
+**Dashboard → Users**.
 
-Each profile keeps its own list of libraries, and that list is re-applied every time
-somebody enters the profile — which is what restores a profile's settings after Jellyfin
-resets a user policy.
+Each profile keeps its own library list and re-applies it when someone enters the
+profile. That's what restores a profile after Jellyfin resets a user's settings.
 
-Since 1.6.2.2 the two are reconciled rather than one overwriting the other:
+- **Adding** a library in Dashboard → Users works. The profile keeps it from the next
+  time it's entered.
+- **Removing** one there doesn't stick, because it looks the same as a reset. Untick it
+  in **Edit Profile → Libraries** instead.
 
-- **Granting** a library in Dashboard → Users works. The profile picks it up the next time
-  it is entered and keeps it.
-- **Removing** one there does not stick, because that is indistinguishable from a policy
-  reset, and the profile's own list wins. Untick it in **Edit profile → Libraries** instead.
+A profile can never get a library its main account doesn't have.
 
-Either way the server log says what happened, beginning `ProfilesPlugin:`. A profile can
-never be given a library its owning account does not have.
+## I can't use the interface or reach the settings page
 
-## The interface is unusable and I cannot reach the settings page
+Set an **emergency disable code** before you need it, under
+**Dashboard → Plugins → Bonfire → Advanced**. Entering it on any Bonfire screen, or
+pressing `Ctrl+Shift+B`, turns Bonfire off until Jellyfin restarts.
 
-Set an **emergency disable code** before you need one, under **Dashboard → Plugins →
-Bonfire → Advanced**. Entering it on any Bonfire screen, or pressing `Ctrl+Shift+B`,
-switches the client script off until Jellyfin restarts.
+If Bonfire's script doesn't load at all, the code can't run. Restart Jellyfin or delete
+the plugin folder. See [docs/limitations.md](docs/limitations.md) for what the code
+does and doesn't unlock.
 
-It cannot rescue every failure: if the script fails to load at all there is nothing for
-the code to run in. For that case, restart Jellyfin or delete the plugin folder.
+## Where do I get avatars?
 
-See [docs/limitations.md](docs/limitations.md) for what the code does and does not unlock — it
-is deliberately not a master key.
+Bonfire includes thirty starter avatars from Microsoft's Fluent Emoji. You can turn them
+off with **Include the starter avatars** under
+**Dashboard → Plugins → Bonfire → Avatar Library**. Profiles already using one keep it.
 
-## Where do I get a set of avatars?
+Film and TV characters aren't included, because they belong to their studios. Add your
+own on the same page:
 
-Bonfire ships thirty starter avatars — animals and a few faces, from Microsoft's Fluent
-Emoji — and offers them on every server until you turn off **Include the starter avatars**
-in **Dashboard → Plugins → Bonfire → Avatar Library**. Profiles that already picked one keep
-it when you do.
-
-Pictures of characters from films and shows are not included: they belong to their studios,
-and a set redistributed with the plugin would have to be licensed for that. For those, bring
-your own and load them on the same page:
-
-- **Upload a folder** takes a whole directory from the computer you are on.
+- **Upload a folder** from the computer you're on.
 - **Import from folder** copies from a path on the server, such as `/config/avatars` on
-  Docker — the easier route for a large set.
+  Docker. Easier for a large set.
 
-Any square-ish JPEG, PNG, WebP or GIF works; pictures are cropped and resized on the way
-in, at the quality chosen above the buttons. A set of the characters your household
-actually watches is closest to what Netflix does. Turn on **Only allow avatars from this
-library** if you want profiles to pick from it rather than upload their own.
+JPEG, PNG, WebP and GIF all work. Pictures are cropped and resized when added. Turn on
+**Only allow avatars from this library** to make profiles choose from your set instead
+of uploading their own.
 
-## Reporting something
+## Reporting a problem
 
-Please open an issue at
-<https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues>.
+Open an issue at <https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues> and
+include:
 
-Worth including, because it is almost always what gets asked first:
-
-- the plugin version, and whether it came from the stable or beta channel;
-- your Jellyfin server version, and how it is installed (Docker, package, Windows);
-- the client — browser, app, or TV model;
-- what **Advanced → Client script** says;
-- whether the server has been restarted since the plugin was installed or updated.
+- the Bonfire version, and whether it's from the stable or beta channel
+- your Jellyfin version, and how it's installed (Docker, package, Windows)
+- the browser, app or TV model
+- what **Advanced → Client Script** says
+- whether the server has been restarted since installing or updating

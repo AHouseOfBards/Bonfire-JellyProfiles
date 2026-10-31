@@ -1,40 +1,38 @@
-# Bonfire Sharing
+# Sharing a Bonfire
 
-Link two accounts with a 6-character code so they share one switcher screen.
+Link two accounts with a 6-character code so both households appear on one switcher.
+Find it under **Settings → Your Bonfire** on the switcher.
 
-> [!TIP]
-> A Bonfire code is a credential. Anyone who has it can join, and you can only be in one
-> Bonfire at a time — joining a new one removes you from your current one. Removing a
-> member gives your Bonfire a new code, so they cannot rejoin with the old one; **New code**
-> does the same without removing anybody.
+**Treat the code like a password.** Anyone with it can join. You can be in one Bonfire at
+a time, so joining another one takes you out of your current one. Removing a member
+changes your code so they can't rejoin. **New code** changes it without removing anyone.
 
-## The rules that protect it
+## How it's protected
 
-A link runs both ways: everyone in a Bonfire can see everyone else's profiles. Switching
-into any of them gives a real session for it, so:
+Everyone in a Bonfire sees everyone else's profiles, and opening one signs you in as
+that profile. So by default:
 
-- **Nothing with no PIN can be opened from another household.** That covers your main
-  account and your profiles alike. Set a PIN on each one you want other members to be
-  able to enter.
-- **The LAN bypass never applies across accounts.** Being on the same network as someone
-  in your Bonfire does not skip their PIN; it only skips your own.
-- **Hidden means hidden.** *Hide my profiles from others*, and *hide others' profiles
-  from me*, also stop those profiles being opened, not only being shown.
+- **Anything without a PIN can't be opened by another household.** That includes main
+  accounts. Set a PIN on whatever you want others to be able to open.
+- **Being on the same network doesn't skip someone else's PIN.** The home network bypass
+  only covers your own account.
+- **Hidden profiles can't be opened.** *Hide my sub-profiles from others* and *Hide other
+  people's sub-profiles from me* block opening as well as showing.
 
 ## Sharing a TV with another adult
 
-Typing a PIN with a TV remote every time two adults swap accounts is miserable, so each
-account can lift both rules **for itself**. In **Settings → Your Bonfire** on the switcher
-screen, tick *"Let my Bonfire switch into my account on this network"*.
+Typing a PIN with a remote every time gets old. Each account can turn on
+*Let my Bonfire switch into my account on this network* for itself.
 
-People in your Bonfire can then enter your account and your profiles from your home
-network without a PIN, including ones that have none. Away from home nothing changes. It is off by default,
-only you can turn it on for your own account, and every switch that uses it is logged.
+With it on, people in your Bonfire can open your account and profiles on your home
+network without a PIN, even ones that have none. Away from home nothing changes. Only you
+can turn it on for your account, and every switch that uses it is logged.
 
-> [!WARNING]
-> Two things to check first. If your account is a **Jellyfin administrator**, anyone who
-> switches into it can change server settings and manage every user on it — only enable
-> this if you would hand them the password. And "your home network" is whatever your
-> *server* counts as local: if it sits behind a reverse proxy that is not listed under
-> **Dashboard → Networking → Known Proxies**, every visitor looks local, and this setting
-> would apply to all of them.
+Check two things first:
+
+- **Is your account a Jellyfin administrator?** Anyone who switches into it can change
+  server settings and manage every user. Only turn this on if you'd give them the
+  password.
+- **Is your server behind a reverse proxy?** If it isn't listed under
+  **Dashboard → Networking → Known Proxies**, every visitor looks local and this setting
+  applies to all of them.
