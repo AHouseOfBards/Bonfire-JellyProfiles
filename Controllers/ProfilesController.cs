@@ -1866,6 +1866,8 @@ namespace Jellyfin.Profiles.Controllers
             "  document.body.classList.remove('profiles-no-scroll');\n" +
             "  document.documentElement.classList.remove('profiles-no-scroll');\n" +
             "  document.documentElement.style.removeProperty('opacity');\n" +
+            // The head script's startup cover, raised for a gate this script will never draw.
+            "  document.documentElement.removeAttribute('data-jpf-cover');\n" +
             "  localStorage.removeItem('jpf-sw');\n" +
             "  console.warn('Bonfire is disabled until the server restarts.');\n" +
             "}catch(e){}})();\n";

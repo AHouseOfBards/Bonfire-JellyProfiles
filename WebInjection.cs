@@ -62,15 +62,39 @@ namespace Jellyfin.Profiles
         /// DOMContentLoaded — so the flag missing at that point is proof the script never
         /// loaded, and there is nothing left to wait for.
         /// </para>
+        /// <para>
+        /// The second half is the startup cover. With "Ask on startup" on, jellyfin-web
+        /// rendered the home screen and the gate arrived on top of it a beat later: the gate
+        /// is only raised from the 500 ms route poll, after the profile list has come back
+        /// from the server, and then fades in from opacity 0 — so the household's home
+        /// screen was on view for anything from a third of a second to a second on every
+        /// cold start, on every client that loads this page. The decision the gate will make
+        /// is knowable here, from what profiles.js cached on the last visit, so when it says
+        /// the gate is coming the page is covered in the gate's own background before
+        /// anything paints, and profiles.js takes the cover down once the gate is on top of
+        /// it — or as soon as it decides the gate is not coming after all.
+        /// </para>
+        /// <para>
+        /// It fails towards the flash, never towards a blank screen: it is only raised when
+        /// every input says yes (signed in, the cached preference is this account's and says
+        /// ask, no profile active this session, on the home route, no emergency disable),
+        /// it comes down on DOMContentLoaded when profiles.js never loaded, and a three
+        /// second timer takes it down regardless. It is a pseudo-element under the gate's
+        /// z-index rather than <c>opacity:0</c> on the document, so the gate can draw over
+        /// it while it is still up and nothing jellyfin-web paints underneath is held hidden
+        /// from focus or layout. Its colour is <c>--jpf-gate-bg</c>, with the gate's current
+        /// gradient as the fallback; the same rule is <c>GATE_COVER_CSS</c> in profiles.js,
+        /// and tests/js/gatecover.js fails if the two differ.
+        /// </para>
         /// </summary>
         internal const string HeadScript =
             "<script id=\"jpf-eh\">" +
             "!function(){" +
-                "if(!localStorage.getItem('jpf-sw'))return;" +
+                "var h=document.documentElement;" +
+                "if(localStorage.getItem('jpf-sw')){" +
                 // Handed to profiles.js, which is deferred and so cannot read the key:
                 // this script clears it below, synchronously, during head parsing.
                 "window.__jpSwitching=1;" +
-                "var h=document.documentElement;" +
                 "var v=(localStorage.getItem('jpf-bg')||'').split('|');" +
                 "var b=v[0]||'';" +
                 // Only a colour is ever written into the style property. Same-origin
@@ -92,6 +116,58 @@ namespace Jellyfin.Profiles
                     "if(!window.__jpLoaded&&window.__jpReveal){clearTimeout(window.__jpReveal);r();}" +
                 "});" +
                 "localStorage.removeItem('jpf-sw');" +
+                // A switch is its own cover; the gate is not raised on the page it lands on.
+                "return;" +
+                "}" +
+                // ── The startup cover ───────────────────────────────────────────────
+                // Every early return below leaves the page exactly as jellyfin-web paints
+                // it. The order mirrors profiles.js: checkRoute raises the gate only when
+                // shouldAskOnStartup() and not isProfileSessionActive(), on the home route.
+                "try{" +
+                    "var g=function(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch(x){return null}};" +
+                    "var n=function(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'')};" +
+                    // Emergency disable (panicKey): nothing of ours on screen at all.
+                    "if(localStorage.getItem('jellyfin_profiles_disabled'))return;" +
+                    // switcherModeKey and deviceGateKey. Neither means nobody has asked.
+                    "var p=g('jellyfin_profiles_switcher_mode'),d=g('jellyfin_profiles_device_gate');" +
+                    "if(!p&&!d)return;" +
+                    // Who is signed in. No token anywhere is the sign-in screen.
+                    "var c=g('jellyfin_credentials'),sv=c&&c.Servers,ms=g('jellyfin_profiles_master_state'),ids=[],on=0,i;" +
+                    "if(ms&&ms.masterUserId)ids.push(n(ms.masterUserId));" +
+                    "for(i=0;sv&&i<sv.length;i++)if(sv[i]&&sv[i].AccessToken){on=1;if(sv[i].UserId)ids.push(n(sv[i].UserId));}" +
+                    "if(!on)return;" +
+                    // getDeviceGatePref first: this device's own answer, filed under the
+                    // master, wins over the household's. Then getSwitcherPrefs, which only
+                    // believes a cache written for the account signed in now.
+                    "var a=null,e=null,pm=p&&n(p.masterUserId);" +
+                    "for(i=0;d&&!e&&i<ids.length;i++)if(d[ids[i]]&&typeof d[ids[i]]==='object')e=d[ids[i]];" +
+                    "if(e&&e.synced===false&&typeof e.askOnStartup==='boolean')a=e.askOnStartup;" +
+                    "else if(pm&&ids.indexOf(pm)!==-1){" +
+                        "if(typeof p.askOnStartup==='boolean'&&p.location)a=p.askOnStartup;" +
+                        "else if(p.mode)a=p.mode!=='native';" +
+                    "}" +
+                    "if(a!==true)return;" +
+                    // A profile already chosen in this browser session: no gate. The
+                    // localStorage mirror is not consulted, as profiles.js only believes it
+                    // across a reload of its own, which is the branch above.
+                    "try{if(sessionStorage.getItem('jellyfin_profiles_active_token'))return}catch(x){}" +
+                    // isHomeRoute, reduced to what is knowable before the router has run.
+                    "var ph=location.pathname||'',hs=location.hash||'';" +
+                    "if(/login|selectserver|configuration|plugin/.test(ph+hs))return;" +
+                    "var m=ph.match(/\\/web\\/(.*)$/),r=m?m[1].replace(/\\/+$/,''):'';" +
+                    "if(r&&r!=='index.html'){if(r!=='home'&&r!=='home.html')return;}" +
+                    "else if(hs&&hs!=='#/'&&hs.indexOf('home')===-1)return;" +
+                    "var s=document.createElement('style');" +
+                    "s.id='jpf-cover-css';" +
+                    // content: comes last on purpose. A quote followed by a semicolon is
+                    // where tests/js/headscript.js decides this constant ends.
+                    "s.textContent='html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#0d0d12;background:var(--jpf-gate-bg,radial-gradient(circle at 50% 40%,#1e1e2e 0%,#0d0d12 100%));content:\"\"}';" +
+                    "(document.head||h).appendChild(s);" +
+                    "h.setAttribute('data-jpf-cover','');" +
+                    "var u=function(){h.removeAttribute('data-jpf-cover');clearTimeout(window.__jpCoverT);window.__jpCoverT=null;};" +
+                    "window.__jpCoverT=setTimeout(u,3e3);" +
+                    "document.addEventListener('DOMContentLoaded',function(){if(!window.__jpLoaded)u();});" +
+                "}catch(x){try{h.removeAttribute('data-jpf-cover')}catch(y){}}" +
             "}();" +
             "</script>";
 

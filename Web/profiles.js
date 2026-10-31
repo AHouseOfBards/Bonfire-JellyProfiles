@@ -532,6 +532,23 @@
             .catch(() => { /* stay on English */ });
     }
 
+    // The startup cover: the page painted in the gate's background from before the first
+    // frame until the gate is on top of it. Normally raised by the head script in
+    // index.html (WebInjection.HeadScript), which carries this exact rule; this copy is
+    // for a page without it — the Tizen package loads this script from the server long
+    // after its own index.html has run. tests/js/gatecover.js fails if the two differ.
+    //
+    // The colour is the gate's, through --jpf-gate-bg so a theme can set it in one place.
+    // The plain colour first is for an engine without custom properties, which would
+    // otherwise drop the whole declaration and paint nothing.
+    const GATE_COVER_CSS = 'html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#0d0d12;background:var(--jpf-gate-bg,radial-gradient(circle at 50% 40%,#1e1e2e 0%,#0d0d12 100%));content:""}';
+
+    // How long the cover may stay up without the gate arriving. Each holder (the head
+    // script, and profiles.js once it starts fetching the list) gets this long; a cover
+    // that outlives it comes down and the page shows whatever it has. A flash is the
+    // failure this exists to fix; a screen that stays blank is a much worse one.
+    const GATE_COVER_MS = 3000;
+
     const ProfilesPlugin = {
         config: {
             masterStorageKey: 'jellyfin_profiles_master_state',
@@ -1725,6 +1742,9 @@
             // account's theme.
             this._step('applyCachedTheme', () => this.applyCachedTheme());
             this._step('injectStyles', () => this.injectStyles());
+            // Before anything that can decide about the gate, so every one of those
+            // decisions knows whether a cover is waiting on it.
+            this._step('_adoptCover', () => this._adoptCover());
             // Kicked off before the first route check so the gate decision is usually made
             // with the real answer in hand rather than the cached one.
             // Before any Jellyfin view renders: the cached rules have to be in the document
@@ -2033,6 +2053,7 @@
             // script's opacity:0. Either would leave this message invisible.
             document.documentElement.style.removeProperty('opacity');
             document.documentElement.style.removeProperty('background');
+            this._dropCover();
             const overlay = document.getElementById('profiles-gate-overlay');
             if (overlay) overlay.remove();
 
@@ -2085,7 +2106,15 @@
                 }
             } else {
                 // If we navigate away from home, ensure the overlay is removed if it somehow got stuck
-                if (document.getElementById('profiles-gate-overlay') && this.isProfileSessionActive()) {
+                //
+                // Not while a switch is reloading the page. executeProfileSwitch marks the
+                // new profile active *before* it reloads, which is exactly this test's
+                // "stuck" signature — so on any page but home (the switcher opened from the
+                // button or the user menu) the next tick took the opaque gate down and showed
+                // the old profile's page until the navigation landed. On a television that is
+                // most of a second.
+                if (!this._reloading
+                    && document.getElementById('profiles-gate-overlay') && this.isProfileSessionActive()) {
                     this.removeProfileOverlay();
                 }
             }
@@ -2189,6 +2218,15 @@
             // revealing now would show a blank page during the profile fetch.
             if (!skipReveal) this._revealPage();
 
+            // The startup cover is waiting on exactly the decision made above. If it was
+            // not "raise the gate" — a profile is already active, the preferences say no
+            // or are not this account's, this is not home, the sign-in page — there is
+            // nothing coming to replace it. A cached boolean first: this runs twice a
+            // second for the life of the page, and the cover is up for a second or two of
+            // it at most.
+            // Off home it comes down even while a gate request is out: that gate is never
+            // going to be drawn here.
+            if (this._coverUp && !skipReveal && (!isHome || !this._coverHeldForGate)) this._dropCover();
         },
 
         // Smoothly fades the page back in after a profile switch.
@@ -2252,6 +2290,111 @@
             if (!m) return false;
             const r = parseFloat(m[1]), g = parseFloat(m[2]), b = parseFloat(m[3]);
             return (0.2126 * r + 0.7152 * g + 0.0722 * b) > 128;
+        },
+
+        // ── The startup cover ──────────────────────────────────────────────────────
+        //
+        // With "Ask on startup" on, the home screen used to be on view before the gate:
+        // jellyfin-web renders home as soon as it has a user, while the gate waits for the
+        // first route check (200 ms after init, which itself waits for ApiClient), then for
+        // the profile list from the server, then fades in from opacity 0 over 220 ms. On a
+        // phone that was a third of a second of somebody else's Continue Watching; on a
+        // television more. The head script now covers the page before the first frame
+        // when the cached preferences say the gate is coming — see WebInjection.HeadScript
+        // for the rules it decides by — and everything here is about taking it down again
+        // at the right moment:
+        //
+        //   - the gate is drawn and opaque           -> showProfileOverlay
+        //   - the gate is not coming after all       -> checkRoute, interceptHomeAndShowProfiles
+        //   - the gate request failed                -> fetchAndRenderProfiles
+        //   - the emergency disable, a failed reload -> applyPanicDisable, _reloadFailed
+        //   - none of the above within GATE_COVER_MS -> the backstop timer
+        //
+        // It is a pseudo-element under the gate's z-index, not opacity on <html>, so the
+        // gate can be drawn and fade in while the cover is still behind it, and dropping
+        // the cover is then invisible because the two are the same colour.
+
+        _coverUp: false,
+        _coverHeldForGate: false,
+        _coverExtended: false,
+
+        /// The gate's fade-in (#profiles-gate-overlay's `transition: opacity 0.22s`), with
+        /// a margin. Change the two together.
+        GATE_FADE_MS: 260,
+
+        /// Notes a cover the head script put up, or puts one up when a page that has no
+        /// head script — the Tizen package — is heading for the gate. The second case is
+        /// late by construction (the package's own page has been showing for a while) but
+        /// still takes home off the screen sooner than the gate would.
+        _adoptCover: function () {
+            const root = document.documentElement;
+            if (root.getAttribute('data-jpf-cover') !== null) {
+                this._coverUp = true;
+                return;
+            }
+            // Only the head script knows about the reload that is landing; that page has
+            // its own cover and no gate.
+            if (window.__jpSwitching) return;
+            if (!this._gateIsComing()) return;
+
+            if (!document.getElementById('jpf-cover-css')) {
+                const style = document.createElement('style');
+                style.id = 'jpf-cover-css';
+                style.textContent = GATE_COVER_CSS;
+                document.head.appendChild(style);
+            }
+            root.setAttribute('data-jpf-cover', '');
+            this._coverUp = true;
+            this._armCoverBackstop();
+        },
+
+        /// checkRoute's gate decision, asked ahead of time from what is already cached.
+        /// Every input unknown or missing reads as no.
+        _gateIsComing: function () {
+            try {
+                if (localStorage.getItem(this.config.panicKey)) return false;
+            } catch (e) { return false; }
+            if (!this._hasStoredSession()) return false;
+            return this.isHomeRoute() && this.shouldAskOnStartup() && !this.isProfileSessionActive();
+        },
+
+        /// True when jellyfin-web holds a token for some server. ApiClient's own token is
+        /// empty for a moment during startup, so it is not the thing to ask.
+        _hasStoredSession: function () {
+            try {
+                const creds = JSON.parse(localStorage.getItem('jellyfin_credentials') || 'null');
+                return !!(creds && Array.isArray(creds.Servers) && creds.Servers.some(s => s && !!s.AccessToken));
+            } catch (e) {
+                return false;
+            }
+        },
+
+        _armCoverBackstop: function () {
+            try { clearTimeout(window.__jpCoverT); } catch (e) { /* none armed */ }
+            window.__jpCoverT = setTimeout(() => this._dropCover(), GATE_COVER_MS);
+        },
+
+        /// The gate request is out. The head script's timer started before this script had
+        /// even loaded, so it gets one fresh allowance — once, so a gate that never comes
+        /// is still bounded.
+        _holdCoverForGate: function () {
+            if (!this._coverUp) return;
+            this._coverHeldForGate = true;
+            if (this._coverExtended) return;
+            this._coverExtended = true;
+            this._armCoverBackstop();
+        },
+
+        /// Takes the cover down. Safe to call at any time, any number of times, and with
+        /// no cover up; it also clears one this object never noticed going up.
+        _dropCover: function () {
+            this._coverUp = false;
+            this._coverHeldForGate = false;
+            try {
+                clearTimeout(window.__jpCoverT);
+                window.__jpCoverT = null;
+            } catch (e) { /* no timer */ }
+            try { document.documentElement.removeAttribute('data-jpf-cover'); } catch (e) { /* no document */ }
         },
 
         _revealPage: function () {
@@ -2523,6 +2666,8 @@
         applyPanicDisable: function (persist) {
             this._panicDisabled = true;
             this._releaseOverlayFocusTrap();
+            // The cover is waiting for a gate this has just forbidden.
+            this._dropCover();
 
             if (persist) {
                 try {
@@ -3208,7 +3353,14 @@
             const currentUserId = apiClient.getCurrentUserId();
             const token = apiClient.accessToken();
 
+            // Not a reason to drop the cover. During startup jellyfin-web sits on /web/ —
+            // which is home as far as isHomeRoute can tell — before it knows who is signed
+            // in, and the route poll asks again next tick. Taking the cover down here put
+            // the flash straight back. A sign-in page is not home, so checkRoute drops it
+            // there; anything else is the backstop's.
             if (!currentUserId || !token) return;
+
+            this._holdCoverForGate();
 
             // Listed as whoever is signed in. The household's master is learned from the list
             // (fetchAndRenderProfiles) rather than assumed to be the current user, which it is
@@ -3266,6 +3418,11 @@
                 return res.json();
             })
             .then(profiles => {
+                // Not a reason to drop the startup cover: the route poll re-asks for the
+                // list on every tick until the gate exists, so a stale ticket is usually
+                // just one of those duplicates arriving after another has drawn the gate —
+                // or before it, with the gate still on its way. Dropping here showed home
+                // through the gate's fade. A cover nothing replaces is the backstop's.
                 if (!this.navIsCurrent(ticket)) return;
                 const normalized = this.normalizeProfiles(profiles);
                 // The household's own master: the master tile that is not a linked Bonfire.
@@ -3280,6 +3437,9 @@
             })
             .catch(err => {
                 console.error("Failed to load sub-profiles:", err);
+                // No gate is coming from this attempt. The poll will try again and the
+                // home screen may show in between — which is the honest state of things.
+                this._dropCover();
                 localStorage.removeItem(this.config.masterStorageKey);
             });
         },
@@ -3347,6 +3507,14 @@
             // layer created silently), second begins the CSS opacity transition.
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 overlay.style.opacity = ''; // CSS transition takes over
+                // The startup cover comes down once the fade has finished and the gate is
+                // opaque — dropping it at the start of the fade showed home through a
+                // half-transparent gate, which is the flash again. The cover is the same
+                // colour as the gate, so the fade itself is not lost.
+                if (this._coverUp) {
+                    this._coverHeldForGate = true;
+                    setTimeout(() => this._dropCover(), this.GATE_FADE_MS);
+                }
             }));
 
             // Auto-focus the first interactive element so TV/keyboard users
