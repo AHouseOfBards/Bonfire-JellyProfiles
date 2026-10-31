@@ -1183,7 +1183,18 @@ namespace Jellyfin.Profiles.Controllers
                     .ToList();
                 var known = knownDevices?.ToList();
 
-                if (allowed.Any(id => Auth.DeviceRegistry.IsSameDevice(candidate, id, members, known)))
+                // The names the household gave its profiles: Android TV signs in through
+                // sha1(bare id + "+" + the name typed), and that session's row is one an
+                // administrator can tick.
+                var names = mappings
+                    .Where(m => m.MasterUserId == mapping.MasterUserId
+                                && m.ProfileUserId != m.MasterUserId
+                                && !string.IsNullOrWhiteSpace(m.ProfileName))
+                    .Select(m => m.ProfileName)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+
+                if (allowed.Any(id => Auth.DeviceRegistry.IsSameDevice(candidate, id, members, known, names)))
                 {
                     return DeviceAccess.Allowed;
                 }

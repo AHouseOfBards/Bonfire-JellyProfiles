@@ -101,20 +101,42 @@ namespace Jellyfin.Profiles.Auth
             // that account signed in on it, and look for that. Bounded by the number of
             // Bonfire users rather than the server's, and a sign-in screen is opened by
             // hand — this is not on any hot path.
+            //
+            // EVERY derivation is tried and the most recently seen record wins. It used to
+            // return the first match in Mappings order, which on a television two households
+            // have both signed in on meant the older household's profiles whenever it was
+            // configured first - while the comment in PublicUserInjector promised "most
+            // recent".
+            KnownDevice? best = null;
+            void Consider(string id)
+            {
+                var row = LookupRow(config, id);
+                if (row == null || row.MasterUserId == Guid.Empty) return;
+                if (best == null || row.LastSeen > best.LastSeen) best = row;
+            }
+
             foreach (var userId in HouseholdMembers(config))
             {
                 var suffix = userId.ToString();
 
                 // Jellyfin for Android: id + userId, no separator.
-                var appended = Lookup(config, wanted + suffix);
-                if (appended != Guid.Empty) return appended;
+                Consider(wanted + suffix);
 
                 // Jellyfin Android TV: sha1(id + "+" + userId), lowercase hex.
-                var hashed = Lookup(config, Sha1Hex(wanted + "+" + suffix));
-                if (hashed != Guid.Empty) return hashed;
+                Consider(Sha1Hex(wanted + "+" + suffix));
             }
 
-            return Guid.Empty;
+            // Jellyfin Android TV signs in through sha1(id + "+" + the name typed), and the
+            // name typed is the one the sign-in screen showed: the household's name for the
+            // profile. The session that sign-in starts is recorded under that id, so a
+            // television whose later, account-derived session was never recorded is still
+            // placed by it.
+            foreach (var name in HouseholdNames(config))
+            {
+                Consider(Sha1Hex(wanted + "+" + name));
+            }
+
+            return best?.MasterUserId ?? Guid.Empty;
         }
 
         /// <summary>
@@ -131,9 +153,10 @@ namespace Jellyfin.Profiles.Auth
         ///
         /// <para>So choosing the "Family" card on a television whose id is
         /// <c>9a6dae35cc29c74f</c> signs in as <c>sha1("9a6dae35cc29c74f+Family")</c> — an id
-        /// recorded nowhere, derived from a <i>name</i> rather than an account id, so neither
-        /// <see cref="FindMaster"/>'s forward derivation nor <see cref="IsSameDevice"/> could
-        /// place it. 1.6.3.3 refused every profile chosen from an Android TV sign-in screen
+        /// not on record at the moment it is checked (the session it starts is recorded
+        /// afterwards, once the sign-in succeeds), derived from a <i>name</i> rather than an
+        /// account id, so neither <see cref="FindMaster"/>'s forward derivation nor
+        /// <see cref="IsSameDevice"/> could place it. 1.6.3.3 refused every profile chosen from an Android TV sign-in screen
         /// with "no household has signed in on" this device. Taken from a production log
         /// (2026-10-02), where the television had listed that household seconds earlier.</para>
         ///
@@ -153,7 +176,9 @@ namespace Jellyfin.Profiles.Auth
             if (sent.Length != 40 || !sent.All(Uri.IsHexDigit)) return sent;
 
             // The television's plain id is the one thing that would let us check this hash —
-            // and it is never recorded. Android TV sends it from its sign-in screen only:
+            // and it is not recorded (the session THIS sign-in starts is recorded under the
+            // hash by the session listener, but only once the sign-in has succeeded, after
+            // this check). Android TV sends the plain id from its sign-in screen only:
             // signing in uses the name-derived id above, and the session afterwards uses
             // sha1(id + "+" + accountId), which is what the session listener writes down.
             // 1.6.3.4 searched the records alone and so could never succeed on a real set.
@@ -261,7 +286,8 @@ namespace Jellyfin.Profiles.Auth
             string? a,
             string? b,
             IEnumerable<Guid>? householdMembers,
-            IEnumerable<KnownDevice>? knownDevices)
+            IEnumerable<KnownDevice>? knownDevices,
+            IEnumerable<string>? memberNames = null)
         {
             var x = a?.Trim();
             var y = b?.Trim();
@@ -274,6 +300,21 @@ namespace Jellyfin.Profiles.Auth
                 var suffix = userId.ToString();
 
                 if (DerivedFrom(x, y, suffix) || DerivedFrom(y, x, suffix)) return true;
+            }
+
+            // The id Android TV signs in with: sha1(bare + "+" + the name typed). The session
+            // that sign-in starts is recorded under it, so it is a row an administrator can
+            // tick - and then the sign-in screen, which asks with the bare id, was filtered
+            // out of its own profile because only account ids were tried above.
+            foreach (var name in memberNames ?? Enumerable.Empty<string>())
+            {
+                if (string.IsNullOrWhiteSpace(name)) continue;
+
+                if (string.Equals(y, Sha1Hex(x + "+" + name), StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(x, Sha1Hex(y + "+" + name), StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
             }
 
             return IsRokuPair(x, y, knownDevices) || IsRokuPair(y, x, knownDevices);
@@ -313,11 +354,25 @@ namespace Jellyfin.Profiles.Auth
         /// <see cref="Guid.Empty"/> when there is none or it names nobody.
         /// </summary>
         private static Guid Lookup(PluginConfiguration config, string deviceId)
-        {
-            var row = config.KnownDevices.FirstOrDefault(d =>
+            => LookupRow(config, deviceId)?.MasterUserId ?? Guid.Empty;
+
+        private static KnownDevice? LookupRow(PluginConfiguration config, string deviceId)
+            => config.KnownDevices.FirstOrDefault(d =>
                 string.Equals(d.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
 
-            return row?.MasterUserId ?? Guid.Empty;
+        /// <summary>
+        /// The names households gave their profiles - what an Android TV sign-in screen
+        /// shows and so what it hashes into the device id it signs in with.
+        /// </summary>
+        internal static IEnumerable<string> HouseholdNames(PluginConfiguration config)
+        {
+            if (config.Mappings == null) return Enumerable.Empty<string>();
+
+            return config.Mappings
+                .Where(m => m.ProfileUserId != m.MasterUserId && !string.IsNullOrWhiteSpace(m.ProfileName))
+                .Select(m => m.ProfileName)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
         }
 
         /// <summary>

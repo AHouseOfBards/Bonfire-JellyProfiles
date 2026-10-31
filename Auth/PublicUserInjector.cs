@@ -157,14 +157,29 @@ namespace Jellyfin.Profiles.Auth
             // that does not open — and would tell whoever holds the television which
             // profiles exist but are barred to it.
             var household = new List<Guid> { masterId };
-            household.AddRange(config.Mappings
-                .Where(m => m.MasterUserId == masterId
-                            && m.ProfileUserId != masterId
-                            && IsOfferedOn(m, deviceId, config))
-                .Select(m => m.ProfileUserId));
+            foreach (var m in config.Mappings.Where(m => m.MasterUserId == masterId && m.ProfileUserId != masterId))
+            {
+                var access = ProfilesBaseController.EvaluateDeviceRestriction(
+                    m, deviceId, config.KnownDevices, config.Mappings);
+
+                if (access == ProfilesBaseController.DeviceAccess.NotRestricted
+                    || access == ProfilesBaseController.DeviceAccess.Allowed)
+                {
+                    household.Add(m.ProfileUserId);
+                    continue;
+                }
+
+                // A profile that is missing from a sign-in screen for THIS reason is the
+                // working-as-designed one, and it looks identical to a bug from the couch.
+                logger?.LogInformation(
+                    "ProfilesPlugin: profile {Profile} ({UserId}) is not offered on device {DeviceId}: "
+                    + "limited to particular devices and {Reason}.",
+                    m.ProfileName, m.ProfileUserId, deviceId, DescribeDenial(access));
+            }
 
             // The sign-in that follows hashes the name typed with THIS id, and this id is
-            // recorded nowhere. See DeviceRegistry.ResolveSignInDevice.
+            // not on record when the sign-in is checked (the session it starts is recorded
+            // afterwards). See DeviceRegistry.ResolveSignInDevice.
             DeviceRegistry.NoteSignInScreen(deviceId);
 
             logger?.LogInformation(
@@ -177,18 +192,21 @@ namespace Jellyfin.Profiles.Auth
 
 
         /// <summary>
-        /// Whether this profile may be entered from this device, by the same rules the
-        /// switcher and the authentication provider use. One evaluator, three call sites.
+        /// What a device-restriction refusal means, in words the owner can act on. The
+        /// evaluator is the one the switcher and the authentication provider use: one
+        /// evaluator, three call sites.
         /// </summary>
-        private static bool IsOfferedOn(
-            ProfileMapping mapping, string? deviceId, Configuration.PluginConfiguration config)
-        {
-            var access = ProfilesBaseController.EvaluateDeviceRestriction(
-                mapping, deviceId, config.KnownDevices, config.Mappings);
-
-            return access == ProfilesBaseController.DeviceAccess.NotRestricted
-                || access == ProfilesBaseController.DeviceAccess.Allowed;
-        }
+        private static string DescribeDenial(ProfilesBaseController.DeviceAccess access)
+            => access switch
+            {
+                ProfilesBaseController.DeviceAccess.DeniedNotOnList
+                    => "this device is not on its list (DeniedNotOnList)",
+                ProfilesBaseController.DeviceAccess.DeniedListIsStale
+                    => "its list names no device Bonfire has on record, so the list may be stale (DeniedListIsStale)",
+                ProfilesBaseController.DeviceAccess.DeniedNoDeviceId
+                    => "the request carried no device id (DeniedNoDeviceId)",
+                _ => access.ToString(),
+            };
 
         /// <summary>
         /// Rewrites the captured <c>/Users/Public</c> body with the household appended, or
@@ -221,7 +239,12 @@ namespace Jellyfin.Profiles.Auth
                 return null;
             }
 
-            if (root is not JsonArray array) return null;
+            if (root is not JsonArray array)
+            {
+                logger.LogWarning(
+                    "ProfilesPlugin: /Users/Public was not a JSON array, so no profiles were added to it.");
+                return null;
+            }
 
             // JELLYFIN'S OWN SETTINGS, NOT OURS. 1.6.1.2 built a JsonSerializerOptions here
             // by hand — naming policy and ignore-nulls, which looked like the whole job —
@@ -258,20 +281,53 @@ namespace Jellyfin.Profiles.Auth
             }
 
             int added = 0;
+            int failed = 0;
             foreach (var userId in household)
             {
                 if (present.Contains(Normalize(userId.ToString("N")))) continue;
 
                 try
                 {
-                    var user = userManager.GetUserById(userId);
-                    if (user == null) continue;
-
                     // Built by Jellyfin, not by hand. GetUserDto is what fills HasPassword
                     // from the authentication provider — the flag that decides whether the
                     // television shows a password box at all — and hand-rolling this shape
                     // is how a client ends up unable to parse its own login screen.
-                    var dto = userManager.GetUserDto(user, remoteEndPoint);
+                    //
+                    // Read twice before giving up. Each profile is its own database read,
+                    // and a transient failure (SQLite busy while a library scan or another
+                    // sign-in holds the file) used to cost exactly that one profile for the
+                    // whole request. Clients show the users they have stored and only add
+                    // this list on top, so the one profile the television had never signed
+                    // in as simply vanished - at random, which is what it looked like.
+                    Jellyfin.Database.Implementations.Entities.User? user = null;
+                    MediaBrowser.Model.Dto.UserDto? dto = null;
+                    for (var attempt = 1; ; attempt++)
+                    {
+                        try
+                        {
+                            user = userManager.GetUserById(userId);
+                            dto = user == null ? null : userManager.GetUserDto(user, remoteEndPoint);
+                            break;
+                        }
+                        catch (Exception ex) when (attempt < 2)
+                        {
+                            logger.LogInformation(
+                                "ProfilesPlugin: reading profile {ProfileId} failed ({Reason}); trying once more.",
+                                userId, ex.Message);
+                        }
+                    }
+
+                    if (user == null)
+                    {
+                        // The mapping outlived the account (deleted in Jellyfin's dashboard).
+                        failed++;
+                        logger.LogWarning(
+                            "ProfilesPlugin: profile {ProfileId} is in the household but Jellyfin has no such "
+                            + "user any more, so it was left out of the sign-in list. Remove its mapping.",
+                            userId);
+                        continue;
+                    }
+
                     var node = JsonNode.Parse(JsonSerializer.Serialize(dto, serializerOptions));
                     if (node == null) continue;
 
@@ -303,6 +359,7 @@ namespace Jellyfin.Profiles.Auth
                 catch (Exception ex)
                 {
                     // One profile failing must not cost the whole login screen.
+                    failed++;
                     logger.LogWarning(ex,
                         "ProfilesPlugin: could not add profile {ProfileId} to the user list.", userId);
                 }
@@ -311,13 +368,16 @@ namespace Jellyfin.Profiles.Auth
             if (added == 0)
             {
                 logger.LogInformation(
-                    "ProfilesPlugin: the household was already present in the user list; nothing added.");
+                    "ProfilesPlugin: nothing added to the user list: {Failed} of {Household} household "
+                    + "member(s) could not be read, the rest were already present.",
+                    failed, household.Count);
                 return null;
             }
 
             logger.LogInformation(
-                "ProfilesPlugin: added {Added} profile(s) to the sign-in user list, which now has {Total}.",
-                added, array.Count);
+                "ProfilesPlugin: added {Added} profile(s) to the sign-in user list, which now has {Total}"
+                + " ({Failed} could not be read).",
+                added, array.Count, failed);
 
             return Encoding.UTF8.GetBytes(array.ToJsonString());
         }

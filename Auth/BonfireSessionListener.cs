@@ -87,7 +87,11 @@ namespace Jellyfin.Profiles.Auth
 
                 if (string.IsNullOrWhiteSpace(session.DeviceId)) return;
 
-                var config = Plugin.Instance?.Configuration;
+                // A snapshot taken under the lock. This walks Mappings, and an administrator
+                // saving a profile at the same moment can change that list mid-walk: the
+                // enumeration throws, the catch below logs it, and this sign-in's device is
+                // never recorded - so its television later lacks the household's profiles.
+                var config = Controllers.ProfilesBaseController.ReadConfigSnapshot();
                 if (config == null) return;
 
                 // Only households Bonfire actually runs. Every other account on the server
