@@ -1,135 +1,73 @@
 # Bonfire/JellyProfiles
 
-Adds multi-user profile switching to Jellyfin. One account can hold several isolated
-profiles, each with its own watch history, parental controls, and library access.
+Profiles for Jellyfin. One account holds several people, each with their own watch
+history, library access and parental controls.
 
-> Built for Jellyfin Server **10.11.x and 12.0** (all minor versions supported).
-> One install serves both — there is nothing to choose between.
-
----
-
-## Screenshots
+Works with Jellyfin 10.11 and 12.0.
 
 ![The profile picker, showing two profiles in a Bonfire](images/profile-selector.png)
 
-*Shown when the app opens, and whenever you switch.*
+## Features
+
+- **Up to 20 profiles per account.** The default is five. Administrators can change the
+  limit for the whole server or for one account.
+- **Parental controls the server enforces.** Library access, rating limits and tag
+  filters are applied by Jellyfin itself, so they hold in every app, including apps that
+  can't show the switcher.
+- **PINs.** Lock any profile with a PIN. You can skip it on your home network.
+- **Device limits.** Keep a profile to the devices you choose.
+- **Shared Bonfires.** Link two accounts with a 6-character code so both households
+  appear on one switcher.
+- **Avatars.** Thirty built in, plus any pictures you upload for the whole server.
+- **Per-profile library artwork.** A Kids profile can show its own picture for a library
+  instead of a poster from a film it can't open.
+- **Your choice of switcher.** A full-screen "Who's Watching?" screen, or a
+  **Switch Profile** entry in Jellyfin's menu.
 
 ![The create-profile form](images/create-profile.png)
 
-*Creating a profile: libraries, PIN, device limits and tag filters in one place.*
+## Install
 
----
-
-## Features
-
-- **Several profiles per Jellyfin account**, each with its own watch history, library
-  access and parental rating. A profile never gets more than its account: it keeps any
-  restriction an administrator set there, such as remote access, schedules or bitrate. Five by default; an administrator can set anything from 1
-  to 20, and can raise or lower it for individual accounts.
-- **Tag filters.** Block or allow content per profile using Jellyfin's own tags
-  (`adults`, `kids`, and so on). Tags are inherited, so tagging a series or a whole
-  library covers everything inside it. Jellyfin enforces this server-side, so it holds on
-  every client — including the ones that cannot show the switcher.
-- **PINs.** Optional per profile, stored as salted PBKDF2-SHA256 hashes, with an optional
-  bypass on your own network.
-- **Device limits.** Restrict a profile to particular devices.
-- **Your Bonfire.** Link accounts with a 6-character code so two households share one
-  switcher screen.
-- **Avatar library.** Thirty starter avatars out of the box, plus any pictures you upload
-  for everyone on the server to pick from, optionally required. Pictures are stored at
-  standard, high or maximum quality, as the administrator chooses. On a TV this is the only
-  practical way to set a picture, since there is no file browser.
-- **Switcher style.** Each account picks the full-screen "Who's Watching?" gate or a
-  **Switch Profile** entry in Jellyfin's own menu, under **Settings → Switcher Style**. It
-  is a per-household choice, not a server setting.
-- **Library artwork.** Give a profile its own picture for a library, or none at all, so a Kids profile does not get a Movies tile built from a film it cannot open.
-- **Televisions and other apps.** Apps that never load the web client — Android TV, Roku, Swiftfin, Findroid, Wholphin — can offer a household's profiles on their own sign-in screen, opened with a PIN. Off until an administrator turns it on.
-
----
-
-## Installation
-
-1. In your Jellyfin dashboard, go to **Plugins → Repositories → ＋**
-2. Paste the following URL and click **Save**:
+1. In the Jellyfin dashboard, open **Plugins → Repositories** and add:
    ```
    https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json
    ```
-3. Go to **Plugins → Catalog**, find **Bonfire/JellyProfiles**, and click **Install**
-4. Restart your Jellyfin server when prompted
+2. Install **Bonfire/JellyProfiles** from **Plugins → Catalog**.
+3. Restart Jellyfin.
 
-Once the server restarts the plugin is active and loads on all compatible clients with no
-further setup.
+Nothing else to set up. If the switcher doesn't appear, see
+[TROUBLESHOOTING.md](TROUBLESHOOTING.md). Beta builds are in
+[BETA-CHANNEL.md](BETA-CHANNEL.md).
 
-Pre-release builds live in a separate repository — see
-[BETA-CHANNEL.md](BETA-CHANNEL.md). Add it alongside the stable one, never instead of it.
+## Apps
 
-If the switcher does not appear, or the settings page reports a problem, see
-[TROUBLESHOOTING.md](TROUBLESHOOTING.md). The short version: **Bonfire does not edit
-`index.html` by default, so a file with no plugin tags in it is a healthy install.**
+**Full support:** Jellyfin Web, Jellyfin for Android, Jellyfin Media Player, LG webOS
+4.5 and later, and Samsung Tizen
+([one-time setup](TROUBLESHOOTING.md#samsung-tizen)).
 
----
+**Profile sign-in:** Jellyfin for Android TV, Roku, Swiftfin, Findroid and Wholphin can
+list your profiles on their own sign-in screen. Turn it on under
+**Dashboard → Bonfire → TVs & Apps**, and turn off automatic sign-in in the app. Type
+the profile's PIN where the app asks for a password. Android TV is confirmed on hardware;
+the others are not yet.
 
-## Client Compatibility
-
-**Fully compatible** — the switcher, profile management, avatars, everything:
-
-- Jellyfin Web, and Jellyfin for Android
-- Jellyfin Media Player (Windows, macOS, Linux)
-- LG webOS 4.5 (2019 sets) and later
-- Samsung Tizen, with the Bonfire loader added to the `.wgt` once — see
-  [TROUBLESHOOTING.md](TROUBLESHOOTING.md#samsung-tizen)
-
-**Selection only** — profiles appear in the app's own sign-in screen and open with their
-PIN. PINs, device restrictions and parental controls all hold; profile management needs a
-browser. Turn on **Dashboard → Bonfire → TVs & Apps**, off by default.
-
-- Jellyfin for Android TV
-- Jellyfin for Roku, Swiftfin, Findroid, Wholphin — new in 1.6.2.1-beta, not yet confirmed
-  on hardware
-
-Turn off automatic sign in, or the app goes straight into the last account and never shows
-the profiles. On Android TV that is **Settings → Login → Automatic sign in → Disable**; on
-Roku, untick *Remember me*.
-
-**Your PIN is the password.** These apps ask for a password because that is the only field
-they have. Type the PIN instead — for a sub-profile, and for an account that owns profiles
-and has set one. A master account without a PIN still uses its real password.
-
-Everything else, and why, is in [docs/clients.md](docs/clients.md).
-
-> [!IMPORTANT]
-> Library access, maximum parental rating and tag filters are stored on the Jellyfin
-> account and enforced by the server, so a profile sees only what it is allowed to see on
-> every client — including ones Bonfire cannot reach at all.
->
-> Each profile also keeps its own copy of that list, and re-applies it on entry so a
-> Jellyfin policy reset does not wipe a profile's settings. Edit a profile's libraries in
-> **Edit profile → Libraries**; see
-> [TROUBLESHOOTING.md](TROUBLESHOOTING.md#a-profiles-library-access-keeps-reverting) for
-> how that interacts with **Dashboard → Users**.
-
----
+Details for every app are in [docs/clients.md](docs/clients.md).
 
 ## Documentation
 
-| | |
-| --- | --- |
-| [docs/sharing.md](docs/sharing.md) | Sharing a Bonfire, and the two rules that protect it |
-| [docs/library-artwork.md](docs/library-artwork.md) | Per-profile pictures for a library |
-| [docs/clients.md](docs/clients.md) | Every client, what works on it, and what does not |
-| [docs/limitations.md](docs/limitations.md) | Custom themes, and the emergency disable code |
-| [docs/security.md](docs/security.md) | What Bonfire protects, and what it does not |
-| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | The switcher does not appear, and other support answers |
-| [BETA-CHANNEL.md](BETA-CHANNEL.md) | Pre-release builds, and why the two version lists differ |
-| [CHANGELOG.md](CHANGELOG.md) | Every release |
-| [docs/developer-api.md](docs/developer-api.md) | Every route, and the Jellyfin routes the plugin changes |
-
----
+- [Sharing a Bonfire](docs/sharing.md)
+- [Library artwork](docs/library-artwork.md)
+- [Apps and what works on each](docs/clients.md)
+- [Security](docs/security.md)
+- [Limitations](docs/limitations.md)
+- [Troubleshooting](TROUBLESHOOTING.md)
+- [Changelog](CHANGELOG.md)
+- [Developer API](docs/developer-api.md)
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT. See [LICENSE](LICENSE).
 
-The starter avatars are [Fluent Emoji](https://github.com/microsoft/fluentui-emoji) by
-Microsoft, used under the MIT License; the notice is in
-[Web/starter-avatars/LICENSE.txt](Web/starter-avatars/LICENSE.txt) and ships inside the plugin.
+Starter avatars are [Fluent Emoji](https://github.com/microsoft/fluentui-emoji) by
+Microsoft, under the MIT License
+([notice](Web/starter-avatars/LICENSE.txt)).
