@@ -59,5 +59,3 @@ dashboard is English only.
 Say what you changed and how you checked it. For a bug fix, the most useful thing to
 include is a test that fails without your change. If you couldn't test something (a TV,
 a Tizen build, an app you don't have), say so.
-
-[CLAUDE.md](CLAUDE.md) has the repository's working notes in more detail.
