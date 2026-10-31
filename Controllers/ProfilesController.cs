@@ -109,6 +109,9 @@ namespace Jellyfin.Profiles.Controllers
                     AvatarInitial = string.IsNullOrEmpty(linkedUser.Username) ? "M" : linkedUser.Username.Substring(0, 1).ToUpper(),
                     AvatarColor = linkedMapping?.AvatarColor ?? "#00A4DC",
                     TransparentAvatar = linkedMapping?.TransparentAvatar ?? false,
+                    // The stored choice, not the resolved one: the form shows "server default"
+                    // for null. Owner only, like the other settings below.
+                    Theme = currentUserId == linkedId ? linkedMapping?.Theme : null,
                     RequiresPin = masterRequiresPin,
                     HasPin = !string.IsNullOrEmpty(linkedMapping?.PinHash),
                     IsMaster = true,
@@ -168,6 +171,7 @@ namespace Jellyfin.Profiles.Controllers
                                 AvatarInitial = string.IsNullOrEmpty(m.ProfileName) ? "?" : m.ProfileName.Substring(0, 1).ToUpper(),
                                 m.AvatarColor,
                                 m.TransparentAvatar,
+                                Theme = ownerView ? m.Theme : null,
                                 RequiresPin = requiresPin,
                                 // Whether a PIN EXISTS, independent of whether one will be
                                 // asked for right now. RequiresPin goes false on the LAN when
@@ -251,6 +255,36 @@ namespace Jellyfin.Profiles.Controllers
             return Ok(libraries);
         }
 
+        /// <summary>
+        /// The rating limits the profile form offers: the server's Preferred metadata
+        /// country's own ratings, one per age. See <see cref="RatingSystems"/> for why this
+        /// does not just pass /Localization/ParentalRatings through.
+        /// <para>
+        /// The two services are asked for here rather than injected, so the controller's
+        /// constructor — which every harness builds — does not change for one read-only
+        /// route, and a server that cannot supply one still answers.
+        /// </para>
+        /// </summary>
+        [HttpGet("ratings")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> GetRatings()
+        {
+            if (GetCurrentUserId() == null) return Unauthorized();
+
+            var services = HttpContext?.RequestServices;
+            var localization = services?.GetService(typeof(MediaBrowser.Model.Globalization.ILocalizationManager));
+            var serverConfig = services?.GetService(typeof(MediaBrowser.Controller.Configuration.IServerConfigurationManager))
+                as MediaBrowser.Controller.Configuration.IServerConfigurationManager;
+            var country = serverConfig?.Configuration?.MetadataCountryCode;
+
+            var ratings = localization == null
+                ? new List<RatingChoice>()
+                : RatingSystems.ForCountry(localization.GetType().Assembly, country, _logger);
+
+            return Ok(new { Country = country, Ratings = ratings });
+        }
+
         [HttpPost("create")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -330,6 +364,9 @@ namespace Jellyfin.Profiles.Controllers
                     return BadRequest("PIN code must be a numeric value between 4 and 8 digits.");
                 }
             }
+
+            var themeError = ValidateTheme(request.Theme);
+            if (themeError != null) return BadRequest(themeError);
 
             // Reject an allow-list that shares no tags with the master's, which would leave the
             // profile with an empty library. Checked before the user is created so we don't
@@ -447,6 +484,9 @@ namespace Jellyfin.Profiles.Controllers
                     PinHash = HashPin(request.Pin),
                     AvatarColor = SanitizeAvatarColor(request.AvatarColor),
                     TransparentAvatar = request.TransparentAvatar ?? false,
+                    // Only while profiles may choose. Stored otherwise, it would surface the
+                    // day choosing is turned on, as a choice nobody remembers making.
+                    Theme = config.AllowProfileThemes ? ThemeToStore(request.Theme) : null,
                     IsHidden = true,
                     LockoutMinutes = ClampLockoutMinutes(request.LockoutMinutes ?? 5),
                     // Store the selected libraries as the plugin's own ground truth
@@ -1491,6 +1531,10 @@ namespace Jellyfin.Profiles.Controllers
                     config.DefaultAskOnStartup = incoming.DefaultAskOnStartup;
                 if (TryProperty(root, "DefaultSwitcherLocation", out _))
                     config.DefaultSwitcherLocation = incoming.DefaultSwitcherLocation;
+                if (TryProperty(root, "DefaultTheme", out _))
+                    config.DefaultTheme = Themes.Normalize(incoming.DefaultTheme);
+                if (TryProperty(root, "AllowProfileThemes", out _))
+                    config.AllowProfileThemes = incoming.AllowProfileThemes;
                 if (TryProperty(root, "IndexInjectionMode", out _))
                     config.IndexInjectionMode = incoming.IndexInjectionMode;
                 if (TryProperty(root, "EnableClientPinLogin", out _))
@@ -1514,6 +1558,20 @@ namespace Jellyfin.Profiles.Controllers
                 bonfires = (incoming.BonfireGroups ?? new List<BonfireGroup>()).Count
             });
         }
+
+        /// <summary>
+        /// Null for an acceptable theme: null or "" (follow the server default) or a known id.
+        /// An unknown one is refused rather than quietly stored as the default, because a
+        /// typo that saves as "default" looks exactly like the setting not taking.
+        /// </summary>
+        internal static string? ValidateTheme(string? theme) =>
+            string.IsNullOrWhiteSpace(theme) || Themes.IsKnown(theme)
+                ? null
+                : "Theme must be one of: " + string.Join(", ", Themes.All) + ".";
+
+        /// <summary>What a valid request's theme is stored as: null for "follow the default".</summary>
+        internal static string? ThemeToStore(string? theme) =>
+            Themes.IsKnown(theme) ? Themes.Normalize(theme) : null;
 
         [HttpPost("update")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -1571,6 +1629,9 @@ namespace Jellyfin.Profiles.Controllers
                     return BadRequest("PIN code must be a numeric value between 4 and 8 digits.");
                 }
             }
+
+            var themeError = ValidateTheme(request.Theme);
+            if (themeError != null) return BadRequest(themeError);
 
             var targetUser = _userManager.GetUserById(request.ProfileId);
             if (targetUser == null) return NotFound("Target user not found.");
@@ -1707,6 +1768,14 @@ namespace Jellyfin.Profiles.Controllers
                     if (request.TransparentAvatar.HasValue)
                     {
                         mappingEntry.TransparentAvatar = request.TransparentAvatar.Value;
+                    }
+
+                    // Null leaves it alone, for the same reason. Ignored while the server
+                    // does not let profiles choose: the form hides the picker then, so a
+                    // theme arriving anyway is a stale page, not a decision.
+                    if (request.Theme != null && config.AllowProfileThemes)
+                    {
+                        mappingEntry.Theme = ThemeToStore(request.Theme);
                     }
 
                     if (!string.IsNullOrEmpty(request.AvatarLibraryId))
@@ -2469,7 +2538,12 @@ namespace Jellyfin.Profiles.Controllers
                 MasterUserId = masterUserId,
                 // Whether the switcher should offer the emergency disable link at all. Told
                 // to signed-in users only, and it says nothing about what the code is.
-                EmergencyCodeConfigured = !string.IsNullOrEmpty(config.PanicCodeHash)
+                EmergencyCodeConfigured = !string.IsNullOrEmpty(config.PanicCodeHash),
+                // Read from the signed-in account's OWN row, not the master's: unlike the
+                // switcher settings above, a theme belongs to one profile.
+                Theme = Themes.Resolve(currentMapping, config.DefaultTheme, config.AllowProfileThemes),
+                DefaultTheme = Themes.Normalize(config.DefaultTheme),
+                AllowProfileThemes = config.AllowProfileThemes
             });
         }
 
@@ -3729,6 +3803,12 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest($"Switcher location must be '{SwitcherLocations.Button}' or '{SwitcherLocations.Menu}'.");
             }
 
+            // Refused rather than normalised, for the same reason as the location above.
+            if (request.DefaultTheme != null && !Themes.IsKnown(request.DefaultTheme))
+            {
+                return BadRequest("Default theme must be one of: " + string.Join(", ", Themes.All) + ".");
+            }
+
             if (request.IndexInjectionMode != null
                 && !string.Equals(request.IndexInjectionMode, IndexInjectionModes.File, StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(request.IndexInjectionMode, IndexInjectionModes.Middleware, StringComparison.OrdinalIgnoreCase)
@@ -3763,6 +3843,10 @@ namespace Jellyfin.Profiles.Controllers
                     config.DefaultAskOnStartup = request.DefaultAskOnStartup.Value;
                 if (request.DefaultSwitcherLocation != null)
                     config.DefaultSwitcherLocation = SwitcherLocations.Normalize(request.DefaultSwitcherLocation);
+                if (request.DefaultTheme != null)
+                    config.DefaultTheme = Themes.Normalize(request.DefaultTheme);
+                if (request.AllowProfileThemes.HasValue)
+                    config.AllowProfileThemes = request.AllowProfileThemes.Value;
                 if (request.IndexInjectionMode != null)
                     config.IndexInjectionMode = IndexInjectionModes.Normalize(request.IndexInjectionMode);
 

@@ -48,6 +48,9 @@ namespace Jellyfin.Profiles.Models
         public bool? EnableStarterAvatars { get; set; }
         public bool? DefaultAskOnStartup { get; set; }
         public string? DefaultSwitcherLocation { get; set; }
+        /// <summary>One of the theme ids. Null leaves it alone; anything unknown is refused.</summary>
+        public string? DefaultTheme { get; set; }
+        public bool? AllowProfileThemes { get; set; }
         public string? IndexInjectionMode { get; set; }
         public bool? EnableClientPinLogin { get; set; }
         public bool? EnableClientProfileList { get; set; }

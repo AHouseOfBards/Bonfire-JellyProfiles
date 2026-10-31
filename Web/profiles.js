@@ -26,6 +26,54 @@
     const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
     const DEFAULT_AVATAR_COLOR = '#00A4DC';
 
+    /// The looks Bonfire's own screens can take. Must match Themes.All on the server and
+    /// the [data-jpf-theme] blocks in styles.css; tests/js/themes.js holds the three
+    /// together. The names are proper names, like "Bonfire" itself, and are shown as they
+    /// are in every language, so the dashboard and every profile call a theme the same thing.
+    const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass'];
+    const THEME_NAMES = {
+        bonfire: 'Bonfire',
+        crimson: 'Crimson',
+        starlight: 'Starlight',
+        harbor: 'Harbor',
+        nightfall: 'Nightfall',
+        glass: 'Glass'
+    };
+
+    /// GET plugins/profiles/ratings -> [[score, labels], ...], one entry per age.
+    ///
+    /// The server reads the rating table of its own Preferred metadata country — the one
+    /// Jellyfin scored the library with — so these are that country's ratings and no
+    /// others. Not /Localization/ParentalRatings: Jellyfin pads that list with generic
+    /// ages the country does not have, and a padded "10" cannot be told from France's
+    /// real one. See RatingSystems.cs.
+    ///
+    /// A limit is stored as the score alone, so a profile keeps working whichever labels
+    /// are shown. Returns [] for anything unusable, and the caller falls back to the US
+    /// list this form always had.
+    function ratingChoicesFrom(answer) {
+        const list = answer && typeof answer === 'object'
+            ? (Array.isArray(answer.ratings) ? answer.ratings : answer.Ratings) : null;
+        if (!Array.isArray(list)) return [];
+        const seen = {};
+        return list.map(r => {
+            if (!r || typeof r !== 'object') return null;
+            const score = r.score !== undefined ? r.score : r.Score;
+            const labels = (r.labels !== undefined ? r.labels : r.Labels) || [];
+            if (typeof score !== 'number' || score < 0 || score >= 1000 || seen[score]) return null;
+            const names = labels.filter(n => typeof n === 'string' && n.trim()).map(n => n.trim());
+            if (!names.length) return null;
+            seen[score] = true;
+            // Four at most. Canada's 0 alone is E, G, TV-Y and TV-G.
+            return [score, names.slice(0, 4).join(' / ')];
+        }).filter(Boolean).sort((a, b) => a[0] - b[0]);
+    }
+
+    function normalizeTheme(value) {
+        const v = String(value || '').toLowerCase();
+        return THEMES.indexOf(v) !== -1 ? v : 'bonfire';
+    }
+
     /// A library or user id as the server writes one: 32 hex digits, dashed or not.
     function isGuidLike(value) {
         return /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(String(value || ''));
@@ -288,6 +336,10 @@
         'profileForm.ratingPG13': 'PG-13 / TV-14 (14+)',
         'profileForm.ratingR': 'R / TV-MA (17+)',
         'profileForm.ratingCurrent': 'Current limit (level {score})',
+        'profileForm.ratingAge': '{labels} ({score}+)',
+        'profileForm.theme': 'Theme',
+        'profileForm.themeDefault': 'Server default ({name})',
+        'profileForm.themeHint': 'How these screens look for this profile.',
         'profileForm.blockedTags': 'Blocked tags',
         'profileForm.blockedTagsHint': 'Hides anything with these tags. A tag on a series or library covers everything inside it.',
         'profileForm.allowedTags': 'Allowed tags',
@@ -504,7 +556,10 @@
             // Set only on a device that has been told to keep its own answer to the
             // startup question instead of following the household's. Absent on every
             // device that has never been told otherwise, which is the default.
-            deviceGateKey: 'jellyfin_profiles_device_gate'
+            deviceGateKey: 'jellyfin_profiles_device_gate',
+            // The last theme this browser was told for an account, so the first paint is
+            // already in it rather than switching a moment after the gate appears.
+            themeKey: 'jellyfin_profiles_theme'
         },
         pluginId: 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9',
         isManageMode: false,
@@ -517,6 +572,9 @@
         _switchLock: false,
         _switcherPrefs: null,
         _switcherPrefsLoading: false,
+        // { theme, defaultTheme, allow } from the server, or null until it answers. The
+        // profile form offers a theme picker only once this says choosing is allowed.
+        _themeSettings: null,
         _panicDisabled: false,
         // Null until the server answers. Only true reveals the emergency link.
         _panicLinkAvailable: null,
@@ -1043,6 +1101,9 @@
                 avatarColor: pick(p, 'avatarColor', DEFAULT_AVATAR_COLOR),
                 // Cut-out picture: paint no colour behind it (issue #23).
                 transparentAvatar: pick(p, 'transparentAvatar', false),
+                // The profile's own choice; null follows the server default. Sent to the
+                // account owner only.
+                theme: pick(p, 'theme', null),
                 requiresPin: pick(p, 'requiresPin', false),
                 // "A PIN exists" — distinct from requiresPin, which is false on the LAN when
                 // the bypass is enabled. Forms must use this one.
@@ -1221,9 +1282,14 @@
                     .then(list => Array.isArray(list) ? list : null)
                     .catch(() => null),
                 this.fetchLibraryTags(apiClient, masterState.token, masterState.masterUserId),
-                this.fetchAvatarLibrary(apiClient, masterState.token)
-            ]).then(([libraries, devices, libraryTags, avatarLibrary]) => ({
-                libraries, devices, libraryTags, avatarLibrary
+                this.fetchAvatarLibrary(apiClient, masterState.token),
+                // The server country's own rating system. Never fails the form: null falls
+                // back to the US list in renderRatingSelect.
+                fetch(apiClient.getUrl('plugins/profiles/ratings'), { headers })
+                    .then(res => res.ok ? res.json() : null)
+                    .catch(() => null)
+            ]).then(([libraries, devices, libraryTags, avatarLibrary, ratings]) => ({
+                libraries, devices, libraryTags, avatarLibrary, ratings
             })).catch(err => {
                 // Never cache a failure. A server that was briefly unreachable would
                 // otherwise keep every form broken until the overlay was closed.
@@ -1380,25 +1446,33 @@
         /// `maxRating` is compared with ===, so it must already be a number or null.
         /// Passing the raw string from a form control would preselect nothing and
         /// quietly reset the profile's rating on the next save.
-        renderRatingSelect: function (mode, maxRating) {
+        /// `ratings` is the server's plugins/profiles/ratings answer. With it, the
+        /// options are that country's ratings and nothing else; without it — an older
+        /// server, a failed request — they are the four US ones this form always had.
+        renderRatingSelect: function (mode, maxRating, ratings) {
             const id = mode + '-rating-select';
-            const choices = [
-                ['', 'profileForm.noRestrictions'],
-                ['6', 'profileForm.ratingG'],
-                ['10', 'profileForm.ratingPG'],
-                ['14', 'profileForm.ratingPG13'],
-                ['17', 'profileForm.ratingR'],
-            ];
-            // A limit set in Dashboard -> Users is any score, not one of these five. With no
-            // option to preselect, the select fell back to "No Restrictions" and the next save
-            // cleared the limit, whatever the save was for. It gets an option of its own.
+            const country = ratingChoicesFrom(ratings);
+            // [value, text]. Country labels are official codes (12A, FSK 16, 14A) and are
+            // shown as they are in every language; only the age around them is translated.
+            const choices = [['', t('profileForm.noRestrictions')]].concat(country.length
+                ? country.map(([score, labels]) => [String(score), t('profileForm.ratingAge', { labels: escapeHtml(labels), score: score })])
+                : [
+                    ['6', t('profileForm.ratingG')],
+                    ['10', t('profileForm.ratingPG')],
+                    ['14', t('profileForm.ratingPG13')],
+                    ['17', t('profileForm.ratingR')]
+                ]);
+            // A limit set in Dashboard -> Users is any score, not necessarily one offered
+            // here. With no option to preselect, the select fell back to "No Restrictions"
+            // and the next save cleared the limit, whatever the save was for. It gets an
+            // option of its own.
             const unlisted = typeof maxRating === 'number'
                 && !choices.some(([value]) => value !== '' && Number(value) === maxRating);
-            if (unlisted) choices.push([String(maxRating), 'profileForm.ratingCurrent']);
-            const opts = choices.map(([value, key]) => {
+            if (unlisted) choices.push([String(maxRating), t('profileForm.ratingCurrent', { score: maxRating })]);
+            const opts = choices.map(([value, text]) => {
                 const current = value === '' ? maxRating === null || maxRating === undefined
                     : maxRating === Number(value);
-                return `<option value="${value}" ${current ? 'selected' : ''}>${t(key, { score: value })}</option>`;
+                return `<option value="${value}" ${current ? 'selected' : ''}>${text}</option>`;
             }).join('\n                            ');
 
             return `
@@ -1647,6 +1721,9 @@
             // Before injectStyles, so the sheet's .jpf-tv and .jpf-no-flex-gap rules match
             // on the first paint rather than after a reflow the viewer can see.
             this._step('applyDeviceClasses', () => this.applyDeviceClasses());
+            // Same reason: the first frame of the gate should already be in this
+            // account's theme.
+            this._step('applyCachedTheme', () => this.applyCachedTheme());
             this._step('injectStyles', () => this.injectStyles());
             // Kicked off before the first route check so the gate decision is usually made
             // with the real answer in hand rather than the cached one.
@@ -2835,6 +2912,115 @@
             } catch (e) { /* storage full or blocked — the in-memory copy still works */ }
         },
 
+        // ── Theme ──────────────────────────────────────────────────────────────────
+        // One attribute on <html>; styles.css does the rest. Per profile, so it is cached
+        // per account: on a shared browser the next person must not inherit the last one's.
+
+        /// Puts a theme on the page. Unknown ids become Bonfire, so a stale cache or an
+        /// older server can never leave the attribute naming a theme the sheet does not have
+        /// (which would leave the tints resolving to nothing).
+        applyTheme: function (theme) {
+            const root = document.documentElement;
+            if (!root) return;
+            const id = normalizeTheme(theme);
+            if (root.getAttribute('data-jpf-theme') !== id) root.setAttribute('data-jpf-theme', id);
+        },
+
+        /// The theme last stored for whoever is signed in, applied before the server answers.
+        /// Before anyone is signed in it applies the last one stored on this device, which is
+        /// the person most likely to be signing in.
+        applyCachedTheme: function () {
+            let cached = null;
+            try { cached = JSON.parse(localStorage.getItem(this.config.themeKey) || 'null'); } catch (e) { /* unreadable */ }
+            if (!cached || typeof cached !== 'object' || !cached.theme) return;
+
+            let current = '';
+            try {
+                if (typeof ApiClient !== 'undefined' && ApiClient) {
+                    current = this.normalizeGuid(ApiClient.getCurrentUserId());
+                }
+            } catch (e) { /* no client yet */ }
+            if (current && this.normalizeGuid(cached.userId) !== current) return;
+
+            this.applyTheme(cached.theme);
+        },
+
+        /// Records and applies what the server said, from loadSwitcherPrefs.
+        _setThemeSettings: function (prefs) {
+            const read = (name) => prefs[name] !== undefined
+                ? prefs[name]
+                : prefs[name.charAt(0).toUpperCase() + name.slice(1)];
+
+            // A server older than this build sends none of these. Leave the page as it is
+            // and offer no picker, rather than pretend the server knows about themes.
+            if (read('theme') === undefined) return;
+
+            const settings = {
+                theme: normalizeTheme(read('theme')),
+                defaultTheme: normalizeTheme(read('defaultTheme')),
+                allow: read('allowProfileThemes') !== false
+            };
+            this._themeSettings = settings;
+            this.applyTheme(settings.theme);
+
+            try {
+                const userId = (typeof ApiClient !== 'undefined' && ApiClient) ? ApiClient.getCurrentUserId() : '';
+                if (userId) {
+                    localStorage.setItem(this.config.themeKey, JSON.stringify({ userId: userId, theme: settings.theme }));
+                }
+            } catch (e) { /* storage full or blocked — it still applies for this page */ }
+        },
+
+        /// The theme picker for the profile forms, or '' when the server does not let
+        /// profiles choose (or has not said). `stored` is the profile's own choice, null for
+        /// "follow the server default".
+        renderThemePicker: function (prefix, stored) {
+            const settings = this._themeSettings;
+            if (!settings || !settings.allow) return '';
+
+            const chosen = stored && THEMES.indexOf(String(stored).toLowerCase()) !== -1
+                ? String(stored).toLowerCase() : '';
+            const shown = chosen || settings.defaultTheme;
+
+            return `
+                <div class="form-group" id="${prefix}-theme-group">
+                    <label for="${prefix}-theme-select">${t('profileForm.theme')}</label>
+                    <select id="${prefix}-theme-select">
+                        <option value="" ${chosen ? '' : 'selected'}>${t('profileForm.themeDefault', { name: THEME_NAMES[settings.defaultTheme] })}</option>
+                        ${THEMES.map(id => `<option value="${id}" ${chosen === id ? 'selected' : ''}>${THEME_NAMES[id]}</option>`).join('')}
+                    </select>
+                    <div class="jpf-theme-preview" id="${prefix}-theme-preview" data-jpf-theme="${shown}" aria-hidden="true">
+                        <span class="jpf-theme-preview-tile"></span>
+                        <span class="jpf-theme-preview-name">${THEME_NAMES[shown]}</span>
+                        <span class="jpf-theme-preview-button">Aa</span>
+                    </div>
+                    <div class="form-hint">${t('profileForm.themeHint')}</div>
+                </div>
+            `;
+        },
+
+        /// Keeps the preview in step with the select. Safe to call when there is no picker.
+        bindThemePicker: function (prefix) {
+            const select = document.getElementById(prefix + '-theme-select');
+            const preview = document.getElementById(prefix + '-theme-preview');
+            if (!select || !preview) return;
+            select.addEventListener('change', () => {
+                const settings = this._themeSettings;
+                const id = select.value ? normalizeTheme(select.value)
+                    : (settings ? settings.defaultTheme : 'bonfire');
+                preview.setAttribute('data-jpf-theme', id);
+                const name = preview.querySelector('.jpf-theme-preview-name');
+                if (name) name.textContent = THEME_NAMES[id];
+            });
+        },
+
+        /// What the form sends: the select's value ('' = server default), or undefined
+        /// when there is no picker, which the server reads as "leave it alone".
+        readThemePicker: function (prefix) {
+            const select = document.getElementById(prefix + '-theme-select');
+            return select ? (select.value ? normalizeTheme(select.value) : '') : undefined;
+        },
+
         /// Refreshes the cached preferences from the server. Called once per page load;
         /// re-runs the route check afterwards so a first-ever load on a new device settles
         /// into the right behaviour without the user having to navigate.
@@ -2868,6 +3054,7 @@
                 const changed = !before || before.askOnStartup !== ask || before.location !== location;
                 this._cacheSwitcherPrefs(ask, location, master);
                 this._panicLinkAvailable = emergency;
+                this._setThemeSettings(prefs);
                 // The gate may already be on screen — reveal or hide the link in place
                 // rather than waiting for the next load.
                 this.applyPanicLinkVisibility();
@@ -5581,8 +5768,8 @@
             // Everything this form needs is account-wide, so it is usually already
             // cached from the prefetch that ran when the overlay opened.
             this.fetchSharedFormData(apiClient, masterState)
-            .then(shared => [shared.libraries, shared.devices, shared.libraryTags, shared.avatarLibrary])
-            .then(([libraries, devices, libraryTags, avatarLibrary]) => {
+            .then(shared => [shared.libraries, shared.devices, shared.libraryTags, shared.avatarLibrary, shared.ratings])
+            .then(([libraries, devices, libraryTags, avatarLibrary, ratings]) => {
                 if (!this.navIsCurrent(ticket)) return;
                 const normalizedLibs = (libraries || []).map(lib => ({
                     id: lib.id || lib.Id,
@@ -5605,6 +5792,7 @@
                         <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
                     </div>
                     ${this.renderAvatarPicker('create', avatarLibrary, null, DEFAULT_AVATAR_COLOR, { enabled: false })}
+                    ${this.renderThemePicker('create', null)}
                 `;
 
                 // ── Section 2: getting into this profile ────────────────────────
@@ -5661,7 +5849,7 @@
                 const createRestrictions = `
                     ${this.renderDeviceDropdown('create', devices, null)}
 
-                    ${this.renderRatingSelect('create', null)}
+                    ${this.renderRatingSelect('create', null, ratings)}
                     ${this.renderTagSection('create', libraryTags, null)}
                 `;
 
@@ -5853,7 +6041,8 @@
                             profileImage: avatarPicker.get().image,
                             profileImageThumb: avatarPicker.get().thumb,
                             avatarLibraryId: avatarPicker.get().libraryId,
-                            transparentAvatar: avatarPicker.get().transparent
+                            transparentAvatar: avatarPicker.get().transparent,
+                            theme: this.readThemePicker('create')
                         })
                     })
                     .then(res => {
@@ -5872,6 +6061,7 @@
                 document.getElementById('create-cancel-btn').addEventListener('click', () => {
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
                 });
+                this.bindThemePicker('create');
                 this.initTVCheckboxes(content);
                 this.initTagEditors(content);
             });
@@ -5892,8 +6082,8 @@
                 this.fetchSharedFormData(apiClient, masterState),
                 fetch(userUrl, { headers: this.getAuthHeaders(masterState.token) }).then(res => res.json())
             ])
-            .then(([shared, userDetails]) => [shared.libraries, userDetails, shared.devices, shared.libraryTags, shared.avatarLibrary])
-            .then(([libraries, userDetails, devices, libraryTags, avatarLibrary]) => {
+            .then(([shared, userDetails]) => [shared.libraries, userDetails, shared.devices, shared.libraryTags, shared.avatarLibrary, shared.ratings])
+            .then(([libraries, userDetails, devices, libraryTags, avatarLibrary, ratings]) => {
                 if (!this.navIsCurrent(ticket)) return;
                 const normalizedLibs = (libraries || []).map(lib => ({
                     id: lib.id || lib.Id,
@@ -5926,6 +6116,7 @@
                         <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
                     </div>
                     ${this.renderAvatarPicker('edit', avatarLibrary, profile.profileImage, profile.avatarColor, { enabled: !!profile.transparentAvatar })}
+                    ${this.renderThemePicker('edit', profile.theme)}
                 `;
 
                 // ── Section 2: getting into this profile ────────────────────────
@@ -6031,7 +6222,7 @@
                 const restrictionsBody = `
                     ${this.renderDeviceDropdown('edit', devices, profile)}
 
-                    ${this.renderRatingSelect('edit', maxRating)}
+                    ${this.renderRatingSelect('edit', maxRating, ratings)}
                     ${this.renderTagSection('edit', libraryTags, profile)}
                 `;
 
@@ -6442,13 +6633,26 @@
                             profileImage: avatarPicker.get().image,
                             profileImageThumb: avatarPicker.get().thumb,
                             avatarLibraryId: avatarPicker.get().libraryId,
-                            transparentAvatar: avatarPicker.get().transparent
+                            transparentAvatar: avatarPicker.get().transparent,
+                            theme: this.readThemePicker('edit')
                         })
                     })
                     .then(res => {
                         if (!res.ok) return res.text().then(text => { throw new Error(text); });
                         // Artwork is stored per library, so it is saved after the profile
                         // itself rather than folded into that one request.
+                        // The account on screen changed its own theme: put it on now rather
+                        // than on the next load. Any other profile's theme shows when it is
+                        // opened.
+                        const savedTheme = this.readThemePicker('edit');
+                        if (savedTheme !== undefined && this._themeSettings
+                            && this.normalizeGuid(profile.profileUserId) === this.normalizeGuid(ApiClient.getCurrentUserId())) {
+                            this._setThemeSettings({
+                                theme: savedTheme || this._themeSettings.defaultTheme,
+                                defaultTheme: this._themeSettings.defaultTheme,
+                                allowProfileThemes: this._themeSettings.allow
+                            });
+                        }
                         return artworkEditor.save(profile.profileUserId).then(() => {
                             this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
                         });
@@ -6470,6 +6674,7 @@
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
                 });
                 const artworkEditor = this.initLibraryArtworkEditor(content, profile.profileUserId);
+                this.bindThemePicker('edit');
                 this.initTVCheckboxes(content);
                 this.initTagEditors(content);
             })

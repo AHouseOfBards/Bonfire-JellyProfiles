@@ -135,6 +135,18 @@ namespace Jellyfin.Profiles.Configuration
         public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;
 
         /// <summary>
+        /// The theme every account sees until it picks its own. One of <see cref="Themes.All"/>.
+        /// </summary>
+        public string DefaultTheme { get; set; } = Themes.Bonfire;
+
+        /// <summary>
+        /// Whether each profile may pick its own theme. Off means everyone sees
+        /// <see cref="DefaultTheme"/>; choices already made are kept, not cleared, so turning
+        /// this back on gives them back. See <see cref="Themes.Resolve"/>.
+        /// </summary>
+        public bool AllowProfileThemes { get; set; } = true;
+
+        /// <summary>
         /// How the client script gets into Jellyfin’s index.html. One of the
         /// <see cref="IndexInjectionModes"/> values.
         /// <para>
@@ -286,6 +298,51 @@ namespace Jellyfin.Profiles.Configuration
 
         /// <summary>True when this mode should inject from the request pipeline.</summary>
         public static bool UsesMiddleware(string? value) => Normalize(value) != File;
+    }
+
+    /// <summary>
+    /// The looks Bonfire's own screens can take: the switcher, the PIN pad and the profile
+    /// forms. Never the rest of Jellyfin — a server's own theme is the administrator's, and
+    /// re-skinning jellyfin-web would mean chasing its markup every release.
+    /// <para>
+    /// The ids are lowercase, stored in configuration, and are also the value of the
+    /// <c>data-jpf-theme</c> attribute the stylesheet keys on, so the three lists — this one,
+    /// <c>THEMES</c> in profiles.js and the blocks in styles.css — must agree.
+    /// tests/js/themes.js fails if they do not.
+    /// </para>
+    /// <para>
+    /// Named for how each one looks, not for any service it resembles. No brand names, logos
+    /// or brand typefaces anywhere: each theme uses fonts already on the device.
+    /// </para>
+    /// </summary>
+    public static class Themes
+    {
+        /// <summary>Bonfire's own look. Follows the server's Jellyfin accent colour.</summary>
+        public const string Bonfire = "bonfire";
+        public const string Crimson = "crimson";
+        public const string Starlight = "starlight";
+        public const string Harbor = "harbor";
+        public const string Nightfall = "nightfall";
+        public const string Glass = "glass";
+
+        public static readonly string[] All = { Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass };
+
+        /// <summary>True for one of <see cref="All"/>, in any case.</summary>
+        public static bool IsKnown(string? value) =>
+            !string.IsNullOrWhiteSpace(value)
+            && All.Contains(value.Trim().ToLowerInvariant());
+
+        /// <summary>Maps arbitrary input to a known theme, falling back to <see cref="Bonfire"/>.</summary>
+        public static string Normalize(string? value) =>
+            IsKnown(value) ? value!.Trim().ToLowerInvariant() : Bonfire;
+
+        /// <summary>
+        /// The theme one account sees: its own choice when the server lets accounts choose and
+        /// it has made one, otherwise the server's default. A stored choice is kept while
+        /// choosing is turned off, so turning it back on restores everybody's pick.
+        /// </summary>
+        public static string Resolve(ProfileMapping? mapping, string? serverDefault, bool allowChoice) =>
+            allowChoice && IsKnown(mapping?.Theme) ? Normalize(mapping!.Theme) : Normalize(serverDefault);
     }
 
     /// <summary>
@@ -603,6 +660,17 @@ namespace Jellyfin.Profiles.Configuration
         /// </para>
         /// </summary>
         public string? SwitcherLocation { get; set; }
+
+        /// <summary>
+        /// This profile's own theme, one of <see cref="Themes.All"/>. Null means it follows
+        /// the server's <see cref="PluginConfiguration.DefaultTheme"/>.
+        /// <para>
+        /// Per profile, unlike <see cref="SwitcherLocation"/>, and read from this row rather
+        /// than the master's: a child's profile can look different from its parent's. Set by
+        /// whoever manages the profile, from its edit form.
+        /// </para>
+        /// </summary>
+        public string? Theme { get; set; }
     }
 
     public class UserProfileLimitOverride

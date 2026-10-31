@@ -32,6 +32,7 @@ function ok(name, cond) {
 
 const script = L.dashboardScript(L.readDashboard());
 const source = L.extractFunction(script, 'normalizeImageQuality') + '\n'
+    + L.extractFunction(script, 'normalizeTheme') + '\n'
     + L.extractFunction(script, 'saveConfiguration');
 
 // ── the stub server ──────────────────────────────────────────────────────────
@@ -61,6 +62,8 @@ async function run(fieldValues) {
         enableStarterAvatars: true,
         defaultAskOnStartup: true,
         defaultSwitcherLocation: 'button',
+        defaultTheme: 'bonfire',
+        allowProfileThemes: true,
         indexInjectionMode: 'middleware',
         // Both default off. A missing id throws in the stub below, so adding a control to
         // the form without adding it here is a failure rather than a silent omission —
@@ -174,6 +177,8 @@ const expected = [
     'enableStarterAvatars',
     'defaultAskOnStartup',
     'defaultSwitcherLocation',
+    'defaultTheme',
+    'allowProfileThemes',
     'indexInjectionMode',
     'enableClientPinLogin',
     'enableClientProfileList',
