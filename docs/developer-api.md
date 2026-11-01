@@ -484,7 +484,7 @@ set under **Advanced → Client Script** and reported as `mechanism.mode`:
 
 An `index.html` with no Bonfire tags is normal under `middleware`. Read `mechanism` from
 `GET /admin/mappings` instead. Samsung Tizen packages need the loader described in
-[TROUBLESHOOTING.md](../TROUBLESHOOTING.md#samsung-tizen).
+[troubleshooting](troubleshooting.md#samsung-tizen).
 
 ### `GET /plugins/profiles/profiles.js`
 

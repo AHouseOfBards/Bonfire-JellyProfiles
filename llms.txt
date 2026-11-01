@@ -26,7 +26,7 @@
 - [README](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/README.md): features and install
 - [Apps](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/clients.md): what works in each app
 - [Security](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/security.md): what the server enforces and what it doesn't
-- [Troubleshooting](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/TROUBLESHOOTING.md): the switcher not appearing, Docker, Tizen
+- [Troubleshooting](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/troubleshooting.md): the switcher not appearing, Docker, Tizen
 - [Limitations](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/limitations.md)
 - [Sharing a Bonfire](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/sharing.md): linking two households
 - [Library artwork](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/library-artwork.md)
@@ -35,6 +35,6 @@
 
 - [Developer API](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/developer-api.md): every HTTP route
 - [Changelog](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/CHANGELOG.md)
-- [Beta channel](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/BETA-CHANNEL.md)
-- [Contributing](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/CONTRIBUTING.md)
+- [Beta channel](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/beta-channel.md)
+- [Contributing](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/.github/CONTRIBUTING.md)
 - [Translations](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/Web/i18n/README.md): adding a language

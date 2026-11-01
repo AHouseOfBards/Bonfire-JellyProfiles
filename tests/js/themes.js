@@ -475,7 +475,7 @@ if (constants && names.every(n => methods[n])) {
 // ── 6. The startup cover wears the theme from the first frame ────────────────────
 console.log('\n── The startup cover is the theme\'s colour before the sheet loads ');
 
-const HEAD_CS = fs.readFileSync(process.argv[6] || path.join(L.ROOT, 'WebInjection.cs'), 'utf8');
+const HEAD_CS = fs.readFileSync(process.argv[6] || path.join(L.ROOT, 'Injection', 'WebInjection.cs'), 'utf8');
 /** The head script, reassembled from the C# constant the way headscript.js does it. */
 const headBody = (function () {
     const at = HEAD_CS.indexOf('internal const string HeadScript =');

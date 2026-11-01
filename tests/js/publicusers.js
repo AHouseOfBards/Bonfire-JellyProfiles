@@ -32,7 +32,7 @@ function ok(name, cond, detail) {
 const injector = fs.readFileSync(
     process.argv[2] || path.join(L.ROOT, 'Auth', 'PublicUserInjector.cs'), 'utf8');
 const middleware = fs.readFileSync(
-    path.join(L.ROOT, 'ProfilesIndexMiddleware.cs'), 'utf8');
+    path.join(L.ROOT, 'Injection', 'ProfilesIndexMiddleware.cs'), 'utf8');
 const config = fs.readFileSync(
     path.join(L.ROOT, 'Configuration', 'PluginConfiguration.cs'), 'utf8');
 

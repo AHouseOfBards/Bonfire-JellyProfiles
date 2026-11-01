@@ -605,7 +605,7 @@ ok('and that backing is round, not the square that was removed',
 console.log();
 console.log('── #25  Plugin updated, restart pending ───────────────────────');
 
-const boot = readRepo('ProfilesBootstrapTask.cs');
+const boot = readRepo('Injection/ProfilesBootstrapTask.cs');
 const dash = readRepo('Web/profilesDashboard.html');
 
 ok('there is a signal for "loaded after Jellyfin started"',

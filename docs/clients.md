@@ -14,7 +14,7 @@ The switcher, profile management, avatars, library artwork and shared Bonfires.
 | Jellyfin for Android | |
 | Jellyfin Media Player | Windows, macOS, Linux. |
 | LG webOS | webOS 4.5 (2019 sets) and later. |
-| Samsung Tizen | Needs the Bonfire loader added once. See [Samsung Tizen](../TROUBLESHOOTING.md#samsung-tizen). |
+| Samsung Tizen | Needs the Bonfire loader added once. See [Samsung Tizen](troubleshooting.md#samsung-tizen). |
 
 ## Profile sign-in
 

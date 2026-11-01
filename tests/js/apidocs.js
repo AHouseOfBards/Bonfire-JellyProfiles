@@ -309,8 +309,8 @@ ok('the README does not present the default limit as a cap',
 // P7-1 and P7-2 moved two blocks out of the README. A warning that is moved to a file
 // that does not carry it has been deleted, whatever the commit says.
 for (const [file, needle, what] of [
-    ['BETA-CHANNEL.md', 'Beta builds are unfinished', 'the beta risk warning'],
-    ['TROUBLESHOOTING.md', 'does not edit `index.html` by default', 'the injection headline'],
+    ['docs/beta-channel.md', 'Beta builds are unfinished', 'the beta risk warning'],
+    ['docs/troubleshooting.md', 'does not edit `index.html` by default', 'the injection headline'],
 ]) {
     const p = path.join(L.ROOT, file);
     ok(file + ' exists', fs.existsSync(p));

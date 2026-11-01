@@ -49,7 +49,7 @@
     /// Jellyfin scored the library with — so these are that country's ratings and no
     /// others. Not /Localization/ParentalRatings: Jellyfin pads that list with generic
     /// ages the country does not have, and a padded "10" cannot be told from France's
-    /// real one. See RatingSystems.cs.
+    /// real one. See Configuration/RatingSystems.cs.
     ///
     /// A limit is stored as the score alone, so a profile keeps working whichever labels
     /// are shown. Returns [] for anything unusable, and the caller falls back to the US

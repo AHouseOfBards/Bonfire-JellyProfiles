@@ -17,7 +17,7 @@
  *
  *     <script src="bonfire-loader.js"></script>
  *
- * Full steps are in TROUBLESHOOTING.md under "Samsung Tizen".
+ * Full steps are in docs/troubleshooting.md under "Samsung Tizen".
  *
  * WHY ES5. Tizen 4 runs Chromium 56. One token newer than the engine and the whole file
  * fails to parse, silently. tests/js/tizenloader.js runs tests/js/jsbaseline.js on it.
