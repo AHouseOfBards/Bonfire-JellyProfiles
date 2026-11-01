@@ -33,7 +33,7 @@
  * Both arguments point at another checkout, which is how this was shown to fail against
  * the build carrying the bug:
  *
- *     git show HEAD~1:Web/profiles.js > old.js; git show HEAD~1:WebInjection.cs > old.cs
+ *     git show HEAD~1:Web/profiles.js > old.js; git show HEAD~1:Injection/WebInjection.cs > old.cs
  *     node tests/js/gatecover.js old.js old.cs
  */
 'use strict';
@@ -51,7 +51,7 @@ function ok(name, cond, detail) {
 }
 
 const JS_PATH = process.argv[2] || L.profilesPath();
-const CS_PATH = process.argv[3] || path.join(L.ROOT, 'WebInjection.cs');
+const CS_PATH = process.argv[3] || path.join(L.ROOT, 'Injection', 'WebInjection.cs');
 
 let src = L.readClientBundle(fs.readFileSync(JS_PATH, 'utf8'));
 const INIT = 'ProfilesPlugin.init();';

@@ -841,7 +841,7 @@ if (resolve != null)
     Ok("and it is a hosted service, so Jellyfin actually starts it",
        listener != null && typeof(Microsoft.Extensions.Hosting.IHostedService).IsAssignableFrom(listener));
 
-    var registrar = File.ReadAllText(Path.Combine(RepoRoot(), "PluginServiceRegistrator.cs"));
+    var registrar = File.ReadAllText(Path.Combine(RepoRoot(), "Configuration", "PluginServiceRegistrator.cs"));
     Ok("and it is registered with the DI container",
        registrar.Contains("BonfireSessionListener"));
 

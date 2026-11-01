@@ -10,7 +10,7 @@ Beta builds let you try new work before it reaches everyone.
 > [!WARNING]
 > **Beta builds are unfinished and features in them may be broken.** Settings added in a
 > beta can change before release, and going back to stable may reset them. If the
-> switcher breaks, the [emergency disable code](docs/limitations.md#emergency-disable-code)
+> switcher breaks, the [emergency disable code](limitations.md#emergency-disable-code)
 > can switch Bonfire off. Don't run a beta on a server your household needs that evening.
 
 Please report what you find on

@@ -9,7 +9,7 @@
  *
  * The fixtures are Jellyfin's own tables (tests/fixtures/ratings, copied from
  * release-10.11.z Emby.Server.Implementations/Localization/Ratings). The server reads the
- * same tables (RatingSystems.cs, checked against these fixtures by tests/cs/ratings);
+ * same tables (Configuration/RatingSystems.cs, checked against these fixtures by tests/cs/ratings);
  * serverAnswer() below is the shape GET plugins/profiles/ratings sends for one of them.
  *
  * Not /Localization/ParentalRatings, which the first version of this used: Jellyfin pads

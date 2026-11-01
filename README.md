@@ -39,14 +39,14 @@ Works with Jellyfin 10.11 and 12.0.
 3. Restart Jellyfin.
 
 Nothing else to set up. If the switcher doesn't appear, see
-[TROUBLESHOOTING.md](TROUBLESHOOTING.md). Beta builds are in
-[BETA-CHANNEL.md](BETA-CHANNEL.md).
+[troubleshooting](docs/troubleshooting.md). Beta builds are in
+[the beta channel guide](docs/beta-channel.md).
 
 ## Apps
 
 **Full support:** Jellyfin Web, Jellyfin for Android, Jellyfin Media Player, LG webOS
 4.5 and later, and Samsung Tizen
-([one-time setup](TROUBLESHOOTING.md#samsung-tizen)).
+([one-time setup](docs/troubleshooting.md#samsung-tizen)).
 
 **Profile sign-in:** Jellyfin for Android TV, Roku, Swiftfin, Findroid and Wholphin can
 list your profiles on their own sign-in screen. Turn it on under
@@ -63,7 +63,7 @@ Details for every app are in [docs/clients.md](docs/clients.md).
 - [Apps and what works on each](docs/clients.md)
 - [Security](docs/security.md)
 - [Limitations](docs/limitations.md)
-- [Troubleshooting](TROUBLESHOOTING.md)
+- [Troubleshooting](docs/troubleshooting.md)
 - [Changelog](CHANGELOG.md)
 - [Developer API](docs/developer-api.md)
 

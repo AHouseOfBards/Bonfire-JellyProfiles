@@ -163,7 +163,7 @@ console.log();
 console.log('── contracts the split must not have broken ────────────────────');
 
 // P5-4: the cache-buster.
-const inj = fs.readFileSync(path.join(L.ROOT, 'WebInjection.cs'), 'utf8');
+const inj = fs.readFileSync(path.join(L.ROOT, 'Injection', 'WebInjection.cs'), 'utf8');
 ok('the script tag still carries ?v={ScriptVersion}',
     inj.indexOf('profiles.js?v={ScriptVersion}') !== -1);
 ok('and the reader that parses it back is unchanged',

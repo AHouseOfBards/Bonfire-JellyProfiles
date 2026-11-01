@@ -26,7 +26,7 @@ It shows which method is in use and how many pages it has served.
 ### It works in a browser but not in an app
 
 Bonfire can only appear in apps that load the web client from your server. Apps that
-ship their own copy never see it. See [docs/clients.md](docs/clients.md) for which apps
+ship their own copy never see it. See [docs/clients.md](clients.md) for which apps
 work and how.
 
 Parental controls still apply in every app, because the server enforces them.
@@ -54,7 +54,7 @@ Add the **Bonfire loader** to the package once, and it loads Bonfire from your s
 each time the app starts. Plugin updates then reach the TV without another rebuild.
 
 1. Get the package's files: the `.wgt` you build, or the one Apps2Samsung prepares.
-2. Copy [`Web/tizen/bonfire-loader.js`](Web/tizen/bonfire-loader.js) into its `www/` folder.
+2. Copy [`Web/tizen/bonfire-loader.js`](../Web/tizen/bonfire-loader.js) into its `www/` folder.
 3. In `www/index.html`, add this line just before `</body>`:
 
    ```html
@@ -90,7 +90,7 @@ Set an **emergency disable code** before you need it, under
 pressing `Ctrl+Shift+B`, turns Bonfire off until Jellyfin restarts.
 
 If Bonfire's script doesn't load at all, the code can't run. Restart Jellyfin or delete
-the plugin folder. See [docs/limitations.md](docs/limitations.md) for what the code
+the plugin folder. See [docs/limitations.md](limitations.md) for what the code
 does and doesn't unlock.
 
 ## Where do I get avatars?

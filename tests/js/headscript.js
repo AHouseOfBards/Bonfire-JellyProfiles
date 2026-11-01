@@ -31,7 +31,7 @@ function ok(name, cond) {
     else { fails.push(name); console.log('  FAIL  ' + name); }
 }
 
-const SRC = process.argv[4] || path.join(L.ROOT, 'WebInjection.cs');
+const SRC = process.argv[4] || path.join(L.ROOT, 'Injection', 'WebInjection.cs');
 const cs = fs.readFileSync(SRC, 'utf8');
 
 // ── reassemble the C# constant ───────────────────────────────────────────────
