@@ -1,0 +1,128 @@
+# The documentation site, built by GitHub Pages from the root of main and served at
+# https://ahouseofbards.github.io/Bonfire-JellyProfiles/
+#
+# The same Pages site serves manifest.json, which every install polls for updates, and
+# llms.txt. Neither has front matter, so Jekyll copies them byte for byte. Never add
+# either to `exclude`, or give them front matter: an excluded manifest is a 404 to every
+# Jellyfin server checking for updates. tests/js/pagessite.js checks this.
+#
+# The pages are the Markdown files in the repository, unchanged, so they still read
+# properly on GitHub and the tests that check them still see them. Titles and order are
+# set here rather than as front matter in each file, which GitHub would show as a table
+# at the top of the page.
+
+title: Bonfire/JellyProfiles
+description: Profiles for Jellyfin. One account holds several people, each with their own watch history, library access and parental controls.
+url: https://ahouseofbards.github.io
+baseurl: /Bonfire-JellyProfiles
+
+remote_theme: just-the-docs/just-the-docs@v0.10.0
+plugins:
+  - jekyll-remote-theme
+  - jekyll-relative-links
+  - jekyll-optional-front-matter
+  - jekyll-readme-index
+  - jekyll-default-layout
+  - jekyll-titles-from-headings
+
+relative_links:
+  enabled: true
+  collections: false
+
+color_scheme: dark
+search_enabled: true
+heading_anchors: true
+back_to_top: true
+back_to_top_text: Back to top
+
+aux_links:
+  GitHub: https://github.com/AHouseOfBards/Bonfire-JellyProfiles
+gh_edit_link: true
+gh_edit_link_text: Edit this page on GitHub
+gh_edit_repository: https://github.com/AHouseOfBards/Bonfire-JellyProfiles
+gh_edit_branch: main
+gh_edit_view_mode: tree
+
+footer_content: MIT licensed. Bonfire/JellyProfiles is not made by or part of Jellyfin.
+
+# The plugin's source, its tests and build output are not pages.
+exclude:
+  - Auth/
+  - Configuration/
+  - Controllers/
+  - Injection/
+  - Models/
+  - tests/
+  - bin/
+  - obj/
+  - dist/
+  - Jellyfin.Profiles.csproj
+  - CLAUDE.md
+
+defaults:
+  - scope:
+      path: README.md
+    values:
+      layout: default
+      title: Home
+      nav_order: 1
+  - scope:
+      path: docs/troubleshooting.md
+    values:
+      layout: default
+      title: Troubleshooting
+      nav_order: 2
+  - scope:
+      path: docs/clients.md
+    values:
+      layout: default
+      title: Apps
+      nav_order: 3
+  - scope:
+      path: docs/sharing.md
+    values:
+      layout: default
+      title: Sharing a Bonfire
+      nav_order: 4
+  - scope:
+      path: docs/library-artwork.md
+    values:
+      layout: default
+      title: Library artwork
+      nav_order: 5
+  - scope:
+      path: docs/security.md
+    values:
+      layout: default
+      title: Security
+      nav_order: 6
+  - scope:
+      path: docs/limitations.md
+    values:
+      layout: default
+      title: Limitations
+      nav_order: 7
+  - scope:
+      path: docs/beta-channel.md
+    values:
+      layout: default
+      title: Beta channel
+      nav_order: 8
+  - scope:
+      path: CHANGELOG.md
+    values:
+      layout: default
+      title: Changelog
+      nav_order: 9
+  - scope:
+      path: docs/developer-api.md
+    values:
+      layout: default
+      title: Developer API
+      nav_order: 10
+  - scope:
+      path: Web/i18n/README.md
+    values:
+      layout: default
+      title: Translations
+      nav_order: 11

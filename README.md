@@ -58,6 +58,8 @@ Details for every app are in [docs/clients.md](docs/clients.md).
 
 ## Documentation
 
+Also at [ahouseofbards.github.io/Bonfire-JellyProfiles](https://ahouseofbards.github.io/Bonfire-JellyProfiles/), with search.
+
 - [Sharing a Bonfire](docs/sharing.md)
 - [Library artwork](docs/library-artwork.md)
 - [Apps and what works on each](docs/clients.md)

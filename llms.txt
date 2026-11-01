@@ -23,6 +23,8 @@
 
 ## Docs
 
+Also published as a site with search: https://ahouseofbards.github.io/Bonfire-JellyProfiles/
+
 - [README](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/README.md): features and install
 - [Apps](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/clients.md): what works in each app
 - [Security](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/security.md): what the server enforces and what it doesn't
