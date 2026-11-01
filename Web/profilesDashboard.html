@@ -530,6 +530,9 @@
                         <option value="harbor">Harbor (dark slate, sky blue)</option>
                         <option value="nightfall">Nightfall (blue to black)</option>
                         <option value="glass">Glass (graphite and frosted panels)</option>
+                        <option value="harvest">Harvest (autumn leaves, warm amber)</option>
+                        <option value="snowfall">Snowfall (winter night, falling snow)</option>
+                        <option value="bloom">Bloom (spring green, blossoms)</option>
                     </select>
                 </div>
 
@@ -1828,7 +1831,7 @@
             // stale or hand-edited value from turning Save into an error.
             // The list lives inside the function so it can be lifted out whole for a test.
             function normalizeTheme(value) {
-                const ids = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass'];
+                const ids = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom'];
                 const v = String(value || '').toLowerCase();
                 return ids.indexOf(v) !== -1 ? v : 'bonfire';
             }

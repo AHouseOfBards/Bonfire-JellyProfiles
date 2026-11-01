@@ -324,8 +324,11 @@ namespace Jellyfin.Profiles.Configuration
         public const string Harbor = "harbor";
         public const string Nightfall = "nightfall";
         public const string Glass = "glass";
+        public const string Harvest = "harvest";
+        public const string Snowfall = "snowfall";
+        public const string Bloom = "bloom";
 
-        public static readonly string[] All = { Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass };
+        public static readonly string[] All = { Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass, Harvest, Snowfall, Bloom };
 
         /// <summary>True for one of <see cref="All"/>, in any case.</summary>
         public static bool IsKnown(string? value) =>

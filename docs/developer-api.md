@@ -873,6 +873,9 @@ of Jellyfin keeps its own theme.
 | `harbor` | Blue-grey gradient, bold type, round tiles, slate buttons. |
 | `nightfall` | Black into purple, gradient rings, pill buttons. |
 | `glass` | Soft coloured blur, small round tiles, frosted buttons. |
+| `harvest` | Autumn. Brown into amber with drifting leaves, leaf-shaped tiles, a serif. |
+| `snowfall` | Winter. Night blue with falling snow, frosted rings, white outlined buttons. |
+| `bloom` | Spring. Fresh green with blossoms, soft rounded tiles, pink highlights. |
 
 A theme is per profile. Set it with `theme` on [`/create`](#post-pluginsprofilescreate) or
 [`/update`](#post-pluginsprofilesupdate), or on its own with

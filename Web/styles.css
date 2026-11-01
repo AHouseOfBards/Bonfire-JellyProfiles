@@ -291,6 +291,10 @@
     --jpf-input-bg: var(--jpf-surface-2);
     --jpf-input-border: var(--jpf-border-2);
     --jpf-input-r: var(--jpf-r-md);
+    /* A repeated picture behind the gate: the seasonal themes' leaves, snow
+       and blossoms. See "Seasonal decoration". */
+    --jpf-deco: none;
+    --jpf-deco-size: 240px;
 }
 [data-jpf-theme="bonfire"] {
     --jpf-accent: var(--jpf-bonfire-accent);
@@ -390,6 +394,8 @@
     --jpf-input-bg: #333;
     --jpf-input-border: #333;
     --jpf-input-r: 0;
+    --jpf-deco: none;
+    --jpf-deco-size: 240px;
 }
 
 /* Starlight: flat midnight navy, round tiles that grow inside a thick
@@ -445,6 +451,8 @@
     --jpf-input-bg: #31343e;
     --jpf-input-border: #31343e;
     --jpf-input-r: 4px;
+    --jpf-deco: none;
+    --jpf-deco-size: 240px;
 }
 
 /* Harbor: a blue-grey that darkens downwards, bold type throughout,
@@ -500,6 +508,8 @@
     --jpf-input-bg: #0f1d29;
     --jpf-input-border: #425466;
     --jpf-input-r: 4px;
+    --jpf-deco: none;
+    --jpf-deco-size: 240px;
 }
 
 /* Nightfall: black falling into violet, thin light type, every tile in
@@ -557,6 +567,8 @@
     --jpf-input-bg: rgba(255, 255, 255, 0.07);
     --jpf-input-border: rgba(255, 255, 255, 0.14);
     --jpf-input-r: 12px;
+    --jpf-deco: none;
+    --jpf-deco-size: 240px;
 }
 
 /* Glass: a soft blur of colour, small light type, round tiles that lift
@@ -613,6 +625,179 @@
     --jpf-input-bg: rgba(255, 255, 255, 0.12);
     --jpf-input-border: rgba(255, 255, 255, 0.12);
     --jpf-input-r: 10px;
+    --jpf-deco: none;
+    --jpf-deco-size: 240px;
+}
+
+/* Harvest: autumn. A dusk of brown into burnt orange with leaves drifting
+   across it, a warm serif, leaf-shaped tiles (two corners round, two
+   nearly sharp) in a cream ring, and amber outlined buttons. */
+[data-jpf-theme="harvest"],
+[data-jpf-theme="harvest"] body {
+    --jpf-accent: #f0a04b;
+    --jpf-accent-rgb: 240, 160, 75;
+    --jpf-accent-hover: #f5b56e;
+    --jpf-on-accent: #2a1408;
+    --jpf-gate-bg: linear-gradient(165deg, #1f0f08 0%, #2e160b 45%, #42200e 100%);
+    --jpf-panel: #2a150b;
+    --jpf-font: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+    --jpf-r-sm: 6px;
+    --jpf-r-md: 10px;
+    --jpf-r-lg: 14px;
+    --jpf-avatar-r: 50% 10px;
+    --jpf-avatar-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+    --jpf-ring: #ffd9a8;
+    --jpf-ring-w: 3px;
+    --jpf-hover-scale: 1.05;
+    --jpf-hover-glow: 0 14px 30px rgba(240, 160, 75, 0.35);
+    --jpf-title-weight: 600;
+    --jpf-title-spacing: 0.01em;
+    --jpf-title-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+    --jpf-title-scale: 1.05;
+    --jpf-name-color: #f3dcc0;
+    --jpf-name-hover: #fff;
+    --jpf-name-weight: 600;
+    --jpf-name-opacity: 1;
+    --jpf-name-scale: 1;
+    --jpf-btn-radius: 10px;
+    --jpf-btn2-bg: rgba(240, 160, 75, 0.14);
+    --jpf-btn2-color: #f7e2c8;
+    --jpf-btn2-border: 1px solid rgba(240, 160, 75, 0.45);
+    --jpf-btn2-case: none;
+    --jpf-btn2-spacing: 0.02em;
+    --jpf-btn2-weight: 600;
+    --jpf-btn2-hover-bg: #f0a04b;
+    --jpf-btn2-hover-color: #2a1408;
+    --jpf-btn2-hover-border: #f0a04b;
+    --jpf-btn2-hover-glow: none;
+    --jpf-add-bg: rgba(240, 160, 75, 0.08);
+    --jpf-add-border: 3px dashed rgba(240, 160, 75, 0.5);
+    --jpf-add-color: #f0c08a;
+    --jpf-add-hover-bg: rgba(240, 160, 75, 0.16);
+    --jpf-sheet-bg: transparent;
+    --jpf-sheet-border: 1px solid transparent;
+    --jpf-sheet-shadow: none;
+    --jpf-card-bg: rgba(240, 160, 75, 0.06);
+    --jpf-card-border: rgba(240, 160, 75, 0.2);
+    --jpf-input-bg: rgba(255, 255, 255, 0.06);
+    --jpf-input-border: rgba(240, 160, 75, 0.3);
+    --jpf-input-r: 10px;
+    --jpf-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='260' height='260'%3E%3Cdefs%3E%3Cg id='l'%3E%3Cpath d='M0-12C8-7 8 5 0 12C-8 5-8-7 0-12Z'/%3E%3Cpath d='M0-10V13' fill='none' stroke='%231f0f08' stroke-opacity='.45' stroke-width='1'/%3E%3C/g%3E%3C/defs%3E%3Cuse xlink:href='%23l' fill='%23e8752a' opacity='0.3' transform='translate(40 42) rotate(-30) scale(1.1)'/%3E%3Cuse xlink:href='%23l' fill='%23c9452c' opacity='0.26' transform='translate(170 30) rotate(40) scale(0.8)'/%3E%3Cuse xlink:href='%23l' fill='%23e3a33b' opacity='0.26' transform='translate(220 140) rotate(110) scale(1.2)'/%3E%3Cuse xlink:href='%23l' fill='%23c9452c' opacity='0.24' transform='translate(96 136) rotate(15) scale(0.9)'/%3E%3Cuse xlink:href='%23l' fill='%23e3a33b' opacity='0.24' transform='translate(34 220) rotate(-70) scale(1.0)'/%3E%3Cuse xlink:href='%23l' fill='%23e8752a' opacity='0.26' transform='translate(160 224) rotate(160) scale(0.75)'/%3E%3Cuse xlink:href='%23l' fill='%23a8552a' opacity='0.26' transform='translate(236 236) rotate(-20) scale(0.6)'/%3E%3Cuse xlink:href='%23l' fill='%23e3a33b' opacity='0.2' transform='translate(120 74) rotate(-110) scale(0.6)'/%3E%3C/svg%3E");
+    --jpf-deco-size: 260px;
+}
+
+/* Snowfall: winter. Night blue with snow coming down and the odd gold
+   star, a festive-card serif, round tiles in a thick white ring that
+   glows like frost, and white outlined capital-letter buttons. */
+[data-jpf-theme="snowfall"],
+[data-jpf-theme="snowfall"] body {
+    --jpf-accent: #f2c14e;
+    --jpf-accent-rgb: 242, 193, 78;
+    --jpf-accent-hover: #f7d37e;
+    --jpf-on-accent: #1a1205;
+    --jpf-gate-bg: linear-gradient(180deg, #0a1a2f 0%, #0f2742 55%, #15385a 100%);
+    --jpf-panel: #0f2238;
+    --jpf-font: 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+    --jpf-r-sm: 6px;
+    --jpf-r-md: 8px;
+    --jpf-r-lg: 16px;
+    --jpf-avatar-r: 50%;
+    --jpf-avatar-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+    --jpf-ring: #fff;
+    --jpf-ring-w: 4px;
+    --jpf-hover-scale: 1.12;
+    --jpf-hover-glow: 0 0 28px rgba(220, 240, 255, 0.55);
+    --jpf-title-weight: 400;
+    --jpf-title-spacing: 0.04em;
+    --jpf-title-shadow: 0 0 18px rgba(200, 230, 255, 0.35);
+    --jpf-title-scale: 1.1;
+    --jpf-name-color: #e6f0fa;
+    --jpf-name-hover: #fff;
+    --jpf-name-weight: 500;
+    --jpf-name-opacity: 1;
+    --jpf-name-scale: 0.95;
+    --jpf-btn-radius: 6px;
+    --jpf-btn2-bg: rgba(255, 255, 255, 0.08);
+    --jpf-btn2-color: #fff;
+    --jpf-btn2-border: 2px solid rgba(255, 255, 255, 0.65);
+    --jpf-btn2-case: uppercase;
+    --jpf-btn2-spacing: 0.1em;
+    --jpf-btn2-weight: 700;
+    --jpf-btn2-hover-bg: #fff;
+    --jpf-btn2-hover-color: #0a1a2f;
+    --jpf-btn2-hover-border: #fff;
+    --jpf-btn2-hover-glow: 0 0 18px rgba(220, 240, 255, 0.5);
+    --jpf-add-bg: rgba(255, 255, 255, 0.05);
+    --jpf-add-border: 3px dotted rgba(255, 255, 255, 0.6);
+    --jpf-add-color: #e6f0fa;
+    --jpf-add-hover-bg: rgba(255, 255, 255, 0.12);
+    --jpf-sheet-bg: transparent;
+    --jpf-sheet-border: 1px solid transparent;
+    --jpf-sheet-shadow: none;
+    --jpf-card-bg: rgba(255, 255, 255, 0.05);
+    --jpf-card-border: rgba(255, 255, 255, 0.14);
+    --jpf-input-bg: rgba(255, 255, 255, 0.07);
+    --jpf-input-border: rgba(255, 255, 255, 0.22);
+    --jpf-input-r: 6px;
+    --jpf-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='240' height='240'%3E%3Cdefs%3E%3Cg id='f' fill='none' stroke='%23fff' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M0 0L0 -10M0 -6l2.5 -2.5M0 -6l-2.5 -2.5M0 0L-8.7 -5M-5.2 -3l-0.9 -3.5M-5.2 -3l-3.5 0.9M0 0L-8.7 5M-5.2 3l-3.5 -0.9M-5.2 3l-0.9 3.5M0 0L-0 10M-0 6l-2.5 2.5M-0 6l2.5 2.5M0 0L8.7 5M5.2 3l0.9 3.5M5.2 3l3.5 -0.9M0 0L8.7 -5M5.2 -3l3.5 0.9M5.2 -3l0.9 -3.5'/%3E%3C/g%3E%3Cpath id='s' d='M0-7L1.6-1.6L7 0L1.6 1.6L0 7L-1.6 1.6L-7 0L-1.6-1.6Z' fill='%23f2c14e'/%3E%3C/defs%3E%3Cuse xlink:href='%23f' transform='translate(34 40) scale(1.0)' opacity='0.3'/%3E%3Cuse xlink:href='%23f' transform='translate(150 26) scale(0.6)' opacity='0.22'/%3E%3Cuse xlink:href='%23f' transform='translate(204 118) scale(1.25)' opacity='0.28'/%3E%3Cuse xlink:href='%23f' transform='translate(84 150) scale(0.8)' opacity='0.24'/%3E%3Cuse xlink:href='%23f' transform='translate(172 206) scale(0.7)' opacity='0.2'/%3E%3Cuse xlink:href='%23f' transform='translate(26 214) scale(1.1)' opacity='0.26'/%3E%3Ccircle cx='110' cy='70' r='1.6' fill='%23fff' opacity='0.3'/%3E%3Ccircle cx='60' cy='100' r='1.2' fill='%23fff' opacity='0.25'/%3E%3Ccircle cx='226' cy='40' r='1.4' fill='%23fff' opacity='0.25'/%3E%3Ccircle cx='130' cy='236' r='1.2' fill='%23fff' opacity='0.2'/%3E%3Ccircle cx='12' cy='150' r='1.5' fill='%23fff' opacity='0.25'/%3E%3Ccircle cx='190' cy='170' r='1.1' fill='%23fff' opacity='0.25'/%3E%3Ccircle cx='100' cy='200' r='1.8' fill='%23fff' opacity='0.22'/%3E%3Ccircle cx='232' cy='220' r='1.2' fill='%23fff' opacity='0.2'/%3E%3Cuse xlink:href='%23s' transform='translate(118 122)' opacity='0.6'/%3E%3Cuse xlink:href='%23s' transform='translate(220 78)' opacity='0.5'/%3E%3C/svg%3E");
+    --jpf-deco-size: 240px;
+}
+
+/* Bloom: spring. Deep fresh green with blossoms and new leaves, a
+   rounded humanist sans, soft squircle tiles in a blossom-pink ring, and
+   leaf-green buttons that turn pink on focus. */
+[data-jpf-theme="bloom"],
+[data-jpf-theme="bloom"] body {
+    --jpf-accent: #7ed36f;
+    --jpf-accent-rgb: 126, 211, 111;
+    --jpf-accent-hover: #9be08f;
+    --jpf-on-accent: #0d2615;
+    --jpf-gate-bg: linear-gradient(160deg, #0d241a 0%, #123222 55%, #1a4430 100%);
+    --jpf-panel: #11301f;
+    --jpf-font: 'Trebuchet MS', 'Segoe UI', 'Helvetica Neue', sans-serif;
+    --jpf-r-sm: 10px;
+    --jpf-r-md: 16px;
+    --jpf-r-lg: 24px;
+    --jpf-avatar-r: 36%;
+    --jpf-avatar-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+    --jpf-ring: #ffd1e3;
+    --jpf-ring-w: 3px;
+    --jpf-hover-scale: 1.07;
+    --jpf-hover-glow: 0 12px 28px rgba(255, 170, 205, 0.35);
+    --jpf-title-weight: 700;
+    --jpf-title-spacing: 0;
+    --jpf-title-shadow: none;
+    --jpf-title-scale: 1.2;
+    --jpf-name-color: #eaf7e6;
+    --jpf-name-hover: #fff;
+    --jpf-name-weight: 500;
+    --jpf-name-opacity: 1;
+    --jpf-name-scale: 1.05;
+    --jpf-btn-radius: 18px;
+    --jpf-btn2-bg: rgba(126, 211, 111, 0.16);
+    --jpf-btn2-color: #eaf7e6;
+    --jpf-btn2-border: 1px solid transparent;
+    --jpf-btn2-case: none;
+    --jpf-btn2-spacing: 0.01em;
+    --jpf-btn2-weight: 700;
+    --jpf-btn2-hover-bg: #ffd1e3;
+    --jpf-btn2-hover-color: #2a0f1c;
+    --jpf-btn2-hover-border: #ffd1e3;
+    --jpf-btn2-hover-glow: none;
+    --jpf-add-bg: rgba(126, 211, 111, 0.08);
+    --jpf-add-border: 2px dashed rgba(126, 211, 111, 0.6);
+    --jpf-add-color: #bfe8b6;
+    --jpf-add-hover-bg: rgba(126, 211, 111, 0.16);
+    --jpf-sheet-bg: transparent;
+    --jpf-sheet-border: 1px solid transparent;
+    --jpf-sheet-shadow: none;
+    --jpf-card-bg: rgba(126, 211, 111, 0.06);
+    --jpf-card-border: rgba(126, 211, 111, 0.2);
+    --jpf-input-bg: rgba(255, 255, 255, 0.06);
+    --jpf-input-border: rgba(126, 211, 111, 0.3);
+    --jpf-input-r: 16px;
+    --jpf-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='260' height='260'%3E%3Cdefs%3E%3Cg id='b'%3E%3Cg fill='%23ff9ec4'%3E%3Cellipse cx='0' cy='-5.5' rx='3.4' ry='5.6' transform='rotate(0)'/%3E%3Cellipse cx='0' cy='-5.5' rx='3.4' ry='5.6' transform='rotate(72)'/%3E%3Cellipse cx='0' cy='-5.5' rx='3.4' ry='5.6' transform='rotate(144)'/%3E%3Cellipse cx='0' cy='-5.5' rx='3.4' ry='5.6' transform='rotate(216)'/%3E%3Cellipse cx='0' cy='-5.5' rx='3.4' ry='5.6' transform='rotate(288)'/%3E%3C/g%3E%3Ccircle r='2.4' fill='%23ffe38a'/%3E%3C/g%3E%3Cpath id='g' d='M0-8C5-4 5 4 0 8C-5 4-5-4 0-8Z' fill='%237ed36f'/%3E%3C/defs%3E%3Cuse xlink:href='%23b' opacity='0.54' transform='translate(40 46) rotate(10) scale(1.1)'/%3E%3Cuse xlink:href='%23b' opacity='0.43' transform='translate(176 34) rotate(40) scale(0.7)'/%3E%3Cuse xlink:href='%23b' opacity='0.50' transform='translate(214 150) rotate(-15) scale(1.25)'/%3E%3Cuse xlink:href='%23b' opacity='0.47' transform='translate(92 148) rotate(30) scale(0.85)'/%3E%3Cuse xlink:href='%23b' opacity='0.43' transform='translate(30 222) rotate(0) scale(0.9)'/%3E%3Cuse xlink:href='%23b' opacity='0.40' transform='translate(150 222) rotate(55) scale(0.7)'/%3E%3Cuse xlink:href='%23g' opacity='0.26' transform='translate(70 70) rotate(40)'/%3E%3Cuse xlink:href='%23g' opacity='0.24' transform='translate(238 92) rotate(-30)'/%3E%3Cuse xlink:href='%23g' opacity='0.2' transform='translate(124 104) rotate(75)'/%3E%3Cuse xlink:href='%23g' opacity='0.24' transform='translate(190 196) rotate(-60)'/%3E%3Cuse xlink:href='%23g' opacity='0.2' transform='translate(70 196) rotate(20)'/%3E%3Cuse xlink:href='%23g' opacity='0.2' transform='translate(240 240) rotate(50)'/%3E%3C/svg%3E");
+    --jpf-deco-size: 260px;
 }
 
 /* Every theme but Bonfire lays the tiles straight on the background, the
@@ -709,6 +894,59 @@
     }
 }
 
+/* ── Seasonal decoration ──────────────────────────────────────────
+   Leaves, snow, blossoms: a tile repeated behind everything on the gate
+   and its screens, and smaller behind a preview. A layer of its own, not
+   part of --jpf-gate-bg, because the head script repeats that value to
+   paint the startup cover and the contrast checks read its colour stops;
+   the decoration is faint and only drawn once the stylesheet is here.
+   z-index -1 inside the overlay's own stacking context puts it above the
+   overlay's background and under everything in it. Every other theme sets
+   --jpf-deco to none in its own block, so this draws nothing for them. Not
+   in the shared block: two attribute selectors there outrank one in each
+   theme's block, so its none beat Snowfall's snow. */
+#profiles-gate-overlay::before,
+.jpf-theme-preview::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
+    background-image: var(--jpf-deco);
+    background-size: var(--jpf-deco-size) var(--jpf-deco-size);
+    pointer-events: none;
+    z-index: -1;
+}
+#profiles-gate-overlay::before {
+    position: fixed;
+}
+.jpf-theme-preview {
+    position: relative;
+    z-index: 0;
+}
+.jpf-theme-preview::before {
+    background-size: calc(var(--jpf-deco-size) * 0.45) calc(var(--jpf-deco-size) * 0.45);
+}
+/* Snowfall's snow comes down, slowly. A transform on a layer one tile
+   taller than the screen, so it is moved by the compositor and nothing is
+   repainted; one tile a loop, so it joins up. Not on a television, whose
+   browser is the slowest thing it runs on, and not for anyone who has
+   asked their system for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+    [data-jpf-theme="snowfall"]:not(.jpf-tv) #profiles-gate-overlay::before {
+        top: -240px;
+        will-change: transform;
+        -webkit-animation: jpf-snowfall 32s linear infinite;
+        animation: jpf-snowfall 32s linear infinite;
+    }
+}
+@-webkit-keyframes jpf-snowfall {
+    from { -webkit-transform: translateY(0); transform: translateY(0); }
+    to { -webkit-transform: translateY(240px); transform: translateY(240px); }
+}
+@keyframes jpf-snowfall {
+    from { transform: translateY(0); }
+    to { transform: translateY(240px); }
+}
+
 /* ── Theme previews ───────────────────────────────────────────────
    A small "Who's watching?" in each theme: the title, three tiles, a
    button. It wears the theme it shows through the same attribute, so it
@@ -718,6 +956,10 @@
 .jpf-theme-preview {
     display: flex; flex-direction: column; align-items: center; gap: 10px;
     padding: 16px 14px;
+    /* Inside its card whatever the card's width. On a phone the cards are
+       two to a row and the tiles and Crimson's spaced capitals ran out
+       past the preview's edge, and past the card's. */
+    box-sizing: border-box; width: 100%; min-width: 0; overflow: hidden;
     border-radius: var(--jpf-r-md);
     border: 1px solid var(--jpf-border-2);
     background: var(--jpf-gate-bg);
@@ -761,7 +1003,21 @@
     letter-spacing: var(--jpf-btn2-spacing);
     font-weight: var(--jpf-btn2-weight);
     font-size: 0.68rem;
-    white-space: nowrap;
+    /* Wraps rather than being cut: Crimson's spaced capitals came out as
+       "MANAGE PROFIL..." even on a desktop card. */
+    white-space: normal; line-height: 1.25;
+    box-sizing: border-box; max-width: 100%;
+    overflow: hidden;
+}
+/* Two cards to a row on a phone leaves about 100px inside a preview:
+   three 30px tiles, their gaps and a ring did not fit, nor did a spaced
+   capital button. Smaller tiles, and the button's letter-spacing eased,
+   so every theme's preview fits rather than being cut off. */
+@media (max-width: 480px) {
+    .jpf-theme-preview { padding: 12px 6px; gap: 8px; }
+    .jpf-theme-preview-tiles { gap: 8px; }
+    .jpf-theme-preview-tile { width: 22px; height: 22px; }
+    .jpf-theme-preview-button { padding: 3px 8px; font-size: 0.6rem; letter-spacing: 0.04em; }
 }
 
 /* A card you choose: the Settings entries and the switcher's location
@@ -797,8 +1053,10 @@
    themes, with transparent sheets, showed four. 8px of side padding is
    kept so a focused card's ring is not cut off by the container's scroll
    box. After the Glass frost rule above, which this has to undo. */
+/* 706px: nine themes as three rows of three rather than four, four and
+   one, with Done under the cards' left edge rather than out past it. */
 .create-profile-container.jpf-theme-page {
-    max-width: var(--jpf-w-wide);
+    max-width: 706px;
     background: transparent;
     border-color: transparent;
     box-shadow: none;

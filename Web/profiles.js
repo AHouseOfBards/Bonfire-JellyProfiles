@@ -30,14 +30,17 @@
     /// the [data-jpf-theme] blocks in styles.css; tests/js/themes.js holds the three
     /// together. The names are proper names, like "Bonfire" itself, and are shown as they
     /// are in every language, so the dashboard and every profile call a theme the same thing.
-    const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass'];
+    const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom'];
     const THEME_NAMES = {
         bonfire: 'Bonfire',
         crimson: 'Crimson',
         starlight: 'Starlight',
         harbor: 'Harbor',
         nightfall: 'Nightfall',
-        glass: 'Glass'
+        glass: 'Glass',
+        harvest: 'Harvest',
+        snowfall: 'Snowfall',
+        bloom: 'Bloom'
     };
 
     /// GET plugins/profiles/ratings -> [[score, labels], ...], one entry per age.

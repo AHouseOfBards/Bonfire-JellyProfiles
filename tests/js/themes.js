@@ -141,7 +141,7 @@ const dashNormalize = (function () {
     return m ? (m[1].match(/'([a-z]+)'/g) || []).map(x => x.replace(/'/g, '')) : [];
 })();
 
-ok('the server lists six themes (' + serverIds.join(', ') + ')', serverIds.length === 6);
+ok('the server lists nine themes (' + serverIds.join(', ') + ')', serverIds.length === 9);
 ok('bonfire is one of them, and first', serverIds[0] === 'bonfire');
 [['profiles.js THEMES', clientIds], ['styles.css blocks', cssIds],
  ['the dashboard select', dashIds], ['the dashboard normalizeTheme', dashNormalize]].forEach(([where, ids]) => {
@@ -785,6 +785,90 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
            (out.match(/class="jpf-theme-preview-tile"/g) || []).length === 3
            && /jpf-theme-preview-name/.test(out) && /jpf-theme-preview-button/.test(out));
     }
+}
+
+// ── 11. The seasonal themes' decoration ─────────────────────────────────────────
+console.log('\n── Harvest, Snowfall and Bloom carry their season ─────────────');
+{
+    const SEASONAL = { harvest: 'leaves', snowfall: 'snow', bloom: 'blossoms' };
+    Object.keys(SEASONAL).forEach(id => {
+        const d = theme[id] || {};
+        ok(id + ' draws its ' + SEASONAL[id] + ' as an inline picture, nothing fetched',
+           /^url\("data:image\/svg\+xml,/.test(d['--jpf-deco'] || '') && /px$/.test(d['--jpf-deco-size'] || ''));
+    });
+    // A theme that forgets to say "none" inherits the page's: a Crimson preview on a
+    // Snowfall page would snow. Each says it in its own block. Not the shared block: its
+    // two attribute selectors outrank a theme block's one, so a none there beat the snow
+    // everywhere, which is how the first build of this shipped no decoration at all.
+    const plain = serverIds.filter(id => !SEASONAL[id] && theme[id]['--jpf-deco'] !== 'none');
+    ok('every other theme says none in its own block' + (plain.length ? ' (not ' + plain.join(', ') + ')' : ''),
+       plain.length === 0);
+    ok('and the shared block, which would outrank every theme, does not set it',
+       !!shared && shared.decls['--jpf-deco'] === undefined);
+
+    const layer = RULES.filter(r => !r.at && r.selectors.indexOf('#profiles-gate-overlay::before') !== -1)[0];
+    ok('the decoration is a layer under the gate\'s content, which it never takes a click from',
+       !!layer && layer.decls['z-index'] === '-1' && layer.decls['pointer-events'] === 'none'
+       && /var\(--jpf-deco\)/.test(layer.decls['background-image'] || ''));
+    ok('and not part of the gate background the startup cover copies',
+       serverIds.every(id => !/url\(/.test(theme[id]['--jpf-gate-bg'] || '')));
+    const prev = RULES.filter(r => !r.at && r.selectors.indexOf('.jpf-theme-preview::before') !== -1)[0];
+    ok('a preview wears its season too', !!prev && /var\(--jpf-deco\)/.test(prev.decls['background-image'] || ''));
+
+    // The snow moves. Only where that is cheap and wanted.
+    const anim = /@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\[data-jpf-theme="snowfall"\]:not\(\.jpf-tv\) #profiles-gate-overlay::before\s*\{([^}]*)\}/.exec(CSS);
+    ok('the snow falls only for people who have not asked for less motion, and not on a TV',
+       !!anim && /animation:\s*jpf-snowfall/.test(anim[1]));
+    ok('by transform, which the compositor moves without repainting',
+       /@keyframes jpf-snowfall\s*\{\s*from\s*\{\s*transform:\s*translateY\(0\);\s*\}\s*to\s*\{\s*transform:\s*translateY\(240px\);/.test(CSS)
+       && !!anim && /top:\s*-240px/.test(anim[1]));
+    ok('and loops on one tile of it, so it joins up', theme.snowfall['--jpf-deco-size'] === '240px');
+    const unguarded = /animation:\s*jpf-snowfall/g;
+    let m, count = 0;
+    while ((m = unguarded.exec(CSS)) !== null) count++;
+    ok('nowhere else starts it', count === 2);
+}
+
+// ── 12. Previews fit their cards on a phone ─────────────────────────────────────
+// Reported from a phone: two cards to a row, and the tiles and Crimson's spaced capitals
+// ran out past the preview and the card. Computed, not eyeballed: the narrowest card,
+// less every padding and border inside it, against three tiles, their gaps and the
+// widest ring any theme draws on them.
+console.log('\n── A preview fits the narrowest card ──────────────────────────');
+{
+    const px = v => parseFloat(String(v || '0'));
+    const phone = CSS.slice(CSS.indexOf('@media (max-width: 480px)', CSS.indexOf('.jpf-theme-preview-button')));
+    const block = /@media \(max-width: 480px\)\s*\{([\s\S]*?)\n\}/.exec(phone);
+    const body = block ? block[1] : '';
+    const get = (sel, prop) => {
+        const r = new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}').exec(body);
+        const v = r && new RegExp('(?:^|;|\\s)' + prop + ':\\s*([^;]+)').exec(r[1]);
+        return v ? v[1].trim() : null;
+    };
+    const card = /\.jpf-theme-grid > \.jpf-theme-option\s*\{[^}]*min-width:\s*(\d+)px/.exec(CSS);
+    const opt = /(?:^|\n)\.jpf-theme-option\s*\{([^}]*)\}/.exec(CSS);
+    const tile = px(get('.jpf-theme-preview-tile', 'width'));
+    const gap = px(get('.jpf-theme-preview-tiles', 'gap'));
+    const pad = (get('.jpf-theme-preview', 'padding') || '').split(/\s+/);
+    const padX = px(pad[1] || pad[0]);
+    const optPad = opt ? px((/padding:\s*([^;]+)/.exec(opt[1]) || [])[1]) : 0;
+    const optBorder = opt ? px((/border:\s*([^;]+)/.exec(opt[1]) || [])[1]) : 0;
+    const inner = (card ? +card[1] : 0) - 2 * optPad - 2 * optBorder - 2 * padX - 2;
+    // The widest ring: a theme's ring width on the first tile, or Nightfall's 4px pair.
+    const ringMax = Math.max(4, ...serverIds.map(id => px(theme[id]['--jpf-ring-w'])));
+    const need = 3 * tile + 2 * gap + 2 * ringMax;
+    ok('three tiles and the widest ring, ' + need + 'px, fit inside the narrowest card\'s preview, ' + inner + 'px',
+       tile > 0 && inner > 0 && need <= inner);
+    // Every rule on the preview alone, merged in order: the decoration's position rule
+    // and the layout rule are separate.
+    const prev = Object.assign({}, ...RULES.filter(r => !r.at && r.selectors.length === 1
+        && r.selectors[0] === '.jpf-theme-preview').map(r => r.decls));
+    ok('and the preview clips anything wider instead of spilling over the card',
+       prev.overflow === 'hidden' && prev['min-width'] === '0');
+    const btn = RULES.filter(r => !r.at && r.selectors.indexOf('.jpf-theme-preview-button') !== -1 && r.selectors.length === 1)[0];
+    ok('its button stays inside the preview, and wraps rather than being cut to MANAGE PR...',
+       !!btn && btn.decls['max-width'] === '100%' && btn.decls['white-space'] === 'normal'
+       && get('.jpf-theme-preview-button', 'white-space') === null);
 }
 
 console.log('');

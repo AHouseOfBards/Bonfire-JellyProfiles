@@ -169,7 +169,10 @@ namespace Jellyfin.Profiles
                         "starlight:'#1a1d29'," +
                         "harbor:'linear-gradient(180deg, #1f3549 0%, #182b3c 50%, #0f1d29 100%)'," +
                         "nightfall:'linear-gradient(170deg, #050507 0%, #0a0714 35%, #1f0e3a 70%, #3a1258 100%)'," +
-                        "glass:'radial-gradient(ellipse at 15% 20%, #5a3f45 0%, rgba(90, 63, 69, 0) 55%), radial-gradient(ellipse at 85% 10%, #2f4d6e 0%, rgba(47, 77, 110, 0) 60%), radial-gradient(ellipse at 70% 95%, #3a3560 0%, rgba(58, 53, 96, 0) 55%), linear-gradient(160deg, #2e3f57 0%, #24324a 60%, #1a2537 100%)'},tc='',k;" +
+                        "glass:'radial-gradient(ellipse at 15% 20%, #5a3f45 0%, rgba(90, 63, 69, 0) 55%), radial-gradient(ellipse at 85% 10%, #2f4d6e 0%, rgba(47, 77, 110, 0) 60%), radial-gradient(ellipse at 70% 95%, #3a3560 0%, rgba(58, 53, 96, 0) 55%), linear-gradient(160deg, #2e3f57 0%, #24324a 60%, #1a2537 100%)'," +
+                        "harvest:'linear-gradient(165deg, #1f0f08 0%, #2e160b 45%, #42200e 100%)'," +
+                        "snowfall:'linear-gradient(180deg, #0a1a2f 0%, #0f2742 55%, #15385a 100%)'," +
+                        "bloom:'linear-gradient(160deg, #0d241a 0%, #123222 55%, #1a4430 100%)'},tc='',k;" +
                     // { last, users: { id: theme } }, one entry per account; see
                     // _readThemeCache in profiles.js.
                     "var th=g('jellyfin_profiles_theme'),tu=th&&th.users,tt=null;" +
