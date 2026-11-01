@@ -26,6 +26,57 @@
     const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
     const DEFAULT_AVATAR_COLOR = '#00A4DC';
 
+    /// The looks Bonfire's own screens can take. Must match Themes.All on the server and
+    /// the [data-jpf-theme] blocks in styles.css; tests/js/themes.js holds the three
+    /// together. The names are proper names, like "Bonfire" itself, and are shown as they
+    /// are in every language, so the dashboard and every profile call a theme the same thing.
+    const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom'];
+    const THEME_NAMES = {
+        bonfire: 'Bonfire',
+        crimson: 'Crimson',
+        starlight: 'Starlight',
+        harbor: 'Harbor',
+        nightfall: 'Nightfall',
+        glass: 'Glass',
+        harvest: 'Harvest',
+        snowfall: 'Snowfall',
+        bloom: 'Bloom'
+    };
+
+    /// GET plugins/profiles/ratings -> [[score, labels], ...], one entry per age.
+    ///
+    /// The server reads the rating table of its own Preferred metadata country — the one
+    /// Jellyfin scored the library with — so these are that country's ratings and no
+    /// others. Not /Localization/ParentalRatings: Jellyfin pads that list with generic
+    /// ages the country does not have, and a padded "10" cannot be told from France's
+    /// real one. See RatingSystems.cs.
+    ///
+    /// A limit is stored as the score alone, so a profile keeps working whichever labels
+    /// are shown. Returns [] for anything unusable, and the caller falls back to the US
+    /// list this form always had.
+    function ratingChoicesFrom(answer) {
+        const list = answer && typeof answer === 'object'
+            ? (Array.isArray(answer.ratings) ? answer.ratings : answer.Ratings) : null;
+        if (!Array.isArray(list)) return [];
+        const seen = {};
+        return list.map(r => {
+            if (!r || typeof r !== 'object') return null;
+            const score = r.score !== undefined ? r.score : r.Score;
+            const labels = (r.labels !== undefined ? r.labels : r.Labels) || [];
+            if (typeof score !== 'number' || score < 0 || score >= 1000 || seen[score]) return null;
+            const names = labels.filter(n => typeof n === 'string' && n.trim()).map(n => n.trim());
+            if (!names.length) return null;
+            seen[score] = true;
+            // Four at most. Canada's 0 alone is E, G, TV-Y and TV-G.
+            return [score, names.slice(0, 4).join(' / ')];
+        }).filter(Boolean).sort((a, b) => a[0] - b[0]);
+    }
+
+    function normalizeTheme(value) {
+        const v = String(value || '').toLowerCase();
+        return THEMES.indexOf(v) !== -1 ? v : 'bonfire';
+    }
+
     /// A library or user id as the server writes one: 32 hex digits, dashed or not.
     function isGuidLike(value) {
         return /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(String(value || ''));
@@ -259,6 +310,8 @@
         'profileForm.oneDeviceAllowed': '1 Device Allowed',
         'profileForm.devicesAllowed': '{count} Devices Allowed',
         'profileForm.noDevicesYet': 'No devices found for your account yet',
+        'profileForm.devicesUnavailable': "Couldn't load your devices. Saving won't change this profile's devices.",
+        'profileForm.devicesUnchanged': 'Devices unchanged',
         'profileForm.noDevicesConnected': 'No connected devices found',
         'profileForm.devicesHint': 'If no devices are selected, this profile can be accessed from any device.',
         'profileForm.unknownDevice': 'Unknown Device',
@@ -285,6 +338,11 @@
         'profileForm.ratingPG': 'PG / TV-PG (10+)',
         'profileForm.ratingPG13': 'PG-13 / TV-14 (14+)',
         'profileForm.ratingR': 'R / TV-MA (17+)',
+        'profileForm.ratingCurrent': 'Current limit (level {score})',
+        'profileForm.ratingAge': '{labels} ({score}+)',
+        'profileForm.theme': 'Theme',
+        'profileForm.themeDefault': 'Server default ({name})',
+        'profileForm.themeHint': 'How these screens look for this profile.',
         'profileForm.blockedTags': 'Blocked tags',
         'profileForm.blockedTagsHint': 'Hides anything with these tags. A tag on a series or library covers everything inside it.',
         'profileForm.allowedTags': 'Allowed tags',
@@ -324,6 +382,9 @@
         'settings.switcherStyleBody': 'Where you reach this screen from, and whether it opens on startup.',
         'settings.yourBonfireTitle': 'Your Bonfire',
         'settings.yourBonfireBody': 'Share your profiles with another home, or join theirs.',
+        'settings.themeTitle': 'Theme',
+        'settings.themeBody': "How Bonfire's screens look for each profile.",
+        'themeSettings.default': 'Default',
 
         'switcher.title': 'Switcher Style',
         'switcher.intro': 'How you reach this screen, for everyone using your account.',
@@ -477,6 +538,23 @@
             .catch(() => { /* stay on English */ });
     }
 
+    // The startup cover: the page painted in the gate's background from before the first
+    // frame until the gate is on top of it. Normally raised by the head script in
+    // index.html (WebInjection.HeadScript), which carries this exact rule; this copy is
+    // for a page without it — the Tizen package loads this script from the server long
+    // after its own index.html has run. tests/js/gatecover.js fails if the two differ.
+    //
+    // The colour is the gate's, through --jpf-gate-bg so a theme can set it in one place.
+    // The plain colour first is for an engine without custom properties, which would
+    // otherwise drop the whole declaration and paint nothing.
+    const GATE_COVER_CSS = 'html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#0d0d12;background:var(--jpf-gate-bg,radial-gradient(circle at 50% 40%,#1e1e2e 0%,#0d0d12 100%));content:""}';
+
+    // How long the cover may stay up without the gate arriving. Each holder (the head
+    // script, and profiles.js once it starts fetching the list) gets this long; a cover
+    // that outlives it comes down and the page shows whatever it has. A flash is the
+    // failure this exists to fix; a screen that stays blank is a much worse one.
+    const GATE_COVER_MS = 3000;
+
     const ProfilesPlugin = {
         config: {
             masterStorageKey: 'jellyfin_profiles_master_state',
@@ -501,7 +579,10 @@
             // Set only on a device that has been told to keep its own answer to the
             // startup question instead of following the household's. Absent on every
             // device that has never been told otherwise, which is the default.
-            deviceGateKey: 'jellyfin_profiles_device_gate'
+            deviceGateKey: 'jellyfin_profiles_device_gate',
+            // The last theme this browser was told for an account, so the first paint is
+            // already in it rather than switching a moment after the gate appears.
+            themeKey: 'jellyfin_profiles_theme'
         },
         pluginId: 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9',
         isManageMode: false,
@@ -514,6 +595,9 @@
         _switchLock: false,
         _switcherPrefs: null,
         _switcherPrefsLoading: false,
+        // { theme, defaultTheme, allow } from the server, or null until it answers. The
+        // profile form offers a theme picker only once this says choosing is allowed.
+        _themeSettings: null,
         _panicDisabled: false,
         // Null until the server answers. Only true reveals the emergency link.
         _panicLinkAvailable: null,
@@ -579,7 +663,7 @@
                     <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
                     <label for="profiles-prompt-input" style="display: block; color: rgba(255,255,255,0.7); font-size: 0.85rem; margin-bottom: 6px;">${escapeHtml(label)}</label>
                     <input id="profiles-prompt-input" type="text" maxlength="64" value="${escapeHtml(initialValue || '')}" style="width: 100%; box-sizing: border-box; margin-bottom: 20px;" />
-                    <div style="display: flex; gap: var(--jpf-gap); justify-content: flex-end;">
+                    <div class="jpf-actions">
                         <button id="prompt-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
                         <button id="prompt-save-btn" type="button" class="profiles-btn btn-primary">${t('common.save')}</button>
                     </div>
@@ -657,7 +741,7 @@
                     <select id="profiles-select-input" style="width: 100%; box-sizing: border-box; margin-bottom: 20px;">
                         ${choices}
                     </select>
-                    <div style="display: flex; gap: var(--jpf-gap); justify-content: flex-end;">
+                    <div class="jpf-actions">
                         <button id="select-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
                         <button id="select-confirm-btn" type="button" class="profiles-btn btn-primary">${t('common.ok')}</button>
                     </div>
@@ -722,9 +806,9 @@
                 ">
                     <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
                     <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
-                    <div style="display: flex; gap: var(--jpf-gap); justify-content: center;">
-                        <button id="dialog-confirm-btn" class="profiles-btn btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.confirm')}</button>
+                    <div class="jpf-actions">
                         <button id="dialog-cancel-btn" class="profiles-btn btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.cancel')}</button>
+                        <button id="dialog-confirm-btn" class="profiles-btn btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.confirm')}</button>
                     </div>
                 </div>
             `;
@@ -1040,6 +1124,9 @@
                 avatarColor: pick(p, 'avatarColor', DEFAULT_AVATAR_COLOR),
                 // Cut-out picture: paint no colour behind it (issue #23).
                 transparentAvatar: pick(p, 'transparentAvatar', false),
+                // The profile's own choice; null follows the server default. Sent to the
+                // account owner only.
+                theme: pick(p, 'theme', null),
                 requiresPin: pick(p, 'requiresPin', false),
                 // "A PIN exists" — distinct from requiresPin, which is false on the LAN when
                 // the bypass is enabled. Forms must use this one.
@@ -1054,6 +1141,7 @@
                 bypassPinOnLocalNetwork: pick(p, 'bypassPinOnLocalNetwork', false),
                 allowedDeviceIds: pick(p, 'allowedDeviceIds', []),
                 enabledFolders: pick(p, 'enabledFolders', []),
+                allLibraries: pick(p, 'allLibraries', false),
                 blockedTags: pick(p, 'blockedTags', []),
                 allowedTags: pick(p, 'allowedTags', []),
                 isBonfire: pick(p, 'isBonfire', false),
@@ -1209,12 +1297,22 @@
             this._sharedForm = Promise.all([
                 fetch(apiClient.getUrl('plugins/profiles/libraries'), { headers })
                     .then(res => res.json()),
+                // null, not [], when the list could not be read. The edit form rebuilds a
+                // profile's allowed devices from the boxes it draws, so an empty list here
+                // used to save as "any device" and switch the restriction off.
                 fetch(apiClient.getUrl('plugins/profiles/devices'), { headers })
-                    .then(res => res.json()).catch(() => []),
+                    .then(res => res.ok ? res.json() : null)
+                    .then(list => Array.isArray(list) ? list : null)
+                    .catch(() => null),
                 this.fetchLibraryTags(apiClient, masterState.token, masterState.masterUserId),
-                this.fetchAvatarLibrary(apiClient, masterState.token)
-            ]).then(([libraries, devices, libraryTags, avatarLibrary]) => ({
-                libraries, devices, libraryTags, avatarLibrary
+                this.fetchAvatarLibrary(apiClient, masterState.token),
+                // The server country's own rating system. Never fails the form: null falls
+                // back to the US list in renderRatingSelect.
+                fetch(apiClient.getUrl('plugins/profiles/ratings'), { headers })
+                    .then(res => res.ok ? res.json() : null)
+                    .catch(() => null)
+            ]).then(([libraries, devices, libraryTags, avatarLibrary, ratings]) => ({
+                libraries, devices, libraryTags, avatarLibrary, ratings
             })).catch(err => {
                 // Never cache a failure. A server that was briefly unreachable would
                 // otherwise keep every form broken until the overlay was closed.
@@ -1289,6 +1387,12 @@
             const isEdit = mode === 'edit';
             const p = isEdit ? '' : 'create-';
             const boxClass = isEdit ? 'device-checkbox' : 'create-device-checkbox';
+            // The server matches device ids ignoring case, and so must this. A whitelisted id
+            // in a different case from the device's record drew an unticked box, and the next
+            // save dropped it from the list.
+            const allowedIds = (isEdit && profile && profile.allowedDeviceIds || [])
+                .map(id => String(id).toLowerCase());
+            const unavailable = devices === null;
 
             const items = (devices && devices.length > 0)
                 ? devices.map(dev => {
@@ -1303,9 +1407,8 @@
                         ? lastSeenDate.toLocaleDateString() : t('profileForm.unknown');
                     // Both spellings, because the list can come from the plugin's own
                     // camelCase JSON or straight off a Jellyfin DTO.
-                    const isChecked = isEdit && profile && profile.allowedDeviceIds
-                        && (profile.allowedDeviceIds.includes(deviceId)
-                            || (dev.DeviceId && profile.allowedDeviceIds.includes(dev.DeviceId)));
+                    const isChecked = allowedIds.indexOf(deviceId.toLowerCase()) !== -1
+                        || (!!dev.DeviceId && allowedIds.indexOf(String(dev.DeviceId).toLowerCase()) !== -1);
                     // Housekeeping actions belong to the edit form only: the create form is
                     // listing devices to tick, and a half-made profile is the wrong place to
                     // be reorganising the household's hardware.
@@ -1337,7 +1440,7 @@
                     `;
                 }).join('')
                 : `
-                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">${t('profileForm.noDevicesYet')}</div>
+                    <div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">${t(unavailable ? 'profileForm.devicesUnavailable' : 'profileForm.noDevicesYet')}</div>
                 `;
 
             return `
@@ -1345,7 +1448,7 @@
                     <label>${t('profileForm.allowedDevices')}</label>
                     <div class="devices-dropdown-container" style="position: relative;">
                         <div id="${p}devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
-                            <span id="${p}devices-dropdown-selected-text">${t('profileForm.allDevicesAllowed')}</span>
+                            <span id="${p}devices-dropdown-selected-text">${t(unavailable && isEdit ? 'profileForm.devicesUnchanged' : 'profileForm.allDevicesAllowed')}</span>
                         </div>
                         <div id="${p}devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
                             ${items}
@@ -1366,18 +1469,33 @@
         /// `maxRating` is compared with ===, so it must already be a number or null.
         /// Passing the raw string from a form control would preselect nothing and
         /// quietly reset the profile's rating on the next save.
-        renderRatingSelect: function (mode, maxRating) {
+        /// `ratings` is the server's plugins/profiles/ratings answer. With it, the
+        /// options are that country's ratings and nothing else; without it — an older
+        /// server, a failed request — they are the four US ones this form always had.
+        renderRatingSelect: function (mode, maxRating, ratings) {
             const id = mode + '-rating-select';
-            const opts = [
-                ['', 'profileForm.noRestrictions'],
-                ['6', 'profileForm.ratingG'],
-                ['10', 'profileForm.ratingPG'],
-                ['14', 'profileForm.ratingPG13'],
-                ['17', 'profileForm.ratingR'],
-            ].map(([value, key]) => {
+            const country = ratingChoicesFrom(ratings);
+            // [value, text]. Country labels are official codes (12A, FSK 16, 14A) and are
+            // shown as they are in every language; only the age around them is translated.
+            const choices = [['', t('profileForm.noRestrictions')]].concat(country.length
+                ? country.map(([score, labels]) => [String(score), t('profileForm.ratingAge', { labels: escapeHtml(labels), score: score })])
+                : [
+                    ['6', t('profileForm.ratingG')],
+                    ['10', t('profileForm.ratingPG')],
+                    ['14', t('profileForm.ratingPG13')],
+                    ['17', t('profileForm.ratingR')]
+                ]);
+            // A limit set in Dashboard -> Users is any score, not necessarily one offered
+            // here. With no option to preselect, the select fell back to "No Restrictions"
+            // and the next save cleared the limit, whatever the save was for. It gets an
+            // option of its own.
+            const unlisted = typeof maxRating === 'number'
+                && !choices.some(([value]) => value !== '' && Number(value) === maxRating);
+            if (unlisted) choices.push([String(maxRating), t('profileForm.ratingCurrent', { score: maxRating })]);
+            const opts = choices.map(([value, text]) => {
                 const current = value === '' ? maxRating === null || maxRating === undefined
                     : maxRating === Number(value);
-                return `<option value="${value}" ${current ? 'selected' : ''}>${t(key)}</option>`;
+                return `<option value="${value}" ${current ? 'selected' : ''}>${text}</option>`;
             }).join('\n                            ');
 
             return `
@@ -1626,7 +1744,13 @@
             // Before injectStyles, so the sheet's .jpf-tv and .jpf-no-flex-gap rules match
             // on the first paint rather than after a reflow the viewer can see.
             this._step('applyDeviceClasses', () => this.applyDeviceClasses());
+            // Same reason: the first frame of the gate should already be in this
+            // account's theme.
+            this._step('applyCachedTheme', () => this.applyCachedTheme());
             this._step('injectStyles', () => this.injectStyles());
+            // Before anything that can decide about the gate, so every one of those
+            // decisions knows whether a cover is waiting on it.
+            this._step('_adoptCover', () => this._adoptCover());
             // Kicked off before the first route check so the gate decision is usually made
             // with the real answer in hand rather than the cached one.
             // Before any Jellyfin view renders: the cached rules have to be in the document
@@ -1660,6 +1784,8 @@
                 if (this._pendingReveal) this._revealPage();
                 doCheck();
             });
+
+            this._bindSettingsRefresh();
 
             // SPA navigation events
             window.addEventListener('popstate', doCheck);
@@ -1935,6 +2061,7 @@
             // script's opacity:0. Either would leave this message invisible.
             document.documentElement.style.removeProperty('opacity');
             document.documentElement.style.removeProperty('background');
+            this._dropCover();
             const overlay = document.getElementById('profiles-gate-overlay');
             if (overlay) overlay.remove();
 
@@ -1987,7 +2114,15 @@
                 }
             } else {
                 // If we navigate away from home, ensure the overlay is removed if it somehow got stuck
-                if (document.getElementById('profiles-gate-overlay') && this.isProfileSessionActive()) {
+                //
+                // Not while a switch is reloading the page. executeProfileSwitch marks the
+                // new profile active *before* it reloads, which is exactly this test's
+                // "stuck" signature — so on any page but home (the switcher opened from the
+                // button or the user menu) the next tick took the opaque gate down and showed
+                // the old profile's page until the navigation landed. On a television that is
+                // most of a second.
+                if (!this._reloading
+                    && document.getElementById('profiles-gate-overlay') && this.isProfileSessionActive()) {
                     this.removeProfileOverlay();
                 }
             }
@@ -2091,6 +2226,16 @@
             // revealing now would show a blank page during the profile fetch.
             if (!skipReveal) this._revealPage();
 
+            // The startup cover is waiting on exactly the decision made above. If it was
+            // not "raise the gate" — a profile is already active, the preferences say no
+            // or are not this account's, this is not home, the sign-in page — there is
+            // nothing coming to replace it. A cached boolean first: this runs twice a
+            // second for the life of the page, and the cover is up for a second or two of
+            // it at most.
+            // Off home it comes down even while a gate request is out: that gate is never
+            // going to be drawn here.
+            if (this._coverUp && !skipReveal && !this._coverForSwitch
+                && (!isHome || !this._coverHeldForGate)) this._dropCover();
         },
 
         // Smoothly fades the page back in after a profile switch.
@@ -2154,6 +2299,130 @@
             if (!m) return false;
             const r = parseFloat(m[1]), g = parseFloat(m[2]), b = parseFloat(m[3]);
             return (0.2126 * r + 0.7152 * g + 0.0722 * b) > 128;
+        },
+
+        // ── The startup cover ──────────────────────────────────────────────────────
+        //
+        // With "Ask on startup" on, the home screen used to be on view before the gate:
+        // jellyfin-web renders home as soon as it has a user, while the gate waits for the
+        // first route check (200 ms after init, which itself waits for ApiClient), then for
+        // the profile list from the server, then fades in from opacity 0 over 220 ms. On a
+        // phone that was a third of a second of somebody else's Continue Watching; on a
+        // television more. The head script now covers the page before the first frame
+        // when the cached preferences say the gate is coming — see WebInjection.HeadScript
+        // for the rules it decides by — and everything here is about taking it down again
+        // at the right moment:
+        //
+        //   - the gate is drawn and opaque           -> showProfileOverlay
+        //   - the gate is not coming after all       -> checkRoute, interceptHomeAndShowProfiles
+        //   - the gate request failed                -> fetchAndRenderProfiles
+        //   - the emergency disable, a failed reload -> applyPanicDisable, _reloadFailed
+        //   - none of the above within GATE_COVER_MS -> the backstop timer
+        //
+        // It is a pseudo-element under the gate's z-index, not opacity on <html>, so the
+        // gate can be drawn and fade in while the cover is still behind it, and dropping
+        // the cover is then invisible because the two are the same colour.
+
+        _coverUp: false,
+        _coverHeldForGate: false,
+        _coverExtended: false,
+
+        /// The gate's fade-in (#profiles-gate-overlay's `transition: opacity 0.22s`), with
+        /// a margin. Change the two together.
+        GATE_FADE_MS: 260,
+
+        /// Notes a cover the head script put up, or puts one up when a page that has no
+        /// head script — the Tizen package — is heading for the gate. The second case is
+        /// late by construction (the package's own page has been showing for a while) but
+        /// still takes home off the screen sooner than the gate would.
+        _adoptCover: function () {
+            const root = document.documentElement;
+            if (root.getAttribute('data-jpf-cover') !== null) {
+                this._coverUp = true;
+                return;
+            }
+            // Only the head script knows about the reload that is landing; that page has
+            // its own cover and no gate.
+            if (window.__jpSwitching) return;
+            if (!this._gateIsComing()) return;
+
+            if (!document.getElementById('jpf-cover-css')) {
+                const style = document.createElement('style');
+                style.id = 'jpf-cover-css';
+                style.textContent = GATE_COVER_CSS;
+                document.head.appendChild(style);
+            }
+            root.setAttribute('data-jpf-cover', '');
+            this._coverUp = true;
+            this._armCoverBackstop();
+        },
+
+        /// checkRoute's gate decision, asked ahead of time from what is already cached.
+        /// Every input unknown or missing reads as no.
+        _gateIsComing: function () {
+            try {
+                if (localStorage.getItem(this.config.panicKey)) return false;
+            } catch (e) { return false; }
+            if (!this._hasStoredSession()) return false;
+            return this.isHomeRoute() && this.shouldAskOnStartup() && !this.isProfileSessionActive();
+        },
+
+        /// True when jellyfin-web holds a token for some server. ApiClient's own token is
+        /// empty for a moment during startup, so it is not the thing to ask.
+        _hasStoredSession: function () {
+            try {
+                const creds = JSON.parse(localStorage.getItem('jellyfin_credentials') || 'null');
+                return !!(creds && Array.isArray(creds.Servers) && creds.Servers.some(s => s && !!s.AccessToken));
+            } catch (e) {
+                return false;
+            }
+        },
+
+        _armCoverBackstop: function () {
+            try { clearTimeout(window.__jpCoverT); } catch (e) { /* none armed */ }
+            window.__jpCoverT = setTimeout(() => this._dropCover(), GATE_COVER_MS);
+        },
+
+        /// The gate request is out. The head script's timer started before this script had
+        /// even loaded, so it gets one fresh allowance — once, so a gate that never comes
+        /// is still bounded.
+        _holdCoverForGate: function () {
+            if (!this._coverUp) return;
+            this._coverHeldForGate = true;
+            if (this._coverExtended) return;
+            this._coverExtended = true;
+            this._armCoverBackstop();
+        },
+
+        /// Puts the cover up for a switch that is about to reload the page. No timer: the
+        /// reload replaces the document, and _reloadFailed drops it if that never happens.
+        _holdCoverForSwitch: function () {
+            try {
+                if (!document.getElementById('jpf-cover-css')) {
+                    const style = document.createElement('style');
+                    style.id = 'jpf-cover-css';
+                    style.textContent = GATE_COVER_CSS;
+                    (document.head || document.documentElement).appendChild(style);
+                }
+                clearTimeout(window.__jpCoverT);
+                window.__jpCoverT = null;
+                document.documentElement.setAttribute('data-jpf-cover', '');
+                this._coverUp = true;
+                this._coverForSwitch = true;
+            } catch (e) { /* no document: nothing to cover */ }
+        },
+
+        /// Takes the cover down. Safe to call at any time, any number of times, and with
+        /// no cover up; it also clears one this object never noticed going up.
+        _dropCover: function () {
+            this._coverUp = false;
+            this._coverForSwitch = false;
+            this._coverHeldForGate = false;
+            try {
+                clearTimeout(window.__jpCoverT);
+                window.__jpCoverT = null;
+            } catch (e) { /* no timer */ }
+            try { document.documentElement.removeAttribute('data-jpf-cover'); } catch (e) { /* no document */ }
         },
 
         _revealPage: function () {
@@ -2425,6 +2694,8 @@
         applyPanicDisable: function (persist) {
             this._panicDisabled = true;
             this._releaseOverlayFocusTrap();
+            // The cover is waiting for a gate this has just forbidden.
+            this._dropCover();
 
             if (persist) {
                 try {
@@ -2814,6 +3085,190 @@
             } catch (e) { /* storage full or blocked — the in-memory copy still works */ }
         },
 
+        // ── Theme ──────────────────────────────────────────────────────────────────
+        // One attribute on <html>; styles.css does the rest. Per profile, so it is cached
+        // per account: on a shared browser the next person must not inherit the last one's.
+
+        /// Puts a theme on the page. Unknown ids become Bonfire, so a stale cache or an
+        /// older server can never leave the attribute naming a theme the sheet does not have
+        /// (which would leave the tints resolving to nothing).
+        applyTheme: function (theme) {
+            const root = document.documentElement;
+            if (!root) return;
+            const id = normalizeTheme(theme);
+            if (root.getAttribute('data-jpf-theme') !== id) root.setAttribute('data-jpf-theme', id);
+        },
+
+        /// The stored themes: { last, users: { normalisedUserId: theme } }.
+        ///
+        /// One entry per account, not one for the device. It was one, and a household
+        /// overwrote it every time it moved between profiles: open as the main account,
+        /// pick a child's profile, and the child's theme replaced the parent's — so the next
+        /// start drew the "Who's watching?" screen, and the cover before it, in Bonfire's
+        /// colours instead of the parent's. Reads the 1.6.6.1 development shape too.
+        _readThemeCache: function () {
+            let raw = null;
+            try { raw = JSON.parse(localStorage.getItem(this.config.themeKey) || 'null'); } catch (e) { /* unreadable */ }
+            const cache = { last: null, users: {} };
+            if (!raw || typeof raw !== 'object') return cache;
+            if (raw.users && typeof raw.users === 'object') {
+                Object.keys(raw.users).forEach(k => {
+                    if (typeof raw.users[k] === 'string') cache.users[k] = raw.users[k];
+                });
+            } else if (raw.userId && typeof raw.theme === 'string') {
+                cache.users[this.normalizeGuid(raw.userId)] = raw.theme;
+            }
+            cache.last = typeof raw.last === 'string' ? raw.last : (typeof raw.theme === 'string' ? raw.theme : null);
+            return cache;
+        },
+
+        /// The theme stored for whoever is signed in, applied before the server answers.
+        /// Before anyone is signed in it applies the last one stored on this device, which is
+        /// the person most likely to be signing in.
+        applyCachedTheme: function () {
+            const cache = this._readThemeCache();
+
+            let current = '';
+            try {
+                if (typeof ApiClient !== 'undefined' && ApiClient) {
+                    current = this.normalizeGuid(ApiClient.getCurrentUserId());
+                }
+            } catch (e) { /* no client yet */ }
+
+            const theme = current ? cache.users[current] : cache.last;
+            if (theme) this.applyTheme(theme);
+        },
+
+        /// Records and applies what the server said, from loadSwitcherPrefs.
+        _setThemeSettings: function (prefs) {
+            const read = (name) => prefs[name] !== undefined
+                ? prefs[name]
+                : prefs[name.charAt(0).toUpperCase() + name.slice(1)];
+
+            // A server older than this build sends none of these. Leave the page as it is
+            // and offer no picker, rather than pretend the server knows about themes.
+            if (read('theme') === undefined) return;
+
+            const settings = {
+                theme: normalizeTheme(read('theme')),
+                defaultTheme: normalizeTheme(read('defaultTheme')),
+                allow: read('allowProfileThemes') !== false
+            };
+            this._themeSettings = settings;
+            this.applyTheme(settings.theme);
+
+            try {
+                const userId = (typeof ApiClient !== 'undefined' && ApiClient) ? this.normalizeGuid(ApiClient.getCurrentUserId()) : '';
+                if (userId) {
+                    const cache = this._readThemeCache();
+                    // Re-inserted so the most recent is last, and capped: a browser that
+                    // has seen many accounts keeps only the most recent twenty.
+                    delete cache.users[userId];
+                    cache.users[userId] = settings.theme;
+                    const ids = Object.keys(cache.users);
+                    ids.slice(0, Math.max(0, ids.length - 20)).forEach(k => { delete cache.users[k]; });
+                    cache.last = settings.theme;
+                    localStorage.setItem(this.config.themeKey, JSON.stringify(cache));
+                }
+            } catch (e) { /* storage full or blocked — it still applies for this page */ }
+        },
+
+        /// The theme picker for the profile forms, or '' when the server does not let
+        /// profiles choose (or has not said). `stored` is the profile's own choice, null for
+        /// "follow the server default".
+        renderThemePicker: function (prefix, stored) {
+            const settings = this._themeSettings;
+            if (!settings || !settings.allow) return '';
+
+            const chosen = stored && THEMES.indexOf(String(stored).toLowerCase()) !== -1
+                ? String(stored).toLowerCase() : '';
+            const shown = chosen || settings.defaultTheme;
+
+            return `
+                <div class="form-group" id="${prefix}-theme-group">
+                    <label for="${prefix}-theme-select">${t('profileForm.theme')}</label>
+                    <select id="${prefix}-theme-select">
+                        <option value="" ${chosen ? '' : 'selected'}>${t('profileForm.themeDefault', { name: THEME_NAMES[settings.defaultTheme] })}</option>
+                        ${THEMES.map(id => `<option value="${id}" ${chosen === id ? 'selected' : ''}>${THEME_NAMES[id]}</option>`).join('')}
+                    </select>
+                    ${this.renderThemePreview(shown, prefix + '-theme-preview')}
+                    <div class="form-hint">${t('profileForm.themeHint')}</div>
+                </div>
+            `;
+        },
+
+        /// A small "Who's watching?" wearing one theme: its name as the title, three tiles
+        /// with the first in the theme's focus frame, and a button. Drawn entirely from the
+        /// theme's tokens through its own data-jpf-theme, so it is what choosing it does.
+        renderThemePreview: function (theme, id) {
+            const shown = normalizeTheme(theme);
+            return `
+                <div class="jpf-theme-preview" ${id ? `id="${id}"` : ''} data-jpf-theme="${shown}" aria-hidden="true">
+                    <span class="jpf-theme-preview-name">${THEME_NAMES[shown]}</span>
+                    <span class="jpf-theme-preview-tiles">
+                        <span class="jpf-theme-preview-tile"></span><span class="jpf-theme-preview-tile"></span><span class="jpf-theme-preview-tile"></span>
+                    </span>
+                    <span class="jpf-theme-preview-button">${t('gate.manageProfiles')}</span>
+                </div>
+            `;
+        },
+
+        /// Keeps the preview in step with the select. Safe to call when there is no picker.
+        bindThemePicker: function (prefix) {
+            const select = document.getElementById(prefix + '-theme-select');
+            const preview = document.getElementById(prefix + '-theme-preview');
+            if (!select || !preview) return;
+            select.addEventListener('change', () => {
+                const settings = this._themeSettings;
+                const id = select.value ? normalizeTheme(select.value)
+                    : (settings ? settings.defaultTheme : 'bonfire');
+                preview.setAttribute('data-jpf-theme', id);
+                const name = preview.querySelector('.jpf-theme-preview-name');
+                if (name) name.textContent = THEME_NAMES[id];
+            });
+        },
+
+        /// What the form sends: the select's value ('' = server default), or undefined
+        /// when there is no picker, which the server reads as "leave it alone".
+        readThemePicker: function (prefix) {
+            const select = document.getElementById(prefix + '-theme-select');
+            return select ? (select.value ? normalizeTheme(select.value) : '') : undefined;
+        },
+
+        /// How often coming back to the app may re-read the preferences. A television
+        /// woken from standby, a phone unlocked: once a minute is plenty, and it keeps a
+        /// tab being flicked between from asking every time.
+        SETTINGS_REFRESH_MS: 60000,
+
+        /// Picks up a changed theme, or any other preference, without a reload.
+        ///
+        /// The theme used to arrive once per page load, so an administrator changing the
+        /// server default, or anyone changing a profile's theme on another device, saw
+        /// nothing until the app was restarted. Three signals now re-read it:
+        ///   - 'jpf-settings-changed' on this window, which the admin page dispatches after
+        ///     a save — it runs inside jellyfin-web, in the same window as this script;
+        ///   - a write to SETTINGS_EPOCH_KEY from another tab, which the admin page also
+        ///     makes, and which arrives here as a 'storage' event;
+        ///   - the page becoming visible again, at most once a minute.
+        /// None of these is on the route poll, which must not grow (see checkRoute).
+        _bindSettingsRefresh: function () {
+            if (this._settingsRefreshBound || typeof window === 'undefined' || !window.addEventListener) return;
+            this._settingsRefreshBound = true;
+            const refresh = () => {
+                this._lastSettingsRefresh = Date.now();
+                this.loadSwitcherPrefs();
+            };
+            window.addEventListener('jpf-settings-changed', refresh);
+            window.addEventListener('storage', (e) => {
+                if (e && e.key === 'jellyfin_profiles_settings_epoch') refresh();
+            });
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState !== 'visible') return;
+                if (Date.now() - (this._lastSettingsRefresh || 0) < this.SETTINGS_REFRESH_MS) return;
+                refresh();
+            });
+        },
+
         /// Refreshes the cached preferences from the server. Called once per page load;
         /// re-runs the route check afterwards so a first-ever load on a new device settles
         /// into the right behaviour without the user having to navigate.
@@ -2847,6 +3302,7 @@
                 const changed = !before || before.askOnStartup !== ask || before.location !== location;
                 this._cacheSwitcherPrefs(ask, location, master);
                 this._panicLinkAvailable = emergency;
+                this._setThemeSettings(prefs);
                 // The gate may already be on screen — reveal or hide the link in place
                 // rather than waiting for the next load.
                 this.applyPanicLinkVisibility();
@@ -3000,7 +3456,14 @@
             const currentUserId = apiClient.getCurrentUserId();
             const token = apiClient.accessToken();
 
+            // Not a reason to drop the cover. During startup jellyfin-web sits on /web/ —
+            // which is home as far as isHomeRoute can tell — before it knows who is signed
+            // in, and the route poll asks again next tick. Taking the cover down here put
+            // the flash straight back. A sign-in page is not home, so checkRoute drops it
+            // there; anything else is the backstop's.
             if (!currentUserId || !token) return;
+
+            this._holdCoverForGate();
 
             // Listed as whoever is signed in. The household's master is learned from the list
             // (fetchAndRenderProfiles) rather than assumed to be the current user, which it is
@@ -3058,6 +3521,11 @@
                 return res.json();
             })
             .then(profiles => {
+                // Not a reason to drop the startup cover: the route poll re-asks for the
+                // list on every tick until the gate exists, so a stale ticket is usually
+                // just one of those duplicates arriving after another has drawn the gate —
+                // or before it, with the gate still on its way. Dropping here showed home
+                // through the gate's fade. A cover nothing replaces is the backstop's.
                 if (!this.navIsCurrent(ticket)) return;
                 const normalized = this.normalizeProfiles(profiles);
                 // The household's own master: the master tile that is not a linked Bonfire.
@@ -3072,6 +3540,9 @@
             })
             .catch(err => {
                 console.error("Failed to load sub-profiles:", err);
+                // No gate is coming from this attempt. The poll will try again and the
+                // home screen may show in between — which is the honest state of things.
+                this._dropCover();
                 localStorage.removeItem(this.config.masterStorageKey);
             });
         },
@@ -3139,6 +3610,14 @@
             // layer created silently), second begins the CSS opacity transition.
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 overlay.style.opacity = ''; // CSS transition takes over
+                // The startup cover comes down once the fade has finished and the gate is
+                // opaque — dropping it at the start of the fade showed home through a
+                // half-transparent gate, which is the flash again. The cover is the same
+                // colour as the gate, so the fade itself is not lost.
+                if (this._coverUp) {
+                    this._coverHeldForGate = true;
+                    setTimeout(() => this._dropCover(), this.GATE_FADE_MS);
+                }
             }));
 
             // Auto-focus the first interactive element so TV/keyboard users
@@ -3590,7 +4069,7 @@
             const back = surface.querySelector(
                 '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
                 '#pin-cancel-btn, #master-pin-cancel-btn, #create-cancel-btn, #edit-cancel-btn, ' +
-                '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #profiles-resume-btn, #profiles-libart-cancel'
+                '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #theme-settings-back-btn, #profiles-resume-btn, #profiles-libart-cancel'
             );
             if (back) back.click();
         },
@@ -4157,8 +4636,10 @@
                 `;
             }
 
+            // jpf-one-home: one household on screen, so its heading names nothing the title
+            // has not. Themes without a panel round each household hide it then.
             overlay.innerHTML = `
-                <div class="profiles-modal-content anim-fade-in">
+                <div class="profiles-modal-content anim-fade-in${groupKeys.length === 1 ? ' jpf-one-home' : ''}">
                     <h1 class="profiles-title">${title}</h1>
                     ${sectionsHtml}
                     <div class="profiles-footer">
@@ -4394,9 +4875,9 @@
                 <div class="pin-entry-container">
                     <input type="text" id="profile-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
                     <div id="pin-error-msg" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
-                    <div class="pin-actions">
-                        <button id="pin-submit-btn" class="profiles-btn btn-primary">${t('common.unlock')}</button>
+                    <div class="pin-actions jpf-actions">
                         <button id="pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.back')}</button>
+                        <button id="pin-submit-btn" class="profiles-btn btn-primary">${t('common.unlock')}</button>
                     </div>
                 </div>
             `;
@@ -4506,9 +4987,9 @@
                 <div class="pin-entry-container">
                     <input type="text" id="master-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
                     <div id="master-pin-error-msg" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
-                    <div class="pin-actions">
-                        <button id="master-pin-submit-btn" class="profiles-btn btn-primary">${t('common.submit')}</button>
+                    <div class="pin-actions jpf-actions">
                         <button id="master-pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
+                        <button id="master-pin-submit-btn" class="profiles-btn btn-primary">${t('common.submit')}</button>
                     </div>
                 </div>
             `;
@@ -4744,6 +5225,12 @@
                 // meant a phone showed several seconds of black with nothing to say the tap
                 // had registered. Only the background is calmed towards the next page.
                 const leavingBg = this._captureLeavingBackground();
+                // A second layer under the gate, in its colour, for as long as this page
+                // lives. The gate is the cover while it stays up; this is for the moment
+                // it does not — whatever takes it down before the navigation lands, the
+                // old profile's home is not what shows. Only the reload failing takes it
+                // down (_reloadFailed), so there is no backstop timer to race the reload.
+                this._holdCoverForSwitch();
                 const overlay = document.getElementById('profiles-gate-overlay');
                 if (overlay) {
                     overlay.style.transition = 'background 0.2s ease';
@@ -5560,8 +6047,8 @@
             // Everything this form needs is account-wide, so it is usually already
             // cached from the prefetch that ran when the overlay opened.
             this.fetchSharedFormData(apiClient, masterState)
-            .then(shared => [shared.libraries, shared.devices, shared.libraryTags, shared.avatarLibrary])
-            .then(([libraries, devices, libraryTags, avatarLibrary]) => {
+            .then(shared => [shared.libraries, shared.devices, shared.libraryTags, shared.avatarLibrary, shared.ratings])
+            .then(([libraries, devices, libraryTags, avatarLibrary, ratings]) => {
                 if (!this.navIsCurrent(ticket)) return;
                 const normalizedLibs = (libraries || []).map(lib => ({
                     id: lib.id || lib.Id,
@@ -5584,6 +6071,7 @@
                         <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
                     </div>
                     ${this.renderAvatarPicker('create', avatarLibrary, null, DEFAULT_AVATAR_COLOR, { enabled: false })}
+                    ${this.renderThemePicker('create', null)}
                 `;
 
                 // ── Section 2: getting into this profile ────────────────────────
@@ -5640,7 +6128,7 @@
                 const createRestrictions = `
                     ${this.renderDeviceDropdown('create', devices, null)}
 
-                    ${this.renderRatingSelect('create', null)}
+                    ${this.renderRatingSelect('create', null, ratings)}
                     ${this.renderTagSection('create', libraryTags, null)}
                 `;
 
@@ -5657,9 +6145,9 @@
                         </div>
 
                         <div id="create-error-msg" class="form-error" style="display:none;"></div>
-                        <div class="pin-actions">
-                            <button id="create-submit-btn" class="profiles-btn btn-primary">${t('common.create')}</button>
+                        <div class="profile-dialog-actions jpf-actions">
                             <button id="create-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
+                            <button id="create-submit-btn" class="profiles-btn btn-primary">${t('common.create')}</button>
                         </div>
                     </div>
                 `;
@@ -5832,7 +6320,8 @@
                             profileImage: avatarPicker.get().image,
                             profileImageThumb: avatarPicker.get().thumb,
                             avatarLibraryId: avatarPicker.get().libraryId,
-                            transparentAvatar: avatarPicker.get().transparent
+                            transparentAvatar: avatarPicker.get().transparent,
+                            theme: this.readThemePicker('create')
                         })
                     })
                     .then(res => {
@@ -5851,6 +6340,7 @@
                 document.getElementById('create-cancel-btn').addEventListener('click', () => {
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
                 });
+                this.bindThemePicker('create');
                 this.initTVCheckboxes(content);
                 this.initTagEditors(content);
             });
@@ -5871,8 +6361,8 @@
                 this.fetchSharedFormData(apiClient, masterState),
                 fetch(userUrl, { headers: this.getAuthHeaders(masterState.token) }).then(res => res.json())
             ])
-            .then(([shared, userDetails]) => [shared.libraries, userDetails, shared.devices, shared.libraryTags, shared.avatarLibrary])
-            .then(([libraries, userDetails, devices, libraryTags, avatarLibrary]) => {
+            .then(([shared, userDetails]) => [shared.libraries, userDetails, shared.devices, shared.libraryTags, shared.avatarLibrary, shared.ratings])
+            .then(([libraries, userDetails, devices, libraryTags, avatarLibrary, ratings]) => {
                 if (!this.navIsCurrent(ticket)) return;
                 const normalizedLibs = (libraries || []).map(lib => ({
                     id: lib.id || lib.Id,
@@ -5905,6 +6395,7 @@
                         <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
                     </div>
                     ${this.renderAvatarPicker('edit', avatarLibrary, profile.profileImage, profile.avatarColor, { enabled: !!profile.transparentAvatar })}
+                    ${this.renderThemePicker('edit', profile.theme)}
                 `;
 
                 // ── Section 2: getting into this profile ────────────────────────
@@ -5969,7 +6460,12 @@
                             ${normalizedLibs.map(lib => {
                                 const storedFolders = profile.enabledFolders;
                                 let isChecked;
-                                if (storedFolders !== null && storedFolders !== undefined) {
+                                // "Every library" is saved as nothing ticked, so it is shown
+                                // that way. Drawn with every box ticked, the next save would
+                                // send them all and turn it into a fixed list.
+                                if (profile.allLibraries) {
+                                    isChecked = false;
+                                } else if (storedFolders !== null && storedFolders !== undefined) {
                                     isChecked = storedFolders.some(id => this.normalizeGuid(id) === this.normalizeGuid(lib.id));
                                 } else {
                                     isChecked = enableAll || !blockedFolders.some(bf => this.normalizeGuid(bf) === this.normalizeGuid(lib.id));
@@ -6005,7 +6501,7 @@
                 const restrictionsBody = `
                     ${this.renderDeviceDropdown('edit', devices, profile)}
 
-                    ${this.renderRatingSelect('edit', maxRating)}
+                    ${this.renderRatingSelect('edit', maxRating, ratings)}
                     ${this.renderTagSection('edit', libraryTags, profile)}
                 `;
 
@@ -6021,14 +6517,14 @@
                             ${isSub ? this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), restrictionsBody) : ''}
                         </div>
 
-                        <div class="profile-dialog-actions">
+                        <div class="profile-dialog-actions jpf-actions">
                             <div class="dialog-action-buttons">
-                                <button id="edit-submit-btn" class="profiles-btn btn-primary">${t('common.save')}</button>
                                 <button id="edit-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
+                                ${isSub ? `
+                                    <button id="edit-delete-btn" class="profiles-btn btn-danger-quiet">${t('profileForm.deleteProfile')}</button>
+                                ` : ''}
                             </div>
-                            ${isSub ? `
-                                <button id="edit-delete-btn" class="profiles-btn btn-danger-quiet">${t('profileForm.deleteProfile')}</button>
-                            ` : ''}
+                            <button id="edit-submit-btn" class="profiles-btn btn-primary">${t('common.save')}</button>
                         </div>
                     </div>
                 `;
@@ -6137,7 +6633,9 @@
                 const updateSelectedText = () => {
                     const checked = Array.from(content.querySelectorAll('.device-checkbox:checked'));
                     const txt = document.getElementById('devices-dropdown-selected-text');
-                    if (txt) {
+                    if (txt && devices === null) {
+                        txt.textContent = t('profileForm.devicesUnchanged');
+                    } else if (txt) {
                         if (checked.length === 0) {
                             txt.textContent = t('profileForm.allDevicesAllowed');
                         } else if (checked.length === 1) {
@@ -6343,10 +6841,14 @@
                         // An empty array tells the server "allow no libraries",
                         // while null means "inherit all accessible libraries from master".
                         checkedLibs = rawLibs.length > 0 ? rawLibs : null;
-                        checkedDevices = [];
-                        content.querySelectorAll('.device-checkbox:checked').forEach(cb => {
-                            checkedDevices.push(cb.value);
-                        });
+                        // Null leaves the list as it is. With no device list to draw there
+                        // are no boxes, and [] would mean "any device".
+                        if (devices !== null) {
+                            checkedDevices = [];
+                            content.querySelectorAll('.device-checkbox:checked').forEach(cb => {
+                                checkedDevices.push(cb.value);
+                            });
+                        }
                     }
                     const lockoutSel = document.getElementById('edit-lockout-select');
                     const lockoutMinutes = lockoutSel ? parseInt(lockoutSel.value, 10) : undefined;
@@ -6410,13 +6912,26 @@
                             profileImage: avatarPicker.get().image,
                             profileImageThumb: avatarPicker.get().thumb,
                             avatarLibraryId: avatarPicker.get().libraryId,
-                            transparentAvatar: avatarPicker.get().transparent
+                            transparentAvatar: avatarPicker.get().transparent,
+                            theme: this.readThemePicker('edit')
                         })
                     })
                     .then(res => {
                         if (!res.ok) return res.text().then(text => { throw new Error(text); });
                         // Artwork is stored per library, so it is saved after the profile
                         // itself rather than folded into that one request.
+                        // The account on screen changed its own theme: put it on now rather
+                        // than on the next load. Any other profile's theme shows when it is
+                        // opened.
+                        const savedTheme = this.readThemePicker('edit');
+                        if (savedTheme !== undefined && this._themeSettings
+                            && this.normalizeGuid(profile.profileUserId) === this.normalizeGuid(ApiClient.getCurrentUserId())) {
+                            this._setThemeSettings({
+                                theme: savedTheme || this._themeSettings.defaultTheme,
+                                defaultTheme: this._themeSettings.defaultTheme,
+                                allowProfileThemes: this._themeSettings.allow
+                            });
+                        }
                         return artworkEditor.save(profile.profileUserId).then(() => {
                             this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
                         });
@@ -6438,6 +6953,7 @@
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
                 });
                 const artworkEditor = this.initLibraryArtworkEditor(content, profile.profileUserId);
+                this.bindThemePicker('edit');
                 this.initTVCheckboxes(content);
                 this.initTagEditors(content);
             })
@@ -6464,7 +6980,7 @@
                         <div style="display: flex; justify-content: center; padding: 20px;">
                             <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: jpfSpin 1s linear infinite;"></div>
                         </div>
-                        <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
+                        <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
                             <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
                         </div>
                     </div>
@@ -6508,13 +7024,8 @@
             if (!content) return;
 
             const entry = (id, icon, title, body) => `
-                <div class="settings-menu-entry focusable" id="${id}" tabindex="0" role="button" style="
-                    display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
-                    border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
-                    border: 2px solid rgba(255,255,255,0.08);
-                    background: rgba(255,255,255,0.02);
-                ">
-                    <span class="material-icons" style="font-size: 2rem; color: rgba(255,255,255,0.5); flex-shrink: 0;">${icon}</span>
+                <div class="settings-menu-entry jpf-choice focusable" id="${id}" tabindex="0" role="button">
+                    <span class="material-icons jpf-choice-icon">${icon}</span>
                     <div style="flex: 1 1 auto; min-width: 0;">
                         <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
                         <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
@@ -6530,8 +7041,11 @@
                             t('settings.switcherStyleBody'))}
                         ${entry('settings-your-bonfire', 'local_fire_department', t('settings.yourBonfireTitle'),
                             t('settings.yourBonfireBody'))}
+                        ${this._themeSettings && this._themeSettings.allow
+                            ? entry('settings-theme', 'palette', t('settings.themeTitle'), t('settings.themeBody'))
+                            : ''}
                     </div>
-                    <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
                         <button id="settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.back')}</button>
                     </div>
                 </div>
@@ -6547,6 +7061,7 @@
             };
             open('settings-switcher-style', this.showSwitcherModeModal);
             open('settings-your-bonfire', this.showBonfireModal);
+            open('settings-theme', () => this.showThemeSettings(null));
 
             const back = content.querySelector('#settings-back-btn');
             if (back) {
@@ -6558,6 +7073,131 @@
                 });
             }
 
+        },
+
+        /// Settings → Theme: every theme as a small preview, for one profile at a time.
+        ///
+        /// The profile form already had a picker, but nobody looks for a theme inside a
+        /// profile's restrictions; Settings is where it was looked for and not found. Each
+        /// choice saves at once through /theme, which changes nothing else on the profile,
+        /// and when the profile is the one signed in the screen changes with it.
+        showThemeSettings: function (selectedId) {
+            this.beginNavigation();
+            const content = document.querySelector('.profiles-modal-content');
+            const settings = this._themeSettings;
+            const masterState = this.readMasterState();
+            if (!content || !settings || !settings.allow || !masterState) {
+                this.showSettingsMenu();
+                return;
+            }
+
+            // This household's own profiles; a linked Bonfire's are theirs to style.
+            const people = (this.currentProfiles || []).filter(p => !p.isBonfire);
+            if (!people.length) { this.showSettingsMenu(); return; }
+
+            const signedIn = this.normalizeGuid(ApiClient.getCurrentUserId());
+            const pick = (id) => people.find(p => this.normalizeGuid(p.profileUserId) === this.normalizeGuid(id));
+            const person = pick(selectedId) || pick(signedIn) || people.find(p => p.isMaster) || people[0];
+            const stored = person.theme && THEMES.indexOf(String(person.theme).toLowerCase()) !== -1
+                ? String(person.theme).toLowerCase() : '';
+            // What the profile is wearing: its own choice, or the server's default.
+            const current = stored || settings.defaultTheme;
+
+            // One card per theme. There used to be a separate "Server default (Crimson)"
+            // card in front of a Crimson card that looked identical, and which of the two
+            // was ticked depended on how the choice had been stored. Now the default theme's
+            // own card carries the tag, and choosing it follows the default ('' on the wire),
+            // so a profile set that way changes when the server's default does.
+            const option = (id) => `
+                <button type="button" class="jpf-theme-option focusable" role="radio"
+                        data-theme="${id === settings.defaultTheme ? '' : id}"
+                        aria-checked="${id === current}">
+                    ${this.renderThemePreview(id)}
+                    <span class="jpf-theme-option-label">
+                        <span>${THEME_NAMES[id]}${id === settings.defaultTheme
+                            ? ` <span class="jpf-theme-option-tag">${t('themeSettings.default')}</span>` : ''}</span>
+                        <span class="material-icons jpf-theme-option-check" aria-hidden="true">check_circle</span>
+                    </span>
+                </button>
+            `;
+
+            // jpf-theme-page: no sheet behind the cards in any theme. Bonfire's sheet and
+            // its padding left room for three previews a row where every other theme
+            // showed four, so the page looked different only in Bonfire.
+            content.innerHTML = `
+                <h1 class="profiles-title">${t('settings.themeTitle')}</h1>
+                <div class="create-profile-container jpf-theme-page">
+                    ${people.length > 1 ? `
+                    <div class="jpf-theme-people" role="radiogroup" aria-label="${t('settings.themeTitle')}">
+                        ${people.map(p => `
+                            <button type="button" class="jpf-theme-person focusable" role="radio"
+                                    data-id="${escapeHtml(p.profileUserId)}"
+                                    aria-checked="${p === person}">${escapeHtml(p.profileName)}</button>
+                        `).join('')}
+                    </div>` : ''}
+                    <div class="jpf-theme-grid" role="radiogroup" aria-label="${escapeHtml(person.profileName)}">
+                        ${THEMES.map(option).join('')}
+                    </div>
+                    <div class="jpf-theme-status" id="theme-settings-status" role="status"></div>
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
+                        <button id="theme-settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
+                    </div>
+                </div>
+            `;
+
+            const status = content.querySelector('#theme-settings-status');
+            const back = content.querySelector('#theme-settings-back-btn');
+            if (back) back.addEventListener('click', () => this.showSettingsMenu());
+
+            content.querySelectorAll('.jpf-theme-person').forEach(btn => {
+                btn.addEventListener('click', () => this.showThemeSettings(btn.getAttribute('data-id')));
+            });
+
+            let busy = false;
+            content.querySelectorAll('.jpf-theme-option').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const value = btn.getAttribute('data-theme') || '';
+                    if (busy || btn.getAttribute('aria-checked') === 'true') return;
+                    busy = true;
+                    status.classList.remove('is-error');
+                    status.textContent = '';
+                    fetch(ApiClient.getUrl('plugins/profiles/theme'), {
+                        method: 'POST',
+                        headers: this.jsonHeaders(masterState.token),
+                        body: JSON.stringify({ profileId: person.profileUserId, theme: value, masterPin: this.masterPin })
+                    })
+                    .then(res => res.ok ? res.json() : res.text().then(text => { throw new Error(text || t('errors.couldNotSaveThat')); }))
+                    .then(saved => {
+                        const shownNow = normalizeTheme(saved.theme || saved.Theme);
+                        const keep = saved.stored !== undefined ? saved.stored : saved.Stored;
+                        person.theme = keep || null;
+                        if (this.normalizeGuid(person.profileUserId) === signedIn) {
+                            this._setThemeSettings({
+                                theme: shownNow,
+                                defaultTheme: settings.defaultTheme,
+                                allowProfileThemes: settings.allow
+                            });
+                        }
+                        // No "Saved." line: the tick moving to the card is the confirmation.
+                        // The status line is for a failure only.
+                        this.showThemeSettings(person.profileUserId);
+                        const chosen = document.querySelector('.jpf-theme-option[aria-checked="true"]');
+                        if (chosen) chosen.focus();
+                    })
+                    .catch(err => {
+                        busy = false;
+                        status.classList.add('is-error');
+                        status.textContent = escapeHtml(err.message || t('errors.couldNotSaveThat'));
+                    });
+                });
+            });
+
+            this.initTVCheckboxes(content);
+            setTimeout(() => {
+                const first = content.querySelector('.jpf-theme-option[aria-checked="true"]')
+                    || content.querySelector('.jpf-theme-option');
+                if (first) first.focus();
+            }, 150);
         },
 
         showSwitcherModeModal: function () {
@@ -6582,14 +7222,9 @@
             // combination people asked for in issue #14 — ask on startup, but switch from
             // Jellyfin's menu — is unreachable when it is a single choice.
             const locationOption = (value, icon, title, body) => `
-                <div class="switcher-location-option focusable" data-location="${value}" tabindex="0" role="radio"
-                     aria-checked="${prefs.location === value}" style="
-                    display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
-                    border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
-                    border: 2px solid ${prefs.location === value ? 'var(--jpf-accent)' : 'rgba(255,255,255,0.08)'};
-                    background: ${prefs.location === value ? 'var(--jpf-accent-a08)' : 'rgba(255,255,255,0.02)'};
-                ">
-                    <span class="material-icons" style="font-size: 2rem; color: ${prefs.location === value ? 'var(--jpf-accent)' : 'rgba(255,255,255,0.5)'}; flex-shrink: 0;">${icon}</span>
+                <div class="switcher-location-option jpf-choice focusable" data-location="${value}" tabindex="0" role="radio"
+                     aria-checked="${prefs.location === value}">
+                    <span class="material-icons jpf-choice-icon">${icon}</span>
                     <div style="flex: 1 1 auto; min-width: 0;">
                         <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
                         <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
@@ -6634,7 +7269,7 @@
                     </div>
 
                     <div id="switcher-mode-error" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 12px;"></div>
-                    <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
                         <button id="switcher-mode-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
                     </div>
                 </div>
@@ -6826,7 +7461,7 @@
             let hostSectionHtml = '';
             if (isOwner) {
                 hostSectionHtml = `
-                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.hostedTitle')}</label>
                             <span style="font-size: 0.88rem; opacity: 0.75; display: block;">${t('bonfire.shareCode')}</span>
@@ -6836,12 +7471,12 @@
 
                         <div class="bonfire-form-group">
                             <label style="font-size: 1rem; font-weight: 600; color: #fff; display: block; margin-bottom: 8px;">${t('bonfire.members', { count: ownedMembers.length })}</label>
-                            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--jpf-r-md); padding: 8px;">
+                            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border); border-radius: var(--jpf-input-r); padding: 8px;">
                                 ${ownedMembers.length > 0 ? ownedMembers.map(m => {
                                     const mUserId = m.userId || m.UserId;
                                     const mUsername = escapeHtml(m.username || m.Username) || t('bonfire.unknownUser');
                                     return `
-                                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: var(--jpf-r-sm);">
+                                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--jpf-card-bg); border-radius: var(--jpf-r-sm);">
                                         <span style="font-size: 0.95rem; font-weight: 500;">${mUsername}</span>
                                         <button type="button" class="bonfire-kick-btn" data-id="${escapeHtml(mUserId)}" style="background: var(--jpf-danger) !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">${t('bonfire.kick')}</button>
                                     </div>
@@ -6856,7 +7491,7 @@
                 `;
             } else {
                 hostSectionHtml = `
-                    <div class="bonfire-form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+                    <div class="bonfire-form-group" style="border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
                         <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.hostTitle')}</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">${t('bonfire.hostBody')}</span>
                         <button type="button" id="bonfire-generate-btn" class="profiles-btn btn-primary" style="width: 100% !important; padding: 12px !important; font-weight: 600 !important; box-sizing: border-box !important; display: block !important; margin: 8px 0 !important;">${t('bonfire.generateJoinCode')}</button>
@@ -6867,11 +7502,11 @@
             let guestSectionHtml = '';
             if (isMember) {
                 guestSectionHtml = `
-                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.joinedTitle')}</label>
                             <span style="font-size: 0.88rem; opacity: 0.75;">${t('bonfire.joinedOwnedBy')}</span>
-                            <div style="font-size: 1.25rem; font-weight: 700; color: var(--jpf-accent); margin: 12px 0; background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--jpf-r-md); border: 1px solid rgba(255,255,255,0.05); text-align: center;">${joinedOwnerName}</div>
+                            <div style="font-size: 1.25rem; font-weight: 700; color: var(--jpf-accent); margin: 12px 0; background: var(--jpf-input-bg); padding: 12px; border-radius: var(--jpf-input-r); border: 1px solid var(--jpf-input-border); text-align: center;">${joinedOwnerName}</div>
                             <span style="font-size: 0.85rem; opacity: 0.6; display: block; margin-top: -4px;">${t('bonfire.accessEachOther')}</span>
                         </div>
                         <div style="display: flex; justify-content: flex-end;">
@@ -6881,7 +7516,7 @@
                 `;
             } else {
                 guestSectionHtml = `
-                    <div class="bonfire-form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+                    <div class="bonfire-form-group" style="border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
                         <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.joinTitle')}</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">${t('bonfire.joinBody')}</span>
                         <div style="display: flex !important; gap: var(--jpf-gap) !important; align-items: center !important; width: 100% !important; box-sizing: border-box !important; margin: 12px 0 !important;">
@@ -6902,7 +7537,7 @@
             // Only worth showing once there is somebody to share with — on a standalone
             // account the setting has nothing to act on and just reads as a scary toggle.
             const lanBypassSectionHtml = (isOwner || isMember) ? `
-                <div class="bonfire-form-group" style="gap: 4px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+                <div class="bonfire-form-group" style="gap: 4px; border-top: 1px solid var(--jpf-card-border); padding-top: 16px;">
                     <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
                         <input type="checkbox" id="bonfire-lan-bypass-checkbox" ${lanBypass ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-warn) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                         <span>${t('bonfire.lanSwitchLabel')}</span>
@@ -6956,7 +7591,7 @@
                     ${hostSectionHtml}
                     ${guestSectionHtml}
                     ${settingsSectionHtml}
-                    <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
                         <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
                     </div>
                 </div>

@@ -59,6 +59,9 @@ The admin settings page is English only. It's read by whoever runs the server, c
 often, and is mostly settings and diagnostics. Everything a household member sees is
 translated.
 
+Theme names (Crimson, Snowfall and the rest) are proper names, like Bonfire, and stay as
+they are in every language.
+
 ## My language doesn't show up
 
 Most likely first:

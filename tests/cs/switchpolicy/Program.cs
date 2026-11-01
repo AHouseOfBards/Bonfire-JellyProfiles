@@ -171,15 +171,28 @@ Console.WriteLine("        -> a user with " + library.Length + " libraries keeps
 // The demotion nobody reported, in the same block.
 Console.WriteLine();
 Console.WriteLine("── The two the report did not mention ──────────────────────────");
-var src = System.IO.File.ReadAllText(
+var controllerSrc = System.IO.File.ReadAllText(
     System.IO.Path.Combine(root, "Controllers", "ProfilesController.cs"))
     .Replace("\r\n", "\n");
 
-var blockStart = src.IndexOf("Inherit/synchronize streaming policies", StringComparison.Ordinal);
+// The inheritance block moved out of SwitchProfile into Auth/ProfilePolicySync.cs in
+// 1.6.7, so that a profile opened on a television's sign-in screen gets it too. The
+// assertions below are about "what the switch does", which is now the controller plus the
+// method it calls, so both are read. The wiring checks further down are what make sure the
+// switch still calls it.
+var syncSrc = System.IO.File.ReadAllText(
+    System.IO.Path.Combine(root, "Auth", "ProfilePolicySync.cs"))
+    .Replace("\r\n", "\n");
+var listenerSrc = System.IO.File.ReadAllText(
+    System.IO.Path.Combine(root, "Auth", "BonfireSessionListener.cs"))
+    .Replace("\r\n", "\n");
+var src = controllerSrc + "\n" + syncSrc;
+
+var blockStart = syncSrc.IndexOf("Inherit/synchronize streaming policies", StringComparison.Ordinal);
 Ok("the inheritance block is still findable in the source", blockStart > 0);
 if (blockStart > 0)
 {
-    var block = src.Substring(blockStart, Math.Min(4000, src.Length - blockStart));
+    var block = syncSrc.Substring(blockStart, Math.Min(4000, syncSrc.Length - blockStart));
     // These are correct for a sub-profile and wrong for an account that owns itself.
     Ok("it still demotes the target (correct only for a sub-profile)",
         block.Contains("IsAdministrator = false"));
@@ -193,7 +206,18 @@ Console.WriteLine("── The guard is actually wired into the switch path ─�
 
 // A helper nobody calls reads as coverage while changing nothing.
 Ok("SwitchProfile calls ShouldInheritMasterPolicy",
-    src.Contains("ShouldInheritMasterPolicy(mapping, targetUser.Id, callerMasterUserId)"));
+    controllerSrc.Contains("ShouldInheritMasterPolicy(mapping, targetUser.Id, callerMasterUserId)"));
+
+// And the guarded body is the shared sync, not a copy of it.
+{
+    var guardAt = controllerSrc.IndexOf("ShouldInheritMasterPolicy(mapping, targetUser.Id, callerMasterUserId)", StringComparison.Ordinal);
+    var after = guardAt > 0 ? controllerSrc.Substring(guardAt, Math.Min(400, controllerSrc.Length - guardAt)) : "";
+    Ok("and what it guards is ProfilePolicySync.ApplyAsync", after.Contains("ProfilePolicySync.ApplyAsync("));
+    Ok("which refuses a main account by itself as well",
+        syncSrc.Contains("mapping.ProfileUserId == mapping.MasterUserId) return false;"));
+    Ok("and every sign-in runs it, not only the web switch",
+        listenerSrc.Contains("ProfilePolicySync.ApplyAsync("));
+}
 
 // And the old condition must not still be guarding the block on its own.
 var oldGuard = "if (masterUser != null && targetUser.Id != callerMasterUserId)";
@@ -301,7 +325,7 @@ Console.WriteLine();
 Console.WriteLine("── The reconciler is wired into the switch path ─────────────────");
 
 Ok("SwitchProfile calls the reconciler",
-    src.Contains("Auth.LibraryAccessReconciler.Reconcile("));
+    src.Contains("LibraryAccessReconciler.Reconcile("));
 
 // The stored list must no longer be handed straight through. This is the line the
 // issue is about, and its absence is what makes this assertion a bisect.
@@ -310,12 +334,13 @@ Ok("the stored list is no longer applied unconditionally", !src.Contains(oldAppl
 
 // The adopted list has to reach the mapping, or it reverts again on the next entry.
 Ok("an adopted grant is persisted to the mapping",
-    src.Contains("liveRow.EnabledFolders = merged;"));
+    src.Contains("live.EnabledFolders = merged;"));
 
 // Re-resolved inside the lock: Jellyfin replaces the whole configuration object when
 // an administrator saves plugin settings, so the row captured earlier can be orphaned.
 Ok("the mapping row is re-resolved inside the config lock",
-    src.Contains("var liveRow = Plugin.Instance?.Configuration?.Mappings?"));
+    System.Text.RegularExpressions.Regex.IsMatch(syncSrc,
+        @"lock \(ProfilesBaseController\.ConfigLock\)\s*\{\s*var live = Plugin\.Instance\?\.Configuration\?\.Mappings\?"));
 
 // A sub-profile still cannot exceed its master, whatever was adopted.
 Ok("the result is still intersected with the master's accessible folders",
@@ -430,9 +455,110 @@ if (clamp != null)
 }
 
 Ok("the switch path clamps the restored rating",
-    src.Contains("ClampRating(\n                    childMaxParentalRating, childMaxParentalSubRating,"));
+    System.Text.RegularExpressions.Regex.IsMatch(src,
+        @"ClampRating\(\s*childMaxParentalRating, childMaxParentalSubRating,"));
 Ok("and no longer restores it unchecked",
     !src.Contains("targetPolicy.MaxParentalRating = childMaxParentalRating;"));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The limits that only ever got stricter. Bitrate, session count, forced transcoding,
+// SyncPlay and blocked unrated items were "the stricter of the master's and the
+// account's" — and the account's value was mostly Bonfire's own previous write. So a
+// master loosened after being tightened never loosened its profiles. These drive the
+// real InheritedLimits.Resolve through the sequence a household actually produces.
+// ─────────────────────────────────────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── A loosened master loosens its profiles ───────────────────────");
+
+var limitsType = asm.GetType("Jellyfin.Profiles.Auth.InheritedLimits", false);
+var limitsCfg = asm.GetType("Jellyfin.Profiles.Configuration.ProfileLimits", false);
+var resolve = limitsType?.GetMethod("Resolve", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+Ok("there is a resolver for a profile's own limits", resolve != null && limitsCfg != null);
+
+if (resolve != null && limitsCfg != null)
+{
+    object L(int bitrate, int sessions)
+    {
+        var o = Activator.CreateInstance(limitsCfg);
+        limitsCfg.GetProperty("RemoteClientBitrateLimit").SetValue(o, bitrate);
+        limitsCfg.GetProperty("MaxActiveSessions").SetValue(o, sessions);
+        return o;
+    }
+    int Bitrate(object o) => (int)limitsCfg.GetProperty("RemoteClientBitrateLimit").GetValue(o);
+    int Sessions(object o) => (int)limitsCfg.GetProperty("MaxActiveSessions").GetValue(o);
+    (object Applied, object Own) R(object master, object account, object own, object last)
+    {
+        var r = resolve.Invoke(null, new[] { master, account, own, last });
+        return (r.GetType().GetProperty("Applied").GetValue(r), r.GetType().GetProperty("Own").GetValue(r));
+    }
+
+    // Day 1: master limited to one stream. Profile has no record yet and inherits it.
+    var day1 = R(L(0, 1), L(0, 0), null, null);
+    Ok("a tightened master tightens the profile", Sessions(day1.Applied) == 1);
+
+    // Day 2: master back to unlimited. The account holds Bonfire's own write from day 1.
+    var day2 = R(L(0, 0), day1.Applied, day1.Own, day1.Applied);
+    Ok("and loosening the master loosens the profile again", Sessions(day2.Applied) == 0);
+
+    // An administrator caps the profile's own bitrate in Dashboard -> Users.
+    var adminSet = L(4_000_000, 0);
+    var day3 = R(L(0, 0), adminSet, day2.Own, day2.Applied);
+    Ok("a limit set on the profile's own account is kept as the profile's",
+        Bitrate(day3.Applied) == 4_000_000 && Bitrate(day3.Own) == 4_000_000);
+
+    // The master gets a looser cap than the profile's own: the profile keeps its own.
+    var day4 = R(L(8_000_000, 0), day3.Applied, day3.Own, day3.Applied);
+    Ok("the stricter of the two still wins", Bitrate(day4.Applied) == 4_000_000);
+
+    // And a stricter one than the profile's: the master's wins.
+    var day5 = R(L(1_000_000, 0), day4.Applied, day4.Own, day4.Applied);
+    Ok("a master stricter than the profile still reaches it", Bitrate(day5.Applied) == 1_000_000);
+    var day6 = R(L(0, 0), day5.Applied, day5.Own, day5.Applied);
+    Ok("and when the master lifts it, the profile's own cap is what is left",
+        Bitrate(day6.Applied) == 4_000_000);
+
+    // A profile from before the record existed, whose value equals the master's: inherited.
+    var legacySame = R(L(0, 2), L(0, 2), null, null);
+    Ok("an old profile matching its master is read as inherited, so it can loosen later",
+        Sessions(legacySame.Own) == 0 && Sessions(legacySame.Applied) == 2);
+
+    // One stricter than its master: kept, because that reading never loosens on upgrade.
+    var legacyStricter = R(L(0, 3), L(0, 1), null, null);
+    Ok("an old profile stricter than its master keeps that limit on upgrade",
+        Sessions(legacyStricter.Applied) == 1);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The allow-list fallback. When none of a profile's allowed tags is allowed for its
+// master any more, the profile used to get the master's whole allow-list.
+// ─────────────────────────────────────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── A profile's allow-list never widens to its master's ──────────");
+
+var resolveTags = baseCtl.GetMethod("ResolveTagPolicy", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+Ok("the tag resolver can be called directly", resolveTags != null);
+if (resolveTags != null)
+{
+    (string[] Blocked, string[] Allowed) Tags(string[] masterAllowed, string[] profileAllowed)
+    {
+        var p = new MediaBrowser.Model.Users.UserPolicy { AllowedTags = masterAllowed, BlockedTags = Array.Empty<string>() };
+        var r = resolveTags.Invoke(null, new object[] { p, new List<string>(), profileAllowed.ToList() });
+        return ((string[], string[]))r;
+    }
+
+    var narrowed = Tags(new[] { "Kids", "Family" }, new[] { "Kids" });
+    Ok("a profile narrowing its master's list keeps its narrower list",
+        narrowed.Allowed.Length == 1 && narrowed.Allowed[0] == "Kids");
+
+    var noOverlap = Tags(new[] { "Family" }, new[] { "Kids" });
+    Ok("with no overlap left, the profile does NOT get the master's whole list",
+        !noOverlap.Allowed.Contains("Family", StringComparer.OrdinalIgnoreCase));
+    Ok("and it is not left with an empty list either, which would mean 'no allow-list'",
+        noOverlap.Allowed.Length == 1 && !noOverlap.Allowed.Contains("Kids"));
+
+    var none = Tags(new[] { "Family" }, Array.Empty<string>());
+    Ok("a profile with no list of its own still takes its master's", none.Allowed.SequenceEqual(new[] { "Family" }));
+}
 
 Console.WriteLine();
 Console.WriteLine("  " + pass + " passed, " + fails.Count + " failed");

@@ -32,6 +32,7 @@ function ok(name, cond) {
 
 const script = L.dashboardScript(L.readDashboard());
 const source = L.extractFunction(script, 'normalizeImageQuality') + '\n'
+    + L.extractFunction(script, 'normalizeTheme') + '\n'
     + L.extractFunction(script, 'saveConfiguration');
 
 // ── the stub server ──────────────────────────────────────────────────────────
@@ -61,6 +62,8 @@ async function run(fieldValues) {
         enableStarterAvatars: true,
         defaultAskOnStartup: true,
         defaultSwitcherLocation: 'button',
+        defaultTheme: 'bonfire',
+        allowProfileThemes: true,
         indexInjectionMode: 'middleware',
         // Both default off. A missing id throws in the stub below, so adding a control to
         // the form without adding it here is a failure rather than a silent omission —
@@ -174,6 +177,8 @@ const expected = [
     'enableStarterAvatars',
     'defaultAskOnStartup',
     'defaultSwitcherLocation',
+    'defaultTheme',
+    'allowProfileThemes',
     'indexInjectionMode',
     'enableClientPinLogin',
     'enableClientProfileList',
@@ -205,9 +210,14 @@ console.log('\n── The starter-avatar switch (issue #32) ──────�
 ok('it sends the switch as it stands', body && body.enableStarterAvatars === true);
 const offRun = await run({ enableStarterAvatars: false });
 ok('and sends it off when it is off', sent(offRun).enableStarterAvatars === false);
+// jellyfin-web's Dashboard.alert takes a string (a toast) or { title, message } (a dialog).
+const alertText = (a) => typeof a === 'string' ? a : ((a || {}).message || '');
 ok('the saved message is the success one, not the failure one ("'
-   + ((base.calls.alert || {}).message || 'no alert') + '")',
-   !!base.calls.alert && /saved/i.test(base.calls.alert.message));
+   + (alertText(base.calls.alert) || 'no alert') + '")',
+   !!base.calls.alert && /saved/i.test(alertText(base.calls.alert)));
+// A toast, as Jellyfin confirms its own settings pages. The dialog form always carries a
+// title, which jellyfin-web draws off the centre line of the text under it.
+ok('and it is a toast, not a dialog', typeof base.calls.alert === 'string');
 ok('and the avatar grid is redrawn, since the switch changes what it shows',
    base.calls.libraryReloads === 1);
 

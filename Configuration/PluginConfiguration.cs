@@ -135,6 +135,18 @@ namespace Jellyfin.Profiles.Configuration
         public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;
 
         /// <summary>
+        /// The theme every account sees until it picks its own. One of <see cref="Themes.All"/>.
+        /// </summary>
+        public string DefaultTheme { get; set; } = Themes.Bonfire;
+
+        /// <summary>
+        /// Whether each profile may pick its own theme. Off means everyone sees
+        /// <see cref="DefaultTheme"/>; choices already made are kept, not cleared, so turning
+        /// this back on gives them back. See <see cref="Themes.Resolve"/>.
+        /// </summary>
+        public bool AllowProfileThemes { get; set; } = true;
+
+        /// <summary>
         /// How the client script gets into Jellyfin’s index.html. One of the
         /// <see cref="IndexInjectionModes"/> values.
         /// <para>
@@ -289,6 +301,84 @@ namespace Jellyfin.Profiles.Configuration
     }
 
     /// <summary>
+    /// The looks Bonfire's own screens can take: the switcher, the PIN pad and the profile
+    /// forms. Never the rest of Jellyfin — a server's own theme is the administrator's, and
+    /// re-skinning jellyfin-web would mean chasing its markup every release.
+    /// <para>
+    /// The ids are lowercase, stored in configuration, and are also the value of the
+    /// <c>data-jpf-theme</c> attribute the stylesheet keys on, so the three lists — this one,
+    /// <c>THEMES</c> in profiles.js and the blocks in styles.css — must agree.
+    /// tests/js/themes.js fails if they do not.
+    /// </para>
+    /// <para>
+    /// Named for how each one looks, not for any service it resembles. No brand names, logos
+    /// or brand typefaces anywhere: each theme uses fonts already on the device.
+    /// </para>
+    /// </summary>
+    public static class Themes
+    {
+        /// <summary>Bonfire's own look. Follows the server's Jellyfin accent colour.</summary>
+        public const string Bonfire = "bonfire";
+        public const string Crimson = "crimson";
+        public const string Starlight = "starlight";
+        public const string Harbor = "harbor";
+        public const string Nightfall = "nightfall";
+        public const string Glass = "glass";
+        public const string Harvest = "harvest";
+        public const string Snowfall = "snowfall";
+        public const string Bloom = "bloom";
+
+        public static readonly string[] All = { Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass, Harvest, Snowfall, Bloom };
+
+        /// <summary>True for one of <see cref="All"/>, in any case.</summary>
+        public static bool IsKnown(string? value) =>
+            !string.IsNullOrWhiteSpace(value)
+            && All.Contains(value.Trim().ToLowerInvariant());
+
+        /// <summary>Maps arbitrary input to a known theme, falling back to <see cref="Bonfire"/>.</summary>
+        public static string Normalize(string? value) =>
+            IsKnown(value) ? value!.Trim().ToLowerInvariant() : Bonfire;
+
+        /// <summary>
+        /// The theme one account sees: its own choice when the server lets accounts choose and
+        /// it has made one, otherwise the server's default. A stored choice is kept while
+        /// choosing is turned off, so turning it back on restores everybody's pick.
+        /// </summary>
+        public static string Resolve(ProfileMapping? mapping, string? serverDefault, bool allowChoice) =>
+            allowChoice && IsKnown(mapping?.Theme) ? Normalize(mapping!.Theme) : Normalize(serverDefault);
+
+        /// <summary>
+        /// Sets one profile's theme for the account that owns it: the rule behind
+        /// <c>POST /plugins/profiles/theme</c>, kept here so it can be tested without a server.
+        /// The caller holds <c>ConfigLock</c> and saves. Empty or null means "follow the
+        /// server default". Nothing is changed unless the answer is <see cref="ThemeChange.Changed"/>.
+        /// </summary>
+        public static ThemeChange SetFor(PluginConfiguration config, System.Guid masterUserId, System.Guid profileId, string? theme)
+        {
+            if (!config.AllowProfileThemes) return ThemeChange.NotAllowed;
+            if (!string.IsNullOrWhiteSpace(theme) && !IsKnown(theme)) return ThemeChange.UnknownTheme;
+
+            // The master's own row, or one of its profiles. A linked Bonfire's profiles have
+            // a different master, so they are someone else's to change.
+            var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+            if (row == null || (row.MasterUserId != masterUserId && row.ProfileUserId != masterUserId))
+                return ThemeChange.NotInHousehold;
+
+            row.Theme = IsKnown(theme) ? Normalize(theme) : null;
+            return ThemeChange.Changed;
+        }
+    }
+
+    /// <summary>What <see cref="Themes.SetFor"/> did.</summary>
+    public enum ThemeChange
+    {
+        Changed,
+        NotAllowed,
+        UnknownTheme,
+        NotInHousehold
+    }
+
+    /// <summary>
     /// Where an account reaches the profile switcher. Independent of whether the startup
     /// prompt appears — the two were one setting in 1.3.1-beta, which could not express
     /// "ask me on startup, but put the switcher in Jellyfin's menu" (GitHub issue #14).
@@ -436,6 +526,28 @@ namespace Jellyfin.Profiles.Configuration
         public string Mode { get; set; } = LibraryArtworkModes.Inherit;
     }
 
+    /// <summary>
+    /// The five limits a profile takes as the stricter of its own and its master's. Each
+    /// field's "no limit" value — 0, false, CreateAndJoinGroups, empty — is also what an
+    /// unset field means, so a profile with no limits of its own is simply the default.
+    /// See <see cref="Auth.InheritedLimits"/>.
+    /// </summary>
+    public class ProfileLimits
+    {
+        public int RemoteClientBitrateLimit { get; set; }
+        public int MaxActiveSessions { get; set; }
+        public bool ForceRemoteSourceTranscoding { get; set; }
+        public Jellyfin.Database.Implementations.Enums.SyncPlayUserAccessType SyncPlayAccess { get; set; }
+        public List<Jellyfin.Data.Enums.UnratedItem> BlockUnratedItems { get; set; } = new();
+
+        public ProfileLimits Copy()
+        {
+            var copy = (ProfileLimits)MemberwiseClone();
+            copy.BlockUnratedItems = BlockUnratedItems?.ToList() ?? new();
+            return copy;
+        }
+    }
+
     public class ProfileMapping
     {
         public Guid ProfileUserId { get; set; }
@@ -499,10 +611,38 @@ namespace Jellyfin.Profiles.Configuration
         public bool AllowHouseholdLanBypass { get; set; } = false;
         public List<string> AllowedDeviceIds { get; set; } = new List<string>();
 
+        /// <summary>
+        /// The profile was saved with no library ticked, which the form promises means "every
+        /// library your account does". <see cref="EnabledFolders"/> still holds the list as it
+        /// was at that save, but it is not what is applied: the master's libraries are, as they
+        /// are when the profile is opened, so a library added later reaches it too.
+        /// <para>
+        /// Default false, so a profile saved before this existed keeps its fixed list. Nothing
+        /// in an old configuration can tell "ticked nothing" apart from "ticked everything",
+        /// and guessing the first would widen the second.
+        /// </para>
+        /// </summary>
+        public bool AllLibraries { get; set; } = false;
+
+        /// <summary>
+        /// Limits that belong to the profile itself rather than to its master — set on the
+        /// profile's own account in Dashboard -> Users. Null until the profile is first opened
+        /// on this version. See <see cref="Auth.InheritedLimits"/>.
+        /// </summary>
+        public ProfileLimits? OwnLimits { get; set; }
+
+        /// <summary>
+        /// What Bonfire last wrote for those limits, so a later change on the account can be
+        /// told apart from Bonfire's own earlier write. See <see cref="Auth.InheritedLimits"/>.
+        /// </summary>
+        public ProfileLimits? LastAppliedLimits { get; set; }
+
         /// <summary>A copy for <see cref="PluginConfiguration.SnapshotForReading"/>.</summary>
         public ProfileMapping CopyForReading()
         {
             var copy = (ProfileMapping)MemberwiseClone();
+            copy.OwnLimits = OwnLimits?.Copy();
+            copy.LastAppliedLimits = LastAppliedLimits?.Copy();
             copy.AllowedDeviceIds = AllowedDeviceIds?.ToList() ?? new List<string>();
             copy.EnabledFolders = EnabledFolders?.ToList();
             copy.BlockedTags = BlockedTags?.ToList();
@@ -553,6 +693,17 @@ namespace Jellyfin.Profiles.Configuration
         /// </para>
         /// </summary>
         public string? SwitcherLocation { get; set; }
+
+        /// <summary>
+        /// This profile's own theme, one of <see cref="Themes.All"/>. Null means it follows
+        /// the server's <see cref="PluginConfiguration.DefaultTheme"/>.
+        /// <para>
+        /// Per profile, unlike <see cref="SwitcherLocation"/>, and read from this row rather
+        /// than the master's: a child's profile can look different from its parent's. Set by
+        /// whoever manages the profile, from its edit form.
+        /// </para>
+        /// </summary>
+        public string? Theme { get; set; }
     }
 
     public class UserProfileLimitOverride

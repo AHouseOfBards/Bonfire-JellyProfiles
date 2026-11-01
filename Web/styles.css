@@ -42,6 +42,14 @@
 :root, body {
     --jpf-accent: var(--jf-palette-primary-main, var(--accent, #00a4dc));
 
+    /* The same accent under its own name, so the Bonfire theme can be put back on
+       an element inside a page wearing another one (the theme previews do this). */
+    --jpf-bonfire-accent: var(--jf-palette-primary-main, var(--accent, #00a4dc));
+
+    /* A filled accent button under the pointer. The literal is the stock blue
+       darkened, and stays as the floor for the same reason as the tints below. */
+    --jpf-accent-hover: #0082ad;
+
     /* Tints of the accent. These literals are what Bonfire shipped
        through 1.4.1 and stay as the floor, because deriving them needs
        colour arithmetic the older TV browsers do not have. */
@@ -184,7 +192,972 @@
         --jpf-accent-a45: color-mix(in srgb, var(--jpf-accent) 45%, transparent);
         --jpf-accent-a50: color-mix(in srgb, var(--jpf-accent) 50%, transparent);
         --jpf-accent-a60: color-mix(in srgb, var(--jpf-accent) 60%, transparent);
+        /* Darkened from whatever the accent is, so a red Jellyfin theme no
+           longer hovers blue. */
+        --jpf-accent-hover: color-mix(in srgb, var(--jpf-accent) 80%, black);
     }
+}
+
+/* ── Themes ───────────────────────────────────────────────────────
+   The look of Bonfire's own screens, chosen per profile. The server
+   sends the id and the script stamps it on <html> as data-jpf-theme;
+   nothing here reaches the rest of Jellyfin, because every token below
+   is only read by Bonfire's own rules.
+
+   Ids live in three places that must agree: Themes.All on the server,
+   THEMES in profiles.js, and the blocks here. tests/js/themes.js checks
+   that, and that every theme sets every token in THEME_TOKENS with text
+   that can be read on it.
+
+   Each block names an attribute, not <html>, so a preview tile can wear
+   a theme of its own inside a page wearing another. And each is written
+   for body as well, because the base tokens are declared on body too
+   and a declaration on body beats one inherited from html.
+
+   Order matters: these come after the light-scheme block and tie with it
+   on html, so they win by coming later. Every theme but Bonfire is dark
+   by design, so the light scheme stops at Bonfire.
+
+   No brand names, logos or brand typefaces. Each theme uses fonts that
+   are already on the device, which also means a server with no internet
+   access looks the same as one with it. */
+
+/* What every theme sets, at Bonfire's values. Bonfire's own block is the
+   attribute selector here, so a Bonfire preview inside a Crimson page is
+   put back to Bonfire rather than inheriting Crimson.
+
+   A theme is more than a palette. The services these are modelled on
+   differ as much in shape as in colour — square tiles and outlined
+   capital-letter buttons, round tiles and solid buttons that invert on
+   focus, pill buttons, gradient rings — so the tile, the name under it,
+   the buttons and the "add" tile are tokens too, and every screen reads
+   them instead of literals. */
+:root, body, [data-jpf-theme="bonfire"] {
+    --jpf-on-accent: #fff;
+    --jpf-gate-bg: radial-gradient(circle at 50% 40%, #1e1e2e 0%, #0d0d12 100%);
+    /* Opaque, for the things that must hide what scrolls under them: the
+       sticky button bar, a dropdown list, a select's options. */
+    --jpf-panel: #1b1b28;
+    --jpf-font: 'Outfit', 'Inter', sans-serif;
+    /* A token of its own rather than --jpf-r-lg, because a round avatar is
+       a shape and the forms keep their corners. 20px is --jpf-r-lg. */
+    --jpf-avatar-r: 20px;
+    --jpf-avatar-shadow: 0 10px 30px var(--jpf-shadow-3);
+    --jpf-ring: rgba(255, 255, 255, 0.8);
+    --jpf-ring-w: 3px;
+    --jpf-hover-scale: 1.08;
+    --jpf-hover-glow: 0 15px 35px var(--jpf-accent-a40);
+    --jpf-title-weight: 700;
+    --jpf-title-spacing: -0.05rem;
+    --jpf-title-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    /* A multiplier, so a television's larger title keeps the theme's
+       proportion: 3rem on a desktop, 4rem on a TV, times this. */
+    --jpf-title-scale: 1;
+    --jpf-name-color: #fff;
+    --jpf-name-hover: #fff;
+    --jpf-name-weight: 500;
+    --jpf-name-opacity: 0.75;
+    --jpf-name-scale: 1;
+    /* Every button's corners: the primary and the secondary share a shape
+       on each of these services, whatever else differs between them. */
+    --jpf-btn-radius: var(--jpf-r-md);
+    --jpf-btn2-bg: var(--jpf-surface-3);
+    --jpf-btn2-color: var(--jpf-text-2);
+    --jpf-btn2-border: 1px solid var(--jpf-border-2);
+    --jpf-btn2-case: none;
+    --jpf-btn2-spacing: normal;
+    --jpf-btn2-weight: 600;
+    --jpf-btn2-hover-bg: var(--jpf-border-2);
+    --jpf-btn2-hover-color: #fff;
+    --jpf-btn2-hover-border: var(--jpf-accent);
+    --jpf-btn2-hover-glow: 0 0 10px var(--jpf-accent-a40);
+    --jpf-add-bg: var(--jpf-surface-1);
+    --jpf-add-border: 3px dashed var(--jpf-border-3);
+    --jpf-add-color: var(--jpf-text-3);
+    --jpf-add-hover-bg: var(--jpf-surface-2);
+    /* The panel each household's profiles sit in. Bonfire's own; every
+       other theme lays the tiles straight on the background, which is
+       what the services they follow all do. */
+    --jpf-section-bg: var(--jpf-surface-1);
+    --jpf-section-border: 1px solid var(--jpf-border-1);
+    --jpf-section-shadow: 0 10px 30px var(--jpf-shadow-1);
+    --jpf-section-pad: 1.75rem 2rem;
+    --jpf-section-rule: 1px solid var(--jpf-border-1);
+    --jpf-sheet-bg: var(--jpf-surface-1);
+    --jpf-sheet-border: 1px solid var(--jpf-border-1);
+    --jpf-sheet-shadow: 0 20px 50px var(--jpf-shadow-2);
+    --jpf-card-bg: var(--jpf-surface-1);
+    --jpf-card-border: var(--jpf-border-1);
+    --jpf-input-bg: var(--jpf-surface-2);
+    --jpf-input-border: var(--jpf-border-2);
+    --jpf-input-r: var(--jpf-r-md);
+    /* A repeated picture behind the gate: the seasonal themes' leaves, snow
+       and blossoms. See "Seasonal decoration". */
+    --jpf-deco: none;
+    --jpf-deco-size: 240px;
+}
+[data-jpf-theme="bonfire"] {
+    --jpf-accent: var(--jpf-bonfire-accent);
+}
+
+/* Shared by every theme that is not Bonfire: the dark neutrals, restated
+   so a light desktop does not wash them out, the accent tints built from
+   each theme's --jpf-accent-rgb, and no panel behind the tiles. rgba(var(...), a)
+   is substitution, not colour arithmetic, so it works on the Chromium 53
+   televisions that have no color-mix. */
+[data-jpf-theme]:not([data-jpf-theme="bonfire"]),
+[data-jpf-theme]:not([data-jpf-theme="bonfire"]) body {
+    --jpf-accent-a08: rgba(var(--jpf-accent-rgb), 0.08);
+    --jpf-accent-a18: rgba(var(--jpf-accent-rgb), 0.18);
+    --jpf-accent-a30: rgba(var(--jpf-accent-rgb), 0.3);
+    --jpf-accent-a40: rgba(var(--jpf-accent-rgb), 0.4);
+    --jpf-accent-a45: rgba(var(--jpf-accent-rgb), 0.45);
+    --jpf-accent-a50: rgba(var(--jpf-accent-rgb), 0.5);
+    --jpf-accent-a60: rgba(var(--jpf-accent-rgb), 0.6);
+
+    --jpf-surface-1: rgba(255, 255, 255, 0.03);
+    --jpf-surface-2: rgba(255, 255, 255, 0.06);
+    --jpf-surface-3: rgba(255, 255, 255, 0.11);
+    --jpf-border-1: rgba(255, 255, 255, 0.08);
+    --jpf-border-2: rgba(255, 255, 255, 0.15);
+    --jpf-border-3: rgba(255, 255, 255, 0.26);
+    --jpf-text-1: rgba(255, 255, 255, 0.92);
+    --jpf-text-2: rgba(255, 255, 255, 0.68);
+    --jpf-text-3: rgba(255, 255, 255, 0.45);
+    --jpf-shadow-1: rgba(0, 0, 0, 0.2);
+    --jpf-shadow-2: rgba(0, 0, 0, 0.4);
+    --jpf-shadow-3: rgba(0, 0, 0, 0.55);
+    --jpf-danger: #ff6b6b;
+    --jpf-danger-quiet: #ff8787;
+    --jpf-danger-deep: #e64980;
+    --jpf-warn: #ff9900;
+
+    --jpf-section-bg: transparent;
+    --jpf-section-border: 0 solid transparent;
+    --jpf-section-shadow: none;
+    --jpf-section-pad: 0;
+    --jpf-section-rule: 0 solid transparent;
+}
+
+/* Crimson: one flat charcoal, square tiles that take a white frame and
+   do not grow, grey names that turn white, and a single outlined button
+   in spaced capitals. */
+[data-jpf-theme="crimson"],
+[data-jpf-theme="crimson"] body {
+    --jpf-accent: #e0242e;
+    --jpf-accent-rgb: 224, 36, 46;
+    --jpf-accent-hover: #b81a23;
+    --jpf-on-accent: #fff;
+    --jpf-gate-bg: #141414;
+    /* The background itself: with no sheet round the form, a lighter panel
+       showed the sticky button bar as a strip. */
+    --jpf-panel: #141414;
+    --jpf-font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --jpf-r-sm: 2px;
+    --jpf-r-md: 4px;
+    --jpf-r-lg: 4px;
+    --jpf-avatar-r: 4px;
+    --jpf-avatar-shadow: none;
+    --jpf-ring: #fff;
+    --jpf-ring-w: 3px;
+    --jpf-hover-scale: 1;
+    --jpf-hover-glow: none;
+    --jpf-title-weight: 500;
+    --jpf-title-spacing: 0;
+    --jpf-title-shadow: none;
+    --jpf-title-scale: 1.15;
+    --jpf-name-color: #808080;
+    --jpf-name-hover: #e5e5e5;
+    --jpf-name-weight: 400;
+    --jpf-name-opacity: 1;
+    --jpf-name-scale: 1.05;
+    --jpf-btn-radius: 0;
+    --jpf-btn2-bg: transparent;
+    --jpf-btn2-color: #808080;
+    --jpf-btn2-border: 1px solid #808080;
+    --jpf-btn2-case: uppercase;
+    --jpf-btn2-spacing: 0.2em;
+    --jpf-btn2-weight: 400;
+    --jpf-btn2-hover-bg: transparent;
+    --jpf-btn2-hover-color: #fff;
+    --jpf-btn2-hover-border: #fff;
+    --jpf-btn2-hover-glow: none;
+    --jpf-add-bg: transparent;
+    --jpf-add-border: 3px solid transparent;
+    --jpf-add-color: #808080;
+    --jpf-add-hover-bg: transparent;
+    --jpf-sheet-bg: transparent;
+    --jpf-sheet-border: 1px solid transparent;
+    --jpf-sheet-shadow: none;
+    --jpf-card-bg: transparent;
+    --jpf-card-border: #333;
+    --jpf-input-bg: #333;
+    --jpf-input-border: #333;
+    --jpf-input-r: 0;
+    --jpf-deco: none;
+    --jpf-deco-size: 240px;
+}
+
+/* Starlight: flat midnight navy, round tiles that grow inside a thick
+   white ring, white names, and solid grey capital-letter buttons that
+   turn white on focus. */
+[data-jpf-theme="starlight"],
+[data-jpf-theme="starlight"] body {
+    --jpf-accent: #1f6fe5;
+    --jpf-accent-rgb: 31, 111, 229;
+    --jpf-accent-hover: #1a62cc;
+    --jpf-on-accent: #fff;
+    --jpf-gate-bg: #1a1d29;
+    --jpf-panel: #1a1d29;
+    --jpf-font: 'Avenir Next', Avenir, 'Nunito Sans', 'Segoe UI', Roboto, sans-serif;
+    --jpf-r-sm: 4px;
+    --jpf-r-md: 4px;
+    --jpf-r-lg: 8px;
+    --jpf-avatar-r: 50%;
+    --jpf-avatar-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+    --jpf-ring: #f9f9f9;
+    --jpf-ring-w: 4px;
+    --jpf-hover-scale: 1.08;
+    --jpf-hover-glow: 0 16px 32px rgba(0, 0, 0, 0.55);
+    --jpf-title-weight: 600;
+    --jpf-title-spacing: 0;
+    --jpf-title-shadow: none;
+    --jpf-title-scale: 0.85;
+    --jpf-name-color: #f9f9f9;
+    --jpf-name-hover: #fff;
+    --jpf-name-weight: 600;
+    --jpf-name-opacity: 1;
+    --jpf-name-scale: 1.1;
+    --jpf-btn-radius: 4px;
+    --jpf-btn2-bg: #3a3d48;
+    --jpf-btn2-color: #f9f9f9;
+    --jpf-btn2-border: 1px solid transparent;
+    --jpf-btn2-case: uppercase;
+    --jpf-btn2-spacing: 0.12em;
+    --jpf-btn2-weight: 700;
+    --jpf-btn2-hover-bg: #f9f9f9;
+    --jpf-btn2-hover-color: #1a1d29;
+    --jpf-btn2-hover-border: #f9f9f9;
+    --jpf-btn2-hover-glow: none;
+    --jpf-add-bg: #31343e;
+    --jpf-add-border: 4px solid transparent;
+    --jpf-add-color: #f9f9f9;
+    --jpf-add-hover-bg: #3e414d;
+    --jpf-sheet-bg: transparent;
+    --jpf-sheet-border: 1px solid transparent;
+    --jpf-sheet-shadow: none;
+    --jpf-card-bg: #252833;
+    --jpf-card-border: #252833;
+    --jpf-input-bg: #31343e;
+    --jpf-input-border: #31343e;
+    --jpf-input-r: 4px;
+    --jpf-deco: none;
+    --jpf-deco-size: 240px;
+}
+
+/* Harbor: a blue-grey that darkens downwards, bold type throughout,
+   round tiles with a white frame, and slate buttons in sentence case
+   that turn white on focus. */
+[data-jpf-theme="harbor"],
+[data-jpf-theme="harbor"] body {
+    --jpf-accent: #1a98ff;
+    --jpf-accent-rgb: 26, 152, 255;
+    --jpf-accent-hover: #4aadff;
+    --jpf-on-accent: #0b1219;
+    --jpf-gate-bg: linear-gradient(180deg, #1f3549 0%, #182b3c 50%, #0f1d29 100%);
+    --jpf-panel: #1b2836;
+    --jpf-font: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --jpf-r-sm: 4px;
+    --jpf-r-md: 4px;
+    --jpf-r-lg: 8px;
+    --jpf-avatar-r: 50%;
+    --jpf-avatar-shadow: none;
+    --jpf-ring: #fff;
+    --jpf-ring-w: 3px;
+    --jpf-hover-scale: 1.05;
+    --jpf-hover-glow: none;
+    --jpf-title-weight: 700;
+    --jpf-title-spacing: 0;
+    --jpf-title-shadow: none;
+    --jpf-title-scale: 0.9;
+    --jpf-name-color: #fff;
+    --jpf-name-hover: #fff;
+    --jpf-name-weight: 700;
+    --jpf-name-opacity: 1;
+    --jpf-name-scale: 0.9;
+    --jpf-btn-radius: 4px;
+    --jpf-btn2-bg: #425466;
+    --jpf-btn2-color: #fff;
+    --jpf-btn2-border: 1px solid transparent;
+    --jpf-btn2-case: none;
+    --jpf-btn2-spacing: normal;
+    --jpf-btn2-weight: 600;
+    --jpf-btn2-hover-bg: #fff;
+    --jpf-btn2-hover-color: #0f171e;
+    --jpf-btn2-hover-border: #fff;
+    --jpf-btn2-hover-glow: none;
+    --jpf-add-bg: #425466;
+    --jpf-add-border: 3px solid transparent;
+    --jpf-add-color: #fff;
+    --jpf-add-hover-bg: #52687d;
+    --jpf-sheet-bg: transparent;
+    --jpf-sheet-border: 1px solid transparent;
+    --jpf-sheet-shadow: none;
+    --jpf-card-bg: #1b2836;
+    --jpf-card-border: #26384a;
+    --jpf-input-bg: #0f1d29;
+    --jpf-input-border: #425466;
+    --jpf-input-r: 4px;
+    --jpf-deco: none;
+    --jpf-deco-size: 240px;
+}
+
+/* Nightfall: black falling into violet, thin light type, every tile in
+   a gradient ring of its own colour (below), and lavender pill buttons
+   in spaced capitals. */
+[data-jpf-theme="nightfall"],
+[data-jpf-theme="nightfall"] body {
+    --jpf-accent: #9b7bff;
+    --jpf-accent-rgb: 155, 123, 255;
+    --jpf-accent-hover: #b39cff;
+    --jpf-on-accent: #12091f;
+    --jpf-gate-bg: linear-gradient(170deg, #050507 0%, #0a0714 35%, #1f0e3a 70%, #3a1258 100%);
+    --jpf-panel: #140c26;
+    --jpf-font: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --jpf-r-sm: 8px;
+    --jpf-r-md: 12px;
+    --jpf-r-lg: 18px;
+    --jpf-avatar-r: 50%;
+    --jpf-avatar-shadow: none;
+    --jpf-ring: #fff;
+    --jpf-ring-w: 3px;
+    /* The ring is drawn around the tile, so the tile's frame grows rather
+       than the picture inside it; see the Nightfall rules below. */
+    --jpf-hover-scale: 1;
+    --jpf-hover-glow: none;
+    --jpf-title-weight: 300;
+    --jpf-title-spacing: 0.01em;
+    --jpf-title-shadow: none;
+    --jpf-title-scale: 0.85;
+    --jpf-name-color: #ece9f5;
+    --jpf-name-hover: #fff;
+    --jpf-name-weight: 400;
+    --jpf-name-opacity: 1;
+    --jpf-name-scale: 0.85;
+    --jpf-btn-radius: 999px;
+    --jpf-btn2-bg: rgba(155, 123, 255, 0.22);
+    --jpf-btn2-color: #fff;
+    --jpf-btn2-border: 1px solid transparent;
+    --jpf-btn2-case: uppercase;
+    --jpf-btn2-spacing: 0.14em;
+    --jpf-btn2-weight: 700;
+    --jpf-btn2-hover-bg: rgba(155, 123, 255, 0.42);
+    --jpf-btn2-hover-color: #fff;
+    --jpf-btn2-hover-border: rgba(255, 255, 255, 0.6);
+    --jpf-btn2-hover-glow: none;
+    --jpf-add-bg: transparent;
+    --jpf-add-border: 2px solid rgba(255, 255, 255, 0.35);
+    --jpf-add-color: #fff;
+    --jpf-add-hover-bg: rgba(255, 255, 255, 0.08);
+    --jpf-sheet-bg: transparent;
+    --jpf-sheet-border: 1px solid transparent;
+    --jpf-sheet-shadow: none;
+    --jpf-card-bg: rgba(155, 123, 255, 0.06);
+    --jpf-card-border: rgba(155, 123, 255, 0.18);
+    --jpf-input-bg: rgba(255, 255, 255, 0.07);
+    --jpf-input-border: rgba(255, 255, 255, 0.14);
+    --jpf-input-r: 12px;
+    --jpf-deco: none;
+    --jpf-deco-size: 240px;
+}
+
+/* Glass: a soft blur of colour, small light type, round tiles that lift
+   rather than take a frame, and frosted buttons that turn solid white on
+   focus. Every colour in the blur is dark enough for white text, which
+   is why it is dusk rather than daylight. */
+[data-jpf-theme="glass"],
+[data-jpf-theme="glass"] body {
+    --jpf-accent: #f5f5f7;
+    --jpf-accent-rgb: 245, 245, 247;
+    --jpf-accent-hover: #ffffff;
+    --jpf-on-accent: #1d1d1f;
+    --jpf-gate-bg: radial-gradient(ellipse at 15% 20%, #5a3f45 0%, rgba(90, 63, 69, 0) 55%), radial-gradient(ellipse at 85% 10%, #2f4d6e 0%, rgba(47, 77, 110, 0) 60%), radial-gradient(ellipse at 70% 95%, #3a3560 0%, rgba(58, 53, 96, 0) 55%), linear-gradient(160deg, #2e3f57 0%, #24324a 60%, #1a2537 100%);
+    --jpf-panel: #1f2a3b;
+    --jpf-font: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --jpf-r-sm: 8px;
+    --jpf-r-md: 12px;
+    --jpf-r-lg: 22px;
+    --jpf-avatar-r: 50%;
+    --jpf-avatar-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+    --jpf-ring: rgba(255, 255, 255, 0.9);
+    --jpf-ring-w: 2px;
+    --jpf-hover-scale: 1.1;
+    --jpf-hover-glow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    --jpf-title-weight: 500;
+    --jpf-title-spacing: -0.01em;
+    --jpf-title-shadow: none;
+    --jpf-title-scale: 0.75;
+    --jpf-name-color: #fff;
+    --jpf-name-hover: #fff;
+    --jpf-name-weight: 500;
+    --jpf-name-opacity: 0.85;
+    --jpf-name-scale: 0.8;
+    --jpf-btn-radius: 12px;
+    --jpf-btn2-bg: rgba(255, 255, 255, 0.16);
+    --jpf-btn2-color: #fff;
+    --jpf-btn2-border: 1px solid rgba(255, 255, 255, 0.18);
+    --jpf-btn2-case: none;
+    --jpf-btn2-spacing: normal;
+    --jpf-btn2-weight: 600;
+    --jpf-btn2-hover-bg: #f5f5f7;
+    --jpf-btn2-hover-color: #1d1d1f;
+    --jpf-btn2-hover-border: #f5f5f7;
+    --jpf-btn2-hover-glow: 0 10px 24px rgba(0, 0, 0, 0.35);
+    --jpf-add-bg: rgba(255, 255, 255, 0.18);
+    --jpf-add-border: 2px solid transparent;
+    --jpf-add-color: #fff;
+    --jpf-add-hover-bg: rgba(255, 255, 255, 0.3);
+    --jpf-sheet-bg: rgba(255, 255, 255, 0.07);
+    --jpf-sheet-border: 1px solid rgba(255, 255, 255, 0.12);
+    --jpf-sheet-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
+    --jpf-card-bg: rgba(255, 255, 255, 0.07);
+    --jpf-card-border: rgba(255, 255, 255, 0.1);
+    --jpf-input-bg: rgba(255, 255, 255, 0.12);
+    --jpf-input-border: rgba(255, 255, 255, 0.12);
+    --jpf-input-r: 10px;
+    --jpf-deco: none;
+    --jpf-deco-size: 240px;
+}
+
+/* Harvest: autumn. A dusk of brown into burnt orange with leaves drifting
+   across it, a warm serif, leaf-shaped tiles (two corners round, two
+   nearly sharp) in a cream ring, and amber outlined buttons. */
+[data-jpf-theme="harvest"],
+[data-jpf-theme="harvest"] body {
+    --jpf-accent: #f0a04b;
+    --jpf-accent-rgb: 240, 160, 75;
+    --jpf-accent-hover: #f5b56e;
+    --jpf-on-accent: #2a1408;
+    --jpf-gate-bg: linear-gradient(165deg, #1f0f08 0%, #2e160b 45%, #42200e 100%);
+    --jpf-panel: #2a150b;
+    --jpf-font: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+    --jpf-r-sm: 6px;
+    --jpf-r-md: 10px;
+    --jpf-r-lg: 14px;
+    --jpf-avatar-r: 50% 10px;
+    --jpf-avatar-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+    --jpf-ring: #ffd9a8;
+    --jpf-ring-w: 3px;
+    --jpf-hover-scale: 1.05;
+    --jpf-hover-glow: 0 14px 30px rgba(240, 160, 75, 0.35);
+    --jpf-title-weight: 600;
+    --jpf-title-spacing: 0.01em;
+    --jpf-title-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+    --jpf-title-scale: 1.05;
+    --jpf-name-color: #f3dcc0;
+    --jpf-name-hover: #fff;
+    --jpf-name-weight: 600;
+    --jpf-name-opacity: 1;
+    --jpf-name-scale: 1;
+    --jpf-btn-radius: 10px;
+    --jpf-btn2-bg: rgba(240, 160, 75, 0.14);
+    --jpf-btn2-color: #f7e2c8;
+    --jpf-btn2-border: 1px solid rgba(240, 160, 75, 0.45);
+    --jpf-btn2-case: none;
+    --jpf-btn2-spacing: 0.02em;
+    --jpf-btn2-weight: 600;
+    --jpf-btn2-hover-bg: #f0a04b;
+    --jpf-btn2-hover-color: #2a1408;
+    --jpf-btn2-hover-border: #f0a04b;
+    --jpf-btn2-hover-glow: none;
+    --jpf-add-bg: rgba(240, 160, 75, 0.08);
+    --jpf-add-border: 3px dashed rgba(240, 160, 75, 0.5);
+    --jpf-add-color: #f0c08a;
+    --jpf-add-hover-bg: rgba(240, 160, 75, 0.16);
+    --jpf-sheet-bg: transparent;
+    --jpf-sheet-border: 1px solid transparent;
+    --jpf-sheet-shadow: none;
+    --jpf-card-bg: rgba(240, 160, 75, 0.06);
+    --jpf-card-border: rgba(240, 160, 75, 0.2);
+    --jpf-input-bg: rgba(255, 255, 255, 0.06);
+    --jpf-input-border: rgba(240, 160, 75, 0.3);
+    --jpf-input-r: 10px;
+    --jpf-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='260' height='260'%3E%3Cdefs%3E%3Cg id='l'%3E%3Cpath d='M0-12C8-7 8 5 0 12C-8 5-8-7 0-12Z'/%3E%3Cpath d='M0-10V13' fill='none' stroke='%231f0f08' stroke-opacity='.45' stroke-width='1'/%3E%3C/g%3E%3C/defs%3E%3Cuse xlink:href='%23l' fill='%23e8752a' opacity='0.3' transform='translate(40 42) rotate(-30) scale(1.1)'/%3E%3Cuse xlink:href='%23l' fill='%23c9452c' opacity='0.26' transform='translate(170 30) rotate(40) scale(0.8)'/%3E%3Cuse xlink:href='%23l' fill='%23e3a33b' opacity='0.26' transform='translate(220 140) rotate(110) scale(1.2)'/%3E%3Cuse xlink:href='%23l' fill='%23c9452c' opacity='0.24' transform='translate(96 136) rotate(15) scale(0.9)'/%3E%3Cuse xlink:href='%23l' fill='%23e3a33b' opacity='0.24' transform='translate(34 220) rotate(-70) scale(1.0)'/%3E%3Cuse xlink:href='%23l' fill='%23e8752a' opacity='0.26' transform='translate(160 224) rotate(160) scale(0.75)'/%3E%3Cuse xlink:href='%23l' fill='%23a8552a' opacity='0.26' transform='translate(236 236) rotate(-20) scale(0.6)'/%3E%3Cuse xlink:href='%23l' fill='%23e3a33b' opacity='0.2' transform='translate(120 74) rotate(-110) scale(0.6)'/%3E%3C/svg%3E");
+    --jpf-deco-size: 260px;
+}
+
+/* Snowfall: winter. Night blue with snow coming down and the odd gold
+   star, a festive-card serif, round tiles in a thick white ring that
+   glows like frost, and white outlined capital-letter buttons. */
+[data-jpf-theme="snowfall"],
+[data-jpf-theme="snowfall"] body {
+    --jpf-accent: #f2c14e;
+    --jpf-accent-rgb: 242, 193, 78;
+    --jpf-accent-hover: #f7d37e;
+    --jpf-on-accent: #1a1205;
+    --jpf-gate-bg: linear-gradient(180deg, #0a1a2f 0%, #0f2742 55%, #15385a 100%);
+    --jpf-panel: #0f2238;
+    --jpf-font: 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+    --jpf-r-sm: 6px;
+    --jpf-r-md: 8px;
+    --jpf-r-lg: 16px;
+    --jpf-avatar-r: 50%;
+    --jpf-avatar-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+    --jpf-ring: #fff;
+    --jpf-ring-w: 4px;
+    --jpf-hover-scale: 1.12;
+    --jpf-hover-glow: 0 0 28px rgba(220, 240, 255, 0.55);
+    --jpf-title-weight: 400;
+    --jpf-title-spacing: 0.04em;
+    --jpf-title-shadow: 0 0 18px rgba(200, 230, 255, 0.35);
+    --jpf-title-scale: 1.1;
+    --jpf-name-color: #e6f0fa;
+    --jpf-name-hover: #fff;
+    --jpf-name-weight: 500;
+    --jpf-name-opacity: 1;
+    --jpf-name-scale: 0.95;
+    --jpf-btn-radius: 6px;
+    --jpf-btn2-bg: rgba(255, 255, 255, 0.08);
+    --jpf-btn2-color: #fff;
+    --jpf-btn2-border: 2px solid rgba(255, 255, 255, 0.65);
+    --jpf-btn2-case: uppercase;
+    --jpf-btn2-spacing: 0.1em;
+    --jpf-btn2-weight: 700;
+    --jpf-btn2-hover-bg: #fff;
+    --jpf-btn2-hover-color: #0a1a2f;
+    --jpf-btn2-hover-border: #fff;
+    --jpf-btn2-hover-glow: 0 0 18px rgba(220, 240, 255, 0.5);
+    --jpf-add-bg: rgba(255, 255, 255, 0.05);
+    --jpf-add-border: 3px dotted rgba(255, 255, 255, 0.6);
+    --jpf-add-color: #e6f0fa;
+    --jpf-add-hover-bg: rgba(255, 255, 255, 0.12);
+    --jpf-sheet-bg: transparent;
+    --jpf-sheet-border: 1px solid transparent;
+    --jpf-sheet-shadow: none;
+    --jpf-card-bg: rgba(255, 255, 255, 0.05);
+    --jpf-card-border: rgba(255, 255, 255, 0.14);
+    --jpf-input-bg: rgba(255, 255, 255, 0.07);
+    --jpf-input-border: rgba(255, 255, 255, 0.22);
+    --jpf-input-r: 6px;
+    --jpf-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='240' height='240'%3E%3Cdefs%3E%3Cg id='f' fill='none' stroke='%23fff' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M0 0L0 -10M0 -6l2.5 -2.5M0 -6l-2.5 -2.5M0 0L-8.7 -5M-5.2 -3l-0.9 -3.5M-5.2 -3l-3.5 0.9M0 0L-8.7 5M-5.2 3l-3.5 -0.9M-5.2 3l-0.9 3.5M0 0L-0 10M-0 6l-2.5 2.5M-0 6l2.5 2.5M0 0L8.7 5M5.2 3l0.9 3.5M5.2 3l3.5 -0.9M0 0L8.7 -5M5.2 -3l3.5 0.9M5.2 -3l0.9 -3.5'/%3E%3C/g%3E%3Cpath id='s' d='M0-7L1.6-1.6L7 0L1.6 1.6L0 7L-1.6 1.6L-7 0L-1.6-1.6Z' fill='%23f2c14e'/%3E%3C/defs%3E%3Cuse xlink:href='%23f' transform='translate(34 40) scale(1.0)' opacity='0.3'/%3E%3Cuse xlink:href='%23f' transform='translate(150 26) scale(0.6)' opacity='0.22'/%3E%3Cuse xlink:href='%23f' transform='translate(204 118) scale(1.25)' opacity='0.28'/%3E%3Cuse xlink:href='%23f' transform='translate(84 150) scale(0.8)' opacity='0.24'/%3E%3Cuse xlink:href='%23f' transform='translate(172 206) scale(0.7)' opacity='0.2'/%3E%3Cuse xlink:href='%23f' transform='translate(26 214) scale(1.1)' opacity='0.26'/%3E%3Ccircle cx='110' cy='70' r='1.6' fill='%23fff' opacity='0.3'/%3E%3Ccircle cx='60' cy='100' r='1.2' fill='%23fff' opacity='0.25'/%3E%3Ccircle cx='226' cy='40' r='1.4' fill='%23fff' opacity='0.25'/%3E%3Ccircle cx='130' cy='236' r='1.2' fill='%23fff' opacity='0.2'/%3E%3Ccircle cx='12' cy='150' r='1.5' fill='%23fff' opacity='0.25'/%3E%3Ccircle cx='190' cy='170' r='1.1' fill='%23fff' opacity='0.25'/%3E%3Ccircle cx='100' cy='200' r='1.8' fill='%23fff' opacity='0.22'/%3E%3Ccircle cx='232' cy='220' r='1.2' fill='%23fff' opacity='0.2'/%3E%3Cuse xlink:href='%23s' transform='translate(118 122)' opacity='0.6'/%3E%3Cuse xlink:href='%23s' transform='translate(220 78)' opacity='0.5'/%3E%3C/svg%3E");
+    --jpf-deco-size: 240px;
+}
+
+/* Bloom: spring. Deep fresh green with blossoms and new leaves, a
+   rounded humanist sans, soft squircle tiles in a blossom-pink ring, and
+   leaf-green buttons that turn pink on focus. */
+[data-jpf-theme="bloom"],
+[data-jpf-theme="bloom"] body {
+    --jpf-accent: #7ed36f;
+    --jpf-accent-rgb: 126, 211, 111;
+    --jpf-accent-hover: #9be08f;
+    --jpf-on-accent: #0d2615;
+    --jpf-gate-bg: linear-gradient(160deg, #0d241a 0%, #123222 55%, #1a4430 100%);
+    --jpf-panel: #11301f;
+    --jpf-font: 'Trebuchet MS', 'Segoe UI', 'Helvetica Neue', sans-serif;
+    --jpf-r-sm: 10px;
+    --jpf-r-md: 16px;
+    --jpf-r-lg: 24px;
+    --jpf-avatar-r: 36%;
+    --jpf-avatar-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+    --jpf-ring: #ffd1e3;
+    --jpf-ring-w: 3px;
+    --jpf-hover-scale: 1.07;
+    --jpf-hover-glow: 0 12px 28px rgba(255, 170, 205, 0.35);
+    --jpf-title-weight: 700;
+    --jpf-title-spacing: 0;
+    --jpf-title-shadow: none;
+    --jpf-title-scale: 1.2;
+    --jpf-name-color: #eaf7e6;
+    --jpf-name-hover: #fff;
+    --jpf-name-weight: 500;
+    --jpf-name-opacity: 1;
+    --jpf-name-scale: 1.05;
+    --jpf-btn-radius: 18px;
+    --jpf-btn2-bg: rgba(126, 211, 111, 0.16);
+    --jpf-btn2-color: #eaf7e6;
+    --jpf-btn2-border: 1px solid transparent;
+    --jpf-btn2-case: none;
+    --jpf-btn2-spacing: 0.01em;
+    --jpf-btn2-weight: 700;
+    --jpf-btn2-hover-bg: #ffd1e3;
+    --jpf-btn2-hover-color: #2a0f1c;
+    --jpf-btn2-hover-border: #ffd1e3;
+    --jpf-btn2-hover-glow: none;
+    --jpf-add-bg: rgba(126, 211, 111, 0.08);
+    --jpf-add-border: 2px dashed rgba(126, 211, 111, 0.6);
+    --jpf-add-color: #bfe8b6;
+    --jpf-add-hover-bg: rgba(126, 211, 111, 0.16);
+    --jpf-sheet-bg: transparent;
+    --jpf-sheet-border: 1px solid transparent;
+    --jpf-sheet-shadow: none;
+    --jpf-card-bg: rgba(126, 211, 111, 0.06);
+    --jpf-card-border: rgba(126, 211, 111, 0.2);
+    --jpf-input-bg: rgba(255, 255, 255, 0.06);
+    --jpf-input-border: rgba(126, 211, 111, 0.3);
+    --jpf-input-r: 16px;
+    --jpf-deco: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='260' height='260'%3E%3Cdefs%3E%3Cg id='b'%3E%3Cg fill='%23ff9ec4'%3E%3Cellipse cx='0' cy='-5.5' rx='3.4' ry='5.6' transform='rotate(0)'/%3E%3Cellipse cx='0' cy='-5.5' rx='3.4' ry='5.6' transform='rotate(72)'/%3E%3Cellipse cx='0' cy='-5.5' rx='3.4' ry='5.6' transform='rotate(144)'/%3E%3Cellipse cx='0' cy='-5.5' rx='3.4' ry='5.6' transform='rotate(216)'/%3E%3Cellipse cx='0' cy='-5.5' rx='3.4' ry='5.6' transform='rotate(288)'/%3E%3C/g%3E%3Ccircle r='2.4' fill='%23ffe38a'/%3E%3C/g%3E%3Cpath id='g' d='M0-8C5-4 5 4 0 8C-5 4-5-4 0-8Z' fill='%237ed36f'/%3E%3C/defs%3E%3Cuse xlink:href='%23b' opacity='0.54' transform='translate(40 46) rotate(10) scale(1.1)'/%3E%3Cuse xlink:href='%23b' opacity='0.43' transform='translate(176 34) rotate(40) scale(0.7)'/%3E%3Cuse xlink:href='%23b' opacity='0.50' transform='translate(214 150) rotate(-15) scale(1.25)'/%3E%3Cuse xlink:href='%23b' opacity='0.47' transform='translate(92 148) rotate(30) scale(0.85)'/%3E%3Cuse xlink:href='%23b' opacity='0.43' transform='translate(30 222) rotate(0) scale(0.9)'/%3E%3Cuse xlink:href='%23b' opacity='0.40' transform='translate(150 222) rotate(55) scale(0.7)'/%3E%3Cuse xlink:href='%23g' opacity='0.26' transform='translate(70 70) rotate(40)'/%3E%3Cuse xlink:href='%23g' opacity='0.24' transform='translate(238 92) rotate(-30)'/%3E%3Cuse xlink:href='%23g' opacity='0.2' transform='translate(124 104) rotate(75)'/%3E%3Cuse xlink:href='%23g' opacity='0.24' transform='translate(190 196) rotate(-60)'/%3E%3Cuse xlink:href='%23g' opacity='0.2' transform='translate(70 196) rotate(20)'/%3E%3Cuse xlink:href='%23g' opacity='0.2' transform='translate(240 240) rotate(50)'/%3E%3C/svg%3E");
+    --jpf-deco-size: 260px;
+}
+
+/* Every theme but Bonfire lays the tiles straight on the background, the
+   way the services they follow do, so the layout changes with it.
+   One row where one fits: Bonfire's 900px column and 3rem gaps wrapped
+   five profiles into three and two. Not on a television, which has its
+   own wider rules (.jpf-tv, and fitGateToScreen). */
+[data-jpf-theme]:not([data-jpf-theme="bonfire"]):not(.jpf-tv) #profiles-gate-overlay .profiles-modal-content {
+    max-width: 1240px;
+}
+/* No id in this one, so the fitted gap (#profiles-gate-overlay ... .jpf-fitted)
+   still outranks it once fitGateToScreen has shrunk the gate. */
+[data-jpf-theme]:not([data-jpf-theme="bonfire"]):not(.jpf-tv) .profiles-grid {
+    max-width: none;
+    gap: 2rem;
+}
+/* The household heading, without a panel to head: centred and quiet, and
+   gone when there is only one household on the screen, where it names
+   nothing the title has not. */
+[data-jpf-theme]:not([data-jpf-theme="bonfire"]) .profiles-home-header {
+    justify-content: center;
+    padding-bottom: 0;
+    margin-bottom: 1.5rem;
+}
+[data-jpf-theme]:not([data-jpf-theme="bonfire"]) .profiles-home-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--jpf-text-3);
+}
+[data-jpf-theme]:not([data-jpf-theme="bonfire"]) .profiles-home-icon {
+    font-size: 1.1rem;
+}
+[data-jpf-theme]:not([data-jpf-theme="bonfire"]) .jpf-one-home .profiles-home-header {
+    display: none;
+}
+
+/* Nightfall's rings. A gradient cannot be a border colour, so each tile's
+   frame is a disc behind it, painted in two layers: the gradient on the
+   border box and the background colour inside it, which leaves a ring and
+   a dark gap. Opaque inside so a cut-out picture sits on the dark rather
+   than on a gradient disc. Three colours, in turn, the way each person on
+   that service gets their own. Not on the add tile, which is not a person. */
+[data-jpf-theme="nightfall"] .profile-avatar-container::before {
+    content: '';
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    bottom: -7px;
+    left: -7px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    background:
+        linear-gradient(#0a0714, #0a0714) padding-box,
+        linear-gradient(135deg, #ff5ec4 0%, #c13cff 100%) border-box;
+    z-index: 0;
+    pointer-events: none;
+}
+[data-jpf-theme="nightfall"] .profile-card:nth-child(3n+2) .profile-avatar-container::before {
+    background:
+        linear-gradient(#0a0714, #0a0714) padding-box,
+        linear-gradient(135deg, #c56bff 0%, #6b5cff 100%) border-box;
+}
+[data-jpf-theme="nightfall"] .profile-card:nth-child(3n) .profile-avatar-container::before {
+    background:
+        linear-gradient(#0a0714, #0a0714) padding-box,
+        linear-gradient(135deg, #5c8bff 0%, #3d4dff 100%) border-box;
+}
+[data-jpf-theme="nightfall"] .profile-card.action-add-profile .profile-avatar-container::before {
+    display: none;
+}
+[data-jpf-theme="nightfall"] .profile-avatar {
+    z-index: 1;
+    box-sizing: border-box;
+}
+[data-jpf-theme="nightfall"] .profile-card:hover .profile-avatar-container,
+[data-jpf-theme="nightfall"] .profile-card:focus .profile-avatar-container,
+[data-jpf-theme="nightfall"] .profile-card:focus-within .profile-avatar-container {
+    transform: scale(1.06);
+}
+
+/* The frost. backdrop-filter is Chromium 76, so webOS 4.5 and 5 keep the
+   plain translucent panels and buttons, which still read as Glass. Both
+   spellings, because Safari only knows the prefixed one. */
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    [data-jpf-theme="glass"] .create-profile-container {
+        -webkit-backdrop-filter: blur(24px) saturate(160%);
+        backdrop-filter: blur(24px) saturate(160%);
+    }
+    [data-jpf-theme="glass"] .btn-secondary {
+        -webkit-backdrop-filter: blur(16px) saturate(160%);
+        backdrop-filter: blur(16px) saturate(160%);
+    }
+}
+
+/* ── Seasonal decoration ──────────────────────────────────────────
+   Leaves, snow, blossoms: a tile repeated behind everything on the gate
+   and its screens, and smaller behind a preview. A layer of its own, not
+   part of --jpf-gate-bg, because the head script repeats that value to
+   paint the startup cover and the contrast checks read its colour stops;
+   the decoration is faint and only drawn once the stylesheet is here.
+   z-index -1 inside the overlay's own stacking context puts it above the
+   overlay's background and under everything in it. Every other theme sets
+   --jpf-deco to none in its own block, so this draws nothing for them. Not
+   in the shared block: two attribute selectors there outrank one in each
+   theme's block, so its none beat Snowfall's snow. */
+#profiles-gate-overlay::before,
+.jpf-theme-preview::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
+    background-image: var(--jpf-deco);
+    background-size: var(--jpf-deco-size) var(--jpf-deco-size);
+    pointer-events: none;
+    z-index: -1;
+}
+#profiles-gate-overlay::before {
+    position: fixed;
+}
+.jpf-theme-preview {
+    position: relative;
+    z-index: 0;
+}
+.jpf-theme-preview::before {
+    background-size: calc(var(--jpf-deco-size) * 0.45) calc(var(--jpf-deco-size) * 0.45);
+}
+/* Snowfall's snow comes down, slowly. A transform on a layer one tile
+   taller than the screen, so it is moved by the compositor and nothing is
+   repainted; one tile a loop, so it joins up. Not on a television, whose
+   browser is the slowest thing it runs on, and not for anyone who has
+   asked their system for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+    [data-jpf-theme="snowfall"]:not(.jpf-tv) #profiles-gate-overlay::before {
+        top: -240px;
+        will-change: transform;
+        -webkit-animation: jpf-snowfall 32s linear infinite;
+        animation: jpf-snowfall 32s linear infinite;
+    }
+}
+@-webkit-keyframes jpf-snowfall {
+    from { -webkit-transform: translateY(0); transform: translateY(0); }
+    to { -webkit-transform: translateY(240px); transform: translateY(240px); }
+}
+@keyframes jpf-snowfall {
+    from { transform: translateY(0); }
+    to { transform: translateY(240px); }
+}
+
+/* ── Theme previews ───────────────────────────────────────────────
+   A small "Who's watching?" in each theme: the title, three tiles, a
+   button. It wears the theme it shows through the same attribute, so it
+   is drawn from the real tokens and cannot drift from what choosing it
+   does. Used beside the picker in the profile form and on each card of
+   Settings → Theme. */
+.jpf-theme-preview {
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    padding: 16px 14px;
+    /* Inside its card whatever the card's width. On a phone the cards are
+       two to a row and the tiles and Crimson's spaced capitals ran out
+       past the preview's edge, and past the card's. */
+    box-sizing: border-box; width: 100%; min-width: 0; overflow: hidden;
+    border-radius: var(--jpf-r-md);
+    border: 1px solid var(--jpf-border-2);
+    background: var(--jpf-gate-bg);
+    color: #fff;
+    font-family: var(--jpf-font);
+    text-align: center;
+}
+.jpf-theme-preview-name {
+    font-size: calc(1rem * var(--jpf-title-scale));
+    font-weight: var(--jpf-title-weight);
+    letter-spacing: var(--jpf-title-spacing);
+}
+.jpf-theme-preview-tiles {
+    display: flex; gap: 12px; justify-content: center;
+}
+.jpf-theme-preview-tile {
+    position: relative;
+    width: 30px; height: 30px; flex-shrink: 0;
+    border-radius: var(--jpf-avatar-r);
+    box-shadow: var(--jpf-avatar-shadow);
+}
+.jpf-theme-preview-tile:nth-child(1) { background: #d9534f; }
+.jpf-theme-preview-tile:nth-child(2) { background: #3fb37f; }
+.jpf-theme-preview-tile:nth-child(3) { background: #5b8def; }
+/* The first tile shows the theme's focus frame. */
+/* Theme-specific preview rules key on the preview's own attribute, never the
+   page's: on a Nightfall page every preview took Nightfall's rings. */
+.jpf-theme-preview-tile:first-child {
+    box-shadow: 0 0 0 var(--jpf-ring-w) var(--jpf-ring);
+}
+.jpf-theme-preview[data-jpf-theme="nightfall"] .jpf-theme-preview-tile { box-shadow: 0 0 0 2px #0a0714, 0 0 0 4px #e04ed9; }
+.jpf-theme-preview[data-jpf-theme="nightfall"] .jpf-theme-preview-tile:nth-child(2) { box-shadow: 0 0 0 2px #0a0714, 0 0 0 4px #9a64ff; }
+.jpf-theme-preview[data-jpf-theme="nightfall"] .jpf-theme-preview-tile:nth-child(3) { box-shadow: 0 0 0 2px #0a0714, 0 0 0 4px #4f6dff; }
+.jpf-theme-preview-button {
+    padding: 4px 12px;
+    border-radius: var(--jpf-btn-radius);
+    background: var(--jpf-btn2-bg);
+    color: var(--jpf-btn2-color);
+    border: var(--jpf-btn2-border);
+    text-transform: var(--jpf-btn2-case);
+    letter-spacing: var(--jpf-btn2-spacing);
+    font-weight: var(--jpf-btn2-weight);
+    font-size: 0.68rem;
+    /* Wraps rather than being cut: Crimson's spaced capitals came out as
+       "MANAGE PROFIL..." even on a desktop card. */
+    white-space: normal; line-height: 1.25;
+    box-sizing: border-box; max-width: 100%;
+    overflow: hidden;
+}
+/* Two cards to a row on a phone leaves about 100px inside a preview:
+   three 30px tiles, their gaps and a ring did not fit, nor did a spaced
+   capital button. Smaller tiles, and the button's letter-spacing eased,
+   so every theme's preview fits rather than being cut off. */
+@media (max-width: 480px) {
+    .jpf-theme-preview { padding: 12px 6px; gap: 8px; }
+    .jpf-theme-preview-tiles { gap: 8px; }
+    .jpf-theme-preview-tile { width: 22px; height: 22px; }
+    .jpf-theme-preview-button { padding: 3px 8px; font-size: 0.6rem; letter-spacing: 0.04em; }
+}
+
+/* A card you choose: the Settings entries and the switcher's location
+   options. Their colours were inline, which no theme could reach. */
+.jpf-choice {
+    display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
+    border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
+    border: 2px solid var(--jpf-card-border);
+    background: var(--jpf-card-bg);
+}
+.jpf-choice:hover,
+.jpf-choice:focus {
+    border-color: var(--jpf-border-3);
+    outline: none;
+}
+.jpf-choice[aria-checked="true"] {
+    border-color: var(--jpf-accent);
+    background: var(--jpf-accent-a08);
+}
+.jpf-choice-icon {
+    font-size: 2rem !important;
+    color: var(--jpf-text-3);
+    flex-shrink: 0;
+}
+.jpf-choice[aria-checked="true"] .jpf-choice-icon {
+    color: var(--jpf-accent);
+}
+
+/* Settings → Theme: one card per theme, each a preview with its name. */
+/* The same in every theme: no sheet behind the cards, which are cards
+   already, and the full width for them. Bonfire drew its sheet here and
+   its 2rem padding left room for three previews a row where the other
+   themes, with transparent sheets, showed four. 8px of side padding is
+   kept so a focused card's ring is not cut off by the container's scroll
+   box. After the Glass frost rule above, which this has to undo. */
+/* 706px: nine themes as three rows of three rather than four, four and
+   one, with Done under the cards' left edge rather than out past it. */
+.create-profile-container.jpf-theme-page {
+    max-width: 706px;
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    padding-left: 8px;
+    padding-right: 8px;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+.jpf-theme-option-tag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--jpf-border-2);
+    color: var(--jpf-text-2);
+    font-size: 0.7rem; font-weight: 600;
+    vertical-align: middle;
+}
+/* Flex rather than grid: grid is Chromium 57, and webOS 4.5 is 53. */
+.jpf-theme-grid {
+    display: flex; flex-wrap: wrap; justify-content: center;
+    gap: var(--jpf-gap);
+    width: 100%;
+}
+/* 130px is two to a row on a phone; seven cards one above another was a
+   long scroll to reach the last. */
+.jpf-theme-grid > .jpf-theme-option {
+    flex: 0 1 210px;
+    min-width: 130px;
+}
+@media (max-width: 480px) {
+    .jpf-theme-grid > .jpf-theme-option {
+        flex-basis: 130px;
+    }
+}
+.jpf-theme-option {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 8px;
+    border-radius: var(--jpf-r-md);
+    border: 2px solid var(--jpf-card-border);
+    background: var(--jpf-card-bg);
+    color: var(--jpf-text-1);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.jpf-theme-option:hover,
+.jpf-theme-option:focus {
+    border-color: var(--jpf-border-3);
+    outline: none;
+}
+.jpf-theme-option[aria-checked="true"] {
+    border-color: var(--jpf-accent);
+    background: var(--jpf-accent-a08);
+}
+.jpf-theme-option-label {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    font-weight: 600; font-size: 0.92rem;
+    padding: 0 4px 2px;
+}
+.jpf-theme-option-check {
+    font-size: 1.1rem !important;
+    color: var(--jpf-accent);
+    visibility: hidden;
+}
+.jpf-theme-option[aria-checked="true"] .jpf-theme-option-check {
+    visibility: visible;
+}
+.jpf-theme-people {
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+    margin-bottom: 1.25rem;
+}
+.jpf-theme-person {
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--jpf-border-2);
+    background: var(--jpf-surface-2);
+    color: var(--jpf-text-2);
+    font: inherit; font-weight: 600; font-size: 0.9rem;
+    cursor: pointer;
+}
+.jpf-theme-person:hover,
+.jpf-theme-person:focus {
+    border-color: var(--jpf-border-3);
+    color: #fff;
+    outline: none;
+}
+.jpf-theme-person[aria-checked="true"] {
+    border-color: var(--jpf-accent);
+    background: var(--jpf-accent-a18);
+    color: #fff;
+}
+.jpf-theme-status {
+    text-align: center;
+    min-height: 1.4em;
+    margin-top: 12px;
+    font-size: 0.85rem;
+    color: var(--jpf-text-2);
+}
+.jpf-theme-status.is-error {
+    color: var(--jpf-danger);
 }
 /* Administrator-supplied avatar picker.
    auto-fill rather than a fixed count so it reflows from a phone to a TV
@@ -347,9 +1320,9 @@ body.profiles-no-scroll [id*="spinner"] {
 /* Overlay Glassmorphic Layout */
 #profiles-gate-overlay {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    background: radial-gradient(circle at 50% 40%, #1e1e2e 0%, #0d0d12 100%);
+    background: var(--jpf-gate-bg);
     z-index: 99999; display: flex; align-items: center; justify-content: center;
-    color: #fff; font-family: 'Outfit', 'Inter', sans-serif;
+    color: #fff; font-family: var(--jpf-font);
     overflow-y: auto; padding: 2rem 0; box-sizing: border-box;
     opacity: 1; transition: opacity 0.22s ease;
 }
@@ -379,18 +1352,20 @@ body.profiles-no-scroll [id*="spinner"] {
     margin: auto;
 }
 .profiles-title {
-    font-size: 3rem; font-weight: 700; margin-bottom: 3rem;
-    text-shadow: 0 4px 20px rgba(0,0,0,0.6); letter-spacing: -0.05rem;
+    font-size: 3rem;
+    font-size: calc(3rem * var(--jpf-title-scale));
+    font-weight: var(--jpf-title-weight); margin-bottom: 3rem;
+    text-shadow: var(--jpf-title-shadow); letter-spacing: var(--jpf-title-spacing);
 }
 .profiles-home-section {
     width: 100%;
     margin-bottom: 2.5rem;
-    background: var(--jpf-surface-1);
-    border: 1px solid var(--jpf-border-1);
+    background: var(--jpf-section-bg);
+    border: var(--jpf-section-border);
     border-radius: var(--jpf-r-lg);
-    padding: 1.75rem 2rem;
+    padding: var(--jpf-section-pad);
     box-sizing: border-box;
-    box-shadow: 0 10px 30px var(--jpf-shadow-1);
+    box-shadow: var(--jpf-section-shadow);
     text-align: left;
 }
 .profiles-home-header {
@@ -399,7 +1374,7 @@ body.profiles-no-scroll [id*="spinner"] {
     gap: 0.75rem;
     margin-bottom: 1.75rem;
     padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--jpf-border-1);
+    border-bottom: var(--jpf-section-rule);
 }
 /* Your own Bonfire: a warm amber flame. */
 .profiles-home-icon {
@@ -547,7 +1522,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .profile-avatar {
     position: relative;
-    width: 100%; height: 100%; border-radius: var(--jpf-r-lg);
+    width: 100%; height: 100%; border-radius: var(--jpf-avatar-r);
     /* The 3px border below is transparent, so without this the avatar
        colour showed through it as a ring — a blue outline around Bard's
        orange picture. Clipping to the padding box keeps the colour behind
@@ -555,9 +1530,9 @@ body.profiles-no-scroll [id*="spinner"] {
     background-clip: padding-box;
     display: flex; align-items: center; justify-content: center;
     font-size: 3.5rem; font-weight: bold; text-transform: uppercase;
-    box-shadow: 0 10px 30px var(--jpf-shadow-3);
+    box-shadow: var(--jpf-avatar-shadow);
     transition: transform 0.3s cubic-bezier(0.165, 0.84, 0.44, 1), box-shadow 0.3s ease, border-color 0.3s ease;
-    border: 3px solid transparent;
+    border: var(--jpf-ring-w) solid transparent;
 }
 /* The one you are already in. Now that the avatar colour no longer
    paints the border, an accent ring means exactly one thing. */
@@ -610,7 +1585,15 @@ body.profiles-no-scroll [id*="spinner"] {
     padding: 10px;
     box-sizing: content-box;
 }
+/* "No clip" stops at the theme's shape. A cut-out picture that is not
+   actually cut out — an opaque square — sat as a square over Nightfall's
+   round ring, its corners outside it. Rounding the picture to the
+   avatar's own radius keeps it inside whatever shape the theme draws,
+   and costs a real cut-out nothing: its transparent corners are what is
+   trimmed. drop-shadow() follows the rounded edge, so the ring and the
+   focus outline below trace the same shape. */
 .profile-avatar.is-transparent img {
+    border-radius: var(--jpf-avatar-r);
     filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
 }
 /* Four offsets approximate a stroke around an arbitrary silhouette;
@@ -667,26 +1650,30 @@ body.profiles-no-scroll [id*="spinner"] {
 .profile-card:hover .profile-avatar,
 .profile-card:focus .profile-avatar,
 .profile-card:focus-within .profile-avatar {
-    transform: scale(1.08);
-    box-shadow: 0 15px 35px var(--jpf-accent-a40);
-    border-color: rgba(255,255,255,0.8);
+    transform: scale(var(--jpf-hover-scale));
+    box-shadow: var(--jpf-hover-glow);
+    border-color: var(--jpf-ring);
 }
 .profile-card:focus {
     outline: none;
 }
 .add-avatar {
-    border: 3px dashed var(--jpf-border-3);
-    background: var(--jpf-surface-1) !important; color: var(--jpf-text-3);
+    border: var(--jpf-add-border);
+    background: var(--jpf-add-bg) !important; color: var(--jpf-add-color);
 }
 .profile-card:hover .add-avatar,
 .profile-card:focus .add-avatar,
 .profile-card:focus-within .add-avatar {
-    border-color: rgba(255,255,255,0.8); color: #fff;
-    background: var(--jpf-surface-2) !important;
+    border-color: var(--jpf-ring); color: #fff;
+    background: var(--jpf-add-hover-bg) !important;
 }
 .profile-name {
-    margin-top: 1rem; font-size: 1.25rem; font-weight: 500;
-    opacity: 0.75; transition: opacity 0.3s ease;
+    margin-top: 1rem;
+    font-size: 1.25rem;
+    font-size: calc(1.25rem * var(--jpf-name-scale));
+    font-weight: var(--jpf-name-weight);
+    color: var(--jpf-name-color);
+    opacity: var(--jpf-name-opacity); transition: opacity 0.3s ease, color 0.3s ease;
     display: flex; flex-direction: column; align-items: center; gap: 4px;
     text-align: center;
     /* The card centres its children, so this box is content-sized and a
@@ -696,20 +1683,28 @@ body.profiles-no-scroll [id*="spinner"] {
        a card whose smallest width is 140px. Wrap inside the card instead. */
     max-width: 100%;
     overflow-wrap: break-word;
+    /* Above the tile's shadow. A grown tile is a stacking context painted
+       after this, so its shadow dimmed the name of the profile being
+       pointed at — the one name that should be brightest. */
+    position: relative;
+    z-index: 1;
 }
 .profiles-limit-notice {
     font-size: 0.85rem; color: var(--jpf-text-3);
     font-style: italic; align-self: center; padding: 1rem 0;
     width: 140px; text-align: center;
 }
-.profile-card:hover .profile-name {
+.profile-card:hover .profile-name,
+.profile-card:focus .profile-name,
+.profile-card:focus-within .profile-name {
     opacity: 1;
+    color: var(--jpf-name-hover);
 }
 
 /* Manage Mode Overlay Icon styling */
 .profile-avatar-overlay-wrap {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    background: var(--jpf-scrim); border-radius: var(--jpf-r-lg);
+    background: var(--jpf-scrim); border-radius: var(--jpf-avatar-r);
     display: flex; align-items: center; justify-content: center;
     opacity: 0; transition: opacity 0.25s ease;
     pointer-events: none;
@@ -743,8 +1738,8 @@ body.profiles-no-scroll [id*="spinner"] {
     z-index: 10;
 }
 #bonfire-join-input {
-    background: var(--jpf-surface-2); border: 1px solid var(--jpf-border-2);
-    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
+    background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border);
+    border-radius: var(--jpf-input-r); padding: 10px; color: #fff; font-size: 1rem;
     transition: border-color 0.25s, box-shadow 0.25s;
     position: relative !important;
 }
@@ -758,7 +1753,7 @@ body.profiles-no-scroll [id*="spinner"] {
     box-shadow: 0 0 10px rgba(255, 107, 107, 0.4);
 }
 .profile-card.manage-mode:hover .profile-avatar {
-    transform: scale(1.08);
+    transform: scale(var(--jpf-hover-scale));
     border-color: var(--jpf-accent);
 }
 /* The fourth state that paints a border on .profile-avatar, and the one
@@ -908,8 +1903,8 @@ body.profiles-no-scroll [id*="spinner"] {
     display: flex; flex-direction: column; align-items: center; gap: 2rem;
 }
 #profile-pin-input, #master-pin-input {
-    background: var(--jpf-surface-2); border: 2px solid var(--jpf-border-2);
-    border-radius: var(--jpf-r-md); color: #fff; font-size: 2.5rem; text-align: center;
+    background: var(--jpf-input-bg); border: 2px solid var(--jpf-input-border);
+    border-radius: var(--jpf-input-r); color: #fff; font-size: 2.5rem; text-align: center;
     padding: 12px; width: 180px; letter-spacing: 0.6rem;
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
     -webkit-text-security: disc;
@@ -924,7 +1919,7 @@ body.profiles-no-scroll [id*="spinner"] {
 
 /* Button Styling */
 .profiles-btn {
-    padding: 10px 24px; border: 1.5px solid transparent; border-radius: var(--jpf-r-md);
+    padding: 10px 24px; border: 1.5px solid transparent; border-radius: var(--jpf-btn-radius);
     font-weight: 600; font-size: 1rem; cursor: pointer;
     transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
 }
@@ -935,27 +1930,41 @@ body.profiles-no-scroll [id*="spinner"] {
     box-shadow: none !important;
 }
 .btn-primary {
-    background-color: var(--jpf-accent); color: #fff;
+    background-color: var(--jpf-accent); color: var(--jpf-on-accent);
 }
 .btn-primary:hover,
 .btn-primary:focus {
-    background-color: #0082ad; border-color: rgba(255, 255, 255, 0.4);
+    background-color: var(--jpf-accent-hover); border-color: rgba(255, 255, 255, 0.4);
     box-shadow: 0 0 12px var(--jpf-accent-a50); transform: translateY(-1px);
     outline: none;
 }
 .btn-secondary {
-    background-color: var(--jpf-surface-3); color: var(--jpf-text-2);
-    border: 1px solid var(--jpf-border-2);
+    background: var(--jpf-btn2-bg); color: var(--jpf-btn2-color);
+    border: var(--jpf-btn2-border);
+    text-transform: var(--jpf-btn2-case);
+    letter-spacing: var(--jpf-btn2-spacing);
+    font-weight: var(--jpf-btn2-weight);
 }
 .btn-secondary:hover,
 .btn-secondary:focus {
-    background-color: var(--jpf-border-2); color: #fff;
-    border-color: var(--jpf-accent);
-    box-shadow: 0 0 10px var(--jpf-accent-a40);
+    background: var(--jpf-btn2-hover-bg); color: var(--jpf-btn2-hover-color);
+    border-color: var(--jpf-btn2-hover-border);
+    box-shadow: var(--jpf-btn2-hover-glow);
     outline: none;
 }
 .pin-actions {
     display: flex; gap: var(--jpf-gap-lg); margin-top: 1rem;
+    width: 100%; max-width: var(--jpf-w-narrow);
+}
+/* Every row of buttons that ends a screen. The way out is always first,
+   so it is always bottom left; the main action is last, bottom right.
+   It was the other way round on the PIN and create screens, the same as
+   this on the prompts, and a lone Back or Done sat centred on Settings —
+   so the button that leaves was somewhere different on every screen. A
+   lone way out sits on the left too. */
+.jpf-actions {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: var(--jpf-gap); flex-wrap: wrap;
 }
 
 /* Profile Creation Form styles */
@@ -990,8 +1999,8 @@ body.profiles-no-scroll [id*="spinner"] {
 .create-profile-container {
     width: 100%; max-width: var(--jpf-w-form); box-sizing: border-box;
     display: flex; flex-direction: column; gap: 1.5rem;
-    background: var(--jpf-surface-1); border: 1px solid var(--jpf-border-1);
-    border-radius: var(--jpf-r-lg); padding: 2rem; box-shadow: 0 20px 50px var(--jpf-shadow-2);
+    background: var(--jpf-sheet-bg); border: var(--jpf-sheet-border);
+    border-radius: var(--jpf-r-lg); padding: 2rem; box-shadow: var(--jpf-sheet-shadow);
     text-align: left; max-height: 75vh; overflow-y: auto;
 }
 .profile-dialog-actions {
@@ -1012,15 +2021,15 @@ body.profiles-no-scroll [id*="spinner"] {
    padding so its backdrop spans the full width, and the backdrop has
    to be opaque — the container's own background is
    rgba(255,255,255,0.03), which would let the fields scroll visibly
-   through the buttons. The literal matches the overlay's own dark
-   gradient, which is hardcoded here too rather than themed. */
+   through the buttons. --jpf-panel is each theme's opaque match for
+   its own gate background. */
 .create-profile-container > .profile-dialog-actions {
     position: sticky;
     bottom: 0;
     z-index: 2;
     margin: 1rem -2rem -2rem;
     padding: 1rem 2rem;
-    background: #1b1b28;
+    background: var(--jpf-panel);
     border-top: 1px solid var(--jpf-border-1);
 }
 .dialog-action-buttons {
@@ -1085,8 +2094,10 @@ body.profiles-no-scroll [id*="spinner"] {
     .profiles-grid {
         gap: 1.5rem;
     }
+    /* Stacked, the main action goes on top and the way out at the
+       bottom, which is still the same place on every screen. */
     .profile-dialog-actions {
-        flex-direction: column;
+        flex-direction: column-reverse;
     }
     .dialog-action-buttons {
         width: 100%;
@@ -1108,14 +2119,14 @@ body.profiles-no-scroll [id*="spinner"] {
 .form-group input[type="text"],
 .bonfire-form-group input[type="text"],
 .form-group input[type="password"] {
-    background: var(--jpf-surface-2); border: 1px solid var(--jpf-border-2);
-    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
+    background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border);
+    border-radius: var(--jpf-input-r); padding: 10px; color: #fff; font-size: 1rem;
 }
 .form-group select {
-    background: var(--jpf-surface-2) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
+    background: var(--jpf-input-bg) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
     background-size: 20px;
-    border: 1px solid var(--jpf-border-2);
-    border-radius: var(--jpf-r-md); padding: 10px; color: #fff; font-size: 1rem;
+    border: 1px solid var(--jpf-input-border);
+    border-radius: var(--jpf-input-r); padding: 10px; color: #fff; font-size: 1rem;
     cursor: pointer;
     appearance: none;
     -webkit-appearance: none;
@@ -1123,7 +2134,7 @@ body.profiles-no-scroll [id*="spinner"] {
     padding-right: 36px;
 }
 .form-group select option {
-    background-color: #1a1a1a;
+    background-color: var(--jpf-panel);
     color: #fff;
 }
 .form-group input:focus, .form-group select:focus {
@@ -1296,8 +2307,8 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 /* ── Titled sections in the create/edit forms ───────────────────── */
 .profile-section {
-    background: var(--jpf-surface-1);
-    border: 1px solid var(--jpf-border-1);
+    background: var(--jpf-card-bg);
+    border: 1px solid var(--jpf-card-border);
     border-radius: var(--jpf-r-md);
     padding: 1rem 1.15rem 1.15rem;
     margin-bottom: 1.25rem;
@@ -1308,7 +2319,7 @@ body.profiles-no-scroll [id*="spinner"] {
     gap: 0.7rem;
     padding-bottom: 0.75rem;
     margin-bottom: 1rem;
-    border-bottom: 1px solid var(--jpf-border-1);
+    border-bottom: 1px solid var(--jpf-card-border);
 }
 .profile-section-icon {
     font-size: 1.35rem;
@@ -1598,10 +2609,10 @@ body.profiles-no-scroll [id*="spinner"] {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: var(--jpf-surface-2) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
+    background: var(--jpf-input-bg) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
     background-size: 20px;
-    border: 1px solid var(--jpf-border-2);
-    border-radius: var(--jpf-r-md);
+    border: 1px solid var(--jpf-input-border);
+    border-radius: var(--jpf-input-r);
     padding: 10px;
     padding-right: 36px;
     color: #fff;
@@ -1621,7 +2632,7 @@ body.profiles-no-scroll [id*="spinner"] {
     background-color: var(--jpf-surface-2);
 }
 .devices-dropdown-list {
-    background: #202020;
+    background: var(--jpf-panel);
     border: 1px solid var(--jpf-border-2);
     border-radius: var(--jpf-r-sm);
     max-height: 250px;
@@ -1708,6 +2719,14 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-no-flex-gap .create-profile-container > * + * { margin-top: 1.5rem; }
 .jpf-no-flex-gap .form-group > * + * { margin-top: 0.5rem; }
 .jpf-no-flex-gap .bonfire-form-group > * + * { margin-top: 0.5rem; }
+.jpf-no-flex-gap .jpf-theme-preview > * + * { margin-top: 10px; }
+.jpf-no-flex-gap .jpf-theme-preview-tiles > * + * { margin-left: 12px; }
+.jpf-no-flex-gap .jpf-theme-grid > * { margin: 0 6px 12px; }
+.jpf-no-flex-gap .jpf-theme-people > * { margin: 0 4px 8px; }
+.jpf-no-flex-gap .jpf-choice > * + * { margin-left: 12px; }
+.jpf-no-flex-gap .jpf-actions > * + * { margin-left: 12px; }
+.jpf-no-flex-gap .jpf-theme-option > * + * { margin-top: 8px; }
+.jpf-no-flex-gap .jpf-theme-option-label > * + * { margin-left: 6px; }
 .jpf-no-flex-gap .library-checklist > * + * { margin-top: 0.5rem; }
 .jpf-no-flex-gap .libart-list > * + * { margin-top: 6px; }
 .jpf-no-flex-gap .profile-section-heading > * + * { margin-top: 2px; }
@@ -1806,10 +2825,12 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .jpf-tv .profiles-title {
     font-size: 4rem;
+    font-size: calc(4rem * var(--jpf-title-scale));
     margin-bottom: 4rem;
 }
 .jpf-tv .profile-name {
     font-size: 1.75rem;
+    font-size: calc(1.75rem * var(--jpf-name-scale));
     margin-top: 1.5rem;
 }
 .jpf-tv .profiles-btn {
@@ -1830,7 +2851,10 @@ body.profiles-no-scroll [id*="spinner"] {
    the entire navigation model on a remote. */
 .jpf-tv .profile-section :focus,
 .jpf-tv .profile-card:focus,
-.jpf-tv .profiles-btn:focus {
+.jpf-tv .profiles-btn:focus,
+.jpf-tv .jpf-choice:focus,
+.jpf-tv .jpf-theme-option:focus,
+.jpf-tv .jpf-theme-person:focus {
     outline: 4px solid var(--jpf-accent);
     outline-offset: 4px;
 }

@@ -1037,6 +1037,259 @@ if (panicField != null && ownUser != null && publicUsers != null)
 }
 
 Console.WriteLine();
+Console.WriteLine("── Why a profile goes missing from one television ──────────────");
+
+// Android TV, Roku and Wholphin show the users stored on the device and only ADD
+// /Users/Public on top, so when the injection does not happen - or loses one profile - the
+// one that vanishes is the profile that television never signed in as. These cases are
+// the ways that happened with nothing in the log.
+{
+    var xPlugin = pluginT.GetProperty("Instance").GetValue(null);
+    var xCfgType = asm.GetType("Jellyfin.Profiles.Configuration.PluginConfiguration", true);
+    var xMapType = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);
+    var xDevType = asm.GetType("Jellyfin.Profiles.Configuration.KnownDevice", true);
+    var xRegistry = asm.GetType("Jellyfin.Profiles.Auth.DeviceRegistry", true);
+    var xResolve = injectorType.GetMethod("ResolveHousehold", BindingFlags.Public | BindingFlags.Static);
+
+    static string XSha1(string v) => Convert.ToHexString(
+        System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(v))).ToLowerInvariant();
+
+    object XNewConfig()
+    {
+        var c = Activator.CreateInstance(xCfgType);
+        xCfgType.GetProperty("EnableClientProfileList").SetValue(c, true);
+        return c;
+    }
+    object XMap(object c, Guid profile, Guid master, string name, params string[] allowedDevices)
+    {
+        var m = Activator.CreateInstance(xMapType);
+        xMapType.GetProperty("ProfileUserId").SetValue(m, profile);
+        xMapType.GetProperty("MasterUserId").SetValue(m, master);
+        xMapType.GetProperty("ProfileName").SetValue(m, name);
+        var l = (System.Collections.IList)xMapType.GetProperty("AllowedDeviceIds").GetValue(m);
+        foreach (var d in allowedDevices) l.Add(d);
+        ((System.Collections.IList)xCfgType.GetProperty("Mappings").GetValue(c)).Add(m);
+        return m;
+    }
+    void XDevice(object c, string id, Guid owner, DateTime seen)
+    {
+        var d = Activator.CreateInstance(xDevType);
+        xDevType.GetProperty("DeviceId").SetValue(d, id);
+        xDevType.GetProperty("MasterUserId").SetValue(d, owner);
+        xDevType.GetProperty("LastSeen").SetValue(d, seen);
+        ((System.Collections.IList)xCfgType.GetProperty("KnownDevices").GetValue(c)).Add(d);
+    }
+    IReadOnlyList<Guid> XResolveWith(object c, string deviceId, object logger)
+        => (IReadOnlyList<Guid>)xResolve.Invoke(null, new object[]
+        {
+            "MediaBrowser Client=\"tv\", Device=\"telly\", DeviceId=\"" + deviceId + "\", Version=\"1\"",
+            null, DeviceManagerStub.Create(deviceId, null, DateTime.UtcNow), c, logger
+        });
+
+    var xFindMaster = xRegistry.GetMethod("FindMaster", BindingFlags.Public | BindingFlags.Static);
+
+    // ── 1. a transient read failure costs a profile ─────────────────────────────────
+    {
+        var flaky = UserManagerStub.Create(profileId, dto, failFirstDtoCalls: 1);
+        var log = new CapLogger<object>();
+        var bytes = (byte[])inject.Invoke(null, new object[]
+        {
+            Encoding.UTF8.GetBytes("[]"), "application/json; profile=\"PascalCase\"",
+            (IReadOnlyList<Guid>)new List<Guid> { profileId }, flaky, "127.0.0.1", log, null
+        });
+        Ok("a profile whose first database read fails is still added (read twice)",
+           bytes != null && Encoding.UTF8.GetString(bytes).Contains("Bardkids"),
+           bytes == null ? "the response was left without it" : "present");
+    }
+
+    // ── 2. a mapping whose account is gone is skipped without a word ────────────────
+    {
+        var ghost = Guid.Parse("11111111-2222-3333-4444-555555555555");
+        var log = new CapLogger<object>();
+        var bytes = (byte[])inject.Invoke(null, new object[]
+        {
+            Encoding.UTF8.GetBytes("[]"), "application/json; profile=\"PascalCase\"",
+            (IReadOnlyList<Guid>)new List<Guid> { ghost, profileId }, userManager, "127.0.0.1", log, null
+        });
+        Ok("a profile whose account is gone does not stop the others", bytes != null
+           && Encoding.UTF8.GetString(bytes).Contains("Bardkids"));
+        Ok("and the log names the profile whose account is gone",
+           log.All.Contains(ghost.ToString(), StringComparison.Ordinal), log.All);
+    }
+
+    // ── 3. the device filter drops a profile and says nothing ───────────────────────
+    var xMaster = Guid.NewGuid();
+    var xKidAny = Guid.NewGuid();
+    var xKidTv = Guid.NewGuid();
+    {
+        var c = XNewConfig();
+        XMap(c, xKidAny, xMaster, "Everywhere");
+        XMap(c, xKidTv, xMaster, "LivingRoomOnly", "tv-living-room");
+        XDevice(c, "tv-living-room", xMaster, DateTime.UtcNow);
+        XDevice(c, "tv-bedroom", xMaster, DateTime.UtcNow);
+
+        var log = new CapLogger<object>();
+        var offered = XResolveWith(c, "tv-bedroom", log);
+        Ok("a profile limited to another device is not offered", !offered.Contains(xKidTv));
+        Ok("but an unrestricted one is", offered.Contains(xKidAny));
+        Ok("and the log names the dropped profile and the reason",
+           log.All.Contains("LivingRoomOnly", StringComparison.Ordinal)
+           && log.All.Contains("DeniedNotOnList", StringComparison.Ordinal), log.All);
+    }
+
+    // ── 4. the most recent household wins, not the first one configured ─────────────
+    {
+        var c = XNewConfig();
+        var m1 = Guid.NewGuid(); var k1 = Guid.NewGuid();
+        var m2 = Guid.NewGuid(); var k2 = Guid.NewGuid();
+        XMap(c, k1, m1, "OldKid");
+        XMap(c, k2, m2, "NewKid");
+        const string bare = "bare-tv-id-0001";
+        XDevice(c, XSha1(bare + "+" + k1), m1, DateTime.UtcNow.AddDays(-30));
+        XDevice(c, XSha1(bare + "+" + k2), m2, DateTime.UtcNow);
+        var found = (Guid)xFindMaster.Invoke(null, new object[] { c, bare });
+        Ok("a television two households signed in on resolves to the more recent one",
+           found == m2, found == m1 ? "the first-configured household" : found.ToString());
+    }
+
+    // ── 5. the id Android TV signs in with is derived from the NAME typed ───────────
+    {
+        var c = XNewConfig();
+        var m = Guid.NewGuid(); var k = Guid.NewGuid();
+        XMap(c, k, m, "Family");
+        const string bare = "bare-tv-id-0002";
+        XDevice(c, XSha1(bare + "+" + "Family"), m, DateTime.UtcNow);
+        var found = (Guid)xFindMaster.Invoke(null, new object[] { c, bare });
+        Ok("a television recorded only under sha1(id + name) resolves from its bare id",
+           found == m, found.ToString());
+
+        // And a restriction an administrator made by ticking that recorded row.
+        var c2 = XNewConfig();
+        var kRestricted = Guid.NewGuid();
+        XMap(c2, kRestricted, m, "Family", XSha1(bare + "+" + "Family"));
+        XDevice(c2, bare, m, DateTime.UtcNow);
+        XDevice(c2, XSha1(bare + "+" + "Family"), m, DateTime.UtcNow);
+        var offered = XResolveWith(c2, bare, new CapLogger<object>());
+        Ok("a profile limited to the sha1(id + name) row is offered on that television's sign-in screen",
+           offered.Contains(kRestricted), offered.Count + " offered");
+
+        // The derivation must not become a way round a restriction.
+        var c3 = XNewConfig();
+        XMap(c3, kRestricted, m, "Family", XSha1("some-other-tv-id" + "+" + "Family"));
+        XDevice(c3, bare, m, DateTime.UtcNow);
+        XDevice(c3, XSha1("some-other-tv-id" + "+" + "Family"), m, DateTime.UtcNow);
+        var notOffered = XResolveWith(c3, bare, new CapLogger<object>());
+        Ok("and one limited to a different television's derived id is still not offered",
+           !notOffered.Contains(kRestricted));
+    }
+
+    // ── 6. the middleware: started responses and untouched responses ────────────────
+    {
+        var xCfg = pluginT.GetProperty("Configuration").GetValue(xPlugin);
+        var xMappings = (System.Collections.IList)xCfgType.GetProperty("Mappings").GetValue(xCfg);
+        var xDevices = (System.Collections.IList)xCfgType.GetProperty("KnownDevices").GetValue(xCfg);
+        xMappings.Clear(); xDevices.Clear();
+        var xm = Guid.NewGuid();
+        XMap(xCfg, profileId, xm, "Bardkids");
+        XDevice(xCfg, "mw-tv", xm, DateTime.UtcNow);
+
+        async System.Threading.Tasks.Task<(string body, string log)> Drive(
+            int status, bool started, string contentEncoding)
+        {
+            var logger = Activator.CreateInstance(typeof(CapLogger<>).MakeGenericType(mw));
+            var next = new Microsoft.AspNetCore.Http.RequestDelegate(async c =>
+            {
+                c.Response.StatusCode = status;
+                c.Response.ContentType = "application/json; profile=\"PascalCase\"";
+                if (contentEncoding != null) c.Response.Headers["Content-Encoding"] = contentEncoding;
+                await c.Response.Body.WriteAsync(Encoding.UTF8.GetBytes("[]"));
+            });
+            var instance = Activator.CreateInstance(mw, next, logger);
+
+            var ctx = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+            ctx.Request.Method = "GET";
+            ctx.Request.Path = "/Users/Public";
+            ctx.Request.Headers["Authorization"] =
+                "MediaBrowser Client=\"tv\", Device=\"telly\", DeviceId=\"mw-tv\", Version=\"1\"";
+            var sink = new MemoryStream();
+            ctx.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>(
+                new Microsoft.AspNetCore.Http.StreamResponseBodyFeature(sink));
+            if (started)
+            {
+                ctx.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpResponseFeature>(
+                    new StartedResponseFeature());
+            }
+
+            var task = (System.Threading.Tasks.Task)mw.GetMethod("Invoke").Invoke(instance, new object[]
+            {
+                ctx, null, UserManagerStub.Create(profileId, dto), DeviceManagerStub.Create("mw-tv", null, DateTime.UtcNow)
+            });
+            await task;
+            return (Encoding.UTF8.GetString(sink.ToArray()), (string)logger.GetType().GetProperty("All").GetValue(logger));
+        }
+
+        var normal = Drive(200, false, null).GetAwaiter().GetResult();
+        Ok("a normal user list still gets the household added", normal.body.Contains("Bardkids"), normal.body);
+
+        var begun = Drive(200, true, null).GetAwaiter().GetResult();
+        Ok("a response that had already started is not turned into an empty body",
+           begun.body.Contains("[]"), "\"" + begun.body + "\"");
+        Ok("and the log says the profiles could not be added because it had started",
+           begun.log.Contains("already started", StringComparison.Ordinal), begun.log);
+
+        var errored = Drive(500, false, null).GetAwaiter().GetResult();
+        Ok("a non-200 answer is passed on as it came", errored.body == "[]", errored.body);
+        Ok("and the log says why no profiles were added",
+           errored.log.Contains("status 500", StringComparison.Ordinal), errored.log);
+
+        var encoded = Drive(200, false, "gzip").GetAwaiter().GetResult();
+        Ok("a compressed answer is passed on as it came", encoded.body == "[]", encoded.body);
+        Ok("and the log names the encoding",
+           encoded.log.Contains("gzip", StringComparison.Ordinal), encoded.log);
+
+        xMappings.Clear(); xDevices.Clear();
+    }
+
+    // ── 7. the sign-in listener walks the configuration without the lock ────────────
+    {
+        var listenerType = asm.GetType("Jellyfin.Profiles.Auth.BonfireSessionListener", true);
+        var baseCtl = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController", true);
+        var cfgLock = baseCtl.GetField("ConfigLock", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
+            .GetValue(null);
+        var lg = Activator.CreateInstance(typeof(CapLogger<>).MakeGenericType(listenerType));
+        // Every constructor argument, the optional service provider included: reflection
+        // does not fill in optional parameters. Null keeps the policy sync out of this test.
+        var listener = Activator.CreateInstance(listenerType, new object[] { null, lg, null });
+        var handler = listenerType.GetMethod("OnSessionStarted", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        var sessionType = typeof(MediaBrowser.Controller.Session.SessionInfo);
+        var info = (MediaBrowser.Controller.Session.SessionInfo)
+            System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(sessionType);
+        sessionType.GetProperty("DeviceId").SetValue(info, "listener-tv");
+        sessionType.GetProperty("UserId").SetValue(info, Guid.NewGuid());
+        var evArgs = new MediaBrowser.Controller.Session.SessionEventArgs { SessionInfo = info };
+
+        // The sign-in is by an account Bonfire does not run, so nothing downstream takes the
+        // lock itself: the only thing that can make this wait is reading the configuration.
+        System.Threading.Monitor.Enter(cfgLock);
+        System.Threading.Tasks.Task run;
+        bool finishedWhileLocked;
+        try
+        {
+            run = System.Threading.Tasks.Task.Run(() => handler.Invoke(listener, new object[] { null, evArgs }));
+            finishedWhileLocked = run.Wait(500);
+        }
+        finally
+        {
+            System.Threading.Monitor.Exit(cfgLock);
+        }
+        Ok("the sign-in listener reads the configuration under the lock, not around it",
+           !finishedWhileLocked, "it walked Mappings while a save could be rewriting them");
+        Ok("and finishes as soon as the lock is free", run.Wait(5000));
+    }
+}
+
+Console.WriteLine();
 if (fails.Count > 0)
 {
     foreach (var f in fails) Console.WriteLine("   - " + f);
@@ -1045,19 +1298,42 @@ if (fails.Count > 0)
 }
 Console.WriteLine(pass + " passed, 0 failed");
 
+// Keeps what the plugin logs, so a test can ask "would the owner have been told why".
+public class CapLogger<T> : Microsoft.Extensions.Logging.ILogger<T>
+{
+    public readonly List<string> Lines = new();
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel level) => true;
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel level, Microsoft.Extensions.Logging.EventId id,
+        TState state, Exception exception, Func<TState, Exception, string> formatter)
+        => Lines.Add(level + ": " + formatter(state, exception));
+    public string All => string.Join("\n", Lines);
+}
+
+// A response that has already started, as one does when something downstream calls
+// StartAsync while our capture is in place.
+public class StartedResponseFeature : Microsoft.AspNetCore.Http.Features.HttpResponseFeature
+{
+    public override bool HasStarted => true;
+}
+
 // IUserManager gains and loses members between patch releases, so it is proxied rather
 // than implemented — the same reason tests/cs/pipeline does it.
 public class UserManagerStub : DispatchProxy
 {
     private Guid _id;
     private UserDto _dto;
+    private int _failDtoCalls;
 
-    public static IUserManager Create(Guid id, UserDto dto)
+    // failFirstDtoCalls: how many GetUserDto calls throw before one succeeds - the shape of
+    // a SQLite busy error that clears a moment later.
+    public static IUserManager Create(Guid id, UserDto dto, int failFirstDtoCalls = 0)
     {
         var proxy = Create<IUserManager, UserManagerStub>();
         var stub = (UserManagerStub)(object)proxy;
         stub._id = id;
         stub._dto = dto;
+        stub._failDtoCalls = failFirstDtoCalls;
         return proxy;
     }
 
@@ -1075,6 +1351,11 @@ public class UserManagerStub : DispatchProxy
                     : null;
 
             case "GetUserDto":
+                if (_failDtoCalls > 0)
+                {
+                    _failDtoCalls--;
+                    throw new InvalidOperationException("SQLite Error 5: 'database is locked'");
+                }
                 return _dto;
 
             default:

@@ -357,8 +357,21 @@ const sticky = ruleAt('.create-profile-container > .profile-dialog-actions');
 ok('the dialog actions are sticky', !!sticky && /position:\s*sticky/.test(sticky.body));
 ok('pinned to the bottom', !!sticky && /bottom:\s*0/.test(sticky.body));
 // A translucent bar lets the form scroll through the buttons.
-ok('with an opaque backdrop',
-    !!sticky && /background:\s*#[0-9a-fA-F]{3,8}\s*;/.test(sticky.body));
+// It reads --jpf-panel since themes arrived, so "opaque" is a question about every value
+// that token takes, one at a time: a single translucent theme is enough to bring the
+// bug back for that theme alone. Six- or three-digit hex only — an eight-digit one can
+// carry alpha.
+const panelValues = (bare.match(/--jpf-panel\s*:\s*([^;]+);/g) || [])
+    .map(d => d.replace(/--jpf-panel\s*:\s*/, '').replace(/;$/, '').trim());
+const stickyBg = sticky ? /background:\s*([^;]+);/.exec(sticky.body) : null;
+const stickyValue = stickyBg ? stickyBg[1].trim() : '';
+ok('with an opaque backdrop (' + (stickyValue || 'none') + ')',
+    /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(stickyValue)
+    || (stickyValue === 'var(--jpf-panel)' && panelValues.length > 0));
+if (stickyValue === 'var(--jpf-panel)') {
+    panelValues.forEach(v => ok('--jpf-panel is opaque wherever it is set (' + v + ')',
+        /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v)));
+}
 // Scoped to the scrolling container: sticky resolves against the nearest scrolling
 // ancestor, and this row only ever renders inside that one.
 const scroller = ruleAt('.create-profile-container');

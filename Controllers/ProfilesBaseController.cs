@@ -1183,7 +1183,18 @@ namespace Jellyfin.Profiles.Controllers
                     .ToList();
                 var known = knownDevices?.ToList();
 
-                if (allowed.Any(id => Auth.DeviceRegistry.IsSameDevice(candidate, id, members, known)))
+                // The names the household gave its profiles: Android TV signs in through
+                // sha1(bare id + "+" + the name typed), and that session's row is one an
+                // administrator can tick.
+                var names = mappings
+                    .Where(m => m.MasterUserId == mapping.MasterUserId
+                                && m.ProfileUserId != m.MasterUserId
+                                && !string.IsNullOrWhiteSpace(m.ProfileName))
+                    .Select(m => m.ProfileName)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+
+                if (allowed.Any(id => Auth.DeviceRegistry.IsSameDevice(candidate, id, members, known, names)))
                 {
                     return DeviceAccess.Allowed;
                 }
@@ -2106,11 +2117,15 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         protected HashSet<Guid> GetMasterAccessibleFolders(UserPolicy masterPolicy)
+            => MasterAccessibleFolders(_libraryManager, masterPolicy);
+
+        /// <summary>Static so <see cref="Auth.ProfilePolicySync"/> can use it outside a request.</summary>
+        internal static HashSet<Guid> MasterAccessibleFolders(ILibraryManager libraryManager, UserPolicy masterPolicy)
         {
             HashSet<Guid> masterAccessibleFolders;
             if (masterPolicy.EnableAllFolders)
             {
-                masterAccessibleFolders = _libraryManager.GetVirtualFolders()
+                masterAccessibleFolders = libraryManager.GetVirtualFolders()
                     .Select(f => Guid.TryParse(f.ItemId, out var id) ? id : Guid.Empty)
                     .Where(id => id != Guid.Empty)
                     .ToHashSet();
@@ -2150,7 +2165,7 @@ namespace Jellyfin.Profiles.Controllers
         /// allow-list is intersected with the master's when the master has one, so a sub-profile
         /// can narrow it but never widen it.
         /// </summary>
-        protected (string[] Blocked, string[] Allowed) ResolveTagPolicy(
+        internal static (string[] Blocked, string[] Allowed) ResolveTagPolicy(
             UserPolicy masterPolicy,
             IEnumerable<string>? profileBlocked,
             IEnumerable<string>? profileAllowed)
@@ -2170,14 +2185,28 @@ namespace Jellyfin.Profiles.Controllers
                     ? masterAllowedTags
                     : allowed.Where(t => masterAllowedTags.Contains(t, StringComparer.OrdinalIgnoreCase)).ToList();
 
-                // An empty intersection would hide the profile's entire library. The create/update
-                // endpoints reject that up front; this is the defensive path for a master whose
-                // allow-list changed after the sub-profile was configured.
-                if (allowed.Count == 0) allowed = masterAllowedTags;
+                // None of the profile's allowed tags is allowed for its master any more. The
+                // create/update endpoints refuse that up front, so this is a master whose
+                // allow-list changed after the profile was set up.
+                //
+                // What the profile should see is what carries one of ITS tags AND one of the
+                // master's, and Jellyfin's allow-list cannot say AND. This used to fall back to
+                // the master's list, which shows the profile everything the master may see — a
+                // profile limited to "Kids" under a master now limited to "Family" got all of
+                // Family. Showing nothing is the answer that never shows too much. The tag says
+                // why, for whoever opens the account in Dashboard -> Users, and editing the
+                // profile asks for tags its master allows.
+                if (allowed.Count == 0) allowed = new List<string> { NoAllowedTagMatches };
             }
 
             return (blocked.ToArray(), allowed.ToArray());
         }
+
+        /// <summary>
+        /// The allow-list written when none of a profile's allowed tags is still allowed for its
+        /// master. No item carries it, so the profile sees nothing until it is edited.
+        /// </summary>
+        internal const string NoAllowedTagMatches = "Bonfire: none of this profile's allowed tags are allowed for its main account";
 
         /// <summary>
         /// Validates a requested allow-list against the master's. Returns an error message when the

@@ -31,13 +31,14 @@ for Bonfire's own client. It's documented because other people build against it 
 
 ## All routes
 
-All 51 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 53 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
 | --- | --- | --- |
 | `GET /plugins/profiles/list` | user | Profiles the caller can switch to. |
 | `GET /plugins/profiles/libraries` | user | Libraries the caller can give a profile. |
+| `GET /plugins/profiles/ratings` | user | The rating limits a profile can be given. |
 | `POST /plugins/profiles/create` | user | Create a profile. |
 | `POST /plugins/profiles/update` | user | Change a profile. |
 | `POST /plugins/profiles/delete` | user | Delete a profile and its account. |
@@ -65,6 +66,7 @@ All 51 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `POST /plugins/profiles/bonfire/delete-group` | user | End your Bonfire. |
 | `GET /plugins/profiles/preferences` | user | Switcher preferences. |
 | `POST /plugins/profiles/preferences` | user | Change them. |
+| `POST /plugins/profiles/theme` | user | Set one profile's theme. |
 | `GET /plugins/profiles/avatars` | user | The avatar library. |
 | `GET /plugins/profiles/avatars/{id}` | anon | One avatar image. |
 | `POST /plugins/profiles/admin/avatars` | admin | Add an avatar. |
@@ -181,6 +183,7 @@ Every profile the caller can switch to: their own household, then any linked Bon
     "avatarInitial": "J",
     "avatarColor": "#00A4DC",
     "transparentAvatar": false,
+    "theme": null,
     "requiresPin": true,
     "hasPin": true,
     "isMaster": true,
@@ -202,6 +205,7 @@ Every profile the caller can switch to: their own household, then any linked Bon
 | `avatarInitial` | string | One letter for a picture-less avatar. |
 | `avatarColor` | string | Hex colour behind the avatar. |
 | `transparentAvatar` | boolean | Don't paint `avatarColor` behind the picture. |
+| `theme` | string | The account owner only. The profile's own [theme](#themes), or `null` if it follows the server default. |
 | `requiresPin` | boolean | Ask for a PIN before switching **now**. False on the home network when the bypass is on. |
 | `hasPin` | boolean | A PIN is set. Use this, not `requiresPin`, to show PIN state in a form. |
 | `isMaster` | boolean | This is the main account. |
@@ -309,6 +313,7 @@ Returns `200` when it's correct. Errors: `400` wrong PIN or not allowed on this 
 | `pin` | string | No | 4 to 8 digits. Omit for no PIN. |
 | `avatarColor` | string | No | Hex colour. Defaults to `#1F77B4`. |
 | `transparentAvatar` | boolean | No | Don't paint the colour behind the picture. |
+| `theme` | string | No | A [theme](#themes) id. Omit or `""` to follow the server default. Ignored while the server doesn't let profiles choose. |
 | `maxParentalRating` | string | No | A rating score, such as `"6"`, `"10"`, `"14"` or `"17"`. Never above the main account's. Omit for no limit of its own. |
 | `enabledFolders` | GUID[] | No | The libraries it may see. `[]` is none. Omit or `null` for every library the main account has, including ones added later. |
 | `blockedTags` | string[] | No | Tags it must not see, on top of the main account's. |
@@ -323,8 +328,8 @@ Returns `200` when it's correct. Errors: `400` wrong PIN or not allowed on this 
 
 Response: `{ "profileUserId": "…", "profileName": "Kids" }`.
 
-Errors: `400` for a bad PIN, a taken name, the profile limit, or allowed tags the main
-account doesn't allow.
+Errors: `400` for a bad PIN, a taken name, the profile limit, an unknown theme, or allowed
+tags the main account doesn't allow.
 
 ### `POST /plugins/profiles/update`
 
@@ -344,6 +349,7 @@ Other values worth knowing:
 
 - **`pin`:** `""` clears it, `null` keeps it.
 - **`profileImage`:** `""` clears it, `null` keeps it.
+- **`theme`:** `""` goes back to the server default, `null` keeps it.
 - **`blockedTags`, `allowedTags`:** `[]` clears them, `null` keeps them. Ignored for the
   main account.
 - **Rating sub-score:** a sub-score set in Dashboard → Users (TV-PG against TV-PG-V) is kept
@@ -373,6 +379,31 @@ The libraries the main account can see, which are the ones it can give a profile
 ```json
 [{ "id": "e67b2d5a39cb400ba45a7b0a70198de7", "name": "Movies", "collectionType": "movies" }]
 ```
+
+### `GET /plugins/profiles/ratings`
+
+**Authorisation:** signed-in user.
+
+The ratings of the server's **Preferred metadata country**, one entry per age, for a
+profile's rating limit. These are the ratings Jellyfin scored the library with.
+
+```json
+{
+  "country": "GB",
+  "ratings": [
+    { "score": 0, "labels": ["0+", "All", "E", "G", "U"] },
+    { "score": 12, "labels": ["12A", "12PG"] },
+    { "score": 15, "labels": ["15"] }
+  ]
+}
+```
+
+Send `score` as `maxParentalRating` to [`/create`](#post-pluginsprofilescreate) or
+[`/update`](#post-pluginsprofilesupdate). Adult and banned ratings aren't listed; leave the
+limit out for those. `ratings` is empty if Jellyfin has no table for the country.
+
+Unlike `/Localization/ParentalRatings`, this doesn't add Jellyfin's generic ages
+(`10`, `13`, `14`, `21`) to countries that don't have them.
 
 ### How restrictions reach a profile
 
@@ -794,7 +825,10 @@ main account can change them.
   "switcherLocation": "button",
   "switcherMode": "gate",
   "masterUserId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a",
-  "emergencyCodeConfigured": false
+  "emergencyCodeConfigured": false,
+  "theme": "crimson",
+  "defaultTheme": "bonfire",
+  "allowProfileThemes": true
 }
 ```
 
@@ -805,6 +839,9 @@ main account can change them.
 | `switcherMode` | Deprecated. `gate` is `askOnStartup: true` with `button`; `native` is `false` with `menu`. |
 | `masterUserId` | The account these belong to, for caching. |
 | `emergencyCodeConfigured` | An administrator has set an emergency code. Only then offer the emergency option. |
+| `theme` | The [theme](#themes) to show **this** account, from its own choice or the server default. Unlike the fields above, it isn't the main account's. |
+| `defaultTheme` | The server default. |
+| `allowProfileThemes` | Profiles may choose their own theme. When `false`, `theme` is always the default. |
 
 An account that hasn't chosen gets the server's defaults. Unknown stored values come back
 as the defaults.
@@ -822,6 +859,55 @@ browser only, so this route always returns the household's answer.
 
 Both are optional. Returns the stored values in the `GET` shape; cache those rather than
 what you sent. `401` for a profile.
+
+### Themes
+
+How Bonfire's own screens look: the profile picker, PIN entry, the profile forms,
+Settings and the Bonfire menu. The rest of Jellyfin keeps its own theme. Theme names are
+proper names and aren't translated.
+
+| Id | Look |
+| --- | --- |
+| `bonfire` | The default. Follows the server's Jellyfin accent colour. |
+| `crimson` | Flat charcoal, red, square tiles, outlined capital-letter buttons. |
+| `starlight` | Flat navy, round tiles with a white ring, solid buttons that invert. |
+| `harbor` | Blue-grey gradient, bold type, round tiles, slate buttons. |
+| `nightfall` | Black into purple, gradient rings, pill buttons. |
+| `glass` | Soft coloured blur, small round tiles, frosted buttons. |
+| `harvest` | Autumn. Brown into amber with drifting leaves, leaf-shaped tiles, a serif. |
+| `snowfall` | Winter. Night blue with falling snow, frosted rings, white outlined buttons. |
+| `bloom` | Spring. Fresh green with blossoms, soft rounded tiles, pink highlights. |
+
+A theme is per profile. Set it with `theme` on [`/create`](#post-pluginsprofilescreate) or
+[`/update`](#post-pluginsprofilesupdate), or on its own with
+[`/theme`](#post-pluginsprofilestheme); read the one to show from
+[`/preferences`](#get-pluginsprofilespreferences). The administrator sets the default and
+whether profiles may choose, under [`admin/settings`](#post-pluginsprofilesadminsettings).
+
+### `POST /plugins/profiles/theme`
+
+**Authorisation:** signed-in user. Main account only, with its PIN if it has one.
+
+```json
+{ "profileId": "…", "theme": "nightfall", "masterPin": "1234" }
+```
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `profileId` | GUID | Yes | Any profile in the caller's household, the main account included. |
+| `theme` | string | No | A [theme](#themes) id. Omit or `""` to follow the server default. |
+| `masterPin` | string | When the main account has a PIN | The main account's PIN. |
+
+Changes the theme and nothing else. Returns `{ profileId, theme, stored }`: `theme` is what
+that profile now sees, `stored` its own choice or `null`.
+
+Errors:
+
+- `400`: an unknown theme, or a wrong main-account PIN.
+- `401`: the caller is a profile rather than the main account, or `profileId` is outside
+  the household.
+- `403`: the server doesn't let profiles choose.
+- `429`: too many wrong PINs.
 
 ---
 
@@ -968,6 +1054,8 @@ anything added since you read it.
 | `enableStarterAvatars` | boolean | Offer the starter avatars. |
 | `defaultAskOnStartup` | boolean | Default for accounts that haven't chosen. |
 | `defaultSwitcherLocation` | string | `button` or `menu`. |
+| `defaultTheme` | string | A [theme](#themes) id. |
+| `allowProfileThemes` | boolean | Let profiles choose their own theme. Turning it off keeps their choices for later. |
 | `indexInjectionMode` | string | `middleware`, `both` or `file`. |
 | `enableClientPinLogin` | boolean | See [Sign-in from other apps](#sign-in-from-other-apps). |
 | `enableClientProfileList` | boolean | Same. |

@@ -426,12 +426,46 @@ namespace Jellyfin.Profiles
 
             if (context.Response.HasStarted)
             {
+                // Something sent the headers while the capture was in place, so the body went
+                // into our buffer and not to the client. Returning here left the television
+                // with a 200 and an empty list. The household cannot be added any more - the
+                // headers, Content-Length included, are gone - but Jellyfin's own answer can
+                // still be delivered, and the log says why the profiles are missing.
+                _logger.LogWarning(
+                    "ProfilesPlugin: the user list response had already started when it came back to us, "
+                    + "so no profiles could be added to it (status {Status}, {Bytes} byte(s) passed on).",
+                    context.Response.StatusCode, produced.Length);
+
+                if (produced.Length > 0)
+                {
+                    try
+                    {
+                        await context.Response.Body.WriteAsync(produced, context.RequestAborted).ConfigureAwait(false);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger.LogWarning(ex, "ProfilesPlugin: could not pass the started user list response on.");
+                    }
+                }
+
                 return;
             }
 
             byte[]? rewritten = null;
-            if (context.Response.StatusCode == StatusCodes.Status200OK
-                && !context.Response.Headers.ContainsKey(HeaderNames.ContentEncoding))
+            if (context.Response.StatusCode != StatusCodes.Status200OK
+                || context.Response.Headers.ContainsKey(HeaderNames.ContentEncoding))
+            {
+                // The silent one. Jellyfin's answer goes out untouched, and from the couch
+                // that is a sign-in screen missing the profile the television never used.
+                _logger.LogWarning(
+                    "ProfilesPlugin: the user list was left as Jellyfin answered it (status {Status}, "
+                    + "Content-Encoding {Encoding}), so no profiles were added.",
+                    context.Response.StatusCode,
+                    context.Response.Headers.ContainsKey(HeaderNames.ContentEncoding)
+                        ? context.Response.Headers[HeaderNames.ContentEncoding].ToString()
+                        : "none");
+            }
+            else
             {
                 try
                 {

@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.7.0.0",
+        "changelog": "**Added**\n\n- Themes for Bonfire's screens: nine looks, three of them seasonal. The server owner picks the default and whether each profile can choose its own.\n- Settings → Theme, where the main account sets each profile's theme.\n- Parental rating choices use your server's country instead of US ratings only.\n\n**Changed**\n\n- A theme change shows straight away, without reloading.\n- The way out of every screen is in the same place, bottom left.\n\n**Fixed**\n\n- Jellyfin's home screen flashed briefly before the profile picker, and after picking a profile.\n- A profile could go missing from a TV's sign-in screen.\n- Saving a profile could remove its rating limit or its allowed devices.\n- Switching into a disabled profile turned it back on.\n- Some translations failed to load on clients that ask for them in lowercase, such as pt-br.\n- \"Settings saved.\" on the admin page showed its title off-centre.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.0/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-11-01T18:00:00Z"
+      },
+      {
         "version": "1.6.6.0",
         "changelog": "**Fixed**\n\n- Switching profiles reset a profile's audio and subtitle language to the main account's. [#36]\n\n**Added**\n\n- Turkish translation. [#35]",
         "targetAbi": "10.11.0.0",

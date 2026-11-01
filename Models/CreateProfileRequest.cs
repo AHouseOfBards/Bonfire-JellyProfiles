@@ -12,6 +12,11 @@ namespace Jellyfin.Profiles.Models
         /// Hides the avatar colour behind the picture. Null = false (paint the colour).
         /// </summary>
         public bool? TransparentAvatar { get; set; }
+        /// <summary>
+        /// One of the theme ids. Null or "" = follow the server default. Ignored while the
+        /// server does not let profiles choose.
+        /// </summary>
+        public string? Theme { get; set; }
         public string? MaxParentalRating { get; set; }
         /// <summary>
         /// Library ids, as strings, parsed by the controller (ProfilesBaseController.ParseFolderIds).

@@ -54,7 +54,9 @@ ok(count(html, '\r\r') === 0, 'dashboard has no doubled CR');
 
 // ── Add Profile is management, not a face on the gate ──────────────────────
 // Markup, the "everything but the Add card" selector, and the handler.
-ok(count(js, 'action-add-profile') === 3, 'the Add card has exactly its three references');
+// Counted in the script only: a stylesheet rule styling the card (Nightfall leaves the ring
+// off it) renders nothing, and is not a fourth place the card could appear.
+ok(count(jsOnly, 'action-add-profile') === 3, 'the Add card has exactly its three references');
 const addBlock = js.slice(js.indexOf('// Manage Profiles only.'), js.indexOf('sectionsHtml +='));
 has(addBlock, 'if (this.isManageMode) {', 'Add card is gated on manage mode');
 has(addBlock, 'action-add-profile', 'the Add card is inside that gate');

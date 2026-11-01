@@ -513,6 +513,37 @@
                     <div class="fieldDescription">The menu option adds a row to Settings instead of a second portrait.</div>
                 </div>
 
+                <h3 class="checkboxListLabel jpf-subhead">Theme</h3>
+                <div class="fieldDescription jpf-lede">
+                    The look of Bonfire's own screens: the profile picker, PIN entry and profile forms. The rest of Jellyfin keeps its own theme.
+                </div>
+
+                <!-- The words after each name are there so an administrator can tell them
+                     apart without opening a profile. They describe the look only; no theme
+                     is named after, or claims any link to, a real service. -->
+                <div class="selectContainer">
+                    <label class="selectLabel" for="defaultTheme">Default theme</label>
+                    <select is="emby-select" id="defaultTheme">
+                        <option value="bonfire">Bonfire (follows your Jellyfin accent colour)</option>
+                        <option value="crimson">Crimson (charcoal and red, square tiles)</option>
+                        <option value="starlight">Starlight (navy, round tiles in a white ring)</option>
+                        <option value="harbor">Harbor (blue-grey, bold type)</option>
+                        <option value="nightfall">Nightfall (black into violet, gradient rings)</option>
+                        <option value="glass">Glass (soft colour blur, frosted buttons)</option>
+                        <option value="harvest">Harvest (autumn leaves, warm amber)</option>
+                        <option value="snowfall">Snowfall (winter night, falling snow)</option>
+                        <option value="bloom">Bloom (spring green, blossoms)</option>
+                    </select>
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="allowProfileThemes" />
+                        <span>Let profiles choose their own theme</span>
+                    </label>
+                    <div class="fieldDescription">Off shows everyone the default. Choices already made are kept.</div>
+                </div>
+
                 <div class="buttonContainer">
                     <button is="emby-button" type="submit" class="raised button-submit block">Save profile &amp; switcher settings</button>
                 </div>
@@ -845,6 +876,8 @@
                     page.querySelector('#defaultAskOnStartup').checked = config.DefaultAskOnStartup !== false;
                     page.querySelector('#defaultSwitcherLocation').value =
                         config.DefaultSwitcherLocation === 'menu' ? 'menu' : 'button';
+                    page.querySelector('#defaultTheme').value = normalizeTheme(config.DefaultTheme);
+                    page.querySelector('#allowProfileThemes').checked = config.AllowProfileThemes !== false;
                     // Absent before 1.6.1.2, and both default to off: neither may switch
                     // itself on because a configuration predates it.
                     page.querySelector('#enableClientPinLogin').checked = !!config.EnableClientPinLogin;
@@ -1794,6 +1827,15 @@
                 return v === 'high' || v === 'maximum' ? v : 'standard';
             }
 
+            // The server's Themes.All. The server refuses anything else, so this keeps a
+            // stale or hand-edited value from turning Save into an error.
+            // The list lives inside the function so it can be lifted out whole for a test.
+            function normalizeTheme(value) {
+                const ids = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom'];
+                const v = String(value || '').toLowerCase();
+                return ids.indexOf(v) !== -1 ? v : 'bonfire';
+            }
+
             function currentImageSpec() {
                 const select = document.querySelector('#profileImageQuality');
                 return IMAGE_QUALITY_SPECS[normalizeImageQuality(select ? select.value : 'standard')];
@@ -2231,6 +2273,8 @@
                         enableStarterAvatars: page.querySelector('#enableStarterAvatars').checked,
                         defaultAskOnStartup: page.querySelector('#defaultAskOnStartup').checked,
                         defaultSwitcherLocation: page.querySelector('#defaultSwitcherLocation').value === 'menu' ? 'menu' : 'button',
+                        defaultTheme: normalizeTheme(page.querySelector('#defaultTheme').value),
+                        allowProfileThemes: page.querySelector('#allowProfileThemes').checked,
                         indexInjectionMode: page.querySelector('#indexInjectionMode').value,
                         enableClientPinLogin: page.querySelector('#enableClientPinLogin').checked,
                         enableClientProfileList: page.querySelector('#enableClientProfileList').checked,
@@ -2240,7 +2284,15 @@
                 }).then(function () {
                     Dashboard.hideLoadingMsg();
                     loadAvatarLibrary(page);
-                    Dashboard.alert({ message: 'Settings saved.', title: 'Bonfire' });
+                    // The client script runs in this same window and in any other tab. Both
+                    // re-read the preferences on these, so a new default theme shows without
+                    // a reload (see _bindSettingsRefresh in profiles.js).
+                    try { window.dispatchEvent(new Event('jpf-settings-changed')); } catch (e) { /* old engine */ }
+                    try { localStorage.setItem('jellyfin_profiles_settings_epoch', String(Date.now())); } catch (e) { /* storage blocked */ }
+                    // A string is a toast, which is how Jellyfin confirms its own settings pages.
+                    // The dialog form always has a title ("Alert" if none is given), and
+                    // jellyfin-web's dialog pads the title off the centre line of its text.
+                    Dashboard.alert('Settings saved.');
                 }).catch(function (err) {
                     console.error('Failed to save settings:', err);
                     Dashboard.hideLoadingMsg();

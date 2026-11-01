@@ -197,7 +197,10 @@ const avStart = CSS.search(/\n\s*\.profile-avatar \{/);
 const av = CSS.slice(avStart);
 const avRule = av.slice(0, av.indexOf('}'));
 check('background is clipped to the padding box', /background-clip:\s*padding-box/.test(avRule), true);
-check('the transparent border is still there', /border:\s*3px solid transparent/.test(avRule), true);
+// Its width is the theme's ring width now; Bonfire's is still the 3px it always was.
+check('the transparent border is still there',
+    /border:\s*(3px|var\(--jpf-ring-w\)) solid transparent/.test(avRule), true);
+check('and Bonfire draws it 3px wide', /--jpf-ring-w: 3px;/.test(CSS.slice(CSS.indexOf(':root, body, [data-jpf-theme="bonfire"]'))), true);
 
 console.log();
 console.log('── Bonfire headings carry no colour of their own ─────────────');
@@ -269,7 +272,14 @@ for (const sel of [
 ]) {
     check(sel + ' is still a circle', circleSelectors.includes(sel), true);
 }
-check('the pill kept its 999px', (SRC.match(/border-radius: ?999px/g) || []).length, 1);
+// The pill, named rather than counted, for the reason above: a count failed the day a
+// second pill (Settings → Theme's profile chips) was added, while asking nothing about
+// whether the first had been tokenised.
+const pillRule = (sel) => {
+    const i = CSS.indexOf(sel + ' {');
+    return i === -1 ? '' : CSS.slice(i, CSS.indexOf('}', i));
+};
+check('the tag chip is still a pill', /border-radius: ?999px/.test(pillRule('.tag-chip')), true);
 
 console.log();
 console.log('── One control looks like the others ─────────────────────────');
@@ -281,7 +291,7 @@ const trigRule = trig.slice(0, trig.indexOf('}'));
 const sel = CSS.slice(CSS.indexOf('.form-group select {'));
 const selRule = sel.slice(0, sel.indexOf('}'));
 
-for (const prop of ['background-size: 20px', 'border-radius: var(--jpf-r-md)',
+for (const prop of ['background-size: 20px', 'border-radius: var(--jpf-input-r)', 'border: 1px solid var(--jpf-input-border)',
                     'font-size: 1rem', 'padding-right: 36px']) {
     check('trigger matches the natives on ' + prop.split(':')[0],
         trigRule.includes(prop) && selRule.includes(prop), true);
