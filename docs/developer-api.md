@@ -31,7 +31,7 @@ for Bonfire's own client. It's documented because other people build against it 
 
 ## All routes
 
-All 52 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 53 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -66,6 +66,7 @@ All 52 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `POST /plugins/profiles/bonfire/delete-group` | user | End your Bonfire. |
 | `GET /plugins/profiles/preferences` | user | Switcher preferences. |
 | `POST /plugins/profiles/preferences` | user | Change them. |
+| `POST /plugins/profiles/theme` | user | Set one profile's theme. |
 | `GET /plugins/profiles/avatars` | user | The avatar library. |
 | `GET /plugins/profiles/avatars/{id}` | anon | One avatar image. |
 | `POST /plugins/profiles/admin/avatars` | admin | Add an avatar. |
@@ -867,16 +868,32 @@ of Jellyfin keeps its own theme.
 | Id | Look |
 | --- | --- |
 | `bonfire` | The default. Follows the server's Jellyfin accent colour. |
-| `crimson` | Black and red, square tiles. |
-| `starlight` | Deep navy, round tiles that glow. |
-| `harbor` | Dark slate and sky blue. |
-| `nightfall` | Blue fading to black. |
-| `glass` | Graphite with frosted panels. |
+| `crimson` | Flat charcoal, red, square tiles, outlined capital-letter buttons. |
+| `starlight` | Flat navy, round tiles with a white ring, solid buttons that invert. |
+| `harbor` | Blue-grey gradient, bold type, round tiles, slate buttons. |
+| `nightfall` | Black into purple, gradient rings, pill buttons. |
+| `glass` | Soft coloured blur, small round tiles, frosted buttons. |
 
 A theme is per profile. Set it with `theme` on [`/create`](#post-pluginsprofilescreate) or
-[`/update`](#post-pluginsprofilesupdate); read the one to show from
+[`/update`](#post-pluginsprofilesupdate), or on its own with
+[`/theme`](#post-pluginsprofilestheme); read the one to show from
 [`/preferences`](#get-pluginsprofilespreferences). The administrator sets the default and
 whether profiles may choose, under [`admin/settings`](#post-pluginsprofilesadminsettings).
+
+### `POST /plugins/profiles/theme`
+
+**Authorisation:** signed-in user. Main account only, with its PIN if it has one.
+
+```json
+{ "profileId": "…", "theme": "nightfall", "masterPin": "1234" }
+```
+
+Changes the theme and nothing else. `""` goes back to the server default. Returns
+`{ profileId, theme, stored }`: `theme` is what that profile now sees, `stored` its own
+choice or `null`.
+
+`400` for an unknown theme, `401` for a profile outside your household, `403` when the
+server does not let profiles choose.
 
 ---
 

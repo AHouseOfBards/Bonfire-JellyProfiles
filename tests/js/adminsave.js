@@ -210,9 +210,14 @@ console.log('\n── The starter-avatar switch (issue #32) ──────�
 ok('it sends the switch as it stands', body && body.enableStarterAvatars === true);
 const offRun = await run({ enableStarterAvatars: false });
 ok('and sends it off when it is off', sent(offRun).enableStarterAvatars === false);
+// jellyfin-web's Dashboard.alert takes a string (a toast) or { title, message } (a dialog).
+const alertText = (a) => typeof a === 'string' ? a : ((a || {}).message || '');
 ok('the saved message is the success one, not the failure one ("'
-   + ((base.calls.alert || {}).message || 'no alert') + '")',
-   !!base.calls.alert && /saved/i.test(base.calls.alert.message));
+   + (alertText(base.calls.alert) || 'no alert') + '")',
+   !!base.calls.alert && /saved/i.test(alertText(base.calls.alert)));
+// A toast, as Jellyfin confirms its own settings pages. The dialog form always carries a
+// title, which jellyfin-web draws off the centre line of the text under it.
+ok('and it is a toast, not a dialog', typeof base.calls.alert === 'string');
 ok('and the avatar grid is redrawn, since the switch changes what it shows',
    base.calls.libraryReloads === 1);
 

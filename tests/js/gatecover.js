@@ -496,6 +496,23 @@ for (const where of [{ label: 'a details page', pathname: '/web/details', hash: 
     ok('and from the startup gate on home', page.navigations.length > 0 && gone.length === 0,
         'the gate was gone at ' + span(gone));
 }
+{
+    // Reported after the startup cover shipped: the cold start was fixed, but picking a
+    // profile still flashed home before the reload. Nothing in our code takes the gate
+    // down on home during a switch, so this asks the question that does not depend on
+    // knowing what did: with the gate gone mid-switch, is home still covered until the
+    // navigation lands?
+    const { page } = await coldStart({ storage: baseStorage() });
+    page.plugin.executeProfileSwitch(KID, null);
+    await page.advance(150);
+    const ov = page.byId['profiles-gate-overlay'];
+    ok('the switch is under way with the gate up', !!ov);
+    if (ov) ov.remove();
+    const seen = [];
+    await page.advance(1000, t => { if (page.homeVisible()) seen.push(t); });
+    ok('with the gate taken away mid-switch, home stays covered until the reload',
+        seen.length === 0, 'home visible at ' + span(seen));
+}
 
 console.log('\n── 3. Nothing is covered when the gate is not coming ───────────');
 const noCover = [

@@ -131,6 +131,50 @@ Ok("and so is a profile's choice", loaded.Mappings[0].Theme == Themes.Glass);
 Ok("which the locked read copy keeps", loaded.Mappings[0].CopyForReading().Theme == Themes.Glass);
 
 Console.WriteLine();
+Console.WriteLine("── Settings → Theme sets one profile, and only the owner's ────");
+
+// The route behind the Settings page. It exists because update rewrites every field from
+// what it is sent; this one must touch the theme and nothing else, and only inside the
+// caller's own household.
+Guid kidsLibrary = Guid.NewGuid();
+Guid master = Guid.NewGuid(), child = Guid.NewGuid(), otherMaster = Guid.NewGuid(), otherChild = Guid.NewGuid();
+PluginConfiguration House() => new PluginConfiguration
+{
+    AllowProfileThemes = true,
+    Mappings = new List<ProfileMapping>
+    {
+        new ProfileMapping { ProfileUserId = master, MasterUserId = master, Theme = null },
+        new ProfileMapping { ProfileUserId = child, MasterUserId = master, Theme = "crimson", PinHash = "hash", EnabledFolders = new List<Guid> { kidsLibrary } },
+        new ProfileMapping { ProfileUserId = otherMaster, MasterUserId = otherMaster },
+        new ProfileMapping { ProfileUserId = otherChild, MasterUserId = otherMaster, Theme = "glass" }
+    }
+};
+
+var h = House();
+Ok("a master sets its own theme", Themes.SetFor(h, master, master, "Nightfall") == ThemeChange.Changed
+   && h.Mappings[0].Theme == "nightfall");
+Ok("and one of its profiles'", Themes.SetFor(h, master, child, "harbor") == ThemeChange.Changed
+   && h.Mappings[1].Theme == "harbor");
+Ok("and nothing else on that profile moves", h.Mappings[1].PinHash == "hash"
+   && h.Mappings[1].EnabledFolders.SequenceEqual(new[] { kidsLibrary }));
+Ok("an empty theme goes back to following the server default",
+   Themes.SetFor(h, master, child, "") == ThemeChange.Changed && h.Mappings[1].Theme == null);
+
+h = House();
+Ok("another household's profile is refused", Themes.SetFor(h, master, otherChild, "harbor") == ThemeChange.NotInHousehold);
+Ok("and left as it was", h.Mappings[3].Theme == "glass");
+Ok("another household's master too", Themes.SetFor(h, master, otherMaster, "harbor") == ThemeChange.NotInHousehold
+   && h.Mappings[2].Theme == null);
+Ok("an account with no row is refused", Themes.SetFor(h, master, Guid.NewGuid(), "harbor") == ThemeChange.NotInHousehold);
+Ok("an unknown theme is refused, and stores nothing",
+   Themes.SetFor(h, master, child, "neon") == ThemeChange.UnknownTheme && h.Mappings[1].Theme == "crimson");
+
+h = House();
+h.AllowProfileThemes = false;
+Ok("nothing is set while the server does not let profiles choose",
+   Themes.SetFor(h, master, child, "harbor") == ThemeChange.NotAllowed && h.Mappings[1].Theme == "crimson");
+
+Console.WriteLine();
 if (fails.Count > 0)
 {
     foreach (var f in fails) Console.WriteLine("   - " + f);

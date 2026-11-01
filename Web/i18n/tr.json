@@ -190,6 +190,9 @@
   "settings.switcherStyleBody": "Bu ekrana nereden erişeceğiniz ve başlangıçta açılıp açılmayacağı.",
   "settings.yourBonfireTitle": "Bonfire'ınız",
   "settings.yourBonfireBody": "Profillerinizi başka bir hane halkıyla paylaşın veya onların grubuna katılın.",
+  "settings.themeTitle": "Tema",
+  "settings.themeBody": "Her profil için Bonfire ekranlarının görünümü.",
+  "themeSettings.saved": "Kaydedildi.",
 
   "switcher.title": "Profil seçici stili",
   "switcher.intro": "Hesabınızı kullanan herkes için bu ekrana nasıl erişileceğini belirler.",

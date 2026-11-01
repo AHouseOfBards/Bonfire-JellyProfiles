@@ -379,6 +379,9 @@
         'settings.switcherStyleBody': 'Where you reach this screen from, and whether it opens on startup.',
         'settings.yourBonfireTitle': 'Your Bonfire',
         'settings.yourBonfireBody': 'Share your profiles with another home, or join theirs.',
+        'settings.themeTitle': 'Theme',
+        'settings.themeBody': "How Bonfire's screens look for each profile.",
+        'themeSettings.saved': 'Saved.',
 
         'switcher.title': 'Switcher Style',
         'switcher.intro': 'How you reach this screen, for everyone using your account.',
@@ -657,7 +660,7 @@
                     <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
                     <label for="profiles-prompt-input" style="display: block; color: rgba(255,255,255,0.7); font-size: 0.85rem; margin-bottom: 6px;">${escapeHtml(label)}</label>
                     <input id="profiles-prompt-input" type="text" maxlength="64" value="${escapeHtml(initialValue || '')}" style="width: 100%; box-sizing: border-box; margin-bottom: 20px;" />
-                    <div style="display: flex; gap: var(--jpf-gap); justify-content: flex-end;">
+                    <div class="jpf-actions">
                         <button id="prompt-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
                         <button id="prompt-save-btn" type="button" class="profiles-btn btn-primary">${t('common.save')}</button>
                     </div>
@@ -735,7 +738,7 @@
                     <select id="profiles-select-input" style="width: 100%; box-sizing: border-box; margin-bottom: 20px;">
                         ${choices}
                     </select>
-                    <div style="display: flex; gap: var(--jpf-gap); justify-content: flex-end;">
+                    <div class="jpf-actions">
                         <button id="select-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
                         <button id="select-confirm-btn" type="button" class="profiles-btn btn-primary">${t('common.ok')}</button>
                     </div>
@@ -800,9 +803,9 @@
                 ">
                     <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
                     <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
-                    <div style="display: flex; gap: var(--jpf-gap); justify-content: center;">
-                        <button id="dialog-confirm-btn" class="profiles-btn btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.confirm')}</button>
+                    <div class="jpf-actions">
                         <button id="dialog-cancel-btn" class="profiles-btn btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.cancel')}</button>
+                        <button id="dialog-confirm-btn" class="profiles-btn btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.confirm')}</button>
                     </div>
                 </div>
             `;
@@ -1779,6 +1782,8 @@
                 doCheck();
             });
 
+            this._bindSettingsRefresh();
+
             // SPA navigation events
             window.addEventListener('popstate', doCheck);
             window.addEventListener('hashchange', doCheck);
@@ -2226,7 +2231,8 @@
             // it at most.
             // Off home it comes down even while a gate request is out: that gate is never
             // going to be drawn here.
-            if (this._coverUp && !skipReveal && (!isHome || !this._coverHeldForGate)) this._dropCover();
+            if (this._coverUp && !skipReveal && !this._coverForSwitch
+                && (!isHome || !this._coverHeldForGate)) this._dropCover();
         },
 
         // Smoothly fades the page back in after a profile switch.
@@ -2385,10 +2391,29 @@
             this._armCoverBackstop();
         },
 
+        /// Puts the cover up for a switch that is about to reload the page. No timer: the
+        /// reload replaces the document, and _reloadFailed drops it if that never happens.
+        _holdCoverForSwitch: function () {
+            try {
+                if (!document.getElementById('jpf-cover-css')) {
+                    const style = document.createElement('style');
+                    style.id = 'jpf-cover-css';
+                    style.textContent = GATE_COVER_CSS;
+                    (document.head || document.documentElement).appendChild(style);
+                }
+                clearTimeout(window.__jpCoverT);
+                window.__jpCoverT = null;
+                document.documentElement.setAttribute('data-jpf-cover', '');
+                this._coverUp = true;
+                this._coverForSwitch = true;
+            } catch (e) { /* no document: nothing to cover */ }
+        },
+
         /// Takes the cover down. Safe to call at any time, any number of times, and with
         /// no cover up; it also clears one this object never noticed going up.
         _dropCover: function () {
             this._coverUp = false;
+            this._coverForSwitch = false;
             this._coverHeldForGate = false;
             try {
                 clearTimeout(window.__jpCoverT);
@@ -3163,12 +3188,24 @@
                         <option value="" ${chosen ? '' : 'selected'}>${t('profileForm.themeDefault', { name: THEME_NAMES[settings.defaultTheme] })}</option>
                         ${THEMES.map(id => `<option value="${id}" ${chosen === id ? 'selected' : ''}>${THEME_NAMES[id]}</option>`).join('')}
                     </select>
-                    <div class="jpf-theme-preview" id="${prefix}-theme-preview" data-jpf-theme="${shown}" aria-hidden="true">
-                        <span class="jpf-theme-preview-tile"></span>
-                        <span class="jpf-theme-preview-name">${THEME_NAMES[shown]}</span>
-                        <span class="jpf-theme-preview-button">Aa</span>
-                    </div>
+                    ${this.renderThemePreview(shown, prefix + '-theme-preview')}
                     <div class="form-hint">${t('profileForm.themeHint')}</div>
+                </div>
+            `;
+        },
+
+        /// A small "Who's watching?" wearing one theme: its name as the title, three tiles
+        /// with the first in the theme's focus frame, and a button. Drawn entirely from the
+        /// theme's tokens through its own data-jpf-theme, so it is what choosing it does.
+        renderThemePreview: function (theme, id) {
+            const shown = normalizeTheme(theme);
+            return `
+                <div class="jpf-theme-preview" ${id ? `id="${id}"` : ''} data-jpf-theme="${shown}" aria-hidden="true">
+                    <span class="jpf-theme-preview-name">${THEME_NAMES[shown]}</span>
+                    <span class="jpf-theme-preview-tiles">
+                        <span class="jpf-theme-preview-tile"></span><span class="jpf-theme-preview-tile"></span><span class="jpf-theme-preview-tile"></span>
+                    </span>
+                    <span class="jpf-theme-preview-button">${t('gate.manageProfiles')}</span>
                 </div>
             `;
         },
@@ -3193,6 +3230,40 @@
         readThemePicker: function (prefix) {
             const select = document.getElementById(prefix + '-theme-select');
             return select ? (select.value ? normalizeTheme(select.value) : '') : undefined;
+        },
+
+        /// How often coming back to the app may re-read the preferences. A television
+        /// woken from standby, a phone unlocked: once a minute is plenty, and it keeps a
+        /// tab being flicked between from asking every time.
+        SETTINGS_REFRESH_MS: 60000,
+
+        /// Picks up a changed theme, or any other preference, without a reload.
+        ///
+        /// The theme used to arrive once per page load, so an administrator changing the
+        /// server default, or anyone changing a profile's theme on another device, saw
+        /// nothing until the app was restarted. Three signals now re-read it:
+        ///   - 'jpf-settings-changed' on this window, which the admin page dispatches after
+        ///     a save — it runs inside jellyfin-web, in the same window as this script;
+        ///   - a write to SETTINGS_EPOCH_KEY from another tab, which the admin page also
+        ///     makes, and which arrives here as a 'storage' event;
+        ///   - the page becoming visible again, at most once a minute.
+        /// None of these is on the route poll, which must not grow (see checkRoute).
+        _bindSettingsRefresh: function () {
+            if (this._settingsRefreshBound || typeof window === 'undefined' || !window.addEventListener) return;
+            this._settingsRefreshBound = true;
+            const refresh = () => {
+                this._lastSettingsRefresh = Date.now();
+                this.loadSwitcherPrefs();
+            };
+            window.addEventListener('jpf-settings-changed', refresh);
+            window.addEventListener('storage', (e) => {
+                if (e && e.key === 'jellyfin_profiles_settings_epoch') refresh();
+            });
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState !== 'visible') return;
+                if (Date.now() - (this._lastSettingsRefresh || 0) < this.SETTINGS_REFRESH_MS) return;
+                refresh();
+            });
         },
 
         /// Refreshes the cached preferences from the server. Called once per page load;
@@ -3995,7 +4066,7 @@
             const back = surface.querySelector(
                 '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
                 '#pin-cancel-btn, #master-pin-cancel-btn, #create-cancel-btn, #edit-cancel-btn, ' +
-                '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #profiles-resume-btn, #profiles-libart-cancel'
+                '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #theme-settings-back-btn, #profiles-resume-btn, #profiles-libart-cancel'
             );
             if (back) back.click();
         },
@@ -4562,8 +4633,10 @@
                 `;
             }
 
+            // jpf-one-home: one household on screen, so its heading names nothing the title
+            // has not. Themes without a panel round each household hide it then.
             overlay.innerHTML = `
-                <div class="profiles-modal-content anim-fade-in">
+                <div class="profiles-modal-content anim-fade-in${groupKeys.length === 1 ? ' jpf-one-home' : ''}">
                     <h1 class="profiles-title">${title}</h1>
                     ${sectionsHtml}
                     <div class="profiles-footer">
@@ -4799,9 +4872,9 @@
                 <div class="pin-entry-container">
                     <input type="text" id="profile-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
                     <div id="pin-error-msg" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
-                    <div class="pin-actions">
-                        <button id="pin-submit-btn" class="profiles-btn btn-primary">${t('common.unlock')}</button>
+                    <div class="pin-actions jpf-actions">
                         <button id="pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.back')}</button>
+                        <button id="pin-submit-btn" class="profiles-btn btn-primary">${t('common.unlock')}</button>
                     </div>
                 </div>
             `;
@@ -4911,9 +4984,9 @@
                 <div class="pin-entry-container">
                     <input type="text" id="master-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
                     <div id="master-pin-error-msg" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
-                    <div class="pin-actions">
-                        <button id="master-pin-submit-btn" class="profiles-btn btn-primary">${t('common.submit')}</button>
+                    <div class="pin-actions jpf-actions">
                         <button id="master-pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
+                        <button id="master-pin-submit-btn" class="profiles-btn btn-primary">${t('common.submit')}</button>
                     </div>
                 </div>
             `;
@@ -5149,6 +5222,12 @@
                 // meant a phone showed several seconds of black with nothing to say the tap
                 // had registered. Only the background is calmed towards the next page.
                 const leavingBg = this._captureLeavingBackground();
+                // A second layer under the gate, in its colour, for as long as this page
+                // lives. The gate is the cover while it stays up; this is for the moment
+                // it does not — whatever takes it down before the navigation lands, the
+                // old profile's home is not what shows. Only the reload failing takes it
+                // down (_reloadFailed), so there is no backstop timer to race the reload.
+                this._holdCoverForSwitch();
                 const overlay = document.getElementById('profiles-gate-overlay');
                 if (overlay) {
                     overlay.style.transition = 'background 0.2s ease';
@@ -6063,9 +6142,9 @@
                         </div>
 
                         <div id="create-error-msg" class="form-error" style="display:none;"></div>
-                        <div class="pin-actions">
-                            <button id="create-submit-btn" class="profiles-btn btn-primary">${t('common.create')}</button>
+                        <div class="profile-dialog-actions jpf-actions">
                             <button id="create-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
+                            <button id="create-submit-btn" class="profiles-btn btn-primary">${t('common.create')}</button>
                         </div>
                     </div>
                 `;
@@ -6435,14 +6514,14 @@
                             ${isSub ? this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), restrictionsBody) : ''}
                         </div>
 
-                        <div class="profile-dialog-actions">
+                        <div class="profile-dialog-actions jpf-actions">
                             <div class="dialog-action-buttons">
-                                <button id="edit-submit-btn" class="profiles-btn btn-primary">${t('common.save')}</button>
                                 <button id="edit-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
+                                ${isSub ? `
+                                    <button id="edit-delete-btn" class="profiles-btn btn-danger-quiet">${t('profileForm.deleteProfile')}</button>
+                                ` : ''}
                             </div>
-                            ${isSub ? `
-                                <button id="edit-delete-btn" class="profiles-btn btn-danger-quiet">${t('profileForm.deleteProfile')}</button>
-                            ` : ''}
+                            <button id="edit-submit-btn" class="profiles-btn btn-primary">${t('common.save')}</button>
                         </div>
                     </div>
                 `;
@@ -6898,7 +6977,7 @@
                         <div style="display: flex; justify-content: center; padding: 20px;">
                             <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: jpfSpin 1s linear infinite;"></div>
                         </div>
-                        <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
+                        <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
                             <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
                         </div>
                     </div>
@@ -6942,13 +7021,8 @@
             if (!content) return;
 
             const entry = (id, icon, title, body) => `
-                <div class="settings-menu-entry focusable" id="${id}" tabindex="0" role="button" style="
-                    display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
-                    border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
-                    border: 2px solid rgba(255,255,255,0.08);
-                    background: rgba(255,255,255,0.02);
-                ">
-                    <span class="material-icons" style="font-size: 2rem; color: rgba(255,255,255,0.5); flex-shrink: 0;">${icon}</span>
+                <div class="settings-menu-entry jpf-choice focusable" id="${id}" tabindex="0" role="button">
+                    <span class="material-icons jpf-choice-icon">${icon}</span>
                     <div style="flex: 1 1 auto; min-width: 0;">
                         <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
                         <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
@@ -6964,8 +7038,11 @@
                             t('settings.switcherStyleBody'))}
                         ${entry('settings-your-bonfire', 'local_fire_department', t('settings.yourBonfireTitle'),
                             t('settings.yourBonfireBody'))}
+                        ${this._themeSettings && this._themeSettings.allow
+                            ? entry('settings-theme', 'palette', t('settings.themeTitle'), t('settings.themeBody'))
+                            : ''}
                     </div>
-                    <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
                         <button id="settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.back')}</button>
                     </div>
                 </div>
@@ -6981,6 +7058,7 @@
             };
             open('settings-switcher-style', this.showSwitcherModeModal);
             open('settings-your-bonfire', this.showBonfireModal);
+            open('settings-theme', () => this.showThemeSettings(null));
 
             const back = content.querySelector('#settings-back-btn');
             if (back) {
@@ -6992,6 +7070,120 @@
                 });
             }
 
+        },
+
+        /// Settings → Theme: every theme as a small preview, for one profile at a time.
+        ///
+        /// The profile form already had a picker, but nobody looks for a theme inside a
+        /// profile's restrictions; Settings is where it was looked for and not found. Each
+        /// choice saves at once through /theme, which changes nothing else on the profile,
+        /// and when the profile is the one signed in the screen changes with it.
+        showThemeSettings: function (selectedId) {
+            this.beginNavigation();
+            const content = document.querySelector('.profiles-modal-content');
+            const settings = this._themeSettings;
+            const masterState = this.readMasterState();
+            if (!content || !settings || !settings.allow || !masterState) {
+                this.showSettingsMenu();
+                return;
+            }
+
+            // This household's own profiles; a linked Bonfire's are theirs to style.
+            const people = (this.currentProfiles || []).filter(p => !p.isBonfire);
+            if (!people.length) { this.showSettingsMenu(); return; }
+
+            const signedIn = this.normalizeGuid(ApiClient.getCurrentUserId());
+            const pick = (id) => people.find(p => this.normalizeGuid(p.profileUserId) === this.normalizeGuid(id));
+            const person = pick(selectedId) || pick(signedIn) || people.find(p => p.isMaster) || people[0];
+            const stored = person.theme && THEMES.indexOf(String(person.theme).toLowerCase()) !== -1
+                ? String(person.theme).toLowerCase() : '';
+
+            const option = (value, previewTheme, label) => `
+                <button type="button" class="jpf-theme-option focusable" role="radio" data-theme="${value}"
+                        aria-checked="${stored === value}">
+                    ${this.renderThemePreview(previewTheme)}
+                    <span class="jpf-theme-option-label">
+                        <span>${label}</span>
+                        <span class="material-icons jpf-theme-option-check" aria-hidden="true">check_circle</span>
+                    </span>
+                </button>
+            `;
+
+            content.innerHTML = `
+                <h1 class="profiles-title">${t('settings.themeTitle')}</h1>
+                <div class="create-profile-container" style="max-width: var(--jpf-w-wide); width: 100%;">
+                    ${people.length > 1 ? `
+                    <div class="jpf-theme-people" role="radiogroup" aria-label="${t('settings.themeTitle')}">
+                        ${people.map(p => `
+                            <button type="button" class="jpf-theme-person focusable" role="radio"
+                                    data-id="${escapeHtml(p.profileUserId)}"
+                                    aria-checked="${p === person}">${escapeHtml(p.profileName)}</button>
+                        `).join('')}
+                    </div>` : ''}
+                    <div class="jpf-theme-grid" role="radiogroup" aria-label="${escapeHtml(person.profileName)}">
+                        ${option('', settings.defaultTheme, t('profileForm.themeDefault', { name: THEME_NAMES[settings.defaultTheme] }))}
+                        ${THEMES.map(id => option(id, id, THEME_NAMES[id])).join('')}
+                    </div>
+                    <div class="jpf-theme-status" id="theme-settings-status" role="status"></div>
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
+                        <button id="theme-settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
+                    </div>
+                </div>
+            `;
+
+            const status = content.querySelector('#theme-settings-status');
+            const back = content.querySelector('#theme-settings-back-btn');
+            if (back) back.addEventListener('click', () => this.showSettingsMenu());
+
+            content.querySelectorAll('.jpf-theme-person').forEach(btn => {
+                btn.addEventListener('click', () => this.showThemeSettings(btn.getAttribute('data-id')));
+            });
+
+            let busy = false;
+            content.querySelectorAll('.jpf-theme-option').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const value = btn.getAttribute('data-theme') || '';
+                    if (busy || value === stored) return;
+                    busy = true;
+                    status.classList.remove('is-error');
+                    status.textContent = '';
+                    fetch(ApiClient.getUrl('plugins/profiles/theme'), {
+                        method: 'POST',
+                        headers: this.jsonHeaders(masterState.token),
+                        body: JSON.stringify({ profileId: person.profileUserId, theme: value, masterPin: this.masterPin })
+                    })
+                    .then(res => res.ok ? res.json() : res.text().then(text => { throw new Error(text || t('errors.couldNotSaveThat')); }))
+                    .then(saved => {
+                        const shownNow = normalizeTheme(saved.theme || saved.Theme);
+                        const keep = saved.stored !== undefined ? saved.stored : saved.Stored;
+                        person.theme = keep || null;
+                        if (this.normalizeGuid(person.profileUserId) === signedIn) {
+                            this._setThemeSettings({
+                                theme: shownNow,
+                                defaultTheme: settings.defaultTheme,
+                                allowProfileThemes: settings.allow
+                            });
+                        }
+                        this.showThemeSettings(person.profileUserId);
+                        const again = document.getElementById('theme-settings-status');
+                        if (again) again.textContent = t('themeSettings.saved');
+                        const chosen = document.querySelector('.jpf-theme-option[aria-checked="true"]');
+                        if (chosen) chosen.focus();
+                    })
+                    .catch(err => {
+                        busy = false;
+                        status.classList.add('is-error');
+                        status.textContent = escapeHtml(err.message || t('errors.couldNotSaveThat'));
+                    });
+                });
+            });
+
+            this.initTVCheckboxes(content);
+            setTimeout(() => {
+                const first = content.querySelector('.jpf-theme-option[aria-checked="true"]')
+                    || content.querySelector('.jpf-theme-option');
+                if (first) first.focus();
+            }, 150);
         },
 
         showSwitcherModeModal: function () {
@@ -7016,14 +7208,9 @@
             // combination people asked for in issue #14 — ask on startup, but switch from
             // Jellyfin's menu — is unreachable when it is a single choice.
             const locationOption = (value, icon, title, body) => `
-                <div class="switcher-location-option focusable" data-location="${value}" tabindex="0" role="radio"
-                     aria-checked="${prefs.location === value}" style="
-                    display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
-                    border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
-                    border: 2px solid ${prefs.location === value ? 'var(--jpf-accent)' : 'rgba(255,255,255,0.08)'};
-                    background: ${prefs.location === value ? 'var(--jpf-accent-a08)' : 'rgba(255,255,255,0.02)'};
-                ">
-                    <span class="material-icons" style="font-size: 2rem; color: ${prefs.location === value ? 'var(--jpf-accent)' : 'rgba(255,255,255,0.5)'}; flex-shrink: 0;">${icon}</span>
+                <div class="switcher-location-option jpf-choice focusable" data-location="${value}" tabindex="0" role="radio"
+                     aria-checked="${prefs.location === value}">
+                    <span class="material-icons jpf-choice-icon">${icon}</span>
                     <div style="flex: 1 1 auto; min-width: 0;">
                         <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
                         <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
@@ -7068,7 +7255,7 @@
                     </div>
 
                     <div id="switcher-mode-error" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 12px;"></div>
-                    <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important;">
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
                         <button id="switcher-mode-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
                     </div>
                 </div>
@@ -7260,7 +7447,7 @@
             let hostSectionHtml = '';
             if (isOwner) {
                 hostSectionHtml = `
-                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.hostedTitle')}</label>
                             <span style="font-size: 0.88rem; opacity: 0.75; display: block;">${t('bonfire.shareCode')}</span>
@@ -7270,12 +7457,12 @@
 
                         <div class="bonfire-form-group">
                             <label style="font-size: 1rem; font-weight: 600; color: #fff; display: block; margin-bottom: 8px;">${t('bonfire.members', { count: ownedMembers.length })}</label>
-                            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--jpf-r-md); padding: 8px;">
+                            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border); border-radius: var(--jpf-input-r); padding: 8px;">
                                 ${ownedMembers.length > 0 ? ownedMembers.map(m => {
                                     const mUserId = m.userId || m.UserId;
                                     const mUsername = escapeHtml(m.username || m.Username) || t('bonfire.unknownUser');
                                     return `
-                                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: var(--jpf-r-sm);">
+                                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--jpf-card-bg); border-radius: var(--jpf-r-sm);">
                                         <span style="font-size: 0.95rem; font-weight: 500;">${mUsername}</span>
                                         <button type="button" class="bonfire-kick-btn" data-id="${escapeHtml(mUserId)}" style="background: var(--jpf-danger) !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">${t('bonfire.kick')}</button>
                                     </div>
@@ -7290,7 +7477,7 @@
                 `;
             } else {
                 hostSectionHtml = `
-                    <div class="bonfire-form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+                    <div class="bonfire-form-group" style="border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
                         <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.hostTitle')}</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">${t('bonfire.hostBody')}</span>
                         <button type="button" id="bonfire-generate-btn" class="profiles-btn btn-primary" style="width: 100% !important; padding: 12px !important; font-weight: 600 !important; box-sizing: border-box !important; display: block !important; margin: 8px 0 !important;">${t('bonfire.generateJoinCode')}</button>
@@ -7301,11 +7488,11 @@
             let guestSectionHtml = '';
             if (isMember) {
                 guestSectionHtml = `
-                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.joinedTitle')}</label>
                             <span style="font-size: 0.88rem; opacity: 0.75;">${t('bonfire.joinedOwnedBy')}</span>
-                            <div style="font-size: 1.25rem; font-weight: 700; color: var(--jpf-accent); margin: 12px 0; background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--jpf-r-md); border: 1px solid rgba(255,255,255,0.05); text-align: center;">${joinedOwnerName}</div>
+                            <div style="font-size: 1.25rem; font-weight: 700; color: var(--jpf-accent); margin: 12px 0; background: var(--jpf-input-bg); padding: 12px; border-radius: var(--jpf-input-r); border: 1px solid var(--jpf-input-border); text-align: center;">${joinedOwnerName}</div>
                             <span style="font-size: 0.85rem; opacity: 0.6; display: block; margin-top: -4px;">${t('bonfire.accessEachOther')}</span>
                         </div>
                         <div style="display: flex; justify-content: flex-end;">
@@ -7315,7 +7502,7 @@
                 `;
             } else {
                 guestSectionHtml = `
-                    <div class="bonfire-form-group" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.5rem;">
+                    <div class="bonfire-form-group" style="border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
                         <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.joinTitle')}</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">${t('bonfire.joinBody')}</span>
                         <div style="display: flex !important; gap: var(--jpf-gap) !important; align-items: center !important; width: 100% !important; box-sizing: border-box !important; margin: 12px 0 !important;">
@@ -7336,7 +7523,7 @@
             // Only worth showing once there is somebody to share with — on a standalone
             // account the setting has nothing to act on and just reads as a scary toggle.
             const lanBypassSectionHtml = (isOwner || isMember) ? `
-                <div class="bonfire-form-group" style="gap: 4px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+                <div class="bonfire-form-group" style="gap: 4px; border-top: 1px solid var(--jpf-card-border); padding-top: 16px;">
                     <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
                         <input type="checkbox" id="bonfire-lan-bypass-checkbox" ${lanBypass ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-warn) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                         <span>${t('bonfire.lanSwitchLabel')}</span>
@@ -7390,7 +7577,7 @@
                     ${hostSectionHtml}
                     ${guestSectionHtml}
                     ${settingsSectionHtml}
-                    <div class="bonfire-dialog-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: center !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
                         <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
                     </div>
                 </div>

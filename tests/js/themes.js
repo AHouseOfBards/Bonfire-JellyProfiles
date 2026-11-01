@@ -160,14 +160,29 @@ const THEME_TOKENS = [
     '--jpf-gate-bg', '--jpf-panel', '--jpf-font',
     '--jpf-r-sm', '--jpf-r-md', '--jpf-r-lg', '--jpf-avatar-r',
     '--jpf-ring', '--jpf-hover-scale', '--jpf-hover-glow',
-    '--jpf-title-weight', '--jpf-title-spacing', '--jpf-title-shadow'
+    '--jpf-title-weight', '--jpf-title-spacing', '--jpf-title-shadow',
+    // Shape, not colour. Two themes that differ only in palette were the complaint: the
+    // services these follow differ as much in tiles, names and buttons as in colour.
+    '--jpf-title-scale', '--jpf-avatar-shadow', '--jpf-ring-w',
+    '--jpf-name-color', '--jpf-name-hover', '--jpf-name-weight', '--jpf-name-opacity', '--jpf-name-scale',
+    '--jpf-btn-radius', '--jpf-btn2-bg', '--jpf-btn2-color', '--jpf-btn2-border', '--jpf-btn2-case',
+    '--jpf-btn2-spacing', '--jpf-btn2-weight', '--jpf-btn2-hover-bg', '--jpf-btn2-hover-color',
+    '--jpf-btn2-hover-border', '--jpf-btn2-hover-glow',
+    '--jpf-add-bg', '--jpf-add-border', '--jpf-add-color', '--jpf-add-hover-bg',
+    // And the screens behind the gate: the profile forms, Settings, Bonfire, PIN entry.
+    '--jpf-sheet-bg', '--jpf-sheet-border', '--jpf-sheet-shadow',
+    '--jpf-card-bg', '--jpf-card-border', '--jpf-input-bg', '--jpf-input-border', '--jpf-input-r'
 ];
+// The panel behind each household's tiles: Bonfire's own, and none for every other theme,
+// so these are set once in the shared block rather than in each theme.
+const SECTION_TOKENS = ['--jpf-section-bg', '--jpf-section-border', '--jpf-section-shadow',
+    '--jpf-section-pad', '--jpf-section-rule'];
 // What Bonfire's own block restates so a Bonfire preview inside another theme is Bonfire.
 // Its accent, hover and corners come from the definitions at the top, which that block
 // cannot repeat without moving them.
-const BONFIRE_TOKENS = ['--jpf-on-accent', '--jpf-gate-bg', '--jpf-panel', '--jpf-font',
-    '--jpf-avatar-r', '--jpf-ring', '--jpf-hover-scale', '--jpf-hover-glow',
-    '--jpf-title-weight', '--jpf-title-spacing', '--jpf-title-shadow'];
+const BONFIRE_TOKENS = THEME_TOKENS
+    .filter(tk => ['--jpf-accent', '--jpf-accent-rgb', '--jpf-accent-hover', '--jpf-r-sm', '--jpf-r-md', '--jpf-r-lg'].indexOf(tk) === -1)
+    .concat(SECTION_TOKENS);
 
 function themeBlock(id) {
     const want = id === 'bonfire'
@@ -205,6 +220,9 @@ ok('the dark neutrals and tints are shared by every theme but Bonfire', !!shared
 ['a08', 'a18', 'a30', 'a40', 'a45', 'a50', 'a60'].forEach(a =>
     ok('the shared block builds tint ' + a + ' from --jpf-accent-rgb',
        !!shared && /^rgba\(var\(--jpf-accent-rgb\), 0?\.\d+\)$/.test(shared.decls['--jpf-accent-' + a] || '')));
+SECTION_TOKENS.forEach(tk =>
+    ok('the shared block sets ' + tk + ', so no theme but Bonfire puts a panel behind the tiles',
+       !!shared && shared.decls[tk] !== undefined));
 ['--jpf-surface-1', '--jpf-border-1', '--jpf-text-1', '--jpf-text-3'].forEach(tk =>
     ok('and restates the dark ' + tk + ', so a light desktop cannot wash a dark theme out',
        !!shared && /^rgba\(255, 255, 255,/.test(shared.decls[tk] || '')));
@@ -277,7 +295,19 @@ console.log('\n── The screens read the tokens instead of literals ───�
     ['.btn-primary:hover', 'background-color', 'var(--jpf-accent-hover)'],
     ['.create-profile-container > .profile-dialog-actions', 'background', 'var(--jpf-panel)'],
     ['.form-group select option', 'background-color', 'var(--jpf-panel)'],
-    ['.devices-dropdown-list', 'background', 'var(--jpf-panel)']
+    ['.devices-dropdown-list', 'background', 'var(--jpf-panel)'],
+    ['.profiles-home-section', 'background', 'var(--jpf-section-bg)'],
+    ['.profile-avatar', 'border', 'var(--jpf-ring-w) solid transparent'],
+    ['.profile-name', 'color', 'var(--jpf-name-color)'],
+    ['.profiles-btn', 'border-radius', 'var(--jpf-btn-radius)'],
+    ['.btn-secondary', 'text-transform', 'var(--jpf-btn2-case)'],
+    ['.btn-secondary:focus', 'background', 'var(--jpf-btn2-hover-bg)'],
+    ['.add-avatar', 'border', 'var(--jpf-add-border)'],
+    ['.create-profile-container', 'background', 'var(--jpf-sheet-bg)'],
+    ['.profile-section', 'background', 'var(--jpf-card-bg)'],
+    ['.jpf-choice', 'background', 'var(--jpf-card-bg)'],
+    ['.form-group select', 'border-radius', 'var(--jpf-input-r)'],
+    ['#profile-pin-input', 'background', 'var(--jpf-input-bg)']
 ].forEach(([sel, prop, want]) => {
     const got = winning(sel, prop);
     ok(sel + ' { ' + prop + ' } is ' + want + (got === want ? '' : ' (wins: ' + got + ')'), got === want);
@@ -317,7 +347,7 @@ const constants = (function () {
 })();
 ok('THEMES, THEME_NAMES and normalizeTheme are in the client', !!constants);
 
-const names = ['applyTheme', '_readThemeCache', 'applyCachedTheme', '_setThemeSettings', 'renderThemePicker', 'readThemePicker'];
+const names = ['applyTheme', '_readThemeCache', 'applyCachedTheme', '_setThemeSettings', 'renderThemePreview', 'renderThemePicker', 'readThemePicker'];
 const methods = {};
 names.forEach(n => { methods[n] = method(n); ok(n + ' exists', !!methods[n]); });
 
@@ -549,6 +579,121 @@ ok('the cached theme goes on before the stylesheet', (function () {
     return a !== -1 && b !== -1 && a < b;
 })());
 ok('/list carries each profile\'s choice into the form', /theme: pick\(p, 'theme', null\)/.test(SRC));
+
+// ── 8. The themes are not one look in six colours ───────────────────────────────
+console.log('\n── Every pair of themes differs in shape, not only colour ─────');
+
+// The complaint that started v2: "not distinct enough, nor match their inspirations".
+// Colour alone is what 1.6.6.1 changed, and it read as one design recoloured. So every
+// pair is compared on what is not colour, one pair at a time — an aggregate would let
+// two near-identical themes hide behind four very different ones.
+const SHAPE = ['--jpf-avatar-r', '--jpf-ring-w', '--jpf-hover-scale', '--jpf-title-weight', '--jpf-title-scale',
+    '--jpf-name-weight', '--jpf-name-scale', '--jpf-btn-radius', '--jpf-btn2-case', '--jpf-btn2-border',
+    '--jpf-btn2-weight', '--jpf-add-border', '--jpf-input-r', '--jpf-font'];
+const MIN_SHAPE_DIFFERENCES = 5;
+const lookIds = serverIds.filter(id => id !== 'bonfire');
+for (let i = 0; i < lookIds.length; i++) {
+    for (let j = i + 1; j < lookIds.length; j++) {
+        const a = theme[lookIds[i]], b = theme[lookIds[j]];
+        const differ = SHAPE.filter(tk => a[tk] !== undefined && b[tk] !== undefined && a[tk] !== b[tk]);
+        ok(lookIds[i] + ' and ' + lookIds[j] + ' differ in ' + differ.length + ' of ' + SHAPE.length
+           + ' shape tokens (' + MIN_SHAPE_DIFFERENCES + ' needed)', differ.length >= MIN_SHAPE_DIFFERENCES);
+    }
+}
+// And each against Bonfire, which is the screen everyone already knows.
+lookIds.forEach(id => {
+    const differ = SHAPE.filter(tk => theme[id][tk] !== undefined && theme.bonfire[tk] !== undefined
+        && theme[id][tk] !== theme.bonfire[tk]);
+    ok(id + ' differs from Bonfire in ' + differ.length + ' shape tokens', differ.length >= MIN_SHAPE_DIFFERENCES);
+});
+ok('only Bonfire puts a panel behind the tiles',
+   !!shared && shared.decls['--jpf-section-bg'] === 'transparent'
+   && theme.bonfire['--jpf-section-bg'] === 'var(--jpf-surface-1)');
+
+// ── 9. A change shows without a reload ──────────────────────────────────────────
+console.log('\n── A changed theme shows without reloading ──────────────────');
+
+{
+    const bind = method('_bindSettingsRefresh');
+    ok('_bindSettingsRefresh exists', !!bind);
+    if (bind) {
+        const listeners = { window: {}, document: {} };
+        let fetched = 0;
+        let clock = 1000000;
+        const on = (where) => (type, fn) => { (listeners[where][type] = listeners[where][type] || []).push(fn); };
+        const fire = (where, type, ev) => (listeners[where][type] || []).forEach(fn => fn(ev || {}));
+        const doc = { visibilityState: 'visible', addEventListener: on('document') };
+        const win = { addEventListener: on('window') };
+        const obj = { SETTINGS_REFRESH_MS: 60000, loadSwitcherPrefs: () => { fetched++; } };
+        const realNow = Date.now;
+        Date.now = () => clock;
+        try {
+            obj._bindSettingsRefresh = new Function('window', 'document',
+                'return function (' + bind.params + ') {' + bind.body + '};')(win, doc);
+            obj._bindSettingsRefresh();
+            obj._bindSettingsRefresh();
+
+            fire('window', 'jpf-settings-changed');
+            ok('the admin page saving in this window re-reads the preferences, once', fetched === 1, fetched + ' reads');
+            fire('window', 'storage', { key: 'jellyfin_profiles_settings_epoch' });
+            ok('so does a save in another tab', fetched === 2);
+            fire('window', 'storage', { key: 'something_else' });
+            ok('but not any other storage write', fetched === 2);
+            clock += 30000;
+            fire('document', 'visibilitychange');
+            ok('coming back within a minute does not ask again', fetched === 2);
+            clock += 31000;
+            fire('document', 'visibilitychange');
+            ok('coming back after a minute does', fetched === 3);
+            doc.visibilityState = 'hidden';
+            clock += 120000;
+            fire('document', 'visibilitychange');
+            ok('and going away never does', fetched === 3);
+        } finally {
+            Date.now = realNow;
+        }
+    }
+    ok('init binds it', /this\._bindSettingsRefresh\(\);/.test(SRC));
+    ok('the admin page announces a save to this window and to other tabs',
+       /dispatchEvent\(new Event\('jpf-settings-changed'\)\)/.test(DASH)
+       && /localStorage\.setItem\('jellyfin_profiles_settings_epoch'/.test(DASH));
+    const lp = method('loadSwitcherPrefs');
+    ok('and what it re-reads applies the theme', !!lp && /this\._setThemeSettings\(prefs\)/.test(lp.body));
+}
+
+// ── 10. Settings → Theme ────────────────────────────────────────────────────────
+console.log('\n── Settings has a Theme page when profiles may choose ────────');
+
+{
+    const menu = method('showSettingsMenu');
+    ok('Settings offers Theme only when the server lets profiles choose',
+       !!menu && /this\._themeSettings && this\._themeSettings\.allow\s*\?\s*entry\('settings-theme'/.test(menu.body));
+    ok('and opens the Theme page from it', !!menu && /open\('settings-theme', \(\) => this\.showThemeSettings\(null\)\)/.test(menu.body));
+    const page = method('showThemeSettings');
+    ok('the Theme page saves through /theme, which touches nothing else on the profile',
+       !!page && /plugins\/profiles\/theme/.test(page.body) && !/plugins\/profiles\/update/.test(page.body));
+    // A remote's Back key clicks the screen's own back button, from a fixed list. A screen
+    // missing from it swallows Back with nothing happening, which on Tizen is a dead remote.
+    const dismiss = method('_dismissSurface');
+    ok('the TV Back key leaves the Theme page', !!dismiss && /#theme-settings-back-btn/.test(dismiss.body)
+       && !!page && /id="theme-settings-back-btn"/.test(page.body));
+    ok('and its cards take the thick focus ring a television needs',
+       /\.jpf-tv \.jpf-theme-option:focus/.test(CSS) && /\.jpf-tv \.jpf-theme-person:focus/.test(CSS)
+       && /\.jpf-tv \.jpf-choice:focus/.test(CSS));
+    ok('it sends the main account\'s PIN, which /theme checks', !!page && /masterPin: this\.masterPin/.test(page.body));
+    ok('and puts the theme on now when the profile is the one signed in',
+       !!page && /=== signedIn\)\s*\{\s*this\._setThemeSettings\(/.test(page.body));
+
+    if (methods.renderThemePreview && constants) {
+        const fn = new Function('t', constants + '\nreturn function (' + methods.renderThemePreview.params + ') {'
+            + methods.renderThemePreview.body + '};')(k => k);
+        const out = fn.call({}, 'Nightfall', 'x-preview');
+        ok('a preview wears its theme, by id', /data-jpf-theme="nightfall"/.test(out) && /id="x-preview"/.test(out));
+        ok('and is a little profile screen: a title, three tiles and a button',
+           (out.match(/class="jpf-theme-preview-tile"/g) || []).length === 3
+           && /jpf-theme-preview-name/.test(out) && /jpf-theme-preview-button/.test(out));
+    }
+}
 
 console.log('');
 if (fails.length) {

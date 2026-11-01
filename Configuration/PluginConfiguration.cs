@@ -343,6 +343,36 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public static string Resolve(ProfileMapping? mapping, string? serverDefault, bool allowChoice) =>
             allowChoice && IsKnown(mapping?.Theme) ? Normalize(mapping!.Theme) : Normalize(serverDefault);
+
+        /// <summary>
+        /// Sets one profile's theme for the account that owns it: the rule behind
+        /// <c>POST /plugins/profiles/theme</c>, kept here so it can be tested without a server.
+        /// The caller holds <c>ConfigLock</c> and saves. Empty or null means "follow the
+        /// server default". Nothing is changed unless the answer is <see cref="ThemeChange.Changed"/>.
+        /// </summary>
+        public static ThemeChange SetFor(PluginConfiguration config, System.Guid masterUserId, System.Guid profileId, string? theme)
+        {
+            if (!config.AllowProfileThemes) return ThemeChange.NotAllowed;
+            if (!string.IsNullOrWhiteSpace(theme) && !IsKnown(theme)) return ThemeChange.UnknownTheme;
+
+            // The master's own row, or one of its profiles. A linked Bonfire's profiles have
+            // a different master, so they are someone else's to change.
+            var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+            if (row == null || (row.MasterUserId != masterUserId && row.ProfileUserId != masterUserId))
+                return ThemeChange.NotInHousehold;
+
+            row.Theme = IsKnown(theme) ? Normalize(theme) : null;
+            return ThemeChange.Changed;
+        }
+    }
+
+    /// <summary>What <see cref="Themes.SetFor"/> did.</summary>
+    public enum ThemeChange
+    {
+        Changed,
+        NotAllowed,
+        UnknownTheme,
+        NotInHousehold
     }
 
     /// <summary>

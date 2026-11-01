@@ -2549,6 +2549,71 @@ namespace Jellyfin.Profiles.Controllers
             });
         }
 
+        /// <summary>
+        /// Sets one profile's theme. The Settings page uses this rather than <c>update</c>,
+        /// which rewrites every field of the profile — its rating, libraries and devices —
+        /// from whatever the caller sends, and a page that only knows the theme has none of
+        /// those to send. Same checks as <c>update</c>: the master only, with its PIN.
+        /// </summary>
+        [HttpPost("theme")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public ActionResult<object> SetProfileTheme([FromBody] SetProfileThemeRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+            if (request == null) return BadRequest("Missing request body.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid currentUserId = currentUserIdVal.Value;
+
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
+            if (currentUserId != masterUserId)
+            {
+                return Unauthorized("Only the master profile can manage profiles.");
+            }
+
+            var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
+            {
+                if (!VerifyMasterPinLimited(request.MasterPin, masterMapping, config, out var pinRefusal))
+                {
+                    return pinRefusal!;
+                }
+            }
+
+            ThemeChange result;
+            string resolved;
+            lock (ConfigLock)
+            {
+                result = Themes.SetFor(config, masterUserId, request.ProfileId, request.Theme);
+                var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
+                resolved = Themes.Resolve(row, config.DefaultTheme, config.AllowProfileThemes);
+                if (result == ThemeChange.Changed) Plugin.Instance?.SaveConfiguration();
+            }
+
+            switch (result)
+            {
+                case ThemeChange.NotAllowed:
+                    return StatusCode(StatusCodes.Status403Forbidden, "This server does not let profiles choose a theme.");
+                case ThemeChange.UnknownTheme:
+                    return BadRequest(ValidateTheme(request.Theme));
+                case ThemeChange.NotInHousehold:
+                    return Unauthorized("Unauthorized profile update attempt.");
+            }
+
+            return Ok(new
+            {
+                ProfileId = request.ProfileId,
+                Theme = resolved,
+                Stored = Themes.IsKnown(request.Theme) ? Themes.Normalize(request.Theme) : null
+            });
+        }
+
         [HttpPost("preferences")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

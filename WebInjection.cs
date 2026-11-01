@@ -166,10 +166,10 @@ namespace Jellyfin.Profiles
                     // double quote before a semicolon ends this constant for the tests.
                     "var tb={bonfire:'radial-gradient(circle at 50% 40%, #1e1e2e 0%, #0d0d12 100%)'," +
                         "crimson:'#141414'," +
-                        "starlight:'radial-gradient(ellipse at 50% -10%, #17234d 0%, #0d1435 45%, #050817 100%)'," +
-                        "harbor:'#0f171e'," +
-                        "nightfall:'linear-gradient(180deg, #0b1d5a 0%, #061033 40%, #02040d 100%)'," +
-                        "glass:'radial-gradient(circle at 50% 25%, #3a3a3c 0%, #1c1c1e 45%, #000 100%)'},tc='',k;" +
+                        "starlight:'#1a1d29'," +
+                        "harbor:'linear-gradient(180deg, #1f3549 0%, #182b3c 50%, #0f1d29 100%)'," +
+                        "nightfall:'linear-gradient(170deg, #050507 0%, #0a0714 35%, #1f0e3a 70%, #3a1258 100%)'," +
+                        "glass:'radial-gradient(ellipse at 15% 20%, #5a3f45 0%, rgba(90, 63, 69, 0) 55%), radial-gradient(ellipse at 85% 10%, #2f4d6e 0%, rgba(47, 77, 110, 0) 60%), radial-gradient(ellipse at 70% 95%, #3a3560 0%, rgba(58, 53, 96, 0) 55%), linear-gradient(160deg, #2e3f57 0%, #24324a 60%, #1a2537 100%)'},tc='',k;" +
                     // { last, users: { id: theme } }, one entry per account; see
                     // _readThemeCache in profiles.js.
                     "var th=g('jellyfin_profiles_theme'),tu=th&&th.users,tt=null;" +

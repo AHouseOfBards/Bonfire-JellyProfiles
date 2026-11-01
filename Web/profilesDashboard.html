@@ -2281,7 +2281,15 @@
                 }).then(function () {
                     Dashboard.hideLoadingMsg();
                     loadAvatarLibrary(page);
-                    Dashboard.alert({ message: 'Settings saved.', title: 'Bonfire' });
+                    // The client script runs in this same window and in any other tab. Both
+                    // re-read the preferences on these, so a new default theme shows without
+                    // a reload (see _bindSettingsRefresh in profiles.js).
+                    try { window.dispatchEvent(new Event('jpf-settings-changed')); } catch (e) { /* old engine */ }
+                    try { localStorage.setItem('jellyfin_profiles_settings_epoch', String(Date.now())); } catch (e) { /* storage blocked */ }
+                    // A string is a toast, which is how Jellyfin confirms its own settings pages.
+                    // The dialog form always has a title ("Alert" if none is given), and
+                    // jellyfin-web's dialog pads the title off the centre line of its text.
+                    Dashboard.alert('Settings saved.');
                 }).catch(function (err) {
                     console.error('Failed to save settings:', err);
                     Dashboard.hideLoadingMsg();
