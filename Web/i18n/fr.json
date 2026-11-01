@@ -171,7 +171,7 @@
   "settings.yourBonfireBody": "Partagez vos profils avec un autre foyer, ou rejoignez le leur.",
   "settings.themeTitle": "Thème",
   "settings.themeBody": "L'apparence des écrans de Bonfire pour chaque profil.",
-  "themeSettings.saved": "Enregistré.",
+  "themeSettings.default": "Par défaut",
   "switcher.title": "Style du sélecteur",
   "switcher.intro": "Comment vous accédez à cet écran, pour tous ceux qui utilisent votre compte.",
   "switcher.askOnStartup": "Demander « Qui regarde ? » au démarrage",

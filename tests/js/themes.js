@@ -684,6 +684,98 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
     ok('and puts the theme on now when the profile is the one signed in',
        !!page && /=== signedIn\)\s*\{\s*this\._setThemeSettings\(/.test(page.body));
 
+    // The page itself, run: what it draws for a profile following the default, and for
+    // one that chose a theme. Reported against 1.6.6.2: a "Server default (Crimson)" card
+    // and a Crimson card that looked the same, "Saved." under the cards after every pick,
+    // and only Bonfire drawing a sheet behind them.
+    if (page && methods.renderThemePreview && constants) {
+        const render = (stored, defaultTheme) => {
+            let html = '';
+            const content = {
+                set innerHTML(v) { html = v; }, get innerHTML() { return html; },
+                querySelector: () => null, querySelectorAll: () => []
+            };
+            const doc = { querySelector: s => (s === '.profiles-modal-content' ? content : null) };
+            const obj = {
+                _themeSettings: { theme: 'bonfire', defaultTheme: defaultTheme, allow: true },
+                currentProfiles: [{ profileUserId: 'aaaa', profileName: 'Bard', isMaster: true, theme: stored }],
+                beginNavigation() {}, initTVCheckboxes() {}, showSettingsMenu() { html = 'MENU'; },
+                readMasterState: () => ({ token: 'x' }),
+                normalizeGuid: g => String(g || '').toLowerCase()
+            };
+            const factory = new Function('document', 'ApiClient', 't', 'escapeHtml', 'setTimeout', 'obj',
+                constants + '\nobj.renderThemePreview = function (' + methods.renderThemePreview.params + ') {'
+                + methods.renderThemePreview.body + '};\nobj.showThemeSettings = function (' + page.params + ') {'
+                + page.body + '};\nreturn obj;');
+            factory(doc, { getCurrentUserId: () => 'aaaa' }, (k, v) => k + (v ? JSON.stringify(v) : ''),
+                s => String(s), () => {}, obj).showThemeSettings(null);
+            const cards = [];
+            html.replace(/<button type="button" class="jpf-theme-option[^"]*"[^>]*data-theme="([a-z]*)"\s+aria-checked="(true|false)">\s*<div class="jpf-theme-preview"[^>]*data-jpf-theme="([a-z]+)"/g,
+                (m, value, checked, shows) => { cards.push({ value: value, checked: checked === 'true', shows: shows }); return m; });
+            return { html: html, cards: cards };
+        };
+
+        const follow = render(null, 'crimson');
+        const shows = follow.cards.map(c => c.shows);
+        ok('one card per theme, none twice (' + shows.join(', ') + ')',
+           shows.length === serverIds.length && serverIds.every(id => shows.indexOf(id) !== -1));
+        const dflt = follow.cards.filter(c => c.shows === 'crimson')[0];
+        ok('the server default\'s own card is the one that follows the default',
+           !!dflt && dflt.value === '' && follow.cards.filter(c => c.value === '').length === 1);
+        ok('and it carries the Default tag, once',
+           (follow.html.match(/themeSettings\.default/g) || []).length === 1
+           && /Crimson <span class="jpf-theme-option-tag">themeSettings\.default<\/span>/.test(follow.html));
+        ok('a profile following the default has that card ticked, and only that one',
+           follow.cards.filter(c => c.checked).length === 1 && dflt && dflt.checked);
+        const chose = render('glass', 'crimson');
+        const glass = chose.cards.filter(c => c.shows === 'glass')[0];
+        ok('one that chose a theme has its card ticked, and only that one',
+           chose.cards.filter(c => c.checked).length === 1 && glass && glass.checked && glass.value === 'glass');
+        const same = render('crimson', 'crimson');
+        ok('one that chose the default theme by name still shows one ticked card',
+           same.cards.filter(c => c.checked).length === 1);
+        ok('the page draws no sheet of its own', /class="create-profile-container jpf-theme-page"/.test(follow.html));
+    }
+    ok('a pick says nothing on success: the tick moving is the answer',
+       !!page && !/themeSettings\.saved/.test(page.body) && !/themeSettings\.saved/.test(SRC));
+    ok('choosing the ticked card again sends nothing', !!page && /aria-checked'\) === 'true'\) return;/.test(page.body));
+
+    // Resolved, not string-matched: the page rule has to beat every rule that gives the
+    // container a sheet, in every theme, including Glass's frost.
+    {
+        const pageRule = /\.create-profile-container\.jpf-theme-page\s*\{([^}]*)\}/.exec(CSS);
+        const body = pageRule ? pageRule[1] : '';
+        ok('the Theme page drops the sheet in every theme',
+           /background:\s*transparent/.test(body) && /border-color:\s*transparent/.test(body)
+           && /box-shadow:\s*none/.test(body) && /(^|[^-])backdrop-filter:\s*none/.test(body));
+        const at = pageRule ? pageRule.index : -1;
+        const rivals = [];
+        CSS.replace(/([^{}]*\.create-profile-container[^{}]*)\{([^}]*)\}/g, (m, sel, decl, idx) => {
+            if (/jpf-theme-page|::|is-two-col|>/.test(sel)) return m;
+            if (!/background|border|box-shadow|backdrop-filter|padding/.test(decl)) return m;
+            sel.split(',').map(s => s.trim()).filter(s => /\.create-profile-container$/.test(s)).forEach(s => {
+                const spec = [(s.match(/#/g) || []).length,
+                              (s.match(/\.|\[|:(?!:)/g) || []).length];
+                const beats = spec[0] > 0 || spec[1] > 2 || (spec[1] === 2 && idx > at);
+                if (beats) rivals.push(s.slice(0, 70));
+            });
+            return m;
+        });
+        ok('and nothing that draws one outranks it' + (rivals.length ? ' (' + rivals.join('; ') + ')' : ''),
+           at >= 0 && rivals.length === 0);
+    }
+
+    // A picture marked as a cut-out is not clipped to the avatar's box, so an opaque square
+    // one stood outside Nightfall's round ring. It has to stay inside the theme's shape.
+    {
+        const rule = /\.profile-avatar\.is-transparent img\s*\{([^}]*)\}/.exec(CSS);
+        ok('a cut-out picture is rounded to the theme\'s avatar shape',
+           !!rule && /border-radius:\s*var\(--jpf-avatar-r\)/.test(rule[1]));
+        const missing = serverIds.filter(id => !theme[id] || !theme[id]['--jpf-avatar-r']);
+        ok('and every theme says what that shape is' + (missing.length ? ' (' + missing.join(', ') + ')' : ''),
+           missing.length === 0);
+    }
+
     if (methods.renderThemePreview && constants) {
         const fn = new Function('t', constants + '\nreturn function (' + methods.renderThemePreview.params + ') {'
             + methods.renderThemePreview.body + '};')(k => k);

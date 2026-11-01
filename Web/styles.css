@@ -791,6 +791,32 @@
 }
 
 /* Settings → Theme: one card per theme, each a preview with its name. */
+/* The same in every theme: no sheet behind the cards, which are cards
+   already, and the full width for them. Bonfire drew its sheet here and
+   its 2rem padding left room for three previews a row where the other
+   themes, with transparent sheets, showed four. 8px of side padding is
+   kept so a focused card's ring is not cut off by the container's scroll
+   box. After the Glass frost rule above, which this has to undo. */
+.create-profile-container.jpf-theme-page {
+    max-width: var(--jpf-w-wide);
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    padding-left: 8px;
+    padding-right: 8px;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+.jpf-theme-option-tag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--jpf-border-2);
+    color: var(--jpf-text-2);
+    font-size: 0.7rem; font-weight: 600;
+    vertical-align: middle;
+}
 /* Flex rather than grid: grid is Chromium 57, and webOS 4.5 is 53. */
 .jpf-theme-grid {
     display: flex; flex-wrap: wrap; justify-content: center;
@@ -1301,7 +1327,15 @@ body.profiles-no-scroll [id*="spinner"] {
     padding: 10px;
     box-sizing: content-box;
 }
+/* "No clip" stops at the theme's shape. A cut-out picture that is not
+   actually cut out — an opaque square — sat as a square over Nightfall's
+   round ring, its corners outside it. Rounding the picture to the
+   avatar's own radius keeps it inside whatever shape the theme draws,
+   and costs a real cut-out nothing: its transparent corners are what is
+   trimmed. drop-shadow() follows the rounded edge, so the ring and the
+   focus outline below trace the same shape. */
 .profile-avatar.is-transparent img {
+    border-radius: var(--jpf-avatar-r);
     filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
 }
 /* Four offsets approximate a stroke around an arbitrary silhouette;

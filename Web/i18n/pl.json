@@ -171,7 +171,7 @@
   "settings.yourBonfireBody": "Udostępniaj swoje profile innemu gospodarstwu domowemu lub dołącz do ich grupy.",
   "settings.themeTitle": "Motyw",
   "settings.themeBody": "Wygląd ekranów Bonfire dla każdego profilu.",
-  "themeSettings.saved": "Zapisano.",
+  "themeSettings.default": "Domyślny",
   "switcher.title": "Styl ekranu wyboru",
   "switcher.intro": "Określa sposób dostępu do tego ekranu, dla wszystkich osób korzystających z Twojego konta.",
   "switcher.askOnStartup": "Pytaj „Kto ogląda?” przy starcie",

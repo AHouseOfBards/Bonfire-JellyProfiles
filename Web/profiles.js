@@ -381,7 +381,7 @@
         'settings.yourBonfireBody': 'Share your profiles with another home, or join theirs.',
         'settings.themeTitle': 'Theme',
         'settings.themeBody': "How Bonfire's screens look for each profile.",
-        'themeSettings.saved': 'Saved.',
+        'themeSettings.default': 'Default',
 
         'switcher.title': 'Switcher Style',
         'switcher.intro': 'How you reach this screen, for everyone using your account.',
@@ -7097,21 +7097,33 @@
             const person = pick(selectedId) || pick(signedIn) || people.find(p => p.isMaster) || people[0];
             const stored = person.theme && THEMES.indexOf(String(person.theme).toLowerCase()) !== -1
                 ? String(person.theme).toLowerCase() : '';
+            // What the profile is wearing: its own choice, or the server's default.
+            const current = stored || settings.defaultTheme;
 
-            const option = (value, previewTheme, label) => `
-                <button type="button" class="jpf-theme-option focusable" role="radio" data-theme="${value}"
-                        aria-checked="${stored === value}">
-                    ${this.renderThemePreview(previewTheme)}
+            // One card per theme. There used to be a separate "Server default (Crimson)"
+            // card in front of a Crimson card that looked identical, and which of the two
+            // was ticked depended on how the choice had been stored. Now the default theme's
+            // own card carries the tag, and choosing it follows the default ('' on the wire),
+            // so a profile set that way changes when the server's default does.
+            const option = (id) => `
+                <button type="button" class="jpf-theme-option focusable" role="radio"
+                        data-theme="${id === settings.defaultTheme ? '' : id}"
+                        aria-checked="${id === current}">
+                    ${this.renderThemePreview(id)}
                     <span class="jpf-theme-option-label">
-                        <span>${label}</span>
+                        <span>${THEME_NAMES[id]}${id === settings.defaultTheme
+                            ? ` <span class="jpf-theme-option-tag">${t('themeSettings.default')}</span>` : ''}</span>
                         <span class="material-icons jpf-theme-option-check" aria-hidden="true">check_circle</span>
                     </span>
                 </button>
             `;
 
+            // jpf-theme-page: no sheet behind the cards in any theme. Bonfire's sheet and
+            // its padding left room for three previews a row where every other theme
+            // showed four, so the page looked different only in Bonfire.
             content.innerHTML = `
                 <h1 class="profiles-title">${t('settings.themeTitle')}</h1>
-                <div class="create-profile-container" style="max-width: var(--jpf-w-wide); width: 100%;">
+                <div class="create-profile-container jpf-theme-page">
                     ${people.length > 1 ? `
                     <div class="jpf-theme-people" role="radiogroup" aria-label="${t('settings.themeTitle')}">
                         ${people.map(p => `
@@ -7121,8 +7133,7 @@
                         `).join('')}
                     </div>` : ''}
                     <div class="jpf-theme-grid" role="radiogroup" aria-label="${escapeHtml(person.profileName)}">
-                        ${option('', settings.defaultTheme, t('profileForm.themeDefault', { name: THEME_NAMES[settings.defaultTheme] }))}
-                        ${THEMES.map(id => option(id, id, THEME_NAMES[id])).join('')}
+                        ${THEMES.map(option).join('')}
                     </div>
                     <div class="jpf-theme-status" id="theme-settings-status" role="status"></div>
                     <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
@@ -7143,7 +7154,7 @@
             content.querySelectorAll('.jpf-theme-option').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const value = btn.getAttribute('data-theme') || '';
-                    if (busy || value === stored) return;
+                    if (busy || btn.getAttribute('aria-checked') === 'true') return;
                     busy = true;
                     status.classList.remove('is-error');
                     status.textContent = '';
@@ -7164,9 +7175,9 @@
                                 allowProfileThemes: settings.allow
                             });
                         }
+                        // No "Saved." line: the tick moving to the card is the confirmation.
+                        // The status line is for a failure only.
                         this.showThemeSettings(person.profileUserId);
-                        const again = document.getElementById('theme-settings-status');
-                        if (again) again.textContent = t('themeSettings.saved');
                         const chosen = document.querySelector('.jpf-theme-option[aria-checked="true"]');
                         if (chosen) chosen.focus();
                     })
