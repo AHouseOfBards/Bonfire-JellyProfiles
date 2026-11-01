@@ -13,7 +13,7 @@
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Added**\n\n- Choose each profile's theme under Settings → Theme.\n\n**Changed**\n\n- Each theme now looks like the service it is modelled on, including the profile, settings and Bonfire screens.\n- A theme change shows straight away, without reloading.\n- The way out of every screen is in the same place, bottom left.\n\n**Fixed**\n\n- The home screen could flash after picking a profile.\n- \"Settings saved.\" on the admin page showed its title off-centre.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.6.2/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "4395cf86ecc2537d6682d131dfc54ca9",
         "timestamp": "2026-11-01T00:00:00Z"
       },
       {
