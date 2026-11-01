@@ -9,6 +9,28 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.7.0  — 2026-11-01
+
+**Added**
+
+- Themes for Bonfire's screens: nine looks, three of them seasonal. The server owner picks the default and whether each profile can choose its own.
+- Settings → Theme, where the main account sets each profile's theme.
+- Parental rating choices use your server's country instead of US ratings only.
+
+**Changed**
+
+- A theme change shows straight away, without reloading.
+- The way out of every screen is in the same place, bottom left.
+
+**Fixed**
+
+- Jellyfin's home screen flashed briefly before the profile picker, and after picking a profile.
+- A profile could go missing from a TV's sign-in screen.
+- Saving a profile could remove its rating limit or its allowed devices.
+- Switching into a disabled profile turned it back on.
+- Some translations failed to load on clients that ask for them in lowercase, such as pt-br.
+- "Settings saved." on the admin page showed its title off-centre.
+
 ## 1.6.6  — 2026-10-28
 
 **Fixed**
