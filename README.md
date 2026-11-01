@@ -54,7 +54,7 @@ list your profiles on their own sign-in screen. Turn it on under
 the profile's PIN where the app asks for a password. Android TV is confirmed on hardware;
 the others are not yet.
 
-Details for every app are in [docs/clients.md](docs/clients.md).
+Details for every app are in [Apps](docs/clients.md).
 
 ## Documentation
 

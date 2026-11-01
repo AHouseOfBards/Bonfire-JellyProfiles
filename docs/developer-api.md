@@ -508,7 +508,7 @@ English is built into `profiles.js`. Other languages are one JSON file each in
 `Web/i18n/`. The browser's language decides which file is fetched, and an English browser
 fetches nothing. If a file is missing or fails, the text stays English.
 
-To add a language, see [Web/i18n/README.md](../Web/i18n/README.md).
+To add a language, see [the translation guide](../Web/i18n/README.md).
 
 ### `GET /plugins/profiles/i18n/{locale}`
 

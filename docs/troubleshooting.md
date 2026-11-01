@@ -90,7 +90,7 @@ Set an **emergency disable code** before you need it, under
 pressing `Ctrl+Shift+B`, turns Bonfire off until Jellyfin restarts.
 
 If Bonfire's script doesn't load at all, the code can't run. Restart Jellyfin or delete
-the plugin folder. See [docs/limitations.md](limitations.md) for what the code
+the plugin folder. See [Limitations](limitations.md) for what the code
 does and doesn't unlock.
 
 ## Where do I get avatars?
