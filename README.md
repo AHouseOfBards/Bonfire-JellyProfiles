@@ -13,7 +13,7 @@ Works with Jellyfin 10.11 and 12.0.
   limit for the whole server or for one account.
 - **Parental controls the server enforces.** Library access, rating limits and tag
   filters are applied by Jellyfin itself, so they hold in every app, including apps that
-  can't show the switcher. Rating limits use your server's country.
+  can't show the switcher. Rating limits use your server country's ratings.
 - **PINs.** Lock any profile with a PIN. You can skip it on your home network.
 - **Device limits.** Keep a profile to the devices you choose.
 - **Shared Bonfires.** Link two accounts with a 6-character code so both households
