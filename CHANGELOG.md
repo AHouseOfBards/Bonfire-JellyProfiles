@@ -9,6 +9,23 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.6.6.3-beta  — 2026-11-01
+
+**Added**
+
+- Three seasonal themes: Harvest (autumn), Snowfall (winter) and Bloom (spring).
+
+**Changed**
+
+- Settings → Theme lists each theme once, with the server default marked.
+- Settings → Theme no longer says "Saved." after each pick.
+- Settings → Theme is laid out the same in every theme.
+
+**Fixed**
+
+- Theme previews spilled out of their cards on phones.
+- A profile picture with no background could stick out past its round frame.
+
 ## 1.6.6.2-beta  — 2026-11-01
 
 **Added**
