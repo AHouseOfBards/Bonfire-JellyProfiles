@@ -606,7 +606,7 @@ Console.WriteLine("── An empty provider id makes a user row UNREADABLE ─�
 // unfixable from inside the plugin because the read path throws too. It needed manual SQL.
 //
 // The read path tolerating empty is exactly why this was missed. Checking one path and
-// calling the question settled is what the rules in CLAUDE.md are written against.
+// calling the question settled is what this repository's testing rules are written against.
 string emptyProviderResult;
 try
 {
