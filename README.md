@@ -13,7 +13,7 @@ Works with Jellyfin 10.11 and 12.0.
   limit for the whole server or for one account.
 - **Parental controls the server enforces.** Library access, rating limits and tag
   filters are applied by Jellyfin itself, so they hold in every app, including apps that
-  can't show the switcher.
+  can't show the switcher. Rating limits use your server's country.
 - **PINs.** Lock any profile with a PIN. You can skip it on your home network.
 - **Device limits.** Keep a profile to the devices you choose.
 - **Shared Bonfires.** Link two accounts with a 6-character code so both households
@@ -21,9 +21,9 @@ Works with Jellyfin 10.11 and 12.0.
 - **Avatars.** Thirty built in, plus any pictures you upload for the whole server.
 - **Per-profile library artwork.** A Kids profile can show its own picture for a library
   instead of a poster from a film it can't open.
-- **Themes.** Nine looks for Bonfire's screens, three of them seasonal, chosen per profile.
-  Administrators set the default and can turn choosing off. Main accounts set them under
-  Settings → Theme.
+- **Themes.** Nine looks for Bonfire's screens, three of them seasonal. Each profile can
+  have its own, set from **Settings → Theme** on the main account. Administrators choose
+  the default and can turn choosing off.
 - **Your choice of switcher.** A Bonfire button in the header or a **Switch Profile**
   entry in Jellyfin's own menu, with an optional "Who's watching?" screen on startup.
 

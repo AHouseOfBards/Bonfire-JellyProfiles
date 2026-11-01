@@ -9,6 +9,47 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.6.6.2-beta  — 2026-11-01
+
+**Added**
+
+- Choose each profile's theme under Settings → Theme.
+
+**Changed**
+
+- Each theme now looks like the service it is modelled on, including the profile, settings and Bonfire screens.
+- A theme change shows straight away, without reloading.
+- The way out of every screen is in the same place, bottom left.
+
+**Fixed**
+
+- The home screen could flash after picking a profile.
+- "Settings saved." on the admin page showed its title off-centre.
+
+## 1.6.6.1-beta  — 2026-10-31
+
+**Added**
+
+- Themes for Bonfire's screens. The server owner picks the default and whether each profile can choose its own.
+- Parental rating choices use your server's country instead of US ratings only.
+
+**Fixed**
+
+- Jellyfin's home screen flashed briefly before the profile picker, and when picking a profile.
+- A profile could go missing from a TV's sign-in screen.
+- Saving a profile could remove its rating limit or its allowed devices.
+- Switching into a disabled profile turned it back on.
+- Some translations failed to load on clients that ask for them in lowercase, such as pt-br.
+
+## 1.6.4.1-beta  — 2026-10-13
+
+**Fixed**
+
+- With "Ask who's watching on startup" off, there was no Switch Profile button and no way to switch.
+- After signing out of the iOS app, the previous account's profile stayed on the sign-in screen and carried over to the next account.
+- On iPad, your own profiles could appear as a linked Bonfire, and Manage Profiles asked you to open yourself first.
+- The profile picture in the header was drawn zoomed in and blurry.
+
 ## 1.6.3.5-beta  — 2026-10-03
 
 **Fixed**

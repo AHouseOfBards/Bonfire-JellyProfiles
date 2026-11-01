@@ -862,8 +862,9 @@ what you sent. `401` for a profile.
 
 ### Themes
 
-How Bonfire's own screens look: the profile picker, PIN entry and profile forms. The rest
-of Jellyfin keeps its own theme.
+How Bonfire's own screens look: the profile picker, PIN entry, the profile forms,
+Settings and the Bonfire menu. The rest of Jellyfin keeps its own theme. Theme names are
+proper names and aren't translated.
 
 | Id | Look |
 | --- | --- |
@@ -891,12 +892,22 @@ whether profiles may choose, under [`admin/settings`](#post-pluginsprofilesadmin
 { "profileId": "…", "theme": "nightfall", "masterPin": "1234" }
 ```
 
-Changes the theme and nothing else. `""` goes back to the server default. Returns
-`{ profileId, theme, stored }`: `theme` is what that profile now sees, `stored` its own
-choice or `null`.
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `profileId` | GUID | Yes | Any profile in the caller's household, the main account included. |
+| `theme` | string | No | A [theme](#themes) id. Omit or `""` to follow the server default. |
+| `masterPin` | string | When the main account has a PIN | The main account's PIN. |
 
-`400` for an unknown theme, `401` for a profile outside your household, `403` when the
-server does not let profiles choose.
+Changes the theme and nothing else. Returns `{ profileId, theme, stored }`: `theme` is what
+that profile now sees, `stored` its own choice or `null`.
+
+Errors:
+
+- `400`: an unknown theme, or a wrong main-account PIN.
+- `401`: the caller is a profile rather than the main account, or `profileId` is outside
+  the household.
+- `403`: the server doesn't let profiles choose.
+- `429`: too many wrong PINs.
 
 ---
 

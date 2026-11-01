@@ -130,7 +130,7 @@
   "profileForm.ratingCurrent": "Obecny limit (poziom {score})",
   "profileForm.ratingAge": "{labels} ({score}+)",
   "profileForm.theme": "Motyw",
-  "profileForm.themeDefault": "Domyślny serwera ({name})",
+  "profileForm.themeDefault": "Domyślny dla serwera ({name})",
   "profileForm.themeHint": "Wygląd tych ekranów dla tego profilu.",
   "profileForm.blockedTags": "Zablokowane tagi",
   "profileForm.blockedTagsHint": "Ukrywa wszystko, co ma te tagi. Tag na serialu lub bibliotece dotyczy całej jej zawartości.",
