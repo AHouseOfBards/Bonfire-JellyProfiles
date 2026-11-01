@@ -26,7 +26,7 @@ It shows which method is in use and how many pages it has served.
 ### It works in a browser but not in an app
 
 Bonfire can only appear in apps that load the web client from your server. Apps that
-ship their own copy never see it. See [docs/clients.md](clients.md) for which apps
+ship their own copy never see it. See [Apps](clients.md) for which apps
 work and how.
 
 Parental controls still apply in every app, because the server enforces them.
