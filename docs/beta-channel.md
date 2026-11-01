@@ -28,7 +28,7 @@ Remove the beta repository to go back to stable only.
 ## What's in each
 
 **Stable** lists milestone releases only: 1.0, 1.1, 1.1.13, 1.2, 1.2.12, 1.3, 1.4, 1.5,
-1.6, 1.6.1, 1.6.2, 1.6.3, 1.6.4, 1.6.5, 1.6.6 and 1.7.
+1.6, 1.6.1, 1.6.2, 1.6.3, 1.6.4, 1.6.5, 1.6.6, 1.7 and 1.7.1.
 
 **Beta** lists every pre-release, plus point releases that never became milestones.
 
