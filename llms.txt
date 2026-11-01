@@ -14,7 +14,7 @@
 - Bonfire doesn't edit Jellyfin's `index.html` and doesn't need any other plugin. No script tag in `index.html` is normal.
 - Themes: nine looks for Bonfire's own screens (Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass, and the seasonal Harvest, Snowfall and Bloom). Each profile can have its own, set from Settings → Theme on the main account. The administrator picks the default and can turn choosing off. The rest of Jellyfin keeps its own theme.
 - Shared Bonfires: two accounts can link with a 6-character code so both households appear on one switcher.
-- Languages: English, French, Polish and Turkish, picked from the browser's language. The admin page is English only.
+- Languages: English, Catalan, French, Polish, Spanish and Turkish, matching the Display language set in Jellyfin. The admin page is English only.
 - Administrators can set an emergency code that turns the profile screen off until Jellyfin restarts.
 - Full switcher: Jellyfin Web, Jellyfin for Android, Jellyfin Media Player, LG webOS 4.5 and later, and Samsung Tizen (after a one-time setup).
 - Profile sign-in on the app's own screen: Jellyfin for Android TV (confirmed), Roku, Swiftfin, Findroid and Wholphin (not yet confirmed). Turn it on under Dashboard → Bonfire → TVs & Apps, and type the profile's PIN as the password.

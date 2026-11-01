@@ -103,9 +103,13 @@ if (publish != null)
     Ok("the marker is rewritten", !js.Contains(marker, StringComparison.Ordinal));
     Ok("with every discovered locale",
        discovered.All(c => js.Contains("'" + c + "'", StringComparison.Ordinal)));
+    // The whole list, in order, as one array literal. This used to look for "['fr'" and
+    // went red the day ca.json arrived and sorted ahead of it — it was testing which
+    // language came first, not the shape of the assignment.
+    var expectedList = "let SUPPORTED_LOCALES = ["
+        + string.Join(", ", discovered.Select(c => "'" + c + "'")) + "];";
     Ok("as a JS array assignment",
-       js.Contains("let SUPPORTED_LOCALES = ['fr']", StringComparison.Ordinal)
-       || js.Contains("let SUPPORTED_LOCALES = ['fr',", StringComparison.Ordinal));
+       discovered.Length > 0 && js.Contains(expectedList, StringComparison.OrdinalIgnoreCase));
     Ok("leaving the rest of the file alone",
        js.StartsWith("before\n", StringComparison.Ordinal)
        && js.EndsWith("\nafter", StringComparison.Ordinal));
