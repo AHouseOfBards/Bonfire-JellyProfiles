@@ -8,15 +8,15 @@ file in this folder, and the server tells the browser which languages it has.
 
 ## Add a language
 
-**1. Copy an existing file** and name it for the language code a browser sends:
+**1. Copy an existing file** and name it for the language's code:
 
 ```
 cp Web/i18n/fr.json Web/i18n/de.json
 ```
 
 For example `de.json`, `es.json`, `pt-BR.json` or `zh-Hans.json`. Use the plain code
-(`pt.json`) unless regions really differ. If both exist, the more specific one wins: a
-browser asking for `pt-BR` gets `pt-BR.json`, or `pt.json` if there isn't one.
+(`pt.json`) unless regions really differ. If both exist, the more specific one wins:
+Jellyfin set to Portuguese (Brazil) gets `pt-BR.json`, or `pt.json` if there isn't one.
 
 **2. Translate the values, not the keys.** The key on the left is an identifier:
 
@@ -35,7 +35,8 @@ It needs only Node, and reports missing keys, unknown keys, empty values, and br
 placeholders or HTML. It also checks two things in the code rather than your file, so a
 failure isn't always yours.
 
-**4. Try it.** Build the plugin, set your browser's language and open the profile screen.
+**4. Try it.** Build the plugin, pick the language in Jellyfin under Settings → Display →
+Display language, and open the profile screen.
 
 ## Rules for the values
 
@@ -66,8 +67,8 @@ they are in every language.
 
 Most likely first:
 
-- **The browser isn't asking for it.** Bonfire uses the browser's language list, not a
-  Jellyfin setting. Check `navigator.languages` in the browser console.
+- **Jellyfin isn't set to it.** Bonfire uses Jellyfin's Display language (Settings →
+  Display), which is per user and per device. On Auto, that's the device's language.
 - **The plugin wasn't rebuilt.** Files are built into the plugin.
 - **Jellyfin wasn't restarted.**
 - **The file isn't valid JSON.** The validator will say so. A trailing comma is the usual
@@ -79,9 +80,9 @@ Most likely first:
 ## How it works
 
 English is built in, so the profile screen shows straight away, even if the server is
-unreachable. On startup the browser picks the first of its languages the server has,
-downloads that one file, and falls back to English for any missing key. English readers
-download nothing extra.
+unreachable. On startup Bonfire reads Jellyfin's Display language, downloads that one
+file if the server has it, and falls back to English for any missing key. Changing the
+setting takes effect without a reload. English readers download nothing extra.
 
 The endpoint and its caching are described in
 [`docs/developer-api.md`](../../docs/developer-api.md#translations).
