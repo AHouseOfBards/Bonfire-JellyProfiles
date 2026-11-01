@@ -3,7 +3,7 @@
  *
  * docs/developer-api.md is the contract other people build against, and nothing has
  * ever checked it against the controller. The plan says "41 routes"; there are 42 —
- * P2 added POST admin/settings and the count in the plan, in CLAUDE.md and in the
+ * P2 added POST admin/settings and the count in the plan, in the working notes and in the
  * document itself all drifted apart without anyone noticing. That is the whole failure
  * mode: documentation rots silently, and the only signal is a confused reader.
  *
@@ -274,7 +274,7 @@ const readme = fs.readFileSync(path.join(L.ROOT, 'README.md'), 'utf8');
 // when the README was trimmed, and they are CHECKED THERE rather than dropped — a
 // number in prose that nothing checks is a number that will be wrong, wherever it
 // lives. "All 41 endpoints" was in the README while the controller had 42, and neither
-// the plan nor CLAUDE.md agreed with either.
+// the plan nor the working notes agreed with either.
 //
 // Asserted against docs/developer-api.md, which is the document that now owns the
 // claim. If a count is moved again, move the assertion with it; do not delete it.

@@ -24,6 +24,11 @@ packages/
 .DS_Store
 Thumbs.db
 
-# Local working notes for Claude Code
+# Node and tooling
+node_modules/
+*.log
+
+# Local AI assistant notes, settings and hooks. Kept on the maintainer's machine, not
+# published.
 CLAUDE.md
-.claude/worktrees/
+.claude/
