@@ -13,7 +13,7 @@
         "changelog": "**Added**\n\n- Catalan and Spanish.\n\n**Changed**\n\n- Bonfire now uses the language set in Jellyfin (Settings → Display), not the browser's.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.1/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "a577079562251040249d52362afde82f",
         "timestamp": "2026-11-02T00:01:15Z"
       },
       {
