@@ -231,6 +231,7 @@ if (P) {
 
     steps.forEach(name => {
         if (name === 'loadLocale') return;          // a closure function, not a method
+        if (name === 'watchJellyfinLanguage') return; // likewise; i18ntest.js runs it
         if (name === 'injectStyles') return;        // covered above, and already appended
         if (typeof P[name] !== 'function') {
             ok(false, 'init() step "' + name + '" exists on the plugin object');

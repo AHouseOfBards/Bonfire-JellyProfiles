@@ -27,7 +27,7 @@ translate the values. Leave the keys alone. Then check it:
 node Web/i18n/validate.js de
 ```
 
-The full guide is in [the translation guide](../Web/i18n/README.md).
+The full guide is in [the translation guide](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/beta/Web/i18n/README.md).
 
 ## Changing the client script
 

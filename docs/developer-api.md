@@ -505,8 +505,8 @@ minutes even if the `?v=` on its script tag is out of date.
 ## Translations
 
 English is built into `profiles.js`. Other languages are one JSON file each in
-`Web/i18n/`. The browser's language decides which file is fetched, and an English browser
-fetches nothing. If a file is missing or fails, the text stays English.
+`Web/i18n/`. Jellyfin's Display language for the signed-in user decides which file is
+fetched, and English fetches nothing. If a file is missing or fails, the text stays English.
 
 To add a language, see [the translation guide](../Web/i18n/README.md).
 

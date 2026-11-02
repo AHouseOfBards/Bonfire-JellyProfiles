@@ -156,8 +156,8 @@
     // English lives inline, as the single dependency-free fallback every client can
     // render immediately — no fetch, no flash of untranslated text, works even if the
     // server is briefly unreachable. Every other language is a JSON file the server
-    // hands out from Web/i18n/, fetched once and only for a visitor whose browser
-    // actually asks for it: nobody pays for a translation they will not read.
+    // hands out from Web/i18n/, fetched only for a user whose Jellyfin Display language
+    // asks for it: nobody pays for a translation they will not read.
     //
     // To add a language: drop Web/i18n/<code>.json next to fr.json, with the same keys
     // and translated values. That is the whole job — the .csproj takes Web/i18n/*.json
@@ -488,16 +488,62 @@
         return str;
     }
 
-    /// First of the browser's preferred languages that this plugin ships a translation
-    /// for, or null to stay on English.
+    /// The language Jellyfin is showing this user, as a tag ('fr', 'pt-br'), or '' if
+    /// there is nothing to go on.
+    ///
+    /// Bonfire sits inside Jellyfin's own pages, so it speaks the language those pages
+    /// do: Settings → Display → Display language. Up to 1.7.0 it used the browser's
+    /// language list instead, so a French browser with Jellyfin set to English got
+    /// French profile screens around an English page, and the setting did nothing.
+    ///
+    /// Read in the order jellyfin-web itself decides (src/lib/globalize,
+    /// updateCurrentCulture, verified against release-10.11.z):
+    ///
+    ///   1. The setting. userSettings.language() is stored per device in localStorage
+    ///      as '<userId>-language' (appSettings.#getKey). Read directly because <html
+    ///      lang> lags it: globalize runs once at import, before anyone is signed in, and
+    ///      only catches up on 'localusersignedin', which can land after the gate has
+    ///      drawn.
+    ///   2. <html lang>, which globalize writes from the same setting. Used when there is
+    ///      no user id to read the setting under yet.
+    ///   3. "Auto", which is an empty setting: jellyfin-web's getDefaultLanguage, which is
+    ///      data-culture (set by the native app shells) and then navigator.language. That
+    ///      is the device's language, but only because it is Jellyfin's too. Note it is
+    ///      navigator.language, not the navigator.languages list, so a second preference
+    ///      Jellyfin never shows does not get picked up here either.
+    function jellyfinLanguage() {
+        const root = document.documentElement;
+        const attr = name => (root && root.getAttribute && root.getAttribute(name)) || '';
+
+        let userId = '';
+        try {
+            if (typeof ApiClient !== 'undefined' && ApiClient && ApiClient.getCurrentUserId) {
+                userId = ApiClient.getCurrentUserId() || '';
+            }
+        } catch (e) { /* not signed in yet */ }
+
+        let lang = '';
+        if (userId) {
+            try { lang = localStorage.getItem(userId + '-language') || ''; } catch (e) { /* storage blocked */ }
+        } else {
+            lang = attr('lang');
+        }
+        if (!lang) lang = attr('data-culture') || navigator.language || '';
+
+        // globalize.normalizeLocaleName: en_US and en-US are the same language to it.
+        return String(lang).replace('_', '-').toLowerCase();
+    }
+
+    /// The translation this plugin ships for Jellyfin's language, or null to stay on
+    /// English.
     ///
     /// A full tag wins over its base language, so pt-BR picks the Brazilian file when
     /// there is one and falls back to pt when there is not. Slicing to two characters —
     /// which is what this did first — made a regional translation unreachable and would
     /// have handed a pt-BR reader a pt-PT file without either of them choosing that.
     function detectLocale() {
-        const langs = (navigator.languages && navigator.languages.length)
-            ? navigator.languages : [navigator.language || ''];
+        const tag = jellyfinLanguage();
+        if (!tag) return null;
 
         // Locale codes reach a URL below. They come from the server rather than from
         // anything a visitor controls, but the shape is checked anyway — this is the one
@@ -506,36 +552,61 @@
             .filter(c => typeof c === 'string' && /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(c));
         const lower = have.map(c => c.toLowerCase());
 
-        for (const lang of langs) {
-            const tag = (lang || '').toLowerCase();
-            if (!tag) continue;
-
-            // Longest match first, dropping one subtag at a time: zh-Hans-CN, then
-            // zh-Hans, then zh. Trying only the full tag and the bare language would
-            // skip straight past a zh-Hans file for a browser asking for zh-Hans-CN.
-            const parts = tag.split('-');
-            for (let n = parts.length; n >= 1; n--) {
-                const i = lower.indexOf(parts.slice(0, n).join('-'));
-                if (i !== -1) return have[i];
-            }
+        // Longest match first, dropping one subtag at a time: zh-Hans-CN, then
+        // zh-Hans, then zh. Trying only the full tag and the bare language would
+        // skip straight past a zh-Hans file for a Jellyfin set to zh-Hans-CN.
+        const parts = tag.split('-');
+        for (let n = parts.length; n >= 1; n--) {
+            const i = lower.indexOf(parts.slice(0, n).join('-'));
+            if (i !== -1) return have[i];
         }
         return null;
     }
 
+    /// The locale whose strings are in activeStrings, or null for English. Lets a change
+    /// of language that lands on the same file skip the fetch.
+    let activeLocale = null;
+    /// Bumped on every load, so a slow response for a language the user has since moved
+    /// off cannot land on top of the one they moved to.
+    let localeLoadSeq = 0;
+
     /// Fetches the detected locale's strings and swaps them in. Always resolves —
     /// nothing here is worth failing startup over. No detected/supported locale, a
-    /// missing file, or a network error all leave English active, which is already
-    /// what `activeStrings` is until this resolves.
+    /// missing file, or a network error all leave English active.
+    ///
+    /// Runs again whenever Jellyfin's language changes (watchJellyfinLanguage), so it
+    /// has to be able to go back to English as well as away from it.
     function loadLocale() {
         const locale = detectLocale();
-        if (!locale) return Promise.resolve();
+        const seq = ++localeLoadSeq;
+        if (locale === activeLocale) return Promise.resolve();
+        if (!locale) {
+            activeStrings = EN_STRINGS;
+            activeLocale = null;
+            return Promise.resolve();
+        }
 
         return fetch(pluginUrl('/plugins/profiles/i18n/' + locale + '.json'))
             .then(res => res.ok ? res.json() : null)
             .then(strings => {
-                if (strings && typeof strings === 'object') activeStrings = strings;
+                if (seq !== localeLoadSeq) return;
+                if (strings && typeof strings === 'object') {
+                    activeStrings = strings;
+                    activeLocale = locale;
+                }
             })
-            .catch(() => { /* stay on English */ });
+            .catch(() => { /* stay on what is showing */ });
+    }
+
+    /// Calls `onChange` whenever jellyfin-web rewrites <html lang>: on sign-in, sign-out
+    /// and when the Display language setting is saved, which does not reload the page.
+    /// An attribute observer on one element costs nothing between changes, and nothing
+    /// is added to the route poll (see checkRoute). MutationObserver is Chromium 26, well
+    /// inside webOS 4.5.
+    function watchJellyfinLanguage(onChange) {
+        if (typeof MutationObserver === 'undefined' || !document.documentElement) return;
+        new MutationObserver(onChange)
+            .observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
     }
 
     // The startup cover: the page painted in the gate's background from before the first
@@ -1739,6 +1810,11 @@
             // fetchAndRenderProfiles awaits this before the first gate render, so it has to
             // be a promise even if the step above failed.
             if (!this._i18nReady) this._i18nReady = Promise.resolve();
+            // Follows Jellyfin's Display language when it changes without a reload. Screens
+            // drawn after that are in the new language; one already open keeps its text.
+            this._step('watchJellyfinLanguage', () => watchJellyfinLanguage(() => {
+                this._i18nReady = loadLocale();
+            }));
 
             this._step('bindEvents', () => this.bindEvents());
             // Before injectStyles, so the sheet's .jpf-tv and .jpf-no-flex-gap rules match

@@ -1957,7 +1957,7 @@ namespace Jellyfin.Profiles.Controllers
         // English ships inline in profiles.js — it is the fallback every client already
         // has, so it is never requested here. This endpoint only ever serves the other
         // languages, each embedded as its own Web/i18n/{locale}.json resource, fetched
-        // by the browser once it has decided (from navigator.languages) that it wants
+        // by the client once Jellyfin's Display language for the signed-in user asks for
         // one.
         //
         // Adding a language is one JSON file in Web/i18n and nothing else: the .csproj
