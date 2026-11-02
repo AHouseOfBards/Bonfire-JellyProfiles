@@ -9,6 +9,16 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 
 ---
 
+## 1.7.1  — 2026-11-02
+
+**Added**
+
+- Catalan and Spanish.
+
+**Changed**
+
+- Bonfire now uses the language set in Jellyfin (Settings → Display), not the browser's.
+
 ## 1.7.0  — 2026-11-01
 
 **Added**
