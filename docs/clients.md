@@ -12,6 +12,7 @@ The switcher, profile management, avatars, library artwork and shared Bonfires.
 | --- | --- |
 | Jellyfin Web | Desktop and mobile browsers. |
 | Jellyfin for Android | |
+| Jellyfin for iOS | iPhone and iPad. |
 | Jellyfin Media Player | Windows, macOS, Linux. |
 | LG webOS | webOS 4.5 (2019 sets) and later. |
 | Samsung Tizen | Needs the Bonfire loader added once. See [Samsung Tizen](troubleshooting.md#samsung-tizen). |
