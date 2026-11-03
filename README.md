@@ -44,8 +44,8 @@ Nothing else to set up. If the switcher doesn't appear, see
 
 ## Apps
 
-**Full support:** Jellyfin Web, Jellyfin for Android, Jellyfin Media Player, LG webOS
-4.5 and later, and Samsung Tizen
+**Full support:** Jellyfin Web, Jellyfin for Android, Jellyfin for iOS (iPhone and iPad),
+Jellyfin Media Player, LG webOS 4.5 and later, and Samsung Tizen
 ([one-time setup](docs/troubleshooting.md#samsung-tizen)).
 
 **Profile sign-in:** Jellyfin for Android TV, Roku, Swiftfin, Findroid and Wholphin can

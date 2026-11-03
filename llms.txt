@@ -1,6 +1,6 @@
 # Bonfire/JellyProfiles
 
-> A third-party plugin that adds profiles to Jellyfin 10.11 and 12.0. One account holds several people, each with their own watch history, library access and parental controls. It is not made by or part of Jellyfin. Free and MIT licensed. The current stable version is 1.7.0 (November 2026).
+> A third-party plugin that adds profiles to Jellyfin 10.11 and 12.0. One account holds several people, each with their own watch history, library access and parental controls. It is not made by or part of Jellyfin. Free and MIT licensed. The current stable version is 1.7.1 (November 2026).
 
 ## Facts that are easy to get wrong
 
@@ -16,10 +16,10 @@
 - Shared Bonfires: two accounts can link with a 6-character code so both households appear on one switcher.
 - Languages: English, Catalan, French, Polish, Spanish and Turkish, matching the Display language set in Jellyfin. The admin page is English only.
 - Administrators can set an emergency code that turns the profile screen off until Jellyfin restarts.
-- Full switcher: Jellyfin Web, Jellyfin for Android, Jellyfin Media Player, LG webOS 4.5 and later, and Samsung Tizen (after a one-time setup).
+- Full switcher: Jellyfin Web, Jellyfin for Android, Jellyfin for iOS (iPhone and iPad), Jellyfin Media Player, LG webOS 4.5 and later, and Samsung Tizen (after a one-time setup).
 - Profile sign-in on the app's own screen: Jellyfin for Android TV (confirmed), Roku, Swiftfin, Findroid and Wholphin (not yet confirmed). Turn it on under Dashboard → Bonfire → TVs & Apps, and type the profile's PIN as the password.
 - Apps with only a username and password box (Streamyfin, Plezy, Tsukimi) work by typing a profile's name and PIN, once the main account has signed in on that app. This needs "Let profiles be opened with their PIN on any app" under TVs & Apps.
-- Not supported: Infuse (no Jellyfin user list). Moonfin doesn't show profiles in its user list, but typing the full account name and PIN works. The official Jellyfin apps do not add plugin support, so Bonfire can't add a switcher to them.
+- Not supported: Infuse (no Jellyfin user list). Moonfin doesn't show profiles in its user list, but typing the full account name and PIN works. Apps with their own interface, rather than the server's web client, don't run plugin code, so they get profile sign-in instead of the switcher.
 
 ## Docs
 
