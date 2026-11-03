@@ -3,10 +3,24 @@
 English is built into `profiles.js`. Every other language is one JSON file in this
 folder.
 
-Adding a language means adding one file here and nothing else. The build picks up every
-file in this folder, and the server tells the browser which languages it has.
+## Available now
+
+| Language | File |
+| --- | --- |
+| English | built in |
+| Catalan | `ca.json` |
+| French | `fr.json` |
+| Polish | `pl.json` |
+| Spanish | `es.json` |
+| Turkish | `tr.json` |
+
+Bonfire uses the language set in Jellyfin under **Settings → Display → Display
+language**. Anything else shows in English.
 
 ## Add a language
+
+Adding a language means adding one file here and listing it. The build picks up every
+file in this folder, and the server tells the browser which languages it has.
 
 **1. Copy an existing file** and name it for the language's code:
 
@@ -37,6 +51,9 @@ failure isn't always yours.
 
 **4. Try it.** Build the plugin, pick the language in Jellyfin under Settings → Display →
 Display language, and open the profile screen.
+
+**5. List it** in the table above and in the README's Features list.
+`tests/js/languagelist.js` fails until both name it.
 
 ## Rules for the values
 
