@@ -1,63 +1,64 @@
 # Contributing
 
-Thanks for helping. Pull requests go against `beta`.
+Thanks for helping. Open pull requests against the `beta` branch.
 
 ## Build and test
 
-You need the .NET 9 and .NET 10 SDKs and a recent Node.
+You need the .NET 9 and .NET 10 SDKs, and Node 20 or later.
 
 ```
-dotnet build -c Release      # the plugin
-tests/run.sh                 # every test (tests\run.ps1 on Windows)
+dotnet build -c Release
+tests/run.sh
 ```
 
-`tests/run.sh` builds with warnings as errors and runs every JavaScript and C# test. CI
-runs the same command, so green locally means green on CI.
+On Windows, run `tests\run.ps1` instead. It runs every test, and CI runs the same
+command, so if it passes for you it passes in CI.
 
-To try a build on a real server, copy `bin/Release/net9.0/Jellyfin.Profiles.dll` into
-Jellyfin's plugins folder and restart the server process. On Docker, restart the
-container; the dashboard's Restart button often isn't enough.
+To try a build on your server, copy `bin/Release/net9.0/Jellyfin.Profiles.dll` into
+Jellyfin's plugins folder and restart Jellyfin. On Docker, restart the container.
 
 ## Adding a translation
 
-Copy `Web/i18n/fr.json`, name it for the language code (`de.json`, `pt-BR.json`), and
-translate the values. Leave the keys alone. Then check it:
+1. Copy `Web/i18n/fr.json` and name it for the language code, such as `de.json` or
+   `pt-BR.json`.
+2. Translate the values. Leave the keys as they are.
+3. Check it with `node Web/i18n/validate.js de`.
+4. Add the language to the list in the README and in the translation guide.
 
-```
-node Web/i18n/validate.js de
-```
-
-Then add it to the language lists in the README and the translation guide.
-
-The full guide is in [the translation guide](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/beta/Web/i18n/README.md).
+The [translation guide](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/beta/Web/i18n/README.md)
+has the details.
 
 ## Changing the client script
 
-`Web/profiles.js` is one large file. A few things to know:
+The client is `Web/profiles.js`. Its styles are in `Web/styles.css`.
 
-- **Don't edit it through a shell heredoc.** Backslashes, `$` and regexes get mangled,
-  and line-ending mismatches make edits silently miss. Use an editor, or write the script
-  to a file and run that.
-- **`node --check` isn't enough.** Code can parse and still fail when it runs. That's how
-  1.5.2 shipped broken. Run `tests/run.sh`.
-- **Keep it working on older TVs.** webOS 4.5 runs Chromium 53, so avoid newer syntax
-  like `?.` and object spread `{ ...x }`. `tests/js/jsbaseline.js` checks this.
-- **Read the jellyfin-web source before changing a selector.** Record what you checked
-  it against in `tests/upstream-selectors.json`, or `tests/js/selectors.test.js` fails.
+- **Edit it in an editor.** Don't change it with `sed`, shell heredocs or one-line
+  scripts. The shell can corrupt backslashes and `$`, and edits can silently fail to
+  apply.
+- **Run `tests/run.sh`.** Checking that the file parses isn't enough. The tests run it.
+- **Use older JavaScript.** It must run on LG TVs from 2019, which use Chromium 53. Don't
+  use `?.`, `??` or object spread (`{ ...x }`). Use `Object.assign` instead of spread.
+  `tests/js/jsbaseline.js` catches these.
+- **Check jellyfin-web before using a selector.** Find the element in the
+  [jellyfin-web source](https://github.com/jellyfin/jellyfin-web/tree/release-10.11.z/src)
+  rather than going from memory. Then add the selector to
+  `tests/upstream-selectors.json` with the file you found it in. The tests fail on any
+  selector that isn't listed.
+- **Keep the route check light.** `checkRoute` runs twice a second on every page. Only
+  add to it what must run every time, and avoid new page-wide queries there.
+  `tests/js/routetick.js` counts them.
+- **Translate what people see.** Put the English in `EN_STRINGS` and show it with
+  `t('key')`. The admin dashboard is English only.
 
 ## Style
 
-**Text people see is short and direct.** One sentence where one will do. Say the fix,
-not the diagnosis.
+Text people see is short and direct. Use one sentence where one will do, and say how to
+fix the problem.
 
-**Code comments explain why.** What was tried, what broke and how it failed are the most
-useful comments here. Keep them next to the code they describe.
-
-Everything a household member sees goes through `t()` so it can be translated. The admin
-dashboard is English only.
+Code comments explain why: what was tried, what broke, and how it failed. Keep them next
+to the code they describe.
 
 ## Pull requests
 
-Say what you changed and how you checked it. For a bug fix, the most useful thing to
-include is a test that fails without your change. If you couldn't test something (a TV,
-a Tizen build, an app you don't have), say so.
+Say what you changed and how you tested it. For a bug fix, include a test that fails
+without your change. If you couldn't test something, such as a TV app, say so.
