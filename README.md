@@ -26,6 +26,8 @@ Works with Jellyfin 10.11 and 12.0.
   the default and can turn choosing off.
 - **Your choice of switcher.** A Bonfire button in the header or a **Switch Profile**
   entry in Jellyfin's own menu, with an optional "Who's watching?" screen on startup.
+- **Six languages.** English, Catalan, French, Polish, Spanish and Turkish, following the
+  language set in Jellyfin. [Add yours](Web/i18n/README.md).
 
 ![The create-profile form](images/create-profile.png)
 
