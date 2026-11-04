@@ -50,6 +50,115 @@ function fail(msg) {
     process.exit(2);
 }
 
+// ── The settings page's English ─────────────────────────────────────────────
+// The administrator's page keeps its English in two places, one per kind of text, and
+// a key may live in only one of them:
+//
+//   - the markup: an element marked data-i18n="admin.…" holds its own English, as text,
+//     or as HTML when it has tags inside (that is how the page applies a translation
+//     too); data-i18n-placeholder and data-i18n-aria-label name an attribute's English;
+//   - ADMIN_EN in the page's script, for what the script writes.
+const DASHBOARD = path.join(HERE, '..', 'profilesDashboard.html');
+
+function decodeEntities(s) {
+    return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+        .replace(/&#0?39;/g, "'").replace(/&nbsp;/g, '\u00a0').replace(/&amp;/g, '&');
+}
+
+const VOID_TAGS = new Set(['input', 'br', 'img', 'hr', 'meta', 'link', 'source', 'wbr']);
+
+/// The markup before the script, as a flat list of tags and text. Enough of a parser for
+/// a page this file's own authors write; not a general one.
+function tokenizeMarkup(html) {
+    const end = html.indexOf('<script');
+    const markup = end === -1 ? html : html.slice(0, end);
+    const toks = [];
+    const re = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z][a-zA-Z0-9-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>|[^<]+/g;
+    let m;
+    while ((m = re.exec(markup)) !== null) {
+        if (m[0].startsWith('<!--')) continue;
+        if (m[2]) toks.push({ tag: m[2].toLowerCase(), close: m[1] === '/', attrs: m[3] || '', raw: m[0], at: m.index });
+        else toks.push({ text: m[0], at: m.index });
+    }
+    return { markup, toks };
+}
+
+function attr(attrs, name) {
+    const m = new RegExp('(?:^|\\s)' + name + '="([^"]*)"').exec(attrs);
+    return m ? m[1] : null;
+}
+
+/// key -> English for every data-i18n element and attribute in the markup. A key used on
+/// several elements must say the same thing on all of them.
+function readAdminMarkup(html, problems) {
+    const { markup, toks } = tokenizeMarkup(html);
+    const out = {};
+    const put = (key, value, where) => {
+        if (key in out && out[key] !== value) {
+            problems.push(key + ': two different English strings in the markup (' + where + ').');
+        }
+        out[key] = value;
+    };
+    for (let i = 0; i < toks.length; i++) {
+        const tk = toks[i];
+        if (tk.text !== undefined || tk.close) continue;
+        ['placeholder', 'aria-label'].forEach(name => {
+            const key = attr(tk.attrs, 'data-i18n-' + name);
+            if (key) put(key, decodeEntities(attr(tk.attrs, name) || ''), name);
+        });
+        const key = attr(tk.attrs, 'data-i18n');
+        if (!key) continue;
+        if (VOID_TAGS.has(tk.tag)) { problems.push(key + ': data-i18n on an empty <' + tk.tag + '>.'); continue; }
+        // Walk to the matching close tag, counting nested tags of any kind.
+        let depth = 0, j = i + 1, hasTags = false;
+        for (; j < toks.length; j++) {
+            const x = toks[j];
+            if (x.text !== undefined) continue;
+            if (VOID_TAGS.has(x.tag) || x.raw.endsWith('/>')) { hasTags = true; continue; }
+            if (!x.close) { depth++; hasTags = true; continue; }
+            if (depth === 0) break;
+            depth--;
+        }
+        if (j >= toks.length) { problems.push(key + ': its element is never closed.'); continue; }
+        const inner = markup.slice(tk.at + tk.raw.length, toks[j].at);
+        const value = hasTags ? inner.replace(/\s+/g, ' ').trim() : decodeEntities(inner).replace(/\s+/g, ' ').trim();
+        put(key, value, '<' + tk.tag + '>');
+    }
+    return out;
+}
+
+/// ADMIN_EN out of the page's script, read the same way EN_STRINGS is.
+function readAdminScript(html) {
+    const start = html.indexOf('const ADMIN_EN = {');
+    if (start === -1) return {};
+    const end = html.indexOf('\n            };', start);
+    if (end === -1) fail('Could not find the end of ADMIN_EN in profilesDashboard.html.');
+    const body = html.slice(start, end);
+    const out = {};
+    const re = /'([^']+)':\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")/g;
+    let m;
+    while ((m = re.exec(body)) !== null) {
+        const raw = m[2] !== undefined ? m[2] : m[3];
+        out[m[1]] = raw.replace(/\\(['"\\])/g, '$1');
+    }
+    return out;
+}
+
+/// Both halves, checked against each other. Problems go in `problems`.
+function readAdminEnglish(problems) {
+    if (!fs.existsSync(DASHBOARD)) return {};
+    const html = fs.readFileSync(DASHBOARD, 'utf8');
+    const markup = readAdminMarkup(html, problems);
+    const script = readAdminScript(html);
+    for (const k of Object.keys(script)) {
+        if (k in markup) problems.push(k + ': in both the markup and ADMIN_EN. Keep it in one.');
+    }
+    for (const k of Object.keys(markup).concat(Object.keys(script))) {
+        if (!k.startsWith('admin.')) problems.push(k + ': the settings page\'s keys start with admin.');
+    }
+    return Object.assign({}, markup, script);
+}
+
 /// The {token} placeholders in a string, as a sorted list. A translation that drops one
 /// renders the literal word "{name}" to a user; one that invents a new token renders it
 /// verbatim too, because t() only substitutes what the caller passed.
@@ -65,7 +174,13 @@ function tags(str) {
         .sort();
 }
 
-const english = readEnglish();
+const appEnglish = readEnglish();
+const adminProblems = [];
+const adminEnglish = readAdminEnglish(adminProblems);
+for (const k of Object.keys(appEnglish)) {
+    if (k.startsWith('admin.')) adminProblems.push(k + ': EN_STRINGS cannot use admin.; the server serves those keys to the settings page only.');
+}
+const english = Object.assign({}, appEnglish, adminEnglish);
 const englishKeys = Object.keys(english).sort();
 
 const only = process.argv[2] ? process.argv[2].replace(/\.json$/i, '') : null;
@@ -79,7 +194,8 @@ if (files.length === 0) {
     process.exit(0);
 }
 
-console.log('English catalogue: ' + englishKeys.length + ' keys\n');
+console.log('English catalogue: ' + Object.keys(appEnglish).length + ' keys for households, '
+    + Object.keys(adminEnglish).length + ' for the settings page\n');
 
 let bad = 0;
 
@@ -195,6 +311,37 @@ for (const file of files) {
         console.log('');
     } else {
         console.log('✓ EN_STRINGS  (every key is referenced)');
+        console.log('');
+    }
+}
+
+// ── The settings page's own catalogue ───────────────────────────────────────
+//
+// The same two questions as above, asked of the settings page: is every ADMIN_EN string
+// used, and does every t('admin.…') the page's script makes name a string that exists?
+// A typo in the second shows the administrator the key itself.
+if (fs.existsSync(DASHBOARD)) {
+    const html = fs.readFileSync(DASHBOARD, 'utf8');
+    const scriptStart = html.indexOf('<script');
+    const script = scriptStart === -1 ? '' : html.slice(scriptStart);
+    const scriptKeys = readAdminScript(html);
+    const problems = adminProblems.slice();
+
+    Object.keys(scriptKeys).forEach(k => {
+        if (script.split("'" + k + "'").length - 1 < 2) problems.push(k + ': in ADMIN_EN but never used.');
+    });
+    const called = [...script.matchAll(/\bt\('(admin\.[a-zA-Z0-9_.]+)'/g)].map(m => m[1]);
+    [...new Set(called)].forEach(k => {
+        if (!(k in scriptKeys)) problems.push(k + ': the script asks for it, but ADMIN_EN does not have it.');
+    });
+
+    if (problems.length) {
+        bad++;
+        console.log('✗ profilesDashboard.html  (' + problems.length + ' problem(s))');
+        problems.forEach(p => console.log('    ' + p));
+        console.log('');
+    } else {
+        console.log('✓ profilesDashboard.html  (every settings-page key is defined once and used)');
         console.log('');
     }
 }

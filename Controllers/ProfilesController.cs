@@ -2140,9 +2140,69 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>Cached locale codes. For the harness — nothing in the plugin needs it.</summary>
         internal static IReadOnlyCollection<string> CachedLocaleCodes => CachedI18nJson.Keys.ToArray();
 
+        /// <summary>Keys for the administrator's settings page. Every other key is the household's.</summary>
+        internal const string AdminKeyPrefix = "admin.";
+
+        private static readonly ConcurrentDictionary<string, string> CachedI18nParts = new();
+
+        /// <summary>
+        /// One half of a translation file: the settings page's <c>admin.*</c> keys, or
+        /// everything else.
+        /// <para>
+        /// Both halves live in one file per language, so adding a language is still one
+        /// file. They are served apart because the household half is fetched by every
+        /// television on the server, and the settings page's few hundred strings are no
+        /// use to any of them.
+        /// </para>
+        /// <para>
+        /// Null when the file could not be read or is not a JSON object; like
+        /// <see cref="ReadLocaleJson"/>, only a success is cached.
+        /// </para>
+        /// </summary>
+        internal static string? ReadLocalePart(string code, bool admin, ILogger? logger = null)
+        {
+            var json = ReadLocaleJson(code, logger);
+            if (json == null) return null;
+
+            var key = code + (admin ? "|admin" : "|app");
+            if (CachedI18nParts.TryGetValue(key, out var cached)) return cached;
+
+            System.Text.Json.Nodes.JsonObject? all;
+            try
+            {
+                all = System.Text.Json.Nodes.JsonNode.Parse(json) as System.Text.Json.Nodes.JsonObject;
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                logger?.LogError(ex, "ProfilesPlugin: The {Locale} translation is not valid JSON.", code);
+                return null;
+            }
+            if (all == null) return null;
+
+            var part = new System.Text.Json.Nodes.JsonObject();
+            foreach (var pair in all)
+            {
+                if (pair.Key.StartsWith(AdminKeyPrefix, StringComparison.Ordinal) != admin) continue;
+                part[pair.Key] = pair.Value?.DeepClone();
+            }
+
+            // Letters are written as letters. The default encoder turns every non-ASCII
+            // character into \uXXXX, which would roughly double a Polish or Turkish file.
+            // Not the "unsafe relaxed" encoder, though: this one still escapes HTML-
+            // sensitive characters and U+2028/U+2029, so the output stays safe in any
+            // context it might one day be put in (see tests/js/bundle.js).
+            var text = part.ToJsonString(new System.Text.Json.JsonSerializerOptions
+            {
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(
+                    System.Text.Unicode.UnicodeRanges.All)
+            });
+            CachedI18nParts[key] = text;
+            return text;
+        }
+
         [HttpGet("i18n/{locale}")]
         [Produces("application/json")]
-        public ActionResult GetI18n(string locale)
+        public ActionResult GetI18n(string locale, [FromQuery] string? part = null)
         {
             // profiles.js requests "fr.json"; strip the extension so the lookup key
             // matches SupportedI18nLocales and the embedded resource name either way.
@@ -2155,7 +2215,10 @@ namespace Jellyfin.Profiles.Controllers
             if (!EmbeddedLocales.Value.TryGetValue(code, out var canonical)) return NotFound();
             code = canonical;
 
-            var json = ReadLocaleJson(code, _logger);
+            // Anything but "admin" is the household's half, so an unknown value cannot
+            // become a third cache entry or an error.
+            var admin = string.Equals(part, "admin", StringComparison.OrdinalIgnoreCase);
+            var json = ReadLocalePart(code, admin, _logger);
 
             if (json == null)
             {
@@ -2170,7 +2233,7 @@ namespace Jellyfin.Profiles.Controllers
 
             // Same cache contract as profiles.js: the plugin version is the cache-buster,
             // so a stale copy still picks up an updated translation within max-age.
-            var etag = "\"" + GetPluginVersion() + "-" + code + "\"";
+            var etag = "\"" + GetPluginVersion() + "-" + code + (admin ? "-admin" : "") + "\"";
             Response.Headers["ETag"] = etag;
             Response.Headers["Cache-Control"] = "public, max-age=300, must-revalidate";
 

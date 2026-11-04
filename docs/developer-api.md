@@ -775,6 +775,10 @@ One language's strings, as a flat object. `{locale}` may end in `.json`.
 { "gate.whosWatching": "Qui regarde ?", "common.cancel": "Annuler" }
 ```
 
+| Query | |
+| --- | --- |
+| `part=admin` | Only the admin settings page's strings (keys starting `admin.`). Without it, you get every other key. |
+
 | Status | Meaning |
 | --- | --- |
 | `200` | The strings. |
@@ -782,7 +786,7 @@ One language's strings, as a flat object. `{locale}` may end in `.json`.
 | `404` | No translation for that code. |
 | `503` | The file couldn't be read. Stay on English and try later. |
 
-`ETag` is `"{pluginVersion}-{locale}"` and `Cache-Control` is the same as
+`ETag` is `"{pluginVersion}-{locale}"`, with `-admin` added for `part=admin`. `Cache-Control` is the same as
 `profiles.js`. There's no route listing the languages. They're written into
 `profiles.js` as it's served, on the line marked `__BONFIRE_LOCALES__`.
 

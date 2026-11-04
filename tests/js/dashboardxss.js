@@ -49,7 +49,7 @@ const script = L.dashboardScript(L.readDashboard());
 function dashboardFns(names, entry) {
     let src;
     try {
-        src = names.map(n => L.extractFunction(script, n)).join('\n');
+        src = L.dashboardI18n(script) + names.map(n => L.extractFunction(script, n)).join('\n');
     } catch (e) {
         return null;
     }

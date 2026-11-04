@@ -257,7 +257,7 @@ const settle = () => new Promise(r => setImmediate(r));
     const script = L.dashboardScript(html);
     let render = null;
     try {
-        const fns = ['field', 'formatWhen', 'announcementSchedule', 'isoToLocalInput', 'errorText',
+        const fns = L.dashboardI18n(script) + ['field', 'formatWhen', 'announcementSchedule', 'isoToLocalInput', 'errorText',
                      'resetAnnouncementForm', 'showAnnouncementResult', 'loadAnnouncements', 'renderAnnouncements']
             .map(n => L.extractFunction(script, n)).join('\n');
         render = new Function('document', 'Dashboard', 'ApiClient', fns + '\nreturn renderAnnouncements;');

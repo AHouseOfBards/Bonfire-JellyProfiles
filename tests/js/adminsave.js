@@ -31,7 +31,8 @@ function ok(name, cond) {
 }
 
 const script = L.dashboardScript(L.readDashboard());
-const source = L.extractFunction(script, 'normalizeImageQuality') + '\n'
+const source = L.dashboardI18n(script)
+    + L.extractFunction(script, 'normalizeImageQuality') + '\n'
     + L.extractFunction(script, 'normalizeTheme') + '\n'
     + L.extractFunction(script, 'saveConfiguration');
 

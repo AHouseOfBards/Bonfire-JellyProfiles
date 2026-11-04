@@ -228,6 +228,56 @@ foreach (var code in embedded)
     Ok(code + ".json parses as JSON", TryJson(text));
 }
 
+Console.WriteLine();
+Console.WriteLine("── Households and the settings page get their own half ─────────");
+
+// One file per language holds both, and the endpoint serves them apart: every TV on the
+// server fetches the household's half, and none of them has any use for the few hundred
+// strings of the administrator's page. Checked key by key, not by count.
+var readPart = ctrl.GetMethod("ReadLocalePart", Flags);
+Ok("the server can split a file", readPart != null);
+if (readPart != null)
+{
+    foreach (var code in embedded)
+    {
+        using var stream = asm.GetManifestResourceStream("Jellyfin.Profiles.Web.i18n." + code + ".json");
+        using var reader = new System.IO.StreamReader(stream!);
+        var all = System.Text.Json.JsonDocument.Parse(reader.ReadToEnd()).RootElement
+            .EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString());
+
+        System.Collections.Generic.Dictionary<string, string?> Half(bool admin)
+        {
+            var text = (string)readPart.Invoke(null, new object?[] { code, admin, null })!;
+            return System.Text.Json.JsonDocument.Parse(text).RootElement
+                .EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString());
+        }
+        var app = Half(false);
+        var adm = Half(true);
+
+        Ok(code + ": the household half has no admin.* key",
+           app.Keys.All(k => !k.StartsWith("admin.", StringComparison.Ordinal)));
+        Ok(code + ": the settings half has nothing else",
+           adm.Keys.All(k => k.StartsWith("admin.", StringComparison.Ordinal)));
+        Ok(code + ": the settings half is translated (" + adm.Count + " keys)", adm.Count > 0);
+        var missingKeys = all.Keys.Where(k => !(app.ContainsKey(k) || adm.ContainsKey(k))).ToArray();
+        Ok(code + ": between them they hold every key, unchanged"
+           + (missingKeys.Length > 0 ? " (lost: " + string.Join(", ", missingKeys.Take(3)) + ")" : ""),
+           missingKeys.Length == 0
+           && all.All(p => (app.TryGetValue(p.Key, out var v) || adm.TryGetValue(p.Key, out v)) && v == p.Value));
+        // Relaxed escaping: an accented letter arrives as itself rather than as é,
+        // which is what keeps a Polish or Turkish file from doubling in size.
+        // Asked of the letters themselves: an apostrophe still arrives as ', which is
+        // the encoder keeping HTML-sensitive characters escaped, and is wanted.
+        var raw = (string)readPart.Invoke(null, new object?[] { code, false, null })!;
+        var letters = app.Values.Where(v => v != null).SelectMany(v => v!)
+            .Where(ch => ch > 127 && char.IsLetter(ch)).Distinct().ToArray();
+        var escaped = letters.Where(ch => raw.IndexOf(ch) < 0).ToArray();
+        Ok(code + ": accented letters are served as written (" + letters.Length + " checked"
+           + (escaped.Length > 0 ? ", escaped: " + new string(escaped.Take(5).ToArray()) : "") + ")",
+           escaped.Length == 0);
+    }
+}
+
 static bool TryJson(string s)
 {
     try { using var _ = System.Text.Json.JsonDocument.Parse(s); return true; }

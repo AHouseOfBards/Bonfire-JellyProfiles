@@ -437,96 +437,80 @@
                  Nothing is wrong with the file or its permissions, so this must not be the
                  failure banner (issue #25). -->
             <div class="jpf-hidden jpf-note jpf-note-warn" id="restartRequiredContainer">
-                <strong class="jpf-note-title">↻ Restart Jellyfin to finish updating Bonfire</strong>
-                Bonfire has been installed or updated since Jellyfin started. The new version cannot
-                serve the client script until the server restarts — until then the previous version
-                keeps running, so profiles will still work.
+                <strong class="jpf-note-title"><span aria-hidden="true">↻ </span><span data-i18n="admin.banner.restartTitle">Restart Jellyfin to finish updating Bonfire</span></strong>
+                <span data-i18n="admin.banner.restartBody">The new version starts when the server restarts. Until then the old one keeps running, so profiles still work.</span>
                 <!-- Filled in from the mechanism's runningVersion / newestInstalledVersion. The
                      banner used to assert a restart was needed and stop there, which the reader
                      had no way to check: someone who has already restarted, or who pressed
                      Jellyfin's Restart button on a Docker image where it does not restart the
                      process, sees the same words either way. Two numbers can be checked. -->
                 <div class="jpf-hidden jpf-status" id="restartVersions"></div>
-                <div class="jpf-note-detail">
-                    <strong>On Docker, restart the container.</strong> Jellyfin's own <em>Restart</em>
-                    button does not restart the process on most container images, so the notice stays
-                    until the container comes back.
-                </div>
+                <div class="jpf-note-detail" data-i18n="admin.banner.restartDocker"><strong>On Docker, restart the container.</strong> Jellyfin's own Restart button doesn't restart the process on most images.</div>
             </div>
             <div class="jpf-hidden jpf-note jpf-note-error" id="injectionWarningContainer">
-                <strong class="jpf-note-title" style="color:#ff8787;">⚠️ Client Script Auto-Injection Failed</strong>
-                <span id="injectionFailureHeadline">The plugin was unable to automatically modify Jellyfin's <code>index.html</code>.
-                Without this script, the "Who's Watching?" profile gate and switcher will not load.</span>
+                <strong class="jpf-note-title" style="color:#ff8787;"><span aria-hidden="true">⚠️ </span><span data-i18n="admin.banner.failTitle">The client script isn't loading</span></strong>
+                <!-- Written by renderInjectionStatus, which knows whether the file is involved. -->
+                <span id="injectionFailureHeadline"></span>
                 <div class="jpf-hidden jpf-note-detail" id="injectionFailureReason"></div>
                 <span class="injectionFileFix">
                 <br>
-                <strong>How to fix:</strong>
-                Run the command for your platform, then click <strong>Re-check Now</strong> below.
+                <span data-i18n="admin.banner.howToFix"><strong>How to fix:</strong> run the command for your system, then press <strong>Re-check</strong>.</span>
                 </span>
-                <div class="detectedAccountRow jpf-hidden jpf-subtle jpf-mt-1" id="injectionFailureAccountRow">
-                    Jellyfin is running as <code class="detectedAccount"></code>.
-                </div>
+                <div class="detectedAccountRow jpf-hidden jpf-subtle jpf-mt-1" id="injectionFailureAccountRow" data-i18n="admin.banner.runningAs">Jellyfin is running as <code class="detectedAccount"></code>.</div>
                 <ul class="injectionFileFix jpf-sublist">
                     <li class="jpf-mb-2">
-                        <strong>Linux (Native):</strong>
-                        <br><code id="linuxChownCmd" class="linuxChownCmd">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code>
-                        <br><code id="linuxChmodCmd" class="linuxChmodCmd">sudo chmod 664 /usr/share/jellyfin/web/index.html</code>
-                        <br><span style="font-size:0.85em; opacity:0.8;">You can restore the original permissions with <code>chmod 644</code> afterwards.</span>
+                        <strong data-i18n="admin.banner.linux">Linux (native):</strong>
+                        <br><code id="linuxChownCmd" class="linuxChownCmd" translate="no">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code>
+                        <br><code id="linuxChmodCmd" class="linuxChmodCmd" translate="no">sudo chmod 664 /usr/share/jellyfin/web/index.html</code>
+                        <br><span style="font-size:0.85em; opacity:0.8;" data-i18n="admin.banner.restorePerms">To undo it later, run <code>chmod 644</code>.</span>
                     </li>
                     <li class="jpf-mb-2">
-                        <strong>Docker (Run on host):</strong>
-                        <br><code id="dockerChownCmd" class="dockerChownCmd">docker exec -u root &lt;container-name&gt; chown jellyfin:jellyfin /jellyfin/jellyfin-web/index.html</code>
-                        <br><code id="dockerChmodCmd" class="dockerChmodCmd">docker exec -u root &lt;container-name&gt; chmod 664 /jellyfin/jellyfin-web/index.html</code>
+                        <strong data-i18n="admin.banner.docker">Docker (run on the host):</strong>
+                        <br><code id="dockerChownCmd" class="dockerChownCmd" translate="no">docker exec -u root &lt;container-name&gt; chown jellyfin:jellyfin /jellyfin/jellyfin-web/index.html</code>
+                        <br><code id="dockerChmodCmd" class="dockerChmodCmd" translate="no">docker exec -u root &lt;container-name&gt; chmod 664 /jellyfin/jellyfin-web/index.html</code>
                     </li>
                     <li>
-                        <strong>Windows (Admin Command Prompt):</strong>
-                        <br><code id="windowsFixCmd" class="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "Users:(M)" /grant "NT AUTHORITY\NetworkService:(M)"</code>
+                        <strong data-i18n="admin.banner.windows">Windows (administrator command prompt):</strong>
+                        <br><code id="windowsFixCmd" class="windowsFixCmd" translate="no">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "Users:(M)" /grant "NT AUTHORITY\NetworkService:(M)"</code>
                     </li>
                 </ul>
                 <div class="jpf-mt-3">
-                    <button type="button" is="emby-button" class="raised retryInjectionBtn jpf-badge-bad">Re-check Now</button>
+                    <button type="button" is="emby-button" class="raised retryInjectionBtn jpf-badge-bad" data-i18n="admin.banner.recheck">Re-check</button>
                     <span class="retryInjectionStatus jpf-subtle" style="margin-left:10px;"></span>
                 </div>
             </div>
 
             <div class="jpf-hidden jpf-note jpf-note-warn" id="staleVersionWarningContainer">
-                <strong class="jpf-note-title" style="color:#ffc078;">⚡ Optional — Client Script Tag Not Up To Date</strong>
-                Browsers pick up the new client script within about five minutes.
+                <strong class="jpf-note-title" style="color:#ffc078;"><span aria-hidden="true">⚡ </span><span data-i18n="admin.banner.staleTitle">The script tag in index.html is out of date</span></strong>
+                <span data-i18n="admin.banner.staleBody">Nothing is broken. Browsers pick up the new script within about five minutes.</span>
                 <div class="jpf-hidden jpf-note-detail" id="staleReason"></div>
-                <br>
-                <strong>What to do:</strong>
                 <ul class="jpf-sublist">
-                    <li class="jpf-mb-1">
-                        <strong>If new features (like tag filtering) do not appear:</strong> Perform a hard refresh in your browser (<strong>Ctrl + Shift + R</strong> or <strong>Cmd + Shift + R</strong>) to clear cached scripts.
-                    </li>
+                    <li class="jpf-mb-1" data-i18n="admin.banner.staleRefresh"><strong>If something new doesn't appear:</strong> hard-refresh the browser (<strong>Ctrl+Shift+R</strong>, or <strong>Cmd+Shift+R</strong> on a Mac).</li>
                     <li>
-                        <strong>To allow automatic script tag updates on future releases:</strong> Grant write permissions on <code>index.html</code>:
-                        <div class="detectedAccountRow jpf-hidden jpf-subtle" style="margin:6px 0;">
-                            Jellyfin is running as <code class="detectedAccount"></code> — the command below grants access to exactly that account.
-                        </div>
+                        <span data-i18n="admin.banner.staleWrite"><strong>To update the tag by itself next time:</strong> let Jellyfin write to <code>index.html</code>.</span>
+                        <div class="detectedAccountRow jpf-hidden jpf-subtle" style="margin:6px 0;" data-i18n="admin.banner.runningAsOnly">Jellyfin is running as <code class="detectedAccount"></code>. These commands give access to that account only.</div>
                         <ul class="jpf-sublist">
-                            <li class="jpf-mb-0"><strong>Linux (Native):</strong> <code class="linuxChownCmd">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code> | <code class="linuxChmodCmd">sudo chmod 664 /usr/share/jellyfin/web/index.html</code></li>
-                            <li class="jpf-mb-0"><strong>Docker:</strong> <code class="dockerChownCmd">docker exec -u root &lt;container-name&gt; chown jellyfin:jellyfin /jellyfin/jellyfin-web/index.html</code> | <code class="dockerChmodCmd">docker exec -u root &lt;container-name&gt; chmod 664 /jellyfin/jellyfin-web/index.html</code></li>
-                            <li><strong>Windows:</strong> <code class="windowsFixCmd">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "Users:(M)" /grant "NT AUTHORITY\NetworkService:(M)"</code></li>
+                            <li class="jpf-mb-0"><strong data-i18n="admin.banner.linux">Linux (native):</strong> <code class="linuxChownCmd" translate="no">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code> | <code class="linuxChmodCmd" translate="no">sudo chmod 664 /usr/share/jellyfin/web/index.html</code></li>
+                            <li class="jpf-mb-0"><strong data-i18n="admin.banner.docker">Docker (run on the host):</strong> <code class="dockerChownCmd" translate="no">docker exec -u root &lt;container-name&gt; chown jellyfin:jellyfin /jellyfin/jellyfin-web/index.html</code> | <code class="dockerChmodCmd" translate="no">docker exec -u root &lt;container-name&gt; chmod 664 /jellyfin/jellyfin-web/index.html</code></li>
+                            <li><strong data-i18n="admin.banner.windows">Windows (administrator command prompt):</strong> <code class="windowsFixCmd" translate="no">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "Users:(M)" /grant "NT AUTHORITY\NetworkService:(M)"</code></li>
                         </ul>
                     </li>
                 </ul>
                 <div class="jpf-actions jpf-mt-3">
-                    <button type="button" is="emby-button" class="raised retryInjectionBtn jpf-badge-stale">Re-check Now</button>
-                    <button type="button" is="emby-button" id="dismissStaleBtn" class="raised jpf-btn-quiet">Dismiss until next update</button>
+                    <button type="button" is="emby-button" class="raised retryInjectionBtn jpf-badge-stale" data-i18n="admin.banner.recheck">Re-check</button>
+                    <button type="button" is="emby-button" id="dismissStaleBtn" class="raised jpf-btn-quiet" data-i18n="admin.banner.dismiss">Hide until the next update</button>
                     <span class="retryInjectionStatus jpf-subtle"></span>
                 </div>
             </div>
 
             <div class="jpf-hidden jpf-note jpf-note-warn jpf-note-tight" id="betaNoticeContainer">
-                <strong>🧪 You are running a pre-release build.</strong>
-                <span style="opacity:0.9;">Features may change and bugs are more likely than in a stable release. If something looks wrong, please
-                <a class="jpf-link-warn" href="https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues" target="_blank" rel="noopener noreferrer">open an issue on GitHub</a>.</span>
+                <strong><span aria-hidden="true">🧪 </span><span data-i18n="admin.banner.betaTitle">This is a pre-release build.</span></strong>
+                <span style="opacity:0.9;" data-i18n="admin.banner.betaBody">Bugs are more likely than in a stable release. If something looks wrong, <a class="jpf-link-warn" href="https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues" target="_blank" rel="noopener noreferrer">open an issue on GitHub</a>.</span>
             </div>
 
             <div class="jpf-hidden jpf-note jpf-note-ok jpf-note-tight" id="injectionOkContainer">
-                <strong>✅ Client script is installed and up to date.</strong>
-                <span class="jpf-quiet">The profile switcher will load for all users.</span>
+                <strong><span aria-hidden="true">✅ </span><span data-i18n="admin.banner.okTitle">The client script is installed and up to date.</span></strong>
+                <span class="jpf-quiet" data-i18n="admin.banner.okBody">The switcher will load for everyone.</span>
             </div>
 
             <!-- Above the tabs on purpose: the banners above this line report whether the
@@ -534,7 +518,7 @@
                  a reason to open. -->
             <!-- Grouped by job, not by when each setting was added. Status is first because
                  it is the one an administrator opens the page to read. -->
-            <div class="jpf-tabs" role="tablist" aria-label="Bonfire settings sections">
+            <div class="jpf-tabs" role="tablist" aria-label="Bonfire settings sections" data-i18n-aria-label="admin.tab.label">
                 <button type="button" class="jpf-tab" role="tab" data-tab="status" aria-controls="jpfPanelStatus" data-i18n="admin.tab.status">Status</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="households" aria-controls="jpfPanelHouseholds" data-i18n="admin.tab.households">Households</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="devices" aria-controls="jpfPanelDevices" data-i18n="admin.tab.devices">Devices</button>
@@ -736,7 +720,7 @@
                     <div class="fieldDescription" data-i18n="admin.avatars.uploadHint">JPEG, PNG, WebP or GIF. Squared and resized automatically.</div>
                     <div class="inputContainer jpf-form-narrow jpf-mt-3">
                         <label class="inputLabel" for="avatarScanPath" data-i18n="admin.avatars.serverFolder">Or copy a folder on the server</label>
-                        <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" />
+                        <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" translate="no" />
                         <div class="fieldDescription" data-i18n="admin.avatars.serverFolderHint">A path on the server, not on this computer.</div>
                     </div>
                     <button is="emby-button" type="button" id="avatarScanBtn" class="raised jpf-narrow" data-i18n="admin.avatars.import">Copy from folder</button>
@@ -783,7 +767,7 @@
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
                         <input is="emby-checkbox" type="checkbox" class="jpfProxyClient" data-proxy-client="moonfin" />
-                        <span>Moonfin</span>
+                        <span translate="no">Moonfin</span>
                     </label>
                     <div class="fieldDescription" data-i18n="admin.apps.moonfinHint">Profiles can't sign in directly on Moonfin while this is on.</div>
                 </div>
@@ -992,6 +976,324 @@
                     .replace(/'/g, "&#039;");
             }
 
+            // ── Translation ───────────────────────────────────────────────────────
+            //
+            // The page is in the language Jellyfin shows its administrator, like the
+            // household's screens. Two sources of English, one per kind of text:
+            //
+            //   - the markup's own words, marked data-i18n="admin.…" and read off the page
+            //     the first time it is translated, so the page reads correctly before any
+            //     of this runs;
+            //   - ADMIN_EN below, for everything this script writes.
+            //
+            // A key lives in exactly one of the two, and every other language is the
+            // admin.* keys in the same Web/i18n/{locale}.json file the household's strings
+            // are in. The server hands this page only that half (?part=admin), so no
+            // television downloads it. Web/i18n/validate.js reads both sources.
+            //
+            // The bug report stays in English on purpose: it is read by whoever maintains
+            // Bonfire, not by the administrator.
+            const ADMIN_EN = {
+                'admin.cancel': 'Cancel',
+                'admin.error': 'Error',
+                'admin.saved': 'Settings saved.',
+                'admin.saveFailed': 'Couldn\'t save it.',
+                'admin.saveSettingsFailed': 'Couldn\'t save the settings.',
+                'admin.readFailed': 'Couldn\'t read the current status.',
+                'admin.version.preTitle': 'Pre-release build. Please report problems on GitHub.',
+
+                'admin.script.helpMiddleware': 'The default. index.html is left alone, and any tags Bonfire added before are removed. Nothing to redo after a Jellyfin update.',
+                'admin.script.helpBoth': 'Legacy. Also patches index.html, and serves the script live if that write fails. Mainly for a proxy that caches index.html.',
+                'admin.script.helpFile': 'Legacy. How every release up to 1.4.0 worked. Needs write access to index.html and has to be redone after each Jellyfin update.',
+                'admin.script.notAttached': 'Live injection couldn\'t attach to Jellyfin. Only patching index.html will work here.',
+                'admin.script.notYet': 'Live injection is loaded, but no page has reached it yet. Reload this page to check.',
+                'admin.script.servedOne': 'Live injection is working: 1 page served.',
+                'admin.script.servedMany': 'Live injection is working: {count} pages served.',
+                'admin.script.idle': 'Live injection is loaded and index.html is already patched, so it has nothing to do.',
+                'admin.script.lastProblem': 'Last problem: {error}',
+
+                'admin.banner.restartVersions': 'Running {running}. Version {newest} is installed and starts when the server process restarts.',
+                'admin.banner.failFile': 'Bonfire couldn\'t add its script to Jellyfin\'s index.html, so the profile screen and switcher won\'t load.',
+                'admin.banner.failLive': 'Bonfire is set to serve the client script live, and it isn\'t reaching the page. index.html is not involved, so there is nothing to change on disk.',
+                'admin.banner.accountUnknown': 'unknown',
+                'admin.banner.rechecking': 'Re-checking…',
+                'admin.banner.stillBroken': 'Still not fixed. See the reason above.',
+                'admin.banner.fixedTitle': 'Fixed',
+                'admin.banner.fixedBody': 'The client script is installed and up to date. Browsers may need one hard refresh (Ctrl+Shift+R).',
+                'admin.banner.recheckFailed': 'The re-check failed. See the browser console.',
+
+                'admin.status.levelBad': 'Problem',
+                'admin.status.levelWarn': 'Attention',
+                'admin.status.levelInfo': 'Note',
+                'admin.status.levelOk': 'OK',
+                'admin.status.allClear': 'Nothing needs your attention.',
+                'admin.status.attentionOne': '1 thing needs your attention.',
+                'admin.status.attentionMany': '{count} things need your attention.',
+                'admin.status.restart': 'Restart Jellyfin to finish updating Bonfire.',
+                'admin.status.scriptFailed': 'The client script isn\'t reaching the web client, so the switcher won\'t load.',
+                'admin.status.scriptStale': 'The script tag in index.html is out of date. Browsers catch up within minutes.',
+                'admin.status.scriptOk': 'The client script is installed and up to date.',
+                'admin.status.beta': 'This is a pre-release build. Please report anything that looks wrong.',
+                'admin.status.openPinsOne': '1 account has profiles but no PIN, so those profiles can switch into it.',
+                'admin.status.openPinsMany': '{count} accounts have profiles but no PIN, so those profiles can switch into them.',
+                'admin.status.avatarsOne': '1 profile picture is missing from disk.',
+                'admin.status.avatarsMany': '{count} profile pictures are missing from disk.',
+                'admin.status.orphansOne': '1 leftover record points at a deleted account.',
+                'admin.status.orphansMany': '{count} leftover records point at deleted accounts.',
+                'admin.status.maintenance': 'The server is closed for maintenance. Only administrators can use it.',
+                'admin.status.panicUsed': 'Bonfire was switched off with the emergency code. Restart Jellyfin to turn it back on.',
+                'admin.status.noPanic': 'No emergency disable code is set.',
+                'admin.status.checkIt': 'Check it',
+                'admin.status.report': 'Report',
+                'admin.status.seeWhich': 'See which',
+                'admin.status.requirePins': 'Require PINs',
+                'admin.status.cleanUp': 'Clean up',
+                'admin.status.reopen': 'Reopen',
+                'admin.status.setOne': 'Set one',
+
+                'admin.households.none': 'No main accounts yet.',
+                'admin.households.pinSet': 'PIN protected',
+                'admin.households.noPin': 'No PIN',
+                'admin.households.status': 'Status: {pin}',
+                'admin.households.resetPin': 'Reset PIN',
+                'admin.households.resetConfirm': 'Clear this profile\'s PIN?',
+                'admin.households.resetFailed': 'Couldn\'t reset the PIN. The server log has details.',
+                'admin.households.makeAccount': 'Make own account',
+                'admin.households.limit': 'Limit',
+                'admin.households.set': 'Set',
+                'admin.households.reset': 'Reset',
+                'admin.households.limitFailed': 'Couldn\'t update the profile limit.',
+                'admin.households.subOne': '1 profile',
+                'admin.households.subMany': '{count} profiles',
+                'admin.households.noSubs': 'No profiles',
+                'admin.households.unlinkedTitle': 'Profiles without a main account',
+                'admin.households.unlinkedBody': 'These profiles point at a main account that no longer exists.',
+
+                'admin.standalone.note': 'It keeps the libraries and limits it has now, stops being a profile and signs in on its own. This can\'t be undone.',
+                'admin.standalone.username': 'Username',
+                'admin.standalone.keepCurrent': 'Keep current',
+                'admin.standalone.password': 'Password',
+                'admin.standalone.go': 'Make account',
+                'admin.standalone.needPassword': 'Set a password.',
+                'admin.standalone.confirm': 'This profile becomes its own account and can\'t be made a profile again.',
+                'admin.standalone.done': 'Done. It signs in as {name}.',
+                'admin.standalone.newName': 'its new name',
+                'admin.standalone.failed': 'Couldn\'t make the account.',
+
+                'admin.orphans.none': 'Nothing left over. Every profile and Bonfire points at an account that exists.',
+                'admin.orphans.foundOne': 'Found 1 record pointing at a deleted account:',
+                'admin.orphans.foundMany': 'Found {count} records pointing at deleted accounts:',
+                'admin.orphans.unnamed': '(unnamed profile)',
+                'admin.orphans.deadGroup': 'Bonfire {code}: its owner was deleted',
+                'admin.orphans.deadMembersOne': '1 Bonfire membership naming a deleted account',
+                'admin.orphans.deadMembersMany': '{count} Bonfire memberships naming deleted accounts',
+                'admin.orphans.removeOne': 'Remove this record',
+                'admin.orphans.removeMany': 'Remove these {count} records',
+                'admin.orphans.removed': 'Removed. Profile records: {profiles}. Bonfires: {groups}. Memberships: {members}. Devices were left alone.',
+                'admin.orphans.cleanupFailed': 'Cleanup failed.',
+                'admin.orphans.scanFailed': 'Scan failed.',
+
+                'admin.audit.showing': 'Showing {shown} of {total} events.',
+                'admin.audit.countOne': '1 event.',
+                'admin.audit.countMany': '{count} events.',
+                'admin.audit.empty': 'No profile switches yet.',
+                'admin.audit.noMatch': 'No events match this filter.',
+                'admin.audit.loadFailed': 'Couldn\'t load the activity.',
+                'admin.audit.unknown': 'Unknown',
+                'admin.audit.unknownDevice': 'Unknown device',
+                'admin.audit.unknownClient': 'Unknown app',
+                'admin.audit.unknownIp': 'Unknown IP',
+                'admin.audit.ip': 'IP: {ip}',
+                'admin.audit.switched': '<strong>{master}</strong> switched to <strong>{target}</strong>',
+                'admin.audit.device': 'Device: {device} ({client})',
+
+                'admin.devices.profileOf': 'profile of {name}',
+                'admin.devices.playing': 'playing {title}',
+                'admin.devices.lastSeen': 'last seen {when}',
+                'admin.devices.signOut': 'Sign out',
+                'admin.devices.signOutConfirm': 'Sign {name} out of this device?',
+                'admin.devices.signOutFailedTitle': 'Sign out failed',
+                'admin.devices.signOutFailed': 'That session couldn\'t be signed out.',
+                'admin.devices.none': 'Nobody is signed in right now.',
+                'admin.devices.loadFailed': 'Couldn\'t load sessions.',
+
+                'admin.backup.imported': 'Imported. Profiles: {profiles}. Devices: {devices}. Bonfires: {bonfires}.',
+                'admin.backup.skipped': 'Skipped {count} profiles naming Jellyfin users this server doesn\'t have: {names}.',
+                'admin.backup.exported': 'Exported. Keep it somewhere you\'d keep a password.',
+                'admin.backup.exportFailed': 'Export failed.',
+                'admin.backup.notJson': 'That file isn\'t valid JSON.',
+                'admin.backup.notExport': 'That doesn\'t look like a Bonfire export.',
+                'admin.backup.confirm': 'This replaces every profile, PIN, Bonfire and device list with that file. It can\'t be undone.',
+                'admin.backup.confirmTitle': 'Import configuration',
+                'admin.backup.importFailed': 'Import failed. Nothing was changed.',
+
+                'admin.avatars.none': 'No avatars yet. Upload some, or turn on the starter avatars.',
+                'admin.avatars.missing': 'missing',
+                'admin.avatars.builtIn': 'Built-in',
+                'admin.avatars.remove': 'Remove',
+                'admin.avatars.removeFailed': 'Couldn\'t remove that avatar.',
+                'admin.avatars.heic': 'HEIC photos aren\'t supported. Export the photo as JPEG first.',
+                'admin.avatars.svg': 'SVG isn\'t supported. Use JPEG, PNG, WebP or GIF.',
+                'admin.avatars.tooBig': 'That image is over 25 MB. Use a smaller one.',
+                'admin.avatars.unreadable': 'That file couldn\'t be read.',
+                'admin.avatars.badFormat': 'That image format isn\'t supported. Save it as JPEG or PNG first.',
+                'admin.avatars.resizeFailed': 'That image couldn\'t be resized.',
+                'admin.avatars.rejected': 'The server refused it. It may be over the {mb} MB limit after resizing, or the picture quality was changed without saving.',
+                'admin.avatars.thatImage': 'That image',
+                'admin.avatars.uploading': 'Uploading {n} of {total}…',
+                'admin.avatars.uploaded': '{done} of {total} uploaded.',
+                'admin.avatars.needPath': 'Enter a folder path first.',
+                'admin.avatars.emptyFolder': 'No pictures in that folder.',
+                'admin.avatars.importing': 'Importing {n} of {total}…',
+                'admin.avatars.imported': '{done} of {total} imported.',
+                'admin.avatars.truncated': 'The folder holds more than can be listed at once.',
+                'admin.avatars.folderFailed': 'That folder couldn\'t be read. Check the path as the server sees it.',
+                'admin.avatars.unnamed': 'Unnamed profile',
+                'admin.avatars.missingOne': '1 profile has a picture that\'s no longer on disk.',
+                'admin.avatars.missingMany': '{count} profiles have a picture that\'s no longer on disk.',
+                'admin.avatars.missingHint': 'They show their initial and colour instead, so nothing is broken. Set a new picture on each to clear this.',
+
+                'admin.ann.levelInfo': 'Info',
+                'admin.ann.levelWarning': 'Warning',
+                'admin.ann.levelCritical': 'Critical',
+                'admin.ann.startsAt': 'Starts {when}',
+                'admin.ann.startsEnds': 'Starts {start}, ends {end}',
+                'admin.ann.ended': 'Ended {when}',
+                'admin.ann.until': 'Showing until {when}',
+                'admin.ann.untilDeleted': 'Showing until deleted',
+                'admin.ann.loadFailed': 'Couldn\'t load announcements.',
+                'admin.ann.none': 'None yet.',
+                'admin.ann.edit': 'Edit',
+                'admin.ann.delete': 'Delete',
+                'admin.ann.deleteConfirm': 'Delete this announcement?',
+                'admin.ann.deleteTitle': 'Delete announcement',
+                'admin.ann.deleteFailed': 'Couldn\'t delete it.',
+                'admin.ann.postButton': 'Post announcement',
+                'admin.ann.saveChanges': 'Save changes',
+                'admin.ann.needMessage': 'Enter a message.',
+                'admin.ann.saved': 'Saved.',
+                'admin.ann.postDone': 'Posted.',
+
+                'admin.mnt.closed': 'Closed.',
+                'admin.mnt.closedSince': 'Closed since {when}.',
+                'admin.mnt.backBy': 'Back by {when}.',
+                'admin.mnt.adminsOnly': 'Only administrators can use the server.',
+                'admin.mnt.isOpen': 'Open.',
+                'admin.mnt.saveChanges': 'Save changes',
+                'admin.mnt.closeButton': 'Close the server',
+                'admin.mnt.confirm': 'Everyone but administrators is locked out until you reopen.',
+                'admin.mnt.reopened': 'Reopened.',
+                'admin.mnt.closedTold': 'Closed. Apps told: {told}.',
+                'admin.mnt.closedStopped': 'Closed. Apps told: {told}. Streams stopped: {stopped}.',
+
+                'admin.panic.offTitle': 'Bonfire is switched off.',
+                'admin.panic.offBody': 'Restart Jellyfin to bring the switcher back.',
+                'admin.panic.setTitle': 'A code is set.',
+                'admin.panic.setBody': 'Enter it from the link on the profile screen, or press Ctrl+Shift+B.',
+                'admin.panic.none': 'No code is set, so this is off.',
+                'admin.panic.tooShort': 'The code must be at least 10 characters.',
+                'admin.panic.saved': 'Code saved. Write it down: it can\'t be shown again.',
+                'admin.panic.cleared': 'Code cleared. This is off.',
+                'admin.panic.rejected': 'The server refused that code.',
+
+                'admin.report.copied': 'Copied.',
+                'admin.report.selectIt': 'Select the text below and copy it.'
+            };
+
+            /// The loaded translation's admin.* keys, or null for English.
+            let adminStrings = null;
+
+            /// Same contract as t() in profiles.js: the translation, then English, then the
+            /// key itself, with {token}s filled from vars. Values are inserted as given, so
+            /// anything bound for innerHTML is escaped by the caller first.
+            function t(key, vars) {
+                let str = (adminStrings && adminStrings[key]) || ADMIN_EN[key] || key;
+                if (vars) {
+                    Object.keys(vars).forEach(function (k) {
+                        str = str.split('{' + k + '}').join(vars[k]);
+                    });
+                }
+                return str;
+            }
+
+            /// The language Jellyfin is showing this administrator, read the way
+            /// jellyfinLanguage() in profiles.js reads it (see the comment there): the
+            /// per-device setting, then <html lang>, then the device's own language.
+            function adminLanguage() {
+                const root = document.documentElement;
+                const attr = function (n) { return (root && root.getAttribute(n)) || ''; };
+                let userId = '';
+                try { userId = ApiClient.getCurrentUserId() || ''; } catch (e) { /* not signed in */ }
+                let lang = '';
+                if (userId) {
+                    try { lang = localStorage.getItem(userId + '-language') || ''; } catch (e) { /* storage blocked */ }
+                } else {
+                    lang = attr('lang');
+                }
+                if (!lang) lang = attr('data-culture') || navigator.language || '';
+                return String(lang).replace('_', '-').toLowerCase();
+            }
+
+            /// Fetches this page's strings for that language. Always resolves; anything
+            /// that goes wrong leaves the page in English.
+            ///
+            /// This page has no list of the languages the server carries, so it asks for
+            /// the full tag and then shorter ones (pt-br, then pt) and takes the first
+            /// that exists. English asks for nothing.
+            function loadAdminStrings() {
+                const parts = adminLanguage().split('-');
+                const candidates = [];
+                for (let n = parts.length; n >= 1; n--) {
+                    const code = parts.slice(0, n).join('-');
+                    // The code reaches a URL, so its shape is checked.
+                    if (/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/.test(code)) candidates.push(code);
+                }
+                if (!candidates.length || parts[0] === 'en') {
+                    adminStrings = null;
+                    return Promise.resolve();
+                }
+                const attempt = function (i) {
+                    if (i >= candidates.length) { adminStrings = null; return Promise.resolve(); }
+                    return fetch(ApiClient.getUrl('plugins/profiles/i18n/' + candidates[i] + '.json', { part: 'admin' }))
+                        .then(function (res) {
+                            if (res.status === 404) return attempt(i + 1);
+                            if (!res.ok) { adminStrings = null; return null; }
+                            return res.json().then(function (s) {
+                                adminStrings = (s && typeof s === 'object') ? s : null;
+                            });
+                        });
+                };
+                return attempt(0).catch(function () { adminStrings = null; });
+            }
+
+            /// Puts the loaded language into the markup. Each element's English is kept on
+            /// the element the first time, so going back to English needs no reload.
+            /// Text goes in as text; only a string whose English holds tags goes in as
+            /// HTML, and validate.js fails a translation whose tags differ from it.
+            function applyMarkupStrings(page) {
+                page.querySelectorAll('[data-i18n]').forEach(function (el) {
+                    if (el._jpfEn === undefined) {
+                        const html = el.children.length > 0;
+                        el._jpfEn = { html: html, value: html ? el.innerHTML : el.textContent };
+                    }
+                    const key = el.getAttribute('data-i18n');
+                    const value = (adminStrings && adminStrings[key]) || el._jpfEn.value;
+                    // Rewriting an unchanged HTML string would empty anything a loader has
+                    // since filled into it, such as the account name in the fix commands.
+                    if (el._jpfShown === value) return;
+                    el._jpfShown = value;
+                    if (el._jpfEn.html) el.innerHTML = value; else el.textContent = value;
+                });
+                [['placeholder', 'data-i18n-placeholder'], ['aria-label', 'data-i18n-aria-label']].forEach(function (pair) {
+                    page.querySelectorAll('[' + pair[1] + ']').forEach(function (el) {
+                        const store = '_jpfEn_' + pair[0];
+                        if (el[store] === undefined) el[store] = el.getAttribute(pair[0]) || '';
+                        const key = el.getAttribute(pair[1]);
+                        el.setAttribute(pair[0], (adminStrings && adminStrings[key]) || el[store]);
+                    });
+                });
+            }
+
             // Which tab was open is remembered per browser, because an administrator who
             // is working through the account list does not want to land on Settings every
             // time they come back to the page.
@@ -1132,21 +1434,17 @@
                 return String(guid).toLowerCase().replace(/[^a-z0-9]/g, '');
             }
 
-            const INJECTION_MODE_HELP = {
-                middleware: 'The default. index.html is left alone, and any tags Bonfire added earlier '
-                    + 'are taken back out. Nothing to re-apply after a Jellyfin update, and no write '
-                    + 'permission needed.',
-                both: 'Legacy. index.html is patched as well, and if that write fails the script is '
-                    + 'added to the page as it is served. Mainly for a proxy that caches index.html.',
-                file: 'Legacy. How every release up to 1.4.0 worked. Needs write access to index.html, '
-                    + 'and has to be redone after each Jellyfin update.'
-            };
-
             function updateInjectionModeHelp(page) {
                 const select = page.querySelector('#indexInjectionMode');
                 const help = page.querySelector('#indexInjectionModeHelp');
                 if (!select || !help) return;
-                help.textContent = INJECTION_MODE_HELP[select.value] || '';
+                // Looked up when shown, not held in a constant, so it is in the page's language.
+                const text = {
+                    middleware: t('admin.script.helpMiddleware'),
+                    both: t('admin.script.helpBoth'),
+                    file: t('admin.script.helpFile')
+                };
+                help.textContent = text[select.value] || '';
             }
 
             // Says whether the pipeline hook is actually there. Worth showing plainly: it is new
@@ -1167,20 +1465,19 @@
                 let text;
                 let colour = '';
                 if (!registered) {
-                    text = 'Live injection could not attach to Jellyfin. Only patching index.html will work here.';
+                    text = t('admin.script.notAttached');
                     colour = '#ff8787';
                 } else if (!active) {
-                    text = 'Live injection is loaded, but no page request has reached it yet. Reload this page to confirm.';
+                    text = t('admin.script.notYet');
                 } else if (served > 0) {
-                    text = 'Live injection is working — ' + served
-                        + (served === 1 ? ' page served.' : ' pages served.');
+                    text = served === 1 ? t('admin.script.servedOne') : t('admin.script.servedMany', { count: served });
                     colour = '#69db7c';
                 } else {
-                    text = 'Live injection is loaded and index.html is already patched, so it has nothing to do.';
+                    text = t('admin.script.idle');
                     colour = '#69db7c';
                 }
 
-                if (err) text += ' Last problem: ' + err;
+                if (err) text += ' ' + t('admin.script.lastProblem', { error: err });
                 line.textContent = text;
                 line.style.color = colour;
             }
@@ -1235,9 +1532,7 @@
                         badge.style.background = isPrerelease ? 'rgba(245,159,0,0.18)' : 'rgba(255,255,255,0.08)';
                         badge.style.borderColor = isPrerelease ? 'rgba(245,159,0,0.5)' : 'rgba(255,255,255,0.12)';
                         badge.style.color = isPrerelease ? '#ffc078' : '';
-                        badge.title = isPrerelease
-                            ? 'Pre-release build — please report any issues on GitHub.'
-                            : '';
+                        badge.title = isPrerelease ? t('admin.version.preTitle') : '';
                     }
                     const betaNotice = page.querySelector('#betaNoticeContainer');
                     if (betaNotice) {
@@ -1258,8 +1553,7 @@
                     const newestVer = mech ? field(mech, 'newestInstalledVersion') : null;
                     if (restartRequired && runningVer && newestVer && newestVer !== runningVer) {
                         restartVersions.textContent =
-                            'Running ' + runningVer + '. Version ' + newestVer
-                            + ' is installed and starts once the server process restarts.';
+                            t('admin.banner.restartVersions', { running: runningVer, newest: newestVer });
                         restartVersions.style.display = 'block';
                     } else {
                         restartVersions.style.display = 'none';
@@ -1272,12 +1566,12 @@
 
                 // The banners above the tabs say this in full; Status lists it with the rest.
                 setStatus(page, 'script',
-                    restartRequired ? [{ level: 'warn', text: 'Restart Jellyfin to finish updating Bonfire.' }]
-                    : failed ? [{ level: 'bad', text: 'The client script isn\'t reaching the web client, so the switcher won\'t load.', tab: 'troubleshoot', anchor: 'jpfClientScript', fix: 'Check it' }]
-                    : stale ? [{ level: 'info', text: 'The script tag in index.html is out of date. Browsers catch up within minutes.' }]
-                    : [{ level: 'ok', text: 'The client script is installed and up to date.' }]);
+                    restartRequired ? [{ level: 'warn', text: t('admin.status.restart') }]
+                    : failed ? [{ level: 'bad', text: t('admin.status.scriptFailed'), tab: 'troubleshoot', anchor: 'jpfClientScript', fix: t('admin.status.checkIt') }]
+                    : stale ? [{ level: 'info', text: t('admin.status.scriptStale') }]
+                    : [{ level: 'ok', text: t('admin.status.scriptOk') }]);
                 if (ver && /-(beta|alpha|rc)/i.test(ver)) {
-                    setStatus(page, 'beta', [{ level: 'info', text: 'This is a pre-release build. Please report anything that looks wrong.', tab: 'troubleshoot', fix: 'Report' }]);
+                    setStatus(page, 'beta', [{ level: 'info', text: t('admin.status.beta'), tab: 'troubleshoot', fix: t('admin.status.report') }]);
                 }
 
                 const patchesFile = (mode === 'file' || mode === 'both');
@@ -1332,7 +1626,7 @@
 
                     // Name the account inline so it is obvious which mode this server is in.
                     page.querySelectorAll('.detectedAccount').forEach(function(el) {
-                        el.textContent = account || 'could not be determined';
+                        el.textContent = account || t('admin.banner.accountUnknown');
                     });
                     page.querySelectorAll('.detectedAccountRow').forEach(function(el) {
                         el.style.display = account ? 'block' : 'none';
@@ -1354,11 +1648,7 @@
 
                 const headlineEl = page.querySelector('#injectionFailureHeadline');
                 if (headlineEl) {
-                    headlineEl.textContent = patchesFile
-                        ? 'The plugin was unable to automatically modify Jellyfin’s index.html. '
-                          + 'Without this script, the "Who’s Watching?" profile gate and switcher will not load.'
-                        : 'Bonfire is set to serve the client script live, and it is not reaching '
-                          + 'the page. index.html is not involved, so there is nothing to change on disk.';
+                    headlineEl.textContent = patchesFile ? t('admin.banner.failFile') : t('admin.banner.failLive');
                 }
             }
 
@@ -1369,7 +1659,7 @@
                 const buttons = page.querySelectorAll('.retryInjectionBtn');
                 const statuses = page.querySelectorAll('.retryInjectionStatus');
                 buttons.forEach(function (b) { b.disabled = true; });
-                statuses.forEach(function (s) { s.textContent = 'Re-checking…'; });
+                statuses.forEach(function (s) { s.textContent = t('admin.banner.rechecking'); });
 
                 const url = ApiClient.getUrl('plugins/profiles/admin/retry-injection');
                 ApiClient.ajax({ type: 'POST', url: url, contentType: 'application/json' })
@@ -1382,20 +1672,16 @@
                                    && field(result, 'isVersionStale') !== true;
                         buttons.forEach(function (b) { b.disabled = false; });
                         statuses.forEach(function (s) {
-                            s.textContent = ok ? '' : 'Still not resolved — see the reason above.';
+                            s.textContent = ok ? '' : t('admin.banner.stillBroken');
                         });
                         if (ok) {
-                            Dashboard.alert({
-                                title: 'Success',
-                                message: 'The client script is now installed and up to date. '
-                                       + 'Users may need one hard refresh (Ctrl+Shift+R) to pick it up.'
-                            });
+                            Dashboard.alert({ title: t('admin.banner.fixedTitle'), message: t('admin.banner.fixedBody') });
                         }
                     })
                     .catch(function (err) {
                         console.error('Retry injection failed:', err);
                         buttons.forEach(function (b) { b.disabled = false; });
-                        statuses.forEach(function (s) { s.textContent = 'Re-check failed — see console.'; });
+                        statuses.forEach(function (s) { s.textContent = t('admin.banner.recheckFailed'); });
                     });
             }
 
@@ -1408,20 +1694,24 @@
                 const box = page.querySelector('#orphansResult');
                 const total = data.orphans.length + data.deadGroups.length + data.deadMembers.length;
                 if (!total) {
-                    box.innerHTML = '<span style="opacity:.7;">Nothing orphaned. Every profile and Bonfire still points at a Jellyfin user that exists.</span>';
+                    box.innerHTML = '<span style="opacity:.7;">' + escapeHtml(t('admin.orphans.none')) + '</span>';
                     return;
                 }
-                let html = '<div style="margin-bottom:8px;">Found ' + total + ' record(s) pointing at deleted users:</div><ul style="margin:0 0 12px 1.2em;">';
+                const found = total === 1 ? t('admin.orphans.foundOne') : t('admin.orphans.foundMany', { count: total });
+                let html = '<div style="margin-bottom:8px;">' + escapeHtml(found) + '</div><ul style="margin:0 0 12px 1.2em;">';
                 data.orphans.forEach(function (o) {
-                    html += '<li>' + escapeHtml(o.profileName || '(unnamed profile)') + ' — ' + escapeHtml(o.reason) + '</li>';
+                    html += '<li>' + escapeHtml(o.profileName || t('admin.orphans.unnamed')) + ' — ' + escapeHtml(o.reason) + '</li>';
                 });
                 data.deadGroups.forEach(function (g) {
-                    html += '<li>Bonfire ' + escapeHtml(g.code) + ' — its owner was deleted</li>';
+                    html += '<li>' + escapeHtml(t('admin.orphans.deadGroup', { code: g.code })) + '</li>';
                 });
-                if (data.deadMembers.length) {
-                    html += '<li>' + data.deadMembers.length + ' Bonfire membership(s) naming deleted accounts</li>';
+                const dm = data.deadMembers.length;
+                if (dm) {
+                    html += '<li>' + escapeHtml(dm === 1 ? t('admin.orphans.deadMembersOne') : t('admin.orphans.deadMembersMany', { count: dm })) + '</li>';
                 }
-                html += '</ul><button is="emby-button" type="button" id="applyOrphansBtn" class="raised"><span>Remove these ' + total + ' record(s)</span></button>';
+                html += '</ul><button is="emby-button" type="button" id="applyOrphansBtn" class="raised"><span>'
+                    + escapeHtml(total === 1 ? t('admin.orphans.removeOne') : t('admin.orphans.removeMany', { count: total }))
+                    + '</span></button>';
                 box.innerHTML = html;
 
                 page.querySelector('#applyOrphansBtn').addEventListener('click', function () {
@@ -1432,13 +1722,13 @@
                         dataType: 'json'
                     }).then(function (res) {
                         Dashboard.hideLoadingMsg();
-                        box.innerHTML = '<span class="jpf-dim">Removed ' + res.removedMappings
-                            + ' profile record(s), ' + res.removedGroups + ' Bonfire(s) and '
-                            + res.removedMembers + ' membership(s). Devices were left alone.</span>';
+                        box.innerHTML = '<span class="jpf-dim">' + escapeHtml(t('admin.orphans.removed', {
+                            profiles: res.removedMappings, groups: res.removedGroups, members: res.removedMembers
+                        })) + '</span>';
                         loadMappings(page);
                     }, function () {
                         Dashboard.hideLoadingMsg();
-                        box.innerHTML = '<span class="jpf-error">Cleanup failed.</span>';
+                        box.innerHTML = '<span class="jpf-error">' + escapeHtml(t('admin.orphans.cleanupFailed')) + '</span>';
                     });
                 });
             }
@@ -1462,7 +1752,7 @@
                     }, function () {
                         Dashboard.hideLoadingMsg();
                         page.querySelector('#orphansResult').innerHTML =
-                            '<span class="jpf-error">Scan failed.</span>';
+                            '<span class="jpf-error">' + escapeHtml(t('admin.orphans.scanFailed')) + '</span>';
                     });
                 });
             }
@@ -1497,23 +1787,24 @@
                     const required = page.dataset.requireMainPin === '1';
                     setStatus(page, 'pins', open
                         ? [{ level: required ? 'warn' : 'info',
-                             text: open + (open === 1 ? ' account has' : ' accounts have') + ' profiles but no PIN, so those profiles can switch into it.',
+                             text: open === 1 ? t('admin.status.openPinsOne') : t('admin.status.openPinsMany', { count: open }),
                              tab: required ? 'households' : 'security', anchor: required ? 'jpfAccounts' : 'jpfPins',
-                             fix: required ? 'See which' : 'Require PINs' }]
+                             fix: required ? t('admin.status.seeWhich') : t('admin.status.requirePins') }]
                         : []);
 
                     // Neither state is an error, so neither gets an error colour. This was
                     // red for protected and green for unprotected, i.e. exactly backwards.
                     function pinStatusHtml(reqPin) {
                         return reqPin
-                            ? '<span style="font-weight:600;opacity:0.9;">PIN protected</span>'
-                            : '<span style="font-weight:600;opacity:0.5;">No PIN</span>';
+                            ? '<span style="font-weight:600;opacity:0.9;">' + escapeHtml(t('admin.households.pinSet')) + '</span>'
+                            : '<span style="font-weight:600;opacity:0.5;">' + escapeHtml(t('admin.households.noPin')) + '</span>';
                     }
 
                     function resetPinBtnHtml(pId, reqPin) {
                         if (!reqPin) return '';
                         return '<button type="button" class="raised button-accent button-mini reset-pin-btn" data-id="' + pId +
-                               '" style="margin-left:auto; background:#d23f3f; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">Reset PIN</button>';
+                               '" style="margin-left:auto; background:#d23f3f; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">' +
+                               escapeHtml(t('admin.households.resetPin')) + '</button>';
                     }
 
                     // One sub-profile row, rendered inside its master's collapsible panel.
@@ -1525,11 +1816,11 @@
                                '<span class="material-icons" style="font-size:1.1rem; opacity:0.35; margin-right:10px;">subdirectory_arrow_right</span>' +
                                '<div class="listItemBody jpf-grow">' +
                                '<div class="listItemBodyText" style="font-weight:600; color:#fff;">' + pName + '</div>' +
-                               '<div class="listItemBodyText secondary" style="font-size:0.85rem; opacity:0.75; margin-top:2px;">Status: ' + pinStatusHtml(reqPin) + '</div>' +
+                               '<div class="listItemBodyText secondary" style="font-size:0.85rem; opacity:0.75; margin-top:2px;">' + t('admin.households.status', { pin: pinStatusHtml(reqPin) }) + '</div>' +
                                '</div>' +
                                resetPinBtnHtml(pId, reqPin) +
                                '<button type="button" class="raised button-mini standalone-btn" data-id="' + escapeHtml(pId) +
-                               '" style="margin-left:8px; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">Make own account</button>' +
+                               '" style="margin-left:8px; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">' + escapeHtml(t('admin.households.makeAccount')) + '</button>' +
                                '</div>' +
                                standaloneFormHtml(pId);
                     }
@@ -1539,21 +1830,21 @@
                     function standaloneFormHtml(pId) {
                         const id = escapeHtml(pId);
                         return '<div class="standalone-form jpf-hidden" data-id="' + id + '" style="padding:10px 15px 14px 56px; border-top:1px solid rgba(255,255,255,0.05);">' +
-                               '<div class="fieldDescription jpf-sa-note">It keeps the libraries and limits it has now, stops being a profile and signs in on its own. This can\'t be undone.</div>' +
+                               '<div class="fieldDescription jpf-sa-note">' + escapeHtml(t('admin.standalone.note')) + '</div>' +
                                '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">' +
-                               '<label class="jpf-sa-label">Username' +
-                               '<input is="emby-input" type="text" class="standalone-username" autocomplete="off" placeholder="Keep current" /></label>' +
-                               '<label class="jpf-sa-label">Password' +
+                               '<label class="jpf-sa-label">' + escapeHtml(t('admin.standalone.username')) +
+                               '<input is="emby-input" type="text" class="standalone-username" autocomplete="off" placeholder="' + escapeHtml(t('admin.standalone.keepCurrent')) + '" /></label>' +
+                               '<label class="jpf-sa-label">' + escapeHtml(t('admin.standalone.password')) +
                                '<input is="emby-input" type="password" class="standalone-password" autocomplete="new-password" /></label>' +
-                               '<button type="button" class="raised button-submit button-mini standalone-go jpf-sa-btn">Make account</button>' +
-                               '<button type="button" class="raised button-mini standalone-cancel jpf-sa-btn">Cancel</button>' +
+                               '<button type="button" class="raised button-submit button-mini standalone-go jpf-sa-btn">' + escapeHtml(t('admin.standalone.go')) + '</button>' +
+                               '<button type="button" class="raised button-mini standalone-cancel jpf-sa-btn">' + escapeHtml(t('admin.cancel')) + '</button>' +
                                '</div>' +
                                '<div class="jpf-status standalone-result jpf-hidden"></div>' +
                                '</div>';
                     }
 
                     if (masterUsers.length === 0) {
-                        masterContainer.innerHTML = '<div class="listItem jpf-list-pad"><div class="listItemBody">No master accounts found.</div></div>';
+                        masterContainer.innerHTML = '<div class="listItem jpf-list-pad"><div class="listItemBody">' + escapeHtml(t('admin.households.none')) + '</div></div>';
                     } else {
                         masterContainer.innerHTML = masterUsers.map(function (m) {
                             const pName = escapeHtml(field(m, 'profileName') || '');
@@ -1565,18 +1856,18 @@
 
                             const overrideControl =
                                 '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
-                                '<span style="font-size:0.85rem; opacity:0.6;">Limit</span>' +
+                                '<span style="font-size:0.85rem; opacity:0.6;">' + escapeHtml(t('admin.households.limit')) + '</span>' +
                                 '<input is="emby-input" type="number" class="user-limit-input" data-id="' + pId + '" min="1" max="20" value="' + maxProfiles + '" />' +
-                                '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + pId + '" style="padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">Set</button>' +
+                                '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + pId + '" style="padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">' + escapeHtml(t('admin.households.set')) + '</button>' +
                                 (limitOverride !== null && limitOverride !== undefined
-                                    ? '<button type="button" class="raised button-mini clear-limit-btn" data-id="' + pId + '" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.15); padding:3px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer;">Reset</button>'
+                                    ? '<button type="button" class="raised button-mini clear-limit-btn" data-id="' + pId + '" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.15); padding:3px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer;">' + escapeHtml(t('admin.households.reset')) + '</button>'
                                     : '') +
                                 '</div>';
 
                             // The toggle is a real <button> so it is keyboard reachable and
                             // announces its expanded state; accounts with no sub-profiles get
                             // static text instead of a control that would do nothing.
-                            const countLabel = subs.length === 1 ? '1 sub-profile' : subs.length + ' sub-profiles';
+                            const countLabel = escapeHtml(subs.length === 1 ? t('admin.households.subOne') : t('admin.households.subMany', { count: subs.length }));
                             const toggle = subs.length > 0
                                 ? '<button type="button" class="sub-profile-toggle" data-master="' + normId(pId) + '" aria-expanded="false" ' +
                                   'style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#fff; ' +
@@ -1584,7 +1875,7 @@
                                   '<span class="material-icons toggle-chevron" style="font-size:1.1rem; transition:transform 0.15s ease;">expand_more</span>' +
                                   '<span>' + countLabel + '</span>' +
                                   '</button>'
-                                : '<span style="font-size:0.8rem; opacity:0.4;">No sub-profiles</span>';
+                                : '<span style="font-size:0.8rem; opacity:0.4;">' + escapeHtml(t('admin.households.noSubs')) + '</span>';
 
                             const subPanel = subs.length > 0
                                 ? '<div class="sub-profile-panel" data-master="' + normId(pId) + '" style="display:none; background:rgba(0,0,0,0.18);">' +
@@ -1624,9 +1915,9 @@
                             '<div class="listItem-group jpf-divider">' +
                             '<div class="listItem" style="display:flex; align-items:flex-start; padding:15px;">' +
                             '<div class="listItemBody jpf-grow">' +
-                            '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#ffc078;">⚠️ Unlinked sub-profiles</div>' +
+                            '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#ffc078;">⚠️ ' + escapeHtml(t('admin.households.unlinkedTitle')) + '</div>' +
                             '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">' +
-                            'These profiles point at a master account that no longer exists.' +
+                            escapeHtml(t('admin.households.unlinkedBody')) +
                             '</div>' +
                             '</div></div>' +
                             '<div style="background:rgba(0,0,0,0.18);">' + orphans.map(subProfileRowHtml).join('') + '</div>' +
@@ -1651,7 +1942,7 @@
                     page.querySelectorAll('.reset-pin-btn').forEach(function (btn) {
                         btn.addEventListener('click', function () {
                             const profileId = btn.getAttribute('data-id');
-                            Dashboard.confirm('Are you sure you want to reset and clear the PIN for this profile?', 'Reset PIN').then(function () {
+                            Dashboard.confirm(t('admin.households.resetConfirm'), t('admin.households.resetPin')).then(function () {
                                 resetPin(page, profileId);
                             });
                         });
@@ -1742,16 +2033,16 @@
 
                 if (countBox) {
                     countBox.textContent = view.filtered
-                        ? 'Showing ' + view.rows.length + ' of ' + auditEntries.length + ' events.'
-                        : auditEntries.length + ' event(s).';
+                        ? t('admin.audit.showing', { shown: view.rows.length, total: auditEntries.length })
+                        : auditEntries.length === 1 ? t('admin.audit.countOne') : t('admin.audit.countMany', { count: auditEntries.length });
                 }
 
                 if (!auditEntries.length) {
-                    container.innerHTML = '<div class="listItem jpf-list-pad"><div class="listItemBody">No profile switch events recorded yet.</div></div>';
+                    container.innerHTML = '<div class="listItem jpf-list-pad"><div class="listItemBody">' + escapeHtml(t('admin.audit.empty')) + '</div></div>';
                     return;
                 }
                 if (!view.rows.length) {
-                    container.innerHTML = '<div class="listItem jpf-list-pad"><div class="listItemBody">No events match this filter.</div></div>';
+                    container.innerHTML = '<div class="listItem jpf-list-pad"><div class="listItemBody">' + escapeHtml(t('admin.audit.noMatch')) + '</div></div>';
                     return;
                 }
 
@@ -1761,22 +2052,23 @@
                 // moment this page loaded.
                 container.innerHTML = view.rows.map(function (log) {
                     const dateStr = escapeHtml(new Date(auditField(log, 'Timestamp')).toLocaleString());
-                    const master = escapeHtml(auditField(log, 'MasterUsername') || 'Unknown');
-                    const target = escapeHtml(auditField(log, 'TargetUsername') || 'Unknown');
-                    const device = escapeHtml(auditField(log, 'DeviceName') || 'Unknown Device');
-                    const client = escapeHtml(auditField(log, 'Client') || 'Unknown Client');
-                    const ip = escapeHtml(auditField(log, 'IpAddress') || 'Unknown IP');
+                    const master = escapeHtml(auditField(log, 'MasterUsername') || t('admin.audit.unknown'));
+                    const target = escapeHtml(auditField(log, 'TargetUsername') || t('admin.audit.unknown'));
+                    const device = escapeHtml(auditField(log, 'DeviceName') || t('admin.audit.unknownDevice'));
+                    const client = escapeHtml(auditField(log, 'Client') || t('admin.audit.unknownClient'));
+                    const ip = escapeHtml(auditField(log, 'IpAddress') || t('admin.audit.unknownIp'));
 
+                    // Every value is escaped above; the strings around them are ours.
                     return '<div class="listItem jpf-audit-row">' +
                            '<div class="jpf-audit-meta">' +
                            '<span>' + dateStr + '</span>' +
-                           '<span>IP: ' + ip + '</span>' +
+                           '<span>' + t('admin.audit.ip', { ip: ip }) + '</span>' +
                            '</div>' +
                            '<div class="jpf-audit-what">' +
-                           'Master <strong>' + master + '</strong> switched to profile <strong>' + target + '</strong>' +
+                           t('admin.audit.switched', { master: master, target: target }) +
                            '</div>' +
                            '<div class="jpf-audit-where">' +
-                           'Device: ' + device + ' (' + client + ')' +
+                           t('admin.audit.device', { device: device, client: client }) +
                            '</div>' +
                            '</div>';
                 }).join('');
@@ -1829,21 +2121,22 @@
             // run it.
             function sessionRowsHtml(sessions) {
                 return sessions.map(function (s) {
+                    // Values escaped first, then placed: the strings around them are ours.
                     const who = s.isSubProfile
-                        ? escapeHtml(s.username) + ' <span class="jpf-session-tag">profile of ' + escapeHtml(s.masterUsername || 'unknown') + '</span>'
+                        ? escapeHtml(s.username) + ' <span class="jpf-session-tag">' + t('admin.devices.profileOf', { name: escapeHtml(s.masterUsername || t('admin.audit.unknown')) }) + '</span>'
                         : escapeHtml(s.username);
-                    const playing = s.nowPlaying ? ' &middot; playing ' + escapeHtml(s.nowPlaying) : '';
-                    const seen = s.lastActivity ? escapeHtml(new Date(s.lastActivity).toLocaleString()) : 'unknown';
+                    const playing = s.nowPlaying ? ' &middot; ' + t('admin.devices.playing', { title: escapeHtml(s.nowPlaying) }) : '';
+                    const seen = s.lastActivity ? escapeHtml(new Date(s.lastActivity).toLocaleString()) : escapeHtml(t('admin.audit.unknown'));
                     return '<div class="listItem jpf-session-row">' +
                            '<div class="jpf-session-main">' +
                            '<div class="jpf-session-who">' + who + '</div>' +
                            '<div class="jpf-session-where">' +
-                           escapeHtml(s.deviceName || 'Unknown device') + ' (' + escapeHtml(s.client || 'unknown client') + ')' +
-                           ' &middot; last seen ' + seen + playing +
+                           escapeHtml(s.deviceName || t('admin.audit.unknownDevice')) + ' (' + escapeHtml(s.client || t('admin.audit.unknownClient')) + ')' +
+                           ' &middot; ' + t('admin.devices.lastSeen', { when: seen }) + playing +
                            '</div></div>' +
                            '<button is="emby-button" type="button" class="raised jpf-signout-btn"' +
                            ' data-user="' + escapeHtml(s.userId) + '" data-device="' + escapeHtml(s.deviceId) + '"' +
-                           ' data-name="' + escapeHtml(s.username) + '"><span>Sign out</span></button>' +
+                           ' data-name="' + escapeHtml(s.username) + '"><span>' + escapeHtml(t('admin.devices.signOut')) + '</span></button>' +
                            '</div>';
                 }).join('');
             }
@@ -1851,12 +2144,11 @@
             // Plain text. The skipped names are profile names out of the imported file, which
             // is exactly as trustworthy as wherever that file has been.
             function importSummary(res) {
-                let msg = 'Imported ' + res.mappings + ' profile(s), '
-                    + res.devices + ' device(s) and ' + res.bonfires + ' Bonfire(s).';
+                let msg = t('admin.backup.imported', { profiles: res.mappings, devices: res.devices, bonfires: res.bonfires });
                 if (res.droppedMappings && res.droppedMappings.length) {
-                    msg += ' Skipped ' + res.droppedMappings.length
-                        + ' profile(s) naming Jellyfin users this server does not have: '
-                        + res.droppedMappings.join(', ') + '.';
+                    msg += ' ' + t('admin.backup.skipped', {
+                        count: res.droppedMappings.length, names: res.droppedMappings.join(', ')
+                    });
                 }
                 return msg;
             }
@@ -1868,7 +2160,7 @@
                 ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/admin/sessions'))
                     .then(function (sessions) {
                         if (!sessions || !sessions.length) {
-                            container.innerHTML = '<div class="listItem jpf-list-pad"><div class="listItemBody">Nobody is signed in right now.</div></div>';
+                            container.innerHTML = '<div class="listItem jpf-list-pad"><div class="listItemBody">' + escapeHtml(t('admin.devices.none')) + '</div></div>';
                             return;
                         }
                         container.innerHTML = sessionRowsHtml(sessions);
@@ -1878,8 +2170,8 @@
                                 // Signing somebody out interrupts whatever they are watching,
                                 // and the administrator is often not in the same room.
                                 Dashboard.confirm(
-                                    'Sign ' + btn.getAttribute('data-name') + ' out of this device?',
-                                    'Sign out'
+                                    t('admin.devices.signOutConfirm', { name: btn.getAttribute('data-name') }),
+                                    t('admin.devices.signOut')
                                 ).then(function () {
                                     Dashboard.showLoadingMsg();
                                     ApiClient.ajax({
@@ -1896,8 +2188,8 @@
                                     }, function () {
                                         Dashboard.hideLoadingMsg();
                                         Dashboard.alert({
-                                            title: 'Sign out failed',
-                                            message: 'That session could not be signed out.'
+                                            title: t('admin.devices.signOutFailedTitle'),
+                                            message: t('admin.devices.signOutFailed')
                                         });
                                     });
                                 });
@@ -1905,7 +2197,7 @@
                         });
                     })
                     .catch(function () {
-                        container.innerHTML = '<div class="listItem jpf-list-pad jpf-error"><div class="listItemBody">Could not load sessions.</div></div>';
+                        container.innerHTML = '<div class="listItem jpf-list-pad jpf-error"><div class="listItemBody">' + escapeHtml(t('admin.devices.loadFailed')) + '</div></div>';
                     });
             }
 
@@ -1932,10 +2224,10 @@
                             a.click();
                             document.body.removeChild(a);
                             setTimeout(function () { URL.revokeObjectURL(url); }, 0);
-                            box.innerHTML = '<span class="jpf-dim">Exported. Keep it somewhere you would keep a password.</span>';
+                            box.innerHTML = '<span class="jpf-dim">' + escapeHtml(t('admin.backup.exported')) + '</span>';
                         }, function () {
                             Dashboard.hideLoadingMsg();
-                            box.innerHTML = '<span class="jpf-error">Export failed.</span>';
+                            box.innerHTML = '<span class="jpf-error">' + escapeHtml(t('admin.backup.exportFailed')) + '</span>';
                         });
                 });
 
@@ -1955,7 +2247,7 @@
                         try {
                             parsed = JSON.parse(reader.result);
                         } catch (e) {
-                            box.innerHTML = '<span class="jpf-error">That file is not valid JSON.</span>';
+                            box.innerHTML = '<span class="jpf-error">' + escapeHtml(t('admin.backup.notJson')) + '</span>';
                             return;
                         }
                         // Accepts the export wrapper or a bare configuration, because the
@@ -1963,13 +2255,13 @@
                         // inner object.
                         const config = parsed.configuration || parsed;
                         if (!config || typeof config !== 'object' || !('Mappings' in config || 'mappings' in config)) {
-                            box.innerHTML = '<span class="jpf-error">That does not look like a Bonfire export.</span>';
+                            box.innerHTML = '<span class="jpf-error">' + escapeHtml(t('admin.backup.notExport')) + '</span>';
                             return;
                         }
 
                         Dashboard.confirm(
-                            'This replaces every profile, PIN, Bonfire and device list with the contents of that file. It cannot be undone.',
-                            'Import configuration'
+                            t('admin.backup.confirm'),
+                            t('admin.backup.confirmTitle')
                         ).then(function () {
                             Dashboard.showLoadingMsg();
                             ApiClient.ajax({
@@ -1985,7 +2277,7 @@
                                 loadMappings(page);
                             }, function () {
                                 Dashboard.hideLoadingMsg();
-                                box.innerHTML = '<span class="jpf-error">Import failed. Nothing was changed.</span>';
+                                box.innerHTML = '<span class="jpf-error">' + escapeHtml(t('admin.backup.importFailed')) + '</span>';
                             });
                         });
                     };
@@ -2010,7 +2302,7 @@
                     renderAuditLogs(page);
                 }).catch(function (err) {
                     console.error("Failed to load audit logs:", err);
-                    container.innerHTML = '<div class="listItem jpf-list-pad jpf-error"><div class="listItemBody">Error loading audit logs.</div></div>';
+                    container.innerHTML = '<div class="listItem jpf-list-pad jpf-error"><div class="listItemBody">' + escapeHtml(t('admin.audit.loadFailed')) + '</div></div>';
                 });
             }
 
@@ -2027,7 +2319,7 @@
                 }).catch(function (err) {
                     console.error("Failed to update limit:", err);
                     Dashboard.hideLoadingMsg();
-                    Dashboard.alert({ message: 'Failed to update profile limit.', title: 'Error' });
+                    Dashboard.alert({ message: t('admin.households.limitFailed'), title: t('admin.error') });
                 });
             }
 
@@ -2044,7 +2336,7 @@
                 }).catch(function (err) {
                     console.error("Failed to reset PIN:", err);
                     Dashboard.hideLoadingMsg();
-                    Dashboard.alert({ message: 'Failed to reset PIN. Check the server logs for details.', title: 'Error' });
+                    Dashboard.alert({ message: t('admin.households.resetFailed'), title: t('admin.error') });
                 });
             }
 
@@ -2114,12 +2406,12 @@
                 // iPhones shoot HEIC by default and only Safari decodes it, so without this
                 // the upload just fails silently on most machines.
                 if (type.includes('heic') || type.includes('heif') || /\.hei[cf]$/.test(name)) {
-                    return 'HEIC photos aren’t supported. Export the photo as JPEG first.';
+                    return t('admin.avatars.heic');
                 }
                 if (type.includes('svg') || /\.svgz?$/.test(name)) {
-                    return 'SVG isn’t supported. Use a JPEG, PNG, WebP or GIF.';
+                    return t('admin.avatars.svg');
                 }
-                if (file.size > 25 * 1024 * 1024) return 'That image is over 25 MB. Use a smaller one.';
+                if (file.size > 25 * 1024 * 1024) return t('admin.avatars.tooBig');
                 return null;
             }
 
@@ -2133,7 +2425,7 @@
                     const grid = page.querySelector('#avatarLibraryGrid');
 
                     if (!avatars.length) {
-                        grid.innerHTML = '<div class="fieldDescription">No avatars yet. Upload some, or turn on the starter avatars.</div>';
+                        grid.innerHTML = '<div class="fieldDescription">' + escapeHtml(t('admin.avatars.none')) + '</div>';
                         return;
                     }
 
@@ -2146,15 +2438,15 @@
                             '<div style="position:relative; width:100%; aspect-ratio:1/1; border-radius:50%; overflow:hidden; background:rgba(255,255,255,0.06);">' +
                             // If the file has gone missing the tile shows a marker rather
                             // than a broken-image icon, and the count above says why.
-                            '<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0.35;font-size:0.75rem;">missing</span>' +
+                            '<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0.35;font-size:0.75rem;">' + escapeHtml(t('admin.avatars.missing')) + '</span>' +
                             '<img src="' + escapeHtml(thumb) + '" alt="" onerror="this.remove()" ' +
                             'style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;" />' +
                             '</div>' +
                             '<div style="font-size:0.8rem; margin-top:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(name) + '</div>' +
                             (builtIn
-                                ? '<div class="fieldDescription" style="margin-top:4px; font-size:0.75rem;">Built-in</div>'
+                                ? '<div class="fieldDescription" style="margin-top:4px; font-size:0.75rem;">' + escapeHtml(t('admin.avatars.builtIn')) + '</div>'
                                 : '<button is="emby-button" type="button" class="raised avatarDeleteBtn" data-id="' + escapeHtml(id) + '" ' +
-                                  'style="margin-top:4px; padding:2px 10px; font-size:0.75rem;">Remove</button>') +
+                                  'style="margin-top:4px; padding:2px 10px; font-size:0.75rem;">' + escapeHtml(t('admin.avatars.remove')) + '</button>') +
                             '</div>';
                     }).join('');
 
@@ -2178,7 +2470,7 @@
                     loadAvatarLibrary(page);
                 }).catch(function (err) {
                     console.error('Failed to delete avatar:', err);
-                    Dashboard.alert({ message: 'Could not remove that avatar.', title: 'Error' });
+                    Dashboard.alert({ message: t('admin.avatars.removeFailed'), title: t('admin.error') });
                 });
             }
 
@@ -2192,11 +2484,11 @@
 
                 return new Promise(function (resolve, reject) {
                     const reader = new FileReader();
-                    reader.onerror = function () { reject(new Error('That file could not be read.')); };
+                    reader.onerror = function () { reject(new Error(t('admin.avatars.unreadable'))); };
                     reader.onload = function (event) {
                         const img = new Image();
                         img.onerror = function () {
-                            reject(new Error('That image format isn’t supported. Save it as a JPEG or PNG first.'));
+                            reject(new Error(t('admin.avatars.badFormat')));
                         };
                         img.onload = function () {
                             // Canvas work can throw — a zero-dimension decode, or no 2d
@@ -2214,7 +2506,7 @@
                                 });
                             } catch (e) {
                                 console.error('Avatar resize failed:', e);
-                                reject(new Error('That image could not be resized.'));
+                                reject(new Error(t('admin.avatars.resizeFailed')));
                                 return;
                             }
 
@@ -2225,7 +2517,7 @@
                                 data: payload
                             }).then(resolve).catch(function (err) {
                                 console.error('Avatar upload failed:', err);
-                                reject(new Error('The server rejected it. It may be over the ' + spec.mb + ' MB limit after resizing, or the picture quality was changed without saving.'));
+                                reject(new Error(t('admin.avatars.rejected', { mb: spec.mb })));
                             });
                         };
                         img.src = event.target.result;
@@ -2261,7 +2553,7 @@
                     if (i >= list.length) {
                         Dashboard.hideLoadingMsg();
                         setStatus(list.length > 1
-                            ? (list.length - failures.length) + ' of ' + list.length + ' uploaded.'
+                            ? t('admin.avatars.uploaded', { done: list.length - failures.length, total: list.length })
                             : '');
                         if (failures.length) {
                             setError(failures.map(function (f) {
@@ -2273,11 +2565,11 @@
                         return;
                     }
 
-                    if (list.length > 1) setStatus('Uploading ' + (i + 1) + ' of ' + list.length + '…');
+                    if (list.length > 1) setStatus(t('admin.avatars.uploading', { n: i + 1, total: list.length }));
 
                     uploadOneAvatar(list[i])
                         .catch(function (err) {
-                            failures.push({ name: list[i].name || 'That image', reason: err.message });
+                            failures.push({ name: list[i].name || t('admin.avatars.thatImage'), reason: err.message });
                         })
                         .then(function () { step(i + 1); });
                 };
@@ -2308,7 +2600,7 @@
 
                 setError('');
                 setStatus('');
-                if (!folder) { setError('Enter a folder path first.'); return; }
+                if (!folder) { setError(escapeHtml(t('admin.avatars.needPath'))); return; }
 
                 Dashboard.showLoadingMsg();
                 ApiClient.ajax({
@@ -2319,7 +2611,7 @@
                     const files = field(data, 'files') || [];
                     if (!files.length) {
                         Dashboard.hideLoadingMsg();
-                        setError('No pictures in that folder.');
+                        setError(escapeHtml(t('admin.avatars.emptyFolder')));
                         return;
                     }
 
@@ -2327,8 +2619,8 @@
                     const step = function (i) {
                         if (i >= files.length) {
                             Dashboard.hideLoadingMsg();
-                            setStatus((files.length - failures.length) + ' of ' + files.length + ' imported.'
-                                + (field(data, 'truncated') ? ' The folder holds more than can be listed at once.' : ''));
+                            setStatus(t('admin.avatars.imported', { done: files.length - failures.length, total: files.length })
+                                + (field(data, 'truncated') ? ' ' + t('admin.avatars.truncated') : ''));
                             if (failures.length) {
                                 setError(failures.map(function (f) {
                                     return escapeHtml(f.name) + ' — ' + escapeHtml(f.reason);
@@ -2340,7 +2632,7 @@
                         }
 
                         const name = field(files[i], 'name');
-                        setStatus('Importing ' + (i + 1) + ' of ' + files.length + '…');
+                        setStatus(t('admin.avatars.importing', { n: i + 1, total: files.length }));
 
                         // The only hand-rolled request on this page — everything else goes
                         // through ApiClient.ajax, which builds this header itself. It is
@@ -2359,7 +2651,7 @@
                             headers: { 'Authorization': authorizationHeader() }
                         })
                         .then(function (res) {
-                            if (!res.ok) return res.text().then(function (t) { throw new Error(t || 'could not be read'); });
+                            if (!res.ok) return res.text().then(function (text) { throw new Error(text || t('admin.avatars.unreadable')); });
                             return res.blob();
                         })
                         // A Blob is what the upload path already expects, so the file goes
@@ -2373,7 +2665,7 @@
                 }).catch(function (err) {
                     Dashboard.hideLoadingMsg();
                     console.error('Avatar folder scan failed:', err);
-                    setError('That folder could not be read. Check the path as the server sees it.');
+                    setError(escapeHtml(t('admin.avatars.folderFailed')));
                 });
             }
 
@@ -2402,7 +2694,7 @@
                     all.forEach(function (p) {
                         const probe = new Image();
                         const done = function (ok) {
-                            if (!ok) missing.push(field(p, 'profileName') || 'Unnamed profile');
+                            if (!ok) missing.push(field(p, 'profileName') || t('admin.avatars.unnamed'));
                             if (--pending === 0) renderAvatarHealth(page, missing);
                         };
                         probe.onload = function () { done(true); };
@@ -2414,17 +2706,17 @@
 
             function renderAvatarHealth(page, missing) {
                 setStatus(page, 'avatars', missing.length
-                    ? [{ level: 'info', text: missing.length + (missing.length === 1 ? ' profile picture is' : ' profile pictures are') + ' missing from disk.', tab: 'experience', anchor: 'jpfAvatars', fix: 'See which' }]
+                    ? [{ level: 'info', text: missing.length === 1 ? t('admin.status.avatarsOne') : t('admin.status.avatarsMany', { count: missing.length }),
+                         tab: 'experience', anchor: 'jpfAvatars', fix: t('admin.status.seeWhich') }]
                     : []);
                 const el = page.querySelector('#avatarMissingWarning');
                 if (!missing.length) { el.style.display = 'none'; return; }
                 el.style.display = 'block';
-                el.innerHTML = '<strong>&#9888;&nbsp; ' + missing.length +
-                    (missing.length === 1 ? ' profile has' : ' profiles have') +
-                    ' a picture that is no longer on disk.</strong><br>' +
+                el.innerHTML = '<strong>&#9888;&nbsp; ' +
+                    escapeHtml(missing.length === 1 ? t('admin.avatars.missingOne') : t('admin.avatars.missingMany', { count: missing.length })) +
+                    '</strong><br>' +
                     escapeHtml(missing.join(', ')) +
-                    '<br><span style="opacity:0.8;">They fall back to the initial and colour, so nothing is broken. ' +
-                    'Set a new picture on each to clear this.</span>';
+                    '<br><span style="opacity:0.8;">' + escapeHtml(t('admin.avatars.missingHint')) + '</span>';
             }
 
             // ── Announcements ─────────────────────────────────────────────────────
@@ -2456,10 +2748,12 @@
                 const ends = field(a, 'endsUtc');
                 const now = Date.now();
                 if (starts && new Date(starts).getTime() > now) {
-                    return 'Starts ' + formatWhen(starts) + (ends ? ', ends ' + formatWhen(ends) : '');
+                    return ends
+                        ? t('admin.ann.startsEnds', { start: formatWhen(starts), end: formatWhen(ends) })
+                        : t('admin.ann.startsAt', { when: formatWhen(starts) });
                 }
-                if (ends && new Date(ends).getTime() <= now) return 'Ended ' + formatWhen(ends);
-                return ends ? 'Showing until ' + formatWhen(ends) : 'Showing until deleted';
+                if (ends && new Date(ends).getTime() <= now) return t('admin.ann.ended', { when: formatWhen(ends) });
+                return ends ? t('admin.ann.until', { when: formatWhen(ends) }) : t('admin.ann.untilDeleted');
             }
 
             // The server's refusal is written for this page; show it rather than a guess.
@@ -2476,7 +2770,7 @@
                 page.querySelector('#annStarts').value = '';
                 page.querySelector('#annEnds').value = '';
                 page.querySelector('#annCount').textContent = '0 / 280';
-                page.querySelector('#annSave').textContent = 'Post announcement';
+                page.querySelector('#annSave').textContent = t('admin.ann.postButton');
                 page.querySelector('#annCancel').classList.add('jpf-hidden');
                 delete page.dataset.annEditing;
             }
@@ -2494,7 +2788,7 @@
                 ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/admin/announcements')).then(function (items) {
                     renderAnnouncements(page, items || []);
                 }).catch(function () {
-                    list.textContent = 'Could not load announcements.';
+                    list.textContent = t('admin.ann.loadFailed');
                 });
             }
 
@@ -2504,7 +2798,7 @@
                 if (!items.length) {
                     const empty = document.createElement('div');
                     empty.className = 'fieldDescription';
-                    empty.textContent = 'None yet.';
+                    empty.textContent = t('admin.ann.none');
                     list.appendChild(empty);
                     return;
                 }
@@ -2521,7 +2815,8 @@
 
                     const meta = document.createElement('div');
                     meta.className = 'jpf-ann-meta';
-                    meta.textContent = severity.charAt(0).toUpperCase() + severity.slice(1) + ' · ' + announcementSchedule(a);
+                    const level = { info: t('admin.ann.levelInfo'), warning: t('admin.ann.levelWarning'), critical: t('admin.ann.levelCritical') };
+                    meta.textContent = (level[severity] || severity) + ' · ' + announcementSchedule(a);
 
                     const buttons = document.createElement('div');
                     buttons.className = 'jpf-ann-buttons';
@@ -2529,7 +2824,7 @@
                     edit.type = 'button';
                     edit.setAttribute('is', 'emby-button');
                     edit.className = 'raised';
-                    edit.textContent = 'Edit';
+                    edit.textContent = t('admin.ann.edit');
                     edit.addEventListener('click', function () {
                         page.dataset.annEditing = field(a, 'id');
                         page.querySelector('#annMessage').value = field(a, 'message') || '';
@@ -2537,7 +2832,7 @@
                         page.querySelector('#annStarts').value = isoToLocalInput(field(a, 'startsUtc'));
                         page.querySelector('#annEnds').value = isoToLocalInput(field(a, 'endsUtc'));
                         page.querySelector('#annCount').textContent = (field(a, 'message') || '').length + ' / 280';
-                        page.querySelector('#annSave').textContent = 'Save changes';
+                        page.querySelector('#annSave').textContent = t('admin.ann.saveChanges');
                         page.querySelector('#annCancel').classList.remove('jpf-hidden');
                         page.querySelector('#annMessage').focus();
                     });
@@ -2545,9 +2840,9 @@
                     del.type = 'button';
                     del.setAttribute('is', 'emby-button');
                     del.className = 'raised';
-                    del.textContent = 'Delete';
+                    del.textContent = t('admin.ann.delete');
                     del.addEventListener('click', function () {
-                        Dashboard.confirm('Delete this announcement?', 'Delete announcement').then(function () {
+                        Dashboard.confirm(t('admin.ann.deleteConfirm'), t('admin.ann.deleteTitle')).then(function () {
                             ApiClient.ajax({
                                 type: 'POST',
                                 url: ApiClient.getUrl('plugins/profiles/admin/announcements/delete'),
@@ -2557,7 +2852,7 @@
                                 if (page.dataset.annEditing === field(a, 'id')) resetAnnouncementForm(page);
                                 loadAnnouncements(page);
                             }, function (err) {
-                                errorText(err, 'Could not delete it.').then(function (t) { showAnnouncementResult(page, t, false); });
+                                errorText(err, t('admin.ann.deleteFailed')).then(function (msg) { showAnnouncementResult(page, msg, false); });
                             });
                         });
                     });
@@ -2574,7 +2869,7 @@
             function saveAnnouncement(page) {
                 const message = (page.querySelector('#annMessage').value || '').trim();
                 if (!message) {
-                    showAnnouncementResult(page, 'Enter a message.', false);
+                    showAnnouncementResult(page, t('admin.ann.needMessage'), false);
                     return;
                 }
                 const body = {
@@ -2593,10 +2888,10 @@
                     data: JSON.stringify(body)
                 }).then(function () {
                     resetAnnouncementForm(page);
-                    showAnnouncementResult(page, editing ? 'Saved.' : 'Posted.', true);
+                    showAnnouncementResult(page, editing ? t('admin.ann.saved') : t('admin.ann.postDone'), true);
                     loadAnnouncements(page);
                 }, function (err) {
-                    errorText(err, 'Could not save it.').then(function (t) { showAnnouncementResult(page, t, false); });
+                    errorText(err, t('admin.saveFailed')).then(function (msg) { showAnnouncementResult(page, msg, false); });
                 });
             }
 
@@ -2635,9 +2930,8 @@
                     });
                     form.querySelector('.standalone-go').addEventListener('click', function () {
                         const password = form.querySelector('.standalone-password').value || '';
-                        if (!password) { show('Set a password.', false); return; }
-                        Dashboard.confirm('This profile becomes its own account and can\'t be made a profile again.',
-                            'Make own account').then(function () {
+                        if (!password) { show(t('admin.standalone.needPassword'), false); return; }
+                        Dashboard.confirm(t('admin.standalone.confirm'), t('admin.households.makeAccount')).then(function () {
                             ApiClient.ajax({
                                 type: 'POST',
                                 url: ApiClient.getUrl('plugins/profiles/admin/standalone'),
@@ -2651,11 +2945,11 @@
                             }).then(function (res) {
                                 // The row is about to go: it is not a profile any more. So the
                                 // confirmation cannot live in it.
-                                const done = 'Done. It signs in as ' + (field(res || {}, 'username') || 'its new name') + '.';
+                                const done = t('admin.standalone.done', { name: field(res || {}, 'username') || t('admin.standalone.newName') });
                                 if (typeof Dashboard.alert === 'function') Dashboard.alert(done); else show(done, true);
                                 loadMappings(page);
                             }, function (err) {
-                                errorText(err, 'Could not make the account.').then(function (t) { show(t, false); });
+                                errorText(err, t('admin.standalone.failed')).then(function (msg) { show(msg, false); });
                             });
                         });
                     });
@@ -2671,19 +2965,19 @@
                 if (on) {
                     const started = field(state, 'startedUtc');
                     const until = field(state, 'untilUtc');
-                    status.textContent = 'Closed' + (started ? ' since ' + formatWhen(started) : '') +
-                        (until ? '. Back by ' + formatWhen(until) : '') +
-                        '. Only administrators can use the server.';
+                    status.textContent = (started ? t('admin.mnt.closedSince', { when: formatWhen(started) }) : t('admin.mnt.closed')) +
+                        (until ? ' ' + t('admin.mnt.backBy', { when: formatWhen(until) }) : '') +
+                        ' ' + t('admin.mnt.adminsOnly');
                 } else {
-                    status.textContent = 'Open.';
+                    status.textContent = t('admin.mnt.isOpen');
                 }
                 page.querySelector('#mntMessage').value = field(state, 'message') || '';
                 page.querySelector('#mntUntil').value = isoToLocalInput(field(state, 'untilUtc'));
                 page.querySelector('#mntStop').checked = !!field(state, 'stopPlayback');
-                page.querySelector('#mntClose').textContent = on ? 'Save changes' : 'Close the server';
+                page.querySelector('#mntClose').textContent = on ? t('admin.mnt.saveChanges') : t('admin.mnt.closeButton');
                 page.querySelector('#mntOpen').classList.toggle('jpf-hidden', !on);
                 setStatus(page, 'maintenance', on
-                    ? [{ level: 'warn', text: 'The server is closed for maintenance. Only administrators can use it.', tab: 'messages', anchor: 'jpfMaintenance', fix: 'Reopen' }]
+                    ? [{ level: 'warn', text: t('admin.status.maintenance'), tab: 'messages', anchor: 'jpfMaintenance', fix: t('admin.status.reopen') }]
                     : []);
             }
 
@@ -2692,7 +2986,7 @@
                 ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/admin/maintenance')).then(function (state) {
                     renderMaintenance(page, state || {});
                 }).catch(function () {
-                    page.querySelector('#mntStatus').textContent = 'Could not read the current status.';
+                    page.querySelector('#mntStatus').textContent = t('admin.readFailed');
                 });
             }
 
@@ -2719,15 +3013,16 @@
                 }).then(function (state) {
                     renderMaintenance(page, state || {});
                     if (!enabled) {
-                        showMaintenanceResult(page, 'Reopened.', true);
+                        showMaintenanceResult(page, t('admin.mnt.reopened'), true);
                         return;
                     }
                     const told = field(state || {}, 'told') || 0;
                     const stopped = field(state || {}, 'stopped') || 0;
-                    showMaintenanceResult(page, 'Closed. Told ' + told + (told === 1 ? ' app' : ' apps') +
-                        (stopped ? ', stopped ' + stopped : '') + '.', true);
+                    showMaintenanceResult(page, stopped
+                        ? t('admin.mnt.closedStopped', { told: told, stopped: stopped })
+                        : t('admin.mnt.closedTold', { told: told }), true);
                 }, function (err) {
-                    errorText(err, 'Could not save it.').then(function (t) { showMaintenanceResult(page, t, false); });
+                    errorText(err, t('admin.saveFailed')).then(function (msg) { showMaintenanceResult(page, msg, false); });
                 });
             }
 
@@ -2740,8 +3035,8 @@
                         saveMaintenance(page, true);
                         return;
                     }
-                    Dashboard.confirm('Everyone but administrators is locked out until you reopen.',
-                        'Close the server').then(function () { saveMaintenance(page, true); });
+                    Dashboard.confirm(t('admin.mnt.confirm'), t('admin.mnt.closeButton'))
+                        .then(function () { saveMaintenance(page, true); });
                 });
                 page.querySelector('#mntOpen').addEventListener('click', function () { saveMaintenance(page, false); });
             }
@@ -2757,21 +3052,21 @@
                     const configured = field(data, 'isConfigured');
                     const disabled = field(data, 'isCurrentlyDisabled');
                     setStatus(page, 'panic', disabled
-                        ? [{ level: 'bad', text: 'Bonfire was switched off with the emergency code. Restart Jellyfin to turn it back on.' }]
+                        ? [{ level: 'bad', text: t('admin.status.panicUsed') }]
                         : configured ? []
-                        : [{ level: 'info', text: 'No emergency disable code is set.', tab: 'security', anchor: 'jpfEmergency', fix: 'Set one' }]);
+                        : [{ level: 'info', text: t('admin.status.noPanic'), tab: 'security', anchor: 'jpfEmergency', fix: t('admin.status.setOne') }]);
                     const line = page.querySelector('#panicStatusLine');
                     if (disabled) {
-                        line.innerHTML = '<span style="color:#ff9900; font-weight:600;">Bonfire is currently disabled.</span> ' +
-                            'Restart Jellyfin to bring the switcher back.';
+                        line.innerHTML = '<span style="color:#ff9900; font-weight:600;">' + escapeHtml(t('admin.panic.offTitle')) + '</span> ' +
+                            escapeHtml(t('admin.panic.offBody'));
                     } else if (configured) {
-                        line.innerHTML = '<span style="color:#51cf66; font-weight:600;">A code is set.</span> ' +
-                            'Enter it from the link on the profile screen, or press Ctrl+Shift+B on a keyboard.';
+                        line.innerHTML = '<span style="color:#51cf66; font-weight:600;">' + escapeHtml(t('admin.panic.setTitle')) + '</span> ' +
+                            escapeHtml(t('admin.panic.setBody'));
                     } else {
-                        line.textContent = 'No code is set. The feature is off.';
+                        line.textContent = t('admin.panic.none');
                     }
                 }).catch(function () {
-                    page.querySelector('#panicStatusLine').textContent = 'Could not read the current status.';
+                    page.querySelector('#panicStatusLine').textContent = t('admin.readFailed');
                 });
             }
 
@@ -2787,7 +3082,7 @@
                 };
 
                 if (code && code.length < 10) {
-                    show('The code must be at least 10 characters.', false);
+                    show(t('admin.panic.tooShort'), false);
                     return;
                 }
 
@@ -2798,11 +3093,11 @@
                     data: JSON.stringify({ code: code })
                 }).then(function () {
                     input.value = '';
-                    show(code ? 'Code saved. Write it down — it cannot be shown again.' : 'Code cleared. The feature is off.', true);
+                    show(code ? t('admin.panic.saved') : t('admin.panic.cleared'), true);
                     loadPanicStatus(page);
                 }).catch(function (err) {
                     console.error('Failed to save the emergency code:', err);
-                    show('The server rejected that code.', false);
+                    show(t('admin.panic.rejected'), false);
                 });
             }
 
@@ -2813,7 +3108,12 @@
             // would disagree with: both are drawn from the same answer.
             const STATUS_ORDER = ['script', 'panic', 'maintenance', 'pins', 'orphans', 'avatars', 'beta'];
             const LEVEL_RANK = { bad: 0, warn: 1, info: 2, ok: 3 };
-            const LEVEL_LABEL = { bad: 'Problem', warn: 'Attention', info: 'Note', ok: 'OK' };
+
+            // Looked up when drawn, so the chips are in the page's language.
+            function levelLabel(level) {
+                return { bad: t('admin.status.levelBad'), warn: t('admin.status.levelWarn'),
+                         info: t('admin.status.levelInfo'), ok: t('admin.status.levelOk') }[level] || level;
+            }
 
             function setStatus(page, part, items) {
                 page._status = page._status || {};
@@ -2834,8 +3134,8 @@
 
                 const needing = items.filter(function (it) { return it.level === 'bad' || it.level === 'warn'; }).length;
                 summary.textContent = needing === 0
-                    ? 'Nothing needs your attention.'
-                    : needing === 1 ? '1 thing needs your attention.' : needing + ' things need your attention.';
+                    ? t('admin.status.allClear')
+                    : needing === 1 ? t('admin.status.attentionOne') : t('admin.status.attentionMany', { count: needing });
 
                 // Built as elements, not a string: the text is ours, but a count or a name
                 // in it one day should not become markup.
@@ -2846,7 +3146,7 @@
                     row.setAttribute('data-level', it.level);
                     const chip = document.createElement('span');
                     chip.className = 'jpf-check-level';
-                    chip.textContent = LEVEL_LABEL[it.level];
+                    chip.textContent = levelLabel(it.level);
                     const text = document.createElement('span');
                     text.className = 'jpf-check-text';
                     text.textContent = it.text;
@@ -2883,7 +3183,8 @@
                 }).then(function (data) {
                     const n = (data.orphans || []).length + (data.deadGroups || []).length + (data.deadMembers || []).length;
                     setStatus(page, 'orphans', n
-                        ? [{ level: 'info', text: n + (n === 1 ? ' leftover record points' : ' leftover records point') + ' at deleted accounts.', tab: 'households', anchor: 'jpfOrphans', fix: 'Clean up' }]
+                        ? [{ level: 'info', text: n === 1 ? t('admin.status.orphansOne') : t('admin.status.orphansMany', { count: n }),
+                             tab: 'households', anchor: 'jpfOrphans', fix: t('admin.status.cleanUp') }]
                         : []);
                 }, function () { /* the scan button reports its own failure */ });
             }
@@ -2944,11 +3245,11 @@
                         // The clipboard API needs a secure page; plain http on a LAN is common.
                         // The box below stays either way, to select by hand.
                         if (navigator.clipboard && window.isSecureContext) {
-                            navigator.clipboard.writeText(text).then(function () { shown('Copied.'); },
-                                function () { box.select(); shown('Select the text below and copy it.'); });
+                            navigator.clipboard.writeText(text).then(function () { shown(t('admin.report.copied')); },
+                                function () { box.select(); shown(t('admin.report.selectIt')); });
                         } else {
                             box.select();
-                            shown('Select the text below and copy it.');
+                            shown(t('admin.report.selectIt'));
                         }
                     });
                 });
@@ -3008,16 +3309,27 @@
                     // A string is a toast, which is how Jellyfin confirms its own settings pages.
                     // The dialog form always has a title ("Alert" if none is given), and
                     // jellyfin-web's dialog pads the title off the centre line of its text.
-                    Dashboard.alert('Settings saved.');
+                    Dashboard.alert(t('admin.saved'));
                 }).catch(function (err) {
                     console.error('Failed to save settings:', err);
                     Dashboard.hideLoadingMsg();
-                    Dashboard.alert({ message: 'Failed to save settings.', title: 'Error' });
+                    Dashboard.alert({ message: t('admin.saveSettingsFailed'), title: t('admin.error') });
                 });
             }
 
+            // The language first, then everything else, so nothing a loader draws lands in
+            // English and stays that way. English asks for nothing and starts at once; a
+            // failed fetch starts in English rather than not at all.
             document.getElementById('profilesConfigurationPage').addEventListener('pageshow', function () {
                 const page = this;
+                const start = function () {
+                    try { applyMarkupStrings(page); } catch (e) { console.error('Bonfire: could not apply translation', e); }
+                    showPage(page);
+                };
+                loadAdminStrings().then(start, start);
+            });
+
+            function showPage(page) {
                 loadConfiguration(page);
                 // pageshow fires more than once for the same element, so this needs the same
                 // guard every other handler on this page has. Without it the help text was
@@ -3113,7 +3425,7 @@
                         folderInput.value = '';
                         if (!images.length) {
                             const errEl = page.querySelector('#avatarUploadError');
-                            errEl.textContent = 'No pictures in that folder.';
+                            errEl.textContent = t('admin.avatars.emptyFolder');
                             errEl.style.display = 'block';
                             return;
                         }
@@ -3141,7 +3453,7 @@
                         if (staleContainer) staleContainer.style.display = 'none';
                     });
                 }
-            });
+            }
         })();
     </script>
 </div>

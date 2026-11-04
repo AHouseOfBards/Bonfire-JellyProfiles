@@ -26,13 +26,14 @@ const script = L.dashboardScript(html);
 
 let pieces;
 try {
-    const consts = ['STATUS_ORDER', 'LEVEL_RANK', 'LEVEL_LABEL'].map(name => {
+    const consts = ['STATUS_ORDER', 'LEVEL_RANK'].map(name => {
         const m = new RegExp('const ' + name + ' = [^;]+;').exec(script);
         if (!m) throw new Error('no ' + name);
         return m[0];
     });
-    pieces = consts.join('\n') + '\n'
-        + ['field', 'setStatus', 'renderStatus', 'goTo', 'buildReport'].map(n => L.extractFunction(script, n)).join('\n');
+    // The chips' words are looked up when drawn, in the page's language.
+    pieces = L.dashboardI18n(script) + consts.join('\n') + '\n'
+        + ['field', 'levelLabel', 'setStatus', 'renderStatus', 'goTo', 'buildReport'].map(n => L.extractFunction(script, n)).join('\n');
 } catch (e) {
     ok('the Status code is there to test', false, e.message);
     finish();

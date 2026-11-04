@@ -71,11 +71,18 @@ Display language, and open the profile screen.
 - **Watch the length.** Many strings sit on buttons that also have to work on a TV. If a
   translation is much longer than the English, check it in a narrow window.
 
+## The admin settings page
+
+Keys starting `admin.` are the administrator's settings page. They go in the same file as
+everything else. The server sends them only to that page, so they cost a TV nothing. The
+English for them is in `Web/profilesDashboard.html`. Words on the page carry a
+`data-i18n="admin.…"` key. Words the script writes are in `ADMIN_EN`. The validator reads
+both.
+
 ## What isn't translated
 
-The admin settings page is English only. It's read by whoever runs the server, changes
-often, and is mostly settings and diagnostics. Everything a household member sees is
-translated.
+The bug report on the settings page stays in English, because it's for whoever fixes
+the bug.
 
 Theme names (Crimson, Snowfall and the rest) are proper names, like Bonfire, and stay as
 they are in every language.

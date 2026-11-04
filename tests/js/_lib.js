@@ -217,10 +217,27 @@ function alphaOf(value) {
     return m ? parseFloat(m[1]) : 1;
 }
 
+/**
+ * The settings page's translation core — ADMIN_EN, adminStrings and t() — as source to
+ * put in front of any dashboard function a harness lifts out to run, since almost every
+ * one of them now calls t(). English, unless the harness assigns adminStrings itself.
+ *
+ * Empty for a dashboard from before the page was translated, so a harness pointed at an
+ * old checkout still builds its functions and fails on what it is actually testing.
+ */
+function dashboardI18n(script) {
+    const start = script.indexOf('const ADMIN_EN = {');
+    if (start === -1) return '';
+    const end = script.indexOf('\n            };', start);
+    if (end === -1) throw new Error('dashboardI18n: ADMIN_EN has no end');
+    return script.slice(start, end + '\n            };'.length) + '\nlet adminStrings = null;\n'
+        + extractFunction(script, 't') + '\n';
+}
+
 module.exports = {
     ROOT,
     profilesPath, dashboardPath, i18nDir,
     readProfiles, readDashboard,
-    extractCss, extractFunction, dashboardScript, stylesPath, readClientBundle, readSourceAndStyles,
+    extractCss, extractFunction, dashboardScript, dashboardI18n, stylesPath, readClientBundle, readSourceAndStyles,
     resolveCssValue, alphaOf
 };
