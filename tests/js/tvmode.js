@@ -145,6 +145,11 @@ const UA = {
         + 'Version/17.0 Safari/605.1.15',
     android: 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) '
         + 'Chrome/119.0.0.0 Mobile Safari/537.36',
+    // Both from upstream's browser.test.ts (12.x).
+    tizen8: 'Mozilla/5.0 (SMART-TV; Linux; Tizen 8.0) AppleWebKit/537.36 (KHTML, like Gecko) '
+        + 'SamsungBrowser/7.0 Chrome/108.0.5359.1 TV Safari/537.36',
+    samsungPhone: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) '
+        + 'SamsungBrowser/24.0 Chrome/117.0.0.0 Mobile Safari/537.36',
     oculus: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) '
         + 'OculusBrowser/23.0 SamsungBrowser/4.0 Chrome/104.0.0.0 VR Safari/537.36',
 };
@@ -162,6 +167,8 @@ if (typeof P._uaLooksLikeTv === 'function') {
     ok('desktop Chrome is not', P._uaLooksLikeTv(UA.desktop) === false);
     ok('Safari on a Mac is not', P._uaLooksLikeTv(UA.mac) === false);
     ok('an Android phone is not', P._uaLooksLikeTv(UA.android) === false);
+    ok('Samsung Internet on an Android phone is not (upstream 12.x)', P._uaLooksLikeTv(UA.samsungPhone) === false);
+    ok('a 2024 Samsung set, which also says SamsungBrowser, still is', P._uaLooksLikeTv(UA.tizen8) === true);
     // Upstream's one explicit exclusion: the Oculus browser carries samsungbrowser.
     ok('the Oculus browser is excluded despite samsungbrowser',
         P._uaLooksLikeTv(UA.oculus) === false);

@@ -1815,8 +1815,10 @@
             const s = String(ua || '').toLowerCase();
             // The Oculus browser carries samsungbrowser in its UA and is a headset.
             if (s.indexOf('oculusbrowser') !== -1) return false;
+            // No samsungbrowser: upstream dropped it in 12.x (browser.js, with a test),
+            // because Samsung Internet on an Android phone carries it too and was laid out
+            // as a television. A Samsung set says SMART-TV and TV, so 'tv' still finds it.
             return s.indexOf('tv') !== -1
-                || s.indexOf('samsungbrowser') !== -1
                 || s.indexOf('viera') !== -1
                 || s.indexOf('titanos') !== -1
                 || s.indexOf('netcast') !== -1
