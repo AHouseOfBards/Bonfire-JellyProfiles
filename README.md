@@ -52,7 +52,7 @@ Jellyfin Media Player, LG webOS 4.5 and later, and Samsung Tizen
 
 **Profile sign-in:** Jellyfin for Android TV, Roku, Swiftfin, Findroid and Wholphin can
 list your profiles on their own sign-in screen. Turn it on under
-**Dashboard → Bonfire → TVs & Apps**, and [set the app to ask every time](docs/clients.md#profile-sign-in). Type
+**Dashboard → Bonfire → Apps**, and [set the app to ask every time](docs/clients.md#profile-sign-in). Type
 the profile's PIN where the app asks for a password. Android TV is confirmed on hardware;
 the others are not yet.
 

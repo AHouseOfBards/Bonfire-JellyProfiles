@@ -22,7 +22,7 @@ The switcher, profile management, avatars, library artwork and shared Bonfires.
 Your profiles appear on the app's own sign-in screen and open with their PIN. Creating
 and editing profiles still needs one of the apps above.
 
-Turn it on under **Dashboard → Bonfire → TVs & Apps**.
+Turn it on under **Dashboard → Bonfire → Apps**.
 
 | App | Status |
 | --- | --- |
@@ -62,12 +62,12 @@ Streamyfin, Plezy and Tsukimi only offer a username and password box. They still
 1. Sign in once as the main account, with its real name and password.
 2. From then on, type a **profile's name** and its PIN.
 
-This needs **Let profiles be opened with their PIN on any app** under **TVs & Apps**. It
+This needs **Let profiles sign in with their PIN** under **Apps**. It
 works the same way for any app not listed here.
 
 ## Profile picker (beta)
 
-Only Moonfin for now. Tick it under **TVs & Apps → Profile picker**, then sign in on it
+Only Moonfin for now. Tick it under **Apps → Profile picker**, then sign in on it
 with the main account. The home screen shows a **Profiles** library:
 
 1. Open a profile's folder to use that profile. A profile with a PIN opens a keypad. So

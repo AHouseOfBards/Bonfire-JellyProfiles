@@ -150,7 +150,7 @@ has(js, 'A library tile takes its picture from whatever is inside the library',
 has(js, 'class="libart-head"', 'the artwork column is labelled');
 
 // ── The admin page ─────────────────────────────────────────────────────────
-const tabNames = ['general', 'tv', 'notices', 'avatars', 'accounts', 'activity', 'advanced'];
+const tabNames = ['status', 'households', 'devices', 'security', 'experience', 'apps', 'messages', 'activity', 'troubleshoot'];
 tabNames.forEach(function (n) {
     ok(count(html, 'data-tab="' + n + '"') === 1, 'one tab button for ' + n);
     ok(count(html, 'data-panel="' + n + '"') === 1, 'one panel for ' + n);
@@ -187,7 +187,16 @@ ok(html.indexOf('<style>') > html.indexOf('<div id="profilesConfigurationPage"')
 ok(html.indexOf('</style>') < html.indexOf('<div data-role="content">'),
     'and ahead of the content it styles');
 has(html, 'background-color: transparent;', 'the tab reset kills the UA background');
-has(html, '>General</button>', 'the first tab is General, not Settings inside Settings');
+// Status first: it's what an administrator opens the page to read, and a stored tab that
+// no longer exists falls back to it.
+ok(html.indexOf('data-tab="status"') !== -1 && html.indexOf('data-tab="status"') < html.indexOf('data-tab="households"'),
+   'the first tab is Status');
+// Each tab with settings has its own Save, and every one is bound.
+ok(count(html, 'jpf-save-settings"') >= 4, 'the settings tabs each have a Save');
+has(html, "page.querySelectorAll('.jpf-save-settings').forEach", 'and each is bound');
+// A Status link only switches to a tab on the strip, like a stored tab name.
+has(html, 'page._showTab = function (name) { if (names.indexOf(name) >= 0) show(name); };',
+    'a Status link cannot name a tab that is not there');
 
 // The banners that say whether the plugin works at all stay outside the tabs.
 const beforeTabs = html.slice(0, html.indexOf('<div class="jpf-tabs"'));

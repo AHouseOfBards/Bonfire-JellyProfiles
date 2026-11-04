@@ -20,7 +20,7 @@ Bonfire does not edit `index.html` by default, and hasn't since 1.4.1. It adds i
 script as the page is served, so nothing is written to disk and nothing needs redoing
 after a Jellyfin update.
 
-To check it's working, open **Dashboard → Plugins → Bonfire → Advanced → Client Script**.
+To check it's working, open **Dashboard → Plugins → Bonfire → Troubleshoot → Advanced → Client script**.
 It shows which method is in use and how many pages it has served.
 
 ### It works in a browser but not in an app
@@ -33,7 +33,7 @@ Parental controls still apply in every app, because the server enforces them.
 
 ## Writing to `index.html` (legacy modes)
 
-Under **Advanced → Client Script** you can choose how the script is added:
+Under **Troubleshoot → Advanced → Client script** you can choose how the script is added:
 
 | Method | What it does |
 | --- | --- |
@@ -86,7 +86,7 @@ A profile can never get a library its main account doesn't have.
 ## I can't use the interface or reach the settings page
 
 Set an **emergency disable code** before you need it, under
-**Dashboard → Plugins → Bonfire → Advanced**. Entering it on any Bonfire screen, or
+**Dashboard → Plugins → Bonfire → Security**. Entering it on any Bonfire screen, or
 pressing `Ctrl+Shift+B`, turns Bonfire off until Jellyfin restarts.
 
 If Bonfire's script doesn't load at all, the code can't run. Restart Jellyfin or delete
@@ -97,13 +97,13 @@ does and doesn't unlock.
 
 Bonfire includes thirty starter avatars from Microsoft's Fluent Emoji. You can turn them
 off with **Include the starter avatars** under
-**Dashboard → Plugins → Bonfire → Avatar Library**. Profiles already using one keep it.
+**Dashboard → Plugins → Bonfire → Experience → Avatar library**. Profiles already using one keep it.
 
 Film and TV characters aren't included, because they belong to their studios. Add your
 own on the same page:
 
 - **Upload a folder** from the computer you're on.
-- **Import from folder** copies from a path on the server, such as `/config/avatars` on
+- **Copy from folder** copies from a path on the server, such as `/config/avatars` on
   Docker. Easier for a large set.
 
 JPEG, PNG, WebP and GIF all work. Pictures are cropped and resized when added. Turn on
@@ -118,5 +118,5 @@ include:
 - the Bonfire version, and whether it's from the stable or beta channel
 - your Jellyfin version, and how it's installed (Docker, package, Windows)
 - the browser, app or TV model
-- what **Advanced → Client Script** says
+- the text from **Troubleshoot → Copy report**
 - whether the server has been restarted since installing or updating

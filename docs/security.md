@@ -40,7 +40,7 @@ These hold in every app and can't be turned off from a browser.
   looks local.
 - **The profile screen.** It's a screen, not a lock. Anyone at the browser can do what
   the signed-in profile can do.
-- **Profile names in other apps.** With *TVs & Apps* on, a device your household has used
+- **Profile names in other apps.** With *Show profiles on the sign-in screen* on, a device your household has used
   shows your profile names on its sign-in screen.
 
 ## For administrators

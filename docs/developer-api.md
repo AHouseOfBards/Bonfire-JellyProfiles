@@ -657,7 +657,7 @@ placeholder tag that no item carries, so it sees nothing until it's edited.
 
 ## Sign-in from other apps
 
-These settings under **TVs & Apps** change Jellyfin's own routes, for apps that never load
+These settings under **Apps** change Jellyfin's own routes, for apps that never load
 the web client. All are off by default.
 
 | Setting | What changes |
@@ -730,7 +730,7 @@ app with its own Bonfire switcher should not be listed.
 ## Client script
 
 The browser has to load `profiles.js` for any of the switcher to appear. How it's added is
-set under **Advanced → Client Script** and reported as `mechanism.mode`:
+set under **Troubleshoot → Advanced → Client script** and reported as `mechanism.mode`:
 
 | `mode` | How |
 | --- | --- |

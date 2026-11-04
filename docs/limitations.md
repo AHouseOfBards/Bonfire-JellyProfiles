@@ -17,7 +17,7 @@ PIN resets, TV and app sign-in, and the emergency disable code.
 Turns Bonfire off until Jellyfin restarts. It's for when Bonfire has made the web
 interface hard to use, including the page you'd need to uninstall it.
 
-Set one under **Dashboard → Plugins → Bonfire → Advanced**. To use it, enter it on any
+Set one under **Dashboard → Plugins → Bonfire → Security**. To use it, enter it on any
 Bonfire screen or press `Ctrl+Shift+B`. It's off until you set one.
 
 Things to know:

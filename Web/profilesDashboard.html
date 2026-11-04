@@ -378,6 +378,56 @@
     #profilesConfigurationPage .jpf-mb-2 { margin-bottom: 10px; }
     /* A notice box that is a single line of text does not need the full padding. */
     #profilesConfigurationPage .jpf-note-tight { padding: 12px 18px; }
+
+    /* Status. The level is the word in the chip and the stripe, never colour alone. */
+    #profilesConfigurationPage .jpf-checks { display: grid; gap: 8px; }
+    #profilesConfigurationPage .jpf-check {
+        display: grid;
+        grid-template-columns: 6.5em 1fr auto;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        border-left: 4px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 4px;
+    }
+    #profilesConfigurationPage .jpf-check[data-level="bad"] { border-left-color: #e64980; }
+    #profilesConfigurationPage .jpf-check[data-level="warn"] { border-left-color: #f59f00; }
+    #profilesConfigurationPage .jpf-check[data-level="ok"] { border-left-color: #51cf66; }
+    #profilesConfigurationPage .jpf-check-level {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        opacity: 0.8;
+    }
+    #profilesConfigurationPage .jpf-check-fix { padding: 4px 12px; white-space: nowrap; }
+    @media (max-width: 600px) {
+        #profilesConfigurationPage .jpf-check { grid-template-columns: 1fr; gap: 4px; }
+    }
+
+    /* Troubleshoot. */
+    #profilesConfigurationPage .jpf-faq details {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 10px 0;
+    }
+    #profilesConfigurationPage .jpf-faq summary,
+    #profilesConfigurationPage .jpf-advanced > summary {
+        cursor: pointer;
+        font-weight: 600;
+    }
+    #profilesConfigurationPage .jpf-faq p { margin: 8px 0 0 0; opacity: 0.85; max-width: 70ch; line-height: 1.5; }
+    #profilesConfigurationPage .jpf-advanced > summary { font-size: 1.2em; }
+    #profilesConfigurationPage .jpf-report {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        margin-top: 12px;
+        font-family: monospace;
+        font-size: 0.85rem;
+    }
+    #profilesConfigurationPage .jpf-report.jpf-hidden { display: none; }
+    #profilesConfigurationPage .jpf-upload { margin: 2em 0 1em 0; }
 </style>
     <div data-role="content">
         <div class="content-primary">
@@ -482,441 +532,451 @@
             <!-- Above the tabs on purpose: the banners above this line report whether the
                  plugin is working at all, and must not be hidden behind a tab nobody has
                  a reason to open. -->
+            <!-- Grouped by job, not by when each setting was added. Status is first because
+                 it is the one an administrator opens the page to read. -->
             <div class="jpf-tabs" role="tablist" aria-label="Bonfire settings sections">
-                <button type="button" class="jpf-tab" role="tab" data-tab="general" aria-controls="jpfPanelGeneral">General</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="avatars" aria-controls="jpfPanelAvatars">Avatars</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="tv" aria-controls="jpfPanelTv">TVs &amp; Apps</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="notices" aria-controls="jpfPanelNotices">Announcements</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="accounts" aria-controls="jpfPanelAccounts">Accounts</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="activity" aria-controls="jpfPanelActivity">Activity</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="advanced" aria-controls="jpfPanelAdvanced">Advanced</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="status" aria-controls="jpfPanelStatus" data-i18n="admin.tab.status">Status</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="households" aria-controls="jpfPanelHouseholds" data-i18n="admin.tab.households">Households</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="devices" aria-controls="jpfPanelDevices" data-i18n="admin.tab.devices">Devices</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="security" aria-controls="jpfPanelSecurity" data-i18n="admin.tab.security">Security</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="experience" aria-controls="jpfPanelExperience" data-i18n="admin.tab.experience">Experience</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="apps" aria-controls="jpfPanelApps" data-i18n="admin.tab.apps">Apps</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="messages" aria-controls="jpfPanelMessages" data-i18n="admin.tab.messages">Messages</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="activity" aria-controls="jpfPanelActivity" data-i18n="admin.tab.activity">Activity</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="troubleshoot" aria-controls="jpfPanelTroubleshoot" data-i18n="admin.tab.troubleshoot">Troubleshoot</button>
             </div>
 
-            <div class="jpf-tab-panel" id="jpfPanelGeneral" data-panel="general" role="tabpanel" hidden>
-            <form id="profilesConfigurationForm">
+            <!-- ── Status ─────────────────────────────────────────────────────────── -->
+            <div class="jpf-tab-panel" id="jpfPanelStatus" data-panel="status" role="tabpanel" hidden>
                 <div class="sectionTitleContainer jpf-row">
-                    <h2 class="sectionTitle">Bonfire Settings</h2>
+                    <h2 class="sectionTitle" data-i18n="admin.status.title">Status</h2>
                     <!-- Filled in from the server's own version; no hardcoded literal to go stale. -->
                     <span class="jpf-pill" id="pluginVersionBadge">…</span>
                 </div>
-
-                <div class="jpf-note">
-                    <strong class="jpf-label-block">&#9432;&nbsp; Where to manage profiles</strong>
-                    Profiles are managed from the Jellyfin home screen — look for the
-                    <strong>Switch Profile</strong> button in the top bar. This page sets the
-                    server-wide limits.
+                <div class="fieldDescription jpf-lede" id="statusSummary" data-i18n="admin.status.checking">Checking…</div>
+                <div class="jpf-checks" id="statusChecks"></div>
+                <div class="jpf-note jpf-mt-3">
+                    <strong class="jpf-label-block" data-i18n="admin.status.whereTitle">Where profiles are managed</strong>
+                    <span data-i18n="admin.status.whereBody">Each household manages its own profiles from the Jellyfin home screen. This page sets what they're allowed to do.</span>
                 </div>
-                
-                <div class="inputContainer">
-                    <label class="inputLabel" for="maxProfiles">Maximum Profiles Per User</label>
+            </div><!-- /status -->
+
+            <!-- ── Households ─────────────────────────────────────────────────────── -->
+            <div class="jpf-tab-panel" id="jpfPanelHouseholds" data-panel="households" role="tabpanel" hidden>
+                <div class="sectionTitleContainer jpf-section" id="jpfAccounts">
+                    <h2 class="sectionTitle" data-i18n="admin.households.title">Accounts &amp; profiles</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.households.lede">Every main account and its profiles. You can clear any PIN.</div>
+                <div class="paperList jpf-block-end" id="masterUsersList">
+                    <!-- Master accounts, each with its sub-profiles nested inside -->
+                </div>
+
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="maxProfiles" data-i18n="admin.households.maxProfiles">Profiles per account</label>
                     <input is="emby-input" type="number" id="maxProfiles" min="1" max="20" required />
-                    <div class="fieldDescription">Default 5.</div>
+                    <div class="fieldDescription" data-i18n="admin.households.maxProfilesHint">1 to 20. An account's own limit, set above, wins.</div>
+                </div>
+                <div class="buttonContainer jpf-block-end">
+                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
                 </div>
 
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label>
-                        <input is="emby-checkbox" type="checkbox" id="requireMasterPin" />
-                        <span>Require Master PIN for creating new profiles</span>
-                    </label>
-                    <div class="fieldDescription">Users enter their PIN before adding a sub-profile.</div>
+                <div class="sectionTitleContainer jpf-section" id="jpfOrphans">
+                    <h2 class="sectionTitle" data-i18n="admin.orphans.title">Leftover records</h2>
                 </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.orphans.lede">Left behind when a profile is deleted in Dashboard → Users instead of in Bonfire. They still count against the account's limit. Scanning changes nothing.</div>
+                <button is="emby-button" type="button" id="scanOrphansBtn" class="raised">
+                    <span data-i18n="admin.orphans.scan">Scan</span>
+                </button>
+                <div class="jpf-result jpf-mt-2" id="orphansResult"></div>
+            </div><!-- /households -->
 
+            <!-- ── Devices ────────────────────────────────────────────────────────── -->
+            <div class="jpf-tab-panel" id="jpfPanelDevices" data-panel="devices" role="tabpanel" hidden>
+                <div class="sectionTitleContainer jpf-section">
+                    <h2 class="sectionTitle" data-i18n="admin.devices.title">Signed-in devices</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.devices.lede">Every open session, with the household each profile belongs to.</div>
+                <button is="emby-button" type="button" id="refreshSessionsBtn" class="raised">
+                    <span data-i18n="admin.refresh">Refresh</span>
+                </button>
+                <div class="paperList jpf-block-end jpf-mt-2" id="profileSessionsList"></div>
+            </div><!-- /devices -->
+
+            <!-- ── Security ───────────────────────────────────────────────────────── -->
+            <div class="jpf-tab-panel" id="jpfPanelSecurity" data-panel="security" role="tabpanel" hidden>
+                <div class="sectionTitleContainer jpf-section" id="jpfPins">
+                    <h2 class="sectionTitle" data-i18n="admin.security.pinsTitle">PINs</h2>
+                </div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
                         <input is="emby-checkbox" type="checkbox" id="requireMainPin" />
-                        <span>Require a PIN on main accounts</span>
+                        <span data-i18n="admin.security.requireMainPin">Require a PIN on main accounts</span>
                     </label>
-                    <div class="fieldDescription">Profiles and settings can't be changed until the account sets one.</div>
+                    <div class="fieldDescription" data-i18n="admin.security.requireMainPinHint">Profiles and settings can't be changed until the account sets one.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="requireMasterPin" />
+                        <span data-i18n="admin.security.requireMasterPin">Ask for the main PIN to add a profile</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.security.requireMasterPinHint">Only matters for accounts that have one.</div>
+                </div>
+                <div class="buttonContainer jpf-block-end">
+                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
                 </div>
 
-                <h3 class="checkboxListLabel jpf-subhead">Switcher defaults</h3>
-                <div class="fieldDescription jpf-lede">
-                    What new accounts get. Anyone who picks their own setting keeps it.
+                <div class="sectionTitleContainer jpf-section" id="jpfEmergency">
+                    <h2 class="sectionTitle" data-i18n="admin.panic.title">Emergency disable code</h2>
+                </div>
+                <div class="jpf-note jpf-note-soft">
+                    <strong class="jpf-label-block" data-i18n="admin.panic.warnTitle">Read this before turning it on</strong>
+                    <span data-i18n="admin.panic.warnBody">Entering the code turns Bonfire off until Jellyfin restarts. Anyone with it can skip the profile screen on a device that's already signed in, which on a TV left on a main account means that account's library. Other profiles still need their PIN, and parental controls still apply. No password is asked for, so make it long.</span>
+                </div>
+                <div id="panicStatusLine" class="fieldDescription jpf-lede">…</div>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="panicCodeInput" data-i18n="admin.panic.label">Code</label>
+                    <input is="emby-input" type="text" id="panicCodeInput" autocomplete="off" placeholder="At least 10 characters" data-i18n-placeholder="admin.panic.placeholder" />
+                    <div class="fieldDescription" data-i18n="admin.panic.hint">Save it blank to turn it off. It can't be shown again, so write it down somewhere off this server.</div>
+                </div>
+                <div class="jpf-block-end">
+                    <button is="emby-button" type="button" id="savePanicCode" class="raised button-submit jpf-narrow" data-i18n="admin.panic.save">Save code</button>
+                    <div class="jpf-hidden jpf-status" id="panicCodeResult"></div>
                 </div>
 
+                <div class="sectionTitleContainer jpf-section">
+                    <h2 class="sectionTitle" data-i18n="admin.security.apiTitle">API access</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.security.apiBody">Scripts and other apps can use Bonfire's administrator routes with a key from Dashboard → API Keys.</div>
+            </div><!-- /security -->
+
+            <!-- ── Experience ─────────────────────────────────────────────────────── -->
+            <div class="jpf-tab-panel" id="jpfPanelExperience" data-panel="experience" role="tabpanel" hidden>
+                <div class="sectionTitleContainer jpf-section">
+                    <h2 class="sectionTitle" data-i18n="admin.switcher.title">Switcher</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.switcher.lede">What accounts get until they choose for themselves.</div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
                         <input is="emby-checkbox" type="checkbox" id="defaultAskOnStartup" />
-                        <span>Ask "Who's watching?" on startup</span>
+                        <span data-i18n="admin.switcher.askOnStartup">Ask "Who's watching?" on startup</span>
                     </label>
-                    <div class="fieldDescription">Shown once when the app opens.</div>
+                    <div class="fieldDescription" data-i18n="admin.switcher.askOnStartupHint">Shown once when the app opens.</div>
                 </div>
-
-                <div class="selectContainer">
-                    <label class="selectLabel" for="defaultSwitcherLocation">Where to switch from</label>
+                <div class="selectContainer jpf-form-narrow">
+                    <label class="selectLabel" for="defaultSwitcherLocation" data-i18n="admin.switcher.location">Where to switch from</label>
                     <select is="emby-select" id="defaultSwitcherLocation">
-                        <option value="button">Bonfire button in the header</option>
-                        <option value="menu">Jellyfin's own menu</option>
+                        <option value="button" data-i18n="admin.switcher.locationButton">Bonfire button in the header</option>
+                        <option value="menu" data-i18n="admin.switcher.locationMenu">Jellyfin's own menu</option>
                     </select>
-                    <div class="fieldDescription">The menu option adds a row to Settings instead of a second portrait.</div>
                 </div>
 
-                <h3 class="checkboxListLabel jpf-subhead">Theme</h3>
-                <div class="fieldDescription jpf-lede">
-                    The look of Bonfire's own screens: the profile picker, PIN entry and profile forms. The rest of Jellyfin keeps its own theme.
+                <div class="sectionTitleContainer jpf-section">
+                    <h2 class="sectionTitle" data-i18n="admin.theme.title">Theme</h2>
                 </div>
-
+                <div class="fieldDescription jpf-lede" data-i18n="admin.theme.lede">For Bonfire's own screens. The rest of Jellyfin keeps its theme.</div>
                 <!-- The words after each name are there so an administrator can tell them
                      apart without opening a profile. They describe the look only; no theme
                      is named after, or claims any link to, a real service. -->
-                <div class="selectContainer">
-                    <label class="selectLabel" for="defaultTheme">Default theme</label>
+                <div class="selectContainer jpf-form-narrow">
+                    <label class="selectLabel" for="defaultTheme" data-i18n="admin.theme.default">Default theme</label>
                     <select is="emby-select" id="defaultTheme">
-                        <option value="bonfire">Bonfire (follows your Jellyfin accent colour)</option>
-                        <option value="crimson">Crimson (charcoal and red, square tiles)</option>
-                        <option value="starlight">Starlight (navy, round tiles in a white ring)</option>
-                        <option value="harbor">Harbor (blue-grey, bold type)</option>
-                        <option value="nightfall">Nightfall (black into violet, gradient rings)</option>
-                        <option value="glass">Glass (soft colour blur, frosted buttons)</option>
-                        <option value="harvest">Harvest (autumn leaves, warm amber)</option>
-                        <option value="snowfall">Snowfall (winter night, falling snow)</option>
-                        <option value="bloom">Bloom (spring green, blossoms)</option>
+                        <option value="bonfire" data-i18n="admin.theme.bonfire">Bonfire (follows your Jellyfin accent colour)</option>
+                        <option value="crimson" data-i18n="admin.theme.crimson">Crimson (charcoal and red, square tiles)</option>
+                        <option value="starlight" data-i18n="admin.theme.starlight">Starlight (navy, round tiles in a white ring)</option>
+                        <option value="harbor" data-i18n="admin.theme.harbor">Harbor (blue-grey, bold type)</option>
+                        <option value="nightfall" data-i18n="admin.theme.nightfall">Nightfall (black into violet, gradient rings)</option>
+                        <option value="glass" data-i18n="admin.theme.glass">Glass (soft colour blur, frosted buttons)</option>
+                        <option value="harvest" data-i18n="admin.theme.harvest">Harvest (autumn leaves, warm amber)</option>
+                        <option value="snowfall" data-i18n="admin.theme.snowfall">Snowfall (winter night, falling snow)</option>
+                        <option value="bloom" data-i18n="admin.theme.bloom">Bloom (spring green, blossoms)</option>
                     </select>
                 </div>
-
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
                         <input is="emby-checkbox" type="checkbox" id="allowProfileThemes" />
-                        <span>Let profiles choose their own theme</span>
+                        <span data-i18n="admin.theme.allowProfiles">Let profiles choose their own theme</span>
                     </label>
-                    <div class="fieldDescription">Off shows everyone the default. Choices already made are kept.</div>
+                    <div class="fieldDescription" data-i18n="admin.theme.allowProfilesHint">Off shows everyone the default. Choices already made are kept.</div>
                 </div>
 
+                <div class="sectionTitleContainer jpf-section" id="jpfAvatars">
+                    <h2 class="sectionTitle" data-i18n="admin.avatars.title">Avatar library</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.avatars.lede">Pictures anyone can pick for a profile. On a TV this is the only way to set one.</div>
+                <div class="jpf-hidden jpf-note jpf-note-soft" id="avatarMissingWarning">
+                    <!-- Filled in when a profile or library entry points at a file that is gone -->
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="enableStarterAvatars" />
+                        <span data-i18n="admin.avatars.starter">Include the starter avatars</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.avatars.starterHint">30 built-in pictures. Fluent Emoji by Microsoft, MIT licence.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="disallowCustomAvatars" />
+                        <span data-i18n="admin.avatars.libraryOnly">Only allow avatars from this library</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.avatars.libraryOnlyHint">Profiles pick from this set instead of uploading. Pictures already chosen stay.</div>
+                </div>
+                <div class="selectContainer jpf-form-narrow">
+                    <label class="selectLabel" for="profileImageQuality" data-i18n="admin.avatars.quality">Picture quality</label>
+                    <select is="emby-select" id="profileImageQuality">
+                        <option value="standard" data-i18n="admin.avatars.qualityStandard">Standard — 512 px, up to 2 MB</option>
+                        <option value="high" data-i18n="admin.avatars.qualityHigh">High — 1024 px, up to 4 MB</option>
+                        <option value="maximum" data-i18n="admin.avatars.qualityMaximum">Maximum — 2048 px, up to 8 MB</option>
+                    </select>
+                    <div class="fieldDescription" data-i18n="admin.avatars.qualityHint">Sharper on big screens, more disk. Applies to new pictures.</div>
+                </div>
                 <div class="buttonContainer">
-                    <button is="emby-button" type="submit" class="raised button-submit block">Save profile &amp; switcher settings</button>
+                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
                 </div>
-            </form>
-            </div><!-- /general -->
 
-            <div class="jpf-tab-panel" id="jpfPanelTv" data-panel="tv" role="tabpanel" hidden>
-            <div class="sectionTitleContainer jpf-section">
-                <h2 class="sectionTitle">TVs &amp; Apps</h2>
-            </div>
-            <div class="fieldDescription jpf-lede">
-                Offer profiles on the sign-in screens of apps that never load the web client — Android TV, Roku, Swiftfin, Findroid and Wholphin. Set each app to ask for sign-in every time, or a saved profile opens without its PIN. Everything here is off by default.
-            </div>
-
-            <div class="checkboxContainer checkboxContainer-withDescription">
-                <label>
-                    <input is="emby-checkbox" type="checkbox" id="enableClientPinLogin" />
-                    <span>Let profiles be opened with their PIN on any app</span>
-                </label>
-                <div class="fieldDescription">
-                    Sign into a profile by typing its PIN where the app asks for a password. A profile with no PIN opens with an empty box, on devices its household has used before.
+                <div class="jpf-upload">
+                    <div class="jpf-actions">
+                        <button is="emby-button" type="button" id="avatarUploadBtn" class="raised" data-i18n="admin.avatars.upload">Upload pictures</button>
+                        <button is="emby-button" type="button" id="avatarFolderBtn" class="raised" data-i18n="admin.avatars.uploadFolder">Upload a folder</button>
+                    </div>
+                    <input class="jpf-hidden" type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" />
+                    <input class="jpf-hidden" type="file" id="avatarFolderInput" webkitdirectory directory multiple />
+                    <div class="fieldDescription" data-i18n="admin.avatars.uploadHint">JPEG, PNG, WebP or GIF. Squared and resized automatically.</div>
+                    <div class="inputContainer jpf-form-narrow jpf-mt-3">
+                        <label class="inputLabel" for="avatarScanPath" data-i18n="admin.avatars.serverFolder">Or copy a folder on the server</label>
+                        <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" />
+                        <div class="fieldDescription" data-i18n="admin.avatars.serverFolderHint">A path on the server, not on this computer.</div>
+                    </div>
+                    <button is="emby-button" type="button" id="avatarScanBtn" class="raised jpf-narrow" data-i18n="admin.avatars.import">Copy from folder</button>
+                    <div class="jpf-hidden jpf-status jpf-status-quiet" id="avatarUploadStatus"></div>
+                    <div class="jpf-hidden jpf-status jpf-status-error" id="avatarUploadError"></div>
                 </div>
-            </div>
-
-            <div class="checkboxContainer checkboxContainer-withDescription">
-                <label>
-                    <input is="emby-checkbox" type="checkbox" id="enableClientProfileList" />
-                    <span>Show profiles on an app's sign-in screen</span>
-                </label>
-                <div class="fieldDescription">
-                    A household's profiles appear in the user list of devices it has signed in on. This changes the sign-in list every app on this server reads.
+                <div class="jpf-avatar-grid" id="avatarLibraryGrid">
+                    <!-- Library avatars rendered here -->
                 </div>
-            </div>
+            </div><!-- /experience -->
 
-            <div class="checkboxContainer checkboxContainer-withDescription">
-                <label>
-                    <input is="emby-checkbox" type="checkbox" id="skipQuickConnectOnKnownDevices" />
-                    <span>Open the PIN field instead of Quick Connect</span>
-                </label>
-                <div class="fieldDescription">
-                    Open the password field instead of a Quick Connect code. The first sign-in on a device still gets Quick Connect.
+            <!-- ── Apps ───────────────────────────────────────────────────────────── -->
+            <div class="jpf-tab-panel" id="jpfPanelApps" data-panel="apps" role="tabpanel" hidden>
+                <div class="sectionTitleContainer jpf-section">
+                    <h2 class="sectionTitle" data-i18n="admin.apps.title">Sign-in on other apps</h2>
                 </div>
-            </div>
-
-            <h3 class="checkboxListLabel jpf-subhead">Profile picker</h3>
-            <div class="fieldDescription">
-                Sign in with the main account, then pick a profile on the app's home screen.
-            </div>
-            <div class="checkboxContainer checkboxContainer-withDescription">
-                <label>
-                    <input is="emby-checkbox" type="checkbox" class="jpfProxyClient" data-proxy-client="moonfin" />
-                    <span>Moonfin</span>
-                </label>
-                <div class="fieldDescription">
-                    Profiles can't sign in directly on Moonfin while this is on.
+                <div class="fieldDescription jpf-lede" data-i18n="admin.apps.lede">For apps that never load the web client: Android TV, Roku, Swiftfin, Findroid and Wholphin. Set each app to ask for sign-in every time, or a saved profile opens without its PIN. All off by default.</div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="enableClientPinLogin" />
+                        <span data-i18n="admin.apps.pinLogin">Let profiles sign in with their PIN</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.apps.pinLoginHint">Type the PIN where the app asks for a password. A profile with no PIN opens with an empty box, on devices its household has used.</div>
                 </div>
-            </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="enableClientProfileList" />
+                        <span data-i18n="admin.apps.profileList">Show profiles on the sign-in screen</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.apps.profileListHint">A household's profiles appear on devices it has signed in on. This changes the user list every app on this server reads.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="skipQuickConnectOnKnownDevices" />
+                        <span data-i18n="admin.apps.skipQuickConnect">Open the password field instead of Quick Connect</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.apps.skipQuickConnectHint">On Android TV, once a household has signed in on that TV. The first sign-in still uses Quick Connect.</div>
+                </div>
 
-            <div class="buttonContainer">
-                <button is="emby-button" type="button" id="saveTvSettings" class="raised button-submit block">Save TV &amp; app settings</button>
-            </div>
-            </div><!-- /tv -->
+                <div class="sectionTitleContainer jpf-section">
+                    <h2 class="sectionTitle" data-i18n="admin.apps.pickerTitle">Profile picker</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.apps.pickerLede">Sign in with the main account, then pick a profile on the app's home screen.</div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" class="jpfProxyClient" data-proxy-client="moonfin" />
+                        <span>Moonfin</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.apps.moonfinHint">Profiles can't sign in directly on Moonfin while this is on.</div>
+                </div>
+                <div class="buttonContainer">
+                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
+                </div>
+            </div><!-- /apps -->
 
-            <div class="jpf-tab-panel" id="jpfPanelNotices" data-panel="notices" role="tabpanel" hidden>
-            <div class="sectionTitleContainer jpf-section">
-                <h2 class="sectionTitle">Announcements</h2>
-            </div>
-            <div class="fieldDescription jpf-lede">
-                Shown on the profile screen to everyone on this server. Apps that support Bonfire can show them too.
-            </div>
-
-            <div class="inputContainer">
-                <label class="textareaLabel" for="annMessage">Message</label>
-                <textarea is="emby-textarea" id="annMessage" rows="3" maxlength="280" class="jpf-ann-text"></textarea>
-                <div class="fieldDescription" id="annCount">0 / 280</div>
-            </div>
-            <div class="selectContainer">
-                <label class="selectLabel" for="annSeverity">Importance</label>
-                <select is="emby-select" id="annSeverity">
-                    <option value="info">Info</option>
-                    <option value="warning">Warning</option>
-                    <option value="critical">Critical</option>
-                </select>
-                <div class="fieldDescription">Info can be dismissed. Warning and Critical stay until they end.</div>
-            </div>
-            <div class="jpf-ann-dates">
+            <!-- ── Messages ───────────────────────────────────────────────────────── -->
+            <div class="jpf-tab-panel" id="jpfPanelMessages" data-panel="messages" role="tabpanel" hidden>
+                <div class="sectionTitleContainer jpf-section">
+                    <h2 class="sectionTitle" data-i18n="admin.ann.title">Announcements</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.ann.lede">Shown on the profile screen to everyone on this server. Apps that support Bonfire can show them too.</div>
                 <div class="inputContainer">
-                    <label class="inputLabel" for="annStarts">Starts</label>
-                    <input is="emby-input" type="datetime-local" id="annStarts" />
-                    <div class="fieldDescription">Blank for now.</div>
+                    <label class="textareaLabel" for="annMessage" data-i18n="admin.ann.message">Message</label>
+                    <textarea is="emby-textarea" id="annMessage" rows="3" maxlength="280" class="jpf-ann-text"></textarea>
+                    <div class="fieldDescription" id="annCount">0 / 280</div>
                 </div>
+                <div class="selectContainer jpf-form-narrow">
+                    <label class="selectLabel" for="annSeverity" data-i18n="admin.ann.severity">Importance</label>
+                    <select is="emby-select" id="annSeverity">
+                        <option value="info" data-i18n="admin.ann.info">Info</option>
+                        <option value="warning" data-i18n="admin.ann.warning">Warning</option>
+                        <option value="critical" data-i18n="admin.ann.critical">Critical</option>
+                    </select>
+                    <div class="fieldDescription" data-i18n="admin.ann.severityHint">Info can be dismissed. Warning and Critical stay until they end.</div>
+                </div>
+                <div class="jpf-ann-dates">
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="annStarts" data-i18n="admin.ann.starts">Starts</label>
+                        <input is="emby-input" type="datetime-local" id="annStarts" />
+                        <div class="fieldDescription" data-i18n="admin.ann.startsHint">Blank for now.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="annEnds" data-i18n="admin.ann.ends">Ends</label>
+                        <input is="emby-input" type="datetime-local" id="annEnds" />
+                        <div class="fieldDescription" data-i18n="admin.ann.endsHint">Blank to keep it until you delete it.</div>
+                    </div>
+                </div>
+                <div class="buttonContainer jpf-ann-actions">
+                    <button is="emby-button" type="button" id="annSave" class="raised button-submit" data-i18n="admin.ann.post">Post announcement</button>
+                    <button is="emby-button" type="button" id="annCancel" class="raised jpf-hidden" data-i18n="admin.ann.cancelEdit">Cancel edit</button>
+                </div>
+                <div class="jpf-hidden jpf-status" id="annResult"></div>
+                <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.ann.posted">Posted</h3>
+                <div id="annList" class="jpf-ann-list jpf-block-end"></div>
+
+                <div class="sectionTitleContainer jpf-section" id="jpfMaintenance">
+                    <h2 class="sectionTitle" data-i18n="admin.mnt.title">Maintenance</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.mnt.lede">Close the server to everyone but administrators, for upgrades and moves. It stays closed until you reopen it.</div>
+                <div id="mntStatus" class="jpf-note">…</div>
                 <div class="inputContainer">
-                    <label class="inputLabel" for="annEnds">Ends</label>
-                    <input is="emby-input" type="datetime-local" id="annEnds" />
-                    <div class="fieldDescription">Blank to keep it until you delete it.</div>
+                    <label class="textareaLabel" for="mntMessage" data-i18n="admin.mnt.message">Message</label>
+                    <textarea is="emby-textarea" id="mntMessage" rows="2" maxlength="280" class="jpf-ann-text" placeholder="The server is closed for maintenance." data-i18n-placeholder="admin.mnt.placeholder"></textarea>
+                    <div class="fieldDescription" data-i18n="admin.mnt.messageHint">Shown to everyone who can't get in.</div>
                 </div>
-            </div>
-            <div class="buttonContainer jpf-ann-actions">
-                <button is="emby-button" type="button" id="annSave" class="raised button-submit">Post announcement</button>
-                <button is="emby-button" type="button" id="annCancel" class="raised jpf-hidden">Cancel edit</button>
-            </div>
-            <div class="jpf-hidden jpf-status" id="annResult"></div>
-
-            <h3 class="checkboxListLabel jpf-subhead">Posted</h3>
-            <div id="annList" class="jpf-ann-list jpf-block-end"></div>
-
-            <div class="sectionTitleContainer jpf-section">
-                <h2 class="sectionTitle">Maintenance</h2>
-            </div>
-            <div class="fieldDescription jpf-lede">
-                Close the server to everyone but administrators, for upgrades and moves. It stays closed until you reopen it.
-            </div>
-            <div id="mntStatus" class="jpf-note">…</div>
-
-            <div class="inputContainer">
-                <label class="textareaLabel" for="mntMessage">Message</label>
-                <textarea is="emby-textarea" id="mntMessage" rows="2" maxlength="280" class="jpf-ann-text" placeholder="The server is closed for maintenance."></textarea>
-                <div class="fieldDescription">Shown to everyone who can't get in.</div>
-            </div>
-            <div class="inputContainer">
-                <label class="inputLabel" for="mntUntil">Back by</label>
-                <input is="emby-input" type="datetime-local" id="mntUntil" />
-                <div class="fieldDescription">Optional. Shown only; it doesn't reopen by itself.</div>
-            </div>
-            <div class="checkboxContainer checkboxContainer-withDescription">
-                <label>
-                    <input is="emby-checkbox" type="checkbox" id="mntStop" />
-                    <span>Stop what people are watching</span>
-                </label>
-                <div class="fieldDescription">Otherwise anything already playing finishes. Nothing new can start.</div>
-            </div>
-            <div class="buttonContainer jpf-ann-actions">
-                <button is="emby-button" type="button" id="mntClose" class="raised button-submit">Close the server</button>
-                <button is="emby-button" type="button" id="mntOpen" class="raised jpf-hidden">Reopen</button>
-            </div>
-            <div class="jpf-hidden jpf-status" id="mntResult"></div>
-            </div><!-- /notices -->
-
-            <div class="jpf-tab-panel" id="jpfPanelAvatars" data-panel="avatars" role="tabpanel" hidden>
-            <div class="sectionTitleContainer jpf-section">
-                <h2 class="sectionTitle">Avatar Library</h2>
-            </div>
-            <div class="fieldDescription jpf-lede">
-                Pictures anyone on this server can pick as their profile picture. On a TV this is the only way to set one.
-            </div>
-
-            <div class="jpf-hidden jpf-note jpf-note-soft" id="avatarMissingWarning">
-                <!-- Filled in when a profile or library entry points at a file that is gone -->
-            </div>
-
-            <div class="checkboxContainer checkboxContainer-withDescription">
-                <label>
-                    <input is="emby-checkbox" type="checkbox" id="enableStarterAvatars" />
-                    <span>Include the starter avatars</span>
-                </label>
-                <div class="fieldDescription">
-                    30 built-in pictures. Fluent Emoji by Microsoft, MIT licence.
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="mntUntil" data-i18n="admin.mnt.until">Back by</label>
+                    <input is="emby-input" type="datetime-local" id="mntUntil" />
+                    <div class="fieldDescription" data-i18n="admin.mnt.untilHint">Optional. Shown only; it doesn't reopen by itself.</div>
                 </div>
-            </div>
-            <div class="checkboxContainer checkboxContainer-withDescription">
-                <label>
-                    <input is="emby-checkbox" type="checkbox" id="disallowCustomAvatars" />
-                    <span>Only allow avatars from this library</span>
-                </label>
-                <div class="fieldDescription">
-                    Users pick from this set instead of uploading. Existing pictures are unchanged.
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="mntStop" />
+                        <span data-i18n="admin.mnt.stop">Stop what people are watching</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.mnt.stopHint">Otherwise anything already playing finishes. Nothing new can start.</div>
                 </div>
-            </div>
-
-            <div class="selectContainer">
-                <select is="emby-select" id="profileImageQuality" label="Picture quality">
-                    <option value="standard">Standard — 512 px, up to 2 MB</option>
-                    <option value="high">High — 1024 px, up to 4 MB</option>
-                    <option value="maximum">Maximum — 2048 px, up to 8 MB</option>
-                </select>
-                <div class="fieldDescription">
-                    Sharper on big screens, more disk. Applies to new pictures.
+                <div class="buttonContainer jpf-ann-actions">
+                    <button is="emby-button" type="button" id="mntClose" class="raised button-submit" data-i18n="admin.mnt.close">Close the server</button>
+                    <button is="emby-button" type="button" id="mntOpen" class="raised jpf-hidden" data-i18n="admin.mnt.open">Reopen</button>
                 </div>
-            </div>
+                <div class="jpf-hidden jpf-status" id="mntResult"></div>
+            </div><!-- /messages -->
 
-            <div style="margin: 1em 0;">
-                <button is="emby-button" type="button" id="avatarUploadBtn" class="raised jpf-narrow">Upload avatars</button>
-                <input class="jpf-hidden" type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" />
-                <button is="emby-button" type="button" id="avatarFolderBtn" class="raised jpf-narrow" style="margin-left:8px;">Upload a folder</button>
-                <input class="jpf-hidden" type="file" id="avatarFolderInput" webkitdirectory directory multiple />
-                <div class="fieldDescription">JPEG, PNG, WebP or GIF. Squared and resized automatically.</div>
-                <div class="inputContainer jpf-form-narrow" style="margin-top:1em;">
-                    <label class="inputLabel" for="avatarScanPath">Or import a folder from the server</label>
-                    <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" />
-                    <div class="fieldDescription">A path on the server, not on this computer. Pictures are copied in.</div>
-                </div>
-                <button is="emby-button" type="button" id="avatarScanBtn" class="raised jpf-narrow">Import from folder</button>
-
-                <div class="jpf-hidden jpf-status jpf-status-quiet" id="avatarUploadStatus"></div>
-                <div class="jpf-hidden jpf-status jpf-status-error" id="avatarUploadError"></div>
-            </div>
-
-            <div class="jpf-avatar-grid" id="avatarLibraryGrid">
-                <!-- Library avatars rendered here -->
-            </div>
-            </div><!-- /avatars -->
-
-            <div class="jpf-tab-panel" id="jpfPanelAdvanced" data-panel="advanced" role="tabpanel" hidden>
-            <div class="sectionTitleContainer jpf-section">
-                <h2 class="sectionTitle">Client Script</h2>
-            </div>
-            <div class="fieldDescription jpf-lede">
-                How Bonfire's script reaches the web client. Leave this alone unless something is broken.
-            </div>
-
-            <div class="selectContainer">
-                <label class="selectLabel" for="indexInjectionMode">Method</label>
-                <select is="emby-select" id="indexInjectionMode">
-                    <option value="middleware">Serve it live, never touch index.html</option>
-                    <option value="both">Patch index.html, fall back to serving it live (legacy)</option>
-                    <option value="file">Patch index.html only (legacy)</option>
-                </select>
-                <div class="fieldDescription" id="indexInjectionModeHelp"></div>
-                <div class="fieldDescription jpf-mt-1" id="middlewareStatusLine"></div>
-            </div>
-
-            <div class="buttonContainer jpf-block-end">
-                <button is="emby-button" type="button" id="saveInjectionMode" class="raised jpf-narrow">Save method</button>
-            </div>
-
-            <div class="sectionTitleContainer jpf-section">
-                <h2 class="sectionTitle">Backup</h2>
-            </div>
-            <div class="fieldDescription jpf-lede">
-                Export writes a copy of every profile, PIN, Bonfire, device and avatar record. Import replaces all of it. <strong>The file contains PIN hashes</strong>, so keep it somewhere safe.
-            </div>
-            <div class="jpf-backup-row">
-                <button is="emby-button" type="button" id="exportConfigBtn" class="raised">
-                    <span>Export configuration</span>
-                </button>
-                <button is="emby-button" type="button" id="importConfigBtn" class="raised">
-                    <span>Import configuration</span>
-                </button>
-                <input type="file" id="importConfigFile" accept="application/json,.json" hidden />
-            </div>
-            <div class="jpf-result" id="backupResult" style="margin-bottom:2em;"></div>
-            <div class="sectionTitleContainer jpf-section">
-                <h2 class="sectionTitle">Emergency Disable Code</h2>
-            </div>
-            <div class="jpf-note jpf-note-soft" style="padding:14px 18px;font-size:0.94rem;">
-                <strong class="jpf-label-block">&#9888;&nbsp; Read this before turning it on</strong>
-                Entering this code shuts Bonfire down until Jellyfin restarts.
-                <br><br>
-                <strong>The cost:</strong> anyone with the code can skip the profile prompt on a device that is
-                already signed in. On a TV left on the master account, that means the master's library.
-                Other profiles still need their PIN, and parental controls are unaffected.
-                <br><br>
-                No password is asked for, so make it long.
-            </div>
-
-            <div id="panicStatusLine" class="fieldDescription jpf-lede">…</div>
-
-            <div class="inputContainer">
-                <label class="inputLabel" for="panicCodeInput">Emergency disable code</label>
-                <input is="emby-input" type="text" id="panicCodeInput" autocomplete="off" placeholder="At least 10 characters" />
-                <div class="fieldDescription">
-                    Save blank to turn it off. The code cannot be shown again, so write it down somewhere off this server.
-                </div>
-            </div>
-            <div class="jpf-block-end">
-                <button is="emby-button" type="button" id="savePanicCode" class="raised block jpf-narrow">Save code</button>
-                <div class="jpf-hidden jpf-status" id="panicCodeResult"></div>
-            </div>
-            </div><!-- /advanced -->
-
-            <div class="jpf-tab-panel" id="jpfPanelAccounts" data-panel="accounts" role="tabpanel" hidden>
-            <div class="sectionTitleContainer jpf-section">
-                <h2 class="sectionTitle">Accounts &amp; Profiles</h2>
-            </div>
-            <div class="fieldDescription jpf-lede">
-                Every master account, and the sub-profiles under it. Administrators can reset any PIN.
-            </div>
-            <div class="paperList jpf-block-end" id="masterUsersList">
-                <!-- Master accounts, each with its sub-profiles nested inside -->
-            </div>
-            <div class="sectionTitleContainer" style="margin-top: 2em;">
-                <h2 class="sectionTitle">Orphaned Profiles</h2>
-            </div>
-            <div class="fieldDescription jpf-lede">
-                Records left behind when a profile is deleted through Jellyfin instead of Bonfire. They still count against a household's profile limit. Scanning changes nothing.
-            </div>
-            <button is="emby-button" type="button" id="scanOrphansBtn" class="raised">
-                <span>Scan for orphans</span>
-            </button>
-            <div class="jpf-result jpf-mt-2" id="orphansResult"></div>
-
-            <div class="sectionTitleContainer jpf-section">
-                <h2 class="sectionTitle">Signed-in Devices</h2>
-            </div>
-            <div class="fieldDescription jpf-lede">
-                Every live session, with the household each sub-profile belongs to.
-            </div>
-            <button is="emby-button" type="button" id="refreshSessionsBtn" class="raised">
-                <span>Refresh</span>
-            </button>
-            <div class="paperList jpf-block-end jpf-mt-2" id="profileSessionsList"></div>
-            </div><!-- /accounts -->
-
+            <!-- ── Activity ───────────────────────────────────────────────────────── -->
             <div class="jpf-tab-panel" id="jpfPanelActivity" data-panel="activity" role="tabpanel" hidden>
-            <div class="sectionTitleContainer jpf-section">
-                <h2 class="sectionTitle">Profile Switch Audit Logs</h2>
-            </div>
-            <div class="fieldDescription jpf-lede">
-                The 1,000 most recent profile switches on this server.
-            </div>
-            <div class="jpf-audit-controls">
-                <div class="jpf-audit-field jpf-audit-filter">
-                    <label for="auditFilter">Account or profile</label>
-                    <input is="emby-input" type="search" id="auditFilter" placeholder="Any name" />
+                <div class="sectionTitleContainer jpf-section">
+                    <h2 class="sectionTitle" data-i18n="admin.audit.title">Profile switches</h2>
                 </div>
-                <div class="jpf-audit-field">
-                    <label for="auditFrom">From</label>
-                    <input is="emby-input" type="date" id="auditFrom" />
+                <div class="fieldDescription jpf-lede" data-i18n="admin.audit.lede">The last 1,000 switches on this server. Profiles added, PIN lockouts and maintenance are in Dashboard → Activity.</div>
+                <div class="jpf-audit-controls">
+                    <div class="jpf-audit-field jpf-audit-filter">
+                        <label for="auditFilter" data-i18n="admin.audit.filter">Account or profile</label>
+                        <input is="emby-input" type="search" id="auditFilter" placeholder="Any name" data-i18n-placeholder="admin.audit.filterPlaceholder" />
+                    </div>
+                    <div class="jpf-audit-field">
+                        <label for="auditFrom" data-i18n="admin.audit.from">From</label>
+                        <input is="emby-input" type="date" id="auditFrom" />
+                    </div>
+                    <div class="jpf-audit-field">
+                        <label for="auditTo" data-i18n="admin.audit.to">To</label>
+                        <input is="emby-input" type="date" id="auditTo" />
+                    </div>
+                    <button is="emby-button" type="button" id="auditClear" class="raised">
+                        <span data-i18n="admin.audit.clear">Clear</span>
+                    </button>
+                    <button is="emby-button" type="button" id="auditDownload" class="raised">
+                        <span data-i18n="admin.audit.download">Download JSON</span>
+                    </button>
                 </div>
-                <div class="jpf-audit-field">
-                    <label for="auditTo">To</label>
-                    <input is="emby-input" type="date" id="auditTo" />
+                <div class="jpf-audit-count" id="auditCount"></div>
+                <div class="paperList jpf-block-end jpf-scroll-list" id="auditLogsList">
+                    <!-- Audit logs dynamically loaded here -->
                 </div>
-                <button is="emby-button" type="button" id="auditClear" class="raised">
-                    <span>Clear</span>
-                </button>
-                <button is="emby-button" type="button" id="auditDownload" class="raised">
-                    <span>Download JSON</span>
-                </button>
-            </div>
-            <div class="jpf-audit-count" id="auditCount"></div>
-            <div class="paperList jpf-block-end jpf-scroll-list" id="auditLogsList">
-                <!-- Audit logs dynamically loaded here -->
-            </div>
             </div><!-- /activity -->
+
+            <!-- ── Troubleshoot ───────────────────────────────────────────────────── -->
+            <div class="jpf-tab-panel" id="jpfPanelTroubleshoot" data-panel="troubleshoot" role="tabpanel" hidden>
+                <div class="sectionTitleContainer jpf-section">
+                    <h2 class="sectionTitle" data-i18n="admin.help.title">Common problems</h2>
+                </div>
+                <div class="jpf-faq">
+                    <details>
+                        <summary data-i18n="admin.help.noSwitcherQ">The switcher doesn't appear</summary>
+                        <p data-i18n="admin.help.noSwitcherA1">Restart Jellyfin after installing or updating Bonfire: the old version runs until the server process restarts. On Docker, restart the container; the dashboard's Restart button often doesn't.</p>
+                        <p data-i18n="admin.help.noSwitcherA2">An index.html with no Bonfire tag in it is normal. Bonfire adds its script as the page is served. Check Client script below to see it working.</p>
+                    </details>
+                    <details>
+                        <summary data-i18n="admin.help.appsQ">It works in a browser but not in an app</summary>
+                        <p data-i18n="admin.help.appsA">Only apps that load the web client from your server show the switcher. For other apps, turn on sign-in with a PIN under Apps. Parental controls apply in every app either way.</p>
+                    </details>
+                    <details>
+                        <summary data-i18n="admin.help.librariesQ">A profile's library access keeps reverting</summary>
+                        <p data-i18n="admin.help.librariesA">Change a profile's libraries in Edit Profile, not in Dashboard → Users. Adding one there sticks; removing one doesn't, because it looks the same as Jellyfin resetting the account.</p>
+                    </details>
+                    <details>
+                        <summary data-i18n="admin.help.pinQ">Someone forgot their PIN</summary>
+                        <p data-i18n="admin.help.pinA">Clear it under Households. The account can then set a new one.</p>
+                    </details>
+                    <details>
+                        <summary data-i18n="admin.help.lockedQ">Bonfire is in the way and I can't get in</summary>
+                        <p data-i18n="admin.help.lockedA">Enter the emergency disable code on any Bonfire screen, or press Ctrl+Shift+B. Set one under Security before you need it. If the script doesn't load at all, restart Jellyfin.</p>
+                    </details>
+                </div>
+
+                <div class="sectionTitleContainer jpf-section">
+                    <h2 class="sectionTitle" data-i18n="admin.report.title">Report a problem</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.report.lede">Copies versions, settings and counts to paste into a GitHub issue. No names, ids, addresses or PINs.</div>
+                <div class="jpf-actions">
+                    <button is="emby-button" type="button" id="copyReportBtn" class="raised" data-i18n="admin.report.copy">Copy report</button>
+                    <a is="emby-linkbutton" class="raised button-link" href="https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues" target="_blank" rel="noopener noreferrer" data-i18n="admin.report.open">Open GitHub issues</a>
+                </div>
+                <div class="jpf-hidden jpf-status" id="copyReportResult"></div>
+                <textarea id="reportText" class="jpf-report jpf-hidden" rows="12" readonly></textarea>
+
+                <details class="jpf-advanced jpf-section">
+                    <summary data-i18n="admin.advanced.title">Advanced</summary>
+
+                    <div class="sectionTitleContainer jpf-section" id="jpfClientScript">
+                        <h2 class="sectionTitle" data-i18n="admin.script.title">Client script</h2>
+                    </div>
+                    <div class="fieldDescription jpf-lede" data-i18n="admin.script.lede">How Bonfire's script reaches the web client. Leave this alone unless something is broken.</div>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="indexInjectionMode" data-i18n="admin.script.method">Method</label>
+                        <select is="emby-select" id="indexInjectionMode">
+                            <option value="middleware" data-i18n="admin.script.middleware">Serve it live, never touch index.html</option>
+                            <option value="both" data-i18n="admin.script.both">Patch index.html, fall back to serving it live (legacy)</option>
+                            <option value="file" data-i18n="admin.script.file">Patch index.html only (legacy)</option>
+                        </select>
+                        <div class="fieldDescription" id="indexInjectionModeHelp"></div>
+                        <div class="fieldDescription jpf-mt-1" id="middlewareStatusLine"></div>
+                    </div>
+                    <div class="buttonContainer jpf-block-end">
+                        <button is="emby-button" type="button" id="saveInjectionMode" class="raised jpf-narrow" data-i18n="admin.script.save">Save method</button>
+                    </div>
+
+                    <div class="sectionTitleContainer jpf-section">
+                        <h2 class="sectionTitle" data-i18n="admin.backup.title">Backup</h2>
+                    </div>
+                    <div class="fieldDescription jpf-lede" data-i18n="admin.backup.lede">Export saves every profile, PIN, Bonfire, device and avatar record. Import replaces all of it. The file holds PIN hashes, so keep it somewhere safe.</div>
+                    <div class="jpf-backup-row">
+                        <button is="emby-button" type="button" id="exportConfigBtn" class="raised">
+                            <span data-i18n="admin.backup.export">Export</span>
+                        </button>
+                        <button is="emby-button" type="button" id="importConfigBtn" class="raised">
+                            <span data-i18n="admin.backup.import">Import</span>
+                        </button>
+                        <input type="file" id="importConfigFile" accept="application/json,.json" hidden />
+                    </div>
+                    <div class="jpf-result jpf-block-end" id="backupResult"></div>
+                </details>
+            </div><!-- /troubleshoot -->
         </div>
     </div>
 
@@ -963,6 +1023,8 @@
                     });
                     try { localStorage.setItem('bonfire-admin-tab', name); } catch (e) { /* private mode */ }
                 }
+                // For Status's links. Unknown names are ignored, as for a stored tab.
+                page._showTab = function (name) { if (names.indexOf(name) >= 0) show(name); };
 
                 if (!page.dataset.tabsBound) {
                     page.dataset.tabsBound = '1';
@@ -996,6 +1058,8 @@
                     page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
                     page.querySelector('#requireMasterPin').checked = config.RequireMasterPinForCreation;
                     page.querySelector('#requireMainPin').checked = !!config.RequireMainPin;
+                    page.dataset.requireMainPin = config.RequireMainPin ? '1' : '';
+                    page._config = config;
                     page.querySelector('#disallowCustomAvatars').checked = !!config.DisallowCustomAvatarUploads;
                     // On unless switched off, including on a configuration saved before the setting existed.
                     page.querySelector('#enableStarterAvatars').checked = config.EnableStarterAvatars !== false;
@@ -1031,6 +1095,7 @@
                     loadPanicStatus(page);
                     loadAnnouncements(page);
                     loadMaintenance(page);
+                    loadOrphanStatus(page);
                 }).catch(function (err) {
                     console.error("Failed to load plugin configuration:", err);
                     Dashboard.hideLoadingMsg();
@@ -1212,6 +1277,16 @@
                 if (warningContainer) warningContainer.style.display = failed ? 'block' : 'none';
                 if (staleContainer) staleContainer.style.display = stale ? 'block' : 'none';
                 if (okContainer) okContainer.style.display = (!restartRequired && !failed && !stale) ? 'block' : 'none';
+
+                // The banners above the tabs say this in full; Status lists it with the rest.
+                setStatus(page, 'script',
+                    restartRequired ? [{ level: 'warn', text: 'Restart Jellyfin to finish updating Bonfire.' }]
+                    : failed ? [{ level: 'bad', text: 'The client script isn\'t reaching the web client, so the switcher won\'t load.', tab: 'troubleshoot', anchor: 'jpfClientScript', fix: 'Check it' }]
+                    : stale ? [{ level: 'info', text: 'The script tag in index.html is out of date. Browsers catch up within minutes.' }]
+                    : [{ level: 'ok', text: 'The client script is installed and up to date.' }]);
+                if (ver && /-(beta|alpha|rc)/i.test(ver)) {
+                    setStatus(page, 'beta', [{ level: 'info', text: 'This is a pre-release build. Please report anything that looks wrong.', tab: 'troubleshoot', fix: 'Report' }]);
+                }
 
                 const patchesFile = (mode === 'file' || mode === 'both');
 
@@ -1403,6 +1478,7 @@
             function loadMappings(page) {
                 const url = ApiClient.getUrl('plugins/profiles/admin/mappings');
                 ApiClient.getJSON(url).then(function (result) {
+                    page._mappings = result;
                     renderInjectionStatus(page, result);
 
                     const masterContainer = page.querySelector('#masterUsersList');
@@ -1420,6 +1496,19 @@
                         if (!subsByMaster[key]) subsByMaster[key] = [];
                         subsByMaster[key].push(s);
                     });
+
+                    // An account with profiles and no PIN: any of those profiles can switch
+                    // into it, past every restriction it was given.
+                    const open = masterUsers.filter(function (m) {
+                        return field(m, 'requiresPin') !== true && (subsByMaster[normId(field(m, 'profileUserId'))] || []).length > 0;
+                    }).length;
+                    const required = page.dataset.requireMainPin === '1';
+                    setStatus(page, 'pins', open
+                        ? [{ level: required ? 'warn' : 'info',
+                             text: open + (open === 1 ? ' account has' : ' accounts have') + ' profiles but no PIN, so those profiles can switch into it.',
+                             tab: required ? 'households' : 'security', anchor: required ? 'jpfAccounts' : 'jpfPins',
+                             fix: required ? 'See which' : 'Require PINs' }]
+                        : []);
 
                     // Neither state is an error, so neither gets an error colour. This was
                     // red for protected and green for unprotected, i.e. exactly backwards.
@@ -2314,7 +2403,7 @@
                         return img && String(img).indexOf('/plugins/profiles/image/') === 0;
                     });
 
-                    if (!all.length) { page.querySelector('#avatarMissingWarning').style.display = 'none'; return; }
+                    if (!all.length) { renderAvatarHealth(page, []); return; }
 
                     let pending = all.length;
                     const missing = [];
@@ -2332,6 +2421,9 @@
             }
 
             function renderAvatarHealth(page, missing) {
+                setStatus(page, 'avatars', missing.length
+                    ? [{ level: 'info', text: missing.length + (missing.length === 1 ? ' profile picture is' : ' profile pictures are') + ' missing from disk.', tab: 'experience', anchor: 'jpfAvatars', fix: 'See which' }]
+                    : []);
                 const el = page.querySelector('#avatarMissingWarning');
                 if (!missing.length) { el.style.display = 'none'; return; }
                 el.style.display = 'block';
@@ -2598,6 +2690,9 @@
                 page.querySelector('#mntStop').checked = !!field(state, 'stopPlayback');
                 page.querySelector('#mntClose').textContent = on ? 'Save changes' : 'Close the server';
                 page.querySelector('#mntOpen').classList.toggle('jpf-hidden', !on);
+                setStatus(page, 'maintenance', on
+                    ? [{ level: 'warn', text: 'The server is closed for maintenance. Only administrators can use it.', tab: 'messages', anchor: 'jpfMaintenance', fix: 'Reopen' }]
+                    : []);
             }
 
             function loadMaintenance(page) {
@@ -2669,6 +2764,10 @@
                 }).then(function (data) {
                     const configured = field(data, 'isConfigured');
                     const disabled = field(data, 'isCurrentlyDisabled');
+                    setStatus(page, 'panic', disabled
+                        ? [{ level: 'bad', text: 'Bonfire was switched off with the emergency code. Restart Jellyfin to turn it back on.' }]
+                        : configured ? []
+                        : [{ level: 'info', text: 'No emergency disable code is set.', tab: 'security', anchor: 'jpfEmergency', fix: 'Set one' }]);
                     const line = page.querySelector('#panicStatusLine');
                     if (disabled) {
                         line.innerHTML = '<span style="color:#ff9900; font-weight:600;">Bonfire is currently disabled.</span> ' +
@@ -2712,6 +2811,154 @@
                 }).catch(function (err) {
                     console.error('Failed to save the emergency code:', err);
                     show('The server rejected that code.', false);
+                });
+            }
+
+            // ── Status ────────────────────────────────────────────────────────────
+            //
+            // Each loader reports its own part as it arrives, so Status costs no requests of
+            // its own beyond the orphan scan, and never shows something the tab it links to
+            // would disagree with: both are drawn from the same answer.
+            const STATUS_ORDER = ['script', 'panic', 'maintenance', 'pins', 'orphans', 'avatars', 'beta'];
+            const LEVEL_RANK = { bad: 0, warn: 1, info: 2, ok: 3 };
+            const LEVEL_LABEL = { bad: 'Problem', warn: 'Attention', info: 'Note', ok: 'OK' };
+
+            function setStatus(page, part, items) {
+                page._status = page._status || {};
+                page._status[part] = items || [];
+                renderStatus(page);
+            }
+
+            function renderStatus(page) {
+                const list = page.querySelector('#statusChecks');
+                const summary = page.querySelector('#statusSummary');
+                if (!list || !summary) return;
+
+                const items = [];
+                STATUS_ORDER.forEach(function (part) {
+                    (page._status[part] || []).forEach(function (it) { items.push(it); });
+                });
+                items.sort(function (a, b) { return LEVEL_RANK[a.level] - LEVEL_RANK[b.level]; });
+
+                const needing = items.filter(function (it) { return it.level === 'bad' || it.level === 'warn'; }).length;
+                summary.textContent = needing === 0
+                    ? 'Nothing needs your attention.'
+                    : needing === 1 ? '1 thing needs your attention.' : needing + ' things need your attention.';
+
+                // Built as elements, not a string: the text is ours, but a count or a name
+                // in it one day should not become markup.
+                list.textContent = '';
+                items.forEach(function (it) {
+                    const row = document.createElement('div');
+                    row.className = 'jpf-check';
+                    row.setAttribute('data-level', it.level);
+                    const chip = document.createElement('span');
+                    chip.className = 'jpf-check-level';
+                    chip.textContent = LEVEL_LABEL[it.level];
+                    const text = document.createElement('span');
+                    text.className = 'jpf-check-text';
+                    text.textContent = it.text;
+                    row.appendChild(chip);
+                    row.appendChild(text);
+                    if (it.tab && it.fix) {
+                        const go = document.createElement('button');
+                        go.type = 'button';
+                        go.className = 'raised button-mini jpf-check-fix';
+                        go.textContent = it.fix;
+                        go.addEventListener('click', function () { goTo(page, it.tab, it.anchor); });
+                        row.appendChild(go);
+                    }
+                    list.appendChild(row);
+                });
+            }
+
+            function goTo(page, tab, anchor) {
+                if (page._showTab) page._showTab(tab);
+                const target = anchor ? page.querySelector('#' + anchor) : null;
+                if (!target) return;
+                const advanced = target.closest('details');
+                if (advanced) advanced.open = true;
+                target.scrollIntoView({ block: 'start' });
+            }
+
+            // The dry run of the orphan cleanup: changes nothing, and is what the
+            // Households scan shows in full.
+            function loadOrphanStatus(page) {
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('plugins/profiles/admin/cleanup-orphans'),
+                    dataType: 'json'
+                }).then(function (data) {
+                    const n = (data.orphans || []).length + (data.deadGroups || []).length + (data.deadMembers || []).length;
+                    setStatus(page, 'orphans', n
+                        ? [{ level: 'info', text: n + (n === 1 ? ' leftover record points' : ' leftover records point') + ' at deleted accounts.', tab: 'households', anchor: 'jpfOrphans', fix: 'Clean up' }]
+                        : []);
+                }, function () { /* the scan button reports its own failure */ });
+            }
+
+            // ── Report ────────────────────────────────────────────────────────────
+            //
+            // What a bug report needs, and nothing that identifies anyone: versions, which
+            // settings are on, how many of each thing there are, and what the script is
+            // doing. No names, ids, addresses, device names or hashes.
+            function buildReport(page) {
+                const c = page._config || {};
+                const r = page._mappings || {};
+                const m = field(r, 'mechanism') || {};
+                const masters = field(r, 'masterUsers') || [];
+                const subs = field(r, 'subProfiles') || [];
+                const on = function (v) { return v ? 'on' : 'off'; };
+                return ApiClient.getJSON(ApiClient.getUrl('System/Info/Public')).catch(function () { return {}; }).then(function (sys) {
+                    const lines = [
+                        'Bonfire ' + (page.dataset.pluginVersion || '?'),
+                        'Jellyfin ' + (sys.Version || '?'),
+                        'Browser: ' + navigator.userAgent,
+                        '',
+                        'Client script: ' + (field(r, 'injectionSucceeded') === false ? 'FAILED' : 'ok')
+                            + (field(r, 'isVersionStale') ? ', tag out of date' : ''),
+                        'Method: ' + (field(m, 'mode') || '?')
+                            + ', live injection ' + (field(m, 'middlewareRegistered') ? 'attached' : 'not attached')
+                            + ', pages served ' + (field(m, 'middlewareServed') || 0),
+                        'Restart pending: ' + (field(m, 'restartRequired') ? 'yes' : 'no'),
+                        'Failure reason: ' + (field(r, 'failureReason') ? 'see dashboard' : 'none'),
+                        '',
+                        'Main accounts: ' + masters.length + ', profiles: ' + subs.length
+                            + ', main accounts without a PIN: ' + masters.filter(function (x) { return field(x, 'requiresPin') !== true; }).length,
+                        'Profiles per account: ' + (c.MaxProfilesPerUser || 5),
+                        'Require main PIN: ' + on(c.RequireMainPin) + ', PIN to add a profile: ' + on(c.RequireMasterPinForCreation),
+                        'PIN sign-in on apps: ' + on(c.EnableClientPinLogin) + ', profiles on sign-in screens: ' + on(c.EnableClientProfileList)
+                            + ', skip Quick Connect: ' + on(c.SkipQuickConnectOnKnownDevices),
+                        'Profile picker apps: ' + ((c.ProxyClients || []).join(', ') || 'none'),
+                        'Ask on startup: ' + on(c.DefaultAskOnStartup !== false) + ', switch from: ' + (c.DefaultSwitcherLocation || 'button'),
+                        'Theme: ' + (c.DefaultTheme || 'bonfire') + ', profiles choose: ' + on(c.AllowProfileThemes !== false),
+                        'Maintenance: ' + ((page._status && (page._status.maintenance || []).length) ? 'closed' : 'open'),
+                        'Emergency code: ' + (c.PanicCodeHash ? 'set' : 'not set'),
+                    ];
+                    return lines.join('\n');
+                });
+            }
+
+            function bindReport(page) {
+                const btn = page.querySelector('#copyReportBtn');
+                if (!btn || btn.dataset.bound) return;
+                btn.dataset.bound = '1';
+                btn.addEventListener('click', function () {
+                    const result = page.querySelector('#copyReportResult');
+                    const box = page.querySelector('#reportText');
+                    buildReport(page).then(function (text) {
+                        box.value = text;
+                        box.classList.remove('jpf-hidden');
+                        const shown = function (msg) { result.textContent = msg; result.classList.remove('jpf-hidden'); };
+                        // The clipboard API needs a secure page; plain http on a LAN is common.
+                        // The box below stays either way, to select by hand.
+                        if (navigator.clipboard && window.isSecureContext) {
+                            navigator.clipboard.writeText(text).then(function () { shown('Copied.'); },
+                                function () { box.select(); shown('Select the text below and copy it.'); });
+                        } else {
+                            box.select();
+                            shown('Select the text below and copy it.');
+                        }
+                    });
                 });
             }
 
@@ -2790,29 +3037,23 @@
                     modeSelect.addEventListener('change', function () { updateInjectionModeHelp(page); });
                 }
 
-                // The method moved to Advanced, so it is no longer inside the General form and
-                // its Save button. saveConfiguration reads every field by id from the page, so
-                // it saves correctly from either tab.
+                // The method is under Troubleshoot → Advanced, with a Save of its own.
                 const saveModeBtn = page.querySelector('#saveInjectionMode');
                 if (saveModeBtn && !saveModeBtn.dataset.bound) {
                     saveModeBtn.dataset.bound = '1';
                     saveModeBtn.addEventListener('click', function () { saveConfiguration(page); });
                 }
 
-                // Same reason as above: these three moved out of the General form into their
-                // own tab, so they are no longer inside that form's submit. saveConfiguration
-                // reads every field by id from the page, so it saves correctly from either.
-                const saveTvBtn = page.querySelector('#saveTvSettings');
-                if (saveTvBtn && !saveTvBtn.dataset.bound) {
-                    saveTvBtn.dataset.bound = '1';
-                    saveTvBtn.addEventListener('click', function () { saveConfiguration(page); });
-                }
-                page.querySelector('form').addEventListener('submit', function (e) {
-                    e.preventDefault();
-                    saveConfiguration(page);
-                    return false;
+                // One Save per tab, all sending the same settings: saveConfiguration reads
+                // every field by id from the page, whichever tab it sits in, so a Save never
+                // writes a stale copy of another tab's fields.
+                page.querySelectorAll('.jpf-save-settings').forEach(function (btn) {
+                    if (btn.dataset.bound) return;
+                    btn.dataset.bound = '1';
+                    btn.addEventListener('click', function () { saveConfiguration(page); });
                 });
                 initTabs(page);
+                bindReport(page);
                 bindAnnouncements(page);
                 bindMaintenance(page);
                 bindOrphanScan(page);
