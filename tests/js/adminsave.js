@@ -59,6 +59,7 @@ async function run(fieldValues) {
     const fields = Object.assign({
         maxProfiles: '5',
         requireMainPin: false,
+        enablePinResetByEmail: false,
         disallowCustomAvatars: false,
         enableStarterAvatars: true,
         defaultAskOnStartup: true,
@@ -202,6 +203,7 @@ console.log('\n── It sends the six settings and nothing else ─────
 const expected = [
     'maxProfilesPerUser',
     'requireMainPin',
+    'enablePinResetByEmail',
     'disallowCustomAvatarUploads',
     'enableStarterAvatars',
     'defaultAskOnStartup',
@@ -300,6 +302,7 @@ console.log('\n── The other five are read from the page ──────�
 
 const flipped = await run({
     requireMainPin: true,
+    enablePinResetByEmail: true,
     disallowCustomAvatars: true,
     defaultAskOnStartup: false,
     defaultSwitcherLocation: 'menu',
@@ -307,6 +310,7 @@ const flipped = await run({
 });
 const flippedBody = sent(flipped);
 ok('requireMainPin follows the checkbox', flippedBody.requireMainPin === true && sent(await run({})).requireMainPin === false);
+ok('enablePinResetByEmail follows the checkbox', flippedBody.enablePinResetByEmail === true && sent(await run({})).enablePinResetByEmail === false);
 ok('disallowCustomAvatarUploads follows the checkbox', flippedBody.disallowCustomAvatarUploads === true);
 ok('defaultAskOnStartup follows the checkbox', flippedBody.defaultAskOnStartup === false);
 ok('defaultSwitcherLocation follows the select', flippedBody.defaultSwitcherLocation === 'menu');

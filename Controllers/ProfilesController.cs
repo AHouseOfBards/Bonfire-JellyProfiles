@@ -4750,10 +4750,14 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest("First-time setup steps must be from: " + string.Join(", ", OnboardingSteps.All) + ".");
             }
             // The dependency rule: nothing that needs email can be turned on until it works.
+            // Turned ON, not kept on: the dashboard sends every field on every save, so
+            // refusing a switch that is already on would fail every unrelated save from the
+            // moment email broke. While it is broken the feature reports unavailable anyway
+            // (Features.Available), so keeping the switch costs nothing.
             if (request.EnablePinResetByEmail == true)
             {
                 var current = ReadConfigSnapshot();
-                if (current == null || !Features.Available(Features.Email, current))
+                if (current == null || (!current.EnablePinResetByEmail && !Features.Available(Features.Email, current)))
                     return BadRequest("Set up email and send a test first.");
             }
 

@@ -311,6 +311,12 @@ Admin("UpdateEmailSettings", B(("Host", "smtp.broken.example.com")));
 Ok("when email stops working, PIN reset is unavailable with its switch still on",
    (bool)cfgType.GetProperty("EnablePinResetByEmail").GetValue(config) && !Available("pinResetByEmail") && !InfoPinReset());
 Ok("and what it is missing is named", MissingFor("pinResetByEmail") == "email");
+// The dashboard sends every field on every save. A switch already on must not make an
+// unrelated save fail just because email broke since.
+r = Admin("UpdateAdminSettings", B(("EnablePinResetByEmail", (bool?)true), ("MaxProfilesPerUser", (int?)6)));
+Ok("an unrelated save still goes through with the switch on", r.status == 200
+   && (int)cfgType.GetProperty("MaxProfilesPerUser").GetValue(config) == 6, r.status + " " + r.value);
+Ok("(and PIN reset is still unavailable)", !Available("pinResetByEmail"));
 Admin("UpdateEmailSettings", B(("Host", "smtp.example.com")));
 Admin("TestEmailSettings", B(("To", "admin@example.com")));
 Ok("a feature with nothing missing names nothing", MissingFor("pinResetByEmail") == null && Available("pinResetByEmail"));

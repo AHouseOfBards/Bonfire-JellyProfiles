@@ -1700,7 +1700,7 @@ anything added since you read it.
 | `onboardingSteps` | string[] | Steps to offer: `welcome`, `mainPin`, `resetEmail`, `firstProfile`, `switcher`, `theme`. |
 | `onboardingRequiredSteps` | string[] | Steps that can't be skipped. |
 | `onboardingWelcomeText` | string | Plain text for the first screen, up to 500 characters. |
-| `enablePinResetByEmail` | boolean | Main accounts may [reset a forgotten PIN by email](#email). `400` while email isn't working. |
+| `enablePinResetByEmail` | boolean | Main accounts may [reset a forgotten PIN by email](#email). `400` turning it on while email isn't working; one already on stays on. |
 
 `400` if any field is out of range, and then nothing is changed.
 

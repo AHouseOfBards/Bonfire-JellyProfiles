@@ -223,6 +223,13 @@
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 0 1.5em;
     }
+    /* Server and port on one line, the port narrow. */
+    #profilesConfigurationPage .jpf-email-server {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 8em;
+        gap: 0 1.5em;
+        max-width: 40em;
+    }
     #profilesConfigurationPage .jpf-ann-actions { display: flex; gap: 0.75em; flex-wrap: wrap; }
     #profilesConfigurationPage .jpf-ann-list { display: grid; gap: 10px; }
     #profilesConfigurationPage .jpf-ann-item {
@@ -614,6 +621,14 @@
                     </label>
                     <div class="fieldDescription" data-i18n="admin.security.requireMainPinHint">Profiles and settings can't be changed until the account sets one.</div>
                 </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="enablePinResetByEmail" />
+                        <span data-i18n="admin.security.pinResetByEmail">Let main accounts reset a forgotten PIN by email</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.security.pinResetByEmailHint">A code goes to the address the account confirmed.</div>
+                    <div class="fieldDescription jpf-hidden" id="pinResetNeedsEmail"></div>
+                </div>
                 <div class="buttonContainer jpf-block-end">
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
                 </div>
@@ -911,6 +926,60 @@
                     <button is="emby-button" type="button" id="mntOpen" class="raised jpf-hidden" data-i18n="admin.mnt.open">Reopen</button>
                 </div>
                 <div class="jpf-hidden jpf-status" id="mntResult"></div>
+
+                <div class="sectionTitleContainer jpf-section" id="jpfEmail">
+                    <h2 class="sectionTitle" data-i18n="admin.email.title">Email</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.email.lede">Lets main accounts get a code for a forgotten PIN, and notices they ask for. Use your mail provider's SMTP settings.</div>
+                <div id="emailStatus" class="jpf-note">…</div>
+                <div class="jpf-email-server">
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="emailHost" data-i18n="admin.email.host">Server</label>
+                        <input is="emby-input" type="text" id="emailHost" autocomplete="off" placeholder="smtp.example.com" data-i18n-placeholder="admin.email.hostPlaceholder" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="emailPort" data-i18n="admin.email.port">Port</label>
+                        <input is="emby-input" type="number" id="emailPort" min="1" max="65535" />
+                    </div>
+                </div>
+                <div class="selectContainer jpf-form-narrow">
+                    <label class="selectLabel" for="emailSecurity" data-i18n="admin.email.security">Security</label>
+                    <select is="emby-select" id="emailSecurity">
+                        <option value="starttls" data-i18n="admin.email.starttls">STARTTLS</option>
+                        <option value="none" data-i18n="admin.email.none">None, for a relay on your network</option>
+                    </select>
+                    <div class="fieldDescription" data-i18n="admin.email.securityHint">Port 465 isn't supported. Use 587 with STARTTLS.</div>
+                </div>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="emailUsername" data-i18n="admin.email.username">Username</label>
+                    <input is="emby-input" type="text" id="emailUsername" autocomplete="off" />
+                    <div class="fieldDescription" data-i18n="admin.email.usernameHint">Blank if your server doesn't need one.</div>
+                </div>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="emailPassword" data-i18n="admin.email.password">Password</label>
+                    <input is="emby-input" type="password" id="emailPassword" autocomplete="new-password" />
+                    <div class="fieldDescription" id="emailPasswordHint"></div>
+                </div>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="emailFrom" data-i18n="admin.email.from">From address</label>
+                    <input is="emby-input" type="email" id="emailFrom" autocomplete="off" />
+                </div>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="emailFromName" data-i18n="admin.email.fromName">From name</label>
+                    <input is="emby-input" type="text" id="emailFromName" maxlength="100" autocomplete="off" />
+                </div>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="emailTestTo" data-i18n="admin.email.testTo">Send a test to</label>
+                    <input is="emby-input" type="email" id="emailTestTo" autocomplete="email" />
+                    <div class="fieldDescription" data-i18n="admin.email.testHint">Email works once a test goes through.</div>
+                </div>
+                <div class="buttonContainer jpf-ann-actions">
+                    <button is="emby-button" type="button" id="emailTest" class="raised button-submit" data-i18n="admin.email.saveAndTest">Save and send test</button>
+                    <button is="emby-button" type="button" id="emailSave" class="raised" data-i18n="admin.email.saveOnly">Save only</button>
+                </div>
+                <div class="jpf-hidden jpf-status" id="emailResult"></div>
+                <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.email.accounts">Addresses</h3>
+                <div id="emailAccounts" class="jpf-block-end"></div>
             </div><!-- /messages -->
 
             <!-- ── Activity ───────────────────────────────────────────────────────── -->
@@ -1263,6 +1332,21 @@
                 'admin.mnt.closeButton': 'Close the server',
                 'admin.mnt.confirm': 'Everyone but administrators is locked out until you reopen.',
                 'admin.mnt.reopened': 'Reopened.',
+                'admin.email.working': 'Working. The last test went through.',
+                'admin.email.untested': 'Not tested since the last change. Nothing is sent until a test goes through.',
+                'admin.email.notSet': 'Not set up.',
+                'admin.email.passwordKept': 'Saved. Leave blank to keep it.',
+                'admin.email.saved': 'Saved. Send a test to turn email on.',
+                'admin.email.testing': 'Sending…',
+                'admin.email.testSent': 'Test sent to {to}. Email is on.',
+                'admin.email.testNeedsTo': 'Enter an address to send the test to.',
+                'admin.email.noAccounts': 'No main account has added one yet.',
+                'admin.email.clear': 'Remove',
+                'admin.email.clearTitle': 'Remove this address?',
+                'admin.email.clearConfirm': '{name} will stop getting codes and notices.',
+                'admin.email.needsEmail': 'Needs working email. Set it up under Messages.',
+                'admin.status.emailUntested': "Email is set up but hasn't been tested, so nothing is sent.",
+                'admin.status.sendTest': 'Send a test',
                 'admin.mnt.closedTold': 'Closed. Apps told: {told}.',
                 'admin.mnt.closedStopped': 'Closed. Apps told: {told}. Streams stopped: {stopped}.',
 
@@ -1433,6 +1517,9 @@
                     page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
                     page.querySelector('#requireMainPin').checked = !!config.RequireMainPin;
                     page.dataset.requireMainPin = config.RequireMainPin ? '1' : '';
+                    // Also set by renderEmail; set here too, or a page whose email read
+                    // failed would save it off without anyone touching it.
+                    page.querySelector('#enablePinResetByEmail').checked = !!config.EnablePinResetByEmail;
                     page._config = config;
                     page.querySelector('#disallowCustomAvatars').checked = !!config.DisallowCustomAvatarUploads;
                     // On unless switched off, including on a configuration saved before the setting existed.
@@ -1470,6 +1557,7 @@
                     loadPanicStatus(page);
                     loadAnnouncements(page);
                     loadMaintenance(page);
+                    loadEmail(page);
                     loadOrphanStatus(page);
                     renderGettingStarted(page);
                 }).catch(function (err) {
@@ -3124,6 +3212,163 @@
                 page.querySelector('#mntOpen').addEventListener('click', function () { saveMaintenance(page, false); });
             }
 
+            // ── Email ─────────────────────────────────────────────────────────────
+            //
+            // Its own routes, not admin/settings: the password is never sent back, so the
+            // form can't round-trip it, and a test has to run against what is saved.
+
+            function renderEmail(page, s) {
+                const verified = !!field(s, 'verified');
+                const configured = !!field(s, 'configured');
+                page._emailState = verified ? 'working' : configured ? 'untested' : 'off';   // for the bug report
+                page.querySelector('#emailHost').value = field(s, 'host') || '';
+                page.querySelector('#emailPort').value = field(s, 'port') || 587;
+                page.querySelector('#emailSecurity').value = field(s, 'security') === 'none' ? 'none' : 'starttls';
+                page.querySelector('#emailUsername').value = field(s, 'username') || '';
+                page.querySelector('#emailPassword').value = '';
+                page.querySelector('#emailPasswordHint').textContent = field(s, 'hasPassword') ? t('admin.email.passwordKept') : '';
+                page.querySelector('#emailFrom').value = field(s, 'fromAddress') || '';
+                page.querySelector('#emailFromName').value = field(s, 'fromName') || '';
+
+                const status = page.querySelector('#emailStatus');
+                status.className = 'jpf-note' + (verified ? ' jpf-note-ok' : configured ? ' jpf-note-warn' : '');
+                status.textContent = verified ? t('admin.email.working') : configured ? t('admin.email.untested') : t('admin.email.notSet');
+
+                // The Security tab's switch. Off and unavailable until email works; left
+                // as it is if already on, since the server reports the feature off while
+                // email is broken and an unrelated save must not fail over it.
+                const reset = page.querySelector('#enablePinResetByEmail');
+                reset.checked = !!field(s, 'pinResetByEmail');
+                reset.disabled = !verified && !reset.checked;
+                const needs = page.querySelector('#pinResetNeedsEmail');
+                needs.textContent = t('admin.email.needsEmail');
+                needs.classList.toggle('jpf-hidden', verified);
+
+                const list = page.querySelector('#emailAccounts');
+                list.textContent = '';
+                const accounts = field(s, 'accounts') || [];
+                if (!accounts.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'fieldDescription';
+                    empty.textContent = t('admin.email.noAccounts');
+                    list.appendChild(empty);
+                }
+                accounts.forEach(function (a) {
+                    const name = field(a, 'name') || '';
+                    const row = document.createElement('div');
+                    row.className = 'jpf-ann-item';
+                    const msg = document.createElement('div');
+                    msg.className = 'jpf-ann-msg';
+                    msg.textContent = name;
+                    const meta = document.createElement('div');
+                    meta.className = 'jpf-ann-meta';
+                    meta.textContent = field(a, 'address') || '';
+                    const buttons = document.createElement('div');
+                    buttons.className = 'jpf-ann-buttons';
+                    const clear = document.createElement('button');
+                    clear.type = 'button';
+                    clear.setAttribute('is', 'emby-button');
+                    clear.className = 'raised';
+                    clear.textContent = t('admin.email.clear');
+                    clear.addEventListener('click', function () {
+                        Dashboard.confirm(t('admin.email.clearConfirm', { name: name }), t('admin.email.clearTitle')).then(function () {
+                            ApiClient.ajax({
+                                type: 'POST',
+                                url: ApiClient.getUrl('plugins/profiles/admin/account-email/remove'),
+                                contentType: 'application/json',
+                                data: JSON.stringify({ userId: field(a, 'userId') })
+                            }).then(function () { loadEmail(page); }, function (err) {
+                                errorText(err, t('admin.saveFailed')).then(function (m) { showEmailResult(page, m, false); });
+                            });
+                        });
+                    });
+                    buttons.appendChild(clear);
+                    row.appendChild(msg);
+                    row.appendChild(meta);
+                    row.appendChild(buttons);
+                    list.appendChild(row);
+                });
+
+                setStatus(page, 'email', configured && !verified
+                    ? [{ level: 'warn', text: t('admin.status.emailUntested'), tab: 'messages', anchor: 'jpfEmail', fix: t('admin.status.sendTest') }]
+                    : []);
+            }
+
+            function loadEmail(page) {
+                if (!page.querySelector('#emailStatus')) return;
+                ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/admin/email')).then(function (s) {
+                    renderEmail(page, s || {});
+                }).catch(function () {
+                    page.querySelector('#emailStatus').textContent = t('admin.readFailed');
+                });
+            }
+
+            function showEmailResult(page, msg, good) {
+                const result = page.querySelector('#emailResult');
+                result.textContent = msg;
+                result.style.color = good ? '#51cf66' : '#ff6b6b';
+                result.classList.remove('jpf-hidden');
+            }
+
+            // Saves the form. Resolves the saved state, or null when refused (and says why).
+            function saveEmail(page) {
+                const port = parseInt(page.querySelector('#emailPort').value, 10);
+                const body = {
+                    host: page.querySelector('#emailHost').value.trim(),
+                    port: Number.isFinite(port) ? port : 587,
+                    security: page.querySelector('#emailSecurity').value === 'none' ? 'none' : 'starttls',
+                    username: page.querySelector('#emailUsername').value.trim(),
+                    fromAddress: page.querySelector('#emailFrom').value.trim(),
+                    fromName: page.querySelector('#emailFromName').value.trim()
+                };
+                // Blank keeps the stored one: the form never holds it.
+                const password = page.querySelector('#emailPassword').value;
+                if (password) body.password = password;
+                return ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('plugins/profiles/admin/email'),
+                    contentType: 'application/json',
+                    dataType: 'json',
+                    data: JSON.stringify(body)
+                }).then(function (s) {
+                    renderEmail(page, s || {});
+                    return s || {};
+                }, function (err) {
+                    return errorText(err, t('admin.saveFailed')).then(function (m) { showEmailResult(page, m, false); return null; });
+                });
+            }
+
+            function testEmail(page) {
+                const to = page.querySelector('#emailTestTo').value.trim();
+                if (!to) { showEmailResult(page, t('admin.email.testNeedsTo'), false); return; }
+                saveEmail(page).then(function (saved) {
+                    if (!saved) return;
+                    showEmailResult(page, t('admin.email.testing'), true);
+                    ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('plugins/profiles/admin/email/test'),
+                        contentType: 'application/json',
+                        dataType: 'json',
+                        data: JSON.stringify({ to: to })
+                    }).then(function (s) {
+                        renderEmail(page, s || {});
+                        showEmailResult(page, t('admin.email.testSent', { to: to }), true);
+                    }, function (err) {
+                        errorText(err, t('admin.saveFailed')).then(function (m) { showEmailResult(page, m, false); });
+                    });
+                });
+            }
+
+            function bindEmail(page) {
+                const test = page.querySelector('#emailTest');
+                if (!test || test.dataset.bound) return;
+                test.dataset.bound = '1';
+                test.addEventListener('click', function () { testEmail(page); });
+                page.querySelector('#emailSave').addEventListener('click', function () {
+                    saveEmail(page).then(function (saved) { if (saved) showEmailResult(page, t('admin.email.saved'), true); });
+                });
+            }
+
             // ── Emergency disable code ────────────────────────────────────────────
 
             function loadPanicStatus(page) {
@@ -3191,7 +3436,7 @@
             // Each loader reports its own part as it arrives, so Status costs no requests of
             // its own beyond the orphan scan, and never shows something the tab it links to
             // would disagree with: both are drawn from the same answer.
-            const STATUS_ORDER = ['script', 'panic', 'maintenance', 'pins', 'orphans', 'avatars', 'beta'];
+            const STATUS_ORDER = ['script', 'panic', 'maintenance', 'email', 'pins', 'orphans', 'avatars', 'beta'];
             const LEVEL_RANK = { bad: 0, warn: 1, info: 2, ok: 3 };
 
             // Looked up when drawn, so the chips are in the page's language.
@@ -3312,6 +3557,7 @@
             function noteSavedSettings(page, sent) {
                 const c = page._config = page._config || {};
                 c.RequireMainPin = sent.requireMainPin;
+                c.EnablePinResetByEmail = sent.enablePinResetByEmail;
                 c.EnableStarterAvatars = sent.enableStarterAvatars;
                 c.EnableClientPinLogin = sent.enableClientPinLogin;
                 c.EnableClientProfileList = sent.enableClientProfileList;
@@ -3376,6 +3622,7 @@
                             + ', main accounts without a PIN: ' + masters.filter(function (x) { return field(x, 'requiresPin') !== true; }).length,
                         'Profiles per account: ' + (c.MaxProfilesPerUser || 5),
                         'Require main PIN: ' + on(c.RequireMainPin),
+                        'Email: ' + (page._emailState || 'unknown') + ', PIN reset by email: ' + on(c.EnablePinResetByEmail),
                         'PIN sign-in on apps: ' + on(c.EnableClientPinLogin) + ', profiles on sign-in screens: ' + on(c.EnableClientProfileList)
                             + ', skip Quick Connect: ' + on(c.SkipQuickConnectOnKnownDevices),
                         'Profile picker apps: ' + ((c.ProxyClients || []).join(', ') || 'none'),
@@ -3492,6 +3739,7 @@
                 const sent = {
                     maxProfilesPerUser: maxProfiles,
                     requireMainPin: page.querySelector('#requireMainPin').checked,
+                    enablePinResetByEmail: page.querySelector('#enablePinResetByEmail').checked,
                     disallowCustomAvatarUploads: page.querySelector('#disallowCustomAvatars').checked,
                     enableStarterAvatars: page.querySelector('#enableStarterAvatars').checked,
                     defaultAskOnStartup: page.querySelector('#defaultAskOnStartup').checked,
@@ -3581,6 +3829,7 @@
                 bindOnboarding(page);
                 bindAnnouncements(page);
                 bindMaintenance(page);
+                bindEmail(page);
                 bindOrphanScan(page);
                 bindAuditControls(page);
                 bindSessions(page);
