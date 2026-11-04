@@ -15,6 +15,7 @@ for Bonfire's own client. It's documented because other people build against it 
 - [Authentication](#authentication)
 - [Errors](#errors)
 - [Rate limits](#rate-limits)
+- [Caching](#caching)
 - [Stability](#stability)
 - [Profiles](#profiles)
 - [Sign-in from other apps](#sign-in-from-other-apps)
@@ -29,16 +30,18 @@ for Bonfire's own client. It's documented because other people build against it 
 - [Announcements](#announcements)
 - [Maintenance](#maintenance)
 - [Emergency disable](#emergency-disable)
+- [For other plugins](#for-other-plugins)
 - [Admin](#admin)
 
 ## All routes
 
-All 63 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 64 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
 | --- | --- | --- |
 | `GET /plugins/profiles/list` | user | Profiles the caller can switch to. |
+| `GET /plugins/profiles/me` | user | Who the caller is: a profile or a main account, and whose. |
 | `GET /plugins/profiles/libraries` | user | Libraries the caller can give a profile. |
 | `GET /plugins/profiles/ratings` | user | The rating limits a profile can be given. |
 | `POST /plugins/profiles/create` | user | Create a profile. |
@@ -110,6 +113,10 @@ switch, use the token it returns.
 ```http
 Authorization: MediaBrowser Client="<Client>", Device="<Device>", DeviceId="<DeviceId>", Version="<Version>", Token="<token>"
 ```
+
+**Administrator routes also take an API key** from **Dashboard → API Keys**, sent as the
+token. A key has no user, so routes for a household (`/list`, `/me`, `/create` and the
+rest) refuse one.
 
 Eight routes are reachable without a token, because they're needed before anyone signs in.
 
@@ -200,7 +207,7 @@ see [Maintenance](#maintenance). Sent with
 | Code | Meaning |
 | --- | --- |
 | `200` | Done, including when there was nothing to change. |
-| `304` | Not modified. The client script and translations, when the `ETag` still matches. |
+| `304` | Not modified: the `ETag` you sent still matches. See [Caching](#caching). |
 | `400` | Refused. The body says why. |
 | `401` | The caller's token was rejected. Sign in again. |
 | `403` | The caller is signed in but not allowed, such as a profile managing profiles. Keep the session. |
@@ -275,13 +282,24 @@ correct attempt resets the count. A refused request returns `429`.
 A client PIN that hits its limit gets Jellyfin's usual `Invalid username or password`. A
 main account's real password keeps working.
 
+## Caching
+
+`GET /list`, `GET /announcements`, the client script and translations send an `ETag`.
+Send it back as `If-None-Match` and an unchanged answer is a `304` with no body. They're
+also sent `private, no-cache`: keep them, but ask every time. A browser does this for
+you.
+
 ## Stability
 
 - Fields documented here keep their type and meaning within a major version.
 - Ignore fields you don't recognise. New ones arrive in minor releases.
 - Don't rely on field order.
-- Routes aren't removed within a major version. One being retired is marked deprecated
-  here first.
+- Routes aren't removed within a major version.
+- **Retiring something:** it's marked **Deprecated** here, with what to use instead, for
+  at least two minor releases before it goes. It only goes in a major release, which
+  raises `apiVersion`.
+- **Checking for a feature:** read `features` in `GET /info` rather than comparing
+  version numbers. A new feature that a client has to know about gets a flag there.
 - Optional request fields that you leave out keep their stored value, unless the field
   says otherwise. `maxParentalRating` on `/update` is the exception: see that route.
 - Error wording can change in any release. Branch on `X-Bonfire-Error`, not the text.
@@ -349,12 +367,48 @@ Every profile the caller can switch to: their own household, then any linked Bon
 `enabledFolders`, the tag lists and `allowedDeviceIds` are empty for profiles in another
 household. PINs are stored hashed and never returned.
 
+Sent with an `ETag`: see [Caching](#caching).
+
 **The rating limit isn't in this list.** Read it from Jellyfin's `GET /Users/{id}`, as
 `Policy.MaxParentalRating`. That's the limit in effect, which is the stricter of the
 profile's and its main account's. Send it back on every `/update`, or the profile's limit
 is removed.
 
 Errors: `401`, and `404` if the caller's main account no longer exists.
+
+### `GET /plugins/profiles/me`
+
+**Authorisation:** signed-in user.
+
+Who the caller is. Cheaper than `/list` when that's all you need.
+
+```json
+{
+  "userId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b",
+  "name": "Kids",
+  "isProfile": true,
+  "mainAccountId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a",
+  "mainAccountName": "John",
+  "isAdministrator": false,
+  "mainHasPin": true,
+  "profileCount": 2,
+  "maxProfiles": 5
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `userId` | GUID | The signed-in Jellyfin user. |
+| `name` | string | The profile's name, or the account's username. |
+| `isProfile` | boolean | A profile, rather than a main account. |
+| `mainAccountId` | GUID | The household's main account. The caller's own id when it is one. |
+| `mainAccountName` | string | Its username. |
+| `isAdministrator` | boolean | The caller is a Jellyfin administrator. |
+| `mainHasPin` | boolean | The main account has a PIN. |
+| `profileCount` | integer | Profiles in the household, not counting the main account. |
+| `maxProfiles` | integer | How many it may have. |
+
+Errors: `401`.
 
 ### `POST /plugins/profiles/switch`
 
@@ -1208,7 +1262,7 @@ Short messages from the administrator, shown on the profile screen.
 **Authorisation:** signed-in user.
 
 The ones showing now, most important first: `critical`, then `warning`, then `info`,
-newest first within each. Sent with `no-store`.
+newest first within each. Sent with an `ETag`: see [Caching](#caching).
 
 ```json
 [
@@ -1343,6 +1397,40 @@ the response doesn't reveal which. `429` after 5 tries in an hour.
 `{ "code": "…" }`, 10 to 128 characters. An empty code turns the feature off.
 
 ---
+
+## For other plugins
+
+### `IBonfireProfiles`
+
+A plugin running in the same server can ask Bonfire which household a user belongs to.
+Get it from Jellyfin's service provider. Without a reference to Bonfire's assembly, find
+the type by name, `Jellyfin.Profiles.IBonfireProfiles`.
+
+| Method | Returns |
+| --- | --- |
+| `bool IsProfile(Guid userId)` | True for a profile of another account. |
+| `Guid GetMainAccount(Guid userId)` | The household's main account. Itself for anyone who isn't a profile. |
+| `IReadOnlyList<Guid> GetHousehold(Guid userId)` | The main account, then each of its profiles. |
+
+Each call reads the current configuration and never waits on Jellyfin. It's read-only:
+make changes through the HTTP routes.
+
+### Activity log
+
+Bonfire writes these to **Dashboard → Activity**. `type` is what to filter on.
+
+| `type` | When |
+| --- | --- |
+| `BonfireProfileCreated` | A main account added a profile. |
+| `BonfireProfileDeleted` | A main account deleted one. |
+| `BonfirePinLocked` | A PIN was locked by too many wrong tries. Once per lock, not per try. |
+| `BonfirePinReset` | An administrator cleared a PIN. |
+| `BonfireProfileMadeAccount` | An administrator made a profile its own account. |
+| `BonfireMaintenanceOn`, `BonfireMaintenanceOff` | The server was closed or reopened. |
+| `BonfireEmergencyDisable` | Someone used the emergency disable code. |
+
+Switching isn't written there, because Jellyfin already logs the profile's session
+starting. Bonfire's own switch log is in its settings page.
 
 ## Admin
 

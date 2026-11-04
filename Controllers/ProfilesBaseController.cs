@@ -545,6 +545,12 @@ namespace Jellyfin.Profiles.Controllers
         /// </summary>
         protected ActionResult? RequireAdministrator(string action)
         {
+            // An API key from Dashboard → API Keys carries no user: its user id claim is all
+            // zeros, so the lookup below found nobody and every key was refused. Jellyfin
+            // gives a key the administrator role itself (CustomAuthenticationHandler, the same
+            // in 10.11 and 12.0), and the claims come from that handler, never the request.
+            if (CallerIsApiKey()) return null;
+
             var currentUserIdVal = GetCurrentUserId();
             if (currentUserIdVal == null) return Unauthorized();
 
@@ -556,6 +562,83 @@ namespace Jellyfin.Profiles.Controllers
                 return Unauthorized($"Only administrators can {action}.");
 
             return null;
+        }
+
+        /// <summary>
+        /// True when the caller signed in with an API key rather than as a user. Both claims
+        /// are needed: a key is always given the administrator role, and nothing else is
+        /// marked as a key.
+        /// </summary>
+        protected bool CallerIsApiKey()
+            => string.Equals(User?.FindFirst("Jellyfin-IsApiKey")?.Value, "True", StringComparison.OrdinalIgnoreCase)
+               && User!.IsInRole("Administrator");
+
+        /// <summary>The caller's name, for a log line about what an administrator did.</summary>
+        protected string CallerName()
+        {
+            if (CallerIsApiKey()) return "An API key";
+            var id = GetCurrentUserId();
+            return (id.HasValue ? _userManager.GetUserById(id.Value)?.Username : null) ?? "An administrator";
+        }
+
+        /// <summary>
+        /// Answers with <paramref name="body"/>, or with 304 when the caller already has it.
+        /// <para>
+        /// The tag is a hash of the body as it would be sent, so it changes exactly when the
+        /// answer does, whatever caused it: a setting, the network the caller is on, a profile
+        /// added in another household. Nothing has to remember to bump a version.
+        /// </para>
+        /// </summary>
+        protected ActionResult ETagged(object body)
+        {
+            var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(body);
+            var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+            var tag = "\"" + Convert.ToHexString(hash, 0, 16).ToLowerInvariant() + "\"";
+
+            // Private: the answer is the caller's own. no-cache: keep it, but ask every time.
+            Response.Headers["Cache-Control"] = "private, no-cache";
+            Response.Headers["ETag"] = tag;
+
+            var sent = Request.Headers["If-None-Match"].ToString();
+            if (!string.IsNullOrEmpty(sent)
+                && sent.Split(',').Any(t => t.Trim().Replace("W/", string.Empty, StringComparison.Ordinal) == tag))
+            {
+                return StatusCode(StatusCodes.Status304NotModified);
+            }
+            return Ok(body);
+        }
+
+        /// <summary>
+        /// Writes one line to Jellyfin's own Activity log (Dashboard → Activity), where an
+        /// administrator already looks. Never throws and never waits: losing a log line must
+        /// not fail the thing it describes.
+        /// <para>
+        /// Asked for here rather than injected, so the constructor every harness builds
+        /// doesn't change. Without a request, or on a server that can't supply it, nothing
+        /// is written.</para>
+        /// </summary>
+        protected void LogActivity(string name, string type, Guid userId, string? overview = null,
+            Microsoft.Extensions.Logging.LogLevel severity = Microsoft.Extensions.Logging.LogLevel.Information)
+        {
+            try
+            {
+                var activity = HttpContext?.RequestServices?.GetService(typeof(MediaBrowser.Model.Activity.IActivityManager))
+                    as MediaBrowser.Model.Activity.IActivityManager;
+                if (activity == null) return;
+
+                var entry = new Jellyfin.Database.Implementations.Entities.ActivityLog(name, "Bonfire" + type, userId)
+                {
+                    ShortOverview = overview,
+                    LogSeverity = severity,
+                };
+                _ = activity.CreateAsync(entry).ContinueWith(
+                    t => _logger.LogDebug(t.Exception, "ProfilesPlugin: Could not write to the activity log."),
+                    System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "ProfilesPlugin: Could not write to the activity log.");
+            }
         }
 
         /// <summary>
@@ -1035,16 +1118,37 @@ namespace Jellyfin.Profiles.Controllers
         {
             if (!RateLimiter.Pin.TryBegin(addressKey))
             {
+                LogLockout(profileId, addressKey);
                 return TooManyAttempts(RateLimiter.Pin, addressKey, "Too many failed PIN attempts.");
             }
 
             var profileKey = profileId.ToString("N");
             if (!RateLimiter.PinPerProfile.TryBegin(profileKey))
             {
+                LogLockout(profileId, profileKey);
                 return TooManyAttempts(RateLimiter.PinPerProfile, profileKey, "Too many failed PIN attempts.");
             }
 
             return null;
+        }
+
+        // When each lockout was last written to the Activity log. Every refused attempt
+        // after the limit is another refusal, and one line per guess would bury the log.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> LockoutsLogged = new();
+
+        /// <summary>A PIN locked by too many wrong tries: one Activity log line per lock.</summary>
+        protected void LogLockout(Guid userId, string key)
+        {
+            var now = DateTime.UtcNow;
+            if (LockoutsLogged.TryGetValue(key, out var last) && now - last < TimeSpan.FromMinutes(15)) return;
+            if (LockoutsLogged.Count > 1000) LockoutsLogged.Clear();
+            LockoutsLogged[key] = now;
+
+            var name = ReadConfigSnapshot()?.Mappings.FirstOrDefault(m => m.ProfileUserId == userId)?.ProfileName
+                       ?? _userManager.GetUserById(userId)?.Username
+                       ?? "A profile";
+            LogActivity(name + "'s PIN is locked after too many wrong tries", "PinLocked", userId,
+                severity: Microsoft.Extensions.Logging.LogLevel.Warning);
         }
 
         /// <summary>The right PIN, or none needed: both allowances start again.</summary>
@@ -1065,6 +1169,7 @@ namespace Jellyfin.Profiles.Controllers
             var key = "master-pin:" + masterMapping.ProfileUserId.ToString("N");
             if (!RateLimiter.PinPerProfile.TryBegin(key))
             {
+                LogLockout(masterMapping.ProfileUserId, key);
                 refusal = TooManyAttempts(RateLimiter.PinPerProfile, key, "Too many failed PIN attempts.");
                 return false;
             }

@@ -57,6 +57,9 @@ namespace Jellyfin.Profiles
             // all: Jellyfin deletes its own Device row on logout, and Android TV logs out
             // before opening the picker. Bonfire's record is the only one that survives.
             serviceCollection.AddHostedService<BonfireSessionListener>();
+
+            // For other plugins: which household a user belongs to. Read-only.
+            serviceCollection.AddSingleton<IBonfireProfiles, BonfireProfiles>();
         }
     }
 }

@@ -195,7 +195,9 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
-            return Ok(profileList);
+            // Apps ask for this every time the profile screen opens, and on a television
+            // that is most of what they ask. An unchanged list costs them a 304.
+            return ETagged(profileList);
         }
 
         /// <summary>
@@ -501,6 +503,9 @@ namespace Jellyfin.Profiles.Controllers
                 Plugin.Instance?.SaveConfiguration();
             }
 
+            LogActivity(_userManager.GetUserById(masterUserId)?.Username + " added the profile " + profileName,
+                "ProfileCreated", masterUserId);
+
             return Ok(new
             {
                 ProfileUserId = targetUser.Id,
@@ -644,6 +649,9 @@ namespace Jellyfin.Profiles.Controllers
                 // The master's last profile may just have gone, and a master with no
                 // profiles is no longer one the PIN provider should hold.
                 ProfilesBootstrapTask.ReconcileAuthProvidersNow();
+
+                LogActivity(_userManager.GetUserById(masterUserId)?.Username + " deleted the profile " + mapping.ProfileName,
+                    "ProfileDeleted", masterUserId);
             }
 
             return Ok();
@@ -1140,18 +1148,23 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
+            string name;
             lock (ConfigLock)
             {
                 var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
                 if (mapping == null) return NotFound("Profile mapping not found.");
 
                 mapping.PinHash = string.Empty;
+                name = mapping.ProfileName;
                 Plugin.Instance?.SaveConfiguration();
             }
 
             // Resetting a master's PIN takes it off the PIN provider, or its password would
             // be refused there.
             ProfilesBootstrapTask.ReconcileAuthProvidersNow();
+
+            LogActivity(CallerName() + " cleared the PIN on " + name, "PinReset", request.ProfileId,
+                severity: LogLevel.Warning);
 
             return Ok();
         }
@@ -3620,6 +3633,9 @@ namespace Jellyfin.Profiles.Controllers
                 GetAuthorizationParameter("Device") ?? "unknown",
                 GetAuthorizationParameter("Client") ?? "unknown");
 
+            LogActivity("Bonfire was switched off with the emergency code", "EmergencyDisable", Guid.Empty,
+                "From " + ip + ". It stays off until Jellyfin restarts.", LogLevel.Error);
+
             return Ok(new { Disabled = true });
         }
 
@@ -3659,9 +3675,10 @@ namespace Jellyfin.Profiles.Controllers
         {
             if (GetCurrentUserId() == null) return Unauthorized();
 
-            Response.Headers["Cache-Control"] = "no-store";
+            // Revalidated every time, never served stale: one that has just ended, or just
+            // started, changes the body and so the tag.
             var all = Plugin.Instance?.Configuration?.Announcements;
-            return Ok(Configuration.Announcements.Active(all, DateTime.UtcNow).Select(DescribeAnnouncement));
+            return ETagged(Configuration.Announcements.Active(all, DateTime.UtcNow).Select(DescribeAnnouncement).ToList());
         }
 
         /// <summary>Every announcement, showing or not, for the settings page.</summary>
@@ -3921,13 +3938,15 @@ namespace Jellyfin.Profiles.Controllers
             // 6. The master may have just lost its last profile.
             ProfilesBootstrapTask.ReconcileAuthProvidersNow();
 
-            var callerId = GetCurrentUserId();
+            var masterName = _userManager.GetUserById(mapping.MasterUserId)?.Username ?? mapping.MasterUserId.ToString();
             _logger.LogWarning(
                 "ProfilesPlugin: {Admin} made profile {Profile} its own account, {Username}. It no longer belongs to {Master}.",
-                callerId.HasValue ? _userManager.GetUserById(callerId.Value)?.Username : "an administrator",
+                CallerName(),
                 mapping.ProfileName,
                 user.Username,
-                _userManager.GetUserById(mapping.MasterUserId)?.Username ?? mapping.MasterUserId.ToString());
+                masterName);
+            LogActivity(CallerName() + " made " + mapping.ProfileName + " its own account, " + user.Username,
+                "ProfileMadeAccount", user.Id, "It no longer belongs to " + masterName + ".");
 
             return Ok(new { UserId = user.Id, Username = user.Username });
         }
@@ -4020,13 +4039,15 @@ namespace Jellyfin.Profiles.Controllers
 
             Auth.MaintenanceGate.Forget();
 
-            var callerId = GetCurrentUserId();
-            var caller = callerId.HasValue ? _userManager.GetUserById(callerId.Value)?.Username : null;
+            var caller = CallerName();
             _logger.LogWarning(
                 next.Enabled
                     ? "ProfilesPlugin: {Admin} closed the server for maintenance. Only administrators can use it."
                     : "ProfilesPlugin: {Admin} reopened the server after maintenance.",
-                caller ?? "an administrator");
+                caller);
+            LogActivity(caller + (next.Enabled ? " closed the server for maintenance" : " reopened the server"),
+                next.Enabled ? "MaintenanceOn" : "MaintenanceOff", Guid.Empty,
+                severity: next.Enabled ? LogLevel.Warning : LogLevel.Information);
 
             int told = 0, stopped = 0;
             if (next.Enabled && (opening || request.StopPlayback))
@@ -4082,19 +4103,18 @@ namespace Jellyfin.Profiles.Controllers
         /// </para>
         /// </summary>
         [HttpGet("info")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        public ActionResult<object> GetInfo()
+        [ProducesResponseType(typeof(InfoResponse), StatusCodes.Status200OK)]
+        public ActionResult<InfoResponse> GetInfo()
         {
             Response.Headers["Cache-Control"] = "no-store";
             var config = ReadConfigSnapshot();
 
-            return Ok(new
+            return Ok(new InfoResponse
             {
-                Name = "Bonfire",
                 Version = GetPluginVersion(),
                 ApiVersion = 1,
                 Disabled = Plugin.IsPanicDisabled,
-                Features = new
+                Features = new InfoFeatures
                 {
                     ClientPinLogin = config?.EnableClientPinLogin == true,
                     ClientProfileList = config?.EnableClientProfileList == true,
@@ -4106,8 +4126,44 @@ namespace Jellyfin.Profiles.Controllers
 
                 // Anonymous on purpose: the people it is for cannot sign in.
                 Maintenance = Auth.MaintenanceGate.Active() is MaintenanceMode m
-                    ? new { Message = m.ShownMessage(), m.UntilUtc }
+                    ? new InfoMaintenance { Message = m.ShownMessage(), UntilUtc = m.UntilUtc }
                     : null,
+            });
+        }
+
+        /// <summary>
+        /// Who the caller is, in Bonfire's terms: a profile or a main account, and whose.
+        /// <para>
+        /// A client could work this out from /list, but only by knowing that the main account
+        /// is the row with isMaster and not isBonfire, and /list is the heaviest route there
+        /// is. This is one lookup.</para>
+        /// </summary>
+        [HttpGet("me")]
+        [ProducesResponseType(typeof(MeResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<MeResponse> GetMe()
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null) return Unauthorized();
+            var user = _userManager.GetUserById(userId.Value);
+            if (user == null) return Unauthorized();
+
+            var config = ReadConfigSnapshot() ?? new PluginConfiguration();
+            var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == userId.Value);
+            var isProfile = row != null && row.MasterUserId != Guid.Empty && row.MasterUserId != userId.Value;
+            var mainId = isProfile ? row!.MasterUserId : userId.Value;
+
+            return Ok(new MeResponse
+            {
+                UserId = userId.Value,
+                Name = isProfile ? row!.ProfileName : user.Username,
+                IsProfile = isProfile,
+                MainAccountId = mainId,
+                MainAccountName = (isProfile ? _userManager.GetUserById(mainId)?.Username : user.Username) ?? string.Empty,
+                IsAdministrator = IsAdministratorAccount(user),
+                MainHasPin = MainHasPin(mainId, config),
+                ProfileCount = config.Mappings.Count(m => m.MasterUserId == mainId && m.ProfileUserId != mainId),
+                MaxProfiles = GetMaxProfilesForUser(mainId, config),
             });
         }
 
