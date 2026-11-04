@@ -620,15 +620,26 @@ namespace Jellyfin.Profiles.Auth
             Guid ownerId,
             ILogger? logger)
         {
+            var isNew = false;
             lock (ProfilesBaseController.ConfigLock)
             {
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return;
 
+                var id = deviceId?.Trim();
+                isNew = !string.IsNullOrEmpty(id) && config.KnownDevices != null
+                    && !config.KnownDevices.Any(d => string.Equals(d.DeviceId, id, StringComparison.OrdinalIgnoreCase));
+
                 if (Record(config, deviceId, deviceName, client, ownerId, DateTime.UtcNow, logger))
                 {
                     Plugin.Instance?.SaveConfiguration();
                 }
+            }
+
+            // Outside the lock: it takes a snapshot, and sends on its own task.
+            if (isNew && ownerId != Guid.Empty)
+            {
+                Mail.Notifications.NewDevice(ownerId, string.IsNullOrWhiteSpace(deviceName) ? (client ?? string.Empty) : deviceName!, logger);
             }
         }
 

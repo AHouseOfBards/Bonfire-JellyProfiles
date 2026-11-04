@@ -27,6 +27,7 @@ for Bonfire's own client. It's documented because other people build against it 
 - [Bonfire](#bonfire)
 - [Preferences](#preferences)
 - [First-time setup](#first-time-setup)
+- [Email](#email)
 - [Avatar library](#avatar-library)
 - [Announcements](#announcements)
 - [Maintenance](#maintenance)
@@ -36,7 +37,7 @@ for Bonfire's own client. It's documented because other people build against it 
 
 ## All routes
 
-All 67 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 78 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -52,6 +53,13 @@ All 67 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `POST /plugins/profiles/verify-pin` | user | Check a PIN without switching. |
 | `POST /plugins/profiles/account/verify-pin` | user | Check the main account's PIN. |
 | `POST /plugins/profiles/account` | user | Set the main account's PIN and whether opening it asks. |
+| `GET /plugins/profiles/account/email` | user | The main account's email address and notices. |
+| `POST /plugins/profiles/account/email` | user | Send a code to a new address. |
+| `POST /plugins/profiles/account/email/confirm` | user | Confirm the address with the code. |
+| `POST /plugins/profiles/account/email/notifications` | user | Choose which notices to get. |
+| `POST /plugins/profiles/account/email/remove` | user | Remove the address. |
+| `POST /plugins/profiles/account/pin-reset/send` | user | Email a code to reset a forgotten main PIN. |
+| `POST /plugins/profiles/account/pin-reset` | user | Set a new main PIN with the code. |
 | `GET /plugins/profiles/profiles.js` | anon | The client script. |
 | `GET /plugins/profiles/i18n/{locale}` | anon | One translation. |
 | `GET /plugins/profiles/image/{profileId}` | anon | A profile picture. |
@@ -97,6 +105,10 @@ All 67 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `POST /plugins/profiles/admin/panic-code` | admin | Set or clear the code. |
 | `POST /plugins/profiles/admin/settings` | admin | Server-wide settings. |
 | `POST /plugins/profiles/admin/onboarding/show-again` | admin | Show first-time setup to every main account again. |
+| `GET /plugins/profiles/admin/email` | admin | Outgoing mail settings and confirmed addresses. |
+| `POST /plugins/profiles/admin/email` | admin | Save the outgoing mail settings. |
+| `POST /plugins/profiles/admin/email/test` | admin | Send a test message, which makes email available. |
+| `POST /plugins/profiles/admin/account-email/remove` | admin | Remove a main account's address. |
 | `GET /plugins/profiles/admin/mappings` | admin | Every profile, plus script status. |
 | `POST /plugins/profiles/admin/reset-pin` | admin | Clear a profile's PIN. |
 | `POST /plugins/profiles/admin/cleanup-orphans` | admin | Remove records for deleted users. |
@@ -182,13 +194,18 @@ means an administrator has switched it off: show no Bonfire screens.
     "skipQuickConnectOnKnownDevices": false,
     "profileThemes": true,
     "proxyClients": ["moonfin"],
-    "requireMainPin": false
+    "requireMainPin": false,
+    "email": false,
+    "pinResetByEmail": false
   },
   "maintenance": null
 }
 ```
 
-`features` holds server-wide settings only, never anything about a household.
+`features` holds server-wide settings only, never anything about a household. `email` is
+true once outgoing mail is set up and tested; `pinResetByEmail` is true when that and the
+administrator's switch are both on. A feature is only ever reported available when
+everything it needs is too.
 `maintenance` is null, or `{ "message": "…", "untilUtc": "…" }` while the server is closed:
 see [Maintenance](#maintenance). Sent with
 `no-store`.
@@ -282,6 +299,8 @@ correct attempt resets the count. A refused request returns `429`.
 | client PIN | a PIN typed into another app's sign-in | 5, and 20 a day | 15 minutes, 24 hours | account |
 | Bonfire | `POST /bonfire/join` | 3 | 15 minutes | address, and separately account |
 | panic | `POST /panic` | 5 | 60 minutes | address |
+| email codes | `POST /account/email`, `POST /account/pin-reset/send` | 5 | 60 minutes | account and route |
+| email codes, server | the same | 60 | 60 minutes | the whole server |
 
 A client PIN that hits its limit gets Jellyfin's usual `Invalid username or password`. A
 main account's real password keeps working.
@@ -396,7 +415,8 @@ Who the caller is. Cheaper than `/list` when that's all you need.
   "isAdministrator": false,
   "mainHasPin": true,
   "profileCount": 2,
-  "maxProfiles": 5
+  "maxProfiles": 5,
+  "pinResetByEmail": false
 }
 ```
 
@@ -411,6 +431,7 @@ Who the caller is. Cheaper than `/list` when that's all you need.
 | `mainHasPin` | boolean | The main account has a PIN. |
 | `profileCount` | integer | Profiles in the household, not counting the main account. |
 | `maxProfiles` | integer | How many it may have. |
+| `pinResetByEmail` | boolean | This main account can [reset its PIN by email](#email) now. Always `false` for a profile. |
 
 Errors: `401`.
 
@@ -1226,6 +1247,164 @@ Errors:
 
 ---
 
+## Email
+
+Bonfire can send mail: a code to confirm a main account's address, a code to reset a
+forgotten main PIN, and notices the account asks for. It needs the administrator to set up
+outgoing mail and send a test first. Until a test goes through, `features.email` is
+`false` and every route below that needs it answers `400`.
+
+Codes are six digits, work for 15 minutes, and allow five tries. They're kept in memory, so
+a server restart means sending a new one. Mail is in the language the client passes as
+`language` (a tag such as `fr`), or English.
+
+### `GET /plugins/profiles/account/email`
+
+**Authorisation:** signed-in user. The main account only, with its PIN in
+`X-Bonfire-Master-Pin` if it has one.
+
+```json
+{
+  "available": true,
+  "address": "parent@example.com",
+  "pendingAddress": "",
+  "notifyLockout": true,
+  "notifyNewDevice": true,
+  "pinResetEnabled": true
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `available` | Email works on this server. |
+| `address` | The confirmed address, or empty. |
+| `pendingAddress` | An address waiting for its code, or empty. |
+| `notifyLockout` | Mail when a PIN in the household is locked by wrong tries. |
+| `notifyNewDevice` | Mail when the household signs in on a new device. |
+| `pinResetEnabled` | The administrator allows PIN reset by email. |
+
+### `POST /plugins/profiles/account/email`
+
+**Authorisation:** signed-in user. The main account only, with its PIN.
+
+```json
+{ "address": "parent@example.com", "language": "en", "masterPin": "1234" }
+```
+
+Sends a code to the address. Nothing is stored until it's confirmed. Returns the `GET`
+shape with `pendingAddress` set.
+
+### `POST /plugins/profiles/account/email/confirm`
+
+**Authorisation:** signed-in user. The main account only, with its PIN.
+
+```json
+{ "code": "042917", "language": "en", "masterPin": "1234" }
+```
+
+Stores the address. `language` is kept for notices sent later. Returns the `GET` shape.
+
+### `POST /plugins/profiles/account/email/notifications`
+
+**Authorisation:** signed-in user. The main account only, with its PIN.
+
+```json
+{ "notifyLockout": true, "notifyNewDevice": false, "masterPin": "1234" }
+```
+
+Both optional. `400` without a confirmed address.
+
+### `POST /plugins/profiles/account/email/remove`
+
+**Authorisation:** signed-in user. The main account only, with its PIN.
+
+Removes the address. Body `{ "masterPin": "1234" }`.
+
+### `POST /plugins/profiles/account/pin-reset/send`
+
+**Authorisation:** signed-in user. The main account only. No PIN: this is for an account
+that has forgotten it.
+
+```json
+{ "language": "en" }
+```
+
+Sends a code to the confirmed address. Returns `{ "sentTo": "p•••@example.com" }`. `400`
+unless `/me` says `pinResetByEmail`.
+
+### `POST /plugins/profiles/account/pin-reset`
+
+**Authorisation:** signed-in user. The main account only.
+
+```json
+{ "code": "042917", "newPin": "2468" }
+```
+
+Sets the main account's PIN and lifts any lock on it. The address gets a note saying the PIN
+changed. Profiles' PINs are reset by the main account, not by email.
+
+### `GET /plugins/profiles/admin/email`
+
+**Authorisation:** administrator.
+
+```json
+{
+  "host": "smtp.example.com",
+  "port": 587,
+  "security": "starttls",
+  "username": "bonfire@example.com",
+  "hasPassword": true,
+  "fromAddress": "bonfire@example.com",
+  "fromName": "Bonfire",
+  "configured": true,
+  "verified": true,
+  "pinResetByEmail": false,
+  "accounts": [
+    { "userId": "…", "name": "John", "address": "john@example.com", "confirmedUtc": "…" }
+  ]
+}
+```
+
+The password is never returned.
+
+### `POST /plugins/profiles/admin/email`
+
+**Authorisation:** administrator.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `host` | string | The mail server. |
+| `port` | integer | Usually 587. Port 465 isn't supported. |
+| `security` | string | `starttls`, or `none` for a relay on your own network. |
+| `username` | string | Empty for a server that takes none. |
+| `password` | string | Omit to keep the stored one; empty clears it. |
+| `fromAddress` | string | The address mail comes from. |
+| `fromName` | string | The name shown with it. |
+
+All optional. Returns the `GET` shape. Changing anything the connection uses makes it
+unverified until the next test, and everything that needs email stops until then.
+
+### `POST /plugins/profiles/admin/email/test`
+
+**Authorisation:** administrator.
+
+```json
+{ "to": "you@example.com" }
+```
+
+Sends a test message with the saved settings. If it goes through, email becomes available.
+`400` with a reason if it doesn't. Returns the `GET` shape.
+
+### `POST /plugins/profiles/admin/account-email/remove`
+
+**Authorisation:** administrator.
+
+```json
+{ "userId": "…" }
+```
+
+The account stops getting codes and notices.
+
 ## Avatar library
 
 Pictures an administrator publishes for everyone to choose from, plus thirty built-in
@@ -1518,9 +1697,10 @@ anything added since you read it.
 | `skipQuickConnectOnKnownDevices` | boolean | Same. |
 | `profileImageQuality` | string | `standard` (512 px, 2 MB), `high` (1024 px, 4 MB) or `maximum` (2048 px, 8 MB). |
 | `onboardingEnabled` | boolean | [First-time setup](#first-time-setup) on or off. The first time it goes on, existing accounts count as having seen it. |
-| `onboardingSteps` | string[] | Steps to offer: `welcome`, `mainPin`, `firstProfile`, `switcher`, `theme`. |
+| `onboardingSteps` | string[] | Steps to offer: `welcome`, `mainPin`, `resetEmail`, `firstProfile`, `switcher`, `theme`. |
 | `onboardingRequiredSteps` | string[] | Steps that can't be skipped. |
 | `onboardingWelcomeText` | string | Plain text for the first screen, up to 500 characters. |
+| `enablePinResetByEmail` | boolean | Main accounts may [reset a forgotten PIN by email](#email). `400` while email isn't working. |
 
 `400` if any field is out of range, and then nothing is changed.
 

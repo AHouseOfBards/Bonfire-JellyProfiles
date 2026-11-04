@@ -36,6 +36,12 @@ namespace Jellyfin.Profiles.Models
         public bool ProfileThemes { get; set; }
         public List<string> ProxyClients { get; set; } = new List<string>();
         public bool RequireMainPin { get; set; }
+
+        /// <summary>Outgoing mail is set up and tested, so addresses can be added.</summary>
+        public bool Email { get; set; }
+
+        /// <summary>A main account with a confirmed address can reset its PIN by email.</summary>
+        public bool PinResetByEmail { get; set; }
     }
 
     public class InfoMaintenance
@@ -71,6 +77,60 @@ namespace Jellyfin.Profiles.Models
 
         /// <summary>How many it may have.</summary>
         public int MaxProfiles { get; set; }
+
+        /// <summary>This main account can reset its PIN by email now: the feature is on and
+        /// it has a confirmed address. Always false for a profile.</summary>
+        public bool PinResetByEmail { get; set; }
+    }
+
+    /// <summary>GET /account/email: the main account's address and notices.</summary>
+    public class AccountEmailResponse
+    {
+        /// <summary>Email is set up on this server. Without it nothing else here works.</summary>
+        public bool Available { get; set; }
+
+        /// <summary>The confirmed address, or empty.</summary>
+        public string Address { get; set; } = string.Empty;
+
+        /// <summary>An address waiting for its code, or empty.</summary>
+        public string PendingAddress { get; set; } = string.Empty;
+
+        public bool NotifyLockout { get; set; } = true;
+        public bool NotifyNewDevice { get; set; } = true;
+
+        /// <summary>PIN reset by email is on for this server.</summary>
+        public bool PinResetEnabled { get; set; }
+    }
+
+    /// <summary>GET /admin/email. The password is never included, only whether one is set.</summary>
+    public class AdminEmailResponse
+    {
+        public string Host { get; set; } = string.Empty;
+        public int Port { get; set; }
+        public string Security { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+        public bool HasPassword { get; set; }
+        public string FromAddress { get; set; } = string.Empty;
+        public string FromName { get; set; } = string.Empty;
+
+        /// <summary>Enough is filled in to try.</summary>
+        public bool Configured { get; set; }
+
+        /// <summary>A test has gone through since anything was last changed.</summary>
+        public bool Verified { get; set; }
+
+        public bool PinResetByEmail { get; set; }
+
+        /// <summary>Main accounts with a confirmed address.</summary>
+        public List<AdminAccountEmail> Accounts { get; set; } = new();
+    }
+
+    public class AdminAccountEmail
+    {
+        public Guid UserId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Address { get; set; } = string.Empty;
+        public DateTime ConfirmedUtc { get; set; }
     }
 
     /// <summary>GET /onboarding: the first-time setup this account should be shown.</summary>

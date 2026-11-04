@@ -694,5 +694,17 @@
   "profileForm.moreTitle": "Más opciones",
   "profileForm.moreSummary": "Bloqueo, dispositivos, etiquetas y tema",
   "profileForm.kidsPreset": "Perfil infantil",
-  "profileForm.kidsPresetHint": "Pone la clasificación en 10 años. Puedes cambiarla."
+  "profileForm.kidsPresetHint": "Pone la clasificación en 10 años. Puedes cambiarla.",
+  "email.test.subject": "Correo de prueba de Bonfire",
+  "email.test.body": "El correo de Bonfire funciona. Los códigos y avisos llegarán desde esta dirección.",
+  "email.confirm.subject": "Confirma tu correo para Bonfire",
+  "email.confirm.body": "Tu código es {code}.\n\nIntrodúcelo en Bonfire para usar esta dirección con {account}. Funciona durante 15 minutos.\n\nSi no lo has pedido, ignora este correo.",
+  "email.reset.subject": "Restablece tu PIN de Bonfire",
+  "email.reset.body": "Tu código es {code}.\n\nIntrodúcelo en Bonfire para poner un PIN nuevo a {account}. Funciona durante 15 minutos.\n\nSi no lo has pedido, ignora este correo. Tu PIN no ha cambiado.",
+  "email.resetDone.subject": "Se ha cambiado tu PIN de Bonfire",
+  "email.resetDone.body": "El PIN de {account} se ha restablecido con un código enviado a esta dirección.\n\nSi no has sido tú, avisa al administrador del servidor.",
+  "email.lockout.subject": "Se ha bloqueado un PIN de Bonfire",
+  "email.lockout.body": "El PIN de {name} se ha bloqueado tras demasiados intentos fallidos. Se desbloquea solo en 15 minutos como máximo.\n\nPuedes desactivar estos correos en Bonfire: Configuración, Tu cuenta.",
+  "email.newDevice.subject": "Un dispositivo nuevo ha entrado en Bonfire",
+  "email.newDevice.body": "Se ha iniciado sesión con tu hogar en un dispositivo nuevo: {device}.\n\nSi no lo reconoces, pide al administrador del servidor que cierre su sesión.\n\nPuedes desactivar estos correos en Bonfire: Configuración, Tu cuenta."
 }

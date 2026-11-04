@@ -195,6 +195,8 @@ Ok("a profile never is", !Pending(OLD_KID) && !PrefsPending(OLD_KID));
 var ids = Steps(NEW).Select(s => s.id).ToList();
 Ok("every step is offered by default, in order",
    ids.SequenceEqual(new[] { "welcome", "mainPin", "firstProfile", "switcher", "theme" }), string.Join(",", ids));
+// tests/cs/email covers it once email works; here it never does.
+Ok("an email address is not asked for while email isn't working", !ids.Contains("resetEmail"));
 
 cfgType.GetProperty("AllowProfileThemes").SetValue(config, false);
 Ok("theme is not offered while profiles can't have their own", !Steps(NEW).Any(s => s.id == "theme"));
@@ -317,7 +319,8 @@ Ok("and the generation and the one-time excuse",
 List<string> Offered(object cfg) => ((IEnumerable<string>)obType.GetMethod("OfferedSteps")
     .Invoke(cfgType.GetProperty("Onboarding").GetValue(cfg), null)).ToList();
 var fresh = Activator.CreateInstance(cfgType);
-Ok("the default offers every step after two saves", Offered(RoundTrip(RoundTrip(fresh))).Count == 5,
+Ok("the default offers every step after two saves",
+   string.Join(",", Offered(RoundTrip(RoundTrip(fresh)))) == "welcome,mainPin,resetEmail,firstProfile,switcher,theme",
    string.Join(",", Offered(RoundTrip(RoundTrip(fresh)))));
 var picked = Activator.CreateInstance(cfgType);
 var pickedOb = cfgType.GetProperty("Onboarding").GetValue(picked);

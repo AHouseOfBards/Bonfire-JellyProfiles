@@ -241,6 +241,9 @@ if (info != null)
         "Features.ProfileThemes", "Features.ProxyClients",
         // A server-wide setting, so a client knows to ask for a main PIN to be set.
         "Features.RequireMainPin",
+        // Whether the server can send mail, and whether a forgotten main PIN can be reset
+        // by it. Server-wide: whether an account has an address is in /me, never here.
+        "Features.Email", "Features.PinResetByEmail",
         // Null unless closed for maintenance, which this harness never is.
         "Maintenance",
     };

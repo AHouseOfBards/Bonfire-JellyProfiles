@@ -1149,6 +1149,7 @@ namespace Jellyfin.Profiles.Controllers
                        ?? "A profile";
             LogActivity(name + "'s PIN is locked after too many wrong tries", "PinLocked", userId,
                 severity: Microsoft.Extensions.Logging.LogLevel.Warning);
+            Mail.Notifications.PinLocked(userId, name, _logger);
         }
 
         /// <summary>The right PIN, or none needed: both allowances start again.</summary>

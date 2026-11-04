@@ -39,7 +39,12 @@ function ok(name, cond, detail) {
     }
 }
 
-const cs = fs.readFileSync(path.join(L.ROOT, 'Controllers', 'ProfilesController.cs'), 'utf8');
+// The controller is split into partial files (ProfilesController.Email.cs, 1.7.2), and a
+// route in a file this didn't read would be undocumented and unchecked without a word. So
+// every ProfilesController*.cs is read, and below, any other file declaring routes fails.
+const CONTROLLERS = path.join(L.ROOT, 'Controllers');
+const controllerFiles = fs.readdirSync(CONTROLLERS).filter(f => /^ProfilesController(\.\w+)?\.cs$/.test(f)).sort();
+const cs = controllerFiles.map(f => fs.readFileSync(path.join(CONTROLLERS, f), 'utf8')).join('\n');
 const doc = fs.readFileSync(path.join(L.ROOT, 'docs', 'developer-api.md'), 'utf8');
 
 const PREFIX = '/plugins/profiles';
@@ -115,6 +120,23 @@ function routes() {
 }
 
 const R = routes();
+
+{
+    const stray = [];
+    (function walk(dir) {
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, e.name);
+            if (e.isDirectory()) {
+                if (!/^(bin|obj|tests|node_modules|\.git)$/.test(e.name)) walk(full);
+            } else if (e.name.endsWith('.cs') && !controllerFiles.includes(e.name)
+                       && /\[Http(Get|Post|Put|Delete|Patch)\b/.test(fs.readFileSync(full, 'utf8'))) {
+                stray.push(path.relative(L.ROOT, full));
+            }
+        }
+    })(L.ROOT);
+    ok('every route is in a ProfilesController*.cs file this reads (' + controllerFiles.join(', ') + ')',
+       stray.length === 0, stray.join(', '));
+}
 
 console.log();
 console.log('── the controller ─────────────────────────────────────────────');

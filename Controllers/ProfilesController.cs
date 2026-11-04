@@ -30,7 +30,7 @@ namespace Jellyfin.Profiles.Controllers
 {
 
     [Route("plugins/profiles")]
-    public class ProfilesController : ProfilesBaseController
+    public partial class ProfilesController : ProfilesBaseController
     {
         public ProfilesController(
             IUserManager userManager,
@@ -2183,6 +2183,8 @@ namespace Jellyfin.Profiles.Controllers
             foreach (var pair in all)
             {
                 if (pair.Key.StartsWith(AdminKeyPrefix, StringComparison.Ordinal) != admin) continue;
+                // The mail's words are read by the server (Mail.EmailText), never by a page.
+                if (pair.Key.StartsWith(Mail.EmailText.KeyPrefix, StringComparison.Ordinal)) continue;
                 part[pair.Key] = pair.Value?.DeepClone();
             }
 
@@ -2677,12 +2679,14 @@ namespace Jellyfin.Profiles.Controllers
             var required = OnboardingSteps.Normalize(o.RequiredSteps);
             return o.OfferedSteps()
                 .Where(id => id != OnboardingSteps.Theme || config.AllowProfileThemes)
+                .Where(id => id != OnboardingSteps.ResetEmail || Features.Available(Features.Email, config))
                 .Select(id => new OnboardingStepInfo
                 {
                     Id = id,
                     Required = required.Contains(id),
                     Done = id == OnboardingSteps.MainPin ? MainHasPin(mainId, config)
                          : id == OnboardingSteps.FirstProfile ? config.Mappings.Any(m => m.MasterUserId == mainId && m.ProfileUserId != mainId)
+                         : id == OnboardingSteps.ResetEmail ? config.AccountEmails.Any(a => a.UserId == mainId && !string.IsNullOrEmpty(a.Address))
                          : false
                 })
                 .ToList();
@@ -4311,6 +4315,8 @@ namespace Jellyfin.Profiles.Controllers
                     ProfileThemes = config?.AllowProfileThemes != false,
                     ProxyClients = config?.ProxyClients ?? new List<string>(),
                     RequireMainPin = config?.RequireMainPin == true,
+                    Email = config != null && Features.Available(Features.Email, config),
+                    PinResetByEmail = config != null && Features.Available(Features.PinResetByEmail, config),
                 },
 
                 // Anonymous on purpose: the people it is for cannot sign in.
@@ -4353,6 +4359,7 @@ namespace Jellyfin.Profiles.Controllers
                 MainHasPin = MainHasPin(mainId, config),
                 ProfileCount = config.Mappings.Count(m => m.MasterUserId == mainId && m.ProfileUserId != mainId),
                 MaxProfiles = GetMaxProfilesForUser(mainId, config),
+                PinResetByEmail = !isProfile && PinResetPossible(mainId, config),
             });
         }
 
@@ -4742,6 +4749,14 @@ namespace Jellyfin.Profiles.Controllers
             {
                 return BadRequest("First-time setup steps must be from: " + string.Join(", ", OnboardingSteps.All) + ".");
             }
+            // The dependency rule: nothing that needs email can be turned on until it works.
+            if (request.EnablePinResetByEmail == true)
+            {
+                var current = ReadConfigSnapshot();
+                if (current == null || !Features.Available(Features.Email, current))
+                    return BadRequest("Set up email and send a test first.");
+            }
+
             if (request.OnboardingWelcomeText != null && request.OnboardingWelcomeText.Trim().Length > OnboardingSettings.MaxWelcomeLength)
             {
                 return BadRequest($"The welcome can be at most {OnboardingSettings.MaxWelcomeLength} characters.");
@@ -4803,6 +4818,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.SkipQuickConnectOnKnownDevices = request.SkipQuickConnectOnKnownDevices.Value;
                 if (request.ProxyClients != null)
                     config.ProxyClients = Auth.ProxyClients.Normalize(request.ProxyClients);
+                if (request.EnablePinResetByEmail.HasValue)
+                    config.EnablePinResetByEmail = request.EnablePinResetByEmail.Value;
 
                 config.Onboarding ??= new OnboardingSettings();
                 var onboarding = config.Onboarding;

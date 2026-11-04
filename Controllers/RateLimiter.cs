@@ -58,6 +58,9 @@ namespace Jellyfin.Profiles.Controllers
         private readonly object _cleanupLock = new();
         private DateTime _nextCleanup = DateTime.UtcNow.AddMinutes(5);
 
+        /// <summary>A limiter of its own, for a gate declared beside the code it guards.</summary>
+        internal static RateLimiter Create(int maxAttempts, int windowMinutes) => new(maxAttempts, windowMinutes);
+
         private RateLimiter(int maxAttempts, int windowMinutes)
         {
             _maxAttempts = maxAttempts;

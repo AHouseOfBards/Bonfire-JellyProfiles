@@ -159,6 +159,43 @@ function readAdminEnglish(problems) {
     return Object.assign({}, markup, script);
 }
 
+// ── The mail's English ──────────────────────────────────────────────────────
+// Bonfire's emails are written on the server, so their English lives in
+// Mail/EmailText.cs, one ["email.…"] = "…" line per key. The server never sends the
+// email.* half of a language file to a browser.
+const MAIL_TEXT = path.join(HERE, '..', '..', 'Mail', 'EmailText.cs');
+const REPO = path.join(HERE, '..', '..');
+
+function readMailEnglish(problems) {
+    if (!fs.existsSync(MAIL_TEXT)) return {};
+    const src = fs.readFileSync(MAIL_TEXT, 'utf8');
+    const out = {};
+    const re = /^[ \t]*\["([^"]+)"\]\s*=\s*"((?:[^"\\]|\\.)*)"/gm;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+        if (m[1] in out) problems.push(m[1] + ': defined twice in EmailText.cs.');
+        out[m[1]] = m[2].replace(/\\n/g, '\n').replace(/\\(["\\])/g, '$1');
+    }
+    if (Object.keys(out).length === 0) fail('Found no ["email.…"] lines in Mail/EmailText.cs. Has the format changed?');
+    for (const k of Object.keys(out)) {
+        if (!k.startsWith('email.')) problems.push(k + ': mail keys start with email.');
+    }
+    return out;
+}
+
+/// Every .cs file outside bin, obj and tests, for the "is it used" check.
+function csSources(dir, acc) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (e.isDirectory()) {
+            if (/^(bin|obj|tests|node_modules|\..*)$/.test(e.name)) continue;
+            csSources(path.join(dir, e.name), acc);
+        } else if (e.name.endsWith('.cs')) {
+            acc.push(path.join(dir, e.name));
+        }
+    }
+    return acc;
+}
+
 /// The {token} placeholders in a string, as a sorted list. A translation that drops one
 /// renders the literal word "{name}" to a user; one that invents a new token renders it
 /// verbatim too, because t() only substitutes what the caller passed.
@@ -180,7 +217,12 @@ const adminEnglish = readAdminEnglish(adminProblems);
 for (const k of Object.keys(appEnglish)) {
     if (k.startsWith('admin.')) adminProblems.push(k + ': EN_STRINGS cannot use admin.; the server serves those keys to the settings page only.');
 }
-const english = Object.assign({}, appEnglish, adminEnglish);
+const mailProblems = [];
+const mailEnglish = readMailEnglish(mailProblems);
+for (const k of Object.keys(appEnglish).concat(Object.keys(adminEnglish))) {
+    if (k.startsWith('email.')) mailProblems.push(k + ': email. keys belong in Mail/EmailText.cs; the server keeps them from browsers.');
+}
+const english = Object.assign({}, appEnglish, adminEnglish, mailEnglish);
 const englishKeys = Object.keys(english).sort();
 
 const only = process.argv[2] ? process.argv[2].replace(/\.json$/i, '') : null;
@@ -195,7 +237,8 @@ if (files.length === 0) {
 }
 
 console.log('English catalogue: ' + Object.keys(appEnglish).length + ' keys for households, '
-    + Object.keys(adminEnglish).length + ' for the settings page\n');
+    + Object.keys(adminEnglish).length + ' for the settings page, '
+    + Object.keys(mailEnglish).length + ' for email\n');
 
 let bad = 0;
 
@@ -342,6 +385,28 @@ if (fs.existsSync(DASHBOARD)) {
         console.log('');
     } else {
         console.log('✓ profilesDashboard.html  (every settings-page key is defined once and used)');
+        console.log('');
+    }
+}
+
+// ── The mail's catalogue ────────────────────────────────────────────────────
+//
+// Each email key must be named, as a literal, somewhere in the server's code other than
+// its definition. A key built from parts would read as unused here; write it out.
+if (Object.keys(mailEnglish).length) {
+    const problems = mailProblems.slice();
+    const others = csSources(REPO, []).filter(f => path.resolve(f) !== path.resolve(MAIL_TEXT))
+        .map(f => fs.readFileSync(f, 'utf8')).join('\n');
+    Object.keys(mailEnglish).forEach(k => {
+        if (others.indexOf('"' + k + '"') === -1) problems.push(k + ': in EmailText.cs but never used.');
+    });
+    if (problems.length) {
+        bad++;
+        console.log('✗ Mail/EmailText.cs  (' + problems.length + ' problem(s))');
+        problems.forEach(p => console.log('    ' + p));
+        console.log('');
+    } else {
+        console.log('✓ Mail/EmailText.cs  (every email key is defined once and used)');
         console.log('');
     }
 }

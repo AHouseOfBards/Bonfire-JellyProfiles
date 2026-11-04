@@ -354,9 +354,10 @@ Promise.all(checks).then(() => {
         if (!data) return;
 
         // The household's half: exactly what the server hands this script (everything but
-        // admin.*, see ReadLocalePart). The settings page's half is checked against its own
-        // catalogue by Web/i18n/validate.js and tests/js/admini18n.js.
-        data = Object.keys(data).filter(k => k.indexOf('admin.') !== 0)
+        // admin.* and email.*, see ReadLocalePart). The settings page's half is checked
+        // against its own catalogue by Web/i18n/validate.js and tests/js/admini18n.js; the
+        // mail's, against Mail/EmailText.cs by validate.js.
+        data = Object.keys(data).filter(k => k.indexOf('admin.') !== 0 && k.indexOf('email.') !== 0)
             .reduce((o, k) => { o[k] = data[k]; return o; }, {});
 
         ok(f + ' is named as a locale code a browser would send',

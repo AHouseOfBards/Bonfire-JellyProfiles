@@ -89,11 +89,14 @@ namespace Jellyfin.Profiles.Configuration
     {
         public const string Welcome = "welcome";
         public const string MainPin = "mainPin";
+
+        /// <summary>An address for PIN reset and notices. Offered only while email works.</summary>
+        public const string ResetEmail = "resetEmail";
         public const string FirstProfile = "firstProfile";
         public const string Switcher = "switcher";
         public const string Theme = "theme";
 
-        public static readonly string[] All = { Welcome, MainPin, FirstProfile, Switcher, Theme };
+        public static readonly string[] All = { Welcome, MainPin, ResetEmail, FirstProfile, Switcher, Theme };
 
         public static bool IsKnown(string? id) => id != null && All.Any(s => string.Equals(s, id, StringComparison.OrdinalIgnoreCase));
 

@@ -694,5 +694,17 @@
   "profileForm.moreTitle": "Plus de réglages",
   "profileForm.moreSummary": "Verrouillage, appareils, étiquettes et thème",
   "profileForm.kidsPreset": "Profil enfant",
-  "profileForm.kidsPresetHint": "Règle la limite d'âge sur 10 ans. Modifiable."
+  "profileForm.kidsPresetHint": "Règle la limite d'âge sur 10 ans. Modifiable.",
+  "email.test.subject": "E-mail de test de Bonfire",
+  "email.test.body": "L'envoi d'e-mails depuis Bonfire fonctionne. Les codes et les avis viendront de cette adresse.",
+  "email.confirm.subject": "Confirmez votre e-mail pour Bonfire",
+  "email.confirm.body": "Votre code est {code}.\n\nSaisissez-le dans Bonfire pour utiliser cette adresse avec {account}. Il reste valable 15 minutes.\n\nSi vous n'avez rien demandé, ignorez cet e-mail.",
+  "email.reset.subject": "Réinitialisez votre code PIN Bonfire",
+  "email.reset.body": "Votre code est {code}.\n\nSaisissez-le dans Bonfire pour définir un nouveau code PIN pour {account}. Il reste valable 15 minutes.\n\nSi vous n'avez rien demandé, ignorez cet e-mail. Votre code PIN n'a pas changé.",
+  "email.resetDone.subject": "Votre code PIN Bonfire a été changé",
+  "email.resetDone.body": "Le code PIN de {account} a été réinitialisé avec un code envoyé à cette adresse.\n\nSi ce n'était pas vous, prévenez l'administrateur du serveur.",
+  "email.lockout.subject": "Un code PIN Bonfire a été bloqué",
+  "email.lockout.body": "Le code PIN de {name} a été bloqué après trop d'essais erronés. Il se débloque tout seul en 15 minutes au plus.\n\nVous pouvez désactiver ces e-mails dans Bonfire : Paramètres, Votre compte.",
+  "email.newDevice.subject": "Nouvel appareil connecté à Bonfire",
+  "email.newDevice.body": "Votre foyer s'est connecté sur un nouvel appareil : {device}.\n\nSi vous ne le reconnaissez pas, demandez à l'administrateur du serveur de le déconnecter.\n\nVous pouvez désactiver ces e-mails dans Bonfire : Paramètres, Votre compte."
 }

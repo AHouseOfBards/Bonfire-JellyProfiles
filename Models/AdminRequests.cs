@@ -75,6 +75,10 @@ namespace Jellyfin.Profiles.Models
 
         /// <summary>Plain text for the first screen. Empty for none.</summary>
         public string? OnboardingWelcomeText { get; set; }
+
+        /// <summary>Main accounts may reset a forgotten PIN by email. Refused while email
+        /// isn't working.</summary>
+        public bool? EnablePinResetByEmail { get; set; }
     }
 
     /// <summary>Identifies one signed-in device belonging to one user.</summary>

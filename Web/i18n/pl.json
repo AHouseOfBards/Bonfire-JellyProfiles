@@ -694,5 +694,17 @@
   "profileForm.moreTitle": "Więcej ustawień",
   "profileForm.moreSummary": "Blokada, urządzenia, tagi i motyw",
   "profileForm.kidsPreset": "Profil dziecięcy",
-  "profileForm.kidsPresetHint": "Ustawia limit wiekowy na 10 lat. Można go zmienić."
+  "profileForm.kidsPresetHint": "Ustawia limit wiekowy na 10 lat. Można go zmienić.",
+  "email.test.subject": "Testowa wiadomość z Bonfire",
+  "email.test.body": "Wysyłanie e-maili z Bonfire działa. Kody i powiadomienia będą przychodzić z tego adresu.",
+  "email.confirm.subject": "Potwierdź swój e-mail w Bonfire",
+  "email.confirm.body": "Twój kod to {code}.\n\nWpisz go w Bonfire, aby używać tego adresu dla konta {account}. Kod działa przez 15 minut.\n\nJeśli to nie Ty, zignoruj tę wiadomość.",
+  "email.reset.subject": "Zresetuj kod PIN w Bonfire",
+  "email.reset.body": "Twój kod to {code}.\n\nWpisz go w Bonfire, aby ustawić nowy kod PIN dla konta {account}. Kod działa przez 15 minut.\n\nJeśli to nie Ty, zignoruj tę wiadomość. Twój kod PIN się nie zmienił.",
+  "email.resetDone.subject": "Twój kod PIN w Bonfire został zmieniony",
+  "email.resetDone.body": "Kod PIN konta {account} zresetowano kodem wysłanym na ten adres.\n\nJeśli to nie Ty, powiadom administratora serwera.",
+  "email.lockout.subject": "Kod PIN w Bonfire został zablokowany",
+  "email.lockout.body": "Kod PIN profilu {name} został zablokowany po zbyt wielu błędnych próbach. Odblokuje się sam w ciągu 15 minut.\n\nMożesz wyłączyć te wiadomości w Bonfire: Ustawienia, Twoje konto.",
+  "email.newDevice.subject": "Nowe urządzenie zalogowane w Bonfire",
+  "email.newDevice.body": "Twoje gospodarstwo zalogowało się na nowym urządzeniu: {device}.\n\nJeśli go nie znasz, poproś administratora serwera o wylogowanie go.\n\nMożesz wyłączyć te wiadomości w Bonfire: Ustawienia, Twoje konto."
 }

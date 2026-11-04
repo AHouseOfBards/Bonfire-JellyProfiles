@@ -60,6 +60,8 @@ namespace Jellyfin.Profiles.Configuration
             copy.AvatarLibrary = AvatarLibrary?.ToList() ?? new List<AvatarLibraryItem>();
             copy.QuickConnectSharedDeviceNames = QuickConnectSharedDeviceNames?.ToList() ?? new List<string>();
             copy.Onboarding = Onboarding?.CopyForReading() ?? new OnboardingSettings();
+            copy.Email = Email?.CopyForReading() ?? new EmailSettings();
+            copy.AccountEmails = AccountEmails?.Select(a => a.Copy()).ToList() ?? new List<AccountEmail>();
             return copy;
         }
 
@@ -168,6 +170,19 @@ namespace Jellyfin.Profiles.Configuration
         /// outside the lock take a snapshot (ReadConfigSnapshot). See <see cref="OnboardingSettings"/>.
         /// </summary>
         public OnboardingSettings Onboarding { get; set; } = new();
+
+        /// <summary>Outgoing mail. See <see cref="EmailSettings"/>.</summary>
+        public EmailSettings Email { get; set; } = new();
+
+        /// <summary>Main accounts' confirmed addresses, one row each. See <see cref="AccountEmail"/>.</summary>
+        public List<AccountEmail> AccountEmails { get; set; } = new();
+
+        /// <summary>
+        /// A main account may reset a forgotten PIN with a code sent to its confirmed
+        /// address. Off by default, and refused until email works (<see cref="Features"/>).
+        /// Resets the main account's PIN only: a profile's PIN is the main account's to reset.
+        /// </summary>
+        public bool EnablePinResetByEmail { get; set; }
 
         /// <summary>Default for <see cref="ProfileMapping.SwitcherLocation"/>. See <see cref="DefaultAskOnStartup"/>.</summary>
         public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;

@@ -259,11 +259,15 @@ if (readPart != null)
         Ok(code + ": the settings half has nothing else",
            adm.Keys.All(k => k.StartsWith("admin.", StringComparison.Ordinal)));
         Ok(code + ": the settings half is translated (" + adm.Count + " keys)", adm.Count > 0);
-        var missingKeys = all.Keys.Where(k => !(app.ContainsKey(k) || adm.ContainsKey(k))).ToArray();
-        Ok(code + ": between them they hold every key, unchanged"
+        // The mail's words (email.*) are read by the server and go to neither half.
+        Ok(code + ": neither half carries the mail's words",
+           app.Keys.Concat(adm.Keys).All(k => !k.StartsWith("email.", StringComparison.Ordinal)));
+        var missingKeys = all.Keys.Where(k => !k.StartsWith("email.", StringComparison.Ordinal)
+                                              && !(app.ContainsKey(k) || adm.ContainsKey(k))).ToArray();
+        Ok(code + ": between them they hold every other key, unchanged"
            + (missingKeys.Length > 0 ? " (lost: " + string.Join(", ", missingKeys.Take(3)) + ")" : ""),
            missingKeys.Length == 0
-           && all.All(p => (app.TryGetValue(p.Key, out var v) || adm.TryGetValue(p.Key, out v)) && v == p.Value));
+           && all.Where(p => !p.Key.StartsWith("email.", StringComparison.Ordinal)).All(p => (app.TryGetValue(p.Key, out var v) || adm.TryGetValue(p.Key, out v)) && v == p.Value));
         // Relaxed escaping: an accented letter arrives as itself rather than as é,
         // which is what keeps a Polish or Turkish file from doubling in size.
         // Asked of the letters themselves: an apostrophe still arrives as ', which is
