@@ -2650,8 +2650,131 @@ namespace Jellyfin.Profiles.Controllers
                 // switcher settings above, a theme belongs to one profile.
                 Theme = Themes.Resolve(currentMapping, config.DefaultTheme, config.AllowProfileThemes),
                 DefaultTheme = Themes.Normalize(config.DefaultTheme),
-                AllowProfileThemes = config.AllowProfileThemes
+                AllowProfileThemes = config.AllowProfileThemes,
+                // Read on every page load already, so the web client learns here whether to
+                // fetch /onboarding at all rather than asking on every load.
+                OnboardingPending = OnboardingPendingFor(currentUserId, config)
             });
+        }
+
+        // ── First-time setup ────────────────────────────────────────────────────────
+
+        /// <summary>A sub-profile, as opposed to a main account (which may have no row).</summary>
+        internal static bool IsSubProfile(Guid userId, PluginConfiguration config)
+        {
+            var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == userId);
+            return row != null && row.MasterUserId != Guid.Empty && row.MasterUserId != userId;
+        }
+
+        /// <summary>
+        /// The steps to offer this main account, in order. A step whose feature is off is
+        /// left out, not shown disabled: the theme step needs profiles to be allowed a theme.
+        /// <c>Done</c> marks what is already true, so a client can pass over it.
+        /// </summary>
+        internal static List<OnboardingStepInfo> OnboardingStepsFor(Guid mainId, PluginConfiguration config)
+        {
+            var o = config.Onboarding ?? new OnboardingSettings();
+            var required = OnboardingSteps.Normalize(o.RequiredSteps);
+            return o.OfferedSteps()
+                .Where(id => id != OnboardingSteps.Theme || config.AllowProfileThemes)
+                .Select(id => new OnboardingStepInfo
+                {
+                    Id = id,
+                    Required = required.Contains(id),
+                    Done = id == OnboardingSteps.MainPin ? MainHasPin(mainId, config)
+                         : id == OnboardingSteps.FirstProfile ? config.Mappings.Any(m => m.MasterUserId == mainId && m.ProfileUserId != mainId)
+                         : false
+                })
+                .ToList();
+        }
+
+        internal static bool OnboardingPendingFor(Guid userId, PluginConfiguration config)
+        {
+            var o = config.Onboarding;
+            return o != null && o.Enabled
+                && !IsSubProfile(userId, config)
+                && !o.HasSeen(userId)
+                && OnboardingStepsFor(userId, config).Count > 0;
+        }
+
+        /// <summary>
+        /// The first-time setup this account should see: whether to show it, the welcome,
+        /// and the steps. Main accounts only; a profile is always told it is not pending.
+        /// </summary>
+        [HttpGet("onboarding")]
+        [ProducesResponseType(typeof(OnboardingResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<OnboardingResponse> GetOnboarding()
+        {
+            var userId = GetCurrentUserId();
+            // An API key carries an all-zero id: there is no account to walk through anything.
+            if (userId == null || userId == Guid.Empty) return Unauthorized();
+            var config = ReadConfigSnapshot() ?? new PluginConfiguration();
+            var pending = OnboardingPendingFor(userId.Value, config);
+
+            return Ok(new OnboardingResponse
+            {
+                Pending = pending,
+                Generation = config.Onboarding?.Generation ?? 1,
+                WelcomeText = pending ? (config.Onboarding?.WelcomeText ?? string.Empty).Trim() : string.Empty,
+                Steps = pending ? OnboardingStepsFor(userId.Value, config) : new List<OnboardingStepInfo>()
+            });
+        }
+
+        /// <summary>
+        /// Records that this main account has been through first-time setup, finished or
+        /// skipped. No PIN: it changes nothing but whether the setup is shown, and each step
+        /// that changes something goes through its own route and that route's checks.
+        /// </summary>
+        [HttpPost("onboarding/done")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult OnboardingDone()
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null || userId == Guid.Empty) return Unauthorized();
+
+            lock (ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (config == null) return BadRequest("Plugin configuration missing.");
+                // A profile is never shown it, so there is nothing to record.
+                if (IsSubProfile(userId.Value, config)) return Ok();
+                config.Onboarding ??= new OnboardingSettings();
+                config.Onboarding.MarkSeen(userId.Value);
+                Plugin.Instance?.SaveConfiguration();
+            }
+            return Ok();
+        }
+
+        /// <summary>
+        /// "Show again to everyone": every main account sees first-time setup once more,
+        /// on its next visit, including accounts that were counted as having seen it.
+        /// </summary>
+        [HttpPost("admin/onboarding/show-again")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> ShowOnboardingAgain()
+        {
+            var adminError = RequireAdministrator("show first-time setup again");
+            if (adminError != null) return adminError;
+
+            int generation;
+            lock (ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (config == null) return BadRequest("Plugin configuration missing.");
+                config.Onboarding ??= new OnboardingSettings();
+                config.Onboarding.Generation++;
+                // Whoever is in the list now was counted as having seen the old setup; they
+                // will see this one. The list itself can go: a record is only ever compared
+                // against the current generation, and none can reach it yet.
+                config.Onboarding.Seen = new List<OnboardingRecord>();
+                generation = config.Onboarding.Generation;
+                Plugin.Instance?.SaveConfiguration();
+            }
+            _logger.LogInformation("ProfilesPlugin: First-time setup will be shown again to every main account.");
+            return Ok(new { Generation = generation });
         }
 
         /// <summary>
@@ -4612,6 +4735,37 @@ namespace Jellyfin.Profiles.Controllers
                                 + $"'{ImageQualities.High}' or '{ImageQualities.Maximum}'.");
             }
 
+            var unknownStep = (request.OnboardingSteps ?? new List<string>())
+                .Concat(request.OnboardingRequiredSteps ?? new List<string>())
+                .FirstOrDefault(s => !OnboardingSteps.IsKnown(s));
+            if (unknownStep != null)
+            {
+                return BadRequest("First-time setup steps must be from: " + string.Join(", ", OnboardingSteps.All) + ".");
+            }
+            if (request.OnboardingWelcomeText != null && request.OnboardingWelcomeText.Trim().Length > OnboardingSettings.MaxWelcomeLength)
+            {
+                return BadRequest($"The welcome can be at most {OnboardingSettings.MaxWelcomeLength} characters.");
+            }
+
+            // The first time setup is turned on, every account that already exists is
+            // counted as having seen it: it is for accounts made from now on, until "show
+            // again to everyone". Read before the lock, because walking users touches the
+            // database.
+            List<Guid>? existingAccounts = null;
+            if (request.OnboardingEnabled == true)
+            {
+                var snapshot = ReadConfigSnapshot();
+                if (snapshot != null && snapshot.Onboarding?.ExistingAccountsExempted != true)
+                {
+                    // GetAllUsers, never _userManager.Users: that property is GetUsers() from
+                    // 10.11.7 on, and calling it directly throws there.
+                    existingAccounts = GetAllUsers()
+                        .Select(u => u.Id)
+                        .Where(id => !IsSubProfile(id, snapshot))
+                        .ToList();
+                }
+            }
+
             lock (ConfigLock)
             {
                 var config = Plugin.Instance?.Configuration;
@@ -4649,6 +4803,27 @@ namespace Jellyfin.Profiles.Controllers
                     config.SkipQuickConnectOnKnownDevices = request.SkipQuickConnectOnKnownDevices.Value;
                 if (request.ProxyClients != null)
                     config.ProxyClients = Auth.ProxyClients.Normalize(request.ProxyClients);
+
+                config.Onboarding ??= new OnboardingSettings();
+                var onboarding = config.Onboarding;
+                if (request.OnboardingSteps != null)
+                {
+                    onboarding.Steps = OnboardingSteps.Normalize(request.OnboardingSteps);
+                    onboarding.StepsChosen = true;
+                }
+                if (request.OnboardingRequiredSteps != null)
+                    onboarding.RequiredSteps = OnboardingSteps.Normalize(request.OnboardingRequiredSteps);
+                if (request.OnboardingWelcomeText != null)
+                    onboarding.WelcomeText = request.OnboardingWelcomeText.Trim();
+                if (request.OnboardingEnabled.HasValue)
+                {
+                    onboarding.Enabled = request.OnboardingEnabled.Value;
+                    if (existingAccounts != null && !onboarding.ExistingAccountsExempted)
+                    {
+                        existingAccounts.ForEach(onboarding.MarkSeen);
+                        onboarding.ExistingAccountsExempted = true;
+                    }
+                }
 
                 Plugin.Instance?.SaveConfiguration();
             }

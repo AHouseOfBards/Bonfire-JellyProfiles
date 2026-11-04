@@ -59,6 +59,7 @@ namespace Jellyfin.Profiles.Configuration
             copy.UserProfileLimitOverrides = UserProfileLimitOverrides?.ToList() ?? new List<UserProfileLimitOverride>();
             copy.AvatarLibrary = AvatarLibrary?.ToList() ?? new List<AvatarLibraryItem>();
             copy.QuickConnectSharedDeviceNames = QuickConnectSharedDeviceNames?.ToList() ?? new List<string>();
+            copy.Onboarding = Onboarding?.CopyForReading() ?? new OnboardingSettings();
             return copy;
         }
 
@@ -161,6 +162,12 @@ namespace Jellyfin.Profiles.Configuration
         /// See <see cref="Auth.MaintenanceGate"/>.
         /// </summary>
         public MaintenanceMode Maintenance { get; set; } = new();
+
+        /// <summary>
+        /// First-time setup for main accounts. Edited in place under ConfigLock; readers
+        /// outside the lock take a snapshot (ReadConfigSnapshot). See <see cref="OnboardingSettings"/>.
+        /// </summary>
+        public OnboardingSettings Onboarding { get; set; } = new();
 
         /// <summary>Default for <see cref="ProfileMapping.SwitcherLocation"/>. See <see cref="DefaultAskOnStartup"/>.</summary>
         public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;

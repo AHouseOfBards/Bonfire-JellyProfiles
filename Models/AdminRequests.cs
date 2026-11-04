@@ -62,6 +62,19 @@ namespace Jellyfin.Profiles.Models
 
         /// <summary>See <c>ImageQualities</c>: standard, high or maximum. Null leaves it alone.</summary>
         public string? ProfileImageQuality { get; set; }
+
+        /// <summary>First-time setup on or off. The first time it goes on, accounts that
+        /// already exist are counted as having seen it.</summary>
+        public bool? OnboardingEnabled { get; set; }
+
+        /// <summary>Step ids to offer (<c>OnboardingSteps</c>). Unknown ids are refused.</summary>
+        public System.Collections.Generic.List<string>? OnboardingSteps { get; set; }
+
+        /// <summary>Step ids that cannot be skipped. Unknown ids are refused.</summary>
+        public System.Collections.Generic.List<string>? OnboardingRequiredSteps { get; set; }
+
+        /// <summary>Plain text for the first screen. Empty for none.</summary>
+        public string? OnboardingWelcomeText { get; set; }
     }
 
     /// <summary>Identifies one signed-in device belonging to one user.</summary>

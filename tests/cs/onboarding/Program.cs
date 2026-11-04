@@ -1,0 +1,428 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using System.Xml.Serialization;
+using Jellyfin.Database.Implementations.Entities;
+using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Configuration;
+using MediaBrowser.Model.Dto;
+using MediaBrowser.Model.Users;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// First-time setup (1.7.2), through the real routes.
+//
+// What it holds the plugin to:
+//
+//  - Off by default. Turned on, it is for accounts made from then on: every account that
+//    already existed counts as having seen it, once, and only the first time it goes on.
+//  - Main accounts only. A profile is never pending, and its "done" records nothing.
+//  - Once per account, not per device: done is stored on the server.
+//  - "Show again to everyone" un-sees it for every main account at once.
+//  - Steps are known ids only (400 otherwise, and nothing changes), each once, in order.
+//    A step whose feature is off is not offered: theme needs profile themes.
+//  - Nothing left to offer is nothing pending.
+//  - The setting survives Jellyfin's XmlSerializer without its lists doubling.
+//  - The admin routes are admin only.
+//
+// Against edf8518 every assertion past the first fails: the routes do not exist.
+//
+// Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
+// ─────────────────────────────────────────────────────────────────────────────
+
+int pass = 0;
+var fails = new List<string>();
+void Ok(string name, bool cond, string detail = null)
+{
+    if (cond) { pass++; Console.WriteLine("  PASS  " + name); }
+    else
+    {
+        fails.Add(name + (detail is null ? "" : "  — " + detail));
+        Console.WriteLine("  FAIL  " + name + (detail is null ? "" : "  — " + detail));
+    }
+}
+
+static string RepoRoot()
+{
+    var d = AppContext.BaseDirectory;
+    while (d != null && !File.Exists(Path.Combine(d, "Jellyfin.Profiles.csproj")))
+        d = Path.GetDirectoryName(d.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+    return d ?? throw new Exception("could not find the repository root");
+}
+
+var tfm = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
+    Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)).Name;
+var asm = Assembly.LoadFrom(Path.Combine(RepoRoot(), "bin", "Release", tfm, "Jellyfin.Profiles.dll"));
+
+var ctrlType = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesController", true);
+var pluginType = asm.GetType("Jellyfin.Profiles.Plugin", true);
+var cfgType = asm.GetType("Jellyfin.Profiles.Configuration.PluginConfiguration", true);
+var mapType = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);
+var hasher = asm.GetType("Jellyfin.Profiles.Auth.PinHasher", true);
+var obType = asm.GetType("Jellyfin.Profiles.Configuration.OnboardingSettings");
+
+Ok("this build has first-time setup", obType != null && ctrlType.GetMethod("GetOnboarding") != null
+   && ctrlType.GetMethod("OnboardingDone") != null && ctrlType.GetMethod("ShowOnboardingAgain") != null);
+if (obType == null)
+{
+    Console.WriteLine();
+    Console.WriteLine(pass + " passed, " + fails.Count + " failed");
+    return 1;
+}
+
+var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-onboarding-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(tempDir);
+var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
+var config = pluginType.GetProperty("Configuration").GetValue(plugin);
+var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
+object Onboarding() => cfgType.GetProperty("Onboarding").GetValue(config);
+object Ob(string prop) => obType.GetProperty(prop).GetValue(Onboarding());
+
+void Map(Guid profile, Guid master, string pin = null)
+{
+    var m = Activator.CreateInstance(mapType);
+    mapType.GetProperty("ProfileUserId").SetValue(m, profile);
+    mapType.GetProperty("MasterUserId").SetValue(m, master);
+    mapType.GetProperty("ProfileName").SetValue(m, "p");
+    if (pin != null) mapType.GetProperty("PinHash").SetValue(m, hasher.GetMethod("Hash").Invoke(null, new object[] { pin }));
+    mappings.Add(m);
+}
+
+var world = new World();
+var users = World.Create(world);
+
+(int status, object value) Call(string method, Guid caller, Dictionary<string, object> body = null)
+{
+    var route = ctrlType.GetMethod(method);
+    if (route == null) return (-404, "no route " + method);
+
+    var ctor = ctrlType.GetConstructors().First();
+    var args = ctor.GetParameters().Select(p =>
+        p.ParameterType == typeof(IUserManager) ? users
+        : p.ParameterType.Name.StartsWith("ILogger") ? Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(ctrlType))
+        : (object)null).ToArray();
+    var c = (ControllerBase)ctor.Invoke(args);
+    c.ControllerContext = new ControllerContext
+    {
+        HttpContext = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("Jellyfin-UserId", caller.ToString()) }, "test")),
+        },
+    };
+
+    var invokeArgs = route.GetParameters().Select(p =>
+    {
+        if (p.ParameterType.IsValueType) return Activator.CreateInstance(p.ParameterType);
+        var req = Activator.CreateInstance(p.ParameterType);
+        foreach (var kv in body ?? new Dictionary<string, object>())
+        {
+            var prop = p.ParameterType.GetProperty(kv.Key);
+            if (prop == null) throw new Exception(p.ParameterType.Name + " has no " + kv.Key);
+            prop.SetValue(req, kv.Value);
+        }
+        return req;
+    }).ToArray();
+
+    object result;
+    try { result = route.Invoke(c, invokeArgs); }
+    catch (TargetInvocationException ex) { return (-500, ex.InnerException?.GetType().Name + ": " + ex.InnerException?.Message); }
+
+    var inner = result?.GetType().GetProperty("Result")?.GetValue(result) ?? result;
+    return inner switch
+    {
+        ObjectResult o => (o.StatusCode ?? 200, o.Value),
+        StatusCodeResult s => (s.StatusCode, null),
+        _ => (-1, inner?.GetType().Name),
+    };
+}
+
+object Get(object o, string prop) => o?.GetType().GetProperty(prop)?.GetValue(o);
+
+bool Pending(Guid who)
+{
+    var r = Call("GetOnboarding", who);
+    return r.status == 200 && (bool)Get(r.value, "Pending");
+}
+List<(string id, bool required, bool done)> Steps(Guid who)
+{
+    var r = Call("GetOnboarding", who);
+    return ((IEnumerable)Get(r.value, "Steps")).Cast<object>()
+        .Select(s => ((string)Get(s, "Id"), (bool)Get(s, "Required"), (bool)Get(s, "Done"))).ToList();
+}
+bool PrefsPending(Guid who)
+{
+    var r = Call("GetPreferences", who);
+    var v = Get(r.value, "OnboardingPending");
+    return v is bool b && b;
+}
+var ADMIN = Guid.NewGuid(); world.Add(ADMIN, "Admin", admin: true);
+(int status, object value) Admin(Dictionary<string, object> body, Guid? caller = null) => Call("UpdateAdminSettings", caller ?? ADMIN, body);
+
+// ── Before it is turned on ───────────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── Off by default ──────────────────────────────────────────────");
+
+var OLD = Guid.NewGuid(); world.Add(OLD, "Old");
+var OLD_KID = Guid.NewGuid(); world.Add(OLD_KID, "Old_kid");
+Map(OLD, OLD); Map(OLD_KID, OLD);
+
+Ok("nobody is pending while it is off", !Pending(OLD) && !Pending(ADMIN));
+Ok("and /preferences says so", Call("GetPreferences", OLD).status == 200 && !PrefsPending(OLD));
+
+// ── Turning it on ────────────────────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── Turning it on ───────────────────────────────────────────────");
+
+var notAdmin = Admin(new() { ["OnboardingEnabled"] = (bool?)true }, OLD);
+Ok("only an administrator can turn it on", notAdmin.status == 401 && !(bool)Ob("Enabled"), notAdmin.status + " " + notAdmin.value);
+
+var on = Admin(new() { ["OnboardingEnabled"] = (bool?)true });
+Ok("an administrator can", on.status == 200 && (bool)Ob("Enabled"), on.status + " " + on.value);
+Ok("accounts that already existed count as having seen it", !Pending(OLD) && !Pending(ADMIN));
+
+var NEW = Guid.NewGuid(); world.Add(NEW, "New");
+Ok("an account made afterwards is pending", Pending(NEW));
+Ok("and /preferences says so, where the web client looks first", PrefsPending(NEW));
+Ok("a profile never is", !Pending(OLD_KID) && !PrefsPending(OLD_KID));
+
+var ids = Steps(NEW).Select(s => s.id).ToList();
+Ok("every step is offered by default, in order",
+   ids.SequenceEqual(new[] { "welcome", "mainPin", "firstProfile", "switcher", "theme" }), string.Join(",", ids));
+
+cfgType.GetProperty("AllowProfileThemes").SetValue(config, false);
+Ok("theme is not offered while profiles can't have their own", !Steps(NEW).Any(s => s.id == "theme"));
+cfgType.GetProperty("AllowProfileThemes").SetValue(config, true);
+
+// ── Steps ────────────────────────────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── Choosing steps ──────────────────────────────────────────────");
+
+var bad = Admin(new() { ["OnboardingSteps"] = new List<string> { "welcome", "email" }, ["OnboardingWelcomeText"] = "hi" });
+Ok("an unknown step is refused", bad.status == 400, bad.status + " " + bad.value);
+Ok("and nothing else in the request is applied", (string)Ob("WelcomeText") == "" && !(bool)Ob("StepsChosen"));
+
+var badReq = Admin(new() { ["OnboardingRequiredSteps"] = new List<string> { "nope" } });
+Ok("so is an unknown required step", badReq.status == 400, badReq.status + " " + badReq.value);
+
+var longText = Admin(new() { ["OnboardingWelcomeText"] = new string('a', 501) });
+Ok("a welcome over 500 characters is refused", longText.status == 400, longText.status + " " + longText.value);
+
+var pick = Admin(new()
+{
+    ["OnboardingSteps"] = new List<string> { "theme", "welcome", "welcome", "MAINPIN" },
+    ["OnboardingRequiredSteps"] = new List<string> { "mainPin" },
+    ["OnboardingWelcomeText"] = "  Welcome home.  ",
+});
+var stored = ((IEnumerable<string>)Ob("Steps")).ToList();
+Ok("steps are stored once each, in order, spelled as the API spells them",
+   pick.status == 200 && stored.SequenceEqual(new[] { "welcome", "mainPin", "theme" }), string.Join(",", stored));
+var newSteps = Steps(NEW);
+Ok("only the chosen steps are offered", newSteps.Select(s => s.id).SequenceEqual(stored));
+Ok("a required step says so, and only that one",
+   newSteps.Single(s => s.id == "mainPin").required && !newSteps.Any(s => s.id != "mainPin" && s.required));
+var got = Call("GetOnboarding", NEW);
+Ok("the welcome comes back trimmed", (string)Get(got.value, "WelcomeText") == "Welcome home.");
+Ok("and is not sent to anyone not pending", (string)Get(Call("GetOnboarding", OLD).value, "WelcomeText") == ""
+   && !((IEnumerable)Get(Call("GetOnboarding", OLD).value, "Steps")).Cast<object>().Any());
+
+var none = Admin(new() { ["OnboardingSteps"] = new List<string>() });
+Ok("with no steps left there is nothing pending", none.status == 200 && !Pending(NEW));
+Admin(new() { ["OnboardingSteps"] = new List<string> { "welcome", "mainPin", "firstProfile" } });
+
+// ── What is already done ─────────────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── What is already done ────────────────────────────────────────");
+
+var s0 = Steps(NEW);
+Ok("an account with no PIN and no profiles has nothing done", s0.All(s => !s.done));
+Map(NEW, NEW, pin: "2468");
+var NEW_KID = Guid.NewGuid(); world.Add(NEW_KID, "New_kid"); Map(NEW_KID, NEW);
+var s1 = Steps(NEW);
+Ok("a PIN marks mainPin done", s1.Single(s => s.id == "mainPin").done);
+Ok("a profile marks firstProfile done", s1.Single(s => s.id == "firstProfile").done);
+Ok("being done doesn't stop it being offered", Pending(NEW));
+
+// ── Done ─────────────────────────────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── Done ────────────────────────────────────────────────────────");
+
+var kidDone = Call("OnboardingDone", NEW_KID);
+Ok("a profile's done is accepted and records nothing",
+   kidDone.status == 200 && !((IEnumerable)Ob("Seen")).Cast<object>().Any(r => (Guid)Get(r, "UserId") == NEW_KID));
+var done = Call("OnboardingDone", NEW);
+Ok("done ends it for the account", done.status == 200 && !Pending(NEW) && !PrefsPending(NEW));
+Call("OnboardingDone", NEW);
+Ok("done twice keeps one record", ((IEnumerable)Ob("Seen")).Cast<object>().Count(r => (Guid)Get(r, "UserId") == NEW) == 1);
+Ok("an API key (no user) is refused, not recorded", Call("OnboardingDone", Guid.Empty).status == 401);
+
+// ── Off and on again ─────────────────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── Off and on again ────────────────────────────────────────────");
+
+Admin(new() { ["OnboardingEnabled"] = (bool?)false });
+Ok("off means nobody is pending", !Pending(NEW));
+var BETWEEN = Guid.NewGuid(); world.Add(BETWEEN, "Between");
+Admin(new() { ["OnboardingEnabled"] = (bool?)true });
+Ok("an account made while it was off still sees it: existing accounts are excused once", Pending(BETWEEN));
+
+// ── Show again ───────────────────────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── Show again to everyone ──────────────────────────────────────");
+
+var gen = (int)Ob("Generation");
+var refused = Call("ShowOnboardingAgain", OLD);
+Ok("only an administrator can", refused.status == 401 && (int)Ob("Generation") == gen, refused.status + " " + refused.value);
+var again = Call("ShowOnboardingAgain", ADMIN);
+Ok("it moves to the next generation", again.status == 200 && (int)Ob("Generation") == gen + 1 && (int)Get(again.value, "Generation") == gen + 1,
+   again.status + " " + again.value);
+Ok("every main account sees it again: old, new, administrator", Pending(OLD) && Pending(NEW) && Pending(ADMIN));
+Ok("profiles still don't", !Pending(OLD_KID) && !Pending(NEW_KID));
+Call("OnboardingDone", OLD);
+Ok("and done ends it again", !Pending(OLD) && Pending(NEW));
+
+// ── Stored ───────────────────────────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── Stored ──────────────────────────────────────────────────────");
+
+var ser = new XmlSerializer(cfgType);
+object RoundTrip(object c)
+{
+    using var ms = new MemoryStream();
+    ser.Serialize(ms, c);
+    ms.Position = 0;
+    return ser.Deserialize(ms);
+}
+var back = RoundTrip(config);
+var backOb = cfgType.GetProperty("Onboarding").GetValue(back);
+Ok("steps survive a save without doubling",
+   ((IEnumerable<string>)obType.GetProperty("Steps").GetValue(backOb)).SequenceEqual((IEnumerable<string>)Ob("Steps")));
+Ok("so do required steps and who has seen it",
+   ((IEnumerable<string>)obType.GetProperty("RequiredSteps").GetValue(backOb)).SequenceEqual((IEnumerable<string>)Ob("RequiredSteps"))
+   && ((IEnumerable)obType.GetProperty("Seen").GetValue(backOb)).Cast<object>().Count() == ((IEnumerable)Ob("Seen")).Cast<object>().Count());
+Ok("and the generation and the one-time excuse",
+   (int)obType.GetProperty("Generation").GetValue(backOb) == (int)Ob("Generation")
+   && (bool)obType.GetProperty("ExistingAccountsExempted").GetValue(backOb));
+
+// The first draft used a null list for "the default steps". The serializer creates every
+// list it reads, so after one save it was an empty list: enabled, and offering nothing.
+List<string> Offered(object cfg) => ((IEnumerable<string>)obType.GetMethod("OfferedSteps")
+    .Invoke(cfgType.GetProperty("Onboarding").GetValue(cfg), null)).ToList();
+var fresh = Activator.CreateInstance(cfgType);
+Ok("the default offers every step after two saves", Offered(RoundTrip(RoundTrip(fresh))).Count == 5,
+   string.Join(",", Offered(RoundTrip(RoundTrip(fresh)))));
+var picked = Activator.CreateInstance(cfgType);
+var pickedOb = cfgType.GetProperty("Onboarding").GetValue(picked);
+obType.GetProperty("Steps").SetValue(pickedOb, new List<string>());
+obType.GetProperty("StepsChosen")?.SetValue(pickedOb, true);
+Ok("and an administrator's empty choice still offers none", Offered(RoundTrip(RoundTrip(picked))).Count == 0);
+
+var snap = cfgType.GetMethod("SnapshotForReading").Invoke(config, null);
+var snapSeen = (IList)obType.GetProperty("Seen").GetValue(cfgType.GetProperty("Onboarding").GetValue(snap));
+var before = ((IList)Ob("Seen")).Count;
+snapSeen.Clear();
+Ok("a read snapshot has its own copy", ((IList)Ob("Seen")).Count == before && before > 0);
+
+// IUserManager.Users became GetUsers() in 10.11.7, so a direct call throws there. The
+// first draft of this feature made one. GetAllUsers resolves whichever exists.
+var direct = Directory.GetFiles(Path.Combine(RepoRoot(), "Controllers"), "*.cs")
+    .SelectMany(f => File.ReadAllLines(f).Select((l, i) => (f, i, l)))
+    .Where(x => System.Text.RegularExpressions.Regex.IsMatch(x.l, @"_userManager\.Users\b") && !x.l.TrimStart().StartsWith("//"))
+    .Select(x => Path.GetFileName(x.f) + ":" + (x.i + 1)).ToList();
+Ok("no controller reads _userManager.Users directly", direct.Count == 0, string.Join(", ", direct));
+
+try { Directory.Delete(tempDir, true); } catch { }
+Console.WriteLine();
+if (fails.Count > 0)
+{
+    foreach (var f in fails) Console.WriteLine("   - " + f);
+    Console.WriteLine(pass + " passed, " + fails.Count + " failed");
+    return 1;
+}
+Console.WriteLine(pass + " passed, 0 failed");
+return 0;
+
+// ── A modelled Jellyfin ──────────────────────────────────────────────────────
+
+public class World
+{
+    public Dictionary<Guid, (User user, bool admin)> Users = new();
+
+    public void Add(Guid id, string name, bool admin = false)
+    {
+        var u = (User)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(User));
+        typeof(User).GetProperty("Username").SetValue(u, name);
+        typeof(User).GetProperty("Id").SetValue(u, id);
+        Users[id] = (u, admin);
+    }
+
+    public static IUserManager Create(World w)
+    {
+        var p = DispatchProxy.Create<IUserManager, WorldProxy>();
+        ((WorldProxy)(object)p).W = w;
+        return p;
+    }
+}
+
+public class WorldProxy : DispatchProxy
+{
+    public World W;
+
+    protected override object Invoke(MethodInfo m, object[] args)
+    {
+        switch (m.Name)
+        {
+            case "GetUserById":
+                return W.Users.TryGetValue((Guid)args[0], out var row) ? row.user : null;
+            case "GetUserDto":
+                var user = (User)args[0];
+                var admin = W.Users.TryGetValue(user.Id, out var r2) && r2.admin;
+                return new UserDto { Id = user.Id, Name = user.Username, Policy = new UserPolicy { IsAdministrator = admin }, Configuration = new UserConfiguration() };
+            case "get_Users":
+            case "GetUsers":
+                return W.Users.Values.Select(v => v.user).ToList();
+        }
+        throw new NotSupportedException("IUserManager." + m.Name + " is not modelled");
+    }
+}
+
+sealed class StubPaths : MediaBrowser.Common.Configuration.IApplicationPaths
+{
+    private readonly string _root;
+    public StubPaths(string root) { _root = root; }
+    public string ProgramDataPath => _root;
+    public string WebPath => _root;
+    public string ProgramSystemPath => _root;
+    public string DataPath => _root;
+    public string ImageCachePath => _root;
+    public string PluginsPath => _root;
+    public string PluginConfigurationsPath => _root;
+    public string LogDirectoryPath => _root;
+    public string ConfigurationDirectoryPath => _root;
+    public string SystemConfigurationFilePath => Path.Combine(_root, "system.xml");
+    public string CachePath { get => _root; set { } }
+    public string TempDirectory => _root;
+    public string VirtualDataPath => _root;
+    public string TrickplayPath => _root;
+    public string BackupPath => _root;
+    public void MakeSanityCheckOrThrow() { }
+    public void CreateAndCheckMarker(string path, string markerName, bool recursive = false) { }
+}
+
+sealed class StubXml : MediaBrowser.Model.Serialization.IXmlSerializer
+{
+    public void SerializeToStream(object obj, Stream stream) { }
+    public void SerializeToFile(object obj, string file) { }
+    public object DeserializeFromFile(Type type, string file)
+        => throw new FileNotFoundException("stub serializer", file);
+    public object DeserializeFromStream(Type type, Stream stream)
+        => throw new NotSupportedException();
+    public object DeserializeFromBytes(Type type, byte[] buffer)
+        => throw new NotSupportedException();
+}

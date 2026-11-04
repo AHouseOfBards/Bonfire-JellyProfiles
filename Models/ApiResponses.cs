@@ -72,4 +72,32 @@ namespace Jellyfin.Profiles.Models
         /// <summary>How many it may have.</summary>
         public int MaxProfiles { get; set; }
     }
+
+    /// <summary>GET /onboarding: the first-time setup this account should be shown.</summary>
+    public class OnboardingResponse
+    {
+        /// <summary>Show it now. False for a profile, when it is off, or once seen.</summary>
+        public bool Pending { get; set; }
+
+        /// <summary>Send this back with /onboarding/done.</summary>
+        public int Generation { get; set; }
+
+        /// <summary>The administrator's welcome, plain text. Empty for none.</summary>
+        public string WelcomeText { get; set; } = string.Empty;
+
+        /// <summary>In order. Only steps the server can offer right now.</summary>
+        public System.Collections.Generic.List<OnboardingStepInfo> Steps { get; set; } = new();
+    }
+
+    public class OnboardingStepInfo
+    {
+        /// <summary>welcome, mainPin, firstProfile, switcher or theme.</summary>
+        public string Id { get; set; } = string.Empty;
+
+        /// <summary>Cannot be skipped.</summary>
+        public bool Required { get; set; }
+
+        /// <summary>Already true of this account: a PIN set, a profile made. Show it or not.</summary>
+        public bool Done { get; set; }
+    }
 }

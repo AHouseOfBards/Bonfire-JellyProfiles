@@ -26,6 +26,7 @@ for Bonfire's own client. It's documented because other people build against it 
 - [Devices](#devices)
 - [Bonfire](#bonfire)
 - [Preferences](#preferences)
+- [First-time setup](#first-time-setup)
 - [Avatar library](#avatar-library)
 - [Announcements](#announcements)
 - [Maintenance](#maintenance)
@@ -35,7 +36,7 @@ for Bonfire's own client. It's documented because other people build against it 
 
 ## All routes
 
-All 64 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 67 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -74,6 +75,8 @@ All 64 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `GET /plugins/profiles/preferences` | user | Switcher preferences. |
 | `POST /plugins/profiles/preferences` | user | Change them. |
 | `POST /plugins/profiles/theme` | user | Set one profile's theme. |
+| `GET /plugins/profiles/onboarding` | user | First-time setup for this account. |
+| `POST /plugins/profiles/onboarding/done` | user | Record that it was seen. |
 | `GET /plugins/profiles/avatars` | user | The avatar library. |
 | `GET /plugins/profiles/avatars/{id}` | anon | One avatar image. |
 | `POST /plugins/profiles/admin/avatars` | admin | Add an avatar. |
@@ -93,6 +96,7 @@ All 64 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `GET /plugins/profiles/admin/panic-status` | admin | Whether a code is set. |
 | `POST /plugins/profiles/admin/panic-code` | admin | Set or clear the code. |
 | `POST /plugins/profiles/admin/settings` | admin | Server-wide settings. |
+| `POST /plugins/profiles/admin/onboarding/show-again` | admin | Show first-time setup to every main account again. |
 | `GET /plugins/profiles/admin/mappings` | admin | Every profile, plus script status. |
 | `POST /plugins/profiles/admin/reset-pin` | admin | Clear a profile's PIN. |
 | `POST /plugins/profiles/admin/cleanup-orphans` | admin | Remove records for deleted users. |
@@ -1089,7 +1093,8 @@ main account can change them.
   "emergencyCodeConfigured": false,
   "theme": "crimson",
   "defaultTheme": "bonfire",
-  "allowProfileThemes": true
+  "allowProfileThemes": true,
+  "onboardingPending": false
 }
 ```
 
@@ -1103,12 +1108,10 @@ main account can change them.
 | `theme` | The [theme](#themes) to show **this** account, from its own choice or the server default. Unlike the fields above, it isn't the main account's. |
 | `defaultTheme` | The server default. |
 | `allowProfileThemes` | Profiles may choose their own theme. When `false`, `theme` is always the default. |
+| `onboardingPending` | This account should be shown [first-time setup](#first-time-setup). Always `false` for a profile. |
 
 An account that hasn't chosen gets the server's defaults. Unknown stored values come back
 as the defaults.
-
-Bonfire's own client lets one device keep its own `askOnStartup`. That's stored in the
-browser only, so this route always returns the household's answer.
 
 ### `POST /plugins/profiles/preferences`
 
@@ -1120,6 +1123,58 @@ browser only, so this route always returns the household's answer.
 
 Both are optional. Returns the stored values in the `GET` shape; cache those rather than
 what you sent. `403` for a profile.
+
+## First-time setup
+
+A few screens a main account sees the first time it opens Bonfire, if the administrator
+turns them on. Once per account, not per device. Accounts that existed when it was first
+turned on count as having seen it.
+
+### `GET /plugins/profiles/onboarding`
+
+**Authorisation:** signed-in user.
+
+```json
+{
+  "pending": true,
+  "generation": 1,
+  "welcomeText": "Welcome to the Smith family server.",
+  "steps": [
+    { "id": "welcome", "required": false, "done": false },
+    { "id": "mainPin", "required": true, "done": false },
+    { "id": "firstProfile", "required": false, "done": true },
+    { "id": "switcher", "required": false, "done": false },
+    { "id": "theme", "required": false, "done": false }
+  ]
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `pending` | Show it now. `false` for a profile, when it's off, or once seen. |
+| `generation` | Changes when the administrator shows it again. |
+| `welcomeText` | Plain text from the administrator. Empty when not pending. |
+| `steps` | In order. Empty when not pending. A step whose feature is off isn't listed: `theme` needs profiles to be allowed a theme. |
+| `steps[].required` | The person can't skip it. |
+| `steps[].done` | Already true: a PIN is set (`mainPin`) or a profile exists (`firstProfile`). |
+
+Each step changes things through the usual routes: [`/account`](#post-pluginsprofilesaccount)
+for the PIN, [`/create`](#post-pluginsprofilescreate), [`/preferences`](#post-pluginsprofilespreferences)
+and [`/theme`](#post-pluginsprofilestheme).
+
+### `POST /plugins/profiles/onboarding/done`
+
+**Authorisation:** signed-in user.
+
+No body. Records that this account has seen the current setup, finished or skipped. A
+profile gets `200` and nothing is recorded.
+
+### `POST /plugins/profiles/admin/onboarding/show-again`
+
+**Authorisation:** administrator.
+
+Every main account sees first-time setup again on its next visit. Returns
+`{ "generation": 2 }`.
 
 ### Themes
 
@@ -1462,6 +1517,10 @@ anything added since you read it.
 | `enableClientProfileList` | boolean | Same. |
 | `skipQuickConnectOnKnownDevices` | boolean | Same. |
 | `profileImageQuality` | string | `standard` (512 px, 2 MB), `high` (1024 px, 4 MB) or `maximum` (2048 px, 8 MB). |
+| `onboardingEnabled` | boolean | [First-time setup](#first-time-setup) on or off. The first time it goes on, existing accounts count as having seen it. |
+| `onboardingSteps` | string[] | Steps to offer: `welcome`, `mainPin`, `firstProfile`, `switcher`, `theme`. |
+| `onboardingRequiredSteps` | string[] | Steps that can't be skipped. |
+| `onboardingWelcomeText` | string | Plain text for the first screen, up to 500 characters. |
 
 `400` if any field is out of range, and then nothing is changed.
 
