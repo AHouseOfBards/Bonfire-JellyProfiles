@@ -2473,6 +2473,29 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-email-check { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none; }
 .jpf-email-check input { accent-color: var(--jpf-accent); cursor: pointer; }
 
+/* ── Viewing hours (1.7.2) ──────────────────────────────────────────
+   The tile's line ("45 min left") sits under the name like the
+   signed-in badge, quieter, and turns to the warning colour once the
+   profile is out of time. */
+.profile-viewing {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    opacity: 0.75;
+    margin-top: 2px;
+}
+.profile-viewing.is-out { color: var(--jpf-warn); opacity: 1; }
+.jpf-viewing-days { margin-top: 0.5rem; transition: opacity 0.2s ease; }
+.jpf-viewing-days.is-inert { opacity: 0.45; }
+.jpf-viewing-day { display: flex; align-items: center; gap: var(--jpf-gap); flex-wrap: wrap; margin-bottom: 6px; }
+.jpf-viewing-dayname { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 5.5rem; cursor: pointer; }
+.jpf-viewing-dayname input { accent-color: var(--jpf-accent); cursor: pointer; }
+.jpf-viewing-day select { flex: 1 1 7rem; min-width: 0; }
+.jpf-viewing-dash { opacity: 0.6; }
+.jpf-viewing-now { font-weight: 600; }
+.jpf-viewing-asked { color: var(--jpf-warn); font-weight: 600; }
+.jpf-actions-wrap { justify-content: center; }
+
 /* ── "More settings" under a profile form's Basics (1.7.2) ──────────
    A <details>: closed until asked for, opened with Enter on a remote.
    The marker is drawn by us (the caret), so the browser's is hidden in
@@ -2912,6 +2935,8 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-no-flex-gap .jpf-more > summary > * + * { margin-left: 0.7rem; }
 .jpf-no-flex-gap .jpf-inline-row > * { margin: 0 var(--jpf-gap) var(--jpf-gap) 0; }
 .jpf-no-flex-gap .jpf-email-check > * + * { margin-left: 0.5rem; }
+.jpf-no-flex-gap .jpf-viewing-day > * + * { margin-left: var(--jpf-gap); }
+.jpf-no-flex-gap .jpf-viewing-dayname > * + * { margin-left: 0.5rem; }
 .jpf-no-flex-gap .jpf-more-label > * + * { margin-top: 2px; }
 @media (max-width: 899px) {
     .jpf-no-flex-gap .jpf-more-body > * + * { margin-top: 1.5rem; }

@@ -66,6 +66,7 @@ async function run(fieldValues) {
         defaultSwitcherLocation: 'button',
         defaultTheme: 'bonfire',
         allowProfileThemes: true,
+        defaultTimeZone: '',
         indexInjectionMode: 'middleware',
         // Both default off. A missing id throws in the stub below, so adding a control to
         // the form without adding it here is a failure rather than a silent omission —
@@ -210,6 +211,7 @@ const expected = [
     'defaultSwitcherLocation',
     'defaultTheme',
     'allowProfileThemes',
+    'defaultTimeZone',
     'indexInjectionMode',
     'enableClientPinLogin',
     'enableClientProfileList',
@@ -306,6 +308,7 @@ const flipped = await run({
     disallowCustomAvatars: true,
     defaultAskOnStartup: false,
     defaultSwitcherLocation: 'menu',
+    defaultTimeZone: 'Europe/London',
     indexInjectionMode: 'both'
 });
 const flippedBody = sent(flipped);
@@ -315,6 +318,7 @@ ok('disallowCustomAvatarUploads follows the checkbox', flippedBody.disallowCusto
 ok('defaultAskOnStartup follows the checkbox', flippedBody.defaultAskOnStartup === false);
 ok('defaultSwitcherLocation follows the select', flippedBody.defaultSwitcherLocation === 'menu');
 ok('indexInjectionMode follows the select', flippedBody.indexInjectionMode === 'both');
+ok('defaultTimeZone follows the select, empty for the server\'s own', flippedBody.defaultTimeZone === 'Europe/London' && sent(await run({})).defaultTimeZone === '');
 
 // The picture quality select: its three values go through, anything else is sent as
 // standard, which is the server's own fallback and never a refusal.

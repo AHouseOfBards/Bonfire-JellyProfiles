@@ -429,6 +429,8 @@
         'accountEmail.resetHint': 'If you forget your PIN, a code can be sent here.',
         'accountEmail.notifyLockout': 'Email me when a PIN is locked',
         'accountEmail.notifyNewDevice': 'Email me when a new device signs in',
+        'accountEmail.notifyTimeAsked': 'Email me when a profile asks for more time',
+        'accountEmail.notifyLimitReached': 'Email me when a profile reaches its daily limit',
         'accountEmail.invalid': 'Enter an email address.',
         'accountEmail.codeInvalid': 'Enter the 6-digit code.',
         'pinReset.forgot': 'Forgot PIN?',
@@ -456,6 +458,48 @@
         'account.saved': 'Saved.',
         'account.devicesTitle': 'Devices',
         'account.devicesSubtitle': 'Rename, merge or forget them',
+        'account.zoneTitle': 'Time zone',
+        'account.zoneSubtitle': 'For viewing hours',
+        'account.zone': 'Time zone',
+        'account.zoneDefault': 'Server default ({zone})',
+        'viewing.title': 'Viewing hours',
+        'viewing.subtitle': 'When and how long this profile can watch',
+        'viewing.hoursEnabled': 'Only at these times',
+        'viewing.fromAria': '{day} from',
+        'viewing.toAria': '{day} until',
+        'viewing.midnight': 'Midnight',
+        'viewing.daily': 'Daily limit',
+        'viewing.weekend': 'Weekend limit',
+        'viewing.sameAsWeekdays': 'Same as weekdays',
+        'viewing.noLimit': 'No limit',
+        'viewing.hint': 'Counts video only. Music is never limited.',
+        'viewing.min': '{minutes} min',
+        'viewing.h': '{hours} h',
+        'viewing.hMin': '{hours} h {minutes} min',
+        'viewing.minutesLeft': '{minutes} min left',
+        'viewing.until': 'Until {time}',
+        'viewing.from': 'From {time}',
+        'viewing.timeUp': "Time's up",
+        'viewing.asked': 'Asked for more time',
+        'viewing.canWatch': 'Can watch now',
+        'viewing.usedToday': '{used} of {limit} min used today',
+        'viewing.askedHint': '{name} asked for more time.',
+        'viewing.moreTime': 'More time now',
+        'viewing.decline': 'Say no',
+        'viewing.given': 'Given {duration}.',
+        'viewing.declined': 'Told no.',
+        'viewing.timeUpTitle': "Time's up",
+        'viewing.outsideBody': '{name} can watch again at {time}. You can still browse.',
+        'viewing.limitBody': "{name} has used today's time. You can still browse.",
+        'viewing.notNowBody': "{name} can't watch right now. You can still browse.",
+        'viewing.ask': 'Ask for more time',
+        'viewing.giveTime': 'Give more time',
+        'viewing.browse': 'Browse',
+        'viewing.askedTitle': 'Asked',
+        'viewing.askedBody': 'A parent can answer from Bonfire.',
+        'viewing.alreadyAsked': 'You already asked. Try again in a few minutes.',
+        'viewing.giveTitle': 'More time for {name}',
+        'viewing.giveBody': 'How long?',
         'account.devicesHint': 'Each profile chooses which of these it can be opened on.',
         'profileForm.sectionPinSubtitle': 'A PIN to open this profile',
         'profileForm.sectionWatchTitle': 'What they can watch',
@@ -1085,6 +1129,76 @@
             });
         },
 
+        /// A dialog with a row of choices. `actions` is [{ label, primary, run }]; the
+        /// dialog closes before `run` is called. Escape closes it with no choice. The arrow
+        /// keys move along the buttons, for a remote.
+        showActionsDialog: function (title, message, actions) {
+            const dialog = document.createElement('div');
+            dialog.id = 'profiles-actions-dialog';
+            dialog.classList.add('jpf-trap-surface');
+            dialog.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.82);
+                backdrop-filter: blur(8px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: ${DIALOG_Z};
+                opacity: 0;
+                transition: opacity 0.15s ease-out;
+            `;
+            dialog.innerHTML = `
+                <div class="confirm-dialog-content" style="
+                    background: #181818;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: var(--jpf-r-md);
+                    padding: 24px;
+                    max-width: 460px;
+                    width: 90%;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                    text-align: center;
+                ">
+                    <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${escapeHtml(message)}</p>
+                    <div class="jpf-actions jpf-actions-wrap">
+                        ${actions.map((a, i) => `<button type="button" data-action="${i}" class="profiles-btn ${a.primary ? 'btn-primary' : 'btn-secondary'}">${escapeHtml(a.label)}</button>`).join('')}
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(dialog);
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                dialog.style.opacity = '1';
+            }));
+
+            const close = () => {
+                dialog.style.opacity = '0';
+                setTimeout(() => dialog.remove(), 160);
+            };
+            const buttons = Array.prototype.slice.call(dialog.querySelectorAll('button[data-action]'));
+            buttons.forEach(btn => btn.addEventListener('click', () => {
+                const action = actions[parseInt(btn.getAttribute('data-action'), 10)];
+                close();
+                if (action && typeof action.run === 'function') action.run();
+            }));
+            dialog.addEventListener('keydown', (e) => {
+                const at = buttons.indexOf(document.activeElement);
+                if (e.key === 'Escape') { e.preventDefault(); close(); }
+                else if ((e.key === 'ArrowRight' || e.key === 'ArrowDown') && buttons.length) {
+                    e.preventDefault();
+                    buttons[(at + 1) % buttons.length].focus();
+                } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && buttons.length) {
+                    e.preventDefault();
+                    buttons[(at - 1 + buttons.length) % buttons.length].focus();
+                }
+            });
+            const first = buttons.filter((b, i) => actions[i].primary)[0] || buttons[0];
+            if (first) first.focus();
+        },
+
         /// Writes a token and user into jellyfin-web's own stored credentials, and returns
         /// whether it actually managed to.
         ///
@@ -1311,8 +1425,123 @@
                 allowedTags: pick(p, 'allowedTags', []),
                 isBonfire: pick(p, 'isBonfire', false),
                 profileImage: pick(p, 'profileImage', null),
-                masterUserId: pick(p, 'masterUserId', null)
+                masterUserId: pick(p, 'masterUserId', null),
+                // Viewing hours and limits (1.7.2): null for a profile without them.
+                viewing: this.normalizeViewing(pick(p, 'viewing', null))
             }));
+        },
+
+        /// A /limits or /list viewing state in camelCase, or null when not limited.
+        normalizeViewing: function (v) {
+            if (!v) return null;
+            const f = (k) => this._field(v, k);
+            if (f('limited') !== true) return null;
+            return {
+                allowed: f('allowed') !== false,
+                reason: f('reason') || '',
+                binding: f('binding') || '',
+                minutesLeft: typeof f('minutesLeft') === 'number' ? f('minutesLeft') : null,
+                untilUtc: f('untilUtc') || null,
+                nextStartUtc: f('nextStartUtc') || null,
+                usedMinutes: f('usedMinutes') || 0,
+                limitMinutes: typeof f('limitMinutes') === 'number' ? f('limitMinutes') : null,
+                askedUtc: f('askedUtc') || null,
+                timeZone: f('timeZone') || ''
+            };
+        },
+
+        /// A time from the server, as the household's clock shows it: "20:00", or
+        /// "Sat 08:00" when it isn't today. Falls back to the device's own zone if the
+        /// browser doesn't know the household's.
+        viewingTime: function (iso, zone) {
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return '';
+            const locale = activeLocale || [];
+            const opts = (extra) => Object.assign(zone ? { timeZone: zone } : {}, extra);
+            try {
+                const day = (x) => x.toLocaleDateString(locale, opts({ year: 'numeric', month: 'numeric', day: 'numeric' }));
+                const time = d.toLocaleTimeString(locale, opts({ hour: '2-digit', minute: '2-digit' }));
+                if (day(d) === day(new Date())) return time;
+                return d.toLocaleDateString(locale, opts({ weekday: 'short' })) + ' ' + time;
+            } catch (e) {
+                return zone ? this.viewingTime(iso, null) : d.toLocaleTimeString();
+            }
+        },
+
+        /// The line under a limited profile's name on the gate: "Until 20:00", "45 min
+        /// left", "From 15:00", "Time's up". Empty for a profile with no limits.
+        viewingLine: function (v) {
+            if (!v) return '';
+            if (v.askedUtc && !v.allowed) return t('viewing.asked');
+            if (v.allowed) {
+                if (v.binding === 'limit' && v.minutesLeft !== null) return t('viewing.minutesLeft', { minutes: v.minutesLeft });
+                if (v.untilUtc) return t('viewing.until', { time: this.viewingTime(v.untilUtc, v.timeZone) });
+                return '';
+            }
+            if (v.nextStartUtc && v.reason === 'hours') return t('viewing.from', { time: this.viewingTime(v.nextStartUtc, v.timeZone) });
+            return t('viewing.timeUp');
+        },
+
+        /// One call to a /limits route as the household. Resolves the new state, or
+        /// rejects with the server's words.
+        _limitsCall: function (profileId, path, body) {
+            const masterState = this.readMasterState();
+            if (!masterState) return Promise.reject(new Error(t('errors.couldNotSaveThat')));
+            return fetch(ApiClient.getUrl('plugins/profiles/limits/' + profileId + (path ? '/' + path : '')), {
+                method: body ? 'POST' : 'GET',
+                headers: body ? this.jsonHeaders(masterState.token) : this.getAuthHeaders(masterState.token),
+                body: body ? JSON.stringify(body) : undefined
+            }).then(res => {
+                if (res.status === 401) { this.handleSessionExpired(); throw new Error(t('errors.couldNotSaveThat')); }
+                if (res.status === 429 && path === 'ask') throw new Error(t('viewing.alreadyAsked'));
+                if (!res.ok) return res.text().then(text => { throw new Error(text || t('errors.couldNotSaveThat')); });
+                return res.json();
+            });
+        },
+
+        /// A limited profile chosen on the gate while it is out of time. It can ask for
+        /// more, a parent can give some with the main PIN, or it can go in and browse:
+        /// only playing is refused.
+        showTimeUp: function (profile, open) {
+            const v = profile.viewing;
+            const name = profile.profileName;
+            const message = v.reason === 'hours' && v.nextStartUtc
+                ? t('viewing.outsideBody', { name: name, time: this.viewingTime(v.nextStartUtc, v.timeZone) })
+                : v.reason === 'limit' ? t('viewing.limitBody', { name: name }) : t('viewing.notNowBody', { name: name });
+            const refresh = () => {
+                const masterState = this.readMasterState();
+                if (masterState) this.fetchAndRenderProfiles(ApiClient, masterState.masterUserId, masterState.token, true);
+            };
+            this.showActionsDialog(t('viewing.timeUpTitle'), message, [
+                { label: t('viewing.ask'), primary: true, run: () => {
+                    this._limitsCall(profile.profileUserId, 'ask', {})
+                        .then(() => this.showAlert(t('viewing.askedTitle'), t('viewing.askedBody'), refresh))
+                        .catch(err => this.showAlert(t('viewing.timeUpTitle'), escapeHtml(err.message)));
+                } },
+                { label: t('viewing.giveTime'), run: () => {
+                    this.withMainPin(this.currentProfiles, () => this.chooseMoreTime(profile, refresh));
+                } },
+                { label: t('viewing.browse'), run: open },
+                { label: t('common.cancel') }
+            ]);
+        },
+
+        /// How much more time, then gives it with the main PIN just entered.
+        chooseMoreTime: function (profile, done) {
+            const options = [15, 30, 60, 120].map(m => ({ id: String(m), name: this.durationText(m) }));
+            this.showSelectDialog(t('viewing.giveTitle', { name: profile.profileName }), t('viewing.giveBody'), options, (minutes) => {
+                this._limitsCall(profile.profileUserId, 'grant', { minutes: parseInt(minutes, 10), masterPin: this.masterPin })
+                    .then(() => { if (!this.isManageMode) this.masterPin = null; done(); })
+                    .catch(err => this.showAlert(t('errors.error'), escapeHtml(err.message), done));
+            });
+        },
+
+        /// "45 min", "1 h", "1 h 30 min".
+        durationText: function (minutes) {
+            if (minutes < 60) return t('viewing.min', { minutes: minutes });
+            const h = Math.floor(minutes / 60);
+            const m = minutes % 60;
+            return m ? t('viewing.hMin', { hours: h, minutes: m }) : t('viewing.h', { hours: h });
         },
 
         initTVCheckboxes: function (container) {
@@ -1382,6 +1611,170 @@
                     </div>
                 </details>
             `;
+        },
+
+        /// Viewing hours and daily limits on a profile's edit form (1.7.2), with "more time
+        /// now". Drawn into `slot` once /limits answers; a server without limits leaves it
+        /// empty. The rules are saved with the form's Save, after the profile itself, and
+        /// only if they changed. More time is given at once: it is an answer, not a setting.
+        ///
+        /// The form shows one stretch per day. The server takes any number; a profile given
+        /// more through the API shows the first of each day here, and saving replaces them.
+        initViewingEditor: function (slot, profile) {
+            const editor = { save: () => Promise.resolve() };
+            if (!slot || !profile || profile.isMaster) return editor;
+            const ORDER = [1, 2, 3, 4, 5, 6, 0];
+            const LIMITS = [15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360];
+            const locale = activeLocale || [];
+            const pad = (n) => (n < 10 ? '0' : '') + n;
+            const timeLabel = (hhmm) => {
+                if (hhmm === '24:00') return t('viewing.midnight');
+                const d = new Date(2000, 0, 1, parseInt(hhmm.slice(0, 2), 10), parseInt(hhmm.slice(3), 10));
+                try { return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }); } catch (e) { return hhmm; }
+            };
+            const times = [];
+            for (let m = 0; m < 1440; m += 15) times.push(pad(Math.floor(m / 60)) + ':' + pad(m % 60));
+            const timeOptions = (chosen, end) => times.concat(end ? ['24:00'] : [])
+                .concat(times.indexOf(chosen) === -1 && chosen !== '24:00' ? [chosen] : [])
+                .map(v => `<option value="${v}"${v === chosen ? ' selected' : ''}>${escapeHtml(timeLabel(v))}</option>`).join('');
+            const dayName = (d) => {
+                // 2026-11-01 is a Sunday.
+                try { return new Date(2026, 10, 1 + d).toLocaleDateString(locale, { weekday: 'short' }); } catch (e) { return String(d); }
+            };
+            const limitOptions = (chosen, weekend) => {
+                const values = (weekend ? ['', '0'] : ['0']).concat(LIMITS.map(String));
+                if (values.indexOf(String(chosen)) === -1) values.push(String(chosen));
+                return values.map(v => `<option value="${v}"${v === String(chosen) ? ' selected' : ''}>${
+                    v === '' ? t('viewing.sameAsWeekdays') : v === '0' ? t('viewing.noLimit') : escapeHtml(this.durationText(parseInt(v, 10)))
+                }</option>`).join('');
+            };
+
+            let loaded = null;
+            let baseline = null;
+            const read = () => {
+                const q = (s) => slot.querySelector(s);
+                const groups = {};
+                ORDER.forEach(d => {
+                    if (!q('#viewing-day-' + d).checked) return;
+                    const key = q('#viewing-from-' + d).value + '-' + q('#viewing-to-' + d).value;
+                    groups[key] = (groups[key] || 0) | (1 << d);
+                });
+                const weekend = q('#viewing-weekend').value;
+                return {
+                    hoursEnabled: q('#viewing-hours').checked,
+                    windows: Object.keys(groups).map(k => ({ days: groups[k], start: k.slice(0, 5), end: k.slice(6) })),
+                    dailyMinutes: parseInt(q('#viewing-daily').value, 10) || 0,
+                    weekendMinutes: weekend === '' ? null : parseInt(weekend, 10)
+                };
+            };
+
+            const draw = (state) => {
+                if (!document.body.contains(slot)) return;
+                const f = (o, k) => this._field(o, k);
+                const rules = f(state, 'rules') || {};
+                const windows = (f(rules, 'windows') || []).map(w => ({ days: f(w, 'days') || 0, start: f(w, 'start'), end: f(w, 'end') }));
+                const v = this.normalizeViewing(state);
+                const weekend = f(rules, 'weekendMinutes');
+                const rows = ORDER.map(d => {
+                    const w = windows.filter(x => (x.days & (1 << d)) !== 0)[0];
+                    const start = w ? w.start : '15:00';
+                    const end = w ? w.end : '20:00';
+                    return `
+                        <div class="jpf-viewing-day">
+                            <label class="library-check-label jpf-viewing-dayname">
+                                <input type="checkbox" id="viewing-day-${d}" ${w ? 'checked' : ''} />
+                                <span>${escapeHtml(dayName(d))}</span>
+                            </label>
+                            <select id="viewing-from-${d}" aria-label="${t('viewing.fromAria', { day: escapeHtml(dayName(d)) })}">${timeOptions(start, false)}</select>
+                            <span class="jpf-viewing-dash" aria-hidden="true">–</span>
+                            <select id="viewing-to-${d}" aria-label="${t('viewing.toAria', { day: escapeHtml(dayName(d)) })}">${timeOptions(end, true)}</select>
+                        </div>`;
+                }).join('');
+                const now = !v ? '' : v.allowed
+                    ? (v.binding === 'limit' || v.untilUtc ? this.viewingLine(v) : t('viewing.canWatch'))
+                    : this.viewingLine(Object.assign({}, v, { askedUtc: null }));
+                const used = v && v.limitMinutes !== null ? t('viewing.usedToday', { used: v.usedMinutes, limit: v.limitMinutes }) : '';
+                slot.innerHTML = this.renderSection('schedule', t('viewing.title'), t('viewing.subtitle'), `
+                    ${v ? `<div class="form-hint jpf-viewing-now">${escapeHtml([now, used].filter(Boolean).join(' · '))}</div>` : ''}
+                    ${v && v.askedUtc ? `<div class="form-hint jpf-viewing-asked">${t('viewing.askedHint', { name: escapeHtml(profile.profileName) })}</div>` : ''}
+                    ${v ? `
+                    <div class="form-group">
+                        <label>${t('viewing.moreTime')}</label>
+                        <div class="jpf-inline-row">
+                            ${[15, 30, 60].map(m => `<button type="button" class="profiles-btn btn-secondary viewing-grant" data-minutes="${m}">${escapeHtml(this.durationText(m))}</button>`).join('')}
+                            ${v.askedUtc ? `<button type="button" class="profiles-btn btn-secondary viewing-grant" data-minutes="0">${t('viewing.decline')}</button>` : ''}
+                        </div>
+                        <div class="form-hint" id="viewing-grant-status" role="status" aria-live="polite"></div>
+                    </div>` : ''}
+                    <div class="form-group">
+                        <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="viewing-hours" ${f(rules, 'hoursEnabled') ? 'checked' : ''} style="accent-color: var(--jpf-accent);" />
+                            <span>${t('viewing.hoursEnabled')}</span>
+                        </label>
+                        <div class="jpf-viewing-days" id="viewing-days">${rows}</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="viewing-daily">${t('viewing.daily')}</label>
+                        <select id="viewing-daily">${limitOptions(f(rules, 'dailyMinutes') || 0, false)}</select>
+                    </div>
+                    <div class="form-group">
+                        <label for="viewing-weekend">${t('viewing.weekend')}</label>
+                        <select id="viewing-weekend">${limitOptions(weekend === null || weekend === undefined ? '' : weekend, true)}</select>
+                        <div class="form-hint">${t('viewing.hint')}</div>
+                    </div>
+                `);
+
+                const days = slot.querySelector('#viewing-days');
+                const hours = slot.querySelector('#viewing-hours');
+                const syncDays = () => { days.classList.toggle('is-inert', !hours.checked); };
+                hours.addEventListener('change', syncDays);
+                syncDays();
+                this.initTVCheckboxes(slot);
+
+                const status = slot.querySelector('#viewing-grant-status');
+                Array.prototype.forEach.call(slot.querySelectorAll('.viewing-grant'), btn => {
+                    btn.addEventListener('click', () => {
+                        const minutes = parseInt(btn.getAttribute('data-minutes'), 10);
+                        const pending = read();
+                        this._limitsCall(profile.profileUserId, 'grant', { minutes: minutes, masterPin: this.masterPin })
+                            .then(reply => {
+                                draw(Object.assign({}, reply, { rules: f(state, 'rules') }));
+                                // Keep what was being edited: more time is not a save.
+                                this._restoreViewingForm(slot, pending, ORDER);
+                                const after = slot.querySelector('#viewing-grant-status');
+                                if (after) after.textContent = minutes ? t('viewing.given', { duration: this.durationText(minutes) }) : t('viewing.declined');
+                            })
+                            .catch(err => { if (status) { status.textContent = err.message; status.style.color = 'var(--jpf-danger)'; } });
+                    });
+                });
+            };
+
+            this._limitsCall(profile.profileUserId, '', null)
+                .then(state => { loaded = state; draw(state); baseline = JSON.stringify(read()); })
+                .catch(() => { slot.innerHTML = ''; });
+
+            editor.save = () => {
+                if (!loaded || !document.body.contains(slot) || !slot.querySelector('#viewing-hours')) return Promise.resolve();
+                const now = read();
+                if (JSON.stringify(now) === baseline) return Promise.resolve();
+                return this._limitsCall(profile.profileUserId, '', Object.assign({ masterPin: this.masterPin, language: activeLocale || '' }, now));
+            };
+            return editor;
+        },
+
+        /// Puts the form back as it was being edited after a redraw from the server.
+        _restoreViewingForm: function (slot, state, order) {
+            const q = (s) => slot.querySelector(s);
+            if (!q('#viewing-hours')) return;
+            q('#viewing-hours').checked = state.hoursEnabled;
+            order.forEach(d => {
+                const w = state.windows.filter(x => (x.days & (1 << d)) !== 0)[0];
+                q('#viewing-day-' + d).checked = !!w;
+                if (w) { q('#viewing-from-' + d).value = w.start; q('#viewing-to-' + d).value = w.end; }
+            });
+            q('#viewing-daily').value = String(state.dailyMinutes);
+            q('#viewing-weekend').value = state.weekendMinutes === null ? '' : String(state.weekendMinutes);
+            q('#viewing-days').classList.toggle('is-inert', !state.hoursEnabled);
         },
 
         /// The theme picker as a section of its own, or '' when profiles may not choose.
@@ -4650,6 +5043,8 @@
                         <span>${escapeHtml(p.profileName)}</span>
                         ${signedInId && this.normalizeGuid(p.profileUserId) === signedInId
                             ? `<span class="profile-current-badge">${t('gate.signedIn')}</span>` : ''}
+                        ${this.viewingLine(p.viewing)
+                            ? `<span class="profile-viewing${p.viewing.allowed ? '' : ' is-out'}">${escapeHtml(this.viewingLine(p.viewing))}</span>` : ''}
                         ${this.isManageMode ? `
                             <span class="profile-pin-badge ${p.requiresPin ? 'locked' : 'unlocked'}">
                                 ${p.requiresPin ? t('gate.pinProtected') : t('gate.noPin')}
@@ -5042,14 +5437,21 @@
                     const profile = profiles.find(p => this.normalizeGuid(p.profileUserId) === this.normalizeGuid(profileId));
                     if (!profile) return;
 
-                    if (this.isManageMode) {
-                        this.showEditProfileModal(profile);
-                    } else {
+                    const open = () => {
                         if (profile.requiresPin) {
                             this.promptPinEntry(profileId);
                         } else {
                             this.executeProfileSwitch(profileId, null);
                         }
+                    };
+                    if (this.isManageMode) {
+                        this.showEditProfileModal(profile);
+                    } else if (profile.viewing && !profile.viewing.allowed) {
+                        // Out of time: say so first. Browsing is still allowed, so the
+                        // profile opens anyway if they carry on.
+                        this.showTimeUp(profile, open);
+                    } else {
+                        open();
                     }
                 });
             });
@@ -5658,7 +6060,9 @@
                             ${field('pinResetEnabled') === true ? `<div class="form-hint">${t('accountEmail.resetHint')}</div>` : ''}
                         </div>
                         ${box('account-email-lockout', field('notifyLockout') !== false, t('accountEmail.notifyLockout'))}
-                        ${box('account-email-device', field('notifyNewDevice') !== false, t('accountEmail.notifyNewDevice'))}`;
+                        ${box('account-email-device', field('notifyNewDevice') !== false, t('accountEmail.notifyNewDevice'))}
+                        ${box('account-email-asked', field('notifyTimeAsked') !== false, t('accountEmail.notifyTimeAsked'))}
+                        ${box('account-email-limit', field('notifyLimitReached') === true, t('accountEmail.notifyLimitReached'))}`;
                 } else {
                     body = `
                         <div class="form-group">
@@ -5707,7 +6111,8 @@
                 const remove = q('account-email-remove');
                 if (remove) remove.addEventListener('click', () => run('account/email/remove', {}, t('accountEmail.removed')));
 
-                [['account-email-lockout', 'notifyLockout'], ['account-email-device', 'notifyNewDevice']].forEach(pair => {
+                [['account-email-lockout', 'notifyLockout'], ['account-email-device', 'notifyNewDevice'],
+                    ['account-email-asked', 'notifyTimeAsked'], ['account-email-limit', 'notifyLimitReached']].forEach(pair => {
                     const el = q(pair[0]);
                     if (!el) return;
                     el.addEventListener('change', () => {
@@ -7158,6 +7563,7 @@
                         ${isSub ? `
                         <div class="form-col">
                             ${this.renderSection('video_library', t('profileForm.sectionWatchTitle'), t('profileForm.sectionWatchSubtitle'), librariesBody)}
+                            <div id="edit-viewing-slot"></div>
                         </div>
                         ${this.renderMoreSettings('edit', [
                             this.renderSection('timer', t('profileForm.sectionLockingTitle'), t('profileForm.sectionLockingSubtitle'), lockingBody),
@@ -7434,9 +7840,11 @@
                                 allowProfileThemes: this._themeSettings.allow
                             });
                         }
-                        return artworkEditor.save(profile.profileUserId).then(() => {
-                            this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
-                        });
+                        return artworkEditor.save(profile.profileUserId)
+                            .then(() => viewingEditor.save())
+                            .then(() => {
+                                this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
+                            });
                     })
                     .catch(err => this.showAlert(t('errors.error'), t('errors.savingProfile', { message: escapeHtml(err.message) })));
                 });
@@ -7455,6 +7863,7 @@
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
                 });
                 const artworkEditor = this.initLibraryArtworkEditor(content, profile.profileUserId);
+                const viewingEditor = this.initViewingEditor(content.querySelector('#edit-viewing-slot'), profile);
                 this.bindThemePicker('edit');
                 this.initTVCheckboxes(content);
                 this.initTagEditors(content);
@@ -7598,6 +8007,7 @@
                 <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
                     ${this.renderSection('lock', t('account.signInTitle'), t('account.signInSubtitle'), signIn)}
                     <div id="account-email-slot"></div>
+                    <div id="account-zone-slot"></div>
                     ${this.renderSection('devices', t('account.devicesTitle'), t('account.devicesSubtitle'), deviceBody)}
                     <div id="account-status" class="form-hint" role="status" aria-live="polite"></div>
                     <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1.5rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
@@ -7691,9 +8101,43 @@
 
             this.bindDeviceTools(content, masterState, () => this.showAccountSettings());
             this._bindAccountEmail(content.querySelector('#account-email-slot'));
+            this._bindAccountZone(content.querySelector('#account-zone-slot'), saveAccount, say);
 
             content.querySelector('#account-back-btn').addEventListener('click', () => this.showSettingsMenu());
             this.initTVCheckboxes(content);
+        },
+
+        /// The household's time zone, which viewing hours are read in. Drawn once the
+        /// server has listed its zones; a server too old to list them shows nothing.
+        _bindAccountZone: function (slot, saveAccount, say) {
+            if (!slot) return;
+            const masterState = this.readMasterState();
+            if (!masterState) return;
+            fetch(ApiClient.getUrl('plugins/profiles/timezones'), { headers: this.getAuthHeaders(masterState.token) })
+                .then(res => (res.ok ? res.json() : null))
+                .then(data => {
+                    if (!data || !document.body.contains(slot)) return;
+                    const zones = this._field(data, 'zones') || [];
+                    const chosen = this._field(data, 'household') || '';
+                    const fallback = this._field(data, 'default') || this._field(data, 'server') || '';
+                    slot.innerHTML = this.renderSection('schedule', t('account.zoneTitle'), t('account.zoneSubtitle'), `
+                        <div class="form-group">
+                            <label for="account-zone-select">${t('account.zone')}</label>
+                            <select id="account-zone-select">
+                                <option value="">${t('account.zoneDefault', { zone: escapeHtml(fallback) })}</option>
+                                ${zones.map(z => `<option value="${escapeHtml(z)}"${z === chosen ? ' selected' : ''}>${escapeHtml(z.replace(/_/g, ' '))}</option>`).join('')}
+                            </select>
+                        </div>`);
+                    const select = slot.querySelector('#account-zone-select');
+                    let before = select.value;
+                    select.addEventListener('change', () => {
+                        saveAccount({ timeZone: select.value }).then(ok => {
+                            if (ok) { before = select.value; say(t('account.saved')); }
+                            else select.value = before;
+                        });
+                    });
+                })
+                .catch(() => {});
         },
 
         /// Rename, merge, forget and tidy, for the rows _renderAccountSettings draws.
