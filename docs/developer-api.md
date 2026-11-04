@@ -28,6 +28,7 @@ for Bonfire's own client. It's documented because other people build against it 
 - [Preferences](#preferences)
 - [First-time setup](#first-time-setup)
 - [Email](#email)
+- [Viewing hours](#viewing-hours)
 - [Avatar library](#avatar-library)
 - [Announcements](#announcements)
 - [Maintenance](#maintenance)
@@ -37,7 +38,7 @@ for Bonfire's own client. It's documented because other people build against it 
 
 ## All routes
 
-All 78 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 83 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -60,6 +61,11 @@ All 78 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `POST /plugins/profiles/account/email/remove` | user | Remove the address. |
 | `POST /plugins/profiles/account/pin-reset/send` | user | Email a code to reset a forgotten main PIN. |
 | `POST /plugins/profiles/account/pin-reset` | user | Set a new main PIN with the code. |
+| `GET /plugins/profiles/limits/{profileId}` | user | A profile's viewing hours and where it stands now. |
+| `POST /plugins/profiles/limits/{profileId}` | user | Set a profile's viewing hours and daily limit. |
+| `POST /plugins/profiles/limits/{profileId}/grant` | user | Give a profile more time, or say no. |
+| `POST /plugins/profiles/limits/{profileId}/ask` | user | Ask for more time. |
+| `GET /plugins/profiles/timezones` | user | Time zones, and the one the household uses. |
 | `GET /plugins/profiles/profiles.js` | anon | The client script. |
 | `GET /plugins/profiles/i18n/{locale}` | anon | One translation. |
 | `GET /plugins/profiles/image/{profileId}` | anon | A profile picture. |
@@ -262,7 +268,7 @@ Invalid PIN code.
 | `pin_format` | A PIN must be 4 to 8 digits. |
 | `pin_needed_for_bonfire` | The account has no PIN, so it can't be opened through a Bonfire. |
 | `bonfire_code_wrong` | Wrong or malformed Bonfire code. |
-| `code_wrong` | Wrong emergency disable code, or none is set. |
+| `code_wrong` | Wrong emergency disable code, or none is set. Also a wrong email code. |
 | `device_not_allowed` | The profile is limited to other devices. |
 | `profile_disabled` | The profile's account is turned off in Jellyfin. |
 | `too_many_sessions` | Jellyfin's session limit for the account was reached. |
@@ -277,6 +283,16 @@ Invalid PIN code.
 | `announcement_not_found` | No announcement has that id. |
 | `maintenance` | Closed for maintenance. Sent with `503` and `Retry-After`, on any route. |
 | `maintenance_invalid` | The maintenance message is too long, or its end time has passed. |
+| `outside_viewing_hours` | The profile can't watch at this time. Sent with `403` and `Retry-After`. See [Viewing hours](#viewing-hours). |
+| `daily_limit_reached` | The profile has used today's time. Sent with `403` and `Retry-After`. |
+| `not_limited` | The profile has no viewing hours or limit. |
+| `limits_for_profiles` | Viewing hours are for profiles, not main accounts. |
+| `limits_invalid` | A viewing window, limit or amount of time isn't allowed. |
+| `time_zone_invalid` | The server doesn't know that time zone. |
+| `email_unavailable` | Email isn't set up on this server. |
+| `email_invalid`, `email_missing` | The address isn't valid, or there's none confirmed. |
+| `code_expired`, `code_missing` | The email code has expired, or none was sent. |
+| `email_send_failed` | The mail server refused the message. |
 | `bonfire_not_owner`, `bonfire_not_member`, `bonfire_own_group`, `bonfire_member_not_found` | Bonfire group actions that don't apply to the caller. |
 | `profile_not_found`, `user_not_found`, `library_not_found`, `image_not_found`, `not_found` | The thing named doesn't exist. |
 | `image_invalid` | The picture is missing, unreadable, too large or not an image. |
@@ -386,6 +402,7 @@ Every profile the caller can switch to: their own household, then any linked Bon
 | `isBonfire` | boolean | Belongs to another household in the caller's Bonfire. |
 | `profileImage` | string | `/plugins/profiles/image/{id}?v=…`, an `http(s)` URL, or null. |
 | `masterUserId` | GUID | The main account it belongs to. |
+| `viewing` | object | Profiles in the caller's household with [viewing hours](#viewing-hours) on. The `GET /limits/{profileId}` shape without `rules`. Otherwise null. |
 
 `enabledFolders`, the tag lists and `allowedDeviceIds` are empty for profiles in another
 household. PINs are stored hashed and never returned.
@@ -530,8 +547,9 @@ The main account's own settings.
 | `askPinToOpen` | boolean | No | Ask for the PIN to open the account. Omit to keep it. |
 | `bypassPinOnLocalNetwork` | boolean | No | Skip the PIN on the home network. Omit to keep it. |
 | `lockoutMinutes` | integer | No | Minutes before the account locks. `0` is never. Clamped to 0–1440. Omit to keep it. |
+| `timeZone` | string | No | The household's time zone, an IANA id such as `Europe/Paris`, for [viewing hours](#viewing-hours). `""` follows the server default. Omit to keep it. |
 
-Response: `{ "hasPin": true, "askPinToOpen": false, "bypassPinOnLocalNetwork": false, "lockoutMinutes": 5 }`.
+Response: `{ "hasPin": true, "askPinToOpen": false, "bypassPinOnLocalNetwork": false, "lockoutMinutes": 5, "timeZone": "" }`.
 
 An account with no PIN can set one without `masterPin`, even while the server requires
 it.
@@ -1270,6 +1288,8 @@ a server restart means sending a new one. Mail is in the language the client pas
   "pendingAddress": "",
   "notifyLockout": true,
   "notifyNewDevice": true,
+  "notifyTimeAsked": true,
+  "notifyLimitReached": false,
   "pinResetEnabled": true
 }
 ```
@@ -1281,6 +1301,8 @@ a server restart means sending a new one. Mail is in the language the client pas
 | `pendingAddress` | An address waiting for its code, or empty. |
 | `notifyLockout` | Mail when a PIN in the household is locked by wrong tries. |
 | `notifyNewDevice` | Mail when the household signs in on a new device. |
+| `notifyTimeAsked` | Mail when a profile asks for more time. |
+| `notifyLimitReached` | Mail when a profile uses up its daily limit. |
 | `pinResetEnabled` | The administrator allows PIN reset by email. |
 
 ### `POST /plugins/profiles/account/email`
@@ -1309,10 +1331,10 @@ Stores the address. `language` is kept for notices sent later. Returns the `GET`
 **Authorisation:** signed-in user. The main account only, with its PIN.
 
 ```json
-{ "notifyLockout": true, "notifyNewDevice": false, "masterPin": "1234" }
+{ "notifyLockout": true, "notifyNewDevice": false, "notifyTimeAsked": true, "notifyLimitReached": false, "masterPin": "1234" }
 ```
 
-Both optional. `400` without a confirmed address.
+All optional. `400` without a confirmed address.
 
 ### `POST /plugins/profiles/account/email/remove`
 
@@ -1404,6 +1426,143 @@ Sends a test message with the saved settings. If it goes through, email becomes 
 ```
 
 The account stops getting codes and notices.
+
+## Viewing hours
+
+A main account can set, per profile, the hours it may watch on each day of the week and a
+daily limit, optionally different at weekends. Main accounts are never limited. Off until
+a main account turns it on.
+
+Only video counts. Music, books and photos are never limited, and browsing is always
+allowed. Paused time doesn't count.
+
+**Time zone.** Hours and the daily reset follow the household's zone, set on the main
+account (`timeZone` on [`POST /account`](#post-pluginsprofilesaccount)). If it has none,
+the administrator's `defaultTimeZone`, and then the server's own.
+
+**Enforcement is on the server.** A limited profile that starts a video outside its hours
+or past its limit gets `403` from `PlaybackInfo` and from the video stream, with
+`X-Bonfire-Error` set to `outside_viewing_hours` or `daily_limit_reached` and
+`Retry-After` in seconds until it can watch again. A video already playing gets a
+warning five minutes before it's stopped. If time runs out with no warning, it still gets
+five minutes. The server also sends the message to the device, because most apps show a
+generic playback error for a `403`.
+
+**More time.** Time given lets the profile watch until then, whatever the hours or the
+limit say. More time given while some is left adds on to it.
+
+How each app behaves:
+
+| App | Warning and stop | Asking for more time | Giving more time on the spot |
+| --- | --- | --- | --- |
+| Jellyfin web, webOS, Tizen, Jellyfin Media Player | Message on screen, then playback stops | On the profile screen | On the profile screen, with the main PIN |
+| Android TV | Message on screen, then playback stops | No | From the parent's phone or browser |
+| Swiftfin | Playback stops, no message | No | Same |
+| Others | Depends on the app. Playback is always refused. | No | Same |
+
+A parent gives time from Manage Profiles, in any browser. Emails point there. They don't
+carry an approve link, because mail scanners open links and would approve it for you.
+
+### `GET /plugins/profiles/limits/{profileId}`
+
+**Authorisation:** signed-in user in the profile's household, or an administrator.
+
+```json
+{
+  "profileId": "4f1c…",
+  "limited": true,
+  "allowed": true,
+  "reason": "",
+  "binding": "limit",
+  "minutesLeft": 45,
+  "untilUtc": "2026-11-04T18:45:00Z",
+  "nextStartUtc": null,
+  "usedMinutes": 15,
+  "limitMinutes": 60,
+  "extraUntilUtc": null,
+  "askedUtc": null,
+  "timeZone": "Europe/London",
+  "rules": {
+    "hoursEnabled": true,
+    "windows": [{ "days": 62, "start": "15:00", "end": "20:00" }],
+    "dailyMinutes": 60,
+    "weekendMinutes": 120
+  }
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `limited` | Hours or a limit are on. When false, the rest is empty. |
+| `allowed` | It can watch now. |
+| `reason` | Why not: `hours` or `limit`. |
+| `binding` | What ends it first: `hours`, `limit` or `extra`. Empty when nothing does today. |
+| `minutesLeft`, `untilUtc` | Time left, and when it runs out. |
+| `nextStartUtc` | When it can watch again, while it can't. |
+| `usedMinutes`, `limitMinutes` | Today's use and limit. |
+| `extraUntilUtc` | Extra time given runs until then. |
+| `askedUtc` | It asked for more time and nobody has answered. |
+| `rules.windows[].days` | Days as bits: Sunday is 1, Monday 2, through Saturday 64. |
+| `rules.windows[].start`, `end` | `HH:mm` in the household's zone. An end at or before the start runs past midnight; `24:00` is midnight. |
+| `rules.weekendMinutes` | Saturday and Sunday. Null is the same as other days. |
+
+`0` minutes is no limit.
+
+### `POST /plugins/profiles/limits/{profileId}`
+
+**Authorisation:** signed-in user. The profile's main account with its PIN, or an
+administrator. The main account needs a PIN to turn limits on.
+
+```json
+{
+  "hoursEnabled": true,
+  "windows": [{ "days": 62, "start": "15:00", "end": "20:00" }],
+  "dailyMinutes": 60,
+  "weekendMinutes": null,
+  "language": "en",
+  "masterPin": "1234"
+}
+```
+
+Replaces the profile's rules. Up to 28 windows; limits 0 to 1440. `language` is the
+language of the messages its apps get. Returns the `GET` shape.
+
+Errors: `400` with `limits_invalid`, `limits_for_profiles` or `main_pin_required`; `403`.
+
+### `POST /plugins/profiles/limits/{profileId}/grant`
+
+**Authorisation:** signed-in user in the profile's household, with the main account's PIN,
+or an administrator. From a profile's own device the main account must have a PIN.
+
+```json
+{ "minutes": 30, "masterPin": "1234" }
+```
+
+1 to 240 minutes. `0` says no to a request and leaves time already given. Returns the
+`GET` shape without `rules`.
+
+### `POST /plugins/profiles/limits/{profileId}/ask`
+
+**Authorisation:** signed-in user in the profile's household.
+
+No body. The main account's open apps get a message, and an email if it chose that. Once
+every ten minutes; sooner is `429`. Returns the `GET` shape without `rules`.
+
+### `GET /plugins/profiles/timezones`
+
+**Authorisation:** signed-in user.
+
+```json
+{
+  "zones": ["Africa/Abidjan", "…"],
+  "server": "Europe/London",
+  "default": "",
+  "household": "Europe/Paris",
+  "effective": "Europe/Paris"
+}
+```
+
+`default` and `household` are empty when not set. `effective` is the zone in use.
 
 ## Avatar library
 
@@ -1701,6 +1860,7 @@ anything added since you read it.
 | `onboardingRequiredSteps` | string[] | Steps that can't be skipped. |
 | `onboardingWelcomeText` | string | Plain text for the first screen, up to 500 characters. |
 | `enablePinResetByEmail` | boolean | Main accounts may [reset a forgotten PIN by email](#email). `400` turning it on while email isn't working; one already on stays on. |
+| `defaultTimeZone` | string | The time zone for [viewing hours](#viewing-hours) in households that haven't chosen one. An IANA id, or `""` for the server's own. |
 
 `400` if any field is out of range, and then nothing is changed.
 

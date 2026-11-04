@@ -94,6 +94,12 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>Mail when the household is signed in on a device for the first time.</summary>
         public bool NotifyNewDevice { get; set; } = true;
 
+        /// <summary>Mail when a profile asks for more time.</summary>
+        public bool NotifyTimeAsked { get; set; } = true;
+
+        /// <summary>Mail when a profile reaches its daily limit. Off by default: it is daily.</summary>
+        public bool NotifyLimitReached { get; set; }
+
         public AccountEmail Copy() => (AccountEmail)MemberwiseClone();
     }
 

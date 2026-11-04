@@ -48,6 +48,27 @@ namespace Jellyfin.Profiles.Mail
                 new Dictionary<string, string> { ["device"] = string.IsNullOrWhiteSpace(deviceName) ? "?" : deviceName }, logger);
         }
 
+        /// <summary>A profile in <paramref name="mainId"/>'s household asked for more time.
+        /// Throttled per profile, so two children asking are two mails.</summary>
+        internal static void TimeAsked(Guid mainId, Guid profileId, string name, ILogger? logger)
+        {
+            var config = ProfilesBaseController.ReadConfigSnapshot();
+            if (config == null) return;
+            Send(config, mainId, "asked-" + profileId.ToString("N"), a => a.NotifyTimeAsked,
+                "email.timeAsked.subject", "email.timeAsked.body",
+                new Dictionary<string, string> { ["name"] = name }, logger);
+        }
+
+        /// <summary>A profile reached its daily limit. The caller sends it once a day.</summary>
+        internal static void LimitReached(Guid mainId, Guid profileId, string name, int minutes, ILogger? logger)
+        {
+            var config = ProfilesBaseController.ReadConfigSnapshot();
+            if (config == null) return;
+            Send(config, mainId, "limit-" + profileId.ToString("N"), a => a.NotifyLimitReached,
+                "email.limitReached.subject", "email.limitReached.body",
+                new Dictionary<string, string> { ["name"] = name, ["minutes"] = minutes.ToString(System.Globalization.CultureInfo.InvariantCulture) }, logger);
+        }
+
         private static void Send(PluginConfiguration config, Guid mainId, string kind, Func<AccountEmail, bool> wanted,
             string subjectKey, string bodyKey, Dictionary<string, string> values, ILogger? logger)
         {

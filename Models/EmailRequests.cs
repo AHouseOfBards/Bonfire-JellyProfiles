@@ -56,6 +56,8 @@ namespace Jellyfin.Profiles.Models
     {
         public bool? NotifyLockout { get; set; }
         public bool? NotifyNewDevice { get; set; }
+        public bool? NotifyTimeAsked { get; set; }
+        public bool? NotifyLimitReached { get; set; }
         public string? MasterPin { get; set; }
     }
 

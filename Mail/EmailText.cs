@@ -19,6 +19,14 @@ namespace Jellyfin.Profiles.Mail
     {
         internal const string KeyPrefix = "email.";
 
+        /// <summary>Messages the server sends to a profile's apps through Jellyfin (1.7.2).
+        /// Written here for the same reason as the mail: no page reads them.</summary>
+        internal const string NoticePrefix = "notice.";
+
+        /// <summary>A key only the server reads, which no browser is sent.</summary>
+        internal static bool IsServerText(string key) =>
+            key.StartsWith(KeyPrefix, StringComparison.Ordinal) || key.StartsWith(NoticePrefix, StringComparison.Ordinal);
+
         // Written one per line as ["key"] = "value", which is what validate.js reads.
         internal static readonly IReadOnlyDictionary<string, string> En = new Dictionary<string, string>
         {
@@ -34,6 +42,20 @@ namespace Jellyfin.Profiles.Mail
             ["email.lockout.body"] = "{name}'s PIN was locked after too many wrong tries. It unlocks by itself within 15 minutes.\n\nYou can turn these emails off in Bonfire: Settings, Your account.",
             ["email.newDevice.subject"] = "New device signed in to Bonfire",
             ["email.newDevice.body"] = "Your household was signed in on a new device: {device}.\n\nIf you don't know it, ask your server's administrator to sign it out.\n\nYou can turn these emails off in Bonfire: Settings, Your account.",
+            ["email.timeAsked.subject"] = "{name} asked for more time",
+            ["email.timeAsked.body"] = "{name} asked for more time.\n\nTo answer, open Bonfire, choose Manage Profiles, then {name}.\n\nYou can turn these emails off in Bonfire: Settings, Your account.",
+            ["email.limitReached.subject"] = "{name} reached today's limit",
+            ["email.limitReached.body"] = "{name} has watched {minutes} minutes today, which is their limit.\n\nTo give more time, open Bonfire, choose Manage Profiles, then {name}.\n\nYou can turn these emails off in Bonfire: Settings, Your account.",
+            ["notice.warning.header"] = "Time's almost up",
+            ["notice.timeUp.header"] = "Time's up",
+            ["notice.stopsIn"] = "Playback stops in {minutes} min.",
+            ["notice.stopped"] = "Viewing time is over for now.",
+            ["notice.againAt"] = "You can watch again at {time}. Ask a parent for more time.",
+            ["notice.againOn"] = "You can watch again on {day} at {time}. Ask a parent for more time.",
+            ["notice.notNow"] = "You can't watch right now. Ask a parent for more time.",
+            ["notice.doneToday"] = "That's all for today. Ask a parent for more time.",
+            ["notice.asked.header"] = "More time?",
+            ["notice.asked"] = "{name} asked for more time. To answer, open Bonfire, choose Manage Profiles, then {name}.",
         };
 
         private static readonly ConcurrentDictionary<string, JsonObject?> Loaded = new(StringComparer.OrdinalIgnoreCase);

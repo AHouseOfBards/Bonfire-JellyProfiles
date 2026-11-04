@@ -179,6 +179,14 @@ namespace Jellyfin.Profiles
                 return;
             }
 
+            // Viewing hours and daily limits: new video for a profile whose time is up. One
+            // dictionary count while no profile is limited. The picker's profiles are judged
+            // in the picker, since what reaches here carries the main account's token.
+            if (await Auth.ViewingGate.TryRefuseAsync(context, deviceManager, sessionManager, _logger).ConfigureAwait(false))
+            {
+                return;
+            }
+
             // An app that gets the profile picker. Checked before everything below, because
             // a request it answers or rewrites must not also be renamed, listed or injected.
             // Costs one list count when no app is ticked. See Auth/ProxySwitcher.cs.

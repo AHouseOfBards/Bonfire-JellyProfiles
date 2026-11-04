@@ -50,6 +50,8 @@ namespace Jellyfin.Profiles.Models
         public string? DefaultSwitcherLocation { get; set; }
         /// <summary>One of the theme ids. Null leaves it alone; anything unknown is refused.</summary>
         public string? DefaultTheme { get; set; }
+        /// <summary>The time zone households read viewing hours in until they pick one. Empty is the server's own.</summary>
+        public string? DefaultTimeZone { get; set; }
         public bool? AllowProfileThemes { get; set; }
         public string? IndexInjectionMode { get; set; }
         public bool? EnableClientPinLogin { get; set; }

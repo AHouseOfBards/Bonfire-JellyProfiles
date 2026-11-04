@@ -1,0 +1,223 @@
+using System;
+using System.Collections.Concurrent;
+using System.Linq;
+using System.Threading.Tasks;
+using Jellyfin.Profiles.Configuration;
+using Jellyfin.Profiles.Mail;
+using MediaBrowser.Controller.Devices;
+using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Session;
+using MediaBrowser.Model.Dto;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using Microsoft.Net.Http.Headers;
+
+namespace Jellyfin.Profiles.Auth
+{
+    /// <summary>
+    /// Viewing hours and daily limits, at the door (1.7.2): a limited profile outside its
+    /// hours or over its limit is refused new video with 403 and an <c>X-Bonfire-Error</c> of
+    /// <see cref="OutsideHours"/> or <see cref="LimitReached"/>. Browsing is never refused.
+    ///
+    /// <para><b>What is refused:</b> PlaybackInfo for a video, which is how every Jellyfin app
+    /// starts one, and a video stream of anything the profile is not already playing, which is
+    /// how an app that builds its own URL would. A stream of what is playing is let through
+    /// until the timer's grace is over (<see cref="ViewingTimer"/>), then refused too, for an
+    /// app that ignored the stop. Progress and stop reports always go through.</para>
+    ///
+    /// <para><b>Cost:</b> one dictionary count on every request while no profile is limited.
+    /// Otherwise a path check, and a token lookup (remembered 30 seconds) only on the
+    /// requests above.</para>
+    ///
+    /// <para><b>Not a security boundary</b>, for the same reason as
+    /// <see cref="MaintenanceGate"/>: an app that reports progress on an item it is not
+    /// playing can make that item "playing". It keeps an honest app to the household's rules.</para>
+    /// </summary>
+    public static class ViewingGate
+    {
+        public const string OutsideHours = "outside_viewing_hours";
+        public const string LimitReached = "daily_limit_reached";
+
+        private static readonly TimeSpan MessageQuiet = TimeSpan.FromMinutes(1);
+
+        internal enum Kind
+        {
+            /// <summary>Not playback, or audio: never refused here.</summary>
+            None,
+
+            /// <summary><c>/Items/{id}/PlaybackInfo</c>.</summary>
+            PlaybackInfo,
+
+            /// <summary><c>/Videos/{id}/…</c>.</summary>
+            VideoStream,
+        }
+
+        internal static Kind Classify(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return Kind.None;
+            var at = path.IndexOf("/Videos/", StringComparison.OrdinalIgnoreCase);
+            if (at >= 0)
+            {
+                // Only an item's own routes; and not the two an item's page reads while browsing.
+                var start = at + "/Videos/".Length;
+                var end = path.IndexOf('/', start);
+                if (!Guid.TryParse(end < 0 ? path[start..] : path[start..end], out _)) return Kind.None;
+                if (path.EndsWith("/AdditionalParts", StringComparison.OrdinalIgnoreCase)
+                    || path.Contains("/Trickplay/", StringComparison.OrdinalIgnoreCase)) return Kind.None;
+                return Kind.VideoStream;
+            }
+            if (path.EndsWith("/PlaybackInfo", StringComparison.OrdinalIgnoreCase)
+                && path.Contains("/Items/", StringComparison.OrdinalIgnoreCase)) return Kind.PlaybackInfo;
+            return Kind.None;
+        }
+
+        /// <summary>The id in <c>/Items/{id}/PlaybackInfo</c>, or null.</summary>
+        internal static Guid? PlaybackInfoItem(string path)
+        {
+            var at = path.IndexOf("/Items/", StringComparison.OrdinalIgnoreCase);
+            if (at < 0) return null;
+            var start = at + "/Items/".Length;
+            var end = path.IndexOf('/', start);
+            return end > start && Guid.TryParse(path[start..end], out var id) ? id : null;
+        }
+
+        /// <summary>True for something playing that counts: video, or anything not known to be audio.</summary>
+        internal static bool IsVideo(BaseItemDto? item)
+        {
+            if (item == null) return false;
+            return item.MediaType != Jellyfin.Data.Enums.MediaType.Audio
+                && item.MediaType != Jellyfin.Data.Enums.MediaType.Book
+                && item.MediaType != Jellyfin.Data.Enums.MediaType.Photo;
+        }
+
+        /// <summary>
+        /// The refusal for a request by <paramref name="userId"/>, or null to let it through.
+        /// Also used by the profile picker for the profile it is acting as.
+        /// </summary>
+        internal static (string Code, ViewingState State, ViewingTracker.Limited Limited)? Check(
+            string path, Guid userId, ISessionManager? sessions, ILibraryManager? library, DateTime nowUtc)
+        {
+            var index = ViewingTracker.Index();
+            if (index.Count == 0) return null;
+            var kind = Classify(path);
+            if (kind == Kind.None) return null;
+            if (!index.TryGetValue(userId, out var limited)) return null;
+
+            var state = ViewingTracker.State(limited, nowUtc);
+            if (state.Allowed) return null;
+
+            if (kind == Kind.PlaybackInfo)
+            {
+                // Music and books are not limited. An item that can't be found is judged as video.
+                var id = PlaybackInfoItem(path);
+                if (id != null && library != null)
+                {
+                    var item = library.GetItemById(id.Value);
+                    if (item != null && item.MediaType != Jellyfin.Data.Enums.MediaType.Video
+                        && item.MediaType != Jellyfin.Data.Enums.MediaType.Unknown) return null;
+                }
+            }
+            else
+            {
+                DateTime? grace;
+                lock (ViewingTracker.UsageLock) grace = ViewingTracker.EntryFor(userId).GraceEndsUtc;
+                var graceOver = grace.HasValue && nowUtc >= grace.Value.AddMinutes(1);
+                if (!graceOver && MaintenanceGate.ContinuesPlayback(path, userId, sessions)) return null;
+            }
+
+            return (state.Reason == ViewingClock.Limit ? LimitReached : OutsideHours, state, limited);
+        }
+
+        /// <summary>Answers the request with 403 if it is refused. False means it was not touched.</summary>
+        public static async Task<bool> TryRefuseAsync(
+            HttpContext context, IDeviceManager? devices, ISessionManager? sessions, ILogger logger)
+        {
+            // The whole cost while nobody is limited.
+            if (ViewingTracker.Index().Count == 0) return false;
+
+            var request = context.Request;
+            var path = request.Path.Value ?? string.Empty;
+            if (Classify(path) == Kind.None) return false;
+
+            try
+            {
+                var token = ProxySwitcher.ReadToken(request);
+                if (string.IsNullOrEmpty(token)) return false;
+                var userId = MaintenanceGate.UserOf(token, devices);
+                if (userId == Guid.Empty) return false;
+
+                // Asked for here, not injected: only a refusal of PlaybackInfo needs it.
+                var library = context.RequestServices?.GetService(typeof(ILibraryManager)) as ILibraryManager;
+                var refusal = Check(path, userId, sessions, library, ViewingTracker.Now());
+                if (refusal == null) return false;
+
+                var deviceId = Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                    request.Headers["Authorization"], request.Headers["X-Emby-Authorization"], "DeviceId");
+                await TellRefusedAsync(sessions, userId, deviceId, refusal.Value.State, refusal.Value.Limited, logger).ConfigureAwait(false);
+                await WriteRefusalAsync(context, refusal.Value.Code, refusal.Value.State).ConfigureAwait(false);
+                return true;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException && !context.Response.HasStarted)
+            {
+                logger.LogWarning(ex, "ProfilesPlugin: the viewing-hours check failed for {Path}; passing it on.", path);
+                return false;
+            }
+        }
+
+        /// <summary>403, the reason in words, the code, and when to try again.</summary>
+        internal static async Task WriteRefusalAsync(HttpContext context, string code, ViewingState state)
+        {
+            var response = context.Response;
+            response.StatusCode = StatusCodes.Status403Forbidden;
+            response.ContentType = "text/plain; charset=utf-8";
+            response.Headers[Controllers.ErrorCodes.Header] = code;
+            response.Headers[HeaderNames.CacheControl] = "no-store";
+            if (state.NextStartUtc.HasValue)
+            {
+                var seconds = (long)Math.Ceiling((state.NextStartUtc.Value - ViewingTracker.Now()).TotalSeconds);
+                if (seconds > 0) response.Headers[HeaderNames.RetryAfter] = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+            var text = code == LimitReached ? "Daily limit reached." : "Outside viewing hours.";
+            await response.WriteAsync(text, context.RequestAborted).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Says why on the app that asked, since an app shows a 403 as a generic playback
+        /// error. Once a minute per profile: an app retrying should not stack messages.
+        /// </summary>
+        internal static async Task TellRefusedAsync(
+            ISessionManager? sessions, Guid userId, string? deviceId, ViewingState state, ViewingTracker.Limited limited, ILogger logger)
+        {
+            if (sessions == null) return;
+            var now = ViewingTracker.Now();
+            lock (ViewingTracker.UsageLock)
+            {
+                var e = ViewingTracker.EntryFor(userId);
+                if (e.LastRefusalMessageUtc.HasValue && now - e.LastRefusalMessageUtc.Value < MessageQuiet) return;
+                e.LastRefusalMessageUtc = now;
+            }
+
+            var language = limited.Rules.Language;
+            var text = RefusalText(state, limited.Zone, now, language);
+            foreach (var s in sessions.Sessions.ToList())
+            {
+                if (s.UserId != userId) continue;
+                if (!string.IsNullOrEmpty(deviceId) && !string.Equals(s.DeviceId, deviceId, StringComparison.Ordinal)) continue;
+                await ViewingTimer.TellAsync(sessions, s.Id, EmailText.Get("notice.timeUp.header", language), text, 10000, logger).ConfigureAwait(false);
+            }
+        }
+
+        internal static string RefusalText(ViewingState state, TimeZoneInfo zone, DateTime nowUtc, string? language)
+        {
+            if (state.NextStartUtc is DateTime next)
+            {
+                var (day, time, today) = ViewingTracker.Format(next, zone, nowUtc, language);
+                if (state.Reason == ViewingClock.Limit && !today) return EmailText.Get("notice.doneToday", language);
+                return today
+                    ? EmailText.Get("notice.againAt", language, new System.Collections.Generic.Dictionary<string, string> { ["time"] = time })
+                    : EmailText.Get("notice.againOn", language, new System.Collections.Generic.Dictionary<string, string> { ["day"] = day, ["time"] = time });
+            }
+            return state.Reason == ViewingClock.Limit ? EmailText.Get("notice.doneToday", language) : EmailText.Get("notice.notNow", language);
+        }
+    }
+}

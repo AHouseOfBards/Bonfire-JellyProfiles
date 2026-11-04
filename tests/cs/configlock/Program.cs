@@ -221,6 +221,9 @@ var allowed = new Dictionary<string, string>(StringComparer.Ordinal)
     ["PatchLock"]    = "static readonly in ProfilesBootstrapTask; guards index.html patching",
     ["_cleanupLock"] = "static readonly in RateLimiter; guards the sweep",
     ["CodesLock"]    = "static readonly in Mail.EmailCodes; guards issuing, checking and spending a code",
+    ["UsageLock"]    = "static readonly in Auth.ViewingTracker; guards viewing time, extra time and requests",
+    ["ViewingTracker.UsageLock"]
+                     = "the same static readonly field, qualified from the timer and the gate",
     ["list"]         = "a List<DateTime> held in a ConcurrentDictionary in RateLimiter — the "
                      + "reference is stable for the key's lifetime and is never replaced",
 };

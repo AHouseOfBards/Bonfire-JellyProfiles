@@ -228,6 +228,8 @@ namespace Jellyfin.Profiles.Controllers
                 PendingAddress = EmailCodes.PendingAddress(EmailCodes.ConfirmAddress, mainId) ?? string.Empty,
                 NotifyLockout = row?.NotifyLockout ?? true,
                 NotifyNewDevice = row?.NotifyNewDevice ?? true,
+                NotifyTimeAsked = row?.NotifyTimeAsked ?? true,
+                NotifyLimitReached = row?.NotifyLimitReached ?? false,
                 PinResetEnabled = Features.Available(Features.PinResetByEmail, config),
             };
         }
@@ -342,6 +344,8 @@ namespace Jellyfin.Profiles.Controllers
                 if (row == null || string.IsNullOrEmpty(row.Address)) return BadRequest("Add an email address first.");
                 if (request.NotifyLockout.HasValue) row.NotifyLockout = request.NotifyLockout.Value;
                 if (request.NotifyNewDevice.HasValue) row.NotifyNewDevice = request.NotifyNewDevice.Value;
+                if (request.NotifyTimeAsked.HasValue) row.NotifyTimeAsked = request.NotifyTimeAsked.Value;
+                if (request.NotifyLimitReached.HasValue) row.NotifyLimitReached = request.NotifyLimitReached.Value;
                 Plugin.Instance?.SaveConfiguration();
                 saved = live.SnapshotForReading();
             }

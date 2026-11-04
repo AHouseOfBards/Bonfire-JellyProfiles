@@ -187,7 +187,10 @@ namespace Jellyfin.Profiles.Controllers
                                 AllowedDeviceIds = ownerView ? (m.AllowedDeviceIds ?? new List<string>()) : new List<string>(),
                                 IsBonfire = (linkedId != masterUserId),
                                 ProfileImage = ImageForViewer(m.ProfileImage, linkedId == masterUserId),
-                                m.MasterUserId
+                                m.MasterUserId,
+                                // Viewing hours and limits, for the tile's "45 min left". Own
+                                // household only: another household's bedtimes are its own.
+                                Viewing = linkedId == masterUserId ? ViewingSummary(m, config) : null
                             };
                         });
 
@@ -1521,6 +1524,7 @@ namespace Jellyfin.Profiles.Controllers
                 // Each section is written only if the file actually carried it. A default
                 // value from a failed or partial bind must never overwrite a real one.
                 if (hasMappings) config.Mappings = mappings;
+                Auth.ViewingTracker.Invalidate();
                 if (hasGroups) config.BonfireGroups = groups;
                 if (hasDevices) config.KnownDevices = incoming.KnownDevices;
                 if (hasLimits) config.UserProfileLimitOverrides = incoming.UserProfileLimitOverrides;
@@ -1540,6 +1544,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.DefaultSwitcherLocation = incoming.DefaultSwitcherLocation;
                 if (TryProperty(root, "DefaultTheme", out _))
                     config.DefaultTheme = Themes.Normalize(incoming.DefaultTheme);
+                if (TryProperty(root, "DefaultTimeZone", out _))
+                    config.DefaultTimeZone = HouseholdTime.TryFind(incoming.DefaultTimeZone, out _) ? incoming.DefaultTimeZone.Trim() : string.Empty;
                 if (TryProperty(root, "AllowProfileThemes", out _))
                     config.AllowProfileThemes = incoming.AllowProfileThemes;
                 if (TryProperty(root, "IndexInjectionMode", out _))
@@ -2183,8 +2189,9 @@ namespace Jellyfin.Profiles.Controllers
             foreach (var pair in all)
             {
                 if (pair.Key.StartsWith(AdminKeyPrefix, StringComparison.Ordinal) != admin) continue;
-                // The mail's words are read by the server (Mail.EmailText), never by a page.
-                if (pair.Key.StartsWith(Mail.EmailText.KeyPrefix, StringComparison.Ordinal)) continue;
+                // The mail's words, and the messages sent to apps, are read by the server
+                // (Mail.EmailText), never by a page.
+                if (Mail.EmailText.IsServerText(pair.Key)) continue;
                 part[pair.Key] = pair.Value?.DeepClone();
             }
 
@@ -2970,6 +2977,9 @@ namespace Jellyfin.Profiles.Controllers
             if (request.Pin == string.Empty && config.RequireMainPin)
                 return BadRequest(MainPinRequiredMessage);
 
+            if (!string.IsNullOrEmpty(request.TimeZone) && !HouseholdTime.TryFind(request.TimeZone, out _))
+                return BadRequest("That time zone isn't known to this server.");
+
             var settingOwnPin = !string.IsNullOrEmpty(request.Pin);
             if (!ManagementAllowed(mainId, config, request.MasterPin, out var refusal, settingOwnPin)) return refusal!;
 
@@ -2977,6 +2987,7 @@ namespace Jellyfin.Profiles.Controllers
             bool askPinToOpen;
             bool bypass;
             int lockout;
+            string timeZone;
             lock (ConfigLock)
             {
                 var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == mainId);
@@ -2998,19 +3009,22 @@ namespace Jellyfin.Profiles.Controllers
                 if (request.AskPinToOpen.HasValue) row.AskPinToOpen = request.AskPinToOpen.Value;
                 if (request.BypassPinOnLocalNetwork.HasValue) row.BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork.Value;
                 if (request.LockoutMinutes.HasValue) row.LockoutMinutes = ClampLockoutMinutes(request.LockoutMinutes.Value);
+                if (request.TimeZone != null) row.TimeZone = request.TimeZone.Trim();
 
                 hasPin = !string.IsNullOrEmpty(row.PinHash);
                 askPinToOpen = row.AskPinToOpen;
                 bypass = row.BypassPinOnLocalNetwork;
                 lockout = row.LockoutMinutes;
+                timeZone = row.TimeZone ?? string.Empty;
                 Plugin.Instance?.SaveConfiguration();
             }
 
             // As for the profile update: a main PIN set or cleared changes which provider the
             // account signs in with on other apps, and that should not wait for a restart.
             if (request.Pin != null) ProfilesBootstrapTask.ReconcileAuthProvidersNow();
+            if (request.TimeZone != null) Auth.ViewingTracker.Invalidate();
 
-            return Ok(new { HasPin = hasPin, AskPinToOpen = askPinToOpen, BypassPinOnLocalNetwork = bypass, LockoutMinutes = lockout });
+            return Ok(new { HasPin = hasPin, AskPinToOpen = askPinToOpen, BypassPinOnLocalNetwork = bypass, LockoutMinutes = lockout, TimeZone = timeZone });
         }
 
         /// <summary>
@@ -4727,6 +4741,11 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest("Default theme must be one of: " + string.Join(", ", Themes.All) + ".");
             }
 
+            if (!string.IsNullOrEmpty(request.DefaultTimeZone) && !HouseholdTime.TryFind(request.DefaultTimeZone, out _))
+            {
+                return BadRequest("That time zone isn't known to this server.");
+            }
+
             if (request.IndexInjectionMode != null
                 && !string.Equals(request.IndexInjectionMode, IndexInjectionModes.File, StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(request.IndexInjectionMode, IndexInjectionModes.Middleware, StringComparison.OrdinalIgnoreCase)
@@ -4806,6 +4825,10 @@ namespace Jellyfin.Profiles.Controllers
                     config.DefaultSwitcherLocation = SwitcherLocations.Normalize(request.DefaultSwitcherLocation);
                 if (request.DefaultTheme != null)
                     config.DefaultTheme = Themes.Normalize(request.DefaultTheme);
+                if (request.DefaultTimeZone != null)
+                    config.DefaultTimeZone = request.DefaultTimeZone.Trim();
+                if (request.DefaultTimeZone != null)
+                    Auth.ViewingTracker.Invalidate();
                 if (request.AllowProfileThemes.HasValue)
                     config.AllowProfileThemes = request.AllowProfileThemes.Value;
                 if (request.IndexInjectionMode != null)

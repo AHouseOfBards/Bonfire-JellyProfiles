@@ -240,6 +240,21 @@ namespace Jellyfin.Profiles.Auth
                 return await AnswerPickerAsync(context, session, route, config, services, forward).ConfigureAwait(false);
             }
 
+            // Viewing hours and daily limits, judged on the profile, as the gate in front of us
+            // would have if it had seen the profile's token. Refused with the same 403: the
+            // profile may still browse, so it stays where it is.
+            if (acting.ProfileId != session.MasterId)
+            {
+                var refusal = ViewingGate.Check(request.Path.Value ?? string.Empty, acting.ProfileId, services.Sessions, services.Libraries, ViewingTracker.Now());
+                if (refusal != null)
+                {
+                    var (code, state, limited) = refusal.Value;
+                    await ViewingGate.TellRefusedAsync(services.Sessions, acting.ProfileId, null, state, limited, logger).ConfigureAwait(false);
+                    await ViewingGate.WriteRefusalAsync(context, code, state).ConfigureAwait(false);
+                    return true;
+                }
+            }
+
             // Acting as a profile: the request goes to Jellyfin as that profile.
             Swap(context, session, acting);
 

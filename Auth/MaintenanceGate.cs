@@ -338,7 +338,7 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>The account a token belongs to, or empty. Remembered for 30 seconds.</summary>
-        private static Guid UserOf(string token, IDeviceManager? devices)
+        internal static Guid UserOf(string token, IDeviceManager? devices)
         {
             if (devices == null) return Guid.Empty;
 

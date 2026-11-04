@@ -193,6 +193,12 @@ namespace Jellyfin.Profiles.Configuration
         public string DefaultTheme { get; set; } = Themes.Bonfire;
 
         /// <summary>
+        /// The time zone a household's viewing hours are read in until its main account picks
+        /// one. Empty is the server's own zone. See <see cref="HouseholdTime"/>.
+        /// </summary>
+        public string DefaultTimeZone { get; set; } = string.Empty;
+
+        /// <summary>
         /// Whether each profile may pick its own theme. Off means everyone sees
         /// <see cref="DefaultTheme"/>; choices already made are kept, not cleared, so turning
         /// this back on gives them back. See <see cref="Themes.Resolve"/>.
@@ -716,8 +722,21 @@ namespace Jellyfin.Profiles.Configuration
             copy.BlockedTags = BlockedTags?.ToList();
             copy.AllowedTags = AllowedTags?.ToList();
             copy.LibraryArtwork = LibraryArtwork?.ToList() ?? new List<LibraryArtwork>();
+            copy.Viewing = Viewing?.Copy();
             return copy;
         }
+
+        /// <summary>
+        /// When this profile may watch, and for how long (1.7.2). Null is no limits. Only ever
+        /// set on a profile's row, never a main account's. See <see cref="ViewingRules"/>.
+        /// </summary>
+        public ViewingRules? Viewing { get; set; }
+
+        /// <summary>
+        /// The household's IANA time zone, read from the main account's row only. Null or empty
+        /// follows <see cref="PluginConfiguration.DefaultTimeZone"/>. See <see cref="HouseholdTime"/>.
+        /// </summary>
+        public string? TimeZone { get; set; }
 
         public string? ProfileImage { get; set; }
         /// <summary>

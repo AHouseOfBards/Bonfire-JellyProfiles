@@ -17,6 +17,9 @@ namespace Jellyfin.Profiles.Models
 
         /// <summary>Minutes idle before the switcher locks again; 0 never. Clamped.</summary>
         public int? LockoutMinutes { get; set; }
+
+        /// <summary>The household's IANA time zone, for viewing hours. Empty follows the server's default.</summary>
+        public string? TimeZone { get; set; }
     }
 
     /// <summary>A main PIN to check.</summary>

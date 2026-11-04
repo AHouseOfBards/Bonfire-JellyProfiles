@@ -161,8 +161,8 @@ function readAdminEnglish(problems) {
 
 // ── The mail's English ──────────────────────────────────────────────────────
 // Bonfire's emails are written on the server, so their English lives in
-// Mail/EmailText.cs, one ["email.…"] = "…" line per key. The server never sends the
-// email.* half of a language file to a browser.
+// Mail/EmailText.cs, one ["email.…"] = "…" line per key. So do the messages it sends to
+// a profile's apps, as notice.* keys. The server never sends either to a browser.
 const MAIL_TEXT = path.join(HERE, '..', '..', 'Mail', 'EmailText.cs');
 const REPO = path.join(HERE, '..', '..');
 
@@ -178,7 +178,7 @@ function readMailEnglish(problems) {
     }
     if (Object.keys(out).length === 0) fail('Found no ["email.…"] lines in Mail/EmailText.cs. Has the format changed?');
     for (const k of Object.keys(out)) {
-        if (!k.startsWith('email.')) problems.push(k + ': mail keys start with email.');
+        if (!k.startsWith('email.') && !k.startsWith('notice.')) problems.push(k + ': server keys start with email. or notice.');
     }
     return out;
 }
@@ -220,7 +220,7 @@ for (const k of Object.keys(appEnglish)) {
 const mailProblems = [];
 const mailEnglish = readMailEnglish(mailProblems);
 for (const k of Object.keys(appEnglish).concat(Object.keys(adminEnglish))) {
-    if (k.startsWith('email.')) mailProblems.push(k + ': email. keys belong in Mail/EmailText.cs; the server keeps them from browsers.');
+    if (k.startsWith('email.') || k.startsWith('notice.')) mailProblems.push(k + ': email. and notice. keys belong in Mail/EmailText.cs; the server keeps them from browsers.');
 }
 const english = Object.assign({}, appEnglish, adminEnglish, mailEnglish);
 const englishKeys = Object.keys(english).sort();

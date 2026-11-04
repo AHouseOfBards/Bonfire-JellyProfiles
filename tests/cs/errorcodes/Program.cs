@@ -143,6 +143,15 @@ var wanted = new Dictionary<string, string>
     ["Delete an announcement first"] = "announcement_limit",
     ["maintenance message can be at most"] = "maintenance_invalid",
     ["time maintenance ends must be"] = "maintenance_invalid",
+    ["Only the main account can do that"] = "not_main_account",
+    ["Set up email and send a test first"] = "email_unavailable",
+    ["PIN reset by email isn't available"] = "pin_reset_unavailable",
+    ["The email couldn't be sent"] = "email_send_failed",
+    ["Port 465 isn't supported"] = "email_settings_invalid",
+    ["A viewing window isn't valid"] = "limits_invalid",
+    ["A daily limit is between"] = "limits_invalid",
+    ["More time is between"] = "limits_invalid",
+    ["That time zone isn't known"] = "time_zone_invalid",
 };
 foreach (var (contains, code) in wanted)
 {
@@ -160,6 +169,12 @@ foreach (var (text, code) in new[]
     ("This profile isn't allowed on this device.", "device_not_allowed"),
     ("This profile has too many active sessions.", "too_many_sessions"),
     ("Enter a name for the profile.", "name_invalid"),
+    ("This profile has no viewing limits.", "not_limited"),
+    ("Email isn't set up on this server.", "email_unavailable"),
+    ("That code isn't right.", "code_wrong"),
+    ("That code has expired. Send a new one.", "code_expired"),
+    ("Send a code first.", "code_missing"),
+    ("Limits are for profiles, not main accounts.", "limits_for_profiles"),
     ("This profile has no PIN, so it cannot be opened from a shared Bonfire. Its owner must…", "pin_needed_for_bonfire"),
 })
 {

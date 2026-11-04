@@ -109,6 +109,36 @@ namespace Jellyfin.Profiles.Controllers
             ("Choose a picture first", "image_invalid"),
 
             ("Plugin configuration missing", "not_configured"),
+
+            // Email (1.7.2).
+            ("Only the main account can do that", "not_main_account"),
+            ("Email isn't set up on this server", "email_unavailable"),
+            ("Set up email and send a test first", "email_unavailable"),
+            ("PIN reset by email isn't available", "pin_reset_unavailable"),
+            ("That email address isn't valid", "email_invalid"),
+            ("Enter an address to send the test to", "email_invalid"),
+            ("Add an email address first", "email_missing"),
+            ("That code isn't right", "code_wrong"),
+            ("That code has expired", "code_expired"),
+            ("Send a code first", "code_missing"),
+            ("The email couldn't be sent", "email_send_failed"),
+            ("Port 465 isn't supported", "email_settings_invalid"),
+            ("The port must be between", "email_settings_invalid"),
+            ("Security must be 'starttls'", "email_settings_invalid"),
+            ("That server name isn't valid", "email_settings_invalid"),
+            ("The From address isn't valid", "email_settings_invalid"),
+            ("The From name can be at most", "email_settings_invalid"),
+            ("Fill in the server and the From address", "email_settings_invalid"),
+
+            // Viewing hours and limits (1.7.2). The refusals of playback itself are written
+            // by Auth.ViewingGate: outside_viewing_hours and daily_limit_reached.
+            ("This profile has no viewing limits", "not_limited"),
+            ("Limits are for profiles, not main accounts", "limits_for_profiles"),
+            ("Too many viewing windows", "limits_invalid"),
+            ("A viewing window isn't valid", "limits_invalid"),
+            ("A daily limit is between", "limits_invalid"),
+            ("More time is between", "limits_invalid"),
+            ("That time zone isn't known", "time_zone_invalid"),
         };
 
         /// <summary>The code for an error, from its status and message.</summary>

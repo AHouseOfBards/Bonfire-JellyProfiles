@@ -97,6 +97,8 @@ namespace Jellyfin.Profiles.Models
 
         public bool NotifyLockout { get; set; } = true;
         public bool NotifyNewDevice { get; set; } = true;
+        public bool NotifyTimeAsked { get; set; } = true;
+        public bool NotifyLimitReached { get; set; }
 
         /// <summary>PIN reset by email is on for this server.</summary>
         public bool PinResetEnabled { get; set; }
