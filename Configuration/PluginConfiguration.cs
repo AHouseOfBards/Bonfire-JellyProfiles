@@ -145,6 +145,13 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public List<Announcement> Announcements { get; set; } = new();
 
+        /// <summary>
+        /// Closed for maintenance. Replaced as a whole when it changes, like
+        /// <see cref="Announcements"/>, so the request gate can read it without the lock.
+        /// See <see cref="Auth.MaintenanceGate"/>.
+        /// </summary>
+        public MaintenanceMode Maintenance { get; set; } = new();
+
         /// <summary>Default for <see cref="ProfileMapping.SwitcherLocation"/>. See <see cref="DefaultAskOnStartup"/>.</summary>
         public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;
 

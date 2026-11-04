@@ -27,6 +27,10 @@
   "gate.cantGetPast": "Bu ekranı geçemiyor musunuz?",
   "gate.bonfireProfile": "Bonfire profili",
   "gate.dismiss": "Kapat",
+  "maintenance.title": "Bakım nedeniyle kapalı",
+  "maintenance.adminTitle": "Bakım nedeniyle kapalı. Yalnızca yöneticiler girebilir.",
+  "maintenance.backBy": "Dönüş: {time}",
+  "maintenance.signOut": "Oturumu kapat",
 
   "pin.enterProfilePin": "Profil PIN'ini girin",
   "pin.enterMasterPin": "Ana PIN'i girin",

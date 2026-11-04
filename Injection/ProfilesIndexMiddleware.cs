@@ -172,6 +172,13 @@ namespace Jellyfin.Profiles
                         "Client"));
             }
 
+            // Closed for maintenance: anyone but an administrator is answered here. Before the
+            // picker, so an app on it is closed too. One field read when it is off.
+            if (await Auth.MaintenanceGate.TryRefuseAsync(context, userManager, deviceManager, _logger).ConfigureAwait(false))
+            {
+                return;
+            }
+
             // An app that gets the profile picker. Checked before everything below, because
             // a request it answers or rewrites must not also be renamed, listed or injected.
             // Costs one list count when no app is ticked. See Auth/ProxySwitcher.cs.

@@ -77,6 +77,11 @@ namespace Jellyfin.Profiles.Controllers
             ("Delete an announcement first", "announcement_limit"),
             ("No such announcement", "announcement_not_found"),
 
+            // Maintenance. The refusal itself carries its code from the route: its text is
+            // the administrator's own.
+            ("maintenance message can be at most", "maintenance_invalid"),
+            ("time maintenance ends must be", "maintenance_invalid"),
+
             // Things that are not there.
             ("Profile not found", "profile_not_found"),
             ("Profile mapping not found", "profile_not_found"),
@@ -160,7 +165,9 @@ namespace Jellyfin.Profiles.Controllers
                     break;
             }
 
-            if (status != null)
+            // A route that set its own code keeps it. Maintenance does: its message is the
+            // administrator's own words, so there is no text to match.
+            if (status != null && !context.HttpContext.Response.Headers.ContainsKey(ErrorCodes.Header))
             {
                 context.HttpContext.Response.Headers[ErrorCodes.Header] = ErrorCodes.For(status.Value, message);
             }

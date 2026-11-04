@@ -676,6 +676,37 @@
 
             <h3 class="checkboxListLabel jpf-subhead">Posted</h3>
             <div id="annList" class="jpf-ann-list jpf-block-end"></div>
+
+            <div class="sectionTitleContainer jpf-section">
+                <h2 class="sectionTitle">Maintenance</h2>
+            </div>
+            <div class="fieldDescription jpf-lede">
+                Close the server to everyone but administrators, for upgrades and moves. It stays closed until you reopen it.
+            </div>
+            <div id="mntStatus" class="jpf-note">…</div>
+
+            <div class="inputContainer">
+                <label class="textareaLabel" for="mntMessage">Message</label>
+                <textarea is="emby-textarea" id="mntMessage" rows="2" maxlength="280" class="jpf-ann-text" placeholder="The server is closed for maintenance."></textarea>
+                <div class="fieldDescription">Shown to everyone who can't get in.</div>
+            </div>
+            <div class="inputContainer">
+                <label class="inputLabel" for="mntUntil">Back by</label>
+                <input is="emby-input" type="datetime-local" id="mntUntil" />
+                <div class="fieldDescription">Optional. Shown only; it doesn't reopen by itself.</div>
+            </div>
+            <div class="checkboxContainer checkboxContainer-withDescription">
+                <label>
+                    <input is="emby-checkbox" type="checkbox" id="mntStop" />
+                    <span>Stop what people are watching</span>
+                </label>
+                <div class="fieldDescription">Otherwise anything already playing finishes. Nothing new can start.</div>
+            </div>
+            <div class="buttonContainer jpf-ann-actions">
+                <button is="emby-button" type="button" id="mntClose" class="raised button-submit">Close the server</button>
+                <button is="emby-button" type="button" id="mntOpen" class="raised jpf-hidden">Reopen</button>
+            </div>
+            <div class="jpf-hidden jpf-status" id="mntResult"></div>
             </div><!-- /notices -->
 
             <div class="jpf-tab-panel" id="jpfPanelAvatars" data-panel="avatars" role="tabpanel" hidden>
@@ -987,6 +1018,7 @@
                     loadAvatarHealth(page);
                     loadPanicStatus(page);
                     loadAnnouncements(page);
+                    loadMaintenance(page);
                 }).catch(function (err) {
                     console.error("Failed to load plugin configuration:", err);
                     Dashboard.hideLoadingMsg();
@@ -2461,6 +2493,87 @@
                 });
             }
 
+            // ── Maintenance ───────────────────────────────────────────────────────
+
+            function renderMaintenance(page, state) {
+                const on = !!field(state, 'enabled');
+                const status = page.querySelector('#mntStatus');
+                status.className = 'jpf-note ' + (on ? 'jpf-note-warn' : 'jpf-note-ok');
+                if (on) {
+                    const started = field(state, 'startedUtc');
+                    const until = field(state, 'untilUtc');
+                    status.textContent = 'Closed' + (started ? ' since ' + formatWhen(started) : '') +
+                        (until ? '. Back by ' + formatWhen(until) : '') +
+                        '. Only administrators can use the server.';
+                } else {
+                    status.textContent = 'Open.';
+                }
+                page.querySelector('#mntMessage').value = field(state, 'message') || '';
+                page.querySelector('#mntUntil').value = isoToLocalInput(field(state, 'untilUtc'));
+                page.querySelector('#mntStop').checked = !!field(state, 'stopPlayback');
+                page.querySelector('#mntClose').textContent = on ? 'Save changes' : 'Close the server';
+                page.querySelector('#mntOpen').classList.toggle('jpf-hidden', !on);
+            }
+
+            function loadMaintenance(page) {
+                if (!page.querySelector('#mntStatus')) return;
+                ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/admin/maintenance')).then(function (state) {
+                    renderMaintenance(page, state || {});
+                }).catch(function () {
+                    page.querySelector('#mntStatus').textContent = 'Could not read the current status.';
+                });
+            }
+
+            function showMaintenanceResult(page, msg, good) {
+                const result = page.querySelector('#mntResult');
+                result.textContent = msg;
+                result.style.color = good ? '#51cf66' : '#ff6b6b';
+                result.classList.remove('jpf-hidden');
+            }
+
+            function saveMaintenance(page, enabled) {
+                const body = {
+                    enabled: enabled,
+                    message: (page.querySelector('#mntMessage').value || '').trim(),
+                    untilUtc: enabled ? localInputToIso(page.querySelector('#mntUntil').value) : null,
+                    stopPlayback: enabled && page.querySelector('#mntStop').checked
+                };
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('plugins/profiles/admin/maintenance'),
+                    contentType: 'application/json',
+                    dataType: 'json',
+                    data: JSON.stringify(body)
+                }).then(function (state) {
+                    renderMaintenance(page, state || {});
+                    if (!enabled) {
+                        showMaintenanceResult(page, 'Reopened.', true);
+                        return;
+                    }
+                    const told = field(state || {}, 'told') || 0;
+                    const stopped = field(state || {}, 'stopped') || 0;
+                    showMaintenanceResult(page, 'Closed. Told ' + told + (told === 1 ? ' app' : ' apps') +
+                        (stopped ? ', stopped ' + stopped : '') + '.', true);
+                }, function (err) {
+                    errorText(err, 'Could not save it.').then(function (t) { showMaintenanceResult(page, t, false); });
+                });
+            }
+
+            function bindMaintenance(page) {
+                const close = page.querySelector('#mntClose');
+                if (!close || close.dataset.bound) return;
+                close.dataset.bound = '1';
+                close.addEventListener('click', function () {
+                    if (!page.querySelector('#mntOpen').classList.contains('jpf-hidden')) {
+                        saveMaintenance(page, true);
+                        return;
+                    }
+                    Dashboard.confirm('Everyone but administrators is locked out until you reopen.',
+                        'Close the server').then(function () { saveMaintenance(page, true); });
+                });
+                page.querySelector('#mntOpen').addEventListener('click', function () { saveMaintenance(page, false); });
+            }
+
             // ── Emergency disable code ────────────────────────────────────────────
 
             function loadPanicStatus(page) {
@@ -2615,6 +2728,7 @@
                 });
                 initTabs(page);
                 bindAnnouncements(page);
+                bindMaintenance(page);
                 bindOrphanScan(page);
                 bindAuditControls(page);
                 bindSessions(page);

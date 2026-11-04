@@ -23,4 +23,19 @@ namespace Jellyfin.Profiles.Models
     {
         public Guid Id { get; set; }
     }
+
+    /// <summary>Opens or closes the server for maintenance.</summary>
+    public class MaintenanceRequest
+    {
+        public bool Enabled { get; set; }
+
+        /// <summary>Shown to everyone turned away. Blank for the default.</summary>
+        public string? Message { get; set; }
+
+        /// <summary>When it is expected to end. Shown only; it never ends by itself.</summary>
+        public DateTime? UntilUtc { get; set; }
+
+        /// <summary>Stop what is playing now, and refuse video and audio while closed.</summary>
+        public bool StopPlayback { get; set; }
+    }
 }

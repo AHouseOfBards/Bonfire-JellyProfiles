@@ -1388,6 +1388,27 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .profiles-announcement-dismiss:hover,
 .profiles-announcement-dismiss:focus { opacity: 1; background: var(--jpf-surface-2); outline: none; box-shadow: 0 0 0 2px var(--jpf-accent); }
+/* Closed for maintenance. A strip on the sign-in screen and for administrators; the
+   whole page for anyone else signed in, whose every request is refused. Above the gate. */
+.profiles-maintenance {
+    position: fixed; left: 0; right: 0; top: 0; z-index: 100001;
+    background: var(--jpf-gate-bg, #101010);
+    border-bottom: 3px solid var(--jpf-warn);
+    color: var(--jpf-text-1);
+    padding: 0.8rem 1rem; text-align: center;
+    font-family: var(--jpf-font, inherit);
+}
+.profiles-maintenance.is-blocking {
+    bottom: 0; border-bottom: none;
+    display: flex; align-items: center; justify-content: center;
+}
+.profiles-maintenance-inner { max-width: 640px; margin: 0 auto; }
+.profiles-maintenance-title { font-weight: 700; font-size: 1.05rem; }
+.profiles-maintenance.is-blocking .profiles-maintenance-title { font-size: 2rem; margin-bottom: 1rem; }
+.profiles-maintenance-text { white-space: pre-wrap; word-wrap: break-word; margin-top: 0.3rem; }
+.profiles-maintenance-text:empty { display: none; }
+.profiles-maintenance-when { opacity: 0.75; margin-top: 0.3rem; }
+.profiles-maintenance .profiles-btn { margin-top: 1.5rem; }
 .profiles-home-section {
     width: 100%;
     margin-bottom: 2.5rem;

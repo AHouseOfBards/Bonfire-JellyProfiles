@@ -27,12 +27,13 @@ for Bonfire's own client. It's documented because other people build against it 
 - [Preferences](#preferences)
 - [Avatar library](#avatar-library)
 - [Announcements](#announcements)
+- [Maintenance](#maintenance)
 - [Emergency disable](#emergency-disable)
 - [Admin](#admin)
 
 ## All routes
 
-All 58 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 60 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -79,6 +80,8 @@ All 58 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `GET /plugins/profiles/admin/announcements` | admin | Every announcement. |
 | `POST /plugins/profiles/admin/announcements` | admin | Create or change one. |
 | `POST /plugins/profiles/admin/announcements/delete` | admin | Delete one. |
+| `GET /plugins/profiles/admin/maintenance` | admin | Whether the server is closed. |
+| `POST /plugins/profiles/admin/maintenance` | admin | Close or reopen it. |
 | `POST /plugins/profiles/panic` | anon | Emergency disable. |
 | `GET /plugins/profiles/info` | anon | Version and which features are on. |
 | `GET /plugins/profiles/panic-state` | anon | Whether Bonfire is disabled. |
@@ -143,11 +146,14 @@ means an administrator has switched it off: show no Bonfire screens.
     "skipQuickConnectOnKnownDevices": false,
     "profileThemes": true,
     "proxyClients": ["moonfin"]
-  }
+  },
+  "maintenance": null
 }
 ```
 
-`features` holds server-wide settings only, never anything about a household. Sent with
+`features` holds server-wide settings only, never anything about a household.
+`maintenance` is null, or `{ "message": "…", "untilUtc": "…" }` while the server is closed:
+see [Maintenance](#maintenance). Sent with
 `no-store`.
 
 ### Switching
@@ -175,7 +181,7 @@ means an administrator has switched it off: show no Bonfire screens.
 | `404` | Unknown profile, image, library or main account. |
 | `429` | Rate limited. Most limits also send `Retry-After` in seconds. |
 | `500` | A bug. |
-| `503` | A translation could not be read. Try again. |
+| `503` | Closed for maintenance (`maintenance`), or a translation could not be read. Try again later. |
 
 **The body is plain text, written for the user.** Show it. To decide what to do, read the
 `X-Bonfire-Error` header instead: a code that never changes once released.
@@ -212,6 +218,8 @@ Invalid PIN code.
 | `announcement_invalid` | The announcement's message, severity or dates aren't allowed. |
 | `announcement_limit` | 50 announcements are stored. Delete one first. |
 | `announcement_not_found` | No announcement has that id. |
+| `maintenance` | Closed for maintenance. Sent with `503` and `Retry-After`, on any route. |
+| `maintenance_invalid` | The maintenance message is too long, or its end time has passed. |
 | `bonfire_not_owner`, `bonfire_not_member`, `bonfire_own_group`, `bonfire_member_not_found` | Bonfire group actions that don't apply to the caller. |
 | `profile_not_found`, `user_not_found`, `library_not_found`, `image_not_found`, `not_found` | The thing named doesn't exist. |
 | `image_invalid` | The picture is missing, unreadable, too large or not an image. |
@@ -1175,6 +1183,51 @@ as UTC. Returns the saved announcement. At most 50 are stored.
 **Authorisation:** administrator.
 
 `{ "id": "…" }`. An id that's already gone isn't an error.
+
+## Maintenance
+
+Closes the server to everyone but administrators. Use it for upgrades and moves.
+
+While it is on, every request from an account that isn't an administrator gets
+`503`, `X-Bonfire-Error: maintenance`, a `Retry-After` and the administrator's message as
+plain text, from any route, Jellyfin's own included. Signing in by name is refused the
+same way, before the password is checked. These still answer:
+
+- what is already playing, unless the administrator stopped it;
+- the account's own `GET /Users/Me` and `GET /Users/{ownId}`;
+- signing out, Quick Connect, the live connection and the web client's files;
+- `GET /System/Info/Public`, `GET /Users/Public` and Bonfire's anonymous routes.
+
+Administrators are never refused. It doesn't end by itself: `untilUtc` is shown, never
+acted on. The emergency disable turns it off until Jellyfin restarts.
+
+An app should read `maintenance` from `GET /info` before sign-in and show the message.
+
+### `GET /plugins/profiles/admin/maintenance`
+
+**Authorisation:** administrator.
+
+`{ "enabled": true, "message": "…", "untilUtc": null, "startedUtc": "…", "stopPlayback": false }`
+
+### `POST /plugins/profiles/admin/maintenance`
+
+**Authorisation:** administrator.
+
+```json
+{
+  "enabled": true,
+  "message": "Upgrading to 12.0. Back by 3.",
+  "untilUtc": "2026-11-05T03:00:00Z",
+  "stopPlayback": false
+}
+```
+
+`message` is up to 280 characters; blank shows "The server is closed for maintenance."
+`untilUtc` must be in the future. `stopPlayback: true` stops what household members are
+playing and refuses video and audio too.
+
+Closing sends the message to every open app of a household member. Returns the saved
+state plus `told` and `stopped`, the number of apps messaged and stopped.
 
 ---
 

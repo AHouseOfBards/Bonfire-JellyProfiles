@@ -220,6 +220,11 @@
         'gate.bonfireProfile': 'Bonfire Profile',
         'gate.dismiss': 'Dismiss',
 
+        'maintenance.title': 'Closed for maintenance',
+        'maintenance.adminTitle': 'Closed for maintenance. Only administrators can get in.',
+        'maintenance.backBy': 'Back by {time}',
+        'maintenance.signOut': 'Sign out',
+
         'pin.enterProfilePin': 'Enter Profile PIN',
         'pin.enterMasterPin': 'Enter Master PIN',
         'pin.incorrectPin': 'Incorrect PIN. Please try again.',
@@ -1844,6 +1849,8 @@
             // Before validateSessionState, which can trigger a reload of its own.
             this._step('checkPersistedPanic', () => this.checkPersistedPanic());
             if (this._panicDisabled) return;
+            // Once per page load, never from checkRoute.
+            this._step('checkMaintenance', () => this.checkMaintenance());
             this._step('validateSessionState', () => this.validateSessionState());
             // If the user refreshes while a profile is active, restart the inactivity timer
             setTimeout(() => this._step('initLockoutTimer', () => this.initLockoutTimer()), 800);
@@ -4825,6 +4832,88 @@
                     draw(list);
                 })
                 .catch(() => { /* no announcements is the safe reading */ });
+        },
+
+        /// Closed for maintenance: say so, once per page load.
+        ///
+        /// Asked of /info, which needs no token, because the people it is for are the ones
+        /// who cannot sign in. On the sign-in screen and for an administrator it is a strip
+        /// across the top; for anyone else signed in it covers the page, since every request
+        /// they make is refused and the page behind would only show errors.
+        ///
+        /// Written with textContent: the message is the administrator's own words.
+        checkMaintenance: function () {
+            fetch(ApiClient.getUrl('plugins/profiles/info'), { cache: 'no-store' })
+                .then(res => res.ok ? res.json() : null)
+                .then(info => {
+                    const m = info && (info.maintenance || info.Maintenance);
+                    if (!m) return;
+                    const userId = typeof ApiClient.getCurrentUserId === 'function' ? ApiClient.getCurrentUserId() : null;
+                    if (!userId || typeof ApiClient.getCurrentUser !== 'function') {
+                        this.showMaintenance(m, false);
+                        return;
+                    }
+                    return Promise.resolve(ApiClient.getCurrentUser()).then(user => {
+                        const policy = user && (user.Policy || user.policy);
+                        const admin = !!(policy && (policy.IsAdministrator || policy.isAdministrator));
+                        this.showMaintenance(m, !admin, admin);
+                    }, () => this.showMaintenance(m, true));
+                })
+                .catch(() => { /* unknown: say nothing */ });
+        },
+
+        showMaintenance: function (m, blocking, admin) {
+            if (document.getElementById('profiles-maintenance')) return;
+            const message = String(m.message || m.Message || '');
+            const until = m.untilUtc || m.UntilUtc;
+            let back = '';
+            if (until) {
+                const d = new Date(until);
+                if (!isNaN(d.getTime())) back = t('maintenance.backBy', { time: d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) });
+            }
+
+            const box = document.createElement('div');
+            box.id = 'profiles-maintenance';
+            box.className = blocking ? 'profiles-maintenance is-blocking' : 'profiles-maintenance';
+            box.setAttribute('role', blocking ? 'alertdialog' : 'status');
+
+            const inner = document.createElement('div');
+            inner.className = 'profiles-maintenance-inner';
+
+            const title = document.createElement('div');
+            title.className = 'profiles-maintenance-title';
+            title.textContent = admin ? t('maintenance.adminTitle') : t('maintenance.title');
+            inner.appendChild(title);
+
+            const text = document.createElement('div');
+            text.className = 'profiles-maintenance-text';
+            text.textContent = message;
+            inner.appendChild(text);
+
+            if (back) {
+                const when = document.createElement('div');
+                when.className = 'profiles-maintenance-when';
+                when.textContent = back;
+                inner.appendChild(when);
+            }
+
+            if (blocking) {
+                const out = document.createElement('button');
+                out.type = 'button';
+                out.className = 'profiles-btn btn-secondary focusable';
+                out.textContent = t('maintenance.signOut');
+                out.addEventListener('click', () => {
+                    Promise.resolve(ApiClient.logout()).then(() => window.location.reload(), () => window.location.reload());
+                });
+                inner.appendChild(out);
+            }
+
+            box.appendChild(inner);
+            document.body.appendChild(box);
+            if (blocking) {
+                const btn = box.querySelector('button');
+                if (btn) btn.focus();
+            }
         },
 
         _announcementSeverity: function (a) {

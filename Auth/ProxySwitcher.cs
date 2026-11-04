@@ -219,6 +219,27 @@ namespace Jellyfin.Profiles.Auth
                 return await AnswerPickerAsync(context, session, route, config, services, forward).ConfigureAwait(false);
             }
 
+            // Closed for maintenance. The gate in front of us saw the main account's token,
+            // which got this far, so it is an administrator's; the profile it is acting as is
+            // judged here, on the gate's own rules. Refused, the app goes back to the picker
+            // rather than being handed 503s it has no way out of: the picker is how it would
+            // switch, and the picker will not open the profile again while closed. A segment
+            // of something already playing is let through as the gate would.
+            var closed = MaintenanceGate.Active();
+            if (closed != null
+                && acting.ProfileId != session.MasterId
+                && services.Users != null
+                && !MaintenanceGate.IsAdmin(services.Users, acting.ProfileId)
+                && MaintenanceGate.Refuses(closed, request.Method, request.Path.Value ?? string.Empty, acting.ProfileId))
+            {
+                logger.LogInformation(
+                    "ProfilesPlugin: closed for maintenance; {Client} on {Device} is back at the picker.",
+                    session.Client, session.Device);
+                await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
+                config ??= Controllers.ProfilesBaseController.ReadConfigSnapshot();
+                return await AnswerPickerAsync(context, session, route, config, services, forward).ConfigureAwait(false);
+            }
+
             // Acting as a profile: the request goes to Jellyfin as that profile.
             Swap(context, session, acting);
 
@@ -602,6 +623,11 @@ namespace Jellyfin.Profiles.Auth
 
             var mapping = config?.Mappings?.FirstOrDefault(m => m.ProfileUserId == profileId && m.MasterUserId == session.MasterId);
             if (mapping == null || services.Users == null || services.Sessions == null) return "Couldn't open this profile.";
+
+            if (MaintenanceGate.Active() != null && !MaintenanceGate.IsAdmin(services.Users, profileId))
+            {
+                return "Closed for maintenance.";
+            }
 
             var access = Controllers.ProfilesBaseController.EvaluateDeviceRestriction(
                 mapping, session.DeviceId, config?.KnownDevices, config?.Mappings);

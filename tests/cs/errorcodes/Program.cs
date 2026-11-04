@@ -64,9 +64,10 @@ string For(int status, string message) => (string)forMethod.Invoke(null, new obj
 Console.WriteLine();
 Console.WriteLine("── The filter, on real results ─────────────────────────────────");
 
-(int status, string code) Run(IActionResult result)
+(int status, string code) Run(IActionResult result, string preset = null)
 {
     var http = new DefaultHttpContext();
+    if (preset != null) http.Response.Headers["X-Bonfire-Error"] = preset;
     var action = new ActionContext(http, new RouteData(), new ActionDescriptor());
     var ctx = new ResultExecutingContext(action, new List<IFilterMetadata>(), result, controller: null);
     var filter = (IResultFilter)Activator.CreateInstance(filterType);
@@ -95,6 +96,10 @@ Ok("a bare 404 is not_found", missing == (404, "not_found"), missing.ToString())
 
 var limited = Run(new ObjectResult("Too many failed PIN attempts.") { StatusCode = 429 });
 Ok("a 429 is rate_limited", limited == (429, "rate_limited"), limited.ToString());
+
+// Maintenance sets its own: the message is the administrator's words, with nothing to match.
+var own = Run(new ObjectResult("Back at 3.") { StatusCode = 503 }, preset: "maintenance");
+Ok("a code the route set is kept", own == (503, "maintenance"), own.ToString());
 
 var fine = Run(new OkObjectResult("done"));
 Ok("a success carries no error code", fine.code == "" && fine.status == 200, fine.ToString());
@@ -136,6 +141,8 @@ var wanted = new Dictionary<string, string>
     ["does not let profiles choose a theme"] = "themes_locked",
     ["No such announcement"] = "announcement_not_found",
     ["Delete an announcement first"] = "announcement_limit",
+    ["maintenance message can be at most"] = "maintenance_invalid",
+    ["time maintenance ends must be"] = "maintenance_invalid",
 };
 foreach (var (contains, code) in wanted)
 {
@@ -232,6 +239,8 @@ if (info != null)
         "Name", "Version", "ApiVersion", "Disabled", "Features",
         "Features.ClientPinLogin", "Features.ClientProfileList", "Features.SkipQuickConnectOnKnownDevices",
         "Features.ProfileThemes", "Features.ProxyClients",
+        // Null unless closed for maintenance, which this harness never is.
+        "Maintenance",
     };
     Ok("and nothing about any household: exactly the documented fields",
        keys.OrderBy(k => k).SequenceEqual(allowed.OrderBy(k => k)), string.Join(", ", keys));

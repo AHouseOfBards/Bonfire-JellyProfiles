@@ -805,6 +805,16 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest("This profile's account is turned off on the server.");
             }
 
+            // Closed for maintenance. An administrator's own household can still switch to
+            // the administrator, but not into a profile the gate would refuse anyway: the
+            // switch would succeed and every request after it fail.
+            var closed = Auth.MaintenanceGate.Active();
+            if (closed != null && !Auth.MaintenanceGate.IsAdmin(_userManager, request.ProfileId))
+            {
+                Response.Headers[ErrorCodes.Header] = Auth.MaintenanceGate.ErrorCode;
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, closed.ShownMessage());
+            }
+
             // Inherit/synchronize streaming policies and configurations from master user dynamically during switch
             var targetMasterUserId = mapping != null ? mapping.MasterUserId : request.ProfileId;
             var masterUser = _userManager.GetUserById(targetMasterUserId);
@@ -3648,6 +3658,113 @@ namespace Jellyfin.Profiles.Controllers
             return Ok();
         }
 
+        // ── Maintenance ─────────────────────────────────────────────────────────────
+
+        /// <summary>Whether the server is closed for maintenance, and with what message.</summary>
+        [HttpGet("admin/maintenance")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> GetMaintenance()
+        {
+            var adminError = RequireAdministrator("manage maintenance mode");
+            if (adminError != null) return adminError;
+
+            return Ok(DescribeMaintenance(Plugin.Instance?.Configuration?.Maintenance ?? new MaintenanceMode()));
+        }
+
+        /// <summary>
+        /// Opens or closes the server. Closing tells every open app of a household member,
+        /// and stops what is playing if asked to.
+        /// <para>
+        /// The settings are replaced as a whole object, never edited in place, because the
+        /// request gate reads them on every request without the lock.
+        /// </para>
+        /// </summary>
+        [HttpPost("admin/maintenance")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<ActionResult<object>> SetMaintenance([FromBody] MaintenanceRequest request)
+        {
+            var adminError = RequireAdministrator("manage maintenance mode");
+            if (adminError != null) return adminError;
+            if (request == null) return BadRequest("Missing request body.");
+
+            var message = (request.Message ?? string.Empty).Trim();
+            if (message.Length > MaintenanceMode.MaxMessageLength)
+            {
+                return BadRequest($"A maintenance message can be at most {MaintenanceMode.MaxMessageLength} characters.");
+            }
+
+            var now = DateTime.UtcNow;
+            var until = Configuration.Announcements.ToUtc(request.UntilUtc);
+            if (request.Enabled && until.HasValue && until.Value <= now)
+            {
+                return BadRequest("The time maintenance ends must be in the future.");
+            }
+
+            MaintenanceMode next;
+            bool opening;
+            lock (ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (config == null) return BadRequest("Plugin configuration missing.");
+
+                var was = config.Maintenance ?? new MaintenanceMode();
+                opening = request.Enabled && !was.Enabled;
+                next = new MaintenanceMode
+                {
+                    Enabled = request.Enabled,
+                    Message = message,
+                    UntilUtc = request.Enabled ? until : null,
+                    StopPlayback = request.Enabled && request.StopPlayback,
+                    StartedUtc = request.Enabled ? (was.Enabled ? was.StartedUtc : now) : null,
+                };
+                config.Maintenance = next;
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            Auth.MaintenanceGate.Forget();
+
+            var callerId = GetCurrentUserId();
+            var caller = callerId.HasValue ? _userManager.GetUserById(callerId.Value)?.Username : null;
+            _logger.LogWarning(
+                next.Enabled
+                    ? "ProfilesPlugin: {Admin} closed the server for maintenance. Only administrators can use it."
+                    : "ProfilesPlugin: {Admin} reopened the server after maintenance.",
+                caller ?? "an administrator");
+
+            int told = 0, stopped = 0;
+            if (next.Enabled && (opening || request.StopPlayback))
+            {
+                (told, stopped) = await Auth.MaintenanceGate
+                    .NotifyAsync(_sessionManager, _userManager, next, next.StopPlayback, _logger)
+                    .ConfigureAwait(false);
+            }
+
+            var described = DescribeMaintenance(next);
+            return Ok(new
+            {
+                described.Enabled,
+                described.Message,
+                described.UntilUtc,
+                described.StartedUtc,
+                described.StopPlayback,
+                Told = told,
+                Stopped = stopped,
+            });
+        }
+
+        private static MaintenanceDescription DescribeMaintenance(MaintenanceMode m) => new(
+            m.Enabled,
+            m.Message ?? string.Empty,
+            m.UntilUtc,
+            m.StartedUtc,
+            m.StopPlayback);
+
+        private sealed record MaintenanceDescription(
+            bool Enabled, string Message, DateTime? UntilUtc, DateTime? StartedUtc, bool StopPlayback);
+
         private static object DescribeAnnouncement(Announcement a) => new
         {
             a.Id,
@@ -3691,6 +3808,11 @@ namespace Jellyfin.Profiles.Controllers
                     ProfileThemes = config?.AllowProfileThemes != false,
                     ProxyClients = config?.ProxyClients ?? new List<string>(),
                 },
+
+                // Anonymous on purpose: the people it is for cannot sign in.
+                Maintenance = Auth.MaintenanceGate.Active() is MaintenanceMode m
+                    ? new { Message = m.ShownMessage(), m.UntilUtc }
+                    : null,
             });
         }
 
