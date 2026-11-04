@@ -2414,6 +2414,37 @@ body.profiles-no-scroll [id*="spinner"] {
     margin-bottom: 0;
 }
 
+/* ── First-time setup (1.7.2) ───────────────────────────────────────
+   Margins, not flex gap: the whole setup runs on televisions first. */
+.jpf-onboarding { text-align: left; }
+.jpf-onboarding-step {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.6;
+}
+.jpf-onboarding-text {
+    margin: 0 0 1.5rem 0;
+    font-size: 1rem;
+    line-height: 1.55;
+    opacity: 0.85;
+    overflow-wrap: anywhere;
+}
+.jpf-onboarding-check {
+    display: inline-flex !important;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 600;
+}
+.jpf-onboarding-check input { margin: 0 0.5rem 0 0 !important; width: 18px; height: 18px; accent-color: var(--jpf-accent); }
+.jpf-onboarding .form-hint { margin: 4px 0 1.5rem 1.6rem; opacity: 0.55; font-size: 0.8rem; }
+.jpf-onboarding-label { font-weight: 600; margin-bottom: 10px; }
+.jpf-onboarding-choices > * + * { margin-top: var(--jpf-gap); }
+.jpf-onboarding-actions { margin-top: 2rem !important; }
+.jpf-onboarding .profiles-pin-error { margin-top: 1rem; }
+
 /* ── "More settings" under a profile form's Basics (1.7.2) ──────────
    A <details>: closed until asked for, opened with Enter on a remote.
    The marker is drawn by us (the caret), so the browser's is hidden in

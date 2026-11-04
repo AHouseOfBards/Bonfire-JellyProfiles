@@ -38,6 +38,10 @@
     /// together. The names are proper names, like "Bonfire" itself, and are shown as they
     /// are in every language, so the dashboard and every profile call a theme the same thing.
     const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom'];
+
+    /// First-time setup steps this script can draw (OnboardingSteps on the server). A
+    /// newer server's unknown step is left out rather than shown blank.
+    const ONBOARDING_STEPS = ['welcome', 'mainPin', 'firstProfile', 'switcher', 'theme'];
     const THEME_NAMES = {
         bonfire: 'Bonfire',
         crimson: 'Crimson',
@@ -397,6 +401,17 @@
         'mainPin.requiredBody': 'Your server needs one before you can change profiles or settings.',
         'mainPin.notNow': 'Not now',
         'mainPin.set': 'Set PIN',
+        'onboarding.welcomeTitle': 'Welcome to Bonfire',
+        'onboarding.welcomeBody': 'Everyone at home can have their own profile. This takes a minute.',
+        'onboarding.start': 'Get started',
+        'onboarding.next': 'Next',
+        'onboarding.skip': 'Skip',
+        'onboarding.step': 'Step {n} of {total}',
+        'onboarding.profileTitle': 'Add a profile',
+        'onboarding.profileBody': 'Make one for someone else at home. You can add more later.',
+        'onboarding.switcherTitle': 'How do you want to switch?',
+        'onboarding.themeTitle': 'Pick a look',
+        'onboarding.themeBody': 'You can change it later in Settings.',
         'settings.profilesTitle': 'Profiles',
         'settings.profilesBody': 'Add, edit and remove profiles.',
         'settings.accountTitle': 'Your account',
@@ -2303,7 +2318,8 @@
                 // button or the user menu) the next tick took the opaque gate down and showed
                 // the old profile's page until the navigation landed. On a television that is
                 // most of a second.
-                if (!this._reloading
+                // Nor while first-time setup is on screen: a field read, no DOM work.
+                if (!this._reloading && !this._onboarding
                     && document.getElementById('profiles-gate-overlay') && this.isProfileSessionActive()) {
                     this.removeProfileOverlay();
                 }
@@ -3344,6 +3360,10 @@
                 this._cacheSwitcherPrefs(ask, location, master);
                 this._panicLinkAvailable = emergency;
                 this._setThemeSettings(prefs);
+                // First-time setup: asked for only when the server says it is due.
+                if ((prefs.onboardingPending !== undefined ? prefs.onboardingPending : prefs.OnboardingPending) === true) {
+                    this.maybeStartOnboarding();
+                }
                 // The gate may already be on screen — reveal or hide the link in place
                 // rather than waiting for the next load.
                 this.applyPanicLinkVisibility();
@@ -3640,6 +3660,12 @@
             // intentionally cleared after first use.
             this.currentProfiles = profiles;
             this.renderOverlayContent(overlay, profiles);
+            // First-time setup owns the overlay while it runs: the grid it was opened
+            // with, or one drawn late by the gate, is replaced before it is painted.
+            if (this._onboarding) {
+                this._onboarding.waiting = false;
+                this.showOnboardingStep();
+            }
 
             // Reveal the page NOW — the overlay covers the home screen so there
             // is no blank-page flash.  checkRoute() skipped _revealPage() earlier
@@ -4110,7 +4136,8 @@
             const back = surface.querySelector(
                 '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
                 '#pin-cancel-btn, #master-pin-cancel-btn, #create-cancel-btn, #edit-cancel-btn, ' +
-                '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #theme-settings-back-btn, #account-back-btn, #profiles-resume-btn, #profiles-libart-cancel'
+                '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #theme-settings-back-btn, #account-back-btn, #profiles-resume-btn, #profiles-libart-cancel, ' +
+                '#onboarding-skip, #main-pin-skip'
             );
             if (back) back.click();
         },
@@ -5236,7 +5263,10 @@
 
         /// Asks the main account to set a PIN. Required: there is no "Not now", and Cancel
         /// goes back to the profiles. Offered: "Not now" carries on without one.
-        promptSetMainPin: function (profiles, required, done) {
+        ///
+        /// `setup` is first-time setup's: `{ onSkip }`, where a null onSkip is a step the
+        /// administrator made required, so there is no button at all.
+        promptSetMainPin: function (profiles, required, done, setup) {
             this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
             const masterState = this.readMasterState();
@@ -5245,11 +5275,11 @@
             content.innerHTML = `
                 <h1 class="profiles-title">${t('mainPin.setTitle')}</h1>
                 <div class="pin-entry-container">
-                    <p class="profiles-pin-note">${required ? t('mainPin.requiredBody') : t('mainPin.setBody')}</p>
+                    <p class="profiles-pin-note">${required && !setup ? t('mainPin.requiredBody') : t('mainPin.setBody')}</p>
                     <input type="text" id="main-pin-new" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     <div id="main-pin-new-error" class="profiles-pin-error" role="alert" hidden></div>
                     <div class="pin-actions jpf-actions">
-                        <button id="main-pin-skip" class="profiles-btn btn-secondary">${required ? t('common.cancel') : t('mainPin.notNow')}</button>
+                        ${setup && !setup.onSkip ? '' : `<button id="main-pin-skip" class="profiles-btn btn-secondary">${required && !setup ? t('common.cancel') : t('mainPin.notNow')}</button>`}
                         <button id="main-pin-save" class="profiles-btn btn-primary">${t('mainPin.set')}</button>
                     </div>
                 </div>
@@ -5288,8 +5318,10 @@
 
             content.querySelector('#main-pin-save').addEventListener('click', save);
             input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
-            content.querySelector('#main-pin-skip').addEventListener('click', () => {
-                if (required) this.showProfileOverlay(this.currentProfiles);
+            const skipBtn = content.querySelector('#main-pin-skip');
+            if (skipBtn) skipBtn.addEventListener('click', () => {
+                if (setup) setup.onSkip();
+                else if (required) this.showProfileOverlay(this.currentProfiles);
                 else done();
             });
         },
@@ -7519,6 +7551,341 @@
                 [30, 'profileForm.lockout30Min'],
                 [60, 'profileForm.lockout1Hour']
             ].map(([v, key]) => `<option value="${v}" ${current === v ? 'selected' : ''}>${t(key)}</option>`).join('');
+        },
+
+        // ─── First-time setup (1.7.2) ────────────────────────────────────────────
+
+        /// Asks the server whether this account should be walked through first-time setup,
+        /// and if so starts it. At most once per page load, and only after /preferences has
+        /// said it is pending, so nobody else pays a request for it. Never from checkRoute.
+        ///
+        /// The server decides who sees it: main accounts only, once per account rather than
+        /// per device, and only while the administrator has it on.
+        maybeStartOnboarding: function () {
+            if (this._onboardingChecked) return;
+            this._onboardingChecked = true;
+            if (typeof ApiClient === 'undefined' || !ApiClient || !ApiClient.accessToken()) return;
+
+            fetch(ApiClient.getUrl('plugins/profiles/onboarding'), {
+                cache: 'no-store',
+                headers: this.getAuthHeaders(ApiClient.accessToken())
+            })
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+                if (!data || (data.pending !== undefined ? data.pending : data.Pending) !== true) return;
+                const steps = (data.steps || data.Steps || []).map(s => ({
+                    id: s.id || s.Id,
+                    required: (s.required !== undefined ? s.required : s.Required) === true,
+                    done: (s.done !== undefined ? s.done : s.Done) === true
+                })).filter(s => ONBOARDING_STEPS.indexOf(s.id) !== -1);
+                // Already true when setup began: passed over, and not counted in "Step n of m".
+                steps.forEach(s => { s.given = s.done; });
+                if (!steps.length) return;
+
+                this._onboarding = {
+                    steps: steps,
+                    welcome: String(data.welcomeText || data.WelcomeText || ''),
+                    index: 0,
+                    waiting: true
+                };
+                // On the gate already: take over its content. Otherwise open the overlay,
+                // and showProfileOverlay hands it to the setup before the grid is painted.
+                if (document.getElementById('profiles-gate-overlay') && document.querySelector('.profiles-modal-content')) {
+                    this._onboarding.waiting = false;
+                    this.showOnboardingStep();
+                } else {
+                    this.fetchAndRenderProfiles(ApiClient, ApiClient.getCurrentUserId(), ApiClient.accessToken(), /* forceRefresh */ true);
+                }
+            })
+            .catch(() => { /* not shown this time; it stays pending on the server */ });
+        },
+
+        /// Draws the current step. Steps already true of the account (a PIN set, a profile
+        /// made) are passed over. Every screen redrawn by the overlay while setup runs comes
+        /// back here, so a slow grid arriving late can't paint over a step.
+        showOnboardingStep: function () {
+            const ob = this._onboarding;
+            if (!ob) return;
+            while (ob.index < ob.steps.length && ob.steps[ob.index].done) ob.index++;
+            if (ob.index >= ob.steps.length) { this.finishOnboarding(); return; }
+
+            const step = ob.steps[ob.index];
+            const next = () => {
+                if (this._onboarding !== ob) return;
+                step.done = true;
+                ob.index++;
+                this.showOnboardingStep();
+            };
+            const skip = step.required ? null : () => {
+                if (this._onboarding !== ob) return;
+                ob.index++;
+                this.showOnboardingStep();
+            };
+
+            if (step.id === 'mainPin') {
+                this.promptSetMainPin(this.currentProfiles, false, next, { onSkip: skip });
+                return;
+            }
+            if (step.id === 'welcome') this._onboardingWelcome(next);
+            else if (step.id === 'firstProfile') this._onboardingProfile(next, skip);
+            else if (step.id === 'switcher') this._onboardingSwitcher(next, skip);
+            else if (step.id === 'theme') this._onboardingTheme(next, skip);
+            else skip ? skip() : next();
+        },
+
+        /// The frame every step but the PIN shares: title, body, an error line, and the
+        /// buttons. A required step has no Skip.
+        _onboardingFrame: function (title, body, nextLabel, skip) {
+            this.beginNavigation();
+            const content = document.querySelector('.profiles-modal-content');
+            if (!content) return null;
+            const ob = this._onboarding;
+            const shown = ob.steps.filter(s => s.id !== 'welcome' && !s.given);
+            const position = shown.indexOf(ob.steps[ob.index]);
+            content.innerHTML = `
+                <h1 class="profiles-title">${title}</h1>
+                <div class="create-profile-container jpf-onboarding" style="max-width: var(--jpf-w-form); width: 100%;">
+                    ${position !== -1 && shown.length > 1
+                        ? `<p class="jpf-onboarding-step">${t('onboarding.step', { n: position + 1, total: shown.length })}</p>` : ''}
+                    ${body}
+                    <div id="onboarding-error" class="profiles-pin-error" role="alert" hidden></div>
+                    <div class="bonfire-dialog-actions jpf-actions jpf-onboarding-actions">
+                        ${skip ? `<button id="onboarding-skip" class="profiles-btn btn-secondary">${t('onboarding.skip')}</button>` : ''}
+                        <button id="onboarding-next" class="profiles-btn btn-primary">${nextLabel}</button>
+                    </div>
+                </div>
+            `;
+            const skipBtn = content.querySelector('#onboarding-skip');
+            if (skipBtn) skipBtn.addEventListener('click', skip);
+            return content;
+        },
+
+        _onboardingError: function (content, message) {
+            const el = content.querySelector('#onboarding-error');
+            if (!el) return;
+            el.textContent = message || t('errors.couldNotSaveThat');
+            el.hidden = false;
+        },
+
+        /// The administrator's welcome, as plain text: escaped, line breaks kept.
+        _onboardingWelcome: function (next) {
+            const own = this._onboarding.welcome.trim();
+            const body = own
+                ? escapeHtml(own).replace(/\r?\n/g, '<br>')
+                : t('onboarding.welcomeBody');
+            const content = this._onboardingFrame(t('onboarding.welcomeTitle'),
+                `<p class="jpf-onboarding-text">${body}</p>`, t('onboarding.start'), null);
+            if (!content) return;
+            const go = content.querySelector('#onboarding-next');
+            go.addEventListener('click', next);
+            setTimeout(() => go.focus(), 50);
+        },
+
+        /// A first profile, by name only. Everything else has a default and lives in the
+        /// profile's own form.
+        _onboardingProfile: function (next, skip) {
+            const content = this._onboardingFrame(t('onboarding.profileTitle'), `
+                <p class="jpf-onboarding-text">${t('onboarding.profileBody')}</p>
+                <div class="bonfire-form-group">
+                    <label for="onboarding-profile-name">${t('profileForm.profileName')}</label>
+                    <input type="text" id="onboarding-profile-name" maxlength="32" placeholder="${t('profileForm.namePlaceholder')}" />
+                </div>
+            `, t('common.create'), skip);
+            if (!content) return;
+            const input = content.querySelector('#onboarding-profile-name');
+            let busy = false;
+            const create = () => {
+                const name = input.value.trim();
+                if (!name) { this._onboardingError(content, t('profileForm.nameRequired')); input.focus(); return; }
+                if (busy) return;
+                busy = true;
+                this.withMainPin(this.currentProfiles, () => {
+                    const masterState = this.readMasterState();
+                    fetch(ApiClient.getUrl('plugins/profiles/create'), {
+                        method: 'POST',
+                        headers: this.jsonHeaders(masterState ? masterState.token : ApiClient.accessToken()),
+                        body: JSON.stringify({ profileName: name, avatarColor: this.nextAvatarColor(), masterPin: this.masterPin })
+                    })
+                    .then(res => res.ok ? null : res.text().then(text => { throw new Error(text); }))
+                    .then(() => { this.invalidateProfileCache(); next(); })
+                    .catch(err => {
+                        busy = false;
+                        // withMainPin may have drawn its own screen; come back to this one.
+                        this.showOnboardingStep();
+                        const again = document.querySelector('.profiles-modal-content');
+                        const field = again && again.querySelector('#onboarding-profile-name');
+                        if (field) field.value = name;
+                        if (again) this._onboardingError(again, err.message);
+                    });
+                });
+            };
+            content.querySelector('#onboarding-next').addEventListener('click', create);
+            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') create(); });
+            setTimeout(() => input.focus(), 50);
+        },
+
+        /// Ask on startup, and where to switch from. The same two questions as Settings →
+        /// Switcher, saved together when Next is pressed.
+        _onboardingSwitcher: function (next, skip) {
+            const prefs = this.getSwitcherPrefs() || { askOnStartup: true, location: 'button' };
+            let location = prefs.location === 'menu' ? 'menu' : 'button';
+            const option = (value, icon, title, body) => `
+                <div class="switcher-location-option jpf-choice focusable" data-location="${value}" tabindex="0" role="radio"
+                     aria-checked="${location === value}">
+                    <span class="material-icons jpf-choice-icon">${icon}</span>
+                    <div style="flex: 1 1 auto; min-width: 0;">
+                        <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
+                        <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
+                    </div>
+                </div>
+            `;
+            const content = this._onboardingFrame(t('onboarding.switcherTitle'), `
+                <label class="library-check-label jpf-onboarding-check">
+                    <input type="checkbox" id="onboarding-ask" ${prefs.askOnStartup ? 'checked' : ''} />
+                    <span>${t('switcher.askOnStartup')}</span>
+                </label>
+                <div class="form-hint">${t('switcher.askOnStartupHint')}</div>
+                <div class="jpf-onboarding-label">${t('switcher.whereToSwitchFrom')}</div>
+                <div role="radiogroup" class="jpf-onboarding-choices">
+                    ${option('button', 'account_circle', t('switcher.bonfireButtonTitle'), t('switcher.bonfireButtonBody'))}
+                    ${option('menu', 'switch_account', t('switcher.menuTitle'), t('switcher.menuBody'))}
+                </div>
+            `, t('onboarding.next'), skip);
+            if (!content) return;
+
+            const cards = content.querySelectorAll('.switcher-location-option');
+            cards.forEach(card => {
+                const choose = () => {
+                    location = card.getAttribute('data-location');
+                    cards.forEach(c => c.setAttribute('aria-checked', String(c === card)));
+                };
+                card.addEventListener('click', choose);
+                card.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); }
+                });
+            });
+            this.initTVCheckboxes(content);
+
+            content.querySelector('#onboarding-next').addEventListener('click', () => {
+                const ask = content.querySelector('#onboarding-ask').checked;
+                this.withMainPin(this.currentProfiles, () => {
+                    const masterState = this.readMasterState();
+                    fetch(ApiClient.getUrl('plugins/profiles/preferences'), {
+                        method: 'POST',
+                        headers: this.manageHeaders(masterState ? masterState.token : ApiClient.accessToken()),
+                        body: JSON.stringify({ askOnStartup: ask, switcherLocation: location })
+                    })
+                    .then(res => res.ok ? res.json() : res.text().then(text => { throw new Error(text); }))
+                    .then(saved => {
+                        const savedAsk = (saved.askOnStartup !== undefined ? saved.askOnStartup : saved.AskOnStartup) === true;
+                        const savedLoc = (saved.switcherLocation || saved.SwitcherLocation) === 'menu' ? 'menu' : 'button';
+                        this._cacheSwitcherPrefs(savedAsk, savedLoc, masterState ? masterState.masterUserId : ApiClient.getCurrentUserId());
+                        next();
+                    })
+                    .catch(err => {
+                        this.showOnboardingStep();
+                        const again = document.querySelector('.profiles-modal-content');
+                        if (again) this._onboardingError(again, err.message);
+                    });
+                });
+            });
+            setTimeout(() => {
+                const first = content.querySelector('.switcher-location-option[aria-checked="true"]');
+                if (first) first.focus();
+            }, 50);
+        },
+
+        /// The main account's own theme. Profiles choose theirs in Settings → Look.
+        _onboardingTheme: function (next, skip) {
+            const settings = this._themeSettings;
+            const main = (this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
+            if (!settings || !settings.allow || !main) { (skip || next)(); return; }
+
+            const stored = main.theme && THEMES.indexOf(String(main.theme).toLowerCase()) !== -1
+                ? String(main.theme).toLowerCase() : '';
+            let chosen = stored || settings.defaultTheme;
+            const option = (id) => `
+                <button type="button" class="jpf-theme-option focusable" role="radio" data-id="${id}"
+                        aria-checked="${id === chosen}">
+                    ${this.renderThemePreview(id)}
+                    <span class="jpf-theme-option-label">
+                        <span>${THEME_NAMES[id]}</span>
+                        <span class="material-icons jpf-theme-option-check" aria-hidden="true">check_circle</span>
+                    </span>
+                </button>
+            `;
+            const content = this._onboardingFrame(t('onboarding.themeTitle'), `
+                <p class="jpf-onboarding-text">${t('onboarding.themeBody')}</p>
+                <div class="jpf-theme-grid" role="radiogroup">${THEMES.map(option).join('')}</div>
+            `, t('onboarding.next'), skip);
+            if (!content) return;
+
+            const options = content.querySelectorAll('.jpf-theme-option');
+            options.forEach(btn => btn.addEventListener('click', () => {
+                chosen = btn.getAttribute('data-id');
+                options.forEach(o => o.setAttribute('aria-checked', String(o === btn)));
+            }));
+
+            content.querySelector('#onboarding-next').addEventListener('click', () => {
+                if (chosen === (stored || settings.defaultTheme)) { next(); return; }
+                this.withMainPin(this.currentProfiles, () => {
+                    const masterState = this.readMasterState();
+                    fetch(ApiClient.getUrl('plugins/profiles/theme'), {
+                        method: 'POST',
+                        headers: this.jsonHeaders(masterState ? masterState.token : ApiClient.accessToken()),
+                        // The default theme goes on the wire as '', so the account follows
+                        // the server's default if it changes — as Settings → Look does.
+                        body: JSON.stringify({
+                            profileId: main.profileUserId,
+                            theme: chosen === settings.defaultTheme ? '' : chosen,
+                            masterPin: this.masterPin
+                        })
+                    })
+                    .then(res => res.ok ? res.json() : res.text().then(text => { throw new Error(text); }))
+                    .then(saved => {
+                        main.theme = (saved.stored !== undefined ? saved.stored : saved.Stored) || null;
+                        if (this.normalizeGuid(main.profileUserId) === this.normalizeGuid(ApiClient.getCurrentUserId())) {
+                            this._setThemeSettings({
+                                theme: normalizeTheme(saved.theme || saved.Theme),
+                                defaultTheme: settings.defaultTheme,
+                                allowProfileThemes: settings.allow
+                            });
+                        }
+                        next();
+                    })
+                    .catch(err => {
+                        this.showOnboardingStep();
+                        const again = document.querySelector('.profiles-modal-content');
+                        if (again) this._onboardingError(again, err.message);
+                    });
+                });
+            });
+            setTimeout(() => {
+                const first = content.querySelector('.jpf-theme-option[aria-checked="true"]');
+                if (first) first.focus();
+            }, 50);
+        },
+
+        /// Records the setup as seen and puts the person where they would have been: the
+        /// grid if this account asks on startup, otherwise straight into Jellyfin. The
+        /// main PIN typed during setup is forgotten, as it is when Settings closes.
+        finishOnboarding: function () {
+            this._onboarding = null;
+            this.masterPin = null;
+            if (typeof ApiClient !== 'undefined' && ApiClient && ApiClient.accessToken()) {
+                fetch(ApiClient.getUrl('plugins/profiles/onboarding/done'), {
+                    method: 'POST',
+                    headers: this.getAuthHeaders(ApiClient.accessToken())
+                }).catch(() => { /* shown again next time, which is the honest outcome */ });
+            }
+            if (this.shouldAskOnStartup() && !this.isProfileSessionActive()) {
+                const st = this.readMasterState();
+                if (st) {
+                    this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.token, /* forceRefresh */ true);
+                    return;
+                }
+            }
+            this.removeProfileOverlay();
         },
 
         /// The main account's Settings, in five sections (1.7.2): Profiles, Your account,
