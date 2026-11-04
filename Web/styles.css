@@ -2414,6 +2414,57 @@ body.profiles-no-scroll [id*="spinner"] {
     margin-bottom: 0;
 }
 
+/* ── "More settings" under a profile form's Basics (1.7.2) ──────────
+   A <details>: closed until asked for, opened with Enter on a remote.
+   The marker is drawn by us (the caret), so the browser's is hidden in
+   both of the ways Chromium has spelled it. */
+.jpf-more {
+    border-top: 1px solid var(--jpf-border-1);
+    padding-top: 0.75rem;
+}
+.jpf-more > summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.75rem 0.5rem;
+    border-radius: var(--jpf-r-sm);
+    cursor: pointer;
+    user-select: none;
+}
+.jpf-more > summary::-webkit-details-marker { display: none; }
+.jpf-more > summary:hover { background: var(--jpf-surface-1); }
+.jpf-more > summary:focus { outline: 2px solid var(--jpf-accent); outline-offset: 2px; }
+.jpf-more-icon { color: var(--jpf-accent); font-size: 1.35rem; }
+.jpf-more-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.jpf-more-title { font-size: 1.05rem; font-weight: 700; color: #fff; }
+.jpf-more-hint { font-size: 0.8rem; color: var(--jpf-text-3); }
+.jpf-more-caret { transition: transform 0.2s; }
+.jpf-more[open] .jpf-more-caret { transform: rotate(180deg); }
+.jpf-more-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+/* The same two columns as the Basics above, at the same width. */
+@media (min-width: 900px) {
+    .jpf-more-body {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .jpf-more-caret { transition: none; }
+}
+
 /* Header row that sits inside a section, e.g. "Enabled Libraries | Select all".
    Wraps rather than squashing the label on narrow phones. */
 .section-inline-header {
@@ -2799,6 +2850,11 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-no-flex-gap .library-checklist > * + * { margin-top: 0.5rem; }
 .jpf-no-flex-gap .libart-list > * + * { margin-top: 6px; }
 .jpf-no-flex-gap .profile-section-heading > * + * { margin-top: 2px; }
+.jpf-no-flex-gap .jpf-more > summary > * + * { margin-left: 0.7rem; }
+.jpf-no-flex-gap .jpf-more-label > * + * { margin-top: 2px; }
+@media (max-width: 899px) {
+    .jpf-no-flex-gap .jpf-more-body > * + * { margin-top: 1.5rem; }
+}
 .jpf-no-flex-gap .profile-section-body > * + * { margin-top: 1.1rem; }
 .jpf-no-flex-gap .tag-editor > * + * { margin-top: 8px; }
 

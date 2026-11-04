@@ -8,16 +8,10 @@
 //   node tests/js/accountsettings.js [path/to/profiles.js]
 
 'use strict';
-const fs = require('fs');
-const vm = require('vm');
 const L = require('./_lib');
+const D = require('./_stubdom');
 
 const SRC = L.readProfiles();
-const src = SRC.replace('ProfilesPlugin.init();', 'globalThis.__PP = ProfilesPlugin;');
-if (!src.includes('globalThis.__PP')) {
-    console.error('Could not find the bootstrap line to replace — harness is out of date.');
-    process.exit(1);
-}
 
 let pass = 0;
 const fails = [];
@@ -26,135 +20,10 @@ function ok(name, cond, detail) {
     else { fails.push(name); console.log('  FAIL  ' + name + (detail ? ' — ' + detail : '')); }
 }
 
-// ── A stub DOM: just enough for markup written as one innerHTML ──────────────────
-
-function attrsOf(tag) {
-    const a = {};
-    tag.replace(/([a-zA-Z-]+)="([^"]*)"/g, (m, k, v) => { a[k] = v; return m; });
-    return a;
-}
-
-function makeNode(attrs, extra) {
-    const listeners = {};
-    const node = Object.assign({
-        attrs: attrs, style: {}, textContent: '', value: '', checked: false,
-        getAttribute: k => (k in attrs ? attrs[k] : null),
-        setAttribute: (k, v) => { attrs[k] = String(v); },
-        hasAttribute: k => k in attrs,
-        addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
-        fire: (type, ev) => (listeners[type] || []).forEach(fn => fn(Object.assign({
-            preventDefault() {}, stopPropagation() {}, key: '', target: node
-        }, ev || {}))),
-        click() { node.fire('click'); },
-        focus() {},
-        querySelector: () => null,
-        querySelectorAll: () => []
-    }, extra || {});
-    return node;
-}
-
-function makeContent() {
-    let html = '';
-    let byId = {};
-    let byClass = {};
-    const content = makeNode({});
-    Object.defineProperty(content, 'innerHTML', {
-        get: () => html,
-        set: v => { html = v; byId = {}; byClass = {}; }
-    });
-    content.querySelector = sel => {
-        if (sel.charAt(0) !== '#') return (content.querySelectorAll(sel)[0] || null);
-        const id = sel.slice(1);
-        if (byId[id]) return byId[id];
-        const m = new RegExp('<[a-z]+[^>]*\\bid="' + id + '"[^>]*>').exec(html);
-        if (!m) return null;
-        const node = makeNode(attrsOf(m[0]), { id: id });
-        node.checked = /\schecked(\s|>|\/)/.test(m[0]);
-        if (/^<select/.test(m[0])) {
-            const body = html.slice(m.index, html.indexOf('</select>', m.index));
-            const sel = /<option value="([^"]*)"\s+selected/.exec(body);
-            node.value = sel ? sel[1] : '';
-        }
-        return (byId[id] = node);
-    };
-    content.querySelectorAll = sel => {
-        if (sel.charAt(0) !== '.') return [];
-        const cls = sel.slice(1);
-        if (byClass[cls]) return byClass[cls];
-        const list = [];
-        const re = new RegExp('<[a-z]+[^>]*class="[^"]*\\b' + cls + '\\b[^"]*"[^>]*>', 'g');
-        let m;
-        while ((m = re.exec(html))) {
-            const attrs = attrsOf(m[0]);
-            const at = m.index;
-            const node = makeNode(attrs);
-            // A device row's name, for the merge picker.
-            const nameM = /class="device-row-name"[^>]*>([^<]*)</.exec(html.slice(at, at + 1200));
-            node.querySelector = s => (s === '.device-row-name' && nameM ? { textContent: nameM[1] } : null);
-            list.push(node);
-        }
-        return (byClass[cls] = list);
-    };
-    return content;
-}
-
-function makeStorage() {
-    const map = new Map();
-    return {
-        getItem: k => (map.has(k) ? map.get(k) : null),
-        setItem: (k, v) => map.set(k, String(v)),
-        removeItem: k => map.delete(k),
-        clear: () => map.clear()
-    };
-}
-
-const content = makeContent();
-const posts = [];
+const env = D.loadPlugin(SRC);
+const { PP, content, posts, settle } = env;
 let respond = () => ({ status: 200, body: {} });
-
-const sandbox = {
-    console,
-    localStorage: makeStorage(),
-    sessionStorage: makeStorage(),
-    setTimeout: () => 0,
-    clearTimeout: () => {},
-    setInterval: () => 0,
-    requestAnimationFrame: () => 0,
-    MutationObserver: function () { this.observe = () => {}; this.disconnect = () => {}; },
-    fetch: (url, init) => {
-        const body = init && init.body ? JSON.parse(init.body) : undefined;
-        posts.push({ url: String(url), body: body, init: init || {} });
-        const r = respond(String(url), body) || { status: 200, body: {} };
-        return Promise.resolve({
-            ok: r.status >= 200 && r.status < 300,
-            status: r.status,
-            json: () => Promise.resolve(r.body),
-            text: () => Promise.resolve(typeof r.body === 'string' ? r.body : JSON.stringify(r.body))
-        });
-    },
-    document: {
-        head: makeNode({}), body: makeNode({}), documentElement: makeNode({}),
-        createElement: () => makeNode({}),
-        querySelector: sel => (sel === '.profiles-modal-content' ? content : null),
-        querySelectorAll: () => [],
-        getElementById: () => null,
-        addEventListener: () => {}
-    },
-    window: { location: { hash: '', pathname: '/web/' }, addEventListener: () => {} },
-    history: { pushState: () => {}, replaceState: () => {} },
-    ApiClient: {
-        getUrl: p => p, getCurrentUserId: () => 'main', accessToken: () => 'tok',
-        deviceId: () => 'dev', deviceName: () => 'Test', appName: () => 'Jellyfin Web', appVersion: () => '10.11'
-    }
-};
-sandbox.globalThis = sandbox;
-sandbox.window.localStorage = sandbox.localStorage;
-vm.createContext(sandbox);
-vm.runInContext(src, sandbox);
-const PP = sandbox.__PP;
-if (!PP) { console.error('profiles.js did not export ProfilesPlugin'); process.exit(1); }
-
-const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+env.setRespond((url, body) => respond(url, body));
 
 // The calls this page makes into the rest of the plugin, recorded rather than run.
 const calls = { settings: 0, account: 0, grid: [], alerts: [], confirms: [], selects: [] };

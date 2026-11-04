@@ -59,7 +59,7 @@ fi
 
 if [ "$WHICH" = "all" ] || [ "$WHICH" = "js" ]; then
     echo "── JavaScript ─────────────────────────────────────────────────"
-    # _lib.js is shared plumbing. *.verify.js needs the network and refreshes what the
+    # _lib.js and _stubdom.js are shared plumbing (any _*.js is). *.verify.js needs the network and refreshes what the
     # offline checks compare against — it is a maintenance tool, not a gate.
     # *.scan.js surveys the source and prints what it finds; it asserts nothing and
     # always exits 0, so counting it would add a harness that can never go red.

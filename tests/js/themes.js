@@ -562,8 +562,11 @@ if (headBody) {
 // ── 7. Wiring ───────────────────────────────────────────────────────────────────
 console.log('\n── Wiring ────────────────────────────────────────────────────');
 
-ok('the create form renders the picker', /renderThemePicker\('create', null\)/.test(SRC));
-ok('the edit form renders it with the profile\'s choice', /renderThemePicker\('edit', profile\.theme\)/.test(SRC));
+// Since 1.7.2 through renderThemeSection, which wraps the picker in a titled section and
+// draws nothing when profiles may not choose.
+ok('the create form renders the picker', /renderThemeSection\('create', null\)/.test(SRC)
+   && /renderThemeSection: function \(prefix, stored\) \{\s*const picker = this\.renderThemePicker\(prefix, stored\);/.test(SRC));
+ok('the edit form renders it with the profile\'s choice', /renderThemeSection\('edit', profile\.theme\)/.test(SRC));
 ok('the create save sends it', /theme: this\.readThemePicker\('create'\)/.test(SRC));
 ok('the edit save sends it', /theme: this\.readThemePicker\('edit'\)/.test(SRC));
 ok('both previews follow their select',

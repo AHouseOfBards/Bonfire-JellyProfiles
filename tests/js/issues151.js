@@ -331,17 +331,32 @@ function orderIn(haystack, a, b) {
     const ia = haystack.indexOf(a), ib = haystack.indexOf(b);
     return ia !== -1 && ib !== -1 && ia < ib;
 }
-const createForm = src.slice(src.indexOf('const createAppearance = `'), src.indexOf('// ── Section 2: getting into this profile'));
-ok('create: name, then the toggle, then the colour swatches',
-    orderIn(createForm, 'create-name-input', "renderTransparentToggle('create'")
-    && orderIn(createForm, "renderTransparentToggle('create'", 'create-color-group'));
+// 1.7.2 moved it into the picture picker (decided in the settings review): it is a
+// property of the picture. It still sits beside the swatches, because both forms now put
+// the swatches straight after the picker. So the order to hold is name, picture (with
+// the toggle), colour — and the library-artwork picker, which passes no transparency,
+// must still never draw it.
+const createForm = src.slice(src.indexOf('const createAppearance = `'), src.indexOf('const createSecurity'));
+ok('create: name, then the picture with its toggle, then the colour swatches',
+    orderIn(createForm, 'create-name-input', "renderAvatarPicker('create'")
+    && orderIn(createForm, "renderAvatarPicker('create'", 'create-color-group')
+    && createForm.indexOf('renderTransparentToggle') === -1);
 const editForm = src.slice(src.indexOf('const appearanceBody = `'), src.indexOf('const securityBody'));
 ok('edit: same order',
-    orderIn(editForm, 'edit-name-input', "renderTransparentToggle('edit'")
-    && orderIn(editForm, "renderTransparentToggle('edit'", 'edit-color-group'));
-ok('the picture panel no longer carries the row',
-    src.slice(src.indexOf('renderAvatarPicker: function'), src.indexOf('initAvatarPicker: function'))
-       .indexOf('transparent-row') === -1);
+    orderIn(editForm, 'edit-name-input', "renderAvatarPicker('edit'")
+    && orderIn(editForm, "renderAvatarPicker('edit'", 'edit-color-group')
+    && editForm.indexOf('renderTransparentToggle') === -1);
+{
+    const lib = { allowCustomUploads: true, avatars: [] };
+    const withChoice = P.renderAvatarPicker('edit', lib, 'data:image/png;base64,AA', '#123456', { enabled: true });
+    const rowAt = withChoice.indexOf('id="edit-transparent-row"');
+    ok('the picture panel carries the row, under the preview and its buttons',
+        rowAt !== -1 && withChoice.indexOf('id="edit-clear-profile-image-btn"') < rowAt
+        && rowAt < withChoice.indexOf('id="edit-picture-sources"'));
+    ok('ticked as stored', /id="edit-transparent-toggle" checked/.test(withChoice));
+    ok('a picker offered no transparency draws no row',
+        P.renderAvatarPicker('libart', lib, null, '#123456').indexOf('transparent-row') === -1);
+}
 
 // The header avatar and the gate badge read who-is-active from two different places. This
 // used to check that the revert-to-master path cleared the cached active profile before

@@ -150,7 +150,6 @@
   "profileForm.sectionProfileSubtitle": "Nazwa, kolor i zdjęcie",
   "profileForm.sectionSecurityTitle": "Bezpieczeństwo",
   "profileForm.sectionSecuritySubtitle": "Ochrona kodem PIN i automatyczne blokowanie",
-  "profileForm.sectionLibrariesSubtitle": "Biblioteki, które ten profil może przeglądać",
   "profileForm.sectionRestrictionsTitle": "Treści i ograniczenia urządzeń",
   "profileForm.sectionRestrictionsSubtitle": "Ograniczenia stosowane oprócz bibliotek powyżej",
   "profileForm.deleteProfile": "Usuń profil",
@@ -645,5 +644,15 @@
   "account.devicesTitle": "Urządzenia",
   "account.devicesSubtitle": "Zmień nazwę, scal lub zapomnij",
   "account.devicesHint": "Każdy profil wybiera, na których z nich można go otworzyć.",
-  "profileForm.mainSecurityMoved": "Twój PIN i logowanie są w Ustawienia → Twoje konto."
+  "profileForm.mainSecurityMoved": "Twój PIN i logowanie są w Ustawienia → Twoje konto.",
+  "profileForm.sectionPinSubtitle": "PIN do otwarcia tego profilu",
+  "profileForm.sectionWatchTitle": "Co może oglądać",
+  "profileForm.sectionWatchSubtitle": "Limit wiekowy i biblioteki",
+  "profileForm.sectionLockingTitle": "Blokada",
+  "profileForm.sectionLockingSubtitle": "Kiedy PIN jest wymagany ponownie",
+  "profileForm.themeSubtitle": "Wygląd ekranów Bonfire dla tego profilu",
+  "profileForm.moreTitle": "Więcej ustawień",
+  "profileForm.moreSummary": "Blokada, urządzenia, tagi i motyw",
+  "profileForm.kidsPreset": "Profil dziecięcy",
+  "profileForm.kidsPresetHint": "Ustawia limit wiekowy na 10 lat. Można go zmienić."
 }

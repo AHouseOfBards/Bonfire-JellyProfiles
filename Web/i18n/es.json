@@ -164,7 +164,6 @@
   "profileForm.sectionProfileSubtitle": "Nombre, color y foto",
   "profileForm.sectionSecurityTitle": "Seguridad",
   "profileForm.sectionSecuritySubtitle": "Protección con PIN y bloqueo automático",
-  "profileForm.sectionLibrariesSubtitle": "Las bibliotecas que este perfil puede explorar",
   "profileForm.sectionRestrictionsTitle": "Restricciones de contenido y dispositivos",
   "profileForm.sectionRestrictionsSubtitle": "Límites que se suman a las bibliotecas de arriba",
   "profileForm.deleteProfile": "Eliminar perfil",
@@ -645,5 +644,15 @@
   "account.devicesTitle": "Dispositivos",
   "account.devicesSubtitle": "Cámbiales el nombre, únelos u olvídalos",
   "account.devicesHint": "Cada perfil elige en cuáles de estos se puede abrir.",
-  "profileForm.mainSecurityMoved": "Tu PIN y el acceso están en Configuración → Tu cuenta."
+  "profileForm.mainSecurityMoved": "Tu PIN y el acceso están en Configuración → Tu cuenta.",
+  "profileForm.sectionPinSubtitle": "Un PIN para abrir este perfil",
+  "profileForm.sectionWatchTitle": "Qué puede ver",
+  "profileForm.sectionWatchSubtitle": "Límite de clasificación y bibliotecas",
+  "profileForm.sectionLockingTitle": "Bloqueo",
+  "profileForm.sectionLockingSubtitle": "Cuándo se vuelve a pedir el PIN",
+  "profileForm.themeSubtitle": "Cómo se ven las pantallas de Bonfire en este perfil",
+  "profileForm.moreTitle": "Más opciones",
+  "profileForm.moreSummary": "Bloqueo, dispositivos, etiquetas y tema",
+  "profileForm.kidsPreset": "Perfil infantil",
+  "profileForm.kidsPresetHint": "Pone la clasificación en 10 años. Puedes cambiarla."
 }

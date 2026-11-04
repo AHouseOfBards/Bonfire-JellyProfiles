@@ -150,7 +150,6 @@
   "profileForm.sectionProfileSubtitle": "Nom, couleur et photo",
   "profileForm.sectionSecurityTitle": "Sécurité",
   "profileForm.sectionSecuritySubtitle": "Protection par code PIN et verrouillage automatique",
-  "profileForm.sectionLibrariesSubtitle": "Les bibliothèques que ce profil peut parcourir",
   "profileForm.sectionRestrictionsTitle": "Contenu et restrictions d'appareils",
   "profileForm.sectionRestrictionsSubtitle": "Limites appliquées en plus des bibliothèques ci-dessus",
   "profileForm.deleteProfile": "Supprimer le profil",
@@ -645,5 +644,15 @@
   "account.devicesTitle": "Appareils",
   "account.devicesSubtitle": "Renommer, fusionner ou oublier",
   "account.devicesHint": "Chaque profil choisit sur lesquels il peut s'ouvrir.",
-  "profileForm.mainSecurityMoved": "Votre code PIN et la connexion sont dans Paramètres → Votre compte."
+  "profileForm.mainSecurityMoved": "Votre code PIN et la connexion sont dans Paramètres → Votre compte.",
+  "profileForm.sectionPinSubtitle": "Un code PIN pour ouvrir ce profil",
+  "profileForm.sectionWatchTitle": "Ce qu'il peut regarder",
+  "profileForm.sectionWatchSubtitle": "Limite d'âge et bibliothèques",
+  "profileForm.sectionLockingTitle": "Verrouillage",
+  "profileForm.sectionLockingSubtitle": "Quand le code PIN est redemandé",
+  "profileForm.themeSubtitle": "L'apparence des écrans Bonfire pour ce profil",
+  "profileForm.moreTitle": "Plus de réglages",
+  "profileForm.moreSummary": "Verrouillage, appareils, étiquettes et thème",
+  "profileForm.kidsPreset": "Profil enfant",
+  "profileForm.kidsPresetHint": "Règle la limite d'âge sur 10 ans. Modifiable."
 }

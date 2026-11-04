@@ -150,7 +150,6 @@
   "profileForm.sectionProfileSubtitle": "Nom, color i foto",
   "profileForm.sectionSecurityTitle": "Seguretat",
   "profileForm.sectionSecuritySubtitle": "Protecció amb PIN i bloqueig automàtic",
-  "profileForm.sectionLibrariesSubtitle": "Les biblioteques que aquest perfil pot explorar",
   "profileForm.sectionRestrictionsTitle": "Contingut i restriccions de dispositius",
   "profileForm.sectionRestrictionsSubtitle": "Límits aplicats a més de les biblioteques d'aquí dalt",
   "profileForm.deleteProfile": "Elimina el perfil",
@@ -645,5 +644,15 @@
   "account.devicesTitle": "Dispositius",
   "account.devicesSubtitle": "Canvia'n el nom, fusiona'ls o oblida'ls",
   "account.devicesHint": "Cada perfil tria en quins d'aquests es pot obrir.",
-  "profileForm.mainSecurityMoved": "El teu PIN i l'accés són a Configuració → El teu compte."
+  "profileForm.mainSecurityMoved": "El teu PIN i l'accés són a Configuració → El teu compte.",
+  "profileForm.sectionPinSubtitle": "Un PIN per obrir aquest perfil",
+  "profileForm.sectionWatchTitle": "Què pot veure",
+  "profileForm.sectionWatchSubtitle": "Límit de classificació i biblioteques",
+  "profileForm.sectionLockingTitle": "Bloqueig",
+  "profileForm.sectionLockingSubtitle": "Quan es torna a demanar el PIN",
+  "profileForm.themeSubtitle": "Com es veuen les pantalles de Bonfire en aquest perfil",
+  "profileForm.moreTitle": "Més opcions",
+  "profileForm.moreSummary": "Bloqueig, dispositius, etiquetes i tema",
+  "profileForm.kidsPreset": "Perfil infantil",
+  "profileForm.kidsPresetHint": "Posa la classificació a 10 anys. La pots canviar."
 }

@@ -369,7 +369,6 @@
         'profileForm.sectionProfileSubtitle': 'Name, colour, and picture',
         'profileForm.sectionSecurityTitle': 'Security',
         'profileForm.sectionSecuritySubtitle': 'PIN protection and automatic locking',
-        'profileForm.sectionLibrariesSubtitle': 'Which libraries this profile can browse',
         'profileForm.sectionRestrictionsTitle': 'Content & Device Restrictions',
         'profileForm.sectionRestrictionsSubtitle': 'Limits applied on top of the libraries above',
         'profileForm.deleteProfile': 'Delete Profile',
@@ -419,6 +418,16 @@
         'account.devicesTitle': 'Devices',
         'account.devicesSubtitle': 'Rename, merge or forget them',
         'account.devicesHint': 'Each profile chooses which of these it can be opened on.',
+        'profileForm.sectionPinSubtitle': 'A PIN to open this profile',
+        'profileForm.sectionWatchTitle': 'What they can watch',
+        'profileForm.sectionWatchSubtitle': 'Rating limit and libraries',
+        'profileForm.sectionLockingTitle': 'Locking',
+        'profileForm.sectionLockingSubtitle': 'When the PIN is asked again',
+        'profileForm.themeSubtitle': "How Bonfire's screens look for this profile",
+        'profileForm.moreTitle': 'More settings',
+        'profileForm.moreSummary': 'Locking, devices, tags and theme',
+        'profileForm.kidsPreset': 'Kids profile',
+        'profileForm.kidsPresetHint': 'Sets the rating to age 10. You can change it.',
         'profileForm.mainSecurityMoved': 'Your PIN and sign-in settings are in Settings → Your account.',
         'themeSettings.default': 'Default',
 
@@ -1307,6 +1316,72 @@
                     <div class="profile-section-body">${bodyHtml}</div>
                 </section>
             `;
+        },
+
+        /// "More settings" under a profile form's Basics: closed until asked for.
+        ///
+        /// A real <details>, so it opens with Enter on a remote and needs no script —
+        /// Chromium 12, well inside both TV baselines. Its summary carries tabindex so the
+        /// overlay's own focus walk finds it the way it finds every other control. Two
+        /// columns of sections, like the Basics above it; empty strings are dropped, so a
+        /// server that does not offer themes leaves no gap.
+        renderMoreSettings: function (prefix, left, right) {
+            const col = (parts) => parts.filter(Boolean).join('');
+            return `
+                <details class="jpf-more" id="${prefix}-more">
+                    <summary class="jpf-more-summary" tabindex="0">
+                        <span class="material-icons jpf-more-icon" aria-hidden="true">tune</span>
+                        <span class="jpf-more-label">
+                            <span class="jpf-more-title">${t('profileForm.moreTitle')}</span>
+                            <span class="jpf-more-hint">${t('profileForm.moreSummary')}</span>
+                        </span>
+                        <span class="material-icons jpf-more-caret" aria-hidden="true">expand_more</span>
+                    </summary>
+                    <div class="jpf-more-body">
+                        <div class="form-col">${col(left)}</div>
+                        <div class="form-col">${col(right)}</div>
+                    </div>
+                </details>
+            `;
+        },
+
+        /// The theme picker as a section of its own, or '' when profiles may not choose.
+        renderThemeSection: function (prefix, stored) {
+            const picker = this.renderThemePicker(prefix, stored);
+            return picker
+                ? this.renderSection('palette', t('settings.themeTitle'), t('profileForm.themeSubtitle'), picker)
+                : '';
+        },
+
+        /// The rating the Kids preset fills in: the highest offered at or under 10 (PG,
+        /// TV-PG, or the country's match), else the lowest offered. Null with none.
+        kidsRatingFrom: function (values) {
+            const scores = (values || []).map(Number).filter(n => isFinite(n) && n > 0);
+            if (!scores.length) return null;
+            const under = scores.filter(n => n <= 10);
+            return String(under.length ? Math.max.apply(null, under) : Math.min.apply(null, scores));
+        },
+
+        /// Ticking Kids fills in the rating; unticking puts back what was there, unless
+        /// the rating was changed by hand since. Changing the rating by hand unticks it,
+        /// so the box never claims a preset that is no longer what will be saved.
+        bindKidsPreset: function (box, select) {
+            if (!box || !select) return;
+            const values = Array.prototype.map.call(select.options || [], o => o.value);
+            const kids = this.kidsRatingFrom(values);
+            if (kids === null) { box.disabled = true; return; }
+            let before = select.value;
+            box.addEventListener('change', () => {
+                if (box.checked) {
+                    before = select.value;
+                    select.value = kids;
+                } else if (select.value === kids) {
+                    select.value = before === kids ? '' : before;
+                }
+            });
+            select.addEventListener('change', () => {
+                if (select.value !== kids) box.checked = false;
+            });
         },
 
         /// The avatar swatches are identical in both forms; keeping one copy means a palette
@@ -5963,15 +6038,15 @@
         /// `prefix` namespaces the element ids ('create' or 'edit').
         /// The cut-out background choice (issue #23).
         ///
-        /// Rendered by the form rather than by renderAvatarPicker, and placed directly under
-        /// the name field: it decides what happens to the avatar *colour*, so sitting below
-        /// the picture panel put the whole picture row between it and the swatches it
-        /// governs. initAvatarPicker still owns the wiring and finds it by id wherever the
-        /// form has put it.
+        /// Part of the picture picker since 1.7.2, right under the preview and its buttons.
+        /// It sat under the name field for a while, beside the colour swatches it governs;
+        /// the forms now put the swatches straight after the picker, so it is beside them
+        /// either way and it reads as what it is, a property of the picture.
+        /// initAvatarPicker owns the wiring and finds it by id.
         ///
         /// Hidden until a picture is set — with no picture the colour is the entire
-        /// background and there is nothing to switch off. The library-artwork dialog reuses
-        /// the picker and simply never calls this.
+        /// background and there is nothing to switch off. The library-artwork dialog passes
+        /// no `transparency`, so its picker never draws this.
         renderTransparentToggle: function (prefix, currentImage, currentTransparent) {
             return `
                 <div id="${prefix}-transparent-row" class="form-group picture-transparent-row"
@@ -6066,6 +6141,7 @@
                                 </button>
                             </div>
                         </div>
+                        ${supportsTransparent ? this.renderTransparentToggle(prefix, currentImage, currentTransparent) : ''}
                         <div id="${prefix}-picture-sources" class="picture-sources${sourcesOpen ? ' is-open' : ''}">
                             ${libraryHtml}
                             ${uploadHtml}
@@ -6299,28 +6375,39 @@
                 // Re-rendering the modal orphans any listeners the previous form owned.
                 this.clearManagedDocumentListeners();
                 const content = document.querySelector('.profiles-modal-content');
-                // ── Section 1: who this profile is ──────────────────────────────
+                // Basics, then a closed "More settings" (1.7.2). Basics is what nearly every
+                // profile is made of: who it is, its PIN, what it may watch. The rest is
+                // there when wanted and out of the way when not.
+
+                // ── Basics: who this profile is ─────────────────────────────────
                 const startColor = this.nextAvatarColor();
                 const createAppearance = `
                     <div class="form-group">
                         <label for="create-name-input">${t('profileForm.profileName')}</label>
                         <input type="text" id="create-name-input" maxlength="32" placeholder="${t('profileForm.namePlaceholder')}" required />
                     </div>
-                    ${this.renderTransparentToggle('create', null, false)}
+                    ${this.renderAvatarPicker('create', avatarLibrary, null, startColor, { enabled: false })}
                     <div class="form-group avatar-color-group" id="create-color-group">
                         <label>${t('profileForm.avatarColor')}</label>
                         ${this.renderColorPicker(startColor)}
                         <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
                     </div>
-                    ${this.renderAvatarPicker('create', avatarLibrary, null, startColor, { enabled: false })}
-                    ${this.renderThemePicker('create', null)}
                 `;
 
-                // ── Section 2: getting into this profile ────────────────────────
+                // ── Basics: its PIN ─────────────────────────────────────────────
                 const createSecurity = `
                     <div class="form-group">
                         <label for="create-pin-input">${t('profileForm.pin')}</label>
                         <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${t('profileForm.pinPlaceholderEmpty')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    </div>
+                `;
+
+                // ── More: when the PIN is asked again ───────────────────────────
+                const createLocking = `
+                    <div class="form-group">
+                        <label for="create-lockout-select">${t('profileForm.autoLock')}</label>
+                        <select id="create-lockout-select">${this.renderLockoutOptions(5, true)}</select>
+                        <div class="form-hint">${t('profileForm.autoLockHintCreate')}</div>
                     </div>
                     <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
@@ -6329,23 +6416,20 @@
                         </label>
                         <div class="form-hint">${t('profileForm.bypassPinHint')}</div>
                     </div>
-                    <div class="form-group">
-                        <label for="create-lockout-select">${t('profileForm.autoLock')}</label>
-                        <select id="create-lockout-select">
-                            <option value="0">${t('profileForm.lockoutNever')}</option>
-                            <option value="1">${t('profileForm.lockout1Min')}</option>
-                            <option value="5" selected>${t('profileForm.lockout5MinDefault')}</option>
-                            <option value="10">${t('profileForm.lockout10Min')}</option>
-                            <option value="20">${t('profileForm.lockout20Min')}</option>
-                            <option value="30">${t('profileForm.lockout30Min')}</option>
-                            <option value="60">${t('profileForm.lockout1Hour')}</option>
-                        </select>
-                        <div class="form-hint">${t('profileForm.autoLockHintCreate')}</div>
-                    </div>
                 `;
 
-                // ── Section 3: what this profile can browse ─────────────────────
+                // ── Basics: what this profile can watch ─────────────────────────
+                // The Kids preset only fills in the rating; it is not a kind of profile,
+                // and nothing remembers that it was ticked.
                 const createLibraries = `
+                    <div class="form-group">
+                        <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="create-kids-preset" style="cursor: pointer; accent-color: var(--jpf-accent);" />
+                            <span>${t('profileForm.kidsPreset')}</span>
+                        </label>
+                        <div class="form-hint">${t('profileForm.kidsPresetHint')}</div>
+                    </div>
+                    ${this.renderRatingSelect('create', null, ratings)}
                     <div class="form-group">
                         <div class="section-inline-header">
                             <label style="margin: 0;">${t('profileForm.enabledLibraries')}</label>
@@ -6366,11 +6450,9 @@
                     </div>
                 `;
 
-                // ── Section 4: limits applied on top of the libraries above ─────
+                // ── More: limits on top of the libraries ────────────────────────
                 const createRestrictions = `
                     ${this.renderDeviceDropdown('create', devices, null)}
-
-                    ${this.renderRatingSelect('create', null, ratings)}
                     ${this.renderTagSection('create', libraryTags, null)}
                 `;
 
@@ -6379,12 +6461,17 @@
                     <div class="create-profile-container is-two-col">
                         <div class="form-col">
                             ${this.renderSection('person', t('profileForm.sectionProfileTitle'), t('profileForm.sectionProfileSubtitle'), createAppearance)}
-                            ${this.renderSection('lock', t('profileForm.sectionSecurityTitle'), t('profileForm.sectionSecuritySubtitle'), createSecurity)}
+                            ${this.renderSection('lock', t('profileForm.sectionSecurityTitle'), t('profileForm.sectionPinSubtitle'), createSecurity)}
                         </div>
                         <div class="form-col">
-                            ${this.renderSection('video_library', t('profileForm.libraries'), t('profileForm.sectionLibrariesSubtitle'), createLibraries)}
-                            ${this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), createRestrictions)}
+                            ${this.renderSection('video_library', t('profileForm.sectionWatchTitle'), t('profileForm.sectionWatchSubtitle'), createLibraries)}
                         </div>
+                        ${this.renderMoreSettings('create', [
+                            this.renderSection('timer', t('profileForm.sectionLockingTitle'), t('profileForm.sectionLockingSubtitle'), createLocking),
+                            this.renderThemeSection('create', null)
+                        ], [
+                            this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), createRestrictions)
+                        ])}
 
                         <div id="create-error-msg" class="form-error" style="display:none;"></div>
                         <div class="profile-dialog-actions jpf-actions">
@@ -6505,6 +6592,9 @@
                     cb.addEventListener('change', updateCreateSelectedText);
                 });
                 updateCreateSelectedText();
+
+                this.bindKidsPreset(content.querySelector('#create-kids-preset'),
+                                    content.querySelector('#create-rating-select'));
 
                 document.getElementById('create-submit-btn').addEventListener('click', () => {
                     const name = document.getElementById('create-name-input').value.trim();
@@ -6630,24 +6720,24 @@
 
                 const isSub = !profile.isMaster;
 
-                // ── Section 1: who this profile is ──────────────────────────────
+                // Basics, then a closed "More settings" — see the create form.
+
+                // ── Basics: who this profile is ─────────────────────────────────
                 const appearanceBody = `
                     <div class="form-group">
                         <label for="edit-name-input">${t('profileForm.profileName')}</label>
                         <input type="text" id="edit-name-input" maxlength="32" value="${escapeHtml(profile.profileName)}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
                         ${profile.isMaster ? `<div class="form-hint">${t('profileForm.masterNameHint')}</div>` : ''}
                     </div>
-                    ${this.renderTransparentToggle('edit', profile.profileImage, !!profile.transparentAvatar)}
+                    ${this.renderAvatarPicker('edit', avatarLibrary, profile.profileImage, profile.avatarColor, { enabled: !!profile.transparentAvatar })}
                     <div class="form-group avatar-color-group" id="edit-color-group">
                         <label>${t('profileForm.avatarColor')}</label>
                         ${this.renderColorPicker(profile.avatarColor)}
                         <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
                     </div>
-                    ${this.renderAvatarPicker('edit', avatarLibrary, profile.profileImage, profile.avatarColor, { enabled: !!profile.transparentAvatar })}
-                    ${this.renderThemePicker('edit', profile.theme)}
                 `;
 
-                // ── Section 2: getting into this profile ────────────────────────
+                // ── Basics: its PIN ─────────────────────────────────────────────
                 // The main account's PIN, home-network skip and auto-lock are in Settings →
                 // Your account (1.7.2), which saves each one alone through /account. They are
                 // not repeated here: two places to set one PIN is how they drift.
@@ -6667,6 +6757,15 @@
                                 : t('profileForm.noPinSetHint')}
                         </div>
                     </div>
+                `;
+
+                // ── More: when the PIN is asked again ───────────────────────────
+                const lockingBody = `
+                    <div class="form-group">
+                        <label for="edit-lockout-select">${t('profileForm.autoLock')}</label>
+                        <select id="edit-lockout-select">${this.renderLockoutOptions(currentLockout, false)}</select>
+                        <div class="form-hint">${t('profileForm.autoLockHintEdit')}</div>
+                    </div>
                     <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
                             <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent);" />
@@ -6674,15 +6773,11 @@
                         </label>
                         <div class="form-hint">${t('profileForm.bypassPinHint')}</div>
                     </div>
-                    <div class="form-group">
-                        <label for="edit-lockout-select">${t('profileForm.autoLock')}</label>
-                        <select id="edit-lockout-select">${this.renderLockoutOptions(currentLockout, false)}</select>
-                        <div class="form-hint">${t('profileForm.autoLockHintEdit')}</div>
-                    </div>
                 `;
 
-                // ── Section 3: what this profile can browse ─────────────────────
+                // ── Basics: what this profile can watch ─────────────────────────
                 const librariesBody = `
+                    ${this.renderRatingSelect('edit', maxRating, ratings)}
                     <div class="form-group">
                         <div class="section-inline-header">
                             <label style="margin: 0;">${t('profileForm.libraries')}</label>
@@ -6739,25 +6834,32 @@
                     </div>
                 `;
 
-                // ── Section 4: limits applied on top of the libraries above ─────
+                // ── More: limits on top of the libraries ────────────────────────
                 const restrictionsBody = `
                     ${this.renderDeviceDropdown('edit', devices, profile)}
-
-                    ${this.renderRatingSelect('edit', maxRating, ratings)}
                     ${this.renderTagSection('edit', libraryTags, profile)}
                 `;
 
+                // The main account has no More: its sign-in settings are in Your account and
+                // it has no limits to set, so all that is left of it is the theme.
                 content.innerHTML = `
                     <h1 class="profiles-title">${t('profileForm.editTitle')}</h1>
                     <div class="create-profile-container${isSub ? ' is-two-col' : ''}">
                         <div class="form-col">
                             ${this.renderSection('person', t('profileForm.sectionProfileTitle'), t('profileForm.sectionProfileSubtitle'), appearanceBody)}
-                            ${this.renderSection('lock', t('profileForm.sectionSecurityTitle'), t('profileForm.sectionSecuritySubtitle'), securityBody)}
+                            ${this.renderSection('lock', t('profileForm.sectionSecurityTitle'), isSub ? t('profileForm.sectionPinSubtitle') : t('profileForm.sectionSecuritySubtitle'), securityBody)}
+                            ${isSub ? '' : this.renderThemeSection('edit', profile.theme)}
                         </div>
+                        ${isSub ? `
                         <div class="form-col">
-                            ${isSub ? this.renderSection('video_library', t('profileForm.libraries'), t('profileForm.sectionLibrariesSubtitle'), librariesBody) : ''}
-                            ${isSub ? this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), restrictionsBody) : ''}
+                            ${this.renderSection('video_library', t('profileForm.sectionWatchTitle'), t('profileForm.sectionWatchSubtitle'), librariesBody)}
                         </div>
+                        ${this.renderMoreSettings('edit', [
+                            this.renderSection('timer', t('profileForm.sectionLockingTitle'), t('profileForm.sectionLockingSubtitle'), lockingBody),
+                            this.renderThemeSection('edit', profile.theme)
+                        ], [
+                            this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), restrictionsBody)
+                        ])}` : ''}
 
                         <div class="profile-dialog-actions jpf-actions">
                             <div class="dialog-action-buttons">
