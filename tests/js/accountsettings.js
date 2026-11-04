@@ -225,6 +225,19 @@ function freshAccount() {
         ok('Done goes back to Settings', calls.settings === before + 1);
     }
 
+    // Every Settings page goes back to Settings. Sharing went to the profile grid while it
+    // was still loading, and to Settings once loaded.
+    {
+        PP.showSettingsMenu = () => { calls.settings++; };
+        PP.loadBonfireStatus = () => {};
+        PP.showBonfireModal();
+        const before = calls.settings;
+        const back = content.querySelector('#bonfire-back-btn');
+        if (back) back.click();
+        ok('Sharing\'s Back, while loading, goes to Settings', calls.settings === before + 1 && calls.grid.length === 1,
+            'settings ' + (calls.settings - before) + ', grid ' + calls.grid.length);
+    }
+
     // ── 5. What left the profile form ────────────────────────────────────────────────
     console.log('\n── The profile form only ticks devices ────────────────────────');
 

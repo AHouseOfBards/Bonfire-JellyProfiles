@@ -7187,9 +7187,9 @@
             const attachBackBtnListener = () => {
                 const btn = content.querySelector('#bonfire-back-btn');
                 if (btn) {
-                    btn.addEventListener('click', () => {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
-                    });
+                    // Back to Settings, where Sharing is opened from — the same place the
+                    // loaded page's Back goes. It went to the profile grid while loading.
+                    btn.addEventListener('click', () => this.showSettingsMenu());
                 }
             };
 
