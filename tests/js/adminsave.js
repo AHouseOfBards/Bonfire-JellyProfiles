@@ -34,6 +34,7 @@ const script = L.dashboardScript(L.readDashboard());
 const source = L.dashboardI18n(script)
     + L.extractFunction(script, 'normalizeImageQuality') + '\n'
     + L.extractFunction(script, 'normalizeTheme') + '\n'
+    + L.extractFunction(script, 'onboardingTicked') + '\n'
     + L.extractFunction(script, 'saveConfiguration');
 
 // ── the stub server ──────────────────────────────────────────────────────────
@@ -71,12 +72,25 @@ async function run(fieldValues) {
         enableClientPinLogin: false,
         enableClientProfileList: false,
         skipQuickConnectOnKnownDevices: false,
-        profileImageQuality: 'standard'
+        profileImageQuality: 'standard',
+        onboardingEnabled: false,
+        onboardingWelcome: '  Welcome home.  '
     }, fieldValues || {});
 
     // The profile picker's apps: one checkbox each, found by class. Ticked ones listed here.
     const proxyTicked = (fieldValues && fieldValues.proxyTicked) || [];
     delete fields.proxyTicked;
+
+    // First-time setup: a Show and a Can't skip box per step. A Can't skip box is
+    // disabled while its step is not shown, and a disabled box is never sent.
+    const steps = ['welcome', 'mainPin', 'firstProfile', 'switcher', 'theme'];
+    const shown = (fieldValues && fieldValues.obShown) || steps;
+    const required = (fieldValues && fieldValues.obRequired) || [];
+    delete fields.obShown;
+    delete fields.obRequired;
+    const box = (step, on, off) => ({ checked: on, disabled: !!off, getAttribute: function () { return step; } });
+    const obShow = steps.map(st => box(st, shown.indexOf(st) !== -1));
+    const obRequired = steps.map(st => box(st, required.indexOf(st) !== -1, shown.indexOf(st) === -1));
     const proxyBoxes = ['moonfin'].map(function (key) {
         return { checked: proxyTicked.indexOf(key) !== -1, getAttribute: function () { return key; } };
     });
@@ -98,6 +112,8 @@ async function run(fieldValues) {
             return el;
         },
         querySelectorAll: function (sel) {
+            if (sel === '.jpfObShow') return obShow;
+            if (sel === '.jpfObRequired') return obRequired;
             if (sel !== '.jpfProxyClient') throw new Error('the page has no ' + sel);
             return proxyBoxes;
         }
@@ -131,9 +147,11 @@ async function run(fieldValues) {
     // The avatar grid is redrawn after a save, because the starter-avatar switch changes
     // what it shows. Counted, so the redraw is asserted rather than merely survived.
     const loadAvatarLibrary = function () { calls.libraryReloads++; };
-    const factory = new Function('ApiClient', 'Dashboard', 'pluginId', 'loadAvatarLibrary',
+    // The Status checklist is ticked from what was saved; recorded, not run.
+    const noteSavedSettings = function (p, body) { calls.noted = body; };
+    const factory = new Function('ApiClient', 'Dashboard', 'pluginId', 'loadAvatarLibrary', 'noteSavedSettings',
         source + '; return saveConfiguration;');
-    factory(ApiClient, Dashboard, 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9', loadAvatarLibrary)(page);
+    factory(ApiClient, Dashboard, 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9', loadAvatarLibrary, noteSavedSettings)(page);
 
     // The old version did its work inside `getPluginConfiguration().then(...)`, so its
     // PUT lands a microtask later than the call that starts it. Drain the queue before
@@ -195,7 +213,11 @@ const expected = [
     'enableClientProfileList',
     'skipQuickConnectOnKnownDevices',
     'proxyClients',
-    'profileImageQuality'
+    'profileImageQuality',
+    'onboardingEnabled',
+    'onboardingSteps',
+    'onboardingRequiredSteps',
+    'onboardingWelcomeText'
 ];
 
 if (body) {
@@ -239,6 +261,18 @@ ok('the saved message is the success one, not the failure one ("'
 ok('and it is a toast, not a dialog', typeof base.calls.alert === 'string');
 ok('and the avatar grid is redrawn, since the switch changes what it shows',
    base.calls.libraryReloads === 1);
+
+console.log('\n── First-time setup ────────────────────────────────────────────');
+
+ok('every shown step is sent, in page order',
+   JSON.stringify(body && body.onboardingSteps) === '["welcome","mainPin","firstProfile","switcher","theme"]');
+ok('the welcome is sent trimmed', body && body.onboardingWelcomeText === 'Welcome home.');
+ok('the switch is sent as it stands', body && body.onboardingEnabled === false);
+const ob = sent(await run({ onboardingEnabled: true, obShown: ['welcome', 'mainPin'], obRequired: ['mainPin', 'theme'] }));
+ok('only ticked steps are sent', JSON.stringify(ob.onboardingSteps) === '["welcome","mainPin"]');
+ok("a step that isn't shown can't be required", JSON.stringify(ob.onboardingRequiredSteps) === '["mainPin"]');
+ok('on is sent as on', ob.onboardingEnabled === true);
+ok('the Status checklist is told what was saved', base.calls.noted && base.calls.noted.requireMainPin === false);
 
 console.log('\n── The profile limit is clamped, not passed through ───────────');
 

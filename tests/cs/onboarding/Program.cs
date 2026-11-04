@@ -213,6 +213,8 @@ Ok("so is an unknown required step", badReq.status == 400, badReq.status + " " +
 
 var longText = Admin(new() { ["OnboardingWelcomeText"] = new string('a', 501) });
 Ok("a welcome over 500 characters is refused", longText.status == 400, longText.status + " " + longText.value);
+var fits = Admin(new() { ["OnboardingWelcomeText"] = new string('a', 500) });
+Ok("and one of 500 is taken, as documented", fits.status == 200 && ((string)Ob("WelcomeText")).Length == 500, fits.status + " " + fits.value);
 
 var pick = Admin(new()
 {

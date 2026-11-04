@@ -207,6 +207,17 @@
     #profilesConfigurationPage .jpf-sa-label { display: flex; flex-direction: column; font-size: 0.85rem; }
     #profilesConfigurationPage .jpf-sa-btn { padding: 6px 12px; }
     #profilesConfigurationPage .jpf-ann-text { width: 100%; resize: vertical; }
+    #profilesConfigurationPage .jpf-gs-title { margin: 0 0 8px; font-size: 1.05em; font-weight: 600; }
+    #profilesConfigurationPage .jpf-ob-steps { margin: 0.5em 0 1.5em; max-width: 40em; }
+    #profilesConfigurationPage .jpf-ob-row {
+        display: flex; align-items: center; flex-wrap: wrap;
+        padding: 0.55em 0; border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+    }
+    #profilesConfigurationPage .jpf-ob-name { flex: 1 1 12em; font-weight: 600; }
+    #profilesConfigurationPage .jpf-ob-note { display: block; font-weight: 400; margin: 0.2em 0 0; }
+    #profilesConfigurationPage .jpf-ob-box { display: inline-flex; align-items: center; margin-left: 1.5em; cursor: pointer; }
+    #profilesConfigurationPage .jpf-ob-box input { margin: 0 0.4em 0 0; }
+    #profilesConfigurationPage .jpf-ob-box input:disabled + span { opacity: 0.45; }
     #profilesConfigurationPage .jpf-ann-dates {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -539,6 +550,11 @@
                 </div>
                 <div class="fieldDescription jpf-lede" id="statusSummary" data-i18n="admin.status.checking">Checking…</div>
                 <div class="jpf-checks" id="statusChecks"></div>
+                <!-- Ticks itself off from the settings; gone once everything is done. -->
+                <div class="jpf-hidden jpf-mt-3" id="gettingStartedBlock">
+                    <h3 class="jpf-gs-title" data-i18n="admin.gs.title">Getting started</h3>
+                    <div class="jpf-checks" id="gettingStarted"></div>
+                </div>
                 <div class="jpf-note jpf-mt-3">
                     <strong class="jpf-label-block" data-i18n="admin.status.whereTitle">Where profiles are managed</strong>
                     <span data-i18n="admin.status.whereBody">Each household manages its own profiles from the Jellyfin home screen. This page sets what they're allowed to do.</span>
@@ -675,6 +691,58 @@
                     </label>
                     <div class="fieldDescription" data-i18n="admin.theme.allowProfilesHint">Off shows everyone the default. Choices already made are kept.</div>
                 </div>
+
+                <div class="sectionTitleContainer jpf-section" id="jpfOnboarding">
+                    <h2 class="sectionTitle" data-i18n="admin.onboarding.title">First-time setup</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.onboarding.lede">A few screens for a new main account, the first time it opens Bonfire.</div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="onboardingEnabled" />
+                        <span data-i18n="admin.onboarding.enable">Show first-time setup</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.onboarding.enableHint">Accounts that already exist won't see it.</div>
+                </div>
+                <!-- One row per step: shown, and whether it can be skipped. Plain checkboxes
+                     in labels rather than emby-checkbox, which draws one per row. -->
+                <div class="jpf-ob-steps" id="onboardingSteps">
+                    <div class="jpf-ob-row" data-step="welcome">
+                        <span class="jpf-ob-name" data-i18n="admin.onboarding.stepWelcome">Welcome</span>
+                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="welcome" /><span data-i18n="admin.onboarding.show">Show</span></label>
+                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObRequired" data-step="welcome" /><span data-i18n="admin.onboarding.required">Can't skip</span></label>
+                    </div>
+                    <div class="jpf-ob-row" data-step="mainPin">
+                        <span class="jpf-ob-name" data-i18n="admin.onboarding.stepMainPin">Main account PIN</span>
+                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="mainPin" /><span data-i18n="admin.onboarding.show">Show</span></label>
+                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObRequired" data-step="mainPin" /><span data-i18n="admin.onboarding.required">Can't skip</span></label>
+                    </div>
+                    <div class="jpf-ob-row" data-step="firstProfile">
+                        <span class="jpf-ob-name" data-i18n="admin.onboarding.stepFirstProfile">First profile</span>
+                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="firstProfile" /><span data-i18n="admin.onboarding.show">Show</span></label>
+                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObRequired" data-step="firstProfile" /><span data-i18n="admin.onboarding.required">Can't skip</span></label>
+                    </div>
+                    <div class="jpf-ob-row" data-step="switcher">
+                        <span class="jpf-ob-name" data-i18n="admin.onboarding.stepSwitcher">How to switch</span>
+                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="switcher" /><span data-i18n="admin.onboarding.show">Show</span></label>
+                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObRequired" data-step="switcher" /><span data-i18n="admin.onboarding.required">Can't skip</span></label>
+                    </div>
+                    <div class="jpf-ob-row" data-step="theme">
+                        <span class="jpf-ob-name"><span data-i18n="admin.onboarding.stepTheme">Theme</span>
+                            <span class="fieldDescription jpf-ob-note" data-i18n="admin.onboarding.themeNeeds">Only while profiles can choose a theme.</span></span>
+                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="theme" /><span data-i18n="admin.onboarding.show">Show</span></label>
+                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObRequired" data-step="theme" /><span data-i18n="admin.onboarding.required">Can't skip</span></label>
+                    </div>
+                </div>
+                <div class="inputContainer">
+                    <label class="textareaLabel" for="onboardingWelcome" data-i18n="admin.onboarding.welcome">Welcome message</label>
+                    <textarea is="emby-textarea" id="onboardingWelcome" rows="3" maxlength="500" class="jpf-ann-text"></textarea>
+                    <div class="fieldDescription" data-i18n="admin.onboarding.welcomeHint">Plain text. Empty uses Bonfire's own.</div>
+                </div>
+                <div class="buttonContainer jpf-row">
+                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
+                    <button is="emby-button" type="button" class="raised jpf-narrow" id="onboardingShowAgain" data-i18n="admin.onboarding.showAgain">Show again to everyone</button>
+                </div>
+                <div class="fieldDescription" data-i18n="admin.onboarding.showAgainHint">Every main account sees it on its next visit.</div>
 
                 <div class="sectionTitleContainer jpf-section" id="jpfAvatars">
                     <h2 class="sectionTitle" data-i18n="admin.avatars.title">Avatar library</h2>
@@ -997,6 +1065,18 @@
                 'admin.cancel': 'Cancel',
                 'admin.error': 'Error',
                 'admin.saved': 'Settings saved.',
+                'admin.onboarding.showAgainTitle': 'Show first-time setup again',
+                'admin.onboarding.showAgainConfirm': 'Every main account will see first-time setup on its next visit.',
+                'admin.onboarding.showAgainDone': 'Everyone will see it next time.',
+                'admin.gs.done': 'Done',
+                'admin.gs.todo': 'To do',
+                'admin.gs.open': 'Set up',
+                'admin.gs.profiles': 'Make a first profile. Households do this from the Jellyfin home screen.',
+                'admin.gs.pins': 'Require a PIN on every main account.',
+                'admin.gs.emergency': 'Set an emergency code.',
+                'admin.gs.avatars': 'Give profiles pictures to choose from.',
+                'admin.gs.onboarding': 'Turn on first-time setup for new accounts.',
+                'admin.gs.apps': 'Let profiles work in the TV and phone apps.',
                 'admin.saveFailed': 'Couldn\'t save it.',
                 'admin.saveSettingsFailed': 'Couldn\'t save the settings.',
                 'admin.readFailed': 'Couldn\'t read the current status.',
@@ -1364,6 +1444,7 @@
                         config.DefaultSwitcherLocation === 'menu' ? 'menu' : 'button';
                     page.querySelector('#defaultTheme').value = normalizeTheme(config.DefaultTheme);
                     page.querySelector('#allowProfileThemes').checked = config.AllowProfileThemes !== false;
+                    loadOnboarding(page, config.Onboarding || {});
                     // Absent before 1.6.1.2, and both default to off: neither may switch
                     // itself on because a configuration predates it.
                     page.querySelector('#enableClientPinLogin').checked = !!config.EnableClientPinLogin;
@@ -1390,6 +1471,7 @@
                     loadAnnouncements(page);
                     loadMaintenance(page);
                     loadOrphanStatus(page);
+                    renderGettingStarted(page);
                 }).catch(function (err) {
                     console.error("Failed to load plugin configuration:", err);
                     Dashboard.hideLoadingMsg();
@@ -1761,6 +1843,7 @@
                 const url = ApiClient.getUrl('plugins/profiles/admin/mappings');
                 ApiClient.getJSON(url).then(function (result) {
                     page._mappings = result;
+                    renderGettingStarted(page);
                     renderInjectionStatus(page, result);
 
                     const masterContainer = page.querySelector('#masterUsersList');
@@ -3051,6 +3134,8 @@
                 }).then(function (data) {
                     const configured = field(data, 'isConfigured');
                     const disabled = field(data, 'isCurrentlyDisabled');
+                    page._panicConfigured = !!configured;
+                    renderGettingStarted(page);
                     setStatus(page, 'panic', disabled
                         ? [{ level: 'bad', text: t('admin.status.panicUsed') }]
                         : configured ? []
@@ -3164,6 +3249,78 @@
                 });
             }
 
+            // ── Getting started ───────────────────────────────────────────────────
+            //
+            // The things a new install usually wants, each ticked from the settings as they
+            // stand rather than from anything the administrator clicked, so it can't claim
+            // something is done that isn't. Suggestions, not warnings: nothing here is
+            // wrong, so nothing is coloured as if it were.
+            function gettingStartedItems(page) {
+                const c = page._config || {};
+                const r = page._mappings || null;
+                const ob = c.Onboarding || {};
+                const subs = r ? (field(r, 'subProfiles') || []) : null;
+                return [
+                    { key: 'profiles', text: t('admin.gs.profiles'), done: subs === null ? null : subs.length > 0 },
+                    { key: 'pins', text: t('admin.gs.pins'), done: !!c.RequireMainPin, tab: 'security', anchor: 'jpfPins' },
+                    { key: 'emergency', text: t('admin.gs.emergency'), done: page._panicConfigured === undefined ? null : !!page._panicConfigured,
+                      tab: 'security', anchor: 'jpfEmergency' },
+                    { key: 'avatars', text: t('admin.gs.avatars'), done: c.EnableStarterAvatars !== false || (c.AvatarLibrary || []).length > 0,
+                      tab: 'experience', anchor: 'jpfAvatars' },
+                    { key: 'onboarding', text: t('admin.gs.onboarding'), done: !!field(ob, 'enabled'), tab: 'experience', anchor: 'jpfOnboarding' },
+                    { key: 'apps', text: t('admin.gs.apps'), done: !!(c.EnableClientPinLogin || c.EnableClientProfileList || (c.ProxyClients || []).length),
+                      tab: 'apps' }
+                ];
+            }
+
+            function renderGettingStarted(page) {
+                const block = page.querySelector('#gettingStartedBlock');
+                const list = page.querySelector('#gettingStarted');
+                if (!block || !list || !page._config) return;
+                // Not known yet is left out rather than shown as to do.
+                const items = gettingStartedItems(page).filter(function (it) { return it.done !== null; });
+                const open = items.filter(function (it) { return !it.done; });
+                block.classList.toggle('jpf-hidden', open.length === 0);
+                list.textContent = '';
+                items.forEach(function (it) {
+                    const row = document.createElement('div');
+                    row.className = 'jpf-check';
+                    row.setAttribute('data-level', it.done ? 'ok' : 'info');
+                    row.setAttribute('data-gs', it.key);
+                    const chip = document.createElement('span');
+                    chip.className = 'jpf-check-level';
+                    chip.textContent = it.done ? t('admin.gs.done') : t('admin.gs.todo');
+                    const text = document.createElement('span');
+                    text.className = 'jpf-check-text';
+                    text.textContent = it.text;
+                    row.appendChild(chip);
+                    row.appendChild(text);
+                    if (!it.done && it.tab) {
+                        const go = document.createElement('button');
+                        go.type = 'button';
+                        go.className = 'raised button-mini jpf-check-fix';
+                        go.textContent = t('admin.gs.open');
+                        go.addEventListener('click', function () { goTo(page, it.tab, it.anchor); });
+                        row.appendChild(go);
+                    }
+                    list.appendChild(row);
+                });
+            }
+
+            // After a save, what was sent is what is stored; tick from that rather than
+            // reloading the whole page.
+            function noteSavedSettings(page, sent) {
+                const c = page._config = page._config || {};
+                c.RequireMainPin = sent.requireMainPin;
+                c.EnableStarterAvatars = sent.enableStarterAvatars;
+                c.EnableClientPinLogin = sent.enableClientPinLogin;
+                c.EnableClientProfileList = sent.enableClientProfileList;
+                c.ProxyClients = sent.proxyClients;
+                c.Onboarding = Object.assign({}, c.Onboarding || {}, { Enabled: sent.onboardingEnabled });
+                page.dataset.requireMainPin = sent.requireMainPin ? '1' : '';
+                renderGettingStarted(page);
+            }
+
             function goTo(page, tab, anchor) {
                 if (page._showTab) page._showTab(tab);
                 const target = anchor ? page.querySelector('#' + anchor) : null;
@@ -3255,6 +3412,63 @@
                 });
             }
 
+            // ── First-time setup ──────────────────────────────────────────────────
+            //
+            // Until the administrator has picked, every step is offered (StepsChosen is
+            // false and Steps empty), so every Show box starts ticked. A required step must
+            // be shown: untick Show and its Can't skip goes off and greys out.
+            function loadOnboarding(page, ob) {
+                page.querySelector('#onboardingEnabled').checked = !!field(ob, 'enabled');
+                const chosen = !!field(ob, 'stepsChosen');
+                const steps = (field(ob, 'steps') || []).map(String);
+                const required = (field(ob, 'requiredSteps') || []).map(String);
+                page.querySelectorAll('.jpfObShow').forEach(function (box) {
+                    box.checked = !chosen || steps.indexOf(box.getAttribute('data-step')) !== -1;
+                });
+                page.querySelectorAll('.jpfObRequired').forEach(function (box) {
+                    box.checked = required.indexOf(box.getAttribute('data-step')) !== -1;
+                });
+                page.querySelector('#onboardingWelcome').value = field(ob, 'welcomeText') || '';
+                syncOnboardingRows(page);
+            }
+
+            function syncOnboardingRows(page) {
+                page.querySelectorAll('.jpfObShow').forEach(function (show) {
+                    const req = page.querySelector('.jpfObRequired[data-step="' + show.getAttribute('data-step') + '"]');
+                    if (!req) return;
+                    if (!show.checked) req.checked = false;
+                    req.disabled = !show.checked;
+                });
+            }
+
+            function onboardingTicked(page, cls) {
+                return Array.prototype.filter.call(page.querySelectorAll(cls), function (box) {
+                    return box.checked && !box.disabled;
+                }).map(function (box) { return box.getAttribute('data-step'); });
+            }
+
+            function bindOnboarding(page) {
+                const again = page.querySelector('#onboardingShowAgain');
+                if (!again || again.dataset.bound) return;
+                again.dataset.bound = '1';
+                page.querySelectorAll('.jpfObShow').forEach(function (box) {
+                    box.addEventListener('change', function () { syncOnboardingRows(page); });
+                });
+                again.addEventListener('click', function () {
+                    Dashboard.confirm(t('admin.onboarding.showAgainConfirm'), t('admin.onboarding.showAgainTitle')).then(function () {
+                        ApiClient.ajax({
+                            type: 'POST',
+                            url: ApiClient.getUrl('plugins/profiles/admin/onboarding/show-again'),
+                            dataType: 'json'
+                        }).then(function () {
+                            Dashboard.alert(t('admin.onboarding.showAgainDone'));
+                        }, function () {
+                            Dashboard.alert({ message: t('admin.saveSettingsFailed'), title: t('admin.error') });
+                        });
+                    }, function () { /* cancelled */ });
+                });
+            }
+
             // Sends only the six settings this page owns.
             //
             // This used to GET the whole PluginConfiguration, change six fields on the copy,
@@ -3275,31 +3489,38 @@
                 const maxProfiles = Number.isFinite(typed) ? Math.min(20, Math.max(1, typed)) : 5;
                 page.querySelector('#maxProfiles').value = maxProfiles;
 
+                const sent = {
+                    maxProfilesPerUser: maxProfiles,
+                    requireMainPin: page.querySelector('#requireMainPin').checked,
+                    disallowCustomAvatarUploads: page.querySelector('#disallowCustomAvatars').checked,
+                    enableStarterAvatars: page.querySelector('#enableStarterAvatars').checked,
+                    defaultAskOnStartup: page.querySelector('#defaultAskOnStartup').checked,
+                    defaultSwitcherLocation: page.querySelector('#defaultSwitcherLocation').value === 'menu' ? 'menu' : 'button',
+                    defaultTheme: normalizeTheme(page.querySelector('#defaultTheme').value),
+                    allowProfileThemes: page.querySelector('#allowProfileThemes').checked,
+                    indexInjectionMode: page.querySelector('#indexInjectionMode').value,
+                    enableClientPinLogin: page.querySelector('#enableClientPinLogin').checked,
+                    enableClientProfileList: page.querySelector('#enableClientProfileList').checked,
+                    skipQuickConnectOnKnownDevices: page.querySelector('#skipQuickConnectOnKnownDevices').checked,
+                    proxyClients: Array.prototype.filter.call(page.querySelectorAll('.jpfProxyClient'), function (box) {
+                        return box.checked;
+                    }).map(function (box) { return box.getAttribute('data-proxy-client'); }),
+                    profileImageQuality: normalizeImageQuality(page.querySelector('#profileImageQuality').value),
+                    onboardingEnabled: page.querySelector('#onboardingEnabled').checked,
+                    onboardingSteps: onboardingTicked(page, '.jpfObShow'),
+                    onboardingRequiredSteps: onboardingTicked(page, '.jpfObRequired'),
+                    onboardingWelcomeText: page.querySelector('#onboardingWelcome').value.trim()
+                };
+
                 Dashboard.showLoadingMsg();
                 ApiClient.ajax({
                     type: 'POST',
                     url: ApiClient.getUrl('plugins/profiles/admin/settings'),
                     contentType: 'application/json',
-                    data: JSON.stringify({
-                        maxProfilesPerUser: maxProfiles,
-                        requireMainPin: page.querySelector('#requireMainPin').checked,
-                        disallowCustomAvatarUploads: page.querySelector('#disallowCustomAvatars').checked,
-                        enableStarterAvatars: page.querySelector('#enableStarterAvatars').checked,
-                        defaultAskOnStartup: page.querySelector('#defaultAskOnStartup').checked,
-                        defaultSwitcherLocation: page.querySelector('#defaultSwitcherLocation').value === 'menu' ? 'menu' : 'button',
-                        defaultTheme: normalizeTheme(page.querySelector('#defaultTheme').value),
-                        allowProfileThemes: page.querySelector('#allowProfileThemes').checked,
-                        indexInjectionMode: page.querySelector('#indexInjectionMode').value,
-                        enableClientPinLogin: page.querySelector('#enableClientPinLogin').checked,
-                        enableClientProfileList: page.querySelector('#enableClientProfileList').checked,
-                        skipQuickConnectOnKnownDevices: page.querySelector('#skipQuickConnectOnKnownDevices').checked,
-                        proxyClients: Array.prototype.filter.call(page.querySelectorAll('.jpfProxyClient'), function (box) {
-                            return box.checked;
-                        }).map(function (box) { return box.getAttribute('data-proxy-client'); }),
-                        profileImageQuality: normalizeImageQuality(page.querySelector('#profileImageQuality').value)
-                    })
+                    data: JSON.stringify(sent)
                 }).then(function () {
                     Dashboard.hideLoadingMsg();
+                    noteSavedSettings(page, sent);
                     loadAvatarLibrary(page);
                     // The client script runs in this same window and in any other tab. Both
                     // re-read the preferences on these, so a new default theme shows without
@@ -3357,6 +3578,7 @@
                 });
                 initTabs(page);
                 bindReport(page);
+                bindOnboarding(page);
                 bindAnnouncements(page);
                 bindMaintenance(page);
                 bindOrphanScan(page);

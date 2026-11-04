@@ -50,8 +50,9 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>Who has seen which generation. One row per main account.</summary>
         public List<OnboardingRecord> Seen { get; set; } = new();
 
-        /// <summary>Longest welcome accepted, the same as an announcement.</summary>
-        public const int MaxWelcomeLength = Announcements.MaxMessageLength;
+        /// <summary>Longest welcome accepted. Longer than an announcement's 280: it is read
+        /// once, on a screen of its own, and may say where things are.</summary>
+        public const int MaxWelcomeLength = 500;
 
         /// <summary>A copy for <see cref="PluginConfiguration.SnapshotForReading"/>.</summary>
         public OnboardingSettings CopyForReading()
