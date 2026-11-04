@@ -106,6 +106,9 @@ var ADMIN = Guid.NewGuid();
 var MEMBER = Guid.NewGuid();
 var KID = Guid.NewGuid();      // a profile of ADMIN's, not an administrator
 var N = (Guid g) => g.ToString("N");
+var FILM = Guid.NewGuid();
+var SONG = Guid.NewGuid();
+var OTHER = Guid.NewGuid();
 
 var users = new Dictionary<Guid, (string name, bool admin)>
 {
@@ -213,9 +216,21 @@ Ok("and Retry-After counts down to the time given", retry > 5300 && retry <= 540
 Ok("and is not cached", browse.response.Headers["Cache-Control"].ToString() == "no-store");
 
 Ok("starting playback is refused", Refused(Send("/Items/abc/PlaybackInfo", MEMBER_TOKEN, "POST", "{}")));
-Ok("what is playing keeps playing: video segments", Through(Send("/videos/abc/hls1/main/3.mp4", MEMBER_TOKEN)));
-Ok("audio", Through(Send("/Audio/abc/stream.mp3", MEMBER_TOKEN)));
-Ok("and progress reports", Through(Send("/Sessions/Playing/Progress", MEMBER_TOKEN, "POST", "{}")));
+// The member's app is playing FILM; SONG is playing on another of its sessions.
+sessionLog.Sessions.Clear();
+sessionLog.Sessions.Add(SessionManagerStub.Make("s-member-tv", MEMBER, playing: true, item: FILM));
+sessionLog.Sessions.Add(SessionManagerStub.Make("s-member-phone", MEMBER, playing: true, item: SONG));
+sessionLog.Sessions.Add(SessionManagerStub.Make("s-admin", ADMIN, playing: true, item: OTHER));
+Ok("what is playing keeps playing: video segments", Through(Send("/videos/" + N(FILM) + "/hls1/main/3.mp4", MEMBER_TOKEN)));
+Ok("a direct stream of it", Through(Send("/Videos/" + FILM + "/stream.mkv?static=true", MEMBER_TOKEN)));
+Ok("audio", Through(Send("/Audio/" + N(SONG) + "/universal", MEMBER_TOKEN)));
+Ok("progress reports", Through(Send("/Sessions/Playing/Progress", MEMBER_TOKEN, "POST", "{}")));
+Ok("and the report that it stopped", Through(Send("/Sessions/Playing/Stopped", MEMBER_TOKEN, "POST", "{}")));
+var fresh = Send("/Videos/" + N(OTHER) + "/stream.mkv?static=true", MEMBER_TOKEN);
+Ok("but a direct stream of anything else is refused, PlaybackInfo or not", Refused(fresh), Show(fresh));
+Ok("even what someone else is playing", Refused(Send("/videos/" + N(OTHER) + "/hls1/main/0.mp4", MEMBER_TOKEN)));
+Ok("a stream URL with no item id is refused", Refused(Send("/Audio/stream.mp3", MEMBER_TOKEN)));
+Ok("and so is the report that starts something", Refused(Send("/Sessions/Playing", MEMBER_TOKEN, "POST", "{}")));
 Ok("the account's own record still answers (/Users/Me)", Through(Send("/Users/Me", MEMBER_TOKEN)));
 Ok("and by id", Through(Send("/Users/" + N(MEMBER), MEMBER_TOKEN)));
 Ok("but not someone else's", Refused(Send("/Users/" + N(ADMIN), MEMBER_TOKEN)));
@@ -251,18 +266,18 @@ Console.WriteLine();
 Console.WriteLine("── Asked to stop playback ──────────────────────────────────────");
 
 Close(true, "", stop: true);
-var seg = Send("/videos/abc/hls1/main/4.mp4", MEMBER_TOKEN);
+var seg = Send("/videos/" + N(FILM) + "/hls1/main/4.mp4", MEMBER_TOKEN);
 Ok("video segments are refused too", Refused(seg), Show(seg));
 Ok("an empty message gives the default", seg.body == "The server is closed for maintenance.", seg.body);
 Ok("with no end time, Retry-After is five minutes", seg.response.Headers["Retry-After"].ToString() == "300");
-Ok("an administrator still streams", Through(Send("/videos/abc/hls1/main/4.mp4", ADMIN_TOKEN)));
+Ok("an administrator still streams", Through(Send("/videos/" + N(OTHER) + "/hls1/main/4.mp4", ADMIN_TOKEN)));
 
 Console.WriteLine();
 Console.WriteLine("── Cost ────────────────────────────────────────────────────────");
 
 Close(true);
 DeviceManagerStub.Calls = 0;
-for (int i = 0; i < 50; i++) Send("/videos/abc/hls1/main/" + i + ".mp4", MEMBER_TOKEN);
+for (int i = 0; i < 50; i++) Send("/videos/" + N(FILM) + "/hls1/main/" + i + ".mp4", MEMBER_TOKEN);
 Ok("fifty segments look the token up once", DeviceManagerStub.Calls == 1, DeviceManagerStub.Calls.ToString());
 Close(false);
 DeviceManagerStub.Calls = 0;
@@ -294,7 +309,12 @@ Moon("/Users/" + N(ADMIN) + "/Items?ParentId=" + kidTile);
 Ok("(the kid's profile is open)", sessionLog.Minted.Contains(KID), string.Join(",", sessionLog.Minted));
 
 Close(true);
-var seg9 = Moon("/videos/abc/hls1/main/9.mp4");
+var signInByShownName = Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Kid\",\"Pw\":\"1234\"}");
+Ok("signing in by a profile's shown name, which no account has, is refused too", Refused(signInByShownName), Show(signInByShownName));
+
+sessionLog.Sessions.Clear();
+sessionLog.Sessions.Add(SessionManagerStub.Make("s-kid", KID, playing: true, item: FILM));
+var seg9 = Moon("/videos/" + N(FILM) + "/hls1/main/9.mp4");
 Ok("what the kid is watching keeps playing, as the kid", Through(seg9) && seenAuth.Contains("tok-" + N(KID)), seenAuth);
 
 var kidBrowse = Moon("/Users/" + N(ADMIN) + "/Items?ParentId=11111111111111111111111111111111");
@@ -393,13 +413,13 @@ public class SessionManagerStub : DispatchProxy
 
     public static ISessionManager Create() => Create<ISessionManager, SessionManagerStub>();
 
-    public static SessionInfo Make(string id, Guid user, bool playing)
+    public static SessionInfo Make(string id, Guid user, bool playing, Guid item = default)
     {
         var t = typeof(SessionInfo);
         var s = (SessionInfo)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(t);
         t.GetProperty("Id").SetValue(s, id);
         t.GetProperty("UserId").SetValue(s, user);
-        t.GetProperty("NowPlayingItem").SetValue(s, playing ? new BaseItemDto() : null);
+        t.GetProperty("NowPlayingItem").SetValue(s, playing ? new BaseItemDto { Id = item } : null);
         return s;
     }
 

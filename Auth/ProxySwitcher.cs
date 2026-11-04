@@ -230,7 +230,7 @@ namespace Jellyfin.Profiles.Auth
                 && acting.ProfileId != session.MasterId
                 && services.Users != null
                 && !MaintenanceGate.IsAdmin(services.Users, acting.ProfileId)
-                && MaintenanceGate.Refuses(closed, request.Method, request.Path.Value ?? string.Empty, acting.ProfileId))
+                && MaintenanceGate.Refuses(closed, request.Method, request.Path.Value ?? string.Empty, acting.ProfileId, services.Sessions))
             {
                 logger.LogInformation(
                     "ProfilesPlugin: closed for maintenance; {Client} on {Device} is back at the picker.",

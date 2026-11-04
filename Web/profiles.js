@@ -4874,7 +4874,9 @@
 
             const box = document.createElement('div');
             box.id = 'profiles-maintenance';
-            box.className = blocking ? 'profiles-maintenance is-blocking' : 'profiles-maintenance';
+            // The cover is a trap surface. Without it, the focus trap hands focus back to the
+            // gate underneath, and a remote moves around profiles nobody can see.
+            box.className = blocking ? 'profiles-maintenance is-blocking ' + this.TRAP_SURFACE_CLASS : 'profiles-maintenance';
             box.setAttribute('role', blocking ? 'alertdialog' : 'status');
 
             const inner = document.createElement('div');

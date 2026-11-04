@@ -3767,9 +3767,24 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
-            // 4. Its own sign-in, on the provider its master uses. Never an empty id: see
-            //    ProfilesBootstrapTask.ReconcileAuthProviders for what that did to a server.
+            // 4. Shown on the sign-in screen if its master is. Every profile is hidden, because
+            //    it is reached through its master; left that way, the new account is missing
+            //    from Jellyfin's user list and nobody is told to type its name. Before the
+            //    provider below: Jellyfin's UpdatePolicyAsync also writes the policy's
+            //    provider id onto the account, so a policy write after it would undo it.
             user = _userManager.GetUserById(request.ProfileId) ?? user;
+            var masterAccount = _userManager.GetUserById(mapping.MasterUserId);
+            var hidden = masterAccount != null && _userManager.GetUserDto(masterAccount, string.Empty).Policy?.IsHidden == true;
+            var ownPolicy = _userManager.GetUserDto(user, string.Empty).Policy;
+            if (ownPolicy != null && ownPolicy.IsHidden != hidden)
+            {
+                ownPolicy.IsHidden = hidden;
+                await _userManager.UpdatePolicyAsync(user.Id, ownPolicy).ConfigureAwait(false);
+                user = _userManager.GetUserById(request.ProfileId) ?? user;
+            }
+
+            // 5. Its own sign-in, on Jellyfin's own provider. Never an empty id: see
+            //    ProfilesBootstrapTask.ReconcileAuthProviders for what that did to a server.
             var provider = StandaloneProviderId(mapping.MasterUserId);
             if (!string.Equals(user.AuthenticationProviderId, provider, StringComparison.Ordinal))
             {
@@ -3797,7 +3812,7 @@ namespace Jellyfin.Profiles.Controllers
                 await _userManager.RenameUser(user, username).ConfigureAwait(false);
             }
 
-            // 5. The master may have just lost its last profile.
+            // 6. The master may have just lost its last profile.
             ProfilesBootstrapTask.ReconcileAuthProvidersNow();
 
             var callerId = GetCurrentUserId();
@@ -3812,18 +3827,23 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// The provider a former profile signs in with: its master's, unless that is
-        /// Bonfire's own, in which case Jellyfin's default.
+        /// The provider a former profile signs in with: always Jellyfin's own, whose id is
+        /// read from the master when the master is on it, so an upstream rename is picked up.
+        ///
+        /// <para>The first version copied the master's provider whatever it was. For a master
+        /// on LDAP or SSO that is wrong: the profile's account was made by Bonfire, not by the
+        /// directory, so the directory has never heard of it, and the password set here goes
+        /// to a provider that cannot keep it. The account could never sign in. A password set
+        /// by an administrator lives in Jellyfin, so the account belongs on Jellyfin's
+        /// provider. An administrator who wants it in the directory moves it there.</para>
         /// </summary>
         private string StandaloneProviderId(Guid masterId)
         {
             const string jellyfinDefault = "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider";
-            var master = _userManager.GetUserById(masterId);
-            var id = master?.AuthenticationProviderId;
-            return string.IsNullOrEmpty(id)
-                   || string.Equals(id, typeof(Auth.BonfirePinAuthenticationProvider).FullName, StringComparison.OrdinalIgnoreCase)
-                ? jellyfinDefault
-                : id;
+            var id = _userManager.GetUserById(masterId)?.AuthenticationProviderId;
+            return !string.IsNullOrEmpty(id) && id.EndsWith(".DefaultAuthenticationProvider", StringComparison.Ordinal)
+                ? id
+                : jellyfinDefault;
         }
 
         // ── Maintenance ─────────────────────────────────────────────────────────────

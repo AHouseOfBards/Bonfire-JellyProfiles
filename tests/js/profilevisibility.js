@@ -125,9 +125,17 @@ writes.forEach(idx => {
     // 3. The account is being disabled, which drops it from the public list regardless.
     const disables = /\.IsDisabled\s*=\s*true/.test(body);
 
+    // 4. It is no longer a profile: the same method removed its mapping BEFORE this write.
+    //    Making a profile its own account (MakeStandalone) shows it on the sign-in screen
+    //    on purpose. The removal has to precede the write in the method, which `body`
+    //    guarantees, since it ends at the write. A write before the removal is still a
+    //    write to a profile and still fails.
+    const unmapped = /\.Mappings\.Remove\(/.test(body);
+
     const why = asserts ? 'asserts IsHidden = true'
         : ownPolicy ? 'writes the profile\'s own policy back'
         : disables ? 'disables the account'
+        : unmapped ? 'is no longer a profile: its mapping was removed first'
         : null;
 
     if (why) {

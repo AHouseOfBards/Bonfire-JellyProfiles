@@ -1193,9 +1193,11 @@ Closes the server to everyone but administrators. Use it for upgrades and moves.
 While it is on, every request from an account that isn't an administrator gets
 `503`, `X-Bonfire-Error: maintenance`, a `Retry-After` and the administrator's message as
 plain text, from any route, Jellyfin's own included. Signing in by name is refused the
-same way, before the password is checked. These still answer:
+same way, before the password is checked, including by a profile's name. These still
+answer:
 
-- what is already playing, unless the administrator stopped it;
+- the item an app was already playing, unless the administrator stopped it. Nothing new
+  starts, Live TV included;
 - the account's own `GET /Users/Me` and `GET /Users/{ownId}`;
 - signing out, Quick Connect, the live connection and the web client's files;
 - `GET /System/Info/Public`, `GET /Users/Public` and Bonfire's anonymous routes.
@@ -1465,7 +1467,8 @@ range.
 
 Makes a profile an ordinary Jellyfin account. It keeps the libraries and limits it has
 now and inherits nothing afterwards. Its sessions are signed out and it signs in with the
-new password, on the same provider as its main account. `username` is optional; blank
+new password, on Jellyfin's own provider even if its main account uses LDAP or SSO. It
+shows on the sign-in screen if its main account does. `username` is optional; blank
 keeps the current one. Returns `{ "userId": "…", "username": "Sam" }`. It can't be
 undone.
 

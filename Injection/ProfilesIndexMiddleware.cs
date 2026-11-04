@@ -174,7 +174,7 @@ namespace Jellyfin.Profiles
 
             // Closed for maintenance: anyone but an administrator is answered here. Before the
             // picker, so an app on it is closed too. One field read when it is off.
-            if (await Auth.MaintenanceGate.TryRefuseAsync(context, userManager, deviceManager, _logger).ConfigureAwait(false))
+            if (await Auth.MaintenanceGate.TryRefuseAsync(context, userManager, deviceManager, sessionManager, _logger).ConfigureAwait(false))
             {
                 return;
             }

@@ -99,6 +99,8 @@ world.Add(TEEN, "Bard_Teen", BONFIRE);
 world.Add(LDAPMASTER, "Ldap", LDAP);
 world.Add(LDAPKID, "Ldap_Kid", LDAP);
 world.MappedNow = Mapped;
+// Every profile is hidden from the sign-in screen; LDAPMASTER's household hides its main account too.
+world.Hidden.UnionWith(new[] { KID, TEEN, LDAPKID, LDAPMASTER });
 
 void Map(Guid profile, Guid master, string name)
 {
@@ -172,6 +174,7 @@ Ok("its password is the one given", world.Passwords.TryGetValue(KID, out var pw)
 Ok("it is on Jellyfin's own provider, not Bonfire's (its master's is Bonfire's)", world.Users[KID].AuthenticationProviderId == JELLYFIN,
    world.Users[KID].AuthenticationProviderId);
 Ok("it is renamed", world.Users[KID].Username == "Sam");
+Ok("it shows on the sign-in screen, as its main account does", !world.Hidden.Contains(KID));
 Ok("and says so", done.value?.GetType().GetProperty("Username")?.GetValue(done.value) as string == "Sam");
 
 int At(string prefix) => world.Log.FindIndex(l => l.StartsWith(prefix));
@@ -195,8 +198,12 @@ Ok("a blank username keeps the current one", kept.status == 200 && world.Users[T
 
 world.Log.Clear();
 var ldap = Call(ADMIN, LDAPKID, "", "pw");
-Ok("a profile of an LDAP account gets its master's provider", ldap.status == 200 && world.Users[LDAPKID].AuthenticationProviderId == LDAP,
+// The directory has never heard of an account Bonfire made, and will not take its password.
+Ok("a profile of an LDAP account still gets a password that works", ldap.status == 200 && world.Passwords.ContainsKey(LDAPKID),
+   ldap.status + " " + ldap.value);
+Ok("because it goes on Jellyfin's own provider, not the directory's", world.Users[LDAPKID].AuthenticationProviderId == JELLYFIN,
    world.Users[LDAPKID].AuthenticationProviderId);
+Ok("and stays hidden, as its main account is", world.Hidden.Contains(LDAPKID));
 Ok("no account was ever given an empty provider", world.Users.Values.All(u => !string.IsNullOrEmpty(u.AuthenticationProviderId)));
 
 try { Directory.Delete(tempDir, true); } catch { }
@@ -223,6 +230,7 @@ public class World
     public HashSet<Guid> Admins = new();
     public Dictionary<Guid, string> Passwords = new();
     public List<string> Log = new();
+    public HashSet<Guid> Hidden = new();
     public Func<Guid, bool> MappedNow = _ => false;
 
     public void Add(Guid id, string name, string provider, bool admin = false)
@@ -261,11 +269,16 @@ public class WorldProxy : DispatchProxy
                 {
                     Id = user.Id,
                     Name = user.Username,
-                    Policy = new UserPolicy { IsAdministrator = W.Admins.Contains(user.Id), AuthenticationProviderId = user.AuthenticationProviderId, PasswordResetProviderId = "x" },
+                    Policy = new UserPolicy { IsAdministrator = W.Admins.Contains(user.Id), IsHidden = W.Hidden.Contains(user.Id), AuthenticationProviderId = user.AuthenticationProviderId, PasswordResetProviderId = "x" },
                     Configuration = new UserConfiguration(),
                 };
             case "UpdatePolicyAsync":
                 W.Log.Add("policy " + args[0] + " mapped=" + W.MappedNow((Guid)args[0]));
+                var policy = (UserPolicy)args[1];
+                if (policy.IsHidden) W.Hidden.Add((Guid)args[0]); else W.Hidden.Remove((Guid)args[0]);
+                // Jellyfin's UpdatePolicyAsync writes the policy's provider onto the account.
+                if (W.Users.TryGetValue((Guid)args[0], out var pu))
+                    typeof(User).GetProperty("AuthenticationProviderId").SetValue(pu, policy.AuthenticationProviderId);
                 return Task.CompletedTask;
             case "UpdateUserAsync":
                 var changed = (User)args[0];
@@ -273,6 +286,9 @@ public class WorldProxy : DispatchProxy
                 return Task.CompletedTask;
             case "ChangePassword":
                 var id = args[0] is User cu ? cu.Id : (Guid)args[0];
+                // A directory provider does not keep passwords for accounts it did not make.
+                if (W.Users[id].AuthenticationProviderId.Contains("LDAP"))
+                    return Task.FromException(new NotSupportedException("LDAP: password changes are not supported"));
                 W.Passwords[id] = (string)args[1];
                 W.Log.Add("password " + id + " mapped=" + W.MappedNow(id));
                 return Task.CompletedTask;

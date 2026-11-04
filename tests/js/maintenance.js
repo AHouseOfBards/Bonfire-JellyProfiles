@@ -138,6 +138,10 @@ const notice = env => env.sandbox.document.getElementById('profiles-maintenance'
     n = notice(env);
     ok('the whole page is covered', !!n && n.classList.contains('is-blocking'));
     ok('as a dialog that must be answered', n && n.getAttribute('role') === 'alertdialog');
+    // The trap that pulls a TV remote's focus back into a dialog only knows the surfaces
+    // carrying this class. Without it, the arrow keys walk off the cover into the page
+    // underneath, which the remote can still drive.
+    ok('which keeps a remote\'s focus inside it', n && n.classList.contains('jpf-trap-surface'));
     const out = n && n.querySelector('button');
     ok('with a Sign out button', !!out && out.textContent === 'Sign out');
     ok('which has focus, for a remote', out && out.focused);

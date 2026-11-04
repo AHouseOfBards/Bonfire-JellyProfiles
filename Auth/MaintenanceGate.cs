@@ -26,8 +26,17 @@ namespace Jellyfin.Profiles.Auth
     /// that cannot bend: the person who turned it on has to be able to turn it off.</para>
     ///
     /// <para><b>Running streams keep going</b> unless the administrator asked to stop them.
-    /// Video and audio segments and playback reports are let through; starting something new
-    /// is not, because that needs PlaybackInfo, which is refused.</para>
+    /// A video or audio request is let through only for the item that account's session is
+    /// already playing, and so are its progress and stop reports. Starting something new is
+    /// refused: PlaybackInfo, the "playing" report, and a stream of any other item.</para>
+    ///
+    /// <para>The first version let every <c>/Videos/</c> and <c>/Audio/</c> request through on
+    /// the assumption that new playback needs PlaybackInfo. It does not: a direct stream URL
+    /// plays without it, and an app that builds one could start anything while closed.</para>
+    ///
+    /// <para><b>Not a security boundary.</b> An app that sends a progress report for an item
+    /// it is not playing can make that item "playing". This keeps a household out during an
+    /// upgrade; parental controls are what keep a profile out of what it may not watch.</para>
     ///
     /// <para><b>What still answers:</b> the web client's own files, the public server info,
     /// the sign-in user list, Quick Connect, signing out, the live connection (so the
@@ -163,14 +172,14 @@ namespace Jellyfin.Profiles.Auth
         /// True when a request by <paramref name="userId"/>, who is not an administrator, is
         /// turned away. Also used by the profile picker for a profile it is acting as.
         /// </summary>
-        internal static bool Refuses(MaintenanceMode m, string method, string path, Guid userId)
+        internal static bool Refuses(MaintenanceMode m, string method, string path, Guid userId, ISessionManager? sessions)
         {
             switch (Classify(method, path))
             {
                 case PathKind.Open:
                     return false;
                 case PathKind.Stream:
-                    return m.StopPlayback;
+                    return m.StopPlayback || !ContinuesPlayback(path, userId, sessions);
             }
 
             // The account's own record, which a client reads to learn who is signed in.
@@ -189,13 +198,70 @@ namespace Jellyfin.Profiles.Auth
             return true;
         }
 
+        /// <summary>
+        /// True for a request that belongs to something the account is already playing: a
+        /// progress or stop report, or a stream of the item one of its sessions has as now
+        /// playing. The "playing" report that starts something is not.
+        /// </summary>
+        internal static bool ContinuesPlayback(string path, Guid userId, ISessionManager? sessions)
+        {
+            var at = path.IndexOf("/Sessions/Playing", StringComparison.OrdinalIgnoreCase);
+            if (at >= 0)
+            {
+                var rest = path[(at + "/Sessions/Playing".Length)..].TrimEnd('/');
+                return rest.Equals("/Progress", StringComparison.OrdinalIgnoreCase)
+                    || rest.Equals("/Stopped", StringComparison.OrdinalIgnoreCase)
+                    || rest.Equals("/Ping", StringComparison.OrdinalIgnoreCase);
+            }
+
+            var item = StreamItemId(path);
+            if (item == null || sessions == null) return false;
+
+            foreach (var s in sessions.Sessions)
+            {
+                if (s.UserId == userId && s.NowPlayingItem != null && s.NowPlayingItem.Id == item.Value) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>The item id after <c>/Videos/</c> or <c>/Audio/</c>, or null.</summary>
+        internal static Guid? StreamItemId(string path)
+        {
+            foreach (var marker in new[] { "/Videos/", "/Audio/" })
+            {
+                var at = path.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+                if (at < 0) continue;
+                var start = at + marker.Length;
+                var end = path.IndexOf('/', start);
+                var segment = end < 0 ? path[start..] : path[start..end];
+                // "stream.mp3"-style last segments carry no id; only a whole segment counts.
+                return Guid.TryParse(segment, out var id) ? id : null;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// True when <paramref name="name"/> is the name a profile is shown by. A sign-in
+        /// screen that lists profiles sends that name, not the account's username, so
+        /// <c>GetUserByName</c> finds nothing and Bonfire's provider resolves it later. A
+        /// profile is never an administrator, so it is refused here.
+        /// </summary>
+        private static bool IsProfileName(string name)
+        {
+            var config = Controllers.ProfilesBaseController.ReadConfigSnapshot();
+            return config?.Mappings?.Any(m => m.ProfileUserId != m.MasterUserId
+                && string.Equals(m.ProfileName, name, StringComparison.OrdinalIgnoreCase)) == true;
+        }
+
         // ── The middleware's entry point ────────────────────────────────────────────
 
         /// <summary>
         /// Answers the request with 503 if it is turned away. False means it was not touched.
         /// </summary>
         public static async Task<bool> TryRefuseAsync(
-            HttpContext context, IUserManager? users, IDeviceManager? devices, ILogger logger)
+            HttpContext context, IUserManager? users, IDeviceManager? devices, ISessionManager? sessions, ILogger logger)
         {
             var m = Active();
             if (m == null || users == null) return false;
@@ -214,8 +280,17 @@ namespace Jellyfin.Profiles.Auth
                     {
                         var name = await ReadUsernameAsync(request).ConfigureAwait(false);
                         var user = string.IsNullOrEmpty(name) ? null : users.GetUserByName(name);
-                        if (user == null || IsAdmin(users, user.Id)) return false;
-                        logger.LogInformation("ProfilesPlugin: sign-in by {User} refused: closed for maintenance.", user.Username);
+                        if (user == null)
+                        {
+                            // A profile's shown name, which only Bonfire's provider resolves.
+                            if (string.IsNullOrEmpty(name) || !IsProfileName(name)) return false;
+                        }
+                        else if (IsAdmin(users, user.Id))
+                        {
+                            return false;
+                        }
+
+                        logger.LogInformation("ProfilesPlugin: sign-in by {User} refused: closed for maintenance.", user?.Username ?? name);
                         await WriteRefusalAsync(context, m).ConfigureAwait(false);
                         return true;
                     }
@@ -236,7 +311,7 @@ namespace Jellyfin.Profiles.Auth
                 var userId = UserOf(token, devices);
                 if (userId == Guid.Empty || IsAdmin(users, userId)) return false;
 
-                if (!Refuses(m, request.Method, path, userId)) return false;
+                if (!Refuses(m, request.Method, path, userId, sessions)) return false;
 
                 await WriteRefusalAsync(context, m).ConfigureAwait(false);
                 return true;
