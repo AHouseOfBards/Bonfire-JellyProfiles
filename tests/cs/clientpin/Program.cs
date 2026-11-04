@@ -277,9 +277,33 @@ Ok("an empty PIN does not open a PIN-protected profile",
 var devicesList = (System.Collections.IList)cfgType.GetProperty("KnownDevices").GetValue(config);
 var knownType = asm.GetType("Jellyfin.Profiles.Configuration.KnownDevice", true);
 var requestDevice = asm.GetType("Jellyfin.Profiles.Auth.RequestDevice", true);
-var capture = requestDevice.GetMethod("Capture", BindingFlags.Public | BindingFlags.Static);
+var capture = requestDevice.GetMethod("Capture", BindingFlags.Public | BindingFlags.Static, new[] { typeof(string) });
 
 Ok("the provider can see which device a request came from", capture != null);
+
+// ── an app that gets the profile picker ─────────────────────────────────────
+//
+// On an app ticked for the picker, the household signs in as the main account and picks
+// there. A profile signed in directly would skip the picker's keypad and leave a profile
+// token the app keeps — the Roku problem (#40) again — so it is refused, on that app only.
+var captureClient = requestDevice.GetMethod("Capture", BindingFlags.Public | BindingFlags.Static, new[] { typeof(string), typeof(string) });
+var proxyProp = cfgType.GetProperty("ProxyClients");
+Ok("the provider can see which app a request came from", captureClient != null && proxyProp != null);
+if (captureClient != null && proxyProp != null)
+{
+    proxyProp.SetValue(config, new List<string> { "moonfin" });
+    captureClient.Invoke(null, new object[] { null, "Moonfin for Android TV" });
+    Ok("a profile's PIN is refused on an app that gets the picker",
+       Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
+    Ok("while the main account still signs in there with its own PIN",
+       Try(MakeUser(MASTER, "bard"), "9999") == "bard");
+    captureClient.Invoke(null, new object[] { null, "Jellyfin Android TV" });
+    Ok("and the profile still opens on any other app", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+    proxyProp.SetValue(config, new List<string>());
+    captureClient.Invoke(null, new object[] { null, "Moonfin for Android TV" });
+    Ok("and on Moonfin too once it is unticked", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+    captureClient.Invoke(null, new object[] { null, null });
+}
 
 void Remember(string deviceId, Guid owner)
 {

@@ -555,7 +555,7 @@
                 <h2 class="sectionTitle">TVs &amp; Apps</h2>
             </div>
             <div class="fieldDescription jpf-lede">
-                Offer profiles on the sign-in screens of apps that never load the web client — Android TV, Roku, Swiftfin, Findroid and Wholphin. Set each app to ask for sign-in every time, or a saved profile opens without its PIN. All three settings are off by default.
+                Offer profiles on the sign-in screens of apps that never load the web client — Android TV, Roku, Swiftfin, Findroid and Wholphin. Set each app to ask for sign-in every time, or a saved profile opens without its PIN. Everything here is off by default.
             </div>
 
             <div class="checkboxContainer checkboxContainer-withDescription">
@@ -585,6 +585,20 @@
                 </label>
                 <div class="fieldDescription">
                     Open the password field instead of a Quick Connect code. The first sign-in on a device still gets Quick Connect.
+                </div>
+            </div>
+
+            <h3 class="checkboxListLabel jpf-subhead">Profile picker</h3>
+            <div class="fieldDescription">
+                Sign in with the main account, then pick a profile on the app's home screen.
+            </div>
+            <div class="checkboxContainer checkboxContainer-withDescription">
+                <label>
+                    <input is="emby-checkbox" type="checkbox" class="jpfProxyClient" data-proxy-client="moonfin" />
+                    <span>Moonfin</span>
+                </label>
+                <div class="fieldDescription">
+                    Profiles can't sign in directly on Moonfin while this is on.
                 </div>
             </div>
 
@@ -883,6 +897,11 @@
                     page.querySelector('#enableClientPinLogin').checked = !!config.EnableClientPinLogin;
                     page.querySelector('#enableClientProfileList').checked = !!config.EnableClientProfileList;
                     page.querySelector('#skipQuickConnectOnKnownDevices').checked = !!config.SkipQuickConnectOnKnownDevices;
+                    // Absent before 1.7.1.2, which is the same as none ticked.
+                    const proxied = (config.ProxyClients || []).map(function (k) { return String(k).toLowerCase(); });
+                    page.querySelectorAll('.jpfProxyClient').forEach(function (box) {
+                        box.checked = proxied.indexOf(box.getAttribute('data-proxy-client')) !== -1;
+                    });
                     // Absent before 1.4.1 — "both" is the shipped default and the safe one.
                     // Matches IndexInjectionModes.Normalize on the server: anything
                     // unrecognised, including a configuration written before 1.4.1, is
@@ -2279,6 +2298,9 @@
                         enableClientPinLogin: page.querySelector('#enableClientPinLogin').checked,
                         enableClientProfileList: page.querySelector('#enableClientProfileList').checked,
                         skipQuickConnectOnKnownDevices: page.querySelector('#skipQuickConnectOnKnownDevices').checked,
+                        proxyClients: Array.prototype.filter.call(page.querySelectorAll('.jpfProxyClient'), function (box) {
+                            return box.checked;
+                        }).map(function (box) { return box.getAttribute('data-proxy-client'); }),
                         profileImageQuality: normalizeImageQuality(page.querySelector('#profileImageQuality').value)
                     })
                 }).then(function () {

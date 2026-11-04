@@ -28,6 +28,7 @@ namespace Jellyfin.Profiles.Auth
     public static class RequestDevice
     {
         private static readonly AsyncLocal<string?> _current = new();
+        private static readonly AsyncLocal<string?> _client = new();
 
         /// <summary>
         /// The current request's device id, or null when there is no request or it carried no
@@ -36,12 +37,26 @@ namespace Jellyfin.Profiles.Auth
         public static string? Current => _current.Value;
 
         /// <summary>
+        /// The current request's app name (<c>Client</c>), or null. Client-supplied like the
+        /// device id; used only to refuse a profile sign-in on an app that gets the picker
+        /// instead (see <see cref="ProxySwitcher"/>), where a forged name gains nothing.
+        /// </summary>
+        public static string? Client => _client.Value;
+
+        /// <summary>
         /// Records the device id for the rest of this request. Called by the middleware, and
         /// by harnesses that need to stand in for one.
         /// </summary>
         public static void Capture(string? deviceId)
         {
             _current.Value = string.IsNullOrWhiteSpace(deviceId) ? null : deviceId.Trim();
+        }
+
+        /// <summary>Records the device id and the app name together.</summary>
+        public static void Capture(string? deviceId, string? client)
+        {
+            Capture(deviceId);
+            _client.Value = string.IsNullOrWhiteSpace(client) ? null : client.Trim();
         }
     }
 }

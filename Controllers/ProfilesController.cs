@@ -3512,6 +3512,43 @@ namespace Jellyfin.Profiles.Controllers
             return Ok(new { Disabled = Plugin.IsPanicDisabled });
         }
 
+        /// <summary>
+        /// What an app needs to know before it shows any Bonfire screen: that Bonfire is
+        /// here, which version, whether it is switched off, and which features are on.
+        /// <para>
+        /// Anonymous, like <c>panic-state</c>, because an app decides what its sign-in screen
+        /// looks like before anyone has signed in. It says nothing about any household: only
+        /// settings an administrator has turned on for everyone.
+        /// </para>
+        /// <para>
+        /// <c>ApiVersion</c> goes up only when a released route changes in a way that breaks
+        /// a caller. Adding a route, a field or an error code does not change it.
+        /// </para>
+        /// </summary>
+        [HttpGet("info")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public ActionResult<object> GetInfo()
+        {
+            Response.Headers["Cache-Control"] = "no-store";
+            var config = ReadConfigSnapshot();
+
+            return Ok(new
+            {
+                Name = "Bonfire",
+                Version = GetPluginVersion(),
+                ApiVersion = 1,
+                Disabled = Plugin.IsPanicDisabled,
+                Features = new
+                {
+                    ClientPinLogin = config?.EnableClientPinLogin == true,
+                    ClientProfileList = config?.EnableClientProfileList == true,
+                    SkipQuickConnectOnKnownDevices = config?.SkipQuickConnectOnKnownDevices == true,
+                    ProfileThemes = config?.AllowProfileThemes != false,
+                    ProxyClients = config?.ProxyClients ?? new List<string>(),
+                },
+            });
+        }
+
         /// <summary>Whether a code is configured, and whether it has been used this run.</summary>
         [HttpGet("admin/panic-status")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -3926,8 +3963,17 @@ namespace Jellyfin.Profiles.Controllers
                     config.EnableClientProfileList = request.EnableClientProfileList.Value;
                 if (request.SkipQuickConnectOnKnownDevices.HasValue)
                     config.SkipQuickConnectOnKnownDevices = request.SkipQuickConnectOnKnownDevices.Value;
+                if (request.ProxyClients != null)
+                    config.ProxyClients = Auth.ProxyClients.Normalize(request.ProxyClients);
 
                 Plugin.Instance?.SaveConfiguration();
+            }
+
+            // A token looked at while its app was not ticked is remembered as "not ours" for
+            // a few minutes. Ticking it must take effect on the next request, not after that.
+            if (request.ProxyClients != null)
+            {
+                Auth.ProxySwitcher.ForgetUnproxied();
             }
 
             // Outside the lock: this walks users and writes to the database, and holding

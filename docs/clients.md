@@ -65,11 +65,20 @@ Streamyfin, Plezy and Tsukimi only offer a username and password box. They still
 This needs **Let profiles be opened with their PIN on any app** under **TVs & Apps**. It
 works the same way for any app not listed here.
 
+## Profile picker (beta)
+
+Only Moonfin for now. Tick it under **TVs & Apps → Profile picker**, then sign in on it
+with the main account. The home screen shows a **Profiles** library:
+
+1. Open a profile's folder to use that profile. A profile with a PIN opens a keypad.
+2. Open **Switch profile** on the home screen to go back.
+
+Profiles can't sign in directly on a ticked app.
+
 ## Not supported
 
 | App | Why |
 | --- | --- |
-| Moonfin | Doesn't identify the device when it asks for the user list. Typing the full account name and PIN works. |
 | Infuse | Has no Jellyfin user list. |
 | Apps with a fixed user list | Nothing for Bonfire to add to. |
 

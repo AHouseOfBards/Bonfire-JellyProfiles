@@ -131,6 +131,13 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public bool SkipQuickConnectOnKnownDevices { get; set; }
 
+        /// <summary>
+        /// Apps that get the profile picker served as their own home screen, by key from
+        /// <see cref="Auth.ProxyClients.Catalogue"/>. Empty by default: nothing is proxied
+        /// until an administrator ticks an app. See <see cref="Auth.ProxySwitcher"/>.
+        /// </summary>
+        public List<string> ProxyClients { get; set; } = new();
+
         /// <summary>Default for <see cref="ProfileMapping.SwitcherLocation"/>. See <see cref="DefaultAskOnStartup"/>.</summary>
         public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;
 

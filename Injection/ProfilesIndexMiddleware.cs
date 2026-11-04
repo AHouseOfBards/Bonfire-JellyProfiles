@@ -161,10 +161,23 @@ namespace Jellyfin.Profiles
             // string we already hold replaces the scan for everything else.
             if (IsUserRoute(context))
             {
-                Auth.RequestDevice.Capture(Controllers.ProfilesBaseController.ParseAuthorizationParameter(
-                    context.Request.Headers["Authorization"],
-                    context.Request.Headers["X-Emby-Authorization"],
-                    "DeviceId"));
+                Auth.RequestDevice.Capture(
+                    Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                        context.Request.Headers["Authorization"],
+                        context.Request.Headers["X-Emby-Authorization"],
+                        "DeviceId"),
+                    Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                        context.Request.Headers["Authorization"],
+                        context.Request.Headers["X-Emby-Authorization"],
+                        "Client"));
+            }
+
+            // An app that gets the profile picker. Checked before everything below, because
+            // a request it answers or rewrites must not also be renamed, listed or injected.
+            // Costs one list count when no app is ticked. See Auth/ProxySwitcher.cs.
+            if (await Auth.ProxySwitcher.TryHandleAsync(context, _next, _logger).ConfigureAwait(false))
+            {
+                return;
             }
 
             // Quick Connect on a device somebody has already signed in on. Answered here
@@ -382,6 +395,17 @@ namespace Jellyfin.Profiles
             // walking Mappings and KnownDevices, and a sign-in on another device can be
             // appending a device row at the same moment.
             var config = Controllers.ProfilesBaseController.ReadConfigSnapshot();
+
+            // An app that gets the picker signs in as the main account only, and a profile
+            // signed in directly there is refused. Listing them would offer tiles that fail.
+            if (Auth.ProxyClients.IsEnabled(config, Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                    context.Request.Headers[HeaderNames.Authorization],
+                    context.Request.Headers["X-Emby-Authorization"],
+                    "Client")))
+            {
+                await _next(context).ConfigureAwait(false);
+                return;
+            }
 
             // Resolved BEFORE the response is captured, so a device we do not recognise -
             // the overwhelmingly common case on a busy server - costs one header parse and

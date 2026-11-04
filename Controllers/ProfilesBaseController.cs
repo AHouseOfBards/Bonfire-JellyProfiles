@@ -45,6 +45,8 @@ namespace Jellyfin.Profiles.Controllers
     //   - every endpoint that needs a user calls GetCurrentUserId() and returns
     //     401 if it is null — this is done consistently across all endpoints.
     [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+    // Every error carries a stable code in X-Bonfire-Error. See ErrorCodes.
+    [BonfireErrors]
     public abstract class ProfilesBaseController : ControllerBase
     {
         // ── One-time static caches ──────────────────────────────────────────────────

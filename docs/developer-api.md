@@ -31,7 +31,7 @@ for Bonfire's own client. It's documented because other people build against it 
 
 ## All routes
 
-All 53 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 54 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -75,6 +75,7 @@ All 53 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `GET /plugins/profiles/admin/avatars/scan` | admin | List pictures in a server folder. |
 | `GET /plugins/profiles/admin/avatars/scan/file` | admin | Read one of them. |
 | `POST /plugins/profiles/panic` | anon | Emergency disable. |
+| `GET /plugins/profiles/info` | anon | Version and which features are on. |
 | `GET /plugins/profiles/panic-state` | anon | Whether Bonfire is disabled. |
 | `GET /plugins/profiles/admin/panic-status` | admin | Whether a code is set. |
 | `POST /plugins/profiles/admin/panic-code` | admin | Set or clear the code. |
@@ -99,7 +100,7 @@ switch, use the token it returns.
 Authorization: MediaBrowser Client="<Client>", Device="<Device>", DeviceId="<DeviceId>", Version="<Version>", Token="<token>"
 ```
 
-Seven routes are reachable without a token, because they're needed before anyone signs in.
+Eight routes are reachable without a token, because they're needed before anyone signs in.
 
 | Endpoint | Why it is anonymous |
 | --- | --- |
@@ -109,6 +110,7 @@ Seven routes are reachable without a token, because they're needed before anyone
 | `GET /avatars/{id}` | Same. |
 | `GET /library-art/{profileId}/{libraryId}` | Same. |
 | `POST /panic` | Has to work when Bonfire is what's blocking the interface. Rate limited. |
+| `GET /info` | Read before sign-in to decide what to show. Server-wide settings only. |
 | `GET /panic-state` | Says only whether Bonfire is disabled. |
 
 The image routes can be reached by anyone who knows the id. Ids are GUIDs, so they can't
@@ -117,27 +119,100 @@ be guessed.
 Every other route checks the caller itself, because the controller is
 `[AllowAnonymous]` so the routes above work. A new route with no check is public.
 
+### `GET /plugins/profiles/info`
+
+**Authorisation:** anonymous.
+
+Call this first, with no token. A `404` means Bonfire isn't installed. `disabled: true`
+means an administrator has switched it off: show no Bonfire screens.
+
+```json
+{
+  "name": "Bonfire",
+  "version": "1.7.1.2-beta",
+  "apiVersion": 1,
+  "disabled": false,
+  "features": {
+    "clientPinLogin": true,
+    "clientProfileList": true,
+    "skipQuickConnectOnKnownDevices": false,
+    "profileThemes": true,
+    "proxyClients": ["moonfin"]
+  }
+}
+```
+
+`features` holds server-wide settings only, never anything about a household. Sent with
+`no-store`.
+
+### Switching
+
+`POST /switch` returns a new token and leaves the old session signed in.
+
+- **End the old session.** Send Jellyfin's `POST /Sessions/Logout` with the old token,
+  then use the new one for everything.
+- **Keep one token.** A profile's token can call `/list` and `/switch` too: Bonfire works
+  out its main account. Switching back to the main account is another `/switch`.
+- **Manage profiles as the main account.** `/create`, `/update` and `/delete` refuse a
+  profile's token, so switch to the main account first.
+- **Lock after `lockoutMinutes`.** The server stores the value but doesn't enforce it.
+  After that long with no input, return to the profile screen.
+
 ## Errors
 
 | Code | Meaning |
 | --- | --- |
 | `200` | Done, including when there was nothing to change. |
+| `304` | Not modified. The client script and translations, when the `ETag` still matches. |
 | `400` | Refused. The body says why. |
-| `401` | No valid token, or not allowed. |
-| `404` | Unknown profile, image or library. |
-| `429` | Rate limited. See below. |
-| `500` | A bug. The body is Jellyfin's. |
+| `401` | The caller's token was rejected. Sign in again. |
+| `403` | The caller is signed in but not allowed, such as a profile managing profiles. Keep the session. |
+| `404` | Unknown profile, image, library or main account. |
+| `429` | Rate limited. Most limits also send `Retry-After` in seconds. |
+| `500` | A bug. |
 | `503` | A translation could not be read. Try again. |
 
-**Error bodies are plain text, not JSON.** Read the body as text and show it to the user;
-it's written for them.
+**The body is plain text, written for the user.** Show it. To decide what to do, read the
+`X-Bonfire-Error` header instead: a code that never changes once released.
 
 ```
 HTTP/1.1 400 Bad Request
 Content-Type: text/plain; charset=utf-8
+X-Bonfire-Error: pin_wrong
 
 Invalid PIN code.
 ```
+
+| Code | Meaning |
+| --- | --- |
+| `unauthenticated` | No valid token. The only code sent with `401`. |
+| `forbidden` | Not allowed, for a reason with no code of its own. |
+| `not_main_account` | Only the main account can do this. Switch to it first. |
+| `admin_only` | Only an administrator can do this. |
+| `not_your_profile` | The profile belongs to another household. |
+| `themes_locked` | The server doesn't let profiles choose a theme. |
+| `pin_wrong` | Wrong PIN. |
+| `pin_format` | A PIN must be 4 to 8 digits. |
+| `pin_needed_for_bonfire` | The account has no PIN, so it can't be opened through a Bonfire. |
+| `bonfire_code_wrong` | Wrong or malformed Bonfire code. |
+| `code_wrong` | Wrong emergency disable code, or none is set. |
+| `device_not_allowed` | The profile is limited to other devices. |
+| `profile_disabled` | The profile's account is turned off in Jellyfin. |
+| `too_many_sessions` | Jellyfin's session limit for the account was reached. |
+| `sign_in_failed` | Jellyfin refused to create the session. See the server log. |
+| `profile_limit` | The account has as many profiles as it's allowed. |
+| `name_taken` | The household already has a profile with that name. |
+| `name_invalid` | The name is empty, too long or uses characters that aren't allowed. |
+| `main_account_protected` | The main account can't be deleted as a profile. |
+| `bonfire_not_owner`, `bonfire_not_member`, `bonfire_own_group`, `bonfire_member_not_found` | Bonfire group actions that don't apply to the caller. |
+| `profile_not_found`, `user_not_found`, `library_not_found`, `image_not_found`, `not_found` | The thing named doesn't exist. |
+| `image_invalid` | The picture is missing, unreadable, too large or not an image. |
+| `rate_limited` | Too many attempts. Sent with `429`. |
+| `not_configured` | Bonfire's configuration couldn't be read. |
+| `invalid_request` | Refused, for a reason with no code of its own. |
+| `server_error`, `unavailable` | Sent with `500` and `503`. |
+
+New codes can be added in any release. Treat one you don't know by its status code.
 
 ## Rate limits
 
@@ -149,7 +224,7 @@ correct attempt resets the count. A refused request returns `429`.
 | PIN | `POST /switch`, `POST /verify-pin` | 5 | 15 minutes | address and profile |
 | PIN, per profile | the same, plus the main account's PIN on edits | 10 | 15 minutes | profile, all addresses |
 | client PIN | a PIN typed into another app's sign-in | 5, and 20 a day | 15 minutes, 24 hours | account |
-| Bonfire | `POST /bonfire/join` | 3 | 15 minutes | address |
+| Bonfire | `POST /bonfire/join` | 3 | 15 minutes | address, and separately account |
 | panic | `POST /panic` | 5 | 60 minutes | address |
 
 A client PIN that hits its limit gets Jellyfin's usual `Invalid username or password`. A
@@ -163,7 +238,10 @@ main account's real password keeps working.
 - Routes aren't removed within a major version. One being retired is marked deprecated
   here first.
 - Optional request fields that you leave out keep their stored value, unless the field
-  says otherwise.
+  says otherwise. `maxParentalRating` on `/update` is the exception: see that route.
+- Error wording can change in any release. Branch on `X-Bonfire-Error`, not the text.
+- `apiVersion` in `GET /info` goes up only when a released route changes in a way that
+  breaks callers.
 
 ---
 
@@ -225,6 +303,13 @@ Every profile the caller can switch to: their own household, then any linked Bon
 `enabledFolders`, the tag lists and `allowedDeviceIds` are empty for profiles in another
 household. PINs are stored hashed and never returned.
 
+**The rating limit isn't in this list.** Read it from Jellyfin's `GET /Users/{id}`, as
+`Policy.MaxParentalRating`. That's the limit in effect, which is the stricter of the
+profile's and its main account's. Send it back on every `/update`, or the profile's limit
+is removed.
+
+Errors: `401`, and `404` if the caller's main account no longer exists.
+
 ### `POST /plugins/profiles/switch`
 
 **Authorisation:** signed-in user. The target must be in the caller's household or Bonfire.
@@ -268,8 +353,8 @@ Errors:
 - `400`: wrong PIN, not allowed on this device, an unprotected account in another
   household, an account turned off in Dashboard → Users, or no session could be made
   (device not allowed, or too many sessions).
-- `401`: the caller's own token is invalid, or the target isn't theirs to open. A `401`
-  never means the target failed, so a client can treat it as "sign the caller in again".
+- `401`: the caller's own token is invalid. Sign the caller in again.
+- `403`: the target isn't theirs to open.
 - `404`: the profile doesn't exist.
 - `429`: too many wrong PINs.
 
@@ -284,7 +369,7 @@ Checks a profile's PIN without switching.
 ```
 
 Returns `200` when it's correct. Errors: `400` wrong PIN or not allowed on this device,
-`401`, `429`.
+`401`, `403` not the caller's profile, `429`.
 
 ### `POST /plugins/profiles/create`
 
@@ -429,14 +514,15 @@ placeholder tag that no item carries, so it sees nothing until it's edited.
 
 ## Sign-in from other apps
 
-Three settings under **TVs & Apps** change Jellyfin's own routes, for apps that never load
-the web client. All three are off by default.
+These settings under **TVs & Apps** change Jellyfin's own routes, for apps that never load
+the web client. All are off by default.
 
 | Setting | What changes |
 | --- | --- |
 | `enableClientPinLogin` | Profiles, and main accounts with a PIN, can be signed in to with the PIN where an app asks for a password. |
 | `enableClientProfileList` | `GET /Users/Public` includes the household of the device asking, and profiles show under their own name. |
 | `skipQuickConnectOnKnownDevices` | `POST /QuickConnect/Initiate` is refused on a TV a household has used, so the app shows its password box. |
+| `proxyClients` | The apps that get the profile picker. See below. |
 
 ### `GET /Users/Public`
 
@@ -474,6 +560,27 @@ look the same.
 - **A main account** keeps its real password; the PIN works as well.
 - **Every refusal** returns the same message, so nobody can tell which accounts are
   profiles.
+
+### The profile picker (beta)
+
+For an app listed in `proxyClients` (only `moonfin` so far, matched on the `Client` the app
+sends), signed in as a main account that has profiles:
+
+- **Until a profile is picked**, `/UserViews` returns one library, `Profiles`, with a folder
+  per profile. Resume, Next Up, Latest and search are empty. Everything else is answered as
+  the main account.
+- **Opening a profile's folder** (`GET /Users/{id}/Items?ParentId=…`) signs into it. A
+  profile with a PIN opens a keypad of folders first. The tries count against the same
+  limit as a PIN typed into a sign-in form.
+- **After that**, every request on the main account's token reaches Jellyfin as the
+  profile: its token, and its id in place of the main account's. `/UserViews` adds a
+  `Switch profile` folder, which signs the profile out and shows the picker again.
+- **The app is always shown the main account's id**, in `/Users/Me`, `/Users/{id}` and the
+  live connection. The name is the profile's.
+- **Signing a profile in directly is refused** on a listed app.
+
+The picker is held in memory: after a server restart the app is back at the picker. An
+app with its own Bonfire switcher should not be listed.
 
 ---
 
@@ -596,7 +703,7 @@ listed.
 
 **Authorisation:** signed-in user.
 
-The same list for one of the caller's profiles. `401` if it isn't theirs.
+The same list for one of the caller's profiles. `403` if it isn't theirs.
 
 ### `POST /plugins/profiles/library-artwork`
 
@@ -624,7 +731,7 @@ The same list for one of the caller's profiles. `401` if it isn't theirs.
 | `masterPin` | string | When the main account has a PIN | The main account's PIN. |
 
 `custom` with no picture keeps the stored one, or is refused if there isn't one. Errors:
-`400` unknown library, wrong PIN or bad picture; `401` not the caller's profile.
+`400` unknown library, wrong PIN or bad picture; `403` not the caller's profile.
 
 ### `GET /plugins/profiles/library-art/{profileId}/{libraryId}`
 
@@ -782,7 +889,7 @@ Starts a Bonfire. Returns `{ "groupId": "4f5c9e2b", "bonfireCode": "B7F8XA", "me
 
 Returns `{ "message": "Successfully joined Bonfire group.", "ownerName": "FriendMaster" }`.
 Joining leaves any Bonfire the caller was already in. Errors: `400` bad code or your own
-Bonfire, `401` not a main account, `429` too many tries.
+Bonfire, `403` not a main account, `429` too many tries.
 
 ### `POST /plugins/profiles/bonfire/kick`
 
@@ -864,7 +971,7 @@ browser only, so this route always returns the household's answer.
 ```
 
 Both are optional. Returns the stored values in the `GET` shape; cache those rather than
-what you sent. `401` for a profile.
+what you sent. `403` for a profile.
 
 ### Themes
 
@@ -910,9 +1017,8 @@ that profile now sees, `stored` its own choice or `null`.
 Errors:
 
 - `400`: an unknown theme, or a wrong main-account PIN.
-- `401`: the caller is a profile rather than the main account, or `profileId` is outside
-  the household.
-- `403`: the server doesn't let profiles choose.
+- `403`: the caller is a profile rather than the main account, `profileId` is outside
+  the household, or the server doesn't let profiles choose.
 - `429`: too many wrong PINs.
 
 ---

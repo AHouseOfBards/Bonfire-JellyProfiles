@@ -57,6 +57,9 @@ namespace Jellyfin.Profiles.Models
 
         public bool? SkipQuickConnectOnKnownDevices { get; set; }
 
+        /// <summary>Keys from <c>ProxyClients.Catalogue</c>. Unknown keys are dropped. Null leaves it alone.</summary>
+        public System.Collections.Generic.List<string>? ProxyClients { get; set; }
+
         /// <summary>See <c>ImageQualities</c>: standard, high or maximum. Null leaves it alone.</summary>
         public string? ProfileImageQuality { get; set; }
     }

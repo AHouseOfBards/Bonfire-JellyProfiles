@@ -288,6 +288,19 @@ namespace Jellyfin.Profiles.Auth
             // entry off. A sub-profile has no password of its own to fall back to.
             if (Plugin.IsPanicDisabled) throw Decline();
 
+            // An app that gets the picker signs in as the main account and picks there. A
+            // profile signed in directly would skip the picker and its keypad, and leave a
+            // profile token the app could keep, which is the Roku problem (#40) again.
+            if (ProxyClients.IsEnabled(config, RequestDevice.Client))
+            {
+                _logger.LogInformation(
+                    "ProfilesPlugin: refused a direct sign-in to profile {ProfileId} on {Client}, which "
+                    + "gets the profile picker instead.",
+                    mapping.ProfileUserId,
+                    RequestDevice.Client);
+                throw Decline();
+            }
+
             // A profile limited to particular devices is limited here too.
             //
             // The switcher and verify-pin both enforce this, and the sign-in-screen path
@@ -446,7 +459,7 @@ namespace Jellyfin.Profiles.Auth
         /// Counted before the PIN is checked, so parallel guesses cannot all pass the check
         /// together. Both windows are consulted every time.
         /// </summary>
-        private static bool BeginPinAttempt(Guid userId)
+        internal static bool BeginPinAttempt(Guid userId)
         {
             var key = userId.ToString("N");
             var shortWindow = Controllers.RateLimiter.ClientPin.TryBegin(key);
@@ -455,7 +468,7 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>A PIN was right: the account's allowance starts again.</summary>
-        private static void EndPinAttempt(Guid userId)
+        internal static void EndPinAttempt(Guid userId)
         {
             var key = userId.ToString("N");
             Controllers.RateLimiter.ClientPin.Reset(key);

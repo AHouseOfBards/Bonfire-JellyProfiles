@@ -74,6 +74,13 @@ async function run(fieldValues) {
         profileImageQuality: 'standard'
     }, fieldValues || {});
 
+    // The profile picker's apps: one checkbox each, found by class. Ticked ones listed here.
+    const proxyTicked = (fieldValues && fieldValues.proxyTicked) || [];
+    delete fields.proxyTicked;
+    const proxyBoxes = ['moonfin'].map(function (key) {
+        return { checked: proxyTicked.indexOf(key) !== -1, getAttribute: function () { return key; } };
+    });
+
     // One fake element per id. `value` and `checked` both present, so whichever the
     // function reads works, and writes back (the clamp does) are visible afterwards.
     const elements = {};
@@ -89,6 +96,10 @@ async function run(fieldValues) {
             const el = elements[sel.replace('#', '')];
             if (!el) throw new Error('the page has no ' + sel);
             return el;
+        },
+        querySelectorAll: function (sel) {
+            if (sel !== '.jpfProxyClient') throw new Error('the page has no ' + sel);
+            return proxyBoxes;
         }
     };
 
@@ -183,6 +194,7 @@ const expected = [
     'enableClientPinLogin',
     'enableClientProfileList',
     'skipQuickConnectOnKnownDevices',
+    'proxyClients',
     'profileImageQuality'
 ];
 
@@ -204,6 +216,13 @@ if (body) {
                !Object.prototype.hasOwnProperty.call(body, k));
         });
 }
+
+console.log('\n── The profile picker\'s apps ──────────────────────────────────');
+
+ok('no app ticked sends an empty list, which turns the picker off',
+   Array.isArray(body && body.proxyClients) && body.proxyClients.length === 0);
+const moon = await run({ proxyTicked: ['moonfin'] });
+ok('a ticked app is sent by its key', JSON.stringify(sent(moon).proxyClients) === '["moonfin"]');
 
 console.log('\n── The starter-avatar switch (issue #32) ───────────────────────');
 
