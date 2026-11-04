@@ -32,11 +32,17 @@ Turn it on under **Dashboard → Bonfire → TVs & Apps**.
 | Findroid (phone and TV) | Not yet confirmed on hardware. |
 | Wholphin | Not yet confirmed on hardware. |
 
-**Turn off automatic sign-in**, or the app skips the screen your profiles are on:
+**Make the app ask every time.** These apps save a sign-in, and a saved profile opens
+without its PIN unless the app is set to ask:
 
-- **Android TV:** Settings → Login → Automatic sign in → *Disable*
-- **Roku:** untick *Remember me* when you sign in
-- The others show their user list by default.
+- **Android TV:** Settings → Login → *Always ask for credentials*.
+- **Roku:** Settings → Global → turn off *Remember Me?*. Bonfire then makes the app ask
+  for the PIN each time the user list opens.
+- **Wholphin:** on each profile with a PIN, Settings → *Profile protection* →
+  *Require login for profile*.
+- **Swiftfin** and **Findroid** can't be set to ask. A profile signed in on them opens
+  without its PIN. Swiftfin can lock a profile with its own PIN under Settings → the
+  profile → *Security*.
 
 **Type the PIN where the app asks for a password.** A main account with no PIN still uses
 its real password. A profile with no PIN opens with the box left empty.

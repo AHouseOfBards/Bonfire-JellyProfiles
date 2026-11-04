@@ -462,7 +462,7 @@ namespace Jellyfin.Profiles.Auth
         /// <c>[a-zA-Z0-9\-\_]</c> removed, matching its own
         /// <c>CreateObject("roRegex", "[^a-zA-Z0-9\-\_]", "")</c>.
         /// </summary>
-        private static string RokuFriendlyName(string name)
+        internal static string RokuFriendlyName(string name)
         {
             var kept = new StringBuilder(name.Length);
             foreach (var c in name)

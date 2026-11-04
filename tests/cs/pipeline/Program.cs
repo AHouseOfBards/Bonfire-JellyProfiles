@@ -43,6 +43,8 @@ var networkConfig = new NetworkConfiguration();
 var serverConfig = DispatchProxy.Create<IServerConfigurationManager, ThrowingProxy>();
 var userManager = DispatchProxy.Create<IUserManager, ThrowingProxy>();
 var deviceManager = DispatchProxy.Create<IDeviceManager, ThrowingProxy>();
+var sessionManager = DispatchProxy.Create<MediaBrowser.Controller.Session.ISessionManager, ThrowingProxy>();
+var networkManager = DispatchProxy.Create<MediaBrowser.Common.Net.INetworkManager, ThrowingProxy>();
 ((ThrowingProxy)(object)serverConfig).AnswerTo = "GetConfiguration";
 ((ThrowingProxy)(object)serverConfig).Answer = networkConfig;
 
@@ -91,7 +93,7 @@ async Task<Result> Run(string path, RequestDelegate downstream, Action<HttpConte
     // The user-list injection takes these; the index path this file exercises never
     // touches them, and both proxies throw on any call — so if that ever stops being true,
     // these tests say so loudly instead of quietly exercising a different path.
-    await middleware.Invoke(context, serverConfig, userManager, deviceManager);
+    await middleware.Invoke(context, serverConfig, userManager, deviceManager, sessionManager, networkManager);
 
     return new Result
     {

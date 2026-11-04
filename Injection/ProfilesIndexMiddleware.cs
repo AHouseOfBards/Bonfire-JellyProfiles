@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Hosting;
 using Jellyfin.Profiles.Auth;
 using MediaBrowser.Controller.Devices;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Session;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
@@ -142,7 +143,9 @@ namespace Jellyfin.Profiles
             HttpContext context,
             IServerConfigurationManager serverConfig,
             IUserManager userManager,
-            IDeviceManager deviceManager)
+            IDeviceManager deviceManager,
+            ISessionManager sessionManager,
+            INetworkManager networkManager)
         {
             // Recorded before anything branches, because the one place that needs it is
             // authentication and Jellyfin hands a provider nothing about the request.
@@ -206,6 +209,16 @@ namespace Jellyfin.Profiles
             {
                 await RewriteOwnNameAsync(context).ConfigureAwait(false);
                 return;
+            }
+
+            // A Roku's picker is opening: whoever was using a PIN-protected profile on it has
+            // left, so that profile's saved sign-in on this set is revoked and the app asks
+            // for the PIN again. Independent of the profile list setting - a Roku lists the
+            // accounts it has saved whether or not we add any. See Auth/SavedSignInLock.cs.
+            if (IsPublicUsersRequest(context))
+            {
+                await LockSavedSignInsAsync(context, userManager, deviceManager, sessionManager, networkManager)
+                    .ConfigureAwait(false);
             }
 
             // The login-screen user list, a completely separate job from the index document
@@ -508,27 +521,71 @@ namespace Jellyfin.Profiles
         /// path so no other Users route is ever buffered.
         /// </summary>
         private static bool IsPublicUsersPath(HttpContext context)
+            => Plugin.Instance?.Configuration?.EnableClientProfileList == true
+               && IsPublicUsersRequest(context);
+
+        /// <summary>
+        /// <c>GET /Users/Public</c>, whatever the settings say. The emergency disable reaches
+        /// this too; see IsOwnUserPath.
+        /// </summary>
+        private static bool IsPublicUsersRequest(HttpContext context)
         {
-            // Emergency disable reaches this too. See IsOwnUserPath.
             if (Plugin.IsPanicDisabled) return false;
-
-            if (!HttpMethods.IsGet(context.Request.Method))
-            {
-                return false;
-            }
-
-            if (Plugin.Instance?.Configuration?.EnableClientProfileList != true)
-            {
-                return false;
-            }
+            if (!HttpMethods.IsGet(context.Request.Method)) return false;
 
             var path = context.Request.Path.Value;
-            if (string.IsNullOrEmpty(path))
+            return !string.IsNullOrEmpty(path)
+                && path.EndsWith("/Users/Public", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Hands a sign-in screen's request to <see cref="SavedSignInLock"/>. Cheap when it
+        /// has nothing to do: one setting read, one header parse and an in-memory lookup.
+        /// </summary>
+        private async Task LockSavedSignInsAsync(
+            HttpContext context,
+            IUserManager userManager,
+            IDeviceManager deviceManager,
+            ISessionManager sessionManager,
+            INetworkManager networkManager)
+        {
+            var config = Controllers.ProfilesBaseController.ReadConfigSnapshot();
+            if (config?.EnableClientPinLogin != true) return;
+
+            var auth = context.Request.Headers[HeaderNames.Authorization];
+            var emby = context.Request.Headers["X-Emby-Authorization"];
+
+            // Every way Jellyfin accepts a token. Any of them means somebody is signed in on
+            // this client, and their session is not ours to end.
+            var carriesToken =
+                !string.IsNullOrEmpty(Controllers.ProfilesBaseController.ParseAuthorizationParameter(auth, emby, "Token"))
+                || !StringValues.IsNullOrEmpty(context.Request.Headers["X-Emby-Token"])
+                || !StringValues.IsNullOrEmpty(context.Request.Headers["X-MediaBrowser-Token"])
+                || context.Request.Query.ContainsKey("api_key")
+                || context.Request.Query.ContainsKey("ApiKey");
+
+            // Unknown counts as not local: the cost of being wrong is one more PIN.
+            bool isLocal;
+            try
             {
-                return false;
+                var remoteIp = context.Connection.RemoteIpAddress;
+                isLocal = remoteIp != null && networkManager != null && networkManager.IsInLocalNetwork(remoteIp);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "ProfilesPlugin: could not tell whether a sign-in screen is on the local network.");
+                isLocal = false;
             }
 
-            return path.EndsWith("/Users/Public", StringComparison.OrdinalIgnoreCase);
+            await SavedSignInLock.LockAsync(
+                Controllers.ProfilesBaseController.ParseAuthorizationParameter(auth, emby, "DeviceId"),
+                carriesToken,
+                isLocal,
+                config,
+                deviceManager,
+                sessionManager,
+                userManager,
+                _logger).ConfigureAwait(false);
         }
 
         /// <summary>
