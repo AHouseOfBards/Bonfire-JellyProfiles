@@ -1960,17 +1960,25 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-pin-error {
     color: var(--jpf-danger); font-size: 0.9rem; font-weight: 600; text-align: center;
 }
-#profile-pin-input, #master-pin-input, #main-pin-new {
+#profile-pin-input, #master-pin-input, #main-pin-new, #pin-reset-new, #pin-reset-code {
     background: var(--jpf-input-bg); border: 2px solid var(--jpf-input-border);
     border-radius: var(--jpf-input-r); color: #fff; font-size: 2.5rem; text-align: center;
     padding: 12px; width: 180px; letter-spacing: 0.6rem;
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
     -webkit-text-security: disc;
 }
+/* The mailed code is read off a phone and typed, so it stays visible, and six
+   digits need more room than a PIN's four. */
+#pin-reset-code {
+    -webkit-text-security: none; width: 240px; font-size: 2rem; letter-spacing: 0.35rem;
+}
+#pin-reset-code::placeholder, #pin-reset-new::placeholder {
+    font-size: 1rem; letter-spacing: normal;
+}
 #create-pin-input, #edit-pin-input {
     -webkit-text-security: disc;
 }
-#profile-pin-input:focus, #master-pin-input:focus, #main-pin-new:focus {
+#profile-pin-input:focus, #master-pin-input:focus, #main-pin-new:focus, #pin-reset-new:focus, #pin-reset-code:focus {
     border-color: var(--jpf-accent); outline: none;
     box-shadow: 0 0 15px var(--jpf-accent-a30);
 }
@@ -2445,6 +2453,26 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-onboarding-actions { margin-top: 2rem !important; }
 .jpf-onboarding .profiles-pin-error { margin-top: 1rem; }
 
+/* Email (1.7.2). A text button for the side paths — "Forgot PIN?", "Send a new
+   code" — so they don't compete with the buttons that finish the screen.
+   Its focus ring is a plain :focus: :focus-visible is Chrome 86, and a TV
+   reaches these with the remote (see .profile-section :focus below). */
+.jpf-text-link {
+    background: none; border: 0; padding: 6px 2px; margin: 0;
+    color: var(--jpf-accent); font: inherit; font-size: 0.9rem; font-weight: 600;
+    text-decoration: underline; cursor: pointer;
+}
+.jpf-text-link:hover { opacity: 0.85; }
+.jpf-text-link:focus { outline: 2px solid var(--jpf-accent); outline-offset: 3px; border-radius: var(--jpf-r-sm); }
+.jpf-text-link[hidden] { display: none; }
+.jpf-onboarding .jpf-text-link { margin-top: 0.5rem; }
+.jpf-inline-row { display: flex; gap: var(--jpf-gap); flex-wrap: wrap; align-items: center; }
+.jpf-inline-row > input { flex: 1 1 180px; min-width: 0; }
+.jpf-inline-row > .profiles-btn { padding: 10px 15px; }
+.jpf-email-address { flex: 1 1 180px; min-width: 0; font-weight: 600; word-break: break-all; }
+.jpf-email-check { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none; }
+.jpf-email-check input { accent-color: var(--jpf-accent); cursor: pointer; }
+
 /* ── "More settings" under a profile form's Basics (1.7.2) ──────────
    A <details>: closed until asked for, opened with Enter on a remote.
    The marker is drawn by us (the caret), so the browser's is hidden in
@@ -2882,6 +2910,8 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-no-flex-gap .libart-list > * + * { margin-top: 6px; }
 .jpf-no-flex-gap .profile-section-heading > * + * { margin-top: 2px; }
 .jpf-no-flex-gap .jpf-more > summary > * + * { margin-left: 0.7rem; }
+.jpf-no-flex-gap .jpf-inline-row > * { margin: 0 var(--jpf-gap) var(--jpf-gap) 0; }
+.jpf-no-flex-gap .jpf-email-check > * + * { margin-left: 0.5rem; }
 .jpf-no-flex-gap .jpf-more-label > * + * { margin-top: 2px; }
 @media (max-width: 899px) {
     .jpf-no-flex-gap .jpf-more-body > * + * { margin-top: 1.5rem; }

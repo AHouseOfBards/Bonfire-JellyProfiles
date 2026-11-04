@@ -139,7 +139,9 @@ function loadPlugin(src) {
             });
         },
         document: {
-            head: makeNode({}), body: makeNode({}), documentElement: makeNode({}),
+            // Everything drawn here is on the page; a screen that checks before drawing
+            // late (the account's Email section) draws.
+            head: makeNode({}), body: makeNode({}, { contains: () => true }), documentElement: makeNode({}),
             createElement: () => makeNode({}),
             querySelector: sel => (sel === '.profiles-modal-content' ? content : null),
             querySelectorAll: () => [],

@@ -41,7 +41,7 @@
 
     /// First-time setup steps this script can draw (OnboardingSteps on the server). A
     /// newer server's unknown step is left out rather than shown blank.
-    const ONBOARDING_STEPS = ['welcome', 'mainPin', 'firstProfile', 'switcher', 'theme'];
+    const ONBOARDING_STEPS = ['welcome', 'mainPin', 'resetEmail', 'firstProfile', 'switcher', 'theme'];
     const THEME_NAMES = {
         bonfire: 'Bonfire',
         crimson: 'Crimson',
@@ -412,6 +412,30 @@
         'onboarding.switcherTitle': 'How do you want to switch?',
         'onboarding.themeTitle': 'Pick a look',
         'onboarding.themeBody': 'You can change it later in Settings.',
+        'onboarding.emailTitle': 'Add your email',
+        'onboarding.emailBody': 'If you forget your PIN, a code can be sent here.',
+        'accountEmail.title': 'Email',
+        'accountEmail.subtitle': 'For a forgotten PIN and notices',
+        'accountEmail.address': 'Email address',
+        'accountEmail.send': 'Send code',
+        'accountEmail.sentTo': 'Enter the code sent to {address}.',
+        'accountEmail.code': 'Code',
+        'accountEmail.confirm': 'Confirm',
+        'accountEmail.otherAddress': 'Use a different address',
+        'accountEmail.change': 'Change',
+        'accountEmail.remove': 'Remove',
+        'accountEmail.saved': 'Email saved.',
+        'accountEmail.removed': 'Email removed.',
+        'accountEmail.resetHint': 'If you forget your PIN, a code can be sent here.',
+        'accountEmail.notifyLockout': 'Email me when a PIN is locked',
+        'accountEmail.notifyNewDevice': 'Email me when a new device signs in',
+        'accountEmail.invalid': 'Enter an email address.',
+        'accountEmail.codeInvalid': 'Enter the 6-digit code.',
+        'pinReset.forgot': 'Forgot PIN?',
+        'pinReset.title': 'Reset your PIN',
+        'pinReset.sentTo': 'Enter the code sent to {address}, then a new PIN.',
+        'pinReset.newPin': 'New PIN',
+        'pinReset.sendAgain': 'Send a new code',
         'settings.profilesTitle': 'Profiles',
         'settings.profilesBody': 'Add, edit and remove profiles.',
         'settings.accountTitle': 'Your account',
@@ -4137,7 +4161,7 @@
                 '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
                 '#pin-cancel-btn, #master-pin-cancel-btn, #create-cancel-btn, #edit-cancel-btn, ' +
                 '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #theme-settings-back-btn, #account-back-btn, #profiles-resume-btn, #profiles-libart-cancel, ' +
-                '#onboarding-skip, #main-pin-skip'
+                '#onboarding-skip, #main-pin-skip, #pin-reset-back'
             );
             if (back) back.click();
         },
@@ -5129,12 +5153,19 @@
                         <button id="pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.back')}</button>
                         <button id="pin-submit-btn" class="profiles-btn btn-primary">${t('common.unlock')}</button>
                     </div>
+                    <button type="button" id="pin-forgot" class="jpf-text-link" hidden>${t('pinReset.forgot')}</button>
                 </div>
             `;
 
             const pinInput = document.getElementById('profile-pin-input');
             const errorMsg = document.getElementById('pin-error-msg');
             pinInput.focus();
+            // The main account's own PIN only: a profile's is reset by the main account.
+            const own = (this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
+            if (own && this.normalizeGuid(own.profileUserId) === this.normalizeGuid(profileId)) {
+                this._offerPinReset(content, () => this.promptPinEntry(profileId),
+                    (pin) => this.executeProfileSwitch(profileId, pin, () => this.promptPinEntry(profileId)));
+            }
 
             // Track in-flight silent verify so we can cancel it if the user keeps typing,
             // and prevent a second switch from firing if one is already in progress.
@@ -5341,12 +5372,14 @@
                         <button id="master-pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                         <button id="master-pin-submit-btn" class="profiles-btn btn-primary">${t('common.submit')}</button>
                     </div>
+                    <button type="button" id="pin-forgot" class="jpf-text-link" hidden>${t('pinReset.forgot')}</button>
                 </div>
             `;
 
             const pinInput = document.getElementById('master-pin-input');
             const errorMsg = document.getElementById('master-pin-error-msg');
             pinInput.focus();
+            this._offerPinReset(content, () => this.promptMasterPinEntry(actionType, callback), () => callback());
 
             let verifyController = null;
             let verified = false; // prevent callback firing more than once
@@ -5453,6 +5486,244 @@
                 if (verifyController) verifyController.abort();
                 this.showProfileOverlay(this.currentProfiles);
             });
+        },
+
+        /// A field from a server reply in either casing: o.sentTo or o.SentTo.
+        _field: function (o, k) {
+            if (!o) return undefined;
+            return o[k] !== undefined ? o[k] : o[k.charAt(0).toUpperCase() + k.slice(1)];
+        },
+
+        /// One call to an /account/email or /account/pin-reset route as the main account.
+        /// No body is a GET. Resolves the reply's JSON ({} when there is none); rejects
+        /// with the server's words.
+        ///
+        /// The language goes with every POST: it is what the mail is written in.
+        _emailCall: function (path, body) {
+            const masterState = this.readMasterState();
+            const token = masterState ? masterState.token : ApiClient.accessToken();
+            const init = body === undefined
+                ? { cache: 'no-store', headers: this.manageHeaders(token, false) }
+                : {
+                    method: 'POST',
+                    headers: this.jsonHeaders(token),
+                    body: JSON.stringify(Object.assign({ masterPin: this.masterPin || null, language: activeLocale || '' }, body))
+                };
+            return fetch(ApiClient.getUrl('plugins/profiles/' + path), init).then(res => {
+                if (res.status === 401) { this.handleSessionExpired(); throw new Error(t('errors.error')); }
+                if (!res.ok) return res.text().then(text => { throw new Error(text || t('errors.error')); });
+                return res.text().then(text => {
+                    try { return text ? JSON.parse(text) : {}; } catch (e) { return {}; }
+                });
+            });
+        },
+
+        /// Shows "Forgot PIN?" on a main-PIN prompt when the server can mail this account a
+        /// code. Asked of /me once, when the prompt opens.
+        ///
+        /// back() redraws the prompt; done(pin) carries on with the new PIN, so a reset
+        /// lands where the person was going instead of asking for the PIN just set.
+        _offerPinReset: function (content, back, done) {
+            const link = content.querySelector('#pin-forgot');
+            const masterState = this.readMasterState();
+            if (!link || !masterState) return;
+            fetch(ApiClient.getUrl('plugins/profiles/me'), {
+                cache: 'no-store',
+                headers: this.getAuthHeaders(masterState.token)
+            })
+            .then(res => res.ok ? res.json() : null)
+            .then(me => {
+                if (this._field(me, 'pinResetByEmail') !== true || !document.body.contains(link)) return;
+                link.hidden = false;
+                link.addEventListener('click', () => this.showPinReset(back, done));
+            })
+            .catch(() => { /* no link; the prompt works as before */ });
+        },
+
+        /// Forgot PIN: a code to the main account's confirmed address, then a new PIN.
+        /// The code is sent as the screen opens, since sending it is all the screen is for.
+        showPinReset: function (back, done) {
+            this.beginNavigation();
+            const content = document.querySelector('.profiles-modal-content');
+            if (!content) return;
+            content.innerHTML = `
+                <h1 class="profiles-title">${t('pinReset.title')}</h1>
+                <div class="pin-entry-container">
+                    <p class="profiles-pin-note" id="pin-reset-note"></p>
+                    <input type="text" id="pin-reset-code" maxlength="7" inputmode="numeric" placeholder="${t('accountEmail.code')}" aria-label="${t('accountEmail.code')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    <input type="text" id="pin-reset-new" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${t('pinReset.newPin')}" aria-label="${t('pinReset.newPin')}" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    <div id="pin-reset-error" class="profiles-pin-error" role="alert" hidden></div>
+                    <div class="pin-actions jpf-actions">
+                        <button id="pin-reset-back" class="profiles-btn btn-secondary">${t('common.back')}</button>
+                        <button id="pin-reset-save" class="profiles-btn btn-primary">${t('mainPin.set')}</button>
+                    </div>
+                    <button type="button" id="pin-reset-again" class="jpf-text-link">${t('pinReset.sendAgain')}</button>
+                </div>
+            `;
+            const note = content.querySelector('#pin-reset-note');
+            const error = content.querySelector('#pin-reset-error');
+            const code = content.querySelector('#pin-reset-code');
+            const pin = content.querySelector('#pin-reset-new');
+            const fail = (message) => { error.textContent = message; error.hidden = false; };
+
+            const send = () => {
+                error.hidden = true;
+                this._emailCall('account/pin-reset/send', {})
+                    .then(reply => {
+                        note.textContent = t('pinReset.sentTo', { address: this._field(reply, 'sentTo') || '' });
+                        code.focus();
+                    })
+                    .catch(err => fail(err.message));
+            };
+
+            let busy = false;
+            const save = () => {
+                const typed = code.value.replace(/\s/g, '');
+                if (!/^\d{6}$/.test(typed)) { fail(t('accountEmail.codeInvalid')); code.focus(); return; }
+                if (!/^\d{4,8}$/.test(pin.value)) { fail(t('profileForm.pinLengthCreate')); pin.focus(); return; }
+                if (busy) return;
+                busy = true;
+                const newPin = pin.value;
+                this._emailCall('account/pin-reset', { code: typed, newPin: newPin })
+                    .then(() => {
+                        this.masterPin = newPin;
+                        (this.currentProfiles || []).forEach(p => { if (p.isMaster && !p.isBonfire) p.hasPin = true; });
+                        done(newPin);
+                    })
+                    .catch(err => { busy = false; fail(err.message); });
+            };
+
+            content.querySelector('#pin-reset-save').addEventListener('click', save);
+            pin.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+            code.addEventListener('keydown', (e) => { if (e.key === 'Enter') pin.focus(); });
+            content.querySelector('#pin-reset-back').addEventListener('click', back);
+            content.querySelector('#pin-reset-again').addEventListener('click', send);
+            send();
+        },
+
+        /// The Email section of Your account. Draws nothing until the server says email
+        /// works, so a server without it never shows an empty section.
+        ///
+        /// Every route answers with the whole state, so each action just redraws from the
+        /// reply: the address, a code on its way, or nothing yet.
+        _bindAccountEmail: function (slot) {
+            if (!slot) return;
+            let data = null;
+            let editing = false;
+            const field = (k) => this._field(data, k);
+            const say = (text, bad) => {
+                const status = slot.querySelector('#account-email-status');
+                if (!status) return;
+                status.textContent = text || '';
+                status.style.color = bad ? 'var(--jpf-danger)' : '';
+            };
+            const run = (path, body, done) => this._emailCall(path, body)
+                .then(reply => { data = reply; editing = false; draw(); if (done) say(done); })
+                .catch(err => say(err.message, true));
+
+            const draw = () => {
+                if (!document.body.contains(slot)) return;
+                if (field('available') !== true) { slot.innerHTML = ''; return; }
+                const address = field('address') || '';
+                const pending = field('pendingAddress') || '';
+                const box = (id, on, label) => `
+                    <div class="form-group">
+                        <label class="library-check-label jpf-email-check">
+                            <input type="checkbox" id="${id}" ${on ? 'checked' : ''} />
+                            <span>${label}</span>
+                        </label>
+                    </div>`;
+                const noFill = 'data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true"';
+                let body;
+                if (pending && !editing) {
+                    body = `
+                        <div class="form-group">
+                            <label for="account-email-code">${t('accountEmail.code')}</label>
+                            <div class="jpf-inline-row">
+                                <input type="text" id="account-email-code" maxlength="7" inputmode="numeric" autocomplete="one-time-code" ${noFill} />
+                                <button type="button" id="account-email-confirm" class="profiles-btn btn-primary">${t('accountEmail.confirm')}</button>
+                            </div>
+                            <div class="form-hint" id="account-email-sent"></div>
+                            <button type="button" id="account-email-other" class="jpf-text-link">${t('accountEmail.otherAddress')}</button>
+                        </div>`;
+                } else if (address && !editing) {
+                    body = `
+                        <div class="form-group">
+                            <label>${t('accountEmail.address')}</label>
+                            <div class="jpf-inline-row">
+                                <span class="jpf-email-address">${escapeHtml(address)}</span>
+                                <button type="button" id="account-email-change" class="profiles-btn btn-secondary">${t('accountEmail.change')}</button>
+                                <button type="button" id="account-email-remove" class="profiles-btn btn-secondary">${t('accountEmail.remove')}</button>
+                            </div>
+                            ${field('pinResetEnabled') === true ? `<div class="form-hint">${t('accountEmail.resetHint')}</div>` : ''}
+                        </div>
+                        ${box('account-email-lockout', field('notifyLockout') !== false, t('accountEmail.notifyLockout'))}
+                        ${box('account-email-device', field('notifyNewDevice') !== false, t('accountEmail.notifyNewDevice'))}`;
+                } else {
+                    body = `
+                        <div class="form-group">
+                            <label for="account-email-input">${t('accountEmail.address')}</label>
+                            <div class="jpf-inline-row">
+                                <input type="email" id="account-email-input" maxlength="254" autocomplete="email" value="${escapeHtml(address)}" />
+                                <button type="button" id="account-email-send" class="profiles-btn btn-primary">${t('accountEmail.send')}</button>
+                                ${address ? `<button type="button" id="account-email-cancel" class="profiles-btn btn-secondary">${t('common.cancel')}</button>` : ''}
+                            </div>
+                        </div>`;
+                }
+                slot.innerHTML = this.renderSection('mail', t('accountEmail.title'), t('accountEmail.subtitle'),
+                    body + '<div id="account-email-status" class="form-hint" role="status" aria-live="polite"></div>');
+
+                const q = (id) => slot.querySelector('#' + id);
+                const sent = q('account-email-sent');
+                if (sent) sent.textContent = t('accountEmail.sentTo', { address: pending });
+
+                const input = q('account-email-input');
+                if (input) {
+                    const send = () => {
+                        const typed = input.value.trim();
+                        if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(typed)) { say(t('accountEmail.invalid'), true); input.focus(); return; }
+                        run('account/email', { address: typed });
+                    };
+                    q('account-email-send').addEventListener('click', send);
+                    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+                    const cancel = q('account-email-cancel');
+                    if (cancel) cancel.addEventListener('click', () => { editing = false; draw(); });
+                }
+
+                const codeInput = q('account-email-code');
+                if (codeInput) {
+                    const confirm = () => {
+                        const typed = codeInput.value.replace(/\s/g, '');
+                        if (!/^\d{6}$/.test(typed)) { say(t('accountEmail.codeInvalid'), true); codeInput.focus(); return; }
+                        run('account/email/confirm', { code: typed }, t('accountEmail.saved'));
+                    };
+                    q('account-email-confirm').addEventListener('click', confirm);
+                    codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirm(); });
+                    q('account-email-other').addEventListener('click', () => { editing = true; draw(); });
+                }
+
+                const change = q('account-email-change');
+                if (change) change.addEventListener('click', () => { editing = true; draw(); });
+                const remove = q('account-email-remove');
+                if (remove) remove.addEventListener('click', () => run('account/email/remove', {}, t('accountEmail.removed')));
+
+                [['account-email-lockout', 'notifyLockout'], ['account-email-device', 'notifyNewDevice']].forEach(pair => {
+                    const el = q(pair[0]);
+                    if (!el) return;
+                    el.addEventListener('change', () => {
+                        const body = {};
+                        body[pair[1]] = el.checked;
+                        this._emailCall('account/email/notifications', body)
+                            .then(reply => { data = reply; say(t('account.saved')); })
+                            .catch(err => { el.checked = !el.checked; say(err.message, true); });
+                    });
+                });
+                this.initTVCheckboxes(slot);
+            };
+
+            this._emailCall('account/email')
+                .then(reply => { data = reply; draw(); })
+                .catch(() => { /* no section; the rest of the page works without it */ });
         },
 
         // onError: optional callback(message) invoked on a failed switch.
@@ -7326,6 +7597,7 @@
                 <h1 class="profiles-title">${t('settings.accountTitle')}</h1>
                 <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
                     ${this.renderSection('lock', t('account.signInTitle'), t('account.signInSubtitle'), signIn)}
+                    <div id="account-email-slot"></div>
                     ${this.renderSection('devices', t('account.devicesTitle'), t('account.devicesSubtitle'), deviceBody)}
                     <div id="account-status" class="form-hint" role="status" aria-live="polite"></div>
                     <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1.5rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
@@ -7418,6 +7690,7 @@
             });
 
             this.bindDeviceTools(content, masterState, () => this.showAccountSettings());
+            this._bindAccountEmail(content.querySelector('#account-email-slot'));
 
             content.querySelector('#account-back-btn').addEventListener('click', () => this.showSettingsMenu());
             this.initTVCheckboxes(content);
@@ -7627,6 +7900,7 @@
                 return;
             }
             if (step.id === 'welcome') this._onboardingWelcome(next);
+            else if (step.id === 'resetEmail') this._onboardingEmail(next, skip);
             else if (step.id === 'firstProfile') this._onboardingProfile(next, skip);
             else if (step.id === 'switcher') this._onboardingSwitcher(next, skip);
             else if (step.id === 'theme') this._onboardingTheme(next, skip);
@@ -7679,6 +7953,73 @@
             const go = content.querySelector('#onboarding-next');
             go.addEventListener('click', next);
             setTimeout(() => go.focus(), 50);
+        },
+
+        /// An address for a forgotten PIN and notices: the address, then the code mailed to
+        /// it. The server offers this step only while email works. `sentTo` is the second
+        /// screen; `refill` puts back what was typed when a refusal redraws the first.
+        _onboardingEmail: function (next, skip, sentTo, refill) {
+            const noFill = 'data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true"';
+            const content = this._onboardingFrame(t('onboarding.emailTitle'), sentTo ? `
+                <p class="jpf-onboarding-text" id="onboarding-email-sent"></p>
+                <div class="bonfire-form-group">
+                    <label for="onboarding-email-code">${t('accountEmail.code')}</label>
+                    <input type="text" id="onboarding-email-code" maxlength="7" inputmode="numeric" autocomplete="one-time-code" ${noFill} />
+                </div>
+                <button type="button" id="onboarding-email-other" class="jpf-text-link">${t('accountEmail.otherAddress')}</button>
+            ` : `
+                <p class="jpf-onboarding-text">${t('onboarding.emailBody')}</p>
+                <div class="bonfire-form-group">
+                    <label for="onboarding-email">${t('accountEmail.address')}</label>
+                    <input type="email" id="onboarding-email" maxlength="254" autocomplete="email" />
+                </div>
+            `, sentTo ? t('accountEmail.confirm') : t('accountEmail.send'), skip);
+            if (!content) return;
+
+            // withMainPin may have drawn its own screen; come back to this one to say why.
+            const fail = (message, typed) => {
+                this._onboardingEmail(next, skip, sentTo, typed);
+                const again = document.querySelector('.profiles-modal-content');
+                if (again) this._onboardingError(again, message);
+            };
+            let busy = false;
+
+            if (sentTo) {
+                content.querySelector('#onboarding-email-sent').textContent = t('accountEmail.sentTo', { address: sentTo });
+                const input = content.querySelector('#onboarding-email-code');
+                const confirm = () => {
+                    const code = input.value.replace(/\s/g, '');
+                    if (!/^\d{6}$/.test(code)) { this._onboardingError(content, t('accountEmail.codeInvalid')); input.focus(); return; }
+                    if (busy) return;
+                    busy = true;
+                    this.withMainPin(this.currentProfiles, () => {
+                        this._emailCall('account/email/confirm', { code: code })
+                            .then(() => next(), err => fail(err.message));
+                    });
+                };
+                content.querySelector('#onboarding-next').addEventListener('click', confirm);
+                input.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirm(); });
+                content.querySelector('#onboarding-email-other').addEventListener('click', () => this._onboardingEmail(next, skip));
+                setTimeout(() => input.focus(), 50);
+                return;
+            }
+
+            const input = content.querySelector('#onboarding-email');
+            if (refill) input.value = refill;
+            const send = () => {
+                const address = input.value.trim();
+                if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(address)) { this._onboardingError(content, t('accountEmail.invalid')); input.focus(); return; }
+                if (busy) return;
+                busy = true;
+                this.withMainPin(this.currentProfiles, () => {
+                    this._emailCall('account/email', { address: address })
+                        .then(reply => this._onboardingEmail(next, skip, this._field(reply, 'pendingAddress') || address),
+                              err => fail(err.message, address));
+                });
+            };
+            content.querySelector('#onboarding-next').addEventListener('click', send);
+            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+            setTimeout(() => input.focus(), 50);
         },
 
         /// A first profile, by name only. Everything else has a default and lives in the
