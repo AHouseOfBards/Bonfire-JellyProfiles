@@ -24,6 +24,18 @@ namespace Jellyfin.Profiles.Models
         public Guid Id { get; set; }
     }
 
+    /// <summary>Turns a profile into an account of its own.</summary>
+    public class StandaloneRequest
+    {
+        public Guid ProfileId { get; set; }
+
+        /// <summary>The new account's username. Blank keeps the one it has.</summary>
+        public string? Username { get; set; }
+
+        /// <summary>Required: a profile has no password anyone knows.</summary>
+        public string? Password { get; set; }
+    }
+
     /// <summary>Opens or closes the server for maintenance.</summary>
     public class MaintenanceRequest
     {

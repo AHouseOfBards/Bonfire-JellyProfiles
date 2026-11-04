@@ -203,6 +203,9 @@
     #profilesConfigurationPage .jpf-hidden { display: none; }
 
     /* Announcements. Severity is shown by the stripe and the word, never colour alone. */
+    #profilesConfigurationPage .jpf-sa-note { margin-bottom: 8px; }
+    #profilesConfigurationPage .jpf-sa-label { display: flex; flex-direction: column; font-size: 0.85rem; }
+    #profilesConfigurationPage .jpf-sa-btn { padding: 6px 12px; }
     #profilesConfigurationPage .jpf-ann-text { width: 100%; resize: vertical; }
     #profilesConfigurationPage .jpf-ann-dates {
         display: grid;
@@ -1435,6 +1438,27 @@
                                '<div class="listItemBodyText secondary" style="font-size:0.85rem; opacity:0.75; margin-top:2px;">Status: ' + pinStatusHtml(reqPin) + '</div>' +
                                '</div>' +
                                resetPinBtnHtml(pId, reqPin) +
+                               '<button type="button" class="raised button-mini standalone-btn" data-id="' + escapeHtml(pId) +
+                               '" style="margin-left:8px; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">Make own account</button>' +
+                               '</div>' +
+                               standaloneFormHtml(pId);
+                    }
+
+                    // Hidden until "Make own account" is pressed. A form rather than a
+                    // prompt: it needs a password, which a prompt would show in clear.
+                    function standaloneFormHtml(pId) {
+                        const id = escapeHtml(pId);
+                        return '<div class="standalone-form jpf-hidden" data-id="' + id + '" style="padding:10px 15px 14px 56px; border-top:1px solid rgba(255,255,255,0.05);">' +
+                               '<div class="fieldDescription jpf-sa-note">It keeps the libraries and limits it has now, stops being a profile and signs in on its own. This can\'t be undone.</div>' +
+                               '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">' +
+                               '<label class="jpf-sa-label">Username' +
+                               '<input is="emby-input" type="text" class="standalone-username" autocomplete="off" placeholder="Keep current" /></label>' +
+                               '<label class="jpf-sa-label">Password' +
+                               '<input is="emby-input" type="password" class="standalone-password" autocomplete="new-password" /></label>' +
+                               '<button type="button" class="raised button-submit button-mini standalone-go jpf-sa-btn">Make account</button>' +
+                               '<button type="button" class="raised button-mini standalone-cancel jpf-sa-btn">Cancel</button>' +
+                               '</div>' +
+                               '<div class="jpf-status standalone-result jpf-hidden"></div>' +
                                '</div>';
                     }
 
@@ -1542,6 +1566,8 @@
                             });
                         });
                     });
+
+                    bindStandaloneForms(page);
 
                     // Attach save limit handlers
                     page.querySelectorAll('.save-limit-btn').forEach(function (btn) {
@@ -2490,6 +2516,56 @@
                 const text = page.querySelector('#annMessage');
                 text.addEventListener('input', function () {
                     page.querySelector('#annCount').textContent = text.value.length + ' / 280';
+                });
+            }
+
+            // ── Standalone accounts ───────────────────────────────────────────────
+
+            // Rows are redrawn on every load, so these bind to fresh elements each time and
+            // need no guard against doubling.
+            function bindStandaloneForms(page) {
+                page.querySelectorAll('.standalone-btn').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        const form = page.querySelector('.standalone-form[data-id="' + btn.getAttribute('data-id') + '"]');
+                        if (form) form.classList.toggle('jpf-hidden');
+                    });
+                });
+                page.querySelectorAll('.standalone-form').forEach(function (form) {
+                    const result = form.querySelector('.standalone-result');
+                    const show = function (msg, good) {
+                        result.textContent = msg;
+                        result.style.color = good ? '#51cf66' : '#ff6b6b';
+                        result.classList.remove('jpf-hidden');
+                    };
+                    form.querySelector('.standalone-cancel').addEventListener('click', function () {
+                        form.classList.add('jpf-hidden');
+                    });
+                    form.querySelector('.standalone-go').addEventListener('click', function () {
+                        const password = form.querySelector('.standalone-password').value || '';
+                        if (!password) { show('Set a password.', false); return; }
+                        Dashboard.confirm('This profile becomes its own account and can\'t be made a profile again.',
+                            'Make own account').then(function () {
+                            ApiClient.ajax({
+                                type: 'POST',
+                                url: ApiClient.getUrl('plugins/profiles/admin/standalone'),
+                                contentType: 'application/json',
+                                dataType: 'json',
+                                data: JSON.stringify({
+                                    profileId: form.getAttribute('data-id'),
+                                    username: (form.querySelector('.standalone-username').value || '').trim(),
+                                    password: password
+                                })
+                            }).then(function (res) {
+                                // The row is about to go: it is not a profile any more. So the
+                                // confirmation cannot live in it.
+                                const done = 'Done. It signs in as ' + (field(res || {}, 'username') || 'its new name') + '.';
+                                if (typeof Dashboard.alert === 'function') Dashboard.alert(done); else show(done, true);
+                                loadMappings(page);
+                            }, function (err) {
+                                errorText(err, 'Could not make the account.').then(function (t) { show(t, false); });
+                            });
+                        });
+                    });
                 });
             }
 

@@ -3658,6 +3658,174 @@ namespace Jellyfin.Profiles.Controllers
             return Ok();
         }
 
+        // ── Standalone accounts ─────────────────────────────────────────────────────
+
+        /// <summary>
+        /// What Jellyfin itself accepts as a username (UserManager.ThrowIfInvalidUsername).
+        /// Checked here so the refusal is a sentence, not an exception.
+        /// </summary>
+        private static readonly System.Text.RegularExpressions.Regex JellyfinUsername =
+            new(@"^(?!\s)[\w\ \-'._@+]+(?<!\s)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        /// <summary>
+        /// Turns a profile into an ordinary Jellyfin account of its own: a teenager moving
+        /// out, a lodger who was given a profile to start with.
+        /// <para>
+        /// <b>It keeps what it can watch.</b> The master's policy is applied once more, so the
+        /// account starts with exactly the restrictions it had as a profile, and from then on
+        /// nothing is inherited. Loosening them is the administrator's call, in Dashboard →
+        /// Users, like any other account.
+        /// </para>
+        /// <para>
+        /// <b>Its own sign-in.</b> A profile is bound to Bonfire's PIN provider or carries a
+        /// random password nobody knows. Leaving it like that would be an account nobody can
+        /// open, so a password is required, and the account is put on the provider its
+        /// master signs in with (never Bonfire's).
+        /// </para>
+        /// <para>
+        /// <b>Signed out everywhere.</b> Its sessions came from a profile switch. They are
+        /// ended, so the next sign-in is with the new password.
+        /// </para>
+        /// <para>
+        /// Administrator only: it creates a sign-in for the server, which is not a household's
+        /// decision. One way: there is no route back to being a profile.
+        /// </para>
+        /// </summary>
+        [HttpPost("admin/standalone")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<object>> MakeStandalone([FromBody] StandaloneRequest request)
+        {
+            var adminError = RequireAdministrator("turn a profile into its own account");
+            if (adminError != null) return adminError;
+            if (request == null) return BadRequest("Missing request body.");
+
+            if (string.IsNullOrEmpty(request.Password))
+            {
+                return BadRequest("Set a password for the new account.");
+            }
+
+            ProfileMapping? mapping;
+            lock (ConfigLock)
+            {
+                mapping = Plugin.Instance?.Configuration?.Mappings?.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
+            }
+
+            if (mapping == null) return NotFound("Profile not found.");
+            if (mapping.MasterUserId == mapping.ProfileUserId || mapping.MasterUserId == Guid.Empty)
+            {
+                return BadRequest("A main account is already its own account.");
+            }
+
+            var user = _userManager.GetUserById(request.ProfileId);
+            if (user == null) return NotFound("Underlying system user missing.");
+
+            var username = (request.Username ?? string.Empty).Trim();
+            if (username.Length > 0 && !string.Equals(username, user.Username, StringComparison.Ordinal))
+            {
+                if (username.Length > 100 || !JellyfinUsername.IsMatch(username))
+                {
+                    return BadRequest("A username can use letters, numbers, spaces and - _ . ' @ +.");
+                }
+
+                var taken = _userManager.GetUserByName(username);
+                if (taken != null && taken.Id != user.Id)
+                {
+                    return BadRequest("An account with that username already exists.");
+                }
+            }
+
+            // 1. The restrictions it has today, made current. Nothing inherits after this.
+            if (ShouldInheritMasterPolicy(mapping, mapping.ProfileUserId, mapping.MasterUserId))
+            {
+                await Auth.ProfilePolicySync.ApplyAsync(_userManager, _libraryManager, _logger, mapping.ProfileUserId)
+                    .ConfigureAwait(false);
+            }
+
+            // 2. Out of every session a profile switch gave it.
+            try
+            {
+                await _sessionManager.RevokeUserTokens(user.Id, null).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "ProfilesPlugin: could not sign {User} out before making it its own account.", user.Username);
+            }
+
+            // 3. No longer a profile. Before the provider changes below: while it is mapped,
+            //    the provider reconcile would put it straight back on Bonfire's.
+            lock (ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                var row = config?.Mappings?.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
+                if (row != null)
+                {
+                    config!.Mappings.Remove(row);
+                    Plugin.Instance?.SaveConfiguration();
+                }
+            }
+
+            // 4. Its own sign-in, on the provider its master uses. Never an empty id: see
+            //    ProfilesBootstrapTask.ReconcileAuthProviders for what that did to a server.
+            user = _userManager.GetUserById(request.ProfileId) ?? user;
+            var provider = StandaloneProviderId(mapping.MasterUserId);
+            if (!string.Equals(user.AuthenticationProviderId, provider, StringComparison.Ordinal))
+            {
+                user.AuthenticationProviderId = provider;
+                await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
+            }
+
+            // After the mapping is gone: while it is a profile, Bonfire's provider refuses a
+            // password change outright. Past the point of no return, so a failure here says
+            // what is left to do rather than pretending nothing happened.
+            try
+            {
+                await ChangePasswordCompat(user, request.Password).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "ProfilesPlugin: {User} is its own account now, but its password could not be set.", user.Username);
+                ProfilesBootstrapTask.ReconcileAuthProvidersNow();
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    "The account was made, but its password couldn't be set. Set it in Dashboard → Users.");
+            }
+
+            if (username.Length > 0 && !string.Equals(username, user.Username, StringComparison.Ordinal))
+            {
+                await _userManager.RenameUser(user, username).ConfigureAwait(false);
+            }
+
+            // 5. The master may have just lost its last profile.
+            ProfilesBootstrapTask.ReconcileAuthProvidersNow();
+
+            var callerId = GetCurrentUserId();
+            _logger.LogWarning(
+                "ProfilesPlugin: {Admin} made profile {Profile} its own account, {Username}. It no longer belongs to {Master}.",
+                callerId.HasValue ? _userManager.GetUserById(callerId.Value)?.Username : "an administrator",
+                mapping.ProfileName,
+                user.Username,
+                _userManager.GetUserById(mapping.MasterUserId)?.Username ?? mapping.MasterUserId.ToString());
+
+            return Ok(new { UserId = user.Id, Username = user.Username });
+        }
+
+        /// <summary>
+        /// The provider a former profile signs in with: its master's, unless that is
+        /// Bonfire's own, in which case Jellyfin's default.
+        /// </summary>
+        private string StandaloneProviderId(Guid masterId)
+        {
+            const string jellyfinDefault = "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider";
+            var master = _userManager.GetUserById(masterId);
+            var id = master?.AuthenticationProviderId;
+            return string.IsNullOrEmpty(id)
+                   || string.Equals(id, typeof(Auth.BonfirePinAuthenticationProvider).FullName, StringComparison.OrdinalIgnoreCase)
+                ? jellyfinDefault
+                : id;
+        }
+
         // ── Maintenance ─────────────────────────────────────────────────────────────
 
         /// <summary>Whether the server is closed for maintenance, and with what message.</summary>

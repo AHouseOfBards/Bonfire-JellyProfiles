@@ -77,6 +77,11 @@ namespace Jellyfin.Profiles.Controllers
             ("Delete an announcement first", "announcement_limit"),
             ("No such announcement", "announcement_not_found"),
 
+            // Making a profile its own account.
+            ("A username can use letters", "name_invalid"),
+            ("A main account is already its own", "main_account_protected"),
+            ("Set a password for the new account", "password_required"),
+
             // Maintenance. The refusal itself carries its code from the route: its text is
             // the administrator's own.
             ("maintenance message can be at most", "maintenance_invalid"),

@@ -33,7 +33,7 @@ for Bonfire's own client. It's documented because other people build against it 
 
 ## All routes
 
-All 60 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 61 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -97,6 +97,7 @@ All 60 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `POST /plugins/profiles/admin/config/import` | admin | Import a configuration. |
 | `POST /plugins/profiles/admin/retry-injection` | admin | Retry writing the script tag. |
 | `POST /plugins/profiles/admin/set-profile-limit` | admin | One account's profile limit. |
+| `POST /plugins/profiles/admin/standalone` | admin | Make a profile its own account. |
 | `GET /plugins/profiles/admin/audit-logs` | admin | The switch log. |
 
 ## Authentication
@@ -214,6 +215,7 @@ Invalid PIN code.
 | `profile_limit` | The account has as many profiles as it's allowed. |
 | `name_taken` | The household already has a profile with that name. |
 | `name_invalid` | The name is empty, too long or uses characters that aren't allowed. |
+| `password_required` | A password is needed for this. |
 | `main_account_protected` | The main account can't be deleted as a profile. |
 | `announcement_invalid` | The announcement's message, severity or dates aren't allowed. |
 | `announcement_limit` | 50 announcements are stored. Delete one first. |
@@ -1452,6 +1454,20 @@ Only does anything in the `both` and `file` modes. Returns the same status field
 
 `maxProfiles` is 1 to 20, or null to use the server-wide limit again. `400` if it's out of
 range.
+
+### `POST /plugins/profiles/admin/standalone`
+
+**Authorisation:** administrator.
+
+```json
+{ "profileId": "…", "username": "Sam", "password": "…" }
+```
+
+Makes a profile an ordinary Jellyfin account. It keeps the libraries and limits it has
+now and inherits nothing afterwards. Its sessions are signed out and it signs in with the
+new password, on the same provider as its main account. `username` is optional; blank
+keeps the current one. Returns `{ "userId": "…", "username": "Sam" }`. It can't be
+undone.
 
 ### `GET /plugins/profiles/admin/audit-logs`
 
