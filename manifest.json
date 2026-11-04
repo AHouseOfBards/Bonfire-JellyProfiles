@@ -13,7 +13,7 @@
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Added**\n\n- Moonfin: sign in with the main account and pick a profile on the home screen. Turn it on under TVs & Apps.\n- For app developers: `GET /plugins/profiles/info`, and an error code on every error.\n\n**Changed**\n\n- A signed-in user refused an action now gets 403, not 401.\n\n**Fixed**\n\n- A Roku opened a profile without asking for its PIN. (#40)",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.1.2/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "000c4da644c4754a01a2afb35b095d44",
         "timestamp": "2026-11-04T09:50:04Z"
       },
       {
