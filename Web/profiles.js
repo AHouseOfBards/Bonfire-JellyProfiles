@@ -411,8 +411,6 @@
         'switcher.intro': 'How you reach this screen, for everyone using your account.',
         'switcher.askOnStartup': 'Ask "Who\'s watching?" on startup',
         'switcher.askOnStartupHint': 'Shown once when the app opens — not every time you return to the home screen.',
-        'switcher.syncAskAcrossDevices': 'Use the same answer on all my devices',
-        'switcher.syncAskAcrossDevicesHint': 'Off, each device decides. On, this device sets them all.',
         'switcher.whereToSwitchFrom': 'Where to switch from',
         'switcher.bonfireButtonTitle': 'Bonfire button',
         'switcher.bonfireButtonBody': "A separate switcher button in the header, next to Jellyfin's own profile icon.",
@@ -662,15 +660,15 @@
             // five-minute cache, so a reload inside that window can re-run this very script
             // from cache — the marker is what stops it coming back to life.
             panicKey: 'jellyfin_profiles_disabled',
-            // Local mirror of the account's gate/native preference, so checkRoute can decide
-            // whether to raise the gate without waiting on a request.
             // Per-account cache of the library tile artwork rules, applied before the
             // server answers so the real artwork never gets a frame on screen.
             libraryArtKey: 'jellyfin_profiles_library_art',
+            // Local mirror of the account's gate/native preference, so checkRoute can decide
+            // whether to raise the gate without waiting on a request.
             switcherModeKey: 'jellyfin_profiles_switcher_mode',
-            // Set only on a device that has been told to keep its own answer to the
-            // startup question instead of following the household's. Absent on every
-            // device that has never been told otherwise, which is the default.
+            // Retired in 1.7.2. It held "this device keeps its own answer to the startup
+            // question", which was cut: ask-on-startup is one answer per account. Nothing
+            // reads it; init removes it once so an old answer cannot linger on a TV.
             deviceGateKey: 'jellyfin_profiles_device_gate',
             // The last theme this browser was told for an account, so the first paint is
             // already in it rather than switching a moment after the gate appears.
@@ -1855,6 +1853,8 @@
             }));
 
             this._step('bindEvents', () => this.bindEvents());
+            // Once per page load, never on the route poll.
+            try { localStorage.removeItem(this.config.deviceGateKey); } catch (e) { /* blocked */ }
             // Before injectStyles, so the sheet's .jpf-tv and .jpf-no-flex-gap rules match
             // on the first paint rather than after a reflow the viewer can see.
             this._step('applyDeviceClasses', () => this.applyDeviceClasses());
@@ -1936,15 +1936,6 @@
                     this._switcherPrefs = null;
                     // Learned from the same response as the preferences, so it goes with them.
                     this._panicLinkAvailable = null;
-                    // deviceGateKey is deliberately NOT removed: it is a property of this
-                    // machine, and a TV that signs out occasionally should not quietly
-                    // rejoin the household answer it was told to ignore. It is safe to
-                    // leave because every entry is filed under an account id and a read
-                    // only accepts one belonging to whoever is signed in now — the next
-                    // person at this machine gets their own answer, not this one's. The
-                    // in-memory copy still has to go, or it would outlive the account.
-                    this._deviceGateLoaded = false;
-                    this._deviceGate = null;
                     localStorage.removeItem(this.config.libraryArtKey);
                     this.clearProfileSession();
                 } catch (e) { /* ignore storage errors */ }
@@ -3030,150 +3021,14 @@
             return null;
         },
 
-        // ── One device opting out of the household answer ──────────────────────────
-        //
-        // askOnStartup is a household setting: set it on the phone and the TV follows. That
-        // is right for most homes and wrong for the ones where the TV in the living room
-        // should always ask and the tablet that only one person touches never should. The
-        // "Use the same answer on all my devices" box turns the household answer off for
-        // *this* device only — the flag itself never leaves the machine, so the other
-        // devices carry on exactly as before rather than being dragged into per-device mode
-        // by a choice made somewhere they cannot see.
-        //
-        // Re-checking it POSTs this device's answer up, so the household adopts what is on
-        // screen at the moment the box is ticked. The alternative — snapping back to
-        // whatever the server still held — silently discards the choice the person is
-        // looking at while they tick the box.
-        //
-        // Only the startup question is per-device. switcherLocation stays household-wide:
-        // it decides whether the floating button exists at all, and a household where that
-        // answer differs per device has no consistent place to reach the switcher.
-
-        /// Account ids this device may honour a stored answer for, most specific first.
-        ///
-        /// [0] is where a new answer is filed — the master when one is known, so every
-        /// profile in the household shares one answer per device. The rest of the list is
-        /// what a *read* will accept, which is the same rule getSwitcherPrefs applies to
-        /// its cache: an entry left by whoever used this browser last must never apply to
-        /// the person using it now.
-        _deviceGateIds: function () {
-            let master = '';
-            try {
-                const masterState = this.readMasterState();
-                if (masterState) master = this.normalizeGuid(masterState.masterUserId);
-            } catch (e) { /* unreadable — the signed-in user will do */ }
-
-            let current = '';
-            try {
-                if (typeof ApiClient !== 'undefined' && ApiClient) {
-                    current = this.normalizeGuid(ApiClient.getCurrentUserId());
-                }
-            } catch (e) { /* no client yet */ }
-
-            const ids = [];
-            if (master) ids.push(master);
-            if (current && current !== master) ids.push(current);
-            return ids;
-        },
-
-        /// This device's stored entry, or null when it follows the household.
-        ///
-        /// Cached in memory because shouldAskOnStartup is on the 500 ms route poll, and an
-        /// uncached parse here would put a synchronous storage read and a JSON.parse on
-        /// every tick for the entire life of the page. tests/js/routetick.js fails if it
-        /// does.
-        _readDeviceGate: function () {
-            if (this._deviceGateLoaded) return this._deviceGate;
-
-            let raw = null;
-            try { raw = localStorage.getItem(this.config.deviceGateKey); } catch (e) { /* blocked */ }
-
-            // Nothing stored at all — the overwhelmingly common case, and true regardless
-            // of who is signed in, so it is safe to settle on straight away.
-            if (!raw) {
-                this._deviceGate = null;
-                this._deviceGateLoaded = true;
-                return null;
-            }
-
-            // Something is stored but we do not yet know who this is: init runs before
-            // sign-in on a fresh load. Answer "no entry" for now without caching it, or the
-            // device's own answer would be ignored for the rest of the page's life.
-            const ids = this._deviceGateIds();
-            if (!ids.length) return null;
-
-            let entry = null;
-            try {
-                const all = JSON.parse(raw);
-                if (all && typeof all === 'object') {
-                    for (let i = 0; i < ids.length && !entry; i++) {
-                        const e = all[ids[i]];
-                        if (e && typeof e === 'object') entry = e;
-                    }
-                }
-            } catch (e) { /* corrupt — treat as following the household */ }
-
-            this._deviceGate = entry;
-            this._deviceGateLoaded = true;
-            return entry;
-        },
-
-        /// True when this device follows the household's answer, which is the default and
-        /// what every device did before this setting existed.
-        isGateSynced: function () {
-            const entry = this._readDeviceGate();
-            return !entry || entry.synced !== false;
-        },
-
-        /// This device's own answer, or null when it has none and should follow the
-        /// household. Null rather than a boolean so "no opinion" cannot be mistaken for
-        /// "do not ask".
-        getDeviceGatePref: function () {
-            const entry = this._readDeviceGate();
-            return (entry && entry.synced === false && typeof entry.askOnStartup === 'boolean')
-                ? entry.askOnStartup
-                : null;
-        },
-
-        /// Records how this device answers the startup question, or clears the entry when
-        /// it goes back to following the household. Returns false if storage refused, so a
-        /// caller can say so rather than showing a state that was never stored.
-        setDeviceGate: function (synced, askOnStartup) {
-            const ids = this._deviceGateIds();
-            if (!ids.length) return false;
-
-            try {
-                let all = JSON.parse(localStorage.getItem(this.config.deviceGateKey) || 'null');
-                if (!all || typeof all !== 'object') all = {};
-
-                // Clear every id this device would read, not just the one it writes. A
-                // household that used a sub-profile before the master would otherwise leave
-                // an entry behind that the next read finds and honours.
-                ids.forEach(id => { delete all[id]; });
-                if (!synced) all[ids[0]] = { synced: false, askOnStartup: askOnStartup === true };
-
-                if (Object.keys(all).length) {
-                    localStorage.setItem(this.config.deviceGateKey, JSON.stringify(all));
-                } else {
-                    localStorage.removeItem(this.config.deviceGateKey);
-                }
-            } catch (e) {
-                return false;
-            }
-
-            this._deviceGateLoaded = false;
-            this._deviceGate = null;
-            return true;
-        },
-
         /// True only when we know the startup prompt is wanted. Unknown reads as false so
         /// the gate is never raised on a guess.
+        ///
+        /// One answer per account, for every device. 1.6.x–1.7.1 let a device keep its own
+        /// ("Use the same answer on all my devices"); it was cut in 1.7.2 as one setting
+        /// too many for what it bought, and a TV that should always ask is now a household
+        /// that always asks.
         shouldAskOnStartup: function () {
-            // A device keeping its own answer knows it without the server, so this settles
-            // on the first paint instead of waiting for the preferences request.
-            const own = this.getDeviceGatePref();
-            if (own !== null) return own;
-
             const p = this.getSwitcherPrefs();
             return !!p && p.askOnStartup === true;
         },
@@ -3187,11 +3042,6 @@
 
         _cacheSwitcherPrefs: function (askOnStartup, location, masterUserId) {
             this._switcherPrefs = { askOnStartup: askOnStartup, location: location };
-            // The server's answer names the master, so by here we know who this is even if
-            // we did not when the device entry was first looked for. Re-read it once rather
-            // than leaving a "no entry" answer that was only true before sign-in.
-            this._deviceGateLoaded = false;
-            this._deviceGate = null;
             try {
                 localStorage.setItem(this.config.switcherModeKey, JSON.stringify({
                     askOnStartup: askOnStartup,
@@ -7623,13 +7473,7 @@
             if (!content) return;
 
             const prefs = this.getSwitcherPrefs() || { askOnStartup: true, location: 'button' };
-
-            // What the startup box shows is this device's answer when it keeps its own, and
-            // the household's otherwise — the same thing shouldAskOnStartup acts on, so the
-            // box can never disagree with what the device will actually do.
-            const synced = this.isGateSynced();
-            const ownAsk = this.getDeviceGatePref();
-            const askOnStartup = ownAsk !== null ? ownAsk : prefs.askOnStartup;
+            const askOnStartup = prefs.askOnStartup;
 
             // Two separate questions, deliberately not folded into one list of modes: the
             // combination people asked for in issue #14 — ask on startup, but switch from
@@ -7659,17 +7503,6 @@
                         </label>
                         <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.78rem !important; position: relative !important; display: block !important;">
                             ${t('switcher.askOnStartupHint')}
-                        </div>
-
-                        <!-- Indented under the box it governs. It qualifies the startup
-                             question only, not the location choice below, and sitting at
-                             the same level would read as applying to the whole screen. -->
-                        <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.88rem !important; font-weight: 600 !important; position: relative !important; margin-left: 1.6rem !important; margin-top: 10px !important;">
-                            <input type="checkbox" id="switcher-sync-devices" ${synced ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 16px !important; height: 16px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
-                            <span>${t('switcher.syncAskAcrossDevices')}</span>
-                        </label>
-                        <div class="form-hint" style="margin-left: 3.1rem !important; opacity: 0.5 !important; font-size: 0.78rem !important; position: relative !important; display: block !important;">
-                            ${t('switcher.syncAskAcrossDevicesHint')}
                         </div>
                     </div>
 
@@ -7724,56 +7557,12 @@
             // rather than throwing and leaving the controls looking dead.
             const currentPrefs = () => this.getSwitcherPrefs() || prefs;
 
-            const syncCb = content.querySelector('#switcher-sync-devices');
-
-            /// Reverts a checkbox and says why, so a box can never sit there showing a
-            /// state that was never stored — the same rule the location cards follow.
-            const refuse = (cb, message) => {
-                cb.checked = !cb.checked;
-                errDiv.textContent = message || t('errors.couldNotSaveThat');
-                errDiv.style.display = 'block';
-            };
-
             if (askCb) {
                 askCb.addEventListener('change', () => {
-                    // A device keeping its own answer stores it here and nowhere else. No
-                    // request, so the other devices never learn about it.
-                    if (!this.isGateSynced()) {
-                        errDiv.style.display = 'none';
-                        if (!this.setDeviceGate(false, askCb.checked)) {
-                            refuse(askCb, t('switcher.notSavedBody'));
-                        }
-                        return;
-                    }
-
                     save(askCb.checked, currentPrefs().location).then(applied => {
                         // Revert the box if the server refused, so it cannot sit there
                         // showing a state that was never stored.
                         if (!applied) askCb.checked = !askCb.checked;
-                    });
-                });
-            }
-
-            if (syncCb && askCb) {
-                syncCb.addEventListener('change', () => {
-                    errDiv.style.display = 'none';
-
-                    if (!syncCb.checked) {
-                        // Seed the device with the answer already on screen, so leaving the
-                        // household changes nothing until the box above is actually touched.
-                        if (!this.setDeviceGate(false, askCb.checked)) {
-                            refuse(syncCb, t('switcher.notSavedBody'));
-                        }
-                        return;
-                    }
-
-                    // Rejoining pushes this device's answer up, so the household adopts
-                    // what is on screen right now. Sent before the local entry is cleared:
-                    // if the server refuses, the device is left exactly as it was rather
-                    // than dropped back onto a household answer nobody asked for.
-                    save(askCb.checked, currentPrefs().location).then(applied => {
-                        if (!applied) { syncCb.checked = false; return; }
-                        this.setDeviceGate(true);
                     });
                 });
             }
@@ -7783,13 +7572,7 @@
                     const location = el.getAttribute('data-location');
                     if (location === currentPrefs().location) return;
 
-                    // The household's own answer, not the box's. On a device keeping its
-                    // own answer those differ, and posting the box's value here would push
-                    // this device's private choice out to every other device as a side
-                    // effect of moving the switcher button.
-                    const ask = this.isGateSynced()
-                        ? (askCb ? askCb.checked : prefs.askOnStartup)
-                        : currentPrefs().askOnStartup;
+                    const ask = askCb ? askCb.checked : currentPrefs().askOnStartup;
 
                     save(ask, location).then(applied => {
                         if (!applied) return;

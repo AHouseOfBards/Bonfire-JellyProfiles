@@ -211,8 +211,6 @@
   "switcher.intro": "Hesabınızı kullanan herkes için bu ekrana nasıl erişileceğini belirler.",
   "switcher.askOnStartup": "Başlangıçta \"Kim izliyor?\" diye sor",
   "switcher.askOnStartupHint": "Uygulama açıldığında bir kez gösterilir; ana ekrana her dönüşte gösterilmez.",
-  "switcher.syncAskAcrossDevices": "Tüm cihazlarımda aynı seçimi kullan",
-  "switcher.syncAskAcrossDevicesHint": "Kapalıysa her cihaz kendisi karar verir. Açıksa bu cihaz tüm cihazların ayarını belirler.",
   "switcher.whereToSwitchFrom": "Profilin değiştirileceği yer",
   "switcher.bonfireButtonTitle": "Bonfire düğmesi",
   "switcher.bonfireButtonBody": "Üst çubukta, Jellyfin'in profil simgesinin yanında ayrı bir profil seçici düğmesi.",

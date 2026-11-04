@@ -189,8 +189,6 @@
   "switcher.intro": "Com arribes a aquesta pantalla, per a tothom qui usa el teu compte.",
   "switcher.askOnStartup": "Pregunta «Qui està mirant?» en iniciar",
   "switcher.askOnStartupHint": "Es mostra només una vegada en obrir l'aplicació, no cada cop que tornes a l'inici.",
-  "switcher.syncAskAcrossDevices": "Usa la mateixa resposta a tots els meus dispositius",
-  "switcher.syncAskAcrossDevicesHint": "Desmarcat, cada dispositiu decideix per si mateix. Marcat, aquest dispositiu decideix per tots.",
   "switcher.whereToSwitchFrom": "Des d'on canviar de perfil",
   "switcher.bonfireButtonTitle": "Botó de Bonfire",
   "switcher.bonfireButtonBody": "Un botó de selecció separat a la capçalera, al costat de la icona de perfil de Jellyfin.",

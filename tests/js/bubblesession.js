@@ -275,8 +275,9 @@ console.log('\n── With "Ask who\'s watching" off, there is still a way to sw
 }
 
 {
-    // A device keeping its own answer outranks the account's, and this must agree with
-    // the gate: a television told to ask must not also grow a button.
+    // A per-device answer left by 1.6–1.7.1, which let a device keep its own. 1.7.2 cut
+    // that, so the account's answer decides here too: gate off, so the button stands.
+    // Red against 1.7.1, where this entry outranked the account and hid the button.
     const e = build({
         prefs: GATE_OFF,
         storage: {
@@ -286,9 +287,9 @@ console.log('\n── With "Ask who\'s watching" off, there is still a way to sw
         }
     });
     e.go('#/movies.html');
-    ok('(the device\'s own answer is in force)', e.p.shouldAskOnStartup() === true);
+    ok('a leftover per-device answer is ignored', e.p.shouldAskOnStartup() === false);
     e.p.checkRoute();
-    ok('a device that asks on startup gets no button, whatever the account says', !e.bubble());
+    ok('and the account\'s answer decides: the button is there', !!e.bubble());
 }
 
 {

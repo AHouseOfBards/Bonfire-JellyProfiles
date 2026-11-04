@@ -445,14 +445,18 @@ console.log('\n── 1. Cold start with "Ask on startup" on ──────�
         !!page.byId['profiles-gate-overlay'] && after.length === 0, 'home visible after init at ' + span(after));
 }
 {
-    // A device keeping its own answer, against the household's.
+    // A per-device answer left by 1.6–1.7.1, which let a device keep its own. 1.7.2 cut
+    // that: the account's answer decides on every device, the head script included, and
+    // init throws the leftover away. Red against 1.7.1, which covered home and raised the
+    // gate on the strength of this entry.
     const dev = ask => JSON.stringify({ [MASTER.replace(/-/g, '')]: { synced: false, askOnStartup: ask } });
     const r1 = await coldStart({ storage: baseStorage({
         jellyfin_profiles_switcher_mode: JSON.stringify({ askOnStartup: false, location: 'button', masterUserId: MASTER }),
         jellyfin_profiles_device_gate: dev(true) }), serverPrefs: { askOnStartup: false } });
-    ok('a device that asks, in a household that does not, is covered until its gate',
-        !!r1.page.byId['profiles-gate-overlay'] && r1.seen.visibleAt.length === 0,
-        'home visible at ' + span(r1.seen.visibleAt));
+    ok('a leftover per-device "ask" in a household that does not ask: no gate, home never covered',
+        !r1.page.byId['profiles-gate-overlay'] && !r1.seen.everCovered,
+        'gate ' + !!r1.page.byId['profiles-gate-overlay'] + ', covered ' + r1.seen.everCovered);
+    ok('and init removes the leftover', !('jellyfin_profiles_device_gate' in r1.page.store));
 }
 
 console.log('\n── 2. Picking a profile from the switcher off home ─────────────');
@@ -518,8 +522,6 @@ console.log('\n── 3. Nothing is covered when the gate is not coming ──�
 const noCover = [
     ['the household does not ask', { jellyfin_profiles_switcher_mode:
         JSON.stringify({ askOnStartup: false, location: 'button', masterUserId: MASTER }) }, {}],
-    ['this device keeps its own answer, and it is no', { jellyfin_profiles_device_gate:
-        JSON.stringify({ [MASTER.replace(/-/g, '')]: { synced: false, askOnStartup: false } }) }, {}],
     ['the cached answer belongs to somebody else', { jellyfin_profiles_switcher_mode:
         JSON.stringify({ askOnStartup: true, location: 'button', masterUserId: 'ffffffff-0000-0000-0000-000000000000' }),
         jellyfin_profiles_master_state: null }, {}],

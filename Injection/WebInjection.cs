@@ -128,21 +128,18 @@ namespace Jellyfin.Profiles
                     "var n=function(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'')};" +
                     // Emergency disable (panicKey): nothing of ours on screen at all.
                     "if(localStorage.getItem('jellyfin_profiles_disabled'))return;" +
-                    // switcherModeKey and deviceGateKey. Neither means nobody has asked.
-                    "var p=g('jellyfin_profiles_switcher_mode'),d=g('jellyfin_profiles_device_gate');" +
-                    "if(!p&&!d)return;" +
+                    // switcherModeKey. Absent means nobody has asked.
+                    "var p=g('jellyfin_profiles_switcher_mode');" +
+                    "if(!p)return;" +
                     // Who is signed in. No token anywhere is the sign-in screen.
                     "var c=g('jellyfin_credentials'),sv=c&&c.Servers,ms=g('jellyfin_profiles_master_state'),ids=[],on=0,i;" +
                     "if(ms&&ms.masterUserId)ids.push(n(ms.masterUserId));" +
                     "for(i=0;sv&&i<sv.length;i++)if(sv[i]&&sv[i].AccessToken){on=1;if(sv[i].UserId)ids.push(n(sv[i].UserId));}" +
                     "if(!on)return;" +
-                    // getDeviceGatePref first: this device's own answer, filed under the
-                    // master, wins over the household's. Then getSwitcherPrefs, which only
-                    // believes a cache written for the account signed in now.
-                    "var a=null,e=null,pm=p&&n(p.masterUserId);" +
-                    "for(i=0;d&&!e&&i<ids.length;i++)if(d[ids[i]]&&typeof d[ids[i]]==='object')e=d[ids[i]];" +
-                    "if(e&&e.synced===false&&typeof e.askOnStartup==='boolean')a=e.askOnStartup;" +
-                    "else if(pm&&ids.indexOf(pm)!==-1){" +
+                    // getSwitcherPrefs, which only believes a cache written for the account
+                    // signed in now. The per-device answer (deviceGateKey) was cut in 1.7.2.
+                    "var a=null,pm=n(p.masterUserId);" +
+                    "if(pm&&ids.indexOf(pm)!==-1){" +
                         "if(typeof p.askOnStartup==='boolean'&&p.location)a=p.askOnStartup;" +
                         "else if(p.mode)a=p.mode!=='native';" +
                     "}" +

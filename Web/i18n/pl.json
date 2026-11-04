@@ -189,8 +189,6 @@
   "switcher.intro": "Określa sposób dostępu do tego ekranu, dla wszystkich osób korzystających z Twojego konta.",
   "switcher.askOnStartup": "Pytaj „Kto ogląda?” przy starcie",
   "switcher.askOnStartupHint": "Wyświetlane raz przy otwarciu aplikacji — nie przy każdym powrocie do ekranu głównego.",
-  "switcher.syncAskAcrossDevices": "Ta sama odpowiedź na wszystkich moich urządzeniach",
-  "switcher.syncAskAcrossDevicesHint": "Wyłączone — każde urządzenie decyduje samo. Włączone — to urządzenie decyduje za wszystkie.",
   "switcher.whereToSwitchFrom": "Miejsce zmiany profilu",
   "switcher.bonfireButtonTitle": "Przycisk Bonfire",
   "switcher.bonfireButtonBody": "Osobny przycisk wyboru w nagłówku, obok ikony profilu Jellyfin.",
