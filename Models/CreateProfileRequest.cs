@@ -7,7 +7,8 @@ namespace Jellyfin.Profiles.Models
     {
         public string ProfileName { get; set; } = string.Empty;
         public string? Pin { get; set; }
-        public string AvatarColor { get; set; } = "#1F77B4";
+        /// <summary>Null picks the next colour the household isn't using.</summary>
+        public string? AvatarColor { get; set; }
         /// <summary>
         /// Hides the avatar colour behind the picture. Null = false (paint the colour).
         /// </summary>

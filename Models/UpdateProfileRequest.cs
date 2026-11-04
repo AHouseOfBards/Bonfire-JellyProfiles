@@ -8,7 +8,8 @@ namespace Jellyfin.Profiles.Models
         public Guid ProfileId { get; set; }
         public string ProfileName { get; set; } = string.Empty;
         public string? Pin { get; set; }
-        public string AvatarColor { get; set; } = "#1F77B4";
+        /// <summary>Null leaves it as it is.</summary>
+        public string? AvatarColor { get; set; }
         /// <summary>
         /// Hides the avatar colour behind the picture. Null = leave unchanged.
         /// </summary>

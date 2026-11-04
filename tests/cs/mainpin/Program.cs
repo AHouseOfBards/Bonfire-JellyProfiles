@@ -235,10 +235,10 @@ foreach (var (method, body, raw) in household)
 }
 var createRequired = Call("CreateProfile", OPEN, new() { ["ProfileName"] = "Kid" });
 Ok("so is creating the first profile", createRequired.status == 400 && createRequired.message == REQUIRED, createRequired.status + " " + createRequired.message);
-SetConfig("RequireMasterPinForCreation", false);
-var createRequired2 = Call("CreateProfile", OPEN, new() { ["ProfileName"] = "Kid" });
-Ok("even where creating skips the PIN check", createRequired2.status == 400 && createRequired2.message == REQUIRED, createRequired2.status + " " + createRequired2.message);
-SetConfig("RequireMasterPinForCreation", true);
+// The setting that let creation skip the main PIN is gone (1.7.2). Setting it on the
+// configuration must do nothing: there is no such property to set.
+Ok("there is no setting to let creation skip the main PIN",
+   cfgType.GetProperty("RequireMasterPinForCreation") == null);
 
 if (hasAccountRoutes)
 {

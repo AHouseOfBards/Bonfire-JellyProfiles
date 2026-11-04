@@ -43,7 +43,6 @@ namespace Jellyfin.Profiles.Models
     public class AdminSettingsRequest
     {
         public int? MaxProfilesPerUser { get; set; }
-        public bool? RequireMasterPinForCreation { get; set; }
         public bool? RequireMainPin { get; set; }
         public bool? DisallowCustomAvatarUploads { get; set; }
         public bool? EnableStarterAvatars { get; set; }

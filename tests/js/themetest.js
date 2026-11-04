@@ -127,7 +127,7 @@ console.log('── Avatar swatches stay literal data ────────�
 // repeated the literal — none of which is a swatch. What must stay literal is the
 // palette itself, so that is what is checked.
 check('the palette is literal hex and holds no var()', (() => {
-    const m = /const palette = \[([\s\S]*?)\];/.exec(SRC);
+    const m = /const AVATAR_PALETTE = \[([\s\S]*?)\];/.exec(SRC);
     if (!m) return false;
     const entries = m[1].match(/'#[0-9A-Fa-f]{6}'/g) || [];
     return entries.length === 18 && m[1].indexOf('var(') === -1;
@@ -141,7 +141,9 @@ check('the palette array is still literals',
 // a CSS comment mentioned --jf-palette-primary-main next to a var(), this went red over
 // prose. Same question, asked of the array itself.
 check('no var() reached the palette',
-    /const palette = \[[\s\S]{0,400}var\(--/.test(SRC), false);
+    /const AVATAR_PALETTE = \[[\s\S]{0,400}var\(--/.test(SRC), false);
+// The picker must draw from that palette, or the check above guards an array nobody uses.
+check('the picker draws from it', /const palette = AVATAR_PALETTE;/.test(SRC), true);
 
 console.log();
 console.log('── Signals mean what they look like ──────────────────────────');

@@ -25,6 +25,13 @@
 
     const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
     const DEFAULT_AVATAR_COLOR = '#00A4DC';
+    /// The colours the profile form offers, in order. ProfilesBaseController.AvatarPalette
+    /// is the same list, and picks from it the same way for a profile made by another app.
+    const AVATAR_PALETTE = [
+        '#00A4DC', '#E50914', '#22C55E', '#EAB308', '#A855F7', '#EC4899',
+        '#F97316', '#06B6D4', '#3B82F6', '#10B981', '#6366F1', '#8B5CF6',
+        '#D946EF', '#F43F5E', '#14B8A6', '#F59E0B', '#84CC16', '#64748B'
+    ];
 
     /// The looks Bonfire's own screens can take. Must match Themes.All on the server and
     /// the [data-jpf-theme] blocks in styles.css; tests/js/themes.js holds the three
@@ -1324,12 +1331,17 @@
             }
         },
 
+        /// The first palette colour nobody in this household has, as the server picks it
+        /// (NextAvatarColor), so a new profile doesn't start as a copy of the last tile.
+        nextAvatarColor: function () {
+            const own = (this.currentProfiles || []).filter(p => !p.isBonfire);
+            const used = own.map(p => String(p.avatarColor || '').toLowerCase());
+            const free = AVATAR_PALETTE.filter(c => used.indexOf(c.toLowerCase()) === -1);
+            return free.length ? free[0] : AVATAR_PALETTE[own.length % AVATAR_PALETTE.length];
+        },
+
         renderColorPicker: function (selectedColor) {
-            const palette = [
-                '#00A4DC', '#E50914', '#22C55E', '#EAB308', '#A855F7', '#EC4899',
-                '#F97316', '#06B6D4', '#3B82F6', '#10B981', '#6366F1', '#8B5CF6',
-                '#D946EF', '#F43F5E', '#14B8A6', '#F59E0B', '#84CC16', '#64748B'
-            ];
+            const palette = AVATAR_PALETTE;
             const active = (selectedColor || '').toLowerCase();
             return `
                 <div class="avatar-color-picker">
@@ -6440,6 +6452,7 @@
                 this.clearManagedDocumentListeners();
                 const content = document.querySelector('.profiles-modal-content');
                 // ── Section 1: who this profile is ──────────────────────────────
+                const startColor = this.nextAvatarColor();
                 const createAppearance = `
                     <div class="form-group">
                         <label for="create-name-input">${t('profileForm.profileName')}</label>
@@ -6448,10 +6461,10 @@
                     ${this.renderTransparentToggle('create', null, false)}
                     <div class="form-group avatar-color-group" id="create-color-group">
                         <label>${t('profileForm.avatarColor')}</label>
-                        ${this.renderColorPicker(DEFAULT_AVATAR_COLOR)}
+                        ${this.renderColorPicker(startColor)}
                         <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
                     </div>
-                    ${this.renderAvatarPicker('create', avatarLibrary, null, DEFAULT_AVATAR_COLOR, { enabled: false })}
+                    ${this.renderAvatarPicker('create', avatarLibrary, null, startColor, { enabled: false })}
                     ${this.renderThemePicker('create', null)}
                 `;
 
@@ -6535,7 +6548,7 @@
 
                 // Color selector interaction
                 const dots = content.querySelectorAll('.color-dot');
-                let selectedColor = DEFAULT_AVATAR_COLOR;
+                let selectedColor = startColor;
                 dots.forEach(dot => {
                     dot.addEventListener('click', () => {
                         dots.forEach(d => d.classList.remove('active'));

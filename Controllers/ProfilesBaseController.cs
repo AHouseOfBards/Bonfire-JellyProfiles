@@ -1925,9 +1925,40 @@ namespace Jellyfin.Profiles.Controllers
         /// Anything else could break out of the <c>style="..."</c> attribute it lands in.
         /// </summary>
         protected static string SanitizeAvatarColor(string? color)
-            => !string.IsNullOrWhiteSpace(color) && HexColorRegex.IsMatch(color.Trim())
-                ? color.Trim()
-                : DefaultAvatarColor;
+            => IsAvatarColor(color) ? color!.Trim() : DefaultAvatarColor;
+
+        internal static bool IsAvatarColor(string? color)
+            => !string.IsNullOrWhiteSpace(color) && HexColorRegex.IsMatch(color.Trim());
+
+        /// <summary>
+        /// The colours offered in the profile form, in its order. The same list is in
+        /// profiles.js; tests/js/avatarcolors.js checks the two match.
+        /// </summary>
+        internal static readonly string[] AvatarPalette =
+        {
+            "#00A4DC", "#E50914", "#22C55E", "#EAB308", "#A855F7", "#EC4899",
+            "#F97316", "#06B6D4", "#3B82F6", "#10B981", "#6366F1", "#8B5CF6",
+            "#D946EF", "#F43F5E", "#14B8A6", "#F59E0B", "#84CC16", "#64748B",
+        };
+
+        /// <summary>
+        /// The first colour in the palette that nobody in the household has, so a new tile
+        /// doesn't look like the last one. Every profile used to start the same blue. With
+        /// the whole palette taken, it goes round again.
+        /// </summary>
+        internal static string NextAvatarColor(Guid masterUserId, PluginConfiguration config)
+        {
+            var rows = config.Mappings
+                .Where(m => m.MasterUserId == masterUserId || m.ProfileUserId == masterUserId)
+                .ToList();
+            var used = new HashSet<string>(rows.Select(m => (m.AvatarColor ?? string.Empty).Trim()),
+                StringComparer.OrdinalIgnoreCase);
+            // A main account with no row of its own is drawn in the default colour.
+            if (!rows.Any(m => m.ProfileUserId == masterUserId)) used.Add(DefaultAvatarColor);
+
+            return AvatarPalette.FirstOrDefault(c => !used.Contains(c))
+                   ?? AvatarPalette[rows.Count % AvatarPalette.Length];
+        }
 
         /// <summary>
         /// Validates an externally supplied image URL. Only absolute http(s) URLs are

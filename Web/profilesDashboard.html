@@ -614,13 +614,6 @@
                     </label>
                     <div class="fieldDescription" data-i18n="admin.security.requireMainPinHint">Profiles and settings can't be changed until the account sets one.</div>
                 </div>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label>
-                        <input is="emby-checkbox" type="checkbox" id="requireMasterPin" />
-                        <span data-i18n="admin.security.requireMasterPin">Ask for the main PIN to add a profile</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.security.requireMasterPinHint">Only matters for accounts that have one.</div>
-                </div>
                 <div class="buttonContainer jpf-block-end">
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
                 </div>
@@ -1056,7 +1049,6 @@
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
-                    page.querySelector('#requireMasterPin').checked = config.RequireMasterPinForCreation;
                     page.querySelector('#requireMainPin').checked = !!config.RequireMainPin;
                     page.dataset.requireMainPin = config.RequireMainPin ? '1' : '';
                     page._config = config;
@@ -2925,7 +2917,7 @@
                         'Main accounts: ' + masters.length + ', profiles: ' + subs.length
                             + ', main accounts without a PIN: ' + masters.filter(function (x) { return field(x, 'requiresPin') !== true; }).length,
                         'Profiles per account: ' + (c.MaxProfilesPerUser || 5),
-                        'Require main PIN: ' + on(c.RequireMainPin) + ', PIN to add a profile: ' + on(c.RequireMasterPinForCreation),
+                        'Require main PIN: ' + on(c.RequireMainPin),
                         'PIN sign-in on apps: ' + on(c.EnableClientPinLogin) + ', profiles on sign-in screens: ' + on(c.EnableClientProfileList)
                             + ', skip Quick Connect: ' + on(c.SkipQuickConnectOnKnownDevices),
                         'Profile picker apps: ' + ((c.ProxyClients || []).join(', ') || 'none'),
@@ -2989,7 +2981,6 @@
                     contentType: 'application/json',
                     data: JSON.stringify({
                         maxProfilesPerUser: maxProfiles,
-                        requireMasterPinForCreation: page.querySelector('#requireMasterPin').checked,
                         requireMainPin: page.querySelector('#requireMainPin').checked,
                         disallowCustomAvatarUploads: page.querySelector('#disallowCustomAvatars').checked,
                         enableStarterAvatars: page.querySelector('#enableStarterAvatars').checked,

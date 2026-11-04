@@ -8,7 +8,10 @@ namespace Jellyfin.Profiles.Configuration
     public class PluginConfiguration : BasePluginConfiguration
     {
         public int MaxProfilesPerUser { get; set; } = 5;
-        public bool RequireMasterPinForCreation { get; set; } = true;
+
+        // RequireMasterPinForCreation was here until 1.7.2. Creating a profile now needs the
+        // main PIN like every other change, so it had nothing left to do. A saved
+        // configuration that still has the element loads fine: the serializer skips it.
 
         /// <summary>
         /// A main account can't change its household (profiles, devices, sharing, switcher
@@ -582,7 +585,7 @@ namespace Jellyfin.Profiles.Configuration
         public Guid MasterUserId { get; set; }
         public string ProfileName { get; set; } = string.Empty;
         public string? PinHash { get; set; }
-        public string AvatarColor { get; set; } = "#1F77B4";
+        public string AvatarColor { get; set; } = "#00A4DC";
         /// <summary>
         /// Suppresses <see cref="AvatarColor"/> behind the profile picture, for pictures
         /// that are cut out rather than rectangular — a circular avatar over a coloured

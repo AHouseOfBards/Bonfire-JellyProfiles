@@ -258,6 +258,28 @@ if (iface != null && impl != null)
     Ok("and Jellyfin is given it", sc.Any(d => d.ServiceType == iface && d.ImplementationType == impl));
 }
 
+// ── A new profile's colour ───────────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── A profile made without a colour gets one nobody has ─────────");
+
+var next = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController")
+    .GetMethod("NextAvatarColor", BindingFlags.NonPublic | BindingFlags.Static);
+Ok("the server can pick one", next != null);
+if (next != null)
+{
+    string Pick(Guid main) => (string)next.Invoke(null, new[] { main, config });
+    var FRESH = Guid.NewGuid();
+    Ok("a household with no rows skips the main account's default blue", Pick(FRESH) == "#E50914", Pick(FRESH));
+
+    // MAIN, KID and KID2 above were stored with the mapping default, which is that blue.
+    Ok("rows stored with the default count as using it", Pick(MAIN) == "#E50914", Pick(MAIN));
+    var cfgRow = mappings.Cast<object>().First(m => (Guid)mapType.GetProperty("ProfileUserId").GetValue(m) == KID);
+    mapType.GetProperty("AvatarColor").SetValue(cfgRow, "#e50914");
+    Ok("a colour in use is skipped, whatever its case", Pick(MAIN) == "#22C55E", Pick(MAIN));
+    Ok("the stored default is the client's default, not #1F77B4",
+       (string)mapType.GetProperty("AvatarColor").GetValue(Activator.CreateInstance(mapType)) == "#00A4DC");
+}
+
 // ── Dashboard → Activity ─────────────────────────────────────────────────────
 Console.WriteLine();
 Console.WriteLine("── Dashboard → Activity ────────────────────────────────────────");

@@ -537,7 +537,7 @@ Errors: `400` for a bad PIN, `pin_wrong`, `pin_missing` or `main_pin_required`; 
 | --- | --- | --- | --- |
 | `profileName` | string | Yes | Display name. |
 | `pin` | string | No | 4 to 8 digits. Omit for no PIN. |
-| `avatarColor` | string | No | Hex colour. Defaults to `#1F77B4`. |
+| `avatarColor` | string | No | Hex colour. Left out, it's the first colour from Bonfire's palette that nobody in the household has. |
 | `transparentAvatar` | boolean | No | Don't paint the colour behind the picture. |
 | `theme` | string | No | A [theme](#themes) id. Omit or `""` to follow the server default. Ignored while the server doesn't let profiles choose. |
 | `maxParentalRating` | string | No | A rating score, such as `"6"`, `"10"`, `"14"` or `"17"`. Never above the main account's. Omit for no limit of its own. |
@@ -569,7 +569,6 @@ are; these don't:
 | Field | Left out or `null` |
 | --- | --- |
 | `profileName` | Required. |
-| `avatarColor` | Resets to `#1F77B4`. |
 | `maxParentalRating` | Removes the profile's own limit. The main account's still applies. |
 | `enabledFolders` | Every library the main account has, including ones added later. |
 
@@ -1445,7 +1444,6 @@ anything added since you read it.
 | Field | Type | Description |
 | --- | --- | --- |
 | `maxProfilesPerUser` | integer | Profiles per account, 1 to 20. |
-| `requireMasterPinForCreation` | boolean | Ask for the main account's PIN to create a profile. |
 | `requireMainPin` | boolean | Main accounts must set a PIN before changing profiles or settings. |
 | `disallowCustomAvatarUploads` | boolean | Pictures only from the avatar library. |
 | `enableStarterAvatars` | boolean | Offer the starter avatars. |

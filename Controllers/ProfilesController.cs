@@ -309,16 +309,10 @@ namespace Jellyfin.Profiles.Controllers
                 return Unauthorized("Only the master profile can manage profiles.");
             }
 
-            // The main PIN, unless the administrator lets creation skip it. A required main
-            // PIN still has to exist either way: the first profile is when it starts to matter.
-            if (config.RequireMasterPinForCreation)
-            {
-                if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
-            }
-            else if (config.RequireMainPin && !MainHasPin(masterUserId, config))
-            {
-                return BadRequest(MainPinRequiredMessage);
-            }
+            // The main PIN, like every other change to the household. There used to be an
+            // administrator setting to let creation skip it; once every other route asked,
+            // all it did was leave this one door open.
+            if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
 
             var nameError = ValidateProfileName(request.ProfileName);
             if (nameError != null) return BadRequest(nameError);
@@ -480,7 +474,9 @@ namespace Jellyfin.Profiles.Controllers
                     MasterUserId = masterUserId,
                     ProfileName = profileName,
                     PinHash = HashPin(request.Pin),
-                    AvatarColor = SanitizeAvatarColor(request.AvatarColor),
+                    AvatarColor = IsAvatarColor(request.AvatarColor)
+                        ? request.AvatarColor!.Trim()
+                        : NextAvatarColor(masterUserId, config),
                     TransparentAvatar = request.TransparentAvatar ?? false,
                     // Only while profiles may choose. Stored otherwise, it would surface the
                     // day choosing is turned on, as a choice nobody remembers making.
@@ -1532,8 +1528,6 @@ namespace Jellyfin.Profiles.Controllers
 
                 if (TryProperty(root, "MaxProfilesPerUser", out _))
                     config.MaxProfilesPerUser = incoming.MaxProfilesPerUser;
-                if (TryProperty(root, "RequireMasterPinForCreation", out _))
-                    config.RequireMasterPinForCreation = incoming.RequireMasterPinForCreation;
                 if (TryProperty(root, "RequireMainPin", out _))
                     config.RequireMainPin = incoming.RequireMainPin;
                 if (TryProperty(root, "DisallowCustomAvatarUploads", out _))
@@ -1786,7 +1780,10 @@ namespace Jellyfin.Profiles.Controllers
                         mappingEntry.ProfileName = request.ProfileName.Trim();
                     }
 
-                    mappingEntry.AvatarColor = SanitizeAvatarColor(request.AvatarColor);
+                    // Left out keeps it, like the other fields. It used to reset to a
+                    // fixed blue, the one exception to the API's own rule.
+                    if (request.AvatarColor != null)
+                        mappingEntry.AvatarColor = SanitizeAvatarColor(request.AvatarColor);
 
                     // Null leaves it alone, so a caller that predates the field — or one
                     // sending a partial update — cannot silently switch the background off.
@@ -4555,8 +4552,6 @@ namespace Jellyfin.Profiles.Controllers
                     config.ProfileImageQuality = ImageQualities.Normalize(request.ProfileImageQuality);
                 if (request.MaxProfilesPerUser.HasValue)
                     config.MaxProfilesPerUser = request.MaxProfilesPerUser.Value;
-                if (request.RequireMasterPinForCreation.HasValue)
-                    config.RequireMasterPinForCreation = request.RequireMasterPinForCreation.Value;
                 if (request.RequireMainPin.HasValue)
                     config.RequireMainPin = request.RequireMainPin.Value;
                 if (request.DisallowCustomAvatarUploads.HasValue)
