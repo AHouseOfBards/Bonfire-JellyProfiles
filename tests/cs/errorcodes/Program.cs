@@ -239,6 +239,8 @@ if (info != null)
         "Name", "Version", "ApiVersion", "Disabled", "Features",
         "Features.ClientPinLogin", "Features.ClientProfileList", "Features.SkipQuickConnectOnKnownDevices",
         "Features.ProfileThemes", "Features.ProxyClients",
+        // A server-wide setting, so a client knows to ask for a main PIN to be set.
+        "Features.RequireMainPin",
         // Null unless closed for maintenance, which this harness never is.
         "Maintenance",
     };

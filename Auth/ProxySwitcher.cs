@@ -521,15 +521,26 @@ namespace Jellyfin.Profiles.Auth
             return services.Users?.GetUserById(userId)?.Username ?? "Profile";
         }
 
+        /// <summary>
+        /// Whether opening this tile asks for its PIN: the same rule as the web switcher's,
+        /// through the same function.
+        /// <para>
+        /// The main account's tile used to open without one, on the grounds that its password
+        /// had been typed to sign the app in. But the app stays signed in as the main account
+        /// for good, so a child could pick Switch profile, then the main account, and be in
+        /// the unrestricted account. The web switcher asked for the PIN in the same place.
+        /// Now the main account opens freely only where its owner chose that: no PIN set,
+        /// "Ask for the PIN to open this account" off, or the home network with the bypass on.
+        /// </para>
+        /// </summary>
         private static bool NeedsPin(HttpContext context, ProxySession session, Guid profileId, PluginConfiguration? config, Services services)
         {
-            // The main account has already given its password to get here.
-            if (profileId == session.MasterId) return false;
-
             var mapping = config?.Mappings?.FirstOrDefault(m => m.ProfileUserId == profileId && m.MasterUserId == session.MasterId);
             if (mapping == null || string.IsNullOrEmpty(mapping.PinHash)) return false;
 
-            return !(mapping.BypassPinOnLocalNetwork && IsLocal(context, services));
+            // Only the household's own tiles are on the picker, so never a cross-household entry.
+            return !Controllers.ProfilesBaseController.CanSkipPin(
+                mapping, IsLocal(context, services), isCrossAccountMasterSwitch: false, householdLanBypass: false);
         }
 
         private static List<Tile> Keypad(ProxySession session, Guid profileId, string entered, Guid parentId, string? notice = null)

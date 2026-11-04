@@ -9,6 +9,13 @@ namespace Jellyfin.Profiles.Configuration
     {
         public int MaxProfilesPerUser { get; set; } = 5;
         public bool RequireMasterPinForCreation { get; set; } = true;
+
+        /// <summary>
+        /// A main account can't change its household (profiles, devices, sharing, switcher
+        /// settings) until it has a PIN. Off by default. Without it, a main account with no
+        /// PIN leaves all of that open to anyone who can reach its switcher.
+        /// </summary>
+        public bool RequireMainPin { get; set; }
         public List<ProfileMapping> Mappings { get; set; } = new List<ProfileMapping>();
         public List<KnownDevice> KnownDevices { get; set; } = new List<KnownDevice>();
         public List<BonfireGroup> BonfireGroups { get; set; } = new List<BonfireGroup>();
@@ -613,6 +620,21 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public List<string>? AllowedTags { get; set; }
         public bool BypassPinOnLocalNetwork { get; set; } = false;
+
+        /// <summary>
+        /// Main accounts only, set by their owner. False opens the main account from its own
+        /// household's switcher without the PIN, on any network; the PIN then only guards
+        /// managing the household (profiles, sharing, switcher settings).
+        /// <para>
+        /// True by default, so upgrading changes nothing. It never reaches across a Bonfire
+        /// link: another household opening this account still needs the PIN, or the owner's
+        /// <see cref="AllowHouseholdLanBypass"/>. Ignored on sub-profiles. A native app's
+        /// sign-in is unaffected too: there the main account still types its PIN or password,
+        /// because a blank password on a sign-in form would open it on any device.
+        /// </para>
+        /// </summary>
+        public bool AskPinToOpen { get; set; } = true;
+
         /// <summary>
         /// Set on a master account by its own owner: allows other members of a shared Bonfire
         /// to switch into this account from the local network without entering its PIN, and —

@@ -39,6 +39,8 @@ namespace Jellyfin.Profiles.Controllers
             ("does not let profiles choose a theme", "themes_locked"),
 
             // PINs and codes.
+            ("Set a PIN for your account first", "main_pin_required"),
+            ("Enter your account's PIN", "pin_missing"),
             ("Invalid PIN", "pin_wrong"),
             ("Invalid Master PIN", "pin_wrong"),
             ("PIN code must be", "pin_format"),

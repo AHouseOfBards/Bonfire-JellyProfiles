@@ -287,6 +287,8 @@
         'profileForm.noPinSetHint': 'No PIN set. This profile can be opened by anyone who can reach the switcher.',
         'profileForm.bypassPinLan': 'Bypass PIN on local network (LAN)',
         'profileForm.bypassPinHint': 'No PIN prompt on your home network.',
+        'profileForm.askPinToOpen': 'Ask for the PIN to open this account',
+        'profileForm.askPinToOpenHint': 'Off, it opens without one. The PIN still protects settings.',
         'profileForm.autoLock': 'Auto-lock after inactivity',
         'profileForm.autoLockHintCreate': 'Only applies when this profile has a PIN set.',
         'profileForm.autoLockHintEdit': 'Only applies when a PIN is set on this profile.',
@@ -384,6 +386,12 @@
         'panic.disabledBody': 'The switcher is off until Jellyfin restarts. Reload the page if anything still looks wrong.',
 
         'settings.title': 'Settings',
+        'settings.needsMain': 'Open {name} first, then choose Settings.',
+        'mainPin.setTitle': 'Set a PIN for your account',
+        'mainPin.setBody': 'Without one, anyone at this screen can change your profiles.',
+        'mainPin.requiredBody': 'Your server needs one before you can change profiles or settings.',
+        'mainPin.notNow': 'Not now',
+        'mainPin.set': 'Set PIN',
         'settings.switcherStyleTitle': 'Switcher Style',
         'settings.switcherStyleBody': 'Where you reach this screen from, and whether it opens on startup.',
         'settings.yourBonfireTitle': 'Your Bonfire',
@@ -698,6 +706,16 @@
         /// (Chromium 53) rejects the whole file over it.
         jsonHeaders: function (token) {
             return Object.assign({ 'Content-Type': 'application/json' }, this.getAuthHeaders(token));
+        },
+
+        /// Headers for a call that changes the household: devices, sharing, switcher
+        /// settings. The server checks the main PIN on every one of them, and most have no
+        /// body to put it in, so it goes in a header once Manage Profiles or Settings has
+        /// asked for it. Pass json false for a call with no body.
+        manageHeaders: function (token, json) {
+            const headers = json === false ? this.getAuthHeaders(token) : this.jsonHeaders(token);
+            if (this.masterPin) headers['X-Bonfire-Master-Pin'] = this.masterPin;
+            return headers;
         },
 
         /// A one-field dialog. Used where a value has to be typed rather than chosen, which
@@ -1216,6 +1234,8 @@
                 lockoutMinutes: pick(p, 'lockoutMinutes', 5),
                 maxSubProfiles: pick(p, 'maxSubProfiles', 5),
                 bypassPinOnLocalNetwork: pick(p, 'bypassPinOnLocalNetwork', false),
+                // Main account only, and only to its owner. True unless the owner turned it off.
+                askPinToOpen: pick(p, 'askPinToOpen', true) !== false,
                 allowedDeviceIds: pick(p, 'allowedDeviceIds', []),
                 enabledFolders: pick(p, 'enabledFolders', []),
                 allLibraries: pick(p, 'allLibraries', false),
@@ -4843,8 +4863,7 @@
         ///
         /// Written with textContent: the message is the administrator's own words.
         checkMaintenance: function () {
-            fetch(ApiClient.getUrl('plugins/profiles/info'), { cache: 'no-store' })
-                .then(res => res.ok ? res.json() : null)
+            this.serverInfo()
                 .then(info => {
                     const m = info && (info.maintenance || info.Maintenance);
                     if (!m) return;
@@ -5047,38 +5066,32 @@
                 });
             });
 
-            // "Add Profile" action
+            // "Add Profile" action. The card only exists in Manage Profiles, which has
+            // already asked for the main PIN. It used to ask again, after reading the
+            // plugin's configuration, which only an administrator may read: for everyone
+            // else that failed and the form opened with no PIN at all.
             const addCard = overlay.querySelector('.action-add-profile');
             if (addCard) {
                 addCard.addEventListener('click', () => {
                     if (this._switchLock) return;
-                    const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
-                    const masterRequiresPin = masterProfile && masterProfile.requiresPin;
-                    
-                    if (masterRequiresPin) {
-                        ApiClient.getPluginConfiguration(this.pluginId).then(config => {
-                            if (config.RequireMasterPinForCreation) {
-                                this.promptMasterPinEntry('create', () => {
-                                    this.showAddProfileModal();
-                                });
-                            } else {
-                                this.showAddProfileModal();
-                            }
-                        }).catch(() => {
-                            this.showAddProfileModal();
-                        });
-                    } else {
-                        this.showAddProfileModal();
-                    }
+                    this.withMainPin(profiles, () => this.showAddProfileModal());
                 });
             }
 
-            // Settings: everything that is not a profile.
+            // Settings: everything that is not a profile. They are the main account's, so
+            // the main account opens them, with its PIN.
             const settingsBtn = overlay.querySelector('#profiles-settings-btn');
             if (settingsBtn) {
                 settingsBtn.addEventListener('click', () => {
                     if (this._switchLock) return;
-                    this.showSettingsMenu();
+                    const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
+                    this._syncMasterFromProfiles(masterProfile);
+                    if (!this.isSignedInAsMaster()) {
+                        this.showAlert(t('settings.title'),
+                            t('settings.needsMain', { name: escapeHtml(masterProfile ? masterProfile.profileName : '') }));
+                        return;
+                    }
+                    this.withMainPin(profiles, () => this.showSettingsMenu());
                 });
             }
 
@@ -5131,15 +5144,10 @@
                             return;
                         }
 
-                        if (masterProfile && masterProfile.requiresPin) {
-                            this.promptMasterPinEntry('manage', () => {
-                                this.isManageMode = true;
-                                this.renderOverlayContent(overlay, profiles);
-                            });
-                        } else {
+                        this.withMainPin(profiles, () => {
                             this.isManageMode = true;
                             this.renderOverlayContent(overlay, profiles);
-                        }
+                        });
                     }
                 });
             }
@@ -5254,6 +5262,101 @@
             });
         },
 
+        /// The server's /info, read at most once a minute. Null when it can't be read.
+        serverInfo: function () {
+            const now = Date.now();
+            if (this._serverInfo && now - this._serverInfo.at < 60000) return this._serverInfo.promise;
+            const promise = fetch(ApiClient.getUrl('plugins/profiles/info'), { cache: 'no-store' })
+                .then(res => res.ok ? res.json() : null)
+                .catch(() => null);
+            this._serverInfo = { at: now, promise: promise };
+            return promise;
+        },
+
+        /// Runs then() once the main PIN is known: asks for it if the account has one and
+        /// it hasn't been typed yet. With none set and the administrator requiring one,
+        /// sets one first.
+        ///
+        /// Decided by hasPin, never requiresPin. requiresPin answers "does opening the
+        /// account ask", which is false on the home network with the bypass on, or with
+        /// asking turned off; the server still wants the PIN to change anything. Going by
+        /// requiresPin, Manage Profiles opened without asking and every save then failed
+        /// as a wrong PIN.
+        withMainPin: function (profiles, then) {
+            const main = (profiles || this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
+            if (main && main.hasPin) {
+                if (this.masterPin) { then(); return; }
+                this.promptMasterPinEntry('manage', then);
+                return;
+            }
+            this.serverInfo().then(info => {
+                const features = info && (info.features || info.Features);
+                const required = !!(features && (features.requireMainPin || features.RequireMainPin));
+                if (required) this.promptSetMainPin(profiles, true, then);
+                else then();
+            });
+        },
+
+        /// Asks the main account to set a PIN. Required: there is no "Not now", and Cancel
+        /// goes back to the profiles. Offered: "Not now" carries on without one.
+        promptSetMainPin: function (profiles, required, done) {
+            this.beginNavigation();
+            const content = document.querySelector('.profiles-modal-content');
+            const masterState = this.readMasterState();
+            if (!content || !masterState) { done(); return; }
+
+            content.innerHTML = `
+                <h1 class="profiles-title">${t('mainPin.setTitle')}</h1>
+                <div class="pin-entry-container">
+                    <p class="profiles-pin-note">${required ? t('mainPin.requiredBody') : t('mainPin.setBody')}</p>
+                    <input type="text" id="main-pin-new" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    <div id="main-pin-new-error" class="profiles-pin-error" role="alert" hidden></div>
+                    <div class="pin-actions jpf-actions">
+                        <button id="main-pin-skip" class="profiles-btn btn-secondary">${required ? t('common.cancel') : t('mainPin.notNow')}</button>
+                        <button id="main-pin-save" class="profiles-btn btn-primary">${t('mainPin.set')}</button>
+                    </div>
+                </div>
+            `;
+
+            const input = content.querySelector('#main-pin-new');
+            const error = content.querySelector('#main-pin-new-error');
+            const fail = (message) => {
+                error.textContent = message;
+                error.hidden = false;
+                input.value = '';
+                input.focus();
+            };
+            input.focus();
+
+            const save = () => {
+                const pin = input.value;
+                if (!/^\d{4,8}$/.test(pin)) { fail(t('profileForm.pinLengthCreate')); return; }
+                fetch(ApiClient.getUrl('plugins/profiles/account'), {
+                    method: 'POST',
+                    headers: this.jsonHeaders(masterState.token),
+                    body: JSON.stringify({ pin: pin })
+                })
+                .then(res => {
+                    if (res.status === 401) { this.handleSessionExpired(); return null; }
+                    if (!res.ok) return res.text().then(text => { fail(text || t('errors.error')); return null; });
+                    (profiles || []).concat(this.currentProfiles || []).forEach(p => {
+                        if (p.isMaster && !p.isBonfire) p.hasPin = true;
+                    });
+                    this.masterPin = pin;
+                    done();
+                    return null;
+                })
+                .catch(err => fail(err.message));
+            };
+
+            content.querySelector('#main-pin-save').addEventListener('click', save);
+            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+            content.querySelector('#main-pin-skip').addEventListener('click', () => {
+                if (required) this.showProfileOverlay(this.currentProfiles);
+                else done();
+            });
+        },
+
         promptMasterPinEntry: function (actionType, callback) {
             this.beginNavigation();
             const masterProfile = this.currentProfiles.find(p => p.isMaster && !p.isBonfire);
@@ -5312,10 +5415,10 @@
                 if (!masterState) return;
 
                 // Silent verify — no error on failure, user keeps typing
-                fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
+                fetch(ApiClient.getUrl('plugins/profiles/account/verify-pin'), {
                     method: 'POST',
                     headers: this.jsonHeaders(masterState.token),
-                    body: JSON.stringify({ profileId: masterProfile.profileUserId, pin: currentValue }),
+                    body: JSON.stringify({ pin: currentValue }),
                     signal: verifyController ? verifyController.signal : undefined
                 })
                 .then(res => {
@@ -5344,10 +5447,10 @@
                 if (!masterState) return;
 
                 verifyInProgress = true;
-                fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
+                fetch(ApiClient.getUrl('plugins/profiles/account/verify-pin'), {
                     method: 'POST',
                     headers: this.jsonHeaders(masterState.token),
-                    body: JSON.stringify({ profileId: masterProfile.profileUserId, pin: pin })
+                    body: JSON.stringify({ pin: pin })
                 })
                 .then(res => {
                     verifyInProgress = false;
@@ -6607,7 +6710,14 @@
                         return res.json();
                     })
                     .then(() => {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
+                        const refresh = () => this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
+                        // The first profile is when a main PIN starts to matter: from now on
+                        // the main account is the way past that profile's restrictions.
+                        const people = this.currentProfiles || [];
+                        const main = people.find(x => x.isMaster && !x.isBonfire);
+                        const first = !people.some(x => !x.isMaster && !x.isBonfire);
+                        if (main && !main.hasPin && first) this.promptSetMainPin(people, false, refresh);
+                        else refresh();
                     })
                     .catch(err => {
                         const el = document.getElementById('create-error-msg');
@@ -6702,6 +6812,14 @@
                         </label>
                         <div class="form-hint">${t('profileForm.bypassPinHint')}</div>
                     </div>
+                    ${profile.isMaster && !profile.isBonfire ? `
+                    <div class="form-group">
+                        <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="edit-ask-pin-checkbox" ${profile.askPinToOpen ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent);" />
+                            <span>${t('profileForm.askPinToOpen')}</span>
+                        </label>
+                        <div class="form-hint">${t('profileForm.askPinToOpenHint')}</div>
+                    </div>` : ''}
                     <div class="form-group">
                         <label for="edit-lockout-select">${t('profileForm.autoLock')}</label>
                         <select id="edit-lockout-select">
@@ -6938,7 +7056,7 @@
                             const delDevUrl = apiClient.getUrl('plugins/profiles/devices/delete');
                             fetch(delDevUrl, {
                                 method: 'POST',
-                                headers: this.jsonHeaders(masterState.token),
+                                headers: this.manageHeaders(masterState.token),
                                 body: JSON.stringify({ deviceId: devId })
                             })
                             .then(res => {
@@ -6987,7 +7105,7 @@
                     // binds it as an explicit null, which is a different thing from absent.
                     const init = {
                         method: 'POST',
-                        headers: this.jsonHeaders(masterState.token)
+                        headers: this.manageHeaders(masterState.token)
                     };
                     if (body !== null && body !== undefined) init.body = JSON.stringify(body);
 
@@ -7032,7 +7150,7 @@
                         const url = apiClient.getUrl('plugins/profiles/devices/merge-duplicates');
                         fetch(url, {
                             method: 'POST',
-                            headers: this.jsonHeaders(masterState.token)
+                            headers: this.manageHeaders(masterState.token)
                         })
                         .then(res => res.json())
                         .then(data => {
@@ -7098,6 +7216,7 @@
                     const name = document.getElementById('edit-name-input').value.trim();
                     const pinVal = document.getElementById('edit-pin-input').value;
                     const bypassPin = document.getElementById('edit-local-bypass-checkbox').checked;
+                    const askPinBox = document.getElementById('edit-ask-pin-checkbox');
                     
                     let rating = null;
                     let checkedLibs = null;
@@ -7186,6 +7305,7 @@
                             masterPin: this.masterPin,
                             lockoutMinutes: lockoutMinutes,
                             bypassPinOnLocalNetwork: bypassPin,
+                            askPinToOpen: askPinBox ? askPinBox.checked : null,
                             allowedDeviceIds: checkedDevices,
                             profileImage: avatarPicker.get().image,
                             profileImageThumb: avatarPicker.get().thumb,
@@ -7344,6 +7464,8 @@
             const back = content.querySelector('#settings-back-btn');
             if (back) {
                 back.addEventListener('click', () => {
+                    // Manage Profiles may still be open underneath, and still needs it.
+                    if (!this.isManageMode) this.masterPin = null;
                     const st = this.readMasterState();
                     if (st) {
                         this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.token, /* forceRefresh */ true);
@@ -7566,7 +7688,7 @@
                 errDiv.style.display = 'none';
                 return fetch(apiClient.getUrl('plugins/profiles/preferences'), {
                     method: 'POST',
-                    headers: this.jsonHeaders(masterState.token),
+                    headers: this.manageHeaders(masterState.token),
                     body: JSON.stringify({ askOnStartup: askOnStartup, switcherLocation: location })
                 })
                 .then(res => res.ok ? res.json() : Promise.reject(new Error(t('errors.couldNotSaveThat'))))
@@ -7891,7 +8013,7 @@
                     this.showConfirmDialog(t('bonfire.kickConfirmTitle'), t('bonfire.kickConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/kick'), {
                             method: 'POST',
-                            headers: this.jsonHeaders(masterToken),
+                            headers: this.manageHeaders(masterToken),
                             body: JSON.stringify({ memberId: mId })
                         })
                         .then(res => {
@@ -7912,7 +8034,7 @@
                     this.showConfirmDialog(t('bonfire.newCodeConfirmTitle'), t('bonfire.newCodeConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/regenerate-code'), {
                             method: 'POST',
-                            headers: this.jsonHeaders(masterToken)
+                            headers: this.manageHeaders(masterToken)
                         })
                         .then(res => {
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
@@ -7930,7 +8052,7 @@
                     this.showConfirmDialog(t('bonfire.deleteGroupConfirmTitle'), t('bonfire.deleteGroupConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/delete-group'), {
                             method: 'POST',
-                            headers: this.getAuthHeaders(masterToken)
+                            headers: this.manageHeaders(masterToken, false)
                         })
                         .then(res => {
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
@@ -7948,7 +8070,7 @@
                     this.showConfirmDialog(t('bonfire.leaveGroupConfirmTitle'), t('bonfire.leaveGroupConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/leave'), {
                             method: 'POST',
-                            headers: this.getAuthHeaders(masterToken)
+                            headers: this.manageHeaders(masterToken, false)
                         })
                         .then(res => {
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
@@ -7968,7 +8090,7 @@
                     generateBtn.textContent = t('bonfire.generating');
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/generate'), {
                         method: 'POST',
-                        headers: masterToken ? this.getAuthHeaders(masterToken) : {}
+                        headers: masterToken ? this.manageHeaders(masterToken, false) : {}
                     })
                     .then(res => {
                         if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
@@ -8014,7 +8136,7 @@
                     joinBtn.textContent = t('bonfire.joining');
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/join'), {
                         method: 'POST',
-                        headers: this.jsonHeaders(masterToken),
+                        headers: this.manageHeaders(masterToken),
                         body: JSON.stringify({ code: code })
                     })
                     .then(res => {
@@ -8104,7 +8226,7 @@
 
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/settings'), {
                         method: 'POST',
-                        headers: this.jsonHeaders(masterToken),
+                        headers: this.manageHeaders(masterToken),
                         body: JSON.stringify(body)
                     })
                     .then(res => {

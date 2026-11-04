@@ -70,7 +70,9 @@ works the same way for any app not listed here.
 Only Moonfin for now. Tick it under **TVs & Apps → Profile picker**, then sign in on it
 with the main account. The home screen shows a **Profiles** library:
 
-1. Open a profile's folder to use that profile. A profile with a PIN opens a keypad.
+1. Open a profile's folder to use that profile. A profile with a PIN opens a keypad. So
+   does the main account's own folder, unless its owner turned off **Ask for the PIN to
+   open this account**.
 2. Open **Switch profile** on the home screen to go back.
 
 Profiles can't sign in directly on a ticked app.

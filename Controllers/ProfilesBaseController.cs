@@ -458,18 +458,85 @@ namespace Jellyfin.Profiles.Controllers
         /// Whether a PIN prompt can be skipped for this switch.
         /// <para>
         /// Within your own household that is <see cref="ProfileMapping.BypassPinOnLocalNetwork"/>,
-        /// your own convenience setting. Across a Bonfire link it is only ever
-        /// <paramref name="householdLanBypass"/> — your setting does not reach into
+        /// your own convenience setting, or, for your main account, turning off
+        /// <see cref="ProfileMapping.AskPinToOpen"/>. Across a Bonfire link it is only ever
+        /// <paramref name="householdLanBypass"/> — your settings do not reach into
         /// somebody else's account.
+        /// </para>
+        /// <para>
+        /// This decides <b>entry</b> only. Managing the household always checks the PIN
+        /// itself (<see cref="ManagementAllowed"/>), so a skipped prompt here is never proof of
+        /// the PIN anywhere else.
         /// </para>
         /// </summary>
         protected internal static bool CanSkipPin(
             ProfileMapping? mapping, bool isLocal, bool isCrossAccountMasterSwitch, bool householdLanBypass)
         {
-            return isCrossAccountMasterSwitch
-                ? householdLanBypass
-                : mapping != null && mapping.BypassPinOnLocalNetwork && isLocal;
+            if (isCrossAccountMasterSwitch) return householdLanBypass;
+            if (mapping == null) return false;
+            if (IsMainRow(mapping) && !mapping.AskPinToOpen) return true;
+            return mapping.BypassPinOnLocalNetwork && isLocal;
         }
+
+        /// <summary>A main account's own row, as opposed to one of its sub-profiles.</summary>
+        internal static bool IsMainRow(ProfileMapping m) =>
+            m.MasterUserId != Guid.Empty && m.ProfileUserId == m.MasterUserId;
+
+        /// <summary>The header a client may send the main account's PIN in, for routes with no body field for it.</summary>
+        internal const string MainPinHeader = "X-Bonfire-Master-Pin";
+
+        /// <summary>
+        /// The check in front of everything that changes a household: its profiles, devices,
+        /// sharing and switcher settings. Only the main account reaches it; callers check that
+        /// first.
+        /// <para>
+        /// With a main PIN set, the PIN is required, from <paramref name="bodyPin"/> or the
+        /// <see cref="MainPinHeader"/> header, throttled per account. This used to be checked
+        /// on five routes (create, update, delete, theme, artwork) while sharing, devices and
+        /// switcher settings took none, so an open main account left those unguarded.</para>
+        /// <para>
+        /// Without one, the household is unguarded, unless the administrator requires main
+        /// PINs, in which case nothing can be changed until one is set.
+        /// <paramref name="settingOwnPin"/> is the one exception: the route that sets it.</para>
+        /// </summary>
+        protected bool ManagementAllowed(
+            Guid masterUserId, PluginConfiguration config, string? bodyPin, out ActionResult? refusal, bool settingOwnPin = false)
+        {
+            var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            if (masterMapping == null || string.IsNullOrEmpty(masterMapping.PinHash))
+            {
+                if (config.RequireMainPin && !settingOwnPin)
+                {
+                    refusal = BadRequest(MainPinRequiredMessage);
+                    return false;
+                }
+
+                refusal = null;
+                return true;
+            }
+
+            var pin = !string.IsNullOrEmpty(bodyPin) ? bodyPin : Request.Headers[MainPinHeader].ToString();
+
+            // No PIN sent is not a wrong guess. Counting it would let a page that forgot to
+            // send one, or a script cached from before a route needed it, lock the owner out.
+            if (string.IsNullOrEmpty(pin))
+            {
+                refusal = BadRequest(MainPinMissingMessage);
+                return false;
+            }
+
+            return VerifyMasterPinLimited(pin, masterMapping, config, out refusal);
+        }
+
+        /// <summary>Whether this main account has set a PIN.</summary>
+        internal static bool MainHasPin(Guid masterUserId, PluginConfiguration config) =>
+            config.Mappings.Any(m => m.ProfileUserId == masterUserId && !string.IsNullOrEmpty(m.PinHash));
+
+        /// <summary>Refusal text when the administrator requires main PINs and this account has none.</summary>
+        internal const string MainPinRequiredMessage = "Set a PIN for your account first.";
+
+        /// <summary>Refusal text when a PIN is needed and none was sent.</summary>
+        internal const string MainPinMissingMessage = "Enter your account's PIN.";
 
         /// <summary>
         /// Returns null when the caller is a Jellyfin administrator, or the ActionResult to

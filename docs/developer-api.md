@@ -33,7 +33,7 @@ for Bonfire's own client. It's documented because other people build against it 
 
 ## All routes
 
-All 61 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 63 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -46,6 +46,8 @@ All 61 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `POST /plugins/profiles/delete` | user | Delete a profile and its account. |
 | `POST /plugins/profiles/switch` | user | Switch to a profile and get its token. |
 | `POST /plugins/profiles/verify-pin` | user | Check a PIN without switching. |
+| `POST /plugins/profiles/account/verify-pin` | user | Check the main account's PIN. |
+| `POST /plugins/profiles/account` | user | Set the main account's PIN and whether opening it asks. |
 | `GET /plugins/profiles/profiles.js` | anon | The client script. |
 | `GET /plugins/profiles/i18n/{locale}` | anon | One translation. |
 | `GET /plugins/profiles/image/{profileId}` | anon | A profile picture. |
@@ -128,6 +130,28 @@ be guessed.
 Every other route checks the caller itself, because the controller is
 `[AllowAnonymous]` so the routes above work. A new route with no check is public.
 
+### The main account's PIN
+
+Routes that change the household need the main account's PIN, if it has one. Send it as
+`masterPin` in the body where a route documents that field, or otherwise in a header:
+
+```http
+X-Bonfire-Master-Pin: 1234
+```
+
+These take the header: everything under `/bonfire` except `status`, `/devices/delete`,
+`/devices/merge`, `/devices/rename`, `/devices/merge-duplicates` with `apply=true`, and
+`POST /preferences`.
+
+Check the PIN once with [`POST /account/verify-pin`](#post-pluginsprofilesaccountverify-pin)
+and keep it for the session. Without it these routes return `400` with `pin_missing`; a
+wrong one returns `pin_wrong` and counts toward the
+[rate limit](#rate-limits). A missing PIN isn't counted.
+
+When the administrator requires main PINs (`features.requireMainPin` in `/info`), an
+account with no PIN gets `main_pin_required` from these routes until it sets one with
+[`POST /account`](#post-pluginsprofilesaccount).
+
 ### `GET /plugins/profiles/info`
 
 **Authorisation:** anonymous.
@@ -146,7 +170,8 @@ means an administrator has switched it off: show no Bonfire screens.
     "clientProfileList": true,
     "skipQuickConnectOnKnownDevices": false,
     "profileThemes": true,
-    "proxyClients": ["moonfin"]
+    "proxyClients": ["moonfin"],
+    "requireMainPin": false
   },
   "maintenance": null
 }
@@ -204,6 +229,8 @@ Invalid PIN code.
 | `not_your_profile` | The profile belongs to another household. |
 | `themes_locked` | The server doesn't let profiles choose a theme. |
 | `pin_wrong` | Wrong PIN. |
+| `pin_missing` | The main account's PIN wasn't sent. See [The main account's PIN](#the-main-accounts-pin). |
+| `main_pin_required` | The server requires main accounts to have a PIN, and this one has none. |
 | `pin_format` | A PIN must be 4 to 8 digits. |
 | `pin_needed_for_bonfire` | The account has no PIN, so it can't be opened through a Bonfire. |
 | `bonfire_code_wrong` | Wrong or malformed Bonfire code. |
@@ -240,7 +267,7 @@ correct attempt resets the count. A refused request returns `429`.
 | Limiter | Applies to | Attempts | Window | Counted per |
 | --- | --- | --- | --- | --- |
 | PIN | `POST /switch`, `POST /verify-pin` | 5 | 15 minutes | address and profile |
-| PIN, per profile | the same, plus the main account's PIN on edits | 10 | 15 minutes | profile, all addresses |
+| PIN, per profile | the same, plus the main account's PIN wherever it's checked | 10 | 15 minutes | profile, all addresses |
 | client PIN | a PIN typed into another app's sign-in | 5, and 20 a day | 15 minutes, 24 hours | account |
 | Bonfire | `POST /bonfire/join` | 3 | 15 minutes | address, and separately account |
 | panic | `POST /panic` | 5 | 60 minutes | address |
@@ -302,9 +329,10 @@ Every profile the caller can switch to: their own household, then any linked Bon
 | `avatarColor` | string | Hex colour behind the avatar. |
 | `transparentAvatar` | boolean | Don't paint `avatarColor` behind the picture. |
 | `theme` | string | The account owner only. The profile's own [theme](#themes), or `null` if it follows the server default. |
-| `requiresPin` | boolean | Ask for a PIN before switching **now**. False on the home network when the bypass is on. |
+| `requiresPin` | boolean | Ask for a PIN before switching **now**. False on the home network when the bypass is on, and for a main account whose owner turned off `askPinToOpen`. |
 | `hasPin` | boolean | A PIN is set. Use this, not `requiresPin`, to show PIN state in a form. |
 | `isMaster` | boolean | This is the main account. |
+| `askPinToOpen` | boolean | The main account, to its owner only. Off, the account opens without its PIN; the PIN still guards changes. |
 | `isAdministrator` | boolean | Main accounts only. The account is a Jellyfin administrator. For warnings, not for access checks. |
 | `lockoutMinutes` | integer | Minutes of inactivity before the profile locks. `0` is never. |
 | `maxSubProfiles` | integer | Main accounts only. How many profiles it may have. |
@@ -389,6 +417,47 @@ Checks a profile's PIN without switching.
 Returns `200` when it's correct. Errors: `400` wrong PIN or not allowed on this device,
 `401`, `403` not the caller's profile, `429`.
 
+This answers "may I open this profile", so it returns `200` without checking the PIN
+wherever opening needs none. To check the main account's PIN before managing the
+household, use `/account/verify-pin`.
+
+### `POST /plugins/profiles/account/verify-pin`
+
+**Authorisation:** signed-in user. A main account, not one of its profiles.
+
+Checks the main account's PIN, always: the home network and `askPinToOpen` don't skip it.
+
+```json
+{ "pin": "1234" }
+```
+
+Returns `200` when it's correct, or when the account has no PIN. Errors: `400` with
+`pin_wrong`, `pin_missing` or `main_pin_required`, `401`, `429`.
+
+### `POST /plugins/profiles/account`
+
+**Authorisation:** signed-in user. A main account, not one of its profiles.
+
+The main account's own settings.
+
+```json
+{ "masterPin": "1234", "pin": "5678", "askPinToOpen": false }
+```
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `masterPin` | string | When the account has a PIN | The current PIN. |
+| `pin` | string | No | A new PIN, 4 to 8 digits. `""` clears it, refused while the server requires main PINs. Omit to keep it. |
+| `askPinToOpen` | boolean | No | Ask for the PIN to open the account. Omit to keep it. |
+
+Response: `{ "hasPin": true, "askPinToOpen": false }`.
+
+An account with no PIN can set one without `masterPin`, even while the server requires
+it.
+
+Errors: `400` for a bad PIN, `pin_wrong`, `pin_missing` or `main_pin_required`; `401`;
+`429`.
+
 ### `POST /plugins/profiles/create`
 
 **Authorisation:** signed-in user. A main account, not one of its profiles.
@@ -422,8 +491,9 @@ Returns `200` when it's correct. Errors: `400` wrong PIN or not allowed on this 
 | `blockedTags` | string[] | No | Tags it must not see, on top of the main account's. |
 | `allowedTags` | string[] | No | If set, it sees only items with one of these tags. Untagged items are hidden too. `400` if none of them is allowed for the main account. |
 | `lockoutMinutes` | integer | No | Minutes before it locks. `0` is never. Defaults to 5. |
-| `masterPin` | string | When the main account has a PIN | The main account's PIN. |
+| `masterPin` | string | When the main account has a PIN | The main account's PIN. The `X-Bonfire-Master-Pin` header works too. |
 | `bypassPinOnLocalNetwork` | boolean | No | Skip the PIN on the home network. |
+| `askPinToOpen` | boolean | No | `/update` on the main account only. See [`POST /account`](#post-pluginsprofilesaccount). |
 | `allowedDeviceIds` | string[] | No | Devices it may be opened on. Empty means any. |
 | `profileImage` | string | No | See [Uploading a picture](#uploading-a-picture). |
 | `profileImageThumb` | string | No | The picture's small version. |
@@ -432,7 +502,8 @@ Returns `200` when it's correct. Errors: `400` wrong PIN or not allowed on this 
 Response: `{ "profileUserId": "…", "profileName": "Kids" }`.
 
 Errors: `400` for a bad PIN, a taken name, the profile limit, an unknown theme, or allowed
-tags the main account doesn't allow.
+tags the main account doesn't allow; `main_pin_required` while the server requires main
+PINs and the account has none.
 
 ### `POST /plugins/profiles/update`
 
@@ -1287,6 +1358,7 @@ anything added since you read it.
 | --- | --- | --- |
 | `maxProfilesPerUser` | integer | Profiles per account, 1 to 20. |
 | `requireMasterPinForCreation` | boolean | Ask for the main account's PIN to create a profile. |
+| `requireMainPin` | boolean | Main accounts must set a PIN before changing profiles or settings. |
 | `disallowCustomAvatarUploads` | boolean | Pictures only from the avatar library. |
 | `enableStarterAvatars` | boolean | Offer the starter avatars. |
 | `defaultAskOnStartup` | boolean | Default for accounts that haven't chosen. |

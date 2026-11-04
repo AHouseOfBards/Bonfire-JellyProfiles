@@ -21,12 +21,17 @@ These hold in every app and can't be turned off from a browser.
   into my account on this network* and you're on their network. Hidden profiles can't be
   opened at all.
 - **Going back to the main account** from a profile asks for the main account's PIN,
-  like any other switch.
+  like any other switch, unless its owner turned off *Ask for the PIN to open this
+  account*.
+- **Managing the household.** Changing profiles, devices, sharing or switcher settings
+  needs the main account's PIN, checked on the server, even when the account opened
+  without it. An administrator can require every main account to have one.
 
 ## Not a security boundary
 
 - **A main account with no PIN.** Any of its profiles can switch into it. If the profiles
-  are for children, give the main account a PIN.
+  are for children, give the main account a PIN. The same goes for one with *Ask for the
+  PIN to open this account* turned off: the PIN then guards changes, not the account.
 - **Device limits.** A device is identified by the ID its app sends, and an app can send
   any ID. A device limit stops normal use on other devices, not someone who copies the
   allowed device's ID. The same goes for PIN-less profiles on other apps' sign-in screens.

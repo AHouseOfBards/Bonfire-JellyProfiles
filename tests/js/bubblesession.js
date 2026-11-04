@@ -140,7 +140,7 @@ function build(opts) {
         innerWidth: 1024, innerHeight: 768,
         requestAnimationFrame: () => 0,
         setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
-        fetch: () => new Promise(() => {}),
+        fetch: opts.fetch || (() => new Promise(() => {})),
         getComputedStyle: () => ({ backgroundColor: 'rgb(16, 16, 16)', display: 'block',
                                    getPropertyValue: () => '' }),
         MutationObserver: function () { this.observe = () => {}; this.disconnect = () => {}; },
@@ -430,7 +430,15 @@ function renderGrid(e) {
 {
     // The manage check reads the stored id at the moment of the press, which can be well
     // after the grid was drawn. On the iPad it was gone by then.
-    const e = build({ prefs: GATE_OFF });
+    //
+    // The master here has no PIN, so whether it may manage first asks /info if the server
+    // requires one. It doesn't: answered, it is in manage mode once that has resolved.
+    const e = build({
+        prefs: GATE_OFF,
+        fetch: (url) => /plugins\/profiles\/info$/.test(url)
+            ? Promise.resolve({ ok: true, json: () => Promise.resolve({ features: { requireMainPin: false } }) })
+            : new Promise(() => {})
+    });
     renderGrid(e);
     delete e.store[MASTER_KEY];
     const btn = e.byId['profiles-toggle-manage-btn'];
@@ -439,7 +447,8 @@ function renderGrid(e) {
     const refused = e.alerts.filter(a => /first, then choose Manage Profiles/.test(a));
     ok('the master pressing Manage Profiles is not told to open the master first'
        + (refused.length ? ' — "' + refused[0] + '"' : ''), refused.length === 0);
-    ok('and is in manage mode', e.p.isManageMode === true);
+    // Queued before the summary below, so it is counted.
+    setImmediate(() => ok('and is in manage mode', e.p.isManageMode === true));
 }
 
 {
@@ -572,10 +581,13 @@ const inline = (builder.match(/class="profiles-header-avatar" style="([^"]*)/) |
 ok('(the avatar\'s inline style was found)', inline.length > 0);
 ok('and sets neither transform nor max-height', !/transform|max-height/.test(inline));
 
-console.log('');
-if (fails.length) {
-    fails.forEach(f => console.log('   - ' + f));
-    console.log(pass + ' passed, ' + fails.length + ' failed');
-    process.exit(1);
-}
-console.log(pass + ' passed, 0 failed');
+// After any check queued above that waits on a promise.
+setImmediate(() => {
+    console.log('');
+    if (fails.length) {
+        fails.forEach(f => console.log('   - ' + f));
+        console.log(pass + ' passed, ' + fails.length + ' failed');
+        process.exit(1);
+    }
+    console.log(pass + ' passed, 0 failed');
+});

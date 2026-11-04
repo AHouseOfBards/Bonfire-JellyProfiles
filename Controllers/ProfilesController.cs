@@ -85,22 +85,18 @@ namespace Jellyfin.Profiles.Controllers
                 if (linkedUser == null) continue;
 
                 var linkedMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == linkedId);
-                bool masterRequiresPin = linkedMapping != null && !string.IsNullOrEmpty(linkedMapping.PinHash);
-
-                // Mirror the switch endpoint exactly — reporting a PIN-less switch the server
-                // then rejects strands the user on a screen with nothing to do.
+                // Mirror the switch endpoint exactly, through the same function: reporting a
+                // PIN-less switch the server then rejects strands the user on a screen with
+                // nothing to do.
                 //
-                //  - Your own account: BypassPinOnLocalNetwork, your own convenience setting.
+                //  - Your own account: BypassPinOnLocalNetwork, or AskPinToOpen turned off.
                 //  - A linked account: only AllowHouseholdLanBypass, which belongs to that
-                //    account's owner. Your own bypass setting never reaches across a link.
-                if (isLocal && linkedMapping != null)
-                {
-                    bool lanUnlocked = linkedId == masterUserId
-                        ? linkedMapping.BypassPinOnLocalNetwork
-                        : linkedMapping.AllowHouseholdLanBypass;
-
-                    if (lanUnlocked) masterRequiresPin = false;
-                }
+                //    account's owner. Your own settings never reach across a link.
+                bool crossHousehold = linkedId != masterUserId;
+                bool masterRequiresPin = linkedMapping != null
+                    && !string.IsNullOrEmpty(linkedMapping.PinHash)
+                    && !CanSkipPin(linkedMapping, isLocal, crossHousehold,
+                        householdLanBypass: isLocal && linkedMapping.AllowHouseholdLanBypass);
 
                 profileList.Add(new
                 {
@@ -122,6 +118,8 @@ namespace Jellyfin.Profiles.Controllers
                     LockoutMinutes = linkedMapping?.LockoutMinutes ?? 5,
                     MaxSubProfiles = GetMaxProfilesForUser(linkedId, config),
                     BypassPinOnLocalNetwork = linkedMapping?.BypassPinOnLocalNetwork ?? false,
+                    // Owner only. Another household is always asked for the PIN regardless.
+                    AskPinToOpen = currentUserId == linkedId ? (linkedMapping?.AskPinToOpen ?? true) : (bool?)null,
                     AllowedDeviceIds = currentUserId == linkedId
                         ? (linkedMapping?.AllowedDeviceIds ?? new List<string>())
                         : new List<string>(),
@@ -309,17 +307,15 @@ namespace Jellyfin.Profiles.Controllers
                 return Unauthorized("Only the master profile can manage profiles.");
             }
 
-            // Verify Master PIN if required and master profile has a PIN
+            // The main PIN, unless the administrator lets creation skip it. A required main
+            // PIN still has to exist either way: the first profile is when it starts to matter.
             if (config.RequireMasterPinForCreation)
             {
-                var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
-                if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
-                {
-                    if (!VerifyMasterPinLimited(request.MasterPin, masterMapping, config, out var pinRefusal))
-                    {
-                        return pinRefusal!;
-                    }
-                }
+                if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
+            }
+            else if (config.RequireMainPin && !MainHasPin(masterUserId, config))
+            {
+                return BadRequest(MainPinRequiredMessage);
             }
 
             var nameError = ValidateProfileName(request.ProfileName);
@@ -541,15 +537,7 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest("Cannot delete the master profile.");
             }
 
-            // Verify Master PIN if master profile has a PIN
-            var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
-            if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
-            {
-                if (!VerifyMasterPinLimited(request.MasterPin, masterMapping, config, out var pinRefusal))
-                {
-                    return pinRefusal!;
-                }
-            }
+            if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
 
             var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
             if (mapping == null) return NotFound("Profile not found.");
@@ -1533,6 +1521,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.MaxProfilesPerUser = incoming.MaxProfilesPerUser;
                 if (TryProperty(root, "RequireMasterPinForCreation", out _))
                     config.RequireMasterPinForCreation = incoming.RequireMasterPinForCreation;
+                if (TryProperty(root, "RequireMainPin", out _))
+                    config.RequireMainPin = incoming.RequireMainPin;
                 if (TryProperty(root, "DisallowCustomAvatarUploads", out _))
                     config.DisallowCustomAvatarUploads = incoming.DisallowCustomAvatarUploads;
                 if (TryProperty(root, "ProfileImageQuality", out _))
@@ -1622,14 +1612,12 @@ namespace Jellyfin.Profiles.Controllers
                 return Unauthorized("Only the master profile can manage profiles.");
             }
 
-            // Verify Master PIN if master profile has a PIN
-            var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
-            if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
+            // Setting the main account's own PIN is how a required one gets set at all.
+            var settingOwnPin = request.ProfileId == masterUserId && !string.IsNullOrEmpty(request.Pin);
+            if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal, settingOwnPin)) return pinRefusal!;
+            if (request.ProfileId == masterUserId && request.Pin == string.Empty && config.RequireMainPin)
             {
-                if (!VerifyMasterPinLimited(request.MasterPin, masterMapping, config, out var pinRefusal))
-                {
-                    return pinRefusal!;
-                }
+                return BadRequest(MainPinRequiredMessage);
             }
 
             // Enforce ownership: the profile being edited must belong to the caller's master account.
@@ -1854,6 +1842,12 @@ namespace Jellyfin.Profiles.Controllers
                     if (request.BypassPinOnLocalNetwork.HasValue)
                     {
                         mappingEntry.BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork.Value;
+                    }
+
+                    // Main account only; a sub-profile is always asked for its PIN if it has one.
+                    if (request.AskPinToOpen.HasValue && request.ProfileId == masterUserId)
+                    {
+                        mappingEntry.AskPinToOpen = request.AskPinToOpen.Value;
                     }
 
                     if (request.AllowedDeviceIds != null)
@@ -2235,6 +2229,8 @@ namespace Jellyfin.Profiles.Controllers
             if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
                 return Unauthorized("Only the master profile can manage Bonfire groups.");
 
+            if (!ManagementAllowed(masterUserId, config, null, out var pinRefusal)) return pinRefusal!;
+
             string groupId;
             string bonfireCode;
             List<object> members;
@@ -2288,6 +2284,8 @@ namespace Jellyfin.Profiles.Controllers
 
             if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
                 return Unauthorized("Only the master profile can join Bonfire groups.");
+
+            if (!ManagementAllowed(masterUserId, config, null, out var pinRefusal)) return pinRefusal!;
 
             // Counted before the code is looked up, per address and per account, so neither
             // parallel requests nor a second address buy extra guesses.
@@ -2362,6 +2360,8 @@ namespace Jellyfin.Profiles.Controllers
             if (callerMapping != null && callerMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can manage Bonfire groups.");
 
+            if (!ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
+
             lock (ConfigLock)
             {
                 var group = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterId);
@@ -2404,6 +2404,8 @@ namespace Jellyfin.Profiles.Controllers
             if (callerMapping != null && callerMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can manage Bonfire groups.");
 
+            if (!ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
+
             lock (ConfigLock)
             {
                 var group = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterId);
@@ -2429,6 +2431,8 @@ namespace Jellyfin.Profiles.Controllers
             var currentUserIdVal = GetCurrentUserId();
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
+
+            if (!ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
 
             lock (ConfigLock)
             {
@@ -2456,6 +2460,8 @@ namespace Jellyfin.Profiles.Controllers
             var currentUserIdVal = GetCurrentUserId();
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
+
+            if (!ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
 
             lock (ConfigLock)
             {
@@ -2487,6 +2493,8 @@ namespace Jellyfin.Profiles.Controllers
             var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
             if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
                 return Unauthorized("Only the master profile can update Bonfire settings.");
+
+            if (!ManagementAllowed(masterUserId, config, null, out var pinRefusal)) return pinRefusal!;
 
             lock (ConfigLock)
             {
@@ -2601,14 +2609,7 @@ namespace Jellyfin.Profiles.Controllers
                 return Unauthorized("Only the master profile can manage profiles.");
             }
 
-            var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
-            if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
-            {
-                if (!VerifyMasterPinLimited(request.MasterPin, masterMapping, config, out var pinRefusal))
-                {
-                    return pinRefusal!;
-                }
-            }
+            if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
 
             ThemeChange result;
             string resolved;
@@ -2657,6 +2658,8 @@ namespace Jellyfin.Profiles.Controllers
             if (currentMapping != null && currentMapping.MasterUserId != currentUserId)
                 return Unauthorized("Only the master profile can change switcher preferences.");
 
+            if (!ManagementAllowed(currentUserId, config, null, out var pinRefusal)) return pinRefusal!;
+
             bool askOnStartup;
             string location;
             lock (ConfigLock)
@@ -2700,6 +2703,108 @@ namespace Jellyfin.Profiles.Controllers
                 SwitcherLocation = location,
                 SwitcherMode = askOnStartup ? SwitcherModes.Gate : SwitcherModes.Native
             });
+        }
+
+        // ── The main account's own settings ─────────────────────────────────────────
+
+        /// <summary>
+        /// Checks the main account's PIN and nothing else. For a client about to manage the
+        /// household, so it can ask for the PIN once and send it with what follows.
+        /// <para>
+        /// /verify-pin is not this. It answers "may I open this profile", so it says yes
+        /// without a PIN wherever opening needs none: the home network, or a main account
+        /// that doesn't ask. A client that took that yes as proof of the PIN stored whatever
+        /// had been typed, and every change after it was refused as a wrong PIN.</para>
+        /// </summary>
+        [HttpPost("account/verify-pin")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+        public ActionResult VerifyAccountPin([FromBody] VerifyAccountPinRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            var mainId = currentUserIdVal.Value;
+
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == mainId);
+            if (currentMapping != null && currentMapping.MasterUserId != mainId)
+                return Unauthorized("Only the master profile can manage profiles.");
+
+            if (!ManagementAllowed(mainId, config, request?.Pin, out var refusal)) return refusal!;
+            return Ok();
+        }
+
+        /// <summary>
+        /// The main account's own settings: its PIN, and whether opening it asks for one.
+        /// <para>
+        /// The full profile update can set both too, but it also writes the colour and name
+        /// it is sent, so a prompt that only wants a PIN would have to send the whole form
+        /// back to avoid resetting them.</para>
+        /// </summary>
+        [HttpPost("account")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+        public ActionResult<object> UpdateAccount([FromBody] UpdateAccountRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+            if (request == null) return BadRequest("Missing request body.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            var mainId = currentUserIdVal.Value;
+
+            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == mainId);
+            if (currentMapping != null && currentMapping.MasterUserId != mainId)
+                return Unauthorized("Only the master profile can manage profiles.");
+
+            if (!string.IsNullOrEmpty(request.Pin) && !IsValidPin(request.Pin))
+                return BadRequest("PIN code must be a numeric value between 4 and 8 digits.");
+
+            if (request.Pin == string.Empty && config.RequireMainPin)
+                return BadRequest(MainPinRequiredMessage);
+
+            var settingOwnPin = !string.IsNullOrEmpty(request.Pin);
+            if (!ManagementAllowed(mainId, config, request.MasterPin, out var refusal, settingOwnPin)) return refusal!;
+
+            bool hasPin;
+            bool askPinToOpen;
+            lock (ConfigLock)
+            {
+                var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == mainId);
+                if (row == null)
+                {
+                    row = new ProfileMapping
+                    {
+                        ProfileUserId = mainId,
+                        MasterUserId = mainId,
+                        ProfileName = _userManager.GetUserById(mainId)?.Username ?? "Master",
+                        IsHidden = false
+                    };
+                    config.Mappings.Add(row);
+                }
+
+                if (request.Pin == string.Empty) row.PinHash = string.Empty;
+                else if (request.Pin != null) row.PinHash = HashPin(request.Pin);
+
+                if (request.AskPinToOpen.HasValue) row.AskPinToOpen = request.AskPinToOpen.Value;
+
+                hasPin = !string.IsNullOrEmpty(row.PinHash);
+                askPinToOpen = row.AskPinToOpen;
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            // As for the profile update: a main PIN set or cleared changes which provider the
+            // account signs in with on other apps, and that should not wait for a restart.
+            if (request.Pin != null) ProfilesBootstrapTask.ReconcileAuthProvidersNow();
+
+            return Ok(new { HasPin = hasPin, AskPinToOpen = askPinToOpen });
         }
 
         /// <summary>
@@ -2895,14 +3000,7 @@ namespace Jellyfin.Profiles.Controllers
             // The master PIN guards profile edits, and artwork is one of them.
             var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
-            var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
-            if (masterMapping != null && !string.IsNullOrEmpty(masterMapping.PinHash))
-            {
-                if (!VerifyMasterPinLimited(request.MasterPin, masterMapping, config, out var pinRefusal))
-                {
-                    return pinRefusal!;
-                }
-            }
+            if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
 
             // The library has to be one Jellyfin actually knows about. Without this the id is
             // just a string that ends up in a filename.
@@ -3203,6 +3301,8 @@ namespace Jellyfin.Profiles.Controllers
             if (currentMapping != null && currentMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can delete devices.");
 
+            if (!ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
+
             if (string.IsNullOrEmpty(request.DeviceId))
                 return BadRequest("DeviceId is required.");
 
@@ -3271,6 +3371,8 @@ namespace Jellyfin.Profiles.Controllers
             if (currentMapping != null && currentMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can merge devices.");
 
+            if (!ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
+
             if (string.IsNullOrWhiteSpace(request.FromDeviceId) || string.IsNullOrWhiteSpace(request.IntoDeviceId))
                 return BadRequest("Both devices are required.");
 
@@ -3325,6 +3427,8 @@ namespace Jellyfin.Profiles.Controllers
             var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
             if (currentMapping != null && currentMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can merge devices.");
+
+            if (apply && !ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
 
             lock (ConfigLock)
             {
@@ -3381,6 +3485,8 @@ namespace Jellyfin.Profiles.Controllers
             var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
             if (currentMapping != null && currentMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can rename devices.");
+
+            if (!ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
 
             var name = request.DeviceName?.Trim();
             if (string.IsNullOrWhiteSpace(request.DeviceId)) return BadRequest("DeviceId is required.");
@@ -3995,6 +4101,7 @@ namespace Jellyfin.Profiles.Controllers
                     SkipQuickConnectOnKnownDevices = config?.SkipQuickConnectOnKnownDevices == true,
                     ProfileThemes = config?.AllowProfileThemes != false,
                     ProxyClients = config?.ProxyClients ?? new List<string>(),
+                    RequireMainPin = config?.RequireMainPin == true,
                 },
 
                 // Anonymous on purpose: the people it is for cannot sign in.
@@ -4394,6 +4501,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.MaxProfilesPerUser = request.MaxProfilesPerUser.Value;
                 if (request.RequireMasterPinForCreation.HasValue)
                     config.RequireMasterPinForCreation = request.RequireMasterPinForCreation.Value;
+                if (request.RequireMainPin.HasValue)
+                    config.RequireMainPin = request.RequireMainPin.Value;
                 if (request.DisallowCustomAvatarUploads.HasValue)
                     config.DisallowCustomAvatarUploads = request.DisallowCustomAvatarUploads.Value;
                 if (request.EnableStarterAvatars.HasValue)

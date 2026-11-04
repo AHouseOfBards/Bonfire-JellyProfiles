@@ -38,6 +38,8 @@ namespace Jellyfin.Profiles.Models
         /// <summary>Minutes of inactivity before auto-lock. 0 = never. Null = leave unchanged.</summary>
         public int? LockoutMinutes { get; set; }
         public bool? BypassPinOnLocalNetwork { get; set; }
+        /// <summary>Main account only: false opens it from its own switcher without the PIN. Null = leave unchanged.</summary>
+        public bool? AskPinToOpen { get; set; }
         public List<string>? AllowedDeviceIds { get; set; }
         public string? ProfileImage { get; set; }
         /// <summary>

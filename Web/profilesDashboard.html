@@ -521,6 +521,14 @@
                     <div class="fieldDescription">Users enter their PIN before adding a sub-profile.</div>
                 </div>
 
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="requireMainPin" />
+                        <span>Require a PIN on main accounts</span>
+                    </label>
+                    <div class="fieldDescription">Profiles and settings can't be changed until the account sets one.</div>
+                </div>
+
                 <h3 class="checkboxListLabel jpf-subhead">Switcher defaults</h3>
                 <div class="fieldDescription jpf-lede">
                     What new accounts get. Anyone who picks their own setting keeps it.
@@ -987,6 +995,7 @@
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
                     page.querySelector('#requireMasterPin').checked = config.RequireMasterPinForCreation;
+                    page.querySelector('#requireMainPin').checked = !!config.RequireMainPin;
                     page.querySelector('#disallowCustomAvatars').checked = !!config.DisallowCustomAvatarUploads;
                     // On unless switched off, including on a configuration saved before the setting existed.
                     page.querySelector('#enableStarterAvatars').checked = config.EnableStarterAvatars !== false;
@@ -2734,6 +2743,7 @@
                     data: JSON.stringify({
                         maxProfilesPerUser: maxProfiles,
                         requireMasterPinForCreation: page.querySelector('#requireMasterPin').checked,
+                        requireMainPin: page.querySelector('#requireMainPin').checked,
                         disallowCustomAvatarUploads: page.querySelector('#disallowCustomAvatars').checked,
                         enableStarterAvatars: page.querySelector('#enableStarterAvatars').checked,
                         defaultAskOnStartup: page.querySelector('#defaultAskOnStartup').checked,

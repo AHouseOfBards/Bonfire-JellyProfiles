@@ -1954,7 +1954,13 @@ body.profiles-no-scroll [id*="spinner"] {
 .pin-entry-container {
     display: flex; flex-direction: column; align-items: center; gap: 2rem;
 }
-#profile-pin-input, #master-pin-input {
+.profiles-pin-note {
+    margin: 0; max-width: 26rem; text-align: center; font-size: 0.95rem; opacity: 0.8; line-height: 1.5;
+}
+.profiles-pin-error {
+    color: var(--jpf-danger); font-size: 0.9rem; font-weight: 600; text-align: center;
+}
+#profile-pin-input, #master-pin-input, #main-pin-new {
     background: var(--jpf-input-bg); border: 2px solid var(--jpf-input-border);
     border-radius: var(--jpf-input-r); color: #fff; font-size: 2.5rem; text-align: center;
     padding: 12px; width: 180px; letter-spacing: 0.6rem;
@@ -1964,7 +1970,7 @@ body.profiles-no-scroll [id*="spinner"] {
 #create-pin-input, #edit-pin-input {
     -webkit-text-security: disc;
 }
-#profile-pin-input:focus, #master-pin-input:focus {
+#profile-pin-input:focus, #master-pin-input:focus, #main-pin-new:focus {
     border-color: var(--jpf-accent); outline: none;
     box-shadow: 0 0 15px var(--jpf-accent-a30);
 }

@@ -58,6 +58,7 @@ async function run(fieldValues) {
     const fields = Object.assign({
         maxProfiles: '5',
         requireMasterPin: true,
+        requireMainPin: false,
         disallowCustomAvatars: false,
         enableStarterAvatars: true,
         defaultAskOnStartup: true,
@@ -184,6 +185,7 @@ console.log('\n── It sends the six settings and nothing else ─────
 const expected = [
     'maxProfilesPerUser',
     'requireMasterPinForCreation',
+    'requireMainPin',
     'disallowCustomAvatarUploads',
     'enableStarterAvatars',
     'defaultAskOnStartup',
@@ -266,6 +268,7 @@ console.log('\n── The other five are read from the page ──────�
 
 const flipped = await run({
     requireMasterPin: false,
+    requireMainPin: true,
     disallowCustomAvatars: true,
     defaultAskOnStartup: false,
     defaultSwitcherLocation: 'menu',
@@ -273,6 +276,7 @@ const flipped = await run({
 });
 const flippedBody = sent(flipped);
 ok('requireMasterPinForCreation follows the checkbox', flippedBody.requireMasterPinForCreation === false);
+ok('requireMainPin follows the checkbox', flippedBody.requireMainPin === true && sent(await run({})).requireMainPin === false);
 ok('disallowCustomAvatarUploads follows the checkbox', flippedBody.disallowCustomAvatarUploads === true);
 ok('defaultAskOnStartup follows the checkbox', flippedBody.defaultAskOnStartup === false);
 ok('defaultSwitcherLocation follows the select', flippedBody.defaultSwitcherLocation === 'menu');

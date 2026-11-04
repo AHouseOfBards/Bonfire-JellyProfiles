@@ -323,6 +323,48 @@ for (var i = 0; i < 20; i++) Get("/Videos/abc/hls1/main/" + i + ".ts", token: AT
 Ok("requests naming another app never reach the database", DeviceManagerStub.Calls == calls, (DeviceManagerStub.Calls - calls) + " lookups");
 
 Console.WriteLine();
+Console.WriteLine("── The main account's own tile ─────────────────────────────────");
+
+// The app stays signed in as the main account, so this tile is the way back into the
+// unrestricted account from a child's profile. It used to open without the PIN.
+var mainRow = Map(MASTER, MASTER, "Bard", pin: "5678");
+mappings.Add(mainRow);
+var mainList = Children(IdOf(Get("/UserViews").body, "Profiles"));
+var mainPad = Children(IdOf(mainList, "Bard"));
+Ok("with a PIN set, the main account's tile asks for it like any other",
+   Names(mainPad) == "1, 2, 3, 4, 5, 6, 7, 8, 9, 0, Delete, OK", Names(mainPad));
+var stillPicker = Get("/UserViews");
+Ok("and opens nothing until it is typed", !stillPicker.reachedJellyfin && Names(stillPicker.body) == "Profiles", Names(stillPicker.body));
+var mainWrong = Press(Press(Press(Press(Press(mainPad, "1"), "2"), "3"), "4"), "OK ••••");
+Ok("a profile's PIN does not open it", Names(mainWrong).StartsWith("Wrong PIN"), Names(mainWrong));
+var mainIn = Press(Press(Press(Press(Press(mainWrong, "5"), "6"), "7"), "8"), "OK ••••");
+var mainHome = Get("/UserViews");
+Ok("its own PIN does", Names(mainIn) == "Movies" && mainHome.reachedJellyfin && seenAuth.Contains(MOON_TOKEN), Names(mainIn) + " " + seenAuth);
+
+var askProp = mapType.GetProperty("AskPinToOpen");
+if (askProp == null)
+{
+    Ok("its owner can choose not to be asked", false, "no AskPinToOpen in this build");
+}
+else
+{
+    Children(IdOf(mainHome.body, "Switch profile"));
+    askProp.SetValue(mainRow, false);
+    var openList = Children(IdOf(Get("/UserViews").body, "Profiles"));
+    var direct = Children(IdOf(openList, "Bard"));
+    Ok("with \"Ask for the PIN to open this account\" off, it opens without one", Names(direct) == "Movies", Names(direct));
+
+    // A sub-profile's own row with the same flag off is still asked: it is a main-account setting.
+    Children(IdOf(Get("/UserViews").body, "Switch profile"));
+    var kidsRow = mappings.Cast<object>().First(m => (Guid)mapType.GetProperty("ProfileUserId").GetValue(m) == KIDS);
+    askProp.SetValue(kidsRow, false);
+    var kidsPad = Children(IdOf(Children(IdOf(Get("/UserViews").body, "Profiles")), "Kids"));
+    Ok("the setting means nothing on a sub-profile, which is still asked", Names(kidsPad).EndsWith("Delete, OK"), Names(kidsPad));
+    askProp.SetValue(kidsRow, true);
+}
+mappings.Remove(mainRow);
+
+Console.WriteLine();
 Console.WriteLine("── The live connection ─────────────────────────────────────────");
 
 var socketType = asm.GetType("Jellyfin.Profiles.Auth.RewritingWebSocket");
