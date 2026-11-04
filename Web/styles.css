@@ -2700,9 +2700,9 @@ body.profiles-no-scroll [id*="spinner"] {
 .device-dropdown-item {
     display: flex;
     align-items: center;
-    /* gap, not margins on the children: this row holds a label and up to three
-       action buttons (rename, merge, forget), and the count changes with the
-       mode. Declared here rather than in a second block for the same selector,
+    /* gap, not margins on the children: in a profile's list this row holds a
+       label alone, and in Settings -> Your account a name and three action
+       buttons (rename, merge, forget). Declared here rather than in a second block for the same selector,
        which is where it used to live -- see the note on the positioning rule
        above. A margin fallback for Chromium 68 is in the flex-gap section. */
     gap: 8px;
@@ -2714,6 +2714,17 @@ body.profiles-no-scroll [id*="spinner"] {
 .device-dropdown-item:hover, .device-dropdown-item:focus-within {
     background: var(--jpf-surface-1);
 }
+/* Settings -> Your account -> Devices: the same rows, drawn open rather than in a
+   dropdown, because here the devices are the thing being managed. */
+.jpf-device-list {
+    background: var(--jpf-panel);
+    border: 1px solid var(--jpf-border-2);
+    border-radius: var(--jpf-r-sm);
+    max-height: 360px;
+    overflow-y: auto;
+    margin-bottom: 8px;
+}
+.jpf-device-list .device-dropdown-item:last-child { border-bottom: 0; }
 /* Was a second .device-delete-btn:focus at the same specificity as the block above,
    winning with !important over nothing but its own twin. Folded into one rule, at
    the value that was actually applying. outline:none is gone with it — a focused

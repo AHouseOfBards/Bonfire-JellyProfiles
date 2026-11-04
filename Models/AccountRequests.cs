@@ -11,6 +11,12 @@ namespace Jellyfin.Profiles.Models
 
         /// <summary>False opens the main account from its own switcher without the PIN.</summary>
         public bool? AskPinToOpen { get; set; }
+
+        /// <summary>True opens the main account without its PIN on the home network.</summary>
+        public bool? BypassPinOnLocalNetwork { get; set; }
+
+        /// <summary>Minutes idle before the switcher locks again; 0 never. Clamped.</summary>
+        public int? LockoutMinutes { get; set; }
     }
 
     /// <summary>A main PIN to check.</summary>

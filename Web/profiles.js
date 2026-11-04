@@ -327,7 +327,6 @@
         'profileForm.noDevicesYet': 'No devices found for your account yet',
         'profileForm.devicesUnavailable': "Couldn't load your devices. Saving won't change this profile's devices.",
         'profileForm.devicesUnchanged': 'Devices unchanged',
-        'profileForm.noDevicesConnected': 'No connected devices found',
         'profileForm.devicesHint': 'If no devices are selected, this profile can be accessed from any device.',
         'profileForm.unknownDevice': 'Unknown Device',
         'profileForm.noTags': 'No tags — this filter is off',
@@ -399,12 +398,28 @@
         'mainPin.requiredBody': 'Your server needs one before you can change profiles or settings.',
         'mainPin.notNow': 'Not now',
         'mainPin.set': 'Set PIN',
-        'settings.switcherStyleTitle': 'Switcher Style',
+        'settings.profilesTitle': 'Profiles',
+        'settings.profilesBody': 'Add, edit and remove profiles.',
+        'settings.accountTitle': 'Your account',
+        'settings.accountBody': 'Your PIN, home network and devices.',
+        'settings.switcherTitle': 'Switcher',
         'settings.switcherStyleBody': 'Where you reach this screen from, and whether it opens on startup.',
-        'settings.yourBonfireTitle': 'Your Bonfire',
+        'settings.sharingTitle': 'Sharing',
         'settings.yourBonfireBody': 'Share your profiles with another home, or join theirs.',
+        'settings.lookTitle': 'Look',
         'settings.themeTitle': 'Theme',
         'settings.themeBody': "How Bonfire's screens look for each profile.",
+        'account.signInTitle': 'Sign-in',
+        'account.signInSubtitle': 'How your account opens',
+        'account.savePin': 'Save PIN',
+        'account.pinSetHint': 'A PIN is set. Type a new one to change it.',
+        'account.pinSaved': 'PIN saved.',
+        'account.pinCleared': 'PIN removed.',
+        'account.saved': 'Saved.',
+        'account.devicesTitle': 'Devices',
+        'account.devicesSubtitle': 'Rename, merge or forget them',
+        'account.devicesHint': 'Each profile chooses which of these it can be opened on.',
+        'profileForm.mainSecurityMoved': 'Your PIN and sign-in settings are in Settings → Your account.',
         'themeSettings.default': 'Default',
 
         'switcher.title': 'Switcher Style',
@@ -1483,13 +1498,15 @@
         /// duplicated *comments* were the clearest sign of it, the same sentence about
         /// sending null rather than an empty array sitting verbatim in both.
         ///
-        /// Four things actually differ between the modes, and they are all here:
+        /// Three things actually differ between the modes, and they are all here:
         ///   - create prefixes its element ids, because both forms can be in the
         ///     document at once and duplicate ids would make getElementById a coin toss;
         ///   - the checkbox class follows the same prefix, since the handlers query it;
-        ///   - only edit has a profile to read existing selections from;
-        ///   - only edit offers Forget, because a device cannot be stale for a profile
-        ///     that does not exist yet.
+        ///   - only edit has a profile to read existing selections from.
+        ///
+        /// Neither offers rename, merge or forget any more (1.7.2). Those change the device
+        /// for the whole household, so they live in Settings → Your account; here a profile
+        /// only ticks the devices it may be opened on.
         renderDeviceDropdown: function (mode, devices, profile) {
             const isEdit = mode === 'edit';
             const p = isEdit ? '' : 'create-';
@@ -1516,23 +1533,6 @@
                     // camelCase JSON or straight off a Jellyfin DTO.
                     const isChecked = allowedIds.indexOf(deviceId.toLowerCase()) !== -1
                         || (!!dev.DeviceId && allowedIds.indexOf(String(dev.DeviceId).toLowerCase()) !== -1);
-                    // Housekeeping actions belong to the edit form only: the create form is
-                    // listing devices to tick, and a half-made profile is the wrong place to
-                    // be reorganising the household's hardware.
-                    //
-                    // Rename and merge are here because one machine does not have one device
-                    // id. jellyfin-web keeps its id in localStorage, which is per origin, so
-                    // reaching the server by LAN address and by domain name produces two
-                    // devices for one computer — as does a new browser profile or a reinstall.
-                    // Nothing in the request can tell those apart from two real machines, so
-                    // the plugin will not guess: merging two that are genuinely different
-                    // would widen a whitelist. Renaming is what makes them tellable apart in
-                    // the first place, and the name sticks — see KnownDevice.NameIsCustom.
-                    const actions = isEdit
-                        ? `<button type="button" class="device-rename-btn" data-id="${escapeHtml(deviceId)}" data-name="${escapeHtml(deviceName)}" title="${t('profileForm.renameDevice')}" aria-label="${t('profileForm.renameDeviceAria', { name: escapeHtml(deviceName) })}"><span class="material-icons" aria-hidden="true">edit</span></button>
-                           <button type="button" class="device-merge-btn" data-id="${escapeHtml(deviceId)}" data-name="${escapeHtml(deviceName)}" title="${t('profileForm.mergeDevice')}" aria-label="${t('profileForm.mergeDeviceAria', { name: escapeHtml(deviceName) })}"><span class="material-icons" aria-hidden="true">swap_horiz</span></button>
-                           <button type="button" class="device-delete-btn" data-id="${escapeHtml(deviceId)}" title="${t('profileForm.forgetDevice')}" aria-label="${t('profileForm.forgetDeviceAria', { name: escapeHtml(deviceName) })}"><span class="material-icons" aria-hidden="true">delete</span></button>`
-                        : '';
                     return `
                         <div class="device-dropdown-item" data-device-id="${escapeHtml(deviceId)}">
                             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
@@ -1542,7 +1542,6 @@
                                     <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: lastSeenStr })}</span>
                                 </span>
                             </label>
-                            ${actions}
                         </div>
                     `;
                 }).join('')
@@ -1562,7 +1561,6 @@
                         </div>
                     </div>
                     <div class="form-hint">${t('profileForm.devicesHint')}</div>
-                    ${isEdit ? `<button type="button" id="devices-tidy-btn" class="profiles-btn btn-secondary device-tidy-btn">${t('profileForm.tidyDevices')}</button>` : ''}
                 </div>
             `;
         },
@@ -4035,7 +4033,7 @@
             const back = surface.querySelector(
                 '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
                 '#pin-cancel-btn, #master-pin-cancel-btn, #create-cancel-btn, #edit-cancel-btn, ' +
-                '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #theme-settings-back-btn, #profiles-resume-btn, #profiles-libart-cancel'
+                '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #theme-settings-back-btn, #account-back-btn, #profiles-resume-btn, #profiles-libart-cancel'
             );
             if (back) back.click();
         },
@@ -6650,7 +6648,12 @@
                 `;
 
                 // ── Section 2: getting into this profile ────────────────────────
-                const securityBody = `
+                // The main account's PIN, home-network skip and auto-lock are in Settings →
+                // Your account (1.7.2), which saves each one alone through /account. They are
+                // not repeated here: two places to set one PIN is how they drift.
+                const securityBody = !isSub ? `
+                    <div class="form-hint">${t('profileForm.mainSecurityMoved')}</div>
+                ` : `
                     <div class="form-group">
                         <label for="edit-pin-input">${t('profileForm.pin')}</label>
                         <div class="pin-edit-group" style="display:flex; gap: var(--jpf-gap); flex-wrap: wrap;">
@@ -6663,10 +6666,6 @@
                                 ? t('profileForm.pinIsSetHint')
                                 : t('profileForm.noPinSetHint')}
                         </div>
-                        ${profile.isAdministrator ? `
-                        <div class="form-hint" style="color: var(--jpf-danger); font-weight: 600;">
-                            ${t('profileForm.pinAdminWarning')}
-                        </div>` : ''}
                     </div>
                     <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
@@ -6675,25 +6674,9 @@
                         </label>
                         <div class="form-hint">${t('profileForm.bypassPinHint')}</div>
                     </div>
-                    ${profile.isMaster && !profile.isBonfire ? `
-                    <div class="form-group">
-                        <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
-                            <input type="checkbox" id="edit-ask-pin-checkbox" ${profile.askPinToOpen ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent);" />
-                            <span>${t('profileForm.askPinToOpen')}</span>
-                        </label>
-                        <div class="form-hint">${t('profileForm.askPinToOpenHint')}</div>
-                    </div>` : ''}
                     <div class="form-group">
                         <label for="edit-lockout-select">${t('profileForm.autoLock')}</label>
-                        <select id="edit-lockout-select">
-                            <option value="0" ${currentLockout === 0 ? 'selected' : ''}>${t('profileForm.lockoutNever')}</option>
-                            <option value="1" ${currentLockout === 1 ? 'selected' : ''}>${t('profileForm.lockout1Min')}</option>
-                            <option value="5" ${currentLockout === 5 ? 'selected' : ''}>${t('profileForm.lockout5Min')}</option>
-                            <option value="10" ${currentLockout === 10 ? 'selected' : ''}>${t('profileForm.lockout10Min')}</option>
-                            <option value="20" ${currentLockout === 20 ? 'selected' : ''}>${t('profileForm.lockout20Min')}</option>
-                            <option value="30" ${currentLockout === 30 ? 'selected' : ''}>${t('profileForm.lockout30Min')}</option>
-                            <option value="60" ${currentLockout === 60 ? 'selected' : ''}>${t('profileForm.lockout1Hour')}</option>
-                        </select>
+                        <select id="edit-lockout-select">${this.renderLockoutOptions(currentLockout, false)}</select>
                         <div class="form-hint">${t('profileForm.autoLockHintEdit')}</div>
                     </div>
                 `;
@@ -6909,157 +6892,6 @@
                 });
                 updateSelectedText();
 
-                // Device deletion handler
-                content.querySelectorAll('.device-delete-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const devId = btn.getAttribute('data-id');
-                        this.showConfirmDialog(t('profileForm.deleteDeviceTitle'), t('profileForm.deleteDeviceMessage'), () => {
-                            const delDevUrl = apiClient.getUrl('plugins/profiles/devices/delete');
-                            fetch(delDevUrl, {
-                                method: 'POST',
-                                headers: this.manageHeaders(masterState.token),
-                                body: JSON.stringify({ deviceId: devId })
-                            })
-                            .then(res => {
-                                if (res.ok) {
-                                    // The device list is part of the account-wide cache the
-                                    // forms share. Removing only the row would let the next
-                                    // form re-list the device it just deleted, and allow it
-                                    // to be ticked as permitted.
-                                    this.clearSharedFormData();
-
-                                    const row = btn.closest('.device-dropdown-item');
-                                    if (row) row.remove();
-                                    const remaining = editList.querySelectorAll('.device-dropdown-item');
-                                    if (remaining.length === 0) {
-                                        editList.innerHTML = '<div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">' + t('profileForm.noDevicesConnected') + '</div>';
-                                    }
-                                    updateSelectedText();
-                                    return null;
-                                }
-                                // The server refuses this when the device is the only one a
-                                // profile is allowed on, and says which profiles those are —
-                                // forgetting it would empty their whitelist, and an empty
-                                // whitelist means "any device". Showing the generic failure
-                                // instead threw that away and left the administrator with a
-                                // button that just did not work.
-                                return res.text().then(body => {
-                                    this.showAlert(
-                                        t('errors.error'),
-                                        escapeHtml(body && body.trim()) || t('errors.failedDeleteDevice'));
-                                });
-                            })
-                            .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
-                        });
-                    });
-                });
-
-                // ── Renaming and merging ────────────────────────────────────────────
-                //
-                // Both post and then re-open the form, rather than patching the row in
-                // place: a merge changes which devices exist and which of them this profile
-                // is allowed on, and the checkbox states are rebuilt from that. Patching
-                // would leave the ticks describing a list that no longer exists.
-                const deviceAction = (path, body, failKey) => {
-                    // Some of these take their argument in the query string and no body at
-                    // all. Sending the four bytes "null" for those is not harmless: ASP.NET
-                    // binds it as an explicit null, which is a different thing from absent.
-                    const init = {
-                        method: 'POST',
-                        headers: this.manageHeaders(masterState.token)
-                    };
-                    if (body !== null && body !== undefined) init.body = JSON.stringify(body);
-
-                    fetch(apiClient.getUrl('plugins/profiles/devices/' + path), init)
-                    .then(res => {
-                        if (res.ok) {
-                            this.clearSharedFormData();
-                            this.showEditProfileModal(profile);
-                            return null;
-                        }
-                        return res.text().then(text => {
-                            this.showAlert(t('errors.error'), escapeHtml(text && text.trim()) || t(failKey));
-                        });
-                    })
-                    .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
-                };
-
-                content.querySelectorAll('.device-rename-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.showPromptDialog(
-                            t('profileForm.renameDeviceTitle'),
-                            t('profileForm.renameDeviceLabel'),
-                            btn.getAttribute('data-name'),
-                            (name) => deviceAction(
-                                'rename',
-                                { deviceId: btn.getAttribute('data-id'), deviceName: name },
-                                'errors.failedRenameDevice'));
-                    });
-                });
-
-                // One browser that has minted a new id every time its site data was cleared
-                // leaves four or five identical-looking rows, and merging them a pair at a
-                // time is the kind of chore nobody finishes. Two calls: the first only
-                // reports, the second acts.
-                const tidyBtn = content.querySelector('#devices-tidy-btn');
-                if (tidyBtn) {
-                    tidyBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const url = apiClient.getUrl('plugins/profiles/devices/merge-duplicates');
-                        fetch(url, {
-                            method: 'POST',
-                            headers: this.manageHeaders(masterState.token)
-                        })
-                        .then(res => res.json())
-                        .then(data => {
-                            const count = (data.groups || [])
-                                .reduce((n, g) => n + (g.merge ? g.merge.length : 0), 0);
-                            if (!count) {
-                                this.showAlert(t('profileForm.tidyDevices'), t('profileForm.tidyNone'));
-                                return;
-                            }
-                            this.showConfirmDialog(
-                                t('profileForm.tidyDevices'),
-                                t('profileForm.tidyFound', { count: count }),
-                                () => deviceAction('merge-duplicates?apply=true', null,
-                                                   'errors.failedMergeDevice'));
-                        })
-                        .catch(err => this.showAlert(t('errors.error'),
-                            t('errors.withMessage', { message: escapeHtml(err.message) })));
-                    });
-                }
-
-                content.querySelectorAll('.device-merge-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-
-                        const fromId = btn.getAttribute('data-id');
-                        const others = Array.from(content.querySelectorAll('.device-dropdown-item'))
-                            .map(row => ({
-                                id: row.getAttribute('data-device-id'),
-                                name: (row.querySelector('.device-row-name') || {}).textContent || ''
-                            }))
-                            .filter(d => d.id && d.id !== fromId);
-
-                        if (others.length === 0) return;
-
-                        this.showSelectDialog(
-                            t('profileForm.mergeDeviceTitle'),
-                            t('profileForm.mergeDeviceMessage'),
-                            others,
-                            (intoId) => deviceAction(
-                                'merge',
-                                { fromDeviceId: fromId, intoDeviceId: intoId },
-                                'errors.failedMergeDevice'));
-                    });
-                });
-
                 // Clear PIN logic
                 let isPinCleared = false;
                 const clearPinBtn = document.getElementById('edit-clear-pin-btn');
@@ -7077,10 +6909,13 @@
                 // Save handler
                 document.getElementById('edit-submit-btn').addEventListener('click', () => {
                     const name = document.getElementById('edit-name-input').value.trim();
-                    const pinVal = document.getElementById('edit-pin-input').value;
-                    const bypassPin = document.getElementById('edit-local-bypass-checkbox').checked;
-                    const askPinBox = document.getElementById('edit-ask-pin-checkbox');
-                    
+                    // The main account's form has none of these (see Section 2): null
+                    // leaves each as it is on the server.
+                    const pinField = document.getElementById('edit-pin-input');
+                    const pinVal = pinField ? pinField.value : '';
+                    const bypassBox = document.getElementById('edit-local-bypass-checkbox');
+                    const bypassPin = bypassBox ? bypassBox.checked : null;
+
                     let rating = null;
                     let checkedLibs = null;
                     let checkedDevices = null;
@@ -7168,7 +7003,6 @@
                             masterPin: this.masterPin,
                             lockoutMinutes: lockoutMinutes,
                             bypassPinOnLocalNetwork: bypassPin,
-                            askPinToOpen: askPinBox ? askPinBox.checked : null,
                             allowedDeviceIds: checkedDevices,
                             profileImage: avatarPicker.get().image,
                             profileImageThumb: avatarPicker.get().thumb,
@@ -7268,16 +7102,328 @@
             }, 250);
         },
 
-        /// Lets the account holder choose between the forced gate and native-menu access.
-        /// A per-account preference rather than a server setting — some households want the
-        /// Netflix-style "Who's Watching?" screen, others find it intrusive, and neither
-        /// answer should be imposed on the other by whoever runs the server.
-        /// Everything that is not a profile.
+        /// Settings → Your account: the main account's PIN and sign-in settings, and the
+        /// household's devices.
         ///
-        /// Bonfire has four scopes of setting: per profile (Edit Profile), per account
-        /// (Switcher Style), between accounts (Your Bonfire) and server-wide (the
-        /// dashboard). The middle two used to be cards in the profile grid, which is
-        /// why they needed their own gradient tiles to avoid reading as people.
+        /// The device tools (rename, merge, forget, tidy) used to sit inside each profile's
+        /// device list. A device belongs to the account, not to a profile: renaming the TV
+        /// from Kid's form renamed it for everyone. A profile now only ticks devices.
+        ///
+        /// Every control saves on its own, through /account or /devices/*, so there is no
+        /// Save button to miss and nothing else on the account is sent back.
+        showAccountSettings: function () {
+            const ticket = this.beginNavigation();
+            const masterState = this.readMasterState();
+            const content = document.querySelector('.profiles-modal-content');
+            if (!masterState || !content) return;
+            const main = (this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
+            if (!main) { this.showSettingsMenu(); return; }
+
+            this.fetchSharedFormData(ApiClient, masterState)
+                .then(shared => shared.devices, () => null)
+                .then(devices => {
+                    if (!this.navIsCurrent(ticket)) return;
+                    this._renderAccountSettings(content, main, devices, masterState);
+                });
+        },
+
+        _renderAccountSettings: function (content, main, devices, masterState) {
+            const apiClient = ApiClient;
+            const check = (id, on, label, hint) => `
+                <div class="form-group">
+                    <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                        <input type="checkbox" id="${id}" ${on ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent);" />
+                        <span>${label}</span>
+                    </label>
+                    <div class="form-hint">${hint}</div>
+                </div>`;
+
+            const signIn = `
+                <div class="form-group">
+                    <label for="account-pin-input">${t('profileForm.pin')}</label>
+                    <div class="pin-edit-group" style="display:flex; gap: var(--jpf-gap); flex-wrap: wrap;">
+                        <input type="text" id="account-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${main.hasPin ? t('profileForm.pinPlaceholderNew') : t('profileForm.pinPlaceholderNone')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 140px;" />
+                        <button type="button" id="account-pin-save" class="profiles-btn btn-primary" style="padding:10px 15px;">${t('account.savePin')}</button>
+                        ${main.hasPin ? `<button type="button" id="account-pin-clear" class="profiles-btn btn-secondary" style="padding:10px 15px;">${t('profileForm.clearPin')}</button>` : ''}
+                    </div>
+                    <div class="form-hint">${main.hasPin ? t('account.pinSetHint') : t('mainPin.setBody')}</div>
+                    ${main.isAdministrator ? `<div class="form-hint" style="color: var(--jpf-danger); font-weight: 600;">${t('profileForm.pinAdminWarning')}</div>` : ''}
+                </div>
+                ${check('account-ask-pin', main.askPinToOpen, t('profileForm.askPinToOpen'), t('profileForm.askPinToOpenHint'))}
+                ${check('account-lan-bypass', main.bypassPinOnLocalNetwork, t('profileForm.bypassPinLan'), t('profileForm.bypassPinHint'))}
+                <div class="form-group">
+                    <label for="account-lockout-select">${t('profileForm.autoLock')}</label>
+                    <select id="account-lockout-select">${this.renderLockoutOptions(main.lockoutMinutes, false)}</select>
+                    <div class="form-hint">${t('profileForm.autoLockHintEdit')}</div>
+                </div>
+            `;
+
+            const deviceRow = (dev) => {
+                const id = dev.deviceId || dev.DeviceId || '';
+                const name = dev.deviceName || dev.DeviceName || t('profileForm.unknownDevice');
+                const client = dev.client || dev.Client || t('profileForm.unknownClient');
+                const seen = dev.lastSeen || dev.LastSeen;
+                const seenDate = seen ? new Date(seen) : null;
+                // Year 1 is an unset DateTime; see renderDeviceDropdown.
+                const seenStr = (seenDate && seenDate.getFullYear() > 1)
+                    ? seenDate.toLocaleDateString() : t('profileForm.unknown');
+                return `
+                    <div class="device-dropdown-item" data-device-id="${escapeHtml(id)}">
+                        <span style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
+                            <span class="device-row-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(name)}</span>
+                            <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: seenStr })}</span>
+                        </span>
+                        <button type="button" class="device-rename-btn" data-id="${escapeHtml(id)}" data-name="${escapeHtml(name)}" title="${t('profileForm.renameDevice')}" aria-label="${t('profileForm.renameDeviceAria', { name: escapeHtml(name) })}"><span class="material-icons" aria-hidden="true">edit</span></button>
+                        <button type="button" class="device-merge-btn" data-id="${escapeHtml(id)}" title="${t('profileForm.mergeDevice')}" aria-label="${t('profileForm.mergeDeviceAria', { name: escapeHtml(name) })}"><span class="material-icons" aria-hidden="true">swap_horiz</span></button>
+                        <button type="button" class="device-delete-btn" data-id="${escapeHtml(id)}" title="${t('profileForm.forgetDevice')}" aria-label="${t('profileForm.forgetDeviceAria', { name: escapeHtml(name) })}"><span class="material-icons" aria-hidden="true">delete</span></button>
+                    </div>`;
+            };
+            const deviceBody = devices === null
+                ? `<div class="form-hint">${t('profileForm.devicesUnavailable')}</div>`
+                : !devices.length
+                    ? `<div class="form-hint">${t('profileForm.noDevicesYet')}</div>`
+                    : `<div class="jpf-device-list">${devices.map(deviceRow).join('')}</div>
+                       <div class="form-hint">${t('account.devicesHint')}</div>
+                       <button type="button" id="devices-tidy-btn" class="profiles-btn btn-secondary device-tidy-btn">${t('profileForm.tidyDevices')}</button>`;
+
+            content.innerHTML = `
+                <h1 class="profiles-title">${t('settings.accountTitle')}</h1>
+                <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
+                    ${this.renderSection('lock', t('account.signInTitle'), t('account.signInSubtitle'), signIn)}
+                    ${this.renderSection('devices', t('account.devicesTitle'), t('account.devicesSubtitle'), deviceBody)}
+                    <div id="account-status" class="form-hint" role="status" aria-live="polite"></div>
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1.5rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
+                        <button id="account-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
+                    </div>
+                </div>
+            `;
+
+            const status = content.querySelector('#account-status');
+            const say = (text, bad) => {
+                status.textContent = text || '';
+                status.style.color = bad ? 'var(--jpf-danger)' : '';
+            };
+            const rerender = () => this._renderAccountSettings(content, main, devices, masterState);
+
+            /// One POST to /account. Resolves true when saved; on refusal says why and
+            /// resolves false, so the caller can put its control back.
+            const saveAccount = (body) => {
+                say('');
+                return fetch(apiClient.getUrl('plugins/profiles/account'), {
+                    method: 'POST',
+                    headers: this.jsonHeaders(masterState.token),
+                    body: JSON.stringify(Object.assign({ masterPin: this.masterPin }, body))
+                })
+                .then(res => {
+                    if (res.status === 401) { this.handleSessionExpired(); return false; }
+                    if (!res.ok) return res.text().then(text => { say(text || t('errors.couldNotSaveThat'), true); return false; });
+                    return res.json().then(saved => {
+                        const pick = (k) => (saved[k] !== undefined ? saved[k] : saved[k.charAt(0).toUpperCase() + k.slice(1)]);
+                        if (pick('hasPin') !== undefined) main.hasPin = pick('hasPin') === true;
+                        if (pick('askPinToOpen') !== undefined) main.askPinToOpen = pick('askPinToOpen') !== false;
+                        if (pick('bypassPinOnLocalNetwork') !== undefined) main.bypassPinOnLocalNetwork = pick('bypassPinOnLocalNetwork') === true;
+                        if (typeof pick('lockoutMinutes') === 'number') main.lockoutMinutes = pick('lockoutMinutes');
+                        return true;
+                    }, () => true);
+                })
+                .catch(err => { say(err.message || t('errors.couldNotSaveThat'), true); return false; });
+            };
+
+            const pinInput = content.querySelector('#account-pin-input');
+            const savePin = () => {
+                const pin = pinInput.value;
+                if (!/^\d{4,8}$/.test(pin)) { say(t('profileForm.pinLengthCreate'), true); pinInput.focus(); return; }
+                saveAccount({ pin: pin }).then(ok => {
+                    if (!ok) return;
+                    this.masterPin = pin;
+                    main.hasPin = true;
+                    rerender();
+                    say(t('account.pinSaved'));
+                });
+            };
+            content.querySelector('#account-pin-save').addEventListener('click', savePin);
+            pinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') savePin(); });
+
+            const clearBtn = content.querySelector('#account-pin-clear');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', () => {
+                    saveAccount({ pin: '' }).then(ok => {
+                        if (!ok) return;
+                        this.masterPin = null;
+                        main.hasPin = false;
+                        rerender();
+                        say(t('account.pinCleared'));
+                    });
+                });
+            }
+
+            const toggle = (id, field) => {
+                const box = content.querySelector('#' + id);
+                if (!box) return;
+                box.addEventListener('change', () => {
+                    const body = {};
+                    body[field] = box.checked;
+                    saveAccount(body).then(ok => {
+                        if (ok) say(t('account.saved'));
+                        else box.checked = !box.checked;
+                    });
+                });
+            };
+            toggle('account-ask-pin', 'askPinToOpen');
+            toggle('account-lan-bypass', 'bypassPinOnLocalNetwork');
+
+            const lockSel = content.querySelector('#account-lockout-select');
+            lockSel.addEventListener('change', () => {
+                const before = main.lockoutMinutes;
+                saveAccount({ lockoutMinutes: parseInt(lockSel.value, 10) }).then(ok => {
+                    if (ok) say(t('account.saved'));
+                    else lockSel.value = String(before);
+                });
+            });
+
+            this.bindDeviceTools(content, masterState, () => this.showAccountSettings());
+
+            content.querySelector('#account-back-btn').addEventListener('click', () => this.showSettingsMenu());
+            this.initTVCheckboxes(content);
+        },
+
+        /// Rename, merge, forget and tidy, for the rows _renderAccountSettings draws.
+        ///
+        /// Each posts and then redraws the page through refresh(), rather than patching the
+        /// row: a merge changes which devices exist, and a redraw from the server's list is
+        /// the only way the page can't describe a list that no longer exists.
+        bindDeviceTools: function (content, masterState, refresh) {
+            const apiClient = ApiClient;
+            const deviceAction = (path, body, failKey) => {
+                // Some of these take their argument in the query string and no body at
+                // all. Sending the four bytes "null" for those is not harmless: ASP.NET
+                // binds it as an explicit null, which is a different thing from absent.
+                const init = {
+                    method: 'POST',
+                    headers: this.manageHeaders(masterState.token)
+                };
+                if (body !== null && body !== undefined) init.body = JSON.stringify(body);
+
+                fetch(apiClient.getUrl('plugins/profiles/devices/' + path), init)
+                .then(res => {
+                    if (res.ok) {
+                        // The device list is part of the account-wide cache the profile
+                        // forms share; left, the next form would list what was just changed.
+                        this.clearSharedFormData();
+                        refresh();
+                        return null;
+                    }
+                    // Forget is refused when the device is the only one a profile may be
+                    // opened on, and the server says which profiles: forgetting it would
+                    // empty their list, and an empty list means "any device". That reason
+                    // is shown, not a generic failure.
+                    return res.text().then(text => {
+                        this.showAlert(t('errors.error'), escapeHtml(text && text.trim()) || t(failKey));
+                    });
+                })
+                .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
+            };
+
+            content.querySelectorAll('.device-delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.showConfirmDialog(t('profileForm.deleteDeviceTitle'), t('profileForm.deleteDeviceMessage'),
+                        () => deviceAction('delete', { deviceId: btn.getAttribute('data-id') }, 'errors.failedDeleteDevice'));
+                });
+            });
+
+            // Renaming is what makes two ids for one machine tellable apart: jellyfin-web
+            // keeps its id per origin, so the LAN address and the domain name give one
+            // computer two devices, as do a new browser profile or a reinstall. The name
+            // sticks — see KnownDevice.NameIsCustom.
+            content.querySelectorAll('.device-rename-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.showPromptDialog(
+                        t('profileForm.renameDeviceTitle'),
+                        t('profileForm.renameDeviceLabel'),
+                        btn.getAttribute('data-name'),
+                        (name) => deviceAction('rename',
+                            { deviceId: btn.getAttribute('data-id'), deviceName: name },
+                            'errors.failedRenameDevice'));
+                });
+            });
+
+            // Nothing in a request tells one machine's two ids from two real machines, so
+            // the plugin never merges on a guess: merging two that are different would
+            // widen a profile's list. A person says so here.
+            content.querySelectorAll('.device-merge-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const fromId = btn.getAttribute('data-id');
+                    const others = Array.from(content.querySelectorAll('.device-dropdown-item'))
+                        .map(row => ({
+                            id: row.getAttribute('data-device-id'),
+                            name: (row.querySelector('.device-row-name') || {}).textContent || ''
+                        }))
+                        .filter(d => d.id && d.id !== fromId);
+                    if (others.length === 0) return;
+                    this.showSelectDialog(
+                        t('profileForm.mergeDeviceTitle'),
+                        t('profileForm.mergeDeviceMessage'),
+                        others,
+                        (intoId) => deviceAction('merge',
+                            { fromDeviceId: fromId, intoDeviceId: intoId },
+                            'errors.failedMergeDevice'));
+                });
+            });
+
+            // One browser that has minted a new id every time its site data was cleared
+            // leaves four or five identical-looking rows, and merging them a pair at a
+            // time is the kind of chore nobody finishes. Two calls: the first only
+            // reports, the second acts.
+            const tidyBtn = content.querySelector('#devices-tidy-btn');
+            if (tidyBtn) {
+                tidyBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    fetch(apiClient.getUrl('plugins/profiles/devices/merge-duplicates'), {
+                        method: 'POST',
+                        headers: this.manageHeaders(masterState.token)
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        const count = (data.groups || [])
+                            .reduce((n, g) => n + (g.merge ? g.merge.length : 0), 0);
+                        if (!count) {
+                            this.showAlert(t('profileForm.tidyDevices'), t('profileForm.tidyNone'));
+                            return;
+                        }
+                        this.showConfirmDialog(
+                            t('profileForm.tidyDevices'),
+                            t('profileForm.tidyFound', { count: count }),
+                            () => deviceAction('merge-duplicates?apply=true', null, 'errors.failedMergeDevice'));
+                    })
+                    .catch(err => this.showAlert(t('errors.error'),
+                        t('errors.withMessage', { message: escapeHtml(err.message) })));
+                });
+            }
+        },
+
+        /// The auto-lock choices. `isNew` marks five minutes as the default in its label.
+        renderLockoutOptions: function (current, isNew) {
+            return [
+                [0, 'profileForm.lockoutNever'],
+                [1, 'profileForm.lockout1Min'],
+                [5, isNew ? 'profileForm.lockout5MinDefault' : 'profileForm.lockout5Min'],
+                [10, 'profileForm.lockout10Min'],
+                [20, 'profileForm.lockout20Min'],
+                [30, 'profileForm.lockout30Min'],
+                [60, 'profileForm.lockout1Hour']
+            ].map(([v, key]) => `<option value="${v}" ${current === v ? 'selected' : ''}>${t(key)}</option>`).join('');
+        },
+
+        /// The main account's Settings, in five sections (1.7.2): Profiles, Your account,
+        /// Switcher, Sharing, Look.
+        ///
+        /// Opened through withMainPin, so the main PIN is asked once on the way in and every
+        /// page below sends it; the server checks it again on each save. Profiles opens the
+        /// manage grid rather than a second list of the same people. Server-wide settings
+        /// stay on the dashboard.
         showSettingsMenu: function () {
             this.beginNavigation();
 
@@ -7298,12 +7444,16 @@
                 <h1 class="profiles-title">${t('settings.title')}</h1>
                 <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
                     <div style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
-                        ${entry('settings-switcher-style', 'switch_account', t('settings.switcherStyleTitle'),
+                        ${entry('settings-profiles', 'people', t('settings.profilesTitle'),
+                            t('settings.profilesBody'))}
+                        ${entry('settings-account', 'manage_accounts', t('settings.accountTitle'),
+                            t('settings.accountBody'))}
+                        ${entry('settings-switcher-style', 'switch_account', t('settings.switcherTitle'),
                             t('settings.switcherStyleBody'))}
-                        ${entry('settings-your-bonfire', 'local_fire_department', t('settings.yourBonfireTitle'),
+                        ${entry('settings-your-bonfire', 'local_fire_department', t('settings.sharingTitle'),
                             t('settings.yourBonfireBody'))}
                         ${this._themeSettings && this._themeSettings.allow
-                            ? entry('settings-theme', 'palette', t('settings.themeTitle'), t('settings.themeBody'))
+                            ? entry('settings-theme', 'palette', t('settings.lookTitle'), t('settings.themeBody'))
                             : ''}
                     </div>
                     <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
@@ -7320,6 +7470,14 @@
                     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
                 });
             };
+            open('settings-profiles', () => {
+                const st = this.readMasterState();
+                if (!st) return;
+                // The PIN typed to open Settings is the one Manage Profiles would ask for.
+                this.isManageMode = true;
+                this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.token, /* forceRefresh */ true);
+            });
+            open('settings-account', this.showAccountSettings);
             open('settings-switcher-style', this.showSwitcherModeModal);
             open('settings-your-bonfire', this.showBonfireModal);
             open('settings-theme', () => this.showThemeSettings(null));

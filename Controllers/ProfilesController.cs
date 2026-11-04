@@ -2848,6 +2848,8 @@ namespace Jellyfin.Profiles.Controllers
 
             bool hasPin;
             bool askPinToOpen;
+            bool bypass;
+            int lockout;
             lock (ConfigLock)
             {
                 var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == mainId);
@@ -2867,9 +2869,13 @@ namespace Jellyfin.Profiles.Controllers
                 else if (request.Pin != null) row.PinHash = HashPin(request.Pin);
 
                 if (request.AskPinToOpen.HasValue) row.AskPinToOpen = request.AskPinToOpen.Value;
+                if (request.BypassPinOnLocalNetwork.HasValue) row.BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork.Value;
+                if (request.LockoutMinutes.HasValue) row.LockoutMinutes = ClampLockoutMinutes(request.LockoutMinutes.Value);
 
                 hasPin = !string.IsNullOrEmpty(row.PinHash);
                 askPinToOpen = row.AskPinToOpen;
+                bypass = row.BypassPinOnLocalNetwork;
+                lockout = row.LockoutMinutes;
                 Plugin.Instance?.SaveConfiguration();
             }
 
@@ -2877,7 +2883,7 @@ namespace Jellyfin.Profiles.Controllers
             // account signs in with on other apps, and that should not wait for a restart.
             if (request.Pin != null) ProfilesBootstrapTask.ReconcileAuthProvidersNow();
 
-            return Ok(new { HasPin = hasPin, AskPinToOpen = askPinToOpen });
+            return Ok(new { HasPin = hasPin, AskPinToOpen = askPinToOpen, BypassPinOnLocalNetwork = bypass, LockoutMinutes = lockout });
         }
 
         /// <summary>

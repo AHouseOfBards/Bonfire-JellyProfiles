@@ -286,6 +286,25 @@ if (hasAccountRoutes)
 
     var ask = Call("UpdateAccount", SOFA, new() { ["AskPinToOpen"] = (bool?)true, ["MasterPin"] = "2468" });
     Ok("the owner can turn asking back on, with the PIN", ask.status == 200 && (bool)mapType.GetProperty("AskPinToOpen").GetValue(sofaRow), ask.status + " " + ask.message);
+
+    // Settings → Your account saves the main account's home-network skip and auto-lock
+    // here (1.7.2), so they no longer need the whole profile form sent back.
+    var reqType = ctrlType.GetMethod("UpdateAccount").GetParameters()[0].ParameterType;
+    Ok("/account takes the home-network skip and the auto-lock",
+       reqType.GetProperty("BypassPinOnLocalNetwork") != null && reqType.GetProperty("LockoutMinutes") != null);
+    if (reqType.GetProperty("LockoutMinutes") != null)
+    {
+        mapType.GetProperty("BypassPinOnLocalNetwork").SetValue(sofaRow, false);
+        mapType.GetProperty("LockoutMinutes").SetValue(sofaRow, 5);
+        var noPin = Call("UpdateAccount", SOFA, new() { ["BypassPinOnLocalNetwork"] = (bool?)true });
+        Ok("not without the PIN", noPin.status == 400 && !(bool)mapType.GetProperty("BypassPinOnLocalNetwork").GetValue(sofaRow), noPin.status + " " + noPin.message);
+        var both = Call("UpdateAccount", SOFA, new() { ["BypassPinOnLocalNetwork"] = (bool?)true, ["LockoutMinutes"] = (int?)99999, ["MasterPin"] = "2468" });
+        Ok("with it, both are saved, the lock clamped to a day",
+           both.status == 200 && (bool)mapType.GetProperty("BypassPinOnLocalNetwork").GetValue(sofaRow)
+           && (int)mapType.GetProperty("LockoutMinutes").GetValue(sofaRow) == 1440, both.status + " " + both.message);
+        var askKept = (bool)mapType.GetProperty("AskPinToOpen").GetValue(sofaRow);
+        Ok("and what wasn't sent is left alone", askKept && HasPin(SOFA));
+    }
 }
 
 var canSkip = baseType.GetMethod("CanSkipPin", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);

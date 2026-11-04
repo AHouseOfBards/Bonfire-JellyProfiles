@@ -148,9 +148,12 @@ const info = (required) => () => json({ features: { requireMainPin: required } }
         ok('and no header before it is typed', !('X-Bonfire-Master-Pin' in env.P.manageHeaders('tok')));
     }
 
-    // Every call to a route that checks the PIN, one at a time.
+    // Every call to a route that checks the PIN, one at a time. devices/delete has no
+    // fetch of its own since 1.7.2: it goes through the same devices/' + path call as
+    // rename and merge, and tests/js/accountsettings.js runs all four and reads the header
+    // off each request.
     const guarded = [
-        "plugins/profiles/devices/delete", "plugins/profiles/devices/' + path", "plugins/profiles/devices/merge-duplicates",
+        "plugins/profiles/devices/' + path", "plugins/profiles/devices/merge-duplicates",
         "plugins/profiles/bonfire/kick", "plugins/profiles/bonfire/regenerate-code", "plugins/profiles/bonfire/delete-group",
         "plugins/profiles/bonfire/leave", "plugins/profiles/bonfire/generate", "plugins/profiles/bonfire/join",
         "plugins/profiles/bonfire/settings",

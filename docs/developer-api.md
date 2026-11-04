@@ -503,8 +503,10 @@ The main account's own settings.
 | `masterPin` | string | When the account has a PIN | The current PIN. |
 | `pin` | string | No | A new PIN, 4 to 8 digits. `""` clears it, refused while the server requires main PINs. Omit to keep it. |
 | `askPinToOpen` | boolean | No | Ask for the PIN to open the account. Omit to keep it. |
+| `bypassPinOnLocalNetwork` | boolean | No | Skip the PIN on the home network. Omit to keep it. |
+| `lockoutMinutes` | integer | No | Minutes before the account locks. `0` is never. Clamped to 0–1440. Omit to keep it. |
 
-Response: `{ "hasPin": true, "askPinToOpen": false }`.
+Response: `{ "hasPin": true, "askPinToOpen": false, "bypassPinOnLocalNetwork": false, "lockoutMinutes": 5 }`.
 
 An account with no PIN can set one without `masterPin`, even while the server requires
 it.

@@ -119,9 +119,11 @@ ok('edit ticks the device the profile already allows', /value="aaa"[^>]*checked/
 ok('and leaves the others alone', !/value="bbb"[^>]*checked/.test(dEdit));
 ok('create ticks nothing', dCreate.indexOf('checked') === -1);
 
-// A device cannot be stale for a profile that does not exist yet.
-ok('edit offers Forget', dEdit.indexOf('device-delete-btn') !== -1);
-ok('create does not', dCreate.indexOf('device-delete-btn') === -1);
+// Rename, merge and forget change a device for the whole household, so since 1.7.2 they
+// live in Settings → Your account (tests/js/accountsettings.js). A profile only ticks.
+for (const tool of ['device-delete-btn', 'device-rename-btn', 'device-merge-btn', 'devices-tidy-btn']) {
+    ok('neither form offers ' + tool, dEdit.indexOf(tool) === -1 && dCreate.indexOf(tool) === -1);
+}
 
 // Both spellings, because the list can arrive as the plugin's camelCase JSON or
 // straight off a Jellyfin DTO.

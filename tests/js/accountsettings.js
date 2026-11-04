@@ -1,0 +1,370 @@
+// Settings in five sections, and Settings → Your account (1.7.2).
+//
+// Runs the real showSettingsMenu, showAccountSettings and bindDeviceTools against a stub
+// DOM and a recording fetch, then reads back what was drawn and what was sent. Red
+// against 1.7.1, which had three Settings entries, no account page, and the device tools
+// inside each profile's form.
+//
+//   node tests/js/accountsettings.js [path/to/profiles.js]
+
+'use strict';
+const fs = require('fs');
+const vm = require('vm');
+const L = require('./_lib');
+
+const SRC = L.readProfiles();
+const src = SRC.replace('ProfilesPlugin.init();', 'globalThis.__PP = ProfilesPlugin;');
+if (!src.includes('globalThis.__PP')) {
+    console.error('Could not find the bootstrap line to replace — harness is out of date.');
+    process.exit(1);
+}
+
+let pass = 0;
+const fails = [];
+function ok(name, cond, detail) {
+    if (cond) { pass++; console.log('  PASS  ' + name); }
+    else { fails.push(name); console.log('  FAIL  ' + name + (detail ? ' — ' + detail : '')); }
+}
+
+// ── A stub DOM: just enough for markup written as one innerHTML ──────────────────
+
+function attrsOf(tag) {
+    const a = {};
+    tag.replace(/([a-zA-Z-]+)="([^"]*)"/g, (m, k, v) => { a[k] = v; return m; });
+    return a;
+}
+
+function makeNode(attrs, extra) {
+    const listeners = {};
+    const node = Object.assign({
+        attrs: attrs, style: {}, textContent: '', value: '', checked: false,
+        getAttribute: k => (k in attrs ? attrs[k] : null),
+        setAttribute: (k, v) => { attrs[k] = String(v); },
+        hasAttribute: k => k in attrs,
+        addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
+        fire: (type, ev) => (listeners[type] || []).forEach(fn => fn(Object.assign({
+            preventDefault() {}, stopPropagation() {}, key: '', target: node
+        }, ev || {}))),
+        click() { node.fire('click'); },
+        focus() {},
+        querySelector: () => null,
+        querySelectorAll: () => []
+    }, extra || {});
+    return node;
+}
+
+function makeContent() {
+    let html = '';
+    let byId = {};
+    let byClass = {};
+    const content = makeNode({});
+    Object.defineProperty(content, 'innerHTML', {
+        get: () => html,
+        set: v => { html = v; byId = {}; byClass = {}; }
+    });
+    content.querySelector = sel => {
+        if (sel.charAt(0) !== '#') return (content.querySelectorAll(sel)[0] || null);
+        const id = sel.slice(1);
+        if (byId[id]) return byId[id];
+        const m = new RegExp('<[a-z]+[^>]*\\bid="' + id + '"[^>]*>').exec(html);
+        if (!m) return null;
+        const node = makeNode(attrsOf(m[0]), { id: id });
+        node.checked = /\schecked(\s|>|\/)/.test(m[0]);
+        if (/^<select/.test(m[0])) {
+            const body = html.slice(m.index, html.indexOf('</select>', m.index));
+            const sel = /<option value="([^"]*)"\s+selected/.exec(body);
+            node.value = sel ? sel[1] : '';
+        }
+        return (byId[id] = node);
+    };
+    content.querySelectorAll = sel => {
+        if (sel.charAt(0) !== '.') return [];
+        const cls = sel.slice(1);
+        if (byClass[cls]) return byClass[cls];
+        const list = [];
+        const re = new RegExp('<[a-z]+[^>]*class="[^"]*\\b' + cls + '\\b[^"]*"[^>]*>', 'g');
+        let m;
+        while ((m = re.exec(html))) {
+            const attrs = attrsOf(m[0]);
+            const at = m.index;
+            const node = makeNode(attrs);
+            // A device row's name, for the merge picker.
+            const nameM = /class="device-row-name"[^>]*>([^<]*)</.exec(html.slice(at, at + 1200));
+            node.querySelector = s => (s === '.device-row-name' && nameM ? { textContent: nameM[1] } : null);
+            list.push(node);
+        }
+        return (byClass[cls] = list);
+    };
+    return content;
+}
+
+function makeStorage() {
+    const map = new Map();
+    return {
+        getItem: k => (map.has(k) ? map.get(k) : null),
+        setItem: (k, v) => map.set(k, String(v)),
+        removeItem: k => map.delete(k),
+        clear: () => map.clear()
+    };
+}
+
+const content = makeContent();
+const posts = [];
+let respond = () => ({ status: 200, body: {} });
+
+const sandbox = {
+    console,
+    localStorage: makeStorage(),
+    sessionStorage: makeStorage(),
+    setTimeout: () => 0,
+    clearTimeout: () => {},
+    setInterval: () => 0,
+    requestAnimationFrame: () => 0,
+    MutationObserver: function () { this.observe = () => {}; this.disconnect = () => {}; },
+    fetch: (url, init) => {
+        const body = init && init.body ? JSON.parse(init.body) : undefined;
+        posts.push({ url: String(url), body: body, init: init || {} });
+        const r = respond(String(url), body) || { status: 200, body: {} };
+        return Promise.resolve({
+            ok: r.status >= 200 && r.status < 300,
+            status: r.status,
+            json: () => Promise.resolve(r.body),
+            text: () => Promise.resolve(typeof r.body === 'string' ? r.body : JSON.stringify(r.body))
+        });
+    },
+    document: {
+        head: makeNode({}), body: makeNode({}), documentElement: makeNode({}),
+        createElement: () => makeNode({}),
+        querySelector: sel => (sel === '.profiles-modal-content' ? content : null),
+        querySelectorAll: () => [],
+        getElementById: () => null,
+        addEventListener: () => {}
+    },
+    window: { location: { hash: '', pathname: '/web/' }, addEventListener: () => {} },
+    history: { pushState: () => {}, replaceState: () => {} },
+    ApiClient: {
+        getUrl: p => p, getCurrentUserId: () => 'main', accessToken: () => 'tok',
+        deviceId: () => 'dev', deviceName: () => 'Test', appName: () => 'Jellyfin Web', appVersion: () => '10.11'
+    }
+};
+sandbox.globalThis = sandbox;
+sandbox.window.localStorage = sandbox.localStorage;
+vm.createContext(sandbox);
+vm.runInContext(src, sandbox);
+const PP = sandbox.__PP;
+if (!PP) { console.error('profiles.js did not export ProfilesPlugin'); process.exit(1); }
+
+const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+
+// The calls this page makes into the rest of the plugin, recorded rather than run.
+const calls = { settings: 0, account: 0, grid: [], alerts: [], confirms: [], selects: [] };
+PP.beginNavigation = () => 1;
+PP.navIsCurrent = () => true;
+PP.readMasterState = () => ({ masterUserId: 'main', token: 'tok' });
+PP.fetchAndRenderProfiles = function () { calls.grid.push({ manage: this.isManageMode }); };
+PP.showAlert = (title, body) => calls.alerts.push(body);
+PP.showConfirmDialog = (title, msg, yes) => { calls.confirms.push(msg); yes(); };
+PP.showPromptDialog = (title, label, initial, cb) => cb('Living room TV');
+PP.showSelectDialog = (title, msg, options, cb) => { calls.selects.push(options); cb(options[0].id); };
+PP.handleSessionExpired = () => {};
+
+const realSettings = PP.showSettingsMenu;
+const realAccount = PP.showAccountSettings;
+const DEVICES = [
+    { deviceId: 'tv-1', deviceName: 'TV', client: 'Jellyfin Web', lastSeen: '2026-10-01T00:00:00Z' },
+    { deviceId: 'tv-2', deviceName: 'TV (domain)', client: 'Jellyfin Web', lastSeen: '2026-10-02T00:00:00Z' }
+];
+
+function freshAccount() {
+    PP.masterPin = '2468';
+    PP.currentProfiles = [
+        { profileUserId: 'main', profileName: 'Bard', isMaster: true, isBonfire: false, hasPin: true,
+          askPinToOpen: true, bypassPinOnLocalNetwork: false, lockoutMinutes: 5, isAdministrator: false },
+        { profileUserId: 'kid', profileName: 'Kid', isMaster: false, isBonfire: false }
+    ];
+    PP.fetchSharedFormData = () => Promise.resolve({ devices: DEVICES });
+    PP._sharedForm = null;
+}
+
+(async () => {
+    // ── 1. Five sections ────────────────────────────────────────────────────────────
+    console.log('\n── Settings: five sections, in order ───────────────────────────');
+
+    PP._themeSettings = { theme: 'bonfire', defaultTheme: 'bonfire', allow: true };
+    PP.showSettingsMenu = realSettings;
+    PP.showSettingsMenu();
+    const order = ['settings-profiles', 'settings-account', 'settings-switcher-style',
+                   'settings-your-bonfire', 'settings-theme'];
+    const at = order.map(id => content.innerHTML.indexOf('id="' + id + '"'));
+    ok('Profiles, Your account, Switcher, Sharing, Look', at.every(i => i !== -1)
+        && at.every((v, i) => i === 0 || v > at[i - 1]), JSON.stringify(at));
+    ok('their titles are the five names',
+        ['settings.profilesTitle', 'settings.accountTitle', 'settings.switcherTitle',
+         'settings.sharingTitle', 'settings.lookTitle'].every(k => new RegExp("t\\('" + k.replace('.', '\\.') + "'\\)").test(SRC)));
+
+    PP.isManageMode = false;
+    const profilesEntry = content.querySelector('#settings-profiles');
+    if (profilesEntry) profilesEntry.click();
+    ok('Profiles opens the manage grid, with the PIN already typed',
+        calls.grid.length === 1 && calls.grid[0].manage === true, JSON.stringify(calls.grid));
+
+    // Stubbed before the menu is drawn: the menu binds the function it is given.
+    let opened = false;
+    PP.showAccountSettings = () => { opened = true; };
+    PP.showSettingsMenu();
+    const accountEntry = content.querySelector('#settings-account');
+    if (accountEntry) accountEntry.click();
+    ok('Your account opens the account page', opened);
+    PP.showAccountSettings = realAccount;
+
+    // ── 2. The account page ──────────────────────────────────────────────────────────
+    console.log('\n── Your account: what it shows ─────────────────────────────────');
+
+    if (typeof realAccount !== 'function') {
+        ok('this build has an account page', false);
+    } else {
+        PP.showSettingsMenu = () => { calls.settings++; };
+        freshAccount();
+        PP.showAccountSettings();
+        await settle();
+        const html = content.innerHTML;
+        ok('a PIN field, with Save and Clear for a PIN that is set',
+            /id="account-pin-input"/.test(html) && /id="account-pin-save"/.test(html) && /id="account-pin-clear"/.test(html));
+        ok('ask-for-the-PIN, ticked as stored', content.querySelector('#account-ask-pin').checked === true);
+        ok('home network, unticked as stored', content.querySelector('#account-lan-bypass').checked === false);
+        ok('auto-lock, on the stored five minutes', content.querySelector('#account-lockout-select').value === '5');
+        ok('every device, each with rename, merge and forget',
+            content.querySelectorAll('.device-dropdown-item').length === 2
+            && content.querySelectorAll('.device-rename-btn').length === 2
+            && content.querySelectorAll('.device-merge-btn').length === 2
+            && content.querySelectorAll('.device-delete-btn').length === 2);
+        ok('and Tidy up duplicates', /id="devices-tidy-btn"/.test(html));
+        ok('a remote\'s Back key leaves it',
+            /#account-back-btn/.test((/_dismissSurface: function[\s\S]*?\n        \},/.exec(SRC) || [''])[0])
+            && /id="account-back-btn"/.test(html));
+
+        // ── 3. Saving ─────────────────────────────────────────────────────────────
+        console.log('\n── Your account: each control saves alone ──────────────────────');
+
+        const accountPosts = () => posts.filter(p => p.url === 'plugins/profiles/account');
+        posts.length = 0;
+        respond = (url, body) => ({ status: 200, body: { hasPin: true, askPinToOpen: body.askPinToOpen } });
+        const ask = content.querySelector('#account-ask-pin');
+        ask.checked = false;
+        ask.fire('change');
+        await settle();
+        let sent = accountPosts();
+        ok('unticking ask-for-the-PIN posts only that, with the main PIN',
+            sent.length === 1 && JSON.stringify(sent[0].body) === JSON.stringify({ masterPin: '2468', askPinToOpen: false }),
+            JSON.stringify(sent.map(p => p.body)));
+        ok('and the page remembers it', PP.currentProfiles[0].askPinToOpen === false);
+
+        posts.length = 0;
+        respond = () => ({ status: 400, body: 'Invalid Master PIN.' });
+        const lan = content.querySelector('#account-lan-bypass');
+        lan.checked = true;
+        lan.fire('change');
+        await settle();
+        ok('a refusal puts the box back', lan.checked === false);
+        ok('and says why', content.querySelector('#account-status').textContent === 'Invalid Master PIN.',
+            content.querySelector('#account-status').textContent);
+
+        posts.length = 0;
+        respond = () => ({ status: 200, body: { lockoutMinutes: 10 } });
+        const lock = content.querySelector('#account-lockout-select');
+        lock.value = '10';
+        lock.fire('change');
+        await settle();
+        sent = accountPosts();
+        ok('auto-lock posts the minutes as a number', sent.length === 1 && sent[0].body.lockoutMinutes === 10,
+            JSON.stringify(sent.map(p => p.body)));
+
+        posts.length = 0;
+        const pinIn = content.querySelector('#account-pin-input');
+        pinIn.value = '12';
+        content.querySelector('#account-pin-save').click();
+        await settle();
+        ok('a PIN that is not 4-8 digits is not sent', accountPosts().length === 0);
+
+        respond = () => ({ status: 200, body: { hasPin: true } });
+        pinIn.value = '1357';
+        content.querySelector('#account-pin-save').click();
+        await settle();
+        sent = accountPosts();
+        ok('a new PIN is sent with the current one',
+            sent.length === 1 && sent[0].body.pin === '1357' && sent[0].body.masterPin === '2468',
+            JSON.stringify(sent.map(p => p.body)));
+        ok('and is the one sent from now on', PP.masterPin === '1357');
+
+        posts.length = 0;
+        respond = () => ({ status: 200, body: { hasPin: false } });
+        content.querySelector('#account-pin-clear').click();
+        await settle();
+        sent = accountPosts();
+        ok('Clear sends an empty PIN', sent.length === 1 && sent[0].body.pin === '' && sent[0].body.masterPin === '1357');
+        ok('and nothing is sent as the PIN after it', PP.masterPin === null);
+        ok('the page redraws with no Clear button', !/id="account-pin-clear"/.test(content.innerHTML));
+
+        // ── 4. Devices ────────────────────────────────────────────────────────────
+        console.log('\n── Your account: the device tools ──────────────────────────────');
+
+        freshAccount();
+        PP.showAccountSettings();
+        await settle();
+        let redraws = 0;
+        PP.showAccountSettings = () => { redraws++; };
+        respond = () => ({ status: 200, body: {} });
+        const dev = (path) => posts.filter(p => p.url === 'plugins/profiles/devices/' + path);
+
+        posts.length = 0;
+        content.querySelectorAll('.device-delete-btn')[0].click();
+        await settle();
+        ok('Forget asks, then posts the device', calls.confirms.length >= 1
+            && dev('delete').length === 1 && dev('delete')[0].body.deviceId === 'tv-1');
+        ok('and redraws the page from the server', redraws === 1);
+
+        posts.length = 0;
+        content.querySelectorAll('.device-rename-btn')[1].click();
+        await settle();
+        ok('Rename posts the new name', dev('rename').length === 1
+            && JSON.stringify(dev('rename')[0].body) === JSON.stringify({ deviceId: 'tv-2', deviceName: 'Living room TV' }));
+
+        posts.length = 0;
+        content.querySelectorAll('.device-merge-btn')[1].click();
+        await settle();
+        const offered = calls.selects[calls.selects.length - 1] || [];
+        ok('Merge offers every other device, not itself',
+            offered.length === 1 && offered[0].id === 'tv-1' && offered[0].name === 'TV', JSON.stringify(offered));
+        ok('and posts the pair', dev('merge').length === 1
+            && JSON.stringify(dev('merge')[0].body) === JSON.stringify({ fromDeviceId: 'tv-2', intoDeviceId: 'tv-1' }));
+
+        posts.length = 0;
+        respond = (url) => url === 'plugins/profiles/devices/merge-duplicates'
+            ? { status: 200, body: { groups: [{ keep: 'tv-1', merge: ['tv-2'] }] } }
+            : { status: 200, body: {} };
+        content.querySelector('#devices-tidy-btn').click();
+        await settle();
+        ok('Tidy looks first, then merges once asked',
+            dev('merge-duplicates').length === 1 && dev('merge-duplicates?apply=true').length === 1
+            && dev('merge-duplicates?apply=true')[0].init.body === undefined);
+        ok('and every device call carries the main PIN in its header',
+            posts.filter(p => /devices\//.test(p.url)).every(p => p.init.headers && p.init.headers['X-Bonfire-Master-Pin'] === '2468'));
+
+        PP.showAccountSettings = realAccount;
+        const before = calls.settings;
+        content.querySelector('#account-back-btn').click();
+        ok('Done goes back to Settings', calls.settings === before + 1);
+    }
+
+    // ── 5. What left the profile form ────────────────────────────────────────────────
+    console.log('\n── The profile form only ticks devices ────────────────────────');
+
+    const edit = (/showEditProfileModal: function[\s\S]*?\n        showBonfireModal: function/.exec(SRC) || [''])[0];
+    ok('no device tools are wired in the profile form',
+        !!edit && !/device-delete-btn|device-rename-btn|device-merge-btn|devices-tidy-btn/.test(edit));
+    ok('the main account\'s form no longer carries its PIN settings',
+        !!edit && /mainSecurityMoved/.test(edit) && !/edit-ask-pin-checkbox/.test(SRC));
+
+    console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
+    process.exit(fails.length ? 1 : 0);
+})().catch(e => { console.error(e); process.exit(1); });
