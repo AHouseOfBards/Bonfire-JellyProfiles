@@ -69,6 +69,14 @@ namespace Jellyfin.Profiles.Controllers
             ("You cannot join your own Bonfire group", "bonfire_own_group"),
             ("Member not found in your Bonfire group", "bonfire_member_not_found"),
 
+            // Announcements.
+            ("Enter a message for the announcement", "announcement_invalid"),
+            ("An announcement can be at most", "announcement_invalid"),
+            ("Announcement severity must be", "announcement_invalid"),
+            ("An announcement must end after it starts", "announcement_invalid"),
+            ("Delete an announcement first", "announcement_limit"),
+            ("No such announcement", "announcement_not_found"),
+
             // Things that are not there.
             ("Profile not found", "profile_not_found"),
             ("Profile mapping not found", "profile_not_found"),

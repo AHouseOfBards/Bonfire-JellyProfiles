@@ -1357,6 +1357,37 @@ body.profiles-no-scroll [id*="spinner"] {
     font-weight: var(--jpf-title-weight); margin-bottom: 3rem;
     text-shadow: var(--jpf-title-shadow); letter-spacing: var(--jpf-title-spacing);
 }
+/* Announcements, above the title. Each theme colours them through its own accent, warn
+   and danger tokens, so no theme needs a rule of its own. Margins, not flex gap: gap on a
+   flex box is Chromium 84, and webOS 4.5 is 53. */
+.profiles-announcements {
+    /* Drawn above the title, but last in the markup: see renderOverlayContent. */
+    -webkit-box-ordinal-group: 0; order: -1;
+    width: 100%; max-width: 720px; margin: 0 auto 1.5rem; text-align: left;
+}
+.profiles-announcement {
+    display: flex; align-items: center;
+    margin-bottom: 0.6rem; padding: 0.7rem 0.9rem;
+    border-radius: var(--jpf-r-md);
+    background: var(--jpf-surface-2);
+    border-left: 4px solid var(--jpf-accent);
+    color: var(--jpf-text-1);
+    font-size: 1rem; line-height: 1.45;
+}
+.profiles-announcement[data-severity="warning"] { border-left-color: var(--jpf-warn); }
+.profiles-announcement[data-severity="critical"] { border-left-color: var(--jpf-danger); }
+.profiles-announcement-icon { flex: none; margin-right: 0.7rem; color: var(--jpf-accent); }
+.profiles-announcement[data-severity="warning"] .profiles-announcement-icon { color: var(--jpf-warn); }
+.profiles-announcement[data-severity="critical"] .profiles-announcement-icon { color: var(--jpf-danger); }
+.profiles-announcement-text { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; word-wrap: break-word; }
+.profiles-announcement-dismiss {
+    flex: none; margin-left: 0.7rem;
+    background: none; border: none; color: inherit; opacity: 0.7;
+    font-size: 1.4rem; line-height: 1; padding: 0.2rem 0.5rem; cursor: pointer;
+    border-radius: var(--jpf-r-sm);
+}
+.profiles-announcement-dismiss:hover,
+.profiles-announcement-dismiss:focus { opacity: 1; background: var(--jpf-surface-2); outline: none; box-shadow: 0 0 0 2px var(--jpf-accent); }
 .profiles-home-section {
     width: 100%;
     margin-bottom: 2.5rem;

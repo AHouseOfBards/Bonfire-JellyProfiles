@@ -138,6 +138,13 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public List<string> ProxyClients { get; set; } = new();
 
+        /// <summary>
+        /// Messages from the administrator, shown on the profile screen. Replaced as a whole
+        /// on every change, never edited in place, so a reader can hold the list it was
+        /// handed without the lock. See <see cref="Announcements"/>.
+        /// </summary>
+        public List<Announcement> Announcements { get; set; } = new();
+
         /// <summary>Default for <see cref="ProfileMapping.SwitcherLocation"/>. See <see cref="DefaultAskOnStartup"/>.</summary>
         public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;
 

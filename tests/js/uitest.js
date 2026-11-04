@@ -150,7 +150,7 @@ has(js, 'A library tile takes its picture from whatever is inside the library',
 has(js, 'class="libart-head"', 'the artwork column is labelled');
 
 // ── The admin page ─────────────────────────────────────────────────────────
-const tabNames = ['general', 'tv', 'avatars', 'accounts', 'activity', 'advanced'];
+const tabNames = ['general', 'tv', 'notices', 'avatars', 'accounts', 'activity', 'advanced'];
 tabNames.forEach(function (n) {
     ok(count(html, 'data-tab="' + n + '"') === 1, 'one tab button for ' + n);
     ok(count(html, 'data-panel="' + n + '"') === 1, 'one panel for ' + n);

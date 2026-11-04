@@ -202,6 +202,32 @@
 
     #profilesConfigurationPage .jpf-hidden { display: none; }
 
+    /* Announcements. Severity is shown by the stripe and the word, never colour alone. */
+    #profilesConfigurationPage .jpf-ann-text { width: 100%; resize: vertical; }
+    #profilesConfigurationPage .jpf-ann-dates {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0 1.5em;
+    }
+    #profilesConfigurationPage .jpf-ann-actions { display: flex; gap: 0.75em; flex-wrap: wrap; }
+    #profilesConfigurationPage .jpf-ann-list { display: grid; gap: 10px; }
+    #profilesConfigurationPage .jpf-ann-item {
+        border-left: 4px solid var(--jpf-accent-a35);
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 4px;
+        padding: 10px 14px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 4px 12px;
+        align-items: start;
+    }
+    #profilesConfigurationPage .jpf-ann-item[data-severity="warning"] { border-left-color: #f59f00; }
+    #profilesConfigurationPage .jpf-ann-item[data-severity="critical"] { border-left-color: #e64980; }
+    #profilesConfigurationPage .jpf-ann-item.is-off { opacity: 0.6; }
+    #profilesConfigurationPage .jpf-ann-msg { white-space: pre-wrap; overflow-wrap: anywhere; }
+    #profilesConfigurationPage .jpf-ann-meta { font-size: 0.85rem; opacity: 0.75; grid-column: 1; }
+    #profilesConfigurationPage .jpf-ann-buttons { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; }
+
     /* Notice boxes. One shape, four meanings. */
     #profilesConfigurationPage .jpf-note {
         border: 1px solid var(--jpf-accent-a35);
@@ -457,6 +483,7 @@
                 <button type="button" class="jpf-tab" role="tab" data-tab="general" aria-controls="jpfPanelGeneral">General</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="avatars" aria-controls="jpfPanelAvatars">Avatars</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="tv" aria-controls="jpfPanelTv">TVs &amp; Apps</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="notices" aria-controls="jpfPanelNotices">Announcements</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="accounts" aria-controls="jpfPanelAccounts">Accounts</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="activity" aria-controls="jpfPanelActivity">Activity</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="advanced" aria-controls="jpfPanelAdvanced">Advanced</button>
@@ -606,6 +633,50 @@
                 <button is="emby-button" type="button" id="saveTvSettings" class="raised button-submit block">Save TV &amp; app settings</button>
             </div>
             </div><!-- /tv -->
+
+            <div class="jpf-tab-panel" id="jpfPanelNotices" data-panel="notices" role="tabpanel" hidden>
+            <div class="sectionTitleContainer jpf-section">
+                <h2 class="sectionTitle">Announcements</h2>
+            </div>
+            <div class="fieldDescription jpf-lede">
+                Shown on the profile screen to everyone on this server. Apps that support Bonfire can show them too.
+            </div>
+
+            <div class="inputContainer">
+                <label class="textareaLabel" for="annMessage">Message</label>
+                <textarea is="emby-textarea" id="annMessage" rows="3" maxlength="280" class="jpf-ann-text"></textarea>
+                <div class="fieldDescription" id="annCount">0 / 280</div>
+            </div>
+            <div class="selectContainer">
+                <label class="selectLabel" for="annSeverity">Importance</label>
+                <select is="emby-select" id="annSeverity">
+                    <option value="info">Info</option>
+                    <option value="warning">Warning</option>
+                    <option value="critical">Critical</option>
+                </select>
+                <div class="fieldDescription">Info can be dismissed. Warning and Critical stay until they end.</div>
+            </div>
+            <div class="jpf-ann-dates">
+                <div class="inputContainer">
+                    <label class="inputLabel" for="annStarts">Starts</label>
+                    <input is="emby-input" type="datetime-local" id="annStarts" />
+                    <div class="fieldDescription">Blank for now.</div>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel" for="annEnds">Ends</label>
+                    <input is="emby-input" type="datetime-local" id="annEnds" />
+                    <div class="fieldDescription">Blank to keep it until you delete it.</div>
+                </div>
+            </div>
+            <div class="buttonContainer jpf-ann-actions">
+                <button is="emby-button" type="button" id="annSave" class="raised button-submit">Post announcement</button>
+                <button is="emby-button" type="button" id="annCancel" class="raised jpf-hidden">Cancel edit</button>
+            </div>
+            <div class="jpf-hidden jpf-status" id="annResult"></div>
+
+            <h3 class="checkboxListLabel jpf-subhead">Posted</h3>
+            <div id="annList" class="jpf-ann-list jpf-block-end"></div>
+            </div><!-- /notices -->
 
             <div class="jpf-tab-panel" id="jpfPanelAvatars" data-panel="avatars" role="tabpanel" hidden>
             <div class="sectionTitleContainer jpf-section">
@@ -915,6 +986,7 @@
                     loadAvatarLibrary(page);
                     loadAvatarHealth(page);
                     loadPanicStatus(page);
+                    loadAnnouncements(page);
                 }).catch(function (err) {
                     console.error("Failed to load plugin configuration:", err);
                     Dashboard.hideLoadingMsg();
@@ -2204,6 +2276,191 @@
                     'Set a new picture on each to clear this.</span>';
             }
 
+            // ── Announcements ─────────────────────────────────────────────────────
+
+            // datetime-local has no zone: it is the admin's own clock. Sent as an ISO
+            // instant so the server never has to guess, and shown back the same way.
+            function localInputToIso(value) {
+                if (!value) return null;
+                const d = new Date(value);
+                return isNaN(d.getTime()) ? null : d.toISOString();
+            }
+
+            function isoToLocalInput(iso) {
+                if (!iso) return '';
+                const d = new Date(iso);
+                if (isNaN(d.getTime())) return '';
+                const pad = function (n) { return (n < 10 ? '0' : '') + n; };
+                return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+                    'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+            }
+
+            function formatWhen(iso) {
+                const d = new Date(iso);
+                return isNaN(d.getTime()) ? '' : d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+            }
+
+            function announcementSchedule(a) {
+                const starts = field(a, 'startsUtc');
+                const ends = field(a, 'endsUtc');
+                const now = Date.now();
+                if (starts && new Date(starts).getTime() > now) {
+                    return 'Starts ' + formatWhen(starts) + (ends ? ', ends ' + formatWhen(ends) : '');
+                }
+                if (ends && new Date(ends).getTime() <= now) return 'Ended ' + formatWhen(ends);
+                return ends ? 'Showing until ' + formatWhen(ends) : 'Showing until deleted';
+            }
+
+            // The server's refusal is written for this page; show it rather than a guess.
+            function errorText(err, fallback) {
+                if (err && typeof err.text === 'function') {
+                    return err.text().then(function (t) { return t || fallback; }, function () { return fallback; });
+                }
+                return Promise.resolve(fallback);
+            }
+
+            function resetAnnouncementForm(page) {
+                page.querySelector('#annMessage').value = '';
+                page.querySelector('#annSeverity').value = 'info';
+                page.querySelector('#annStarts').value = '';
+                page.querySelector('#annEnds').value = '';
+                page.querySelector('#annCount').textContent = '0 / 280';
+                page.querySelector('#annSave').textContent = 'Post announcement';
+                page.querySelector('#annCancel').classList.add('jpf-hidden');
+                delete page.dataset.annEditing;
+            }
+
+            function showAnnouncementResult(page, msg, good) {
+                const result = page.querySelector('#annResult');
+                result.textContent = msg;
+                result.style.color = good ? '#51cf66' : '#ff6b6b';
+                result.classList.remove('jpf-hidden');
+            }
+
+            function loadAnnouncements(page) {
+                const list = page.querySelector('#annList');
+                if (!list) return;
+                ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/admin/announcements')).then(function (items) {
+                    renderAnnouncements(page, items || []);
+                }).catch(function () {
+                    list.textContent = 'Could not load announcements.';
+                });
+            }
+
+            function renderAnnouncements(page, items) {
+                const list = page.querySelector('#annList');
+                list.innerHTML = '';
+                if (!items.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'fieldDescription';
+                    empty.textContent = 'None yet.';
+                    list.appendChild(empty);
+                    return;
+                }
+                items.forEach(function (a) {
+                    const severity = String(field(a, 'severity') || 'info');
+                    const row = document.createElement('div');
+                    row.className = 'jpf-ann-item' + (field(a, 'showing') ? '' : ' is-off');
+                    row.setAttribute('data-severity', severity);
+
+                    // Plain text, always: textContent, never innerHTML.
+                    const msg = document.createElement('div');
+                    msg.className = 'jpf-ann-msg';
+                    msg.textContent = field(a, 'message') || '';
+
+                    const meta = document.createElement('div');
+                    meta.className = 'jpf-ann-meta';
+                    meta.textContent = severity.charAt(0).toUpperCase() + severity.slice(1) + ' · ' + announcementSchedule(a);
+
+                    const buttons = document.createElement('div');
+                    buttons.className = 'jpf-ann-buttons';
+                    const edit = document.createElement('button');
+                    edit.type = 'button';
+                    edit.setAttribute('is', 'emby-button');
+                    edit.className = 'raised';
+                    edit.textContent = 'Edit';
+                    edit.addEventListener('click', function () {
+                        page.dataset.annEditing = field(a, 'id');
+                        page.querySelector('#annMessage').value = field(a, 'message') || '';
+                        page.querySelector('#annSeverity').value = severity;
+                        page.querySelector('#annStarts').value = isoToLocalInput(field(a, 'startsUtc'));
+                        page.querySelector('#annEnds').value = isoToLocalInput(field(a, 'endsUtc'));
+                        page.querySelector('#annCount').textContent = (field(a, 'message') || '').length + ' / 280';
+                        page.querySelector('#annSave').textContent = 'Save changes';
+                        page.querySelector('#annCancel').classList.remove('jpf-hidden');
+                        page.querySelector('#annMessage').focus();
+                    });
+                    const del = document.createElement('button');
+                    del.type = 'button';
+                    del.setAttribute('is', 'emby-button');
+                    del.className = 'raised';
+                    del.textContent = 'Delete';
+                    del.addEventListener('click', function () {
+                        Dashboard.confirm('Delete this announcement?', 'Delete announcement').then(function () {
+                            ApiClient.ajax({
+                                type: 'POST',
+                                url: ApiClient.getUrl('plugins/profiles/admin/announcements/delete'),
+                                contentType: 'application/json',
+                                data: JSON.stringify({ id: field(a, 'id') })
+                            }).then(function () {
+                                if (page.dataset.annEditing === field(a, 'id')) resetAnnouncementForm(page);
+                                loadAnnouncements(page);
+                            }, function (err) {
+                                errorText(err, 'Could not delete it.').then(function (t) { showAnnouncementResult(page, t, false); });
+                            });
+                        });
+                    });
+                    buttons.appendChild(edit);
+                    buttons.appendChild(del);
+
+                    row.appendChild(msg);
+                    row.appendChild(buttons);
+                    row.appendChild(meta);
+                    list.appendChild(row);
+                });
+            }
+
+            function saveAnnouncement(page) {
+                const message = (page.querySelector('#annMessage').value || '').trim();
+                if (!message) {
+                    showAnnouncementResult(page, 'Enter a message.', false);
+                    return;
+                }
+                const body = {
+                    message: message,
+                    severity: page.querySelector('#annSeverity').value,
+                    startsUtc: localInputToIso(page.querySelector('#annStarts').value),
+                    endsUtc: localInputToIso(page.querySelector('#annEnds').value)
+                };
+                if (page.dataset.annEditing) body.id = page.dataset.annEditing;
+                const editing = !!body.id;
+
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('plugins/profiles/admin/announcements'),
+                    contentType: 'application/json',
+                    data: JSON.stringify(body)
+                }).then(function () {
+                    resetAnnouncementForm(page);
+                    showAnnouncementResult(page, editing ? 'Saved.' : 'Posted.', true);
+                    loadAnnouncements(page);
+                }, function (err) {
+                    errorText(err, 'Could not save it.').then(function (t) { showAnnouncementResult(page, t, false); });
+                });
+            }
+
+            function bindAnnouncements(page) {
+                const save = page.querySelector('#annSave');
+                if (!save || save.dataset.bound) return;
+                save.dataset.bound = '1';
+                save.addEventListener('click', function () { saveAnnouncement(page); });
+                page.querySelector('#annCancel').addEventListener('click', function () { resetAnnouncementForm(page); });
+                const text = page.querySelector('#annMessage');
+                text.addEventListener('input', function () {
+                    page.querySelector('#annCount').textContent = text.value.length + ' / 280';
+                });
+            }
+
             // ── Emergency disable code ────────────────────────────────────────────
 
             function loadPanicStatus(page) {
@@ -2357,6 +2614,7 @@
                     return false;
                 });
                 initTabs(page);
+                bindAnnouncements(page);
                 bindOrphanScan(page);
                 bindAuditControls(page);
                 bindSessions(page);

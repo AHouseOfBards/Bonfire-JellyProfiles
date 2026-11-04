@@ -25,6 +25,7 @@
   "gate.limitReached": "{count}/{max} profili — osiągnięto limit",
   "gate.cantGetPast": "Nie możesz przejść dalej?",
   "gate.bonfireProfile": "Profil Bonfire",
+  "gate.dismiss": "Zamknij",
   "pin.enterProfilePin": "Wprowadź kod PIN profilu",
   "pin.enterMasterPin": "Wprowadź główny kod PIN",
   "pin.incorrectPin": "Nieprawidłowy kod PIN. Spróbuj ponownie.",

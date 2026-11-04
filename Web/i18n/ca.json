@@ -25,6 +25,7 @@
   "gate.limitReached": "{count}/{max} perfils — límit assolit",
   "gate.cantGetPast": "No pots passar d'aquesta pantalla?",
   "gate.bonfireProfile": "Perfil de Bonfire",
+  "gate.dismiss": "Descarta",
   "pin.enterProfilePin": "Introdueix el PIN del perfil",
   "pin.enterMasterPin": "Introdueix el PIN principal",
   "pin.incorrectPin": "PIN incorrecte. Torna-ho a provar.",

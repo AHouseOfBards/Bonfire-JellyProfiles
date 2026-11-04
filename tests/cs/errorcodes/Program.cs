@@ -134,6 +134,8 @@ var wanted = new Dictionary<string, string>
     ["account is turned off"] = "profile_disabled",
     ["Invalid Bonfire Code"] = "bonfire_code_wrong",
     ["does not let profiles choose a theme"] = "themes_locked",
+    ["No such announcement"] = "announcement_not_found",
+    ["Delete an announcement first"] = "announcement_limit",
 };
 foreach (var (contains, code) in wanted)
 {
@@ -155,6 +157,38 @@ foreach (var (text, code) in new[]
 })
 {
     Ok("\"" + text[..Math.Min(40, text.Length)] + "…\" is " + code, For(400, text) == code, For(400, text));
+}
+
+// Announcement refusals come from Announcements.Validate, handed in as a variable. Ask the
+// validator for each one rather than copying its wording here, so a reworded message is
+// checked as it now reads.
+var annType = asm.GetType("Jellyfin.Profiles.Configuration.Announcement");
+var annRules = asm.GetType("Jellyfin.Profiles.Configuration.Announcements");
+Ok("announcements exist in this build", annType != null && annRules != null);
+if (annType != null && annRules != null)
+{
+    var validate = annRules.GetMethod("Validate");
+    object Make(string message, string severity, DateTime? starts, DateTime? ends)
+    {
+        var a = Activator.CreateInstance(annType);
+        annType.GetProperty("Message").SetValue(a, message);
+        annType.GetProperty("Severity").SetValue(a, severity);
+        annType.GetProperty("StartsUtc").SetValue(a, starts);
+        annType.GetProperty("EndsUtc").SetValue(a, ends);
+        return a;
+    }
+    var t0 = new DateTime(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc);
+    foreach (var (label, bad) in new[]
+    {
+        ("an empty message", Make("  ", "info", null, null)),
+        ("a long message", Make(new string('x', 281), "info", null, null)),
+        ("an unknown severity", Make("hi", "red", null, null)),
+        ("an end before the start", Make("hi", "info", t0, t0.AddHours(-1))),
+    })
+    {
+        var msg = (string)validate.Invoke(null, new[] { bad });
+        Ok(label + " is announcement_invalid", msg != null && For(400, msg) == "announcement_invalid", msg + " → " + (msg == null ? "" : For(400, msg)));
+    }
 }
 
 Console.WriteLine();

@@ -1543,12 +1543,26 @@ namespace Jellyfin.Profiles.Controllers
                     config.EnableClientProfileList = incoming.EnableClientProfileList;
                 if (TryProperty(root, "PanicCodeHash", out _))
                     config.PanicCodeHash = incoming.PanicCodeHash;
+                if (TryProperty(root, "ProxyClients", out _))
+                    config.ProxyClients = Auth.ProxyClients.Normalize(incoming.ProxyClients);
+                // Through the same rules as the route, so a hand-edited file cannot store
+                // an announcement the settings page would refuse.
+                if (TryProperty(root, "Announcements", out _))
+                {
+                    config.Announcements = (incoming.Announcements ?? new List<Announcement>())
+                        .Where(a => a != null && a.Id != Guid.Empty && Configuration.Announcements.Validate(a) == null)
+                        .GroupBy(a => a.Id).Select(g => g.First())
+                        .Take(Configuration.Announcements.MaxCount)
+                        .ToList();
+                }
 
                 Plugin.Instance?.SaveConfiguration();
             }
 
             // Every profile, PIN and the feature switch itself may have changed.
             ProfilesBootstrapTask.ReconcileAuthProvidersNow();
+            // And which apps get the profile picker, the same as a settings save.
+            Auth.ProxySwitcher.ForgetUnproxied();
 
             return Ok(new
             {
@@ -3511,6 +3525,137 @@ namespace Jellyfin.Profiles.Controllers
             Response.Headers["Cache-Control"] = "no-store";
             return Ok(new { Disabled = Plugin.IsPanicDisabled });
         }
+
+        // ── Announcements ───────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// The announcements showing now, for the profile screen.
+        /// <para>
+        /// Signed in, not anonymous: a message an administrator writes for the household
+        /// ("down for an upgrade at 2") is not something to publish to anyone who finds the
+        /// server's address.
+        /// </para>
+        /// </summary>
+        [HttpGet("announcements")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> GetAnnouncements()
+        {
+            if (GetCurrentUserId() == null) return Unauthorized();
+
+            Response.Headers["Cache-Control"] = "no-store";
+            var all = Plugin.Instance?.Configuration?.Announcements;
+            return Ok(Configuration.Announcements.Active(all, DateTime.UtcNow).Select(DescribeAnnouncement));
+        }
+
+        /// <summary>Every announcement, showing or not, for the settings page.</summary>
+        [HttpGet("admin/announcements")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<object> GetAllAnnouncements()
+        {
+            var adminError = RequireAdministrator("manage announcements");
+            if (adminError != null) return adminError;
+
+            var now = DateTime.UtcNow;
+            var all = Plugin.Instance?.Configuration?.Announcements ?? new List<Announcement>();
+            return Ok(all
+                .OrderByDescending(a => a.CreatedUtc)
+                .Select(a => new
+                {
+                    a.Id,
+                    a.Message,
+                    a.Severity,
+                    a.StartsUtc,
+                    a.EndsUtc,
+                    a.CreatedUtc,
+                    Showing = Configuration.Announcements.IsActive(a, now),
+                }));
+        }
+
+        /// <summary>Creates an announcement, or replaces the one with the same id.</summary>
+        [HttpPost("admin/announcements")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public ActionResult<object> SaveAnnouncement([FromBody] SaveAnnouncementRequest request)
+        {
+            var adminError = RequireAdministrator("manage announcements");
+            if (adminError != null) return adminError;
+            if (request == null) return BadRequest("Missing request body.");
+
+            var now = DateTime.UtcNow;
+            var announcement = new Announcement
+            {
+                Id = request.Id ?? Guid.NewGuid(),
+                Message = (request.Message ?? string.Empty).Trim(),
+                Severity = string.IsNullOrWhiteSpace(request.Severity)
+                    ? Configuration.Announcements.Info
+                    : request.Severity.Trim().ToLowerInvariant(),
+                StartsUtc = Configuration.Announcements.ToUtc(request.StartsUtc),
+                EndsUtc = Configuration.Announcements.ToUtc(request.EndsUtc),
+                CreatedUtc = now,
+            };
+
+            var invalid = Configuration.Announcements.Validate(announcement);
+            if (invalid != null) return BadRequest(invalid);
+
+            lock (ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (config == null) return BadRequest("Plugin configuration missing.");
+
+                var existing = config.Announcements?.FirstOrDefault(a => a.Id == announcement.Id);
+                if (request.Id.HasValue && existing == null) return NotFound("No such announcement.");
+                if (existing != null) announcement.CreatedUtc = existing.CreatedUtc;
+
+                var next = Configuration.Announcements.With(config.Announcements, announcement, now);
+                if (next.Count > Configuration.Announcements.MaxCount)
+                {
+                    return BadRequest($"Delete an announcement first. At most {Configuration.Announcements.MaxCount} are kept.");
+                }
+
+                config.Announcements = next;
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            return Ok(DescribeAnnouncement(announcement));
+        }
+
+        /// <summary>Deletes an announcement. Deleting one that is already gone is not an error.</summary>
+        [HttpPost("admin/announcements/delete")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult DeleteAnnouncement([FromBody] DeleteAnnouncementRequest request)
+        {
+            var adminError = RequireAdministrator("manage announcements");
+            if (adminError != null) return adminError;
+            if (request == null) return BadRequest("Missing request body.");
+
+            lock (ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (config == null) return BadRequest("Plugin configuration missing.");
+
+                if (config.Announcements?.Any(a => a.Id == request.Id) == true)
+                {
+                    config.Announcements = config.Announcements.Where(a => a.Id != request.Id).ToList();
+                    Plugin.Instance?.SaveConfiguration();
+                }
+            }
+
+            return Ok();
+        }
+
+        private static object DescribeAnnouncement(Announcement a) => new
+        {
+            a.Id,
+            a.Message,
+            a.Severity,
+            a.StartsUtc,
+            a.EndsUtc,
+        };
 
         /// <summary>
         /// What an app needs to know before it shows any Bonfire screen: that Bonfire is

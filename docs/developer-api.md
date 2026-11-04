@@ -26,12 +26,13 @@ for Bonfire's own client. It's documented because other people build against it 
 - [Bonfire](#bonfire)
 - [Preferences](#preferences)
 - [Avatar library](#avatar-library)
+- [Announcements](#announcements)
 - [Emergency disable](#emergency-disable)
 - [Admin](#admin)
 
 ## All routes
 
-All 54 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 58 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -74,6 +75,10 @@ All 54 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `POST /plugins/profiles/admin/avatars/settings` | admin | Avatar library options. |
 | `GET /plugins/profiles/admin/avatars/scan` | admin | List pictures in a server folder. |
 | `GET /plugins/profiles/admin/avatars/scan/file` | admin | Read one of them. |
+| `GET /plugins/profiles/announcements` | user | Announcements showing now. |
+| `GET /plugins/profiles/admin/announcements` | admin | Every announcement. |
+| `POST /plugins/profiles/admin/announcements` | admin | Create or change one. |
+| `POST /plugins/profiles/admin/announcements/delete` | admin | Delete one. |
 | `POST /plugins/profiles/panic` | anon | Emergency disable. |
 | `GET /plugins/profiles/info` | anon | Version and which features are on. |
 | `GET /plugins/profiles/panic-state` | anon | Whether Bonfire is disabled. |
@@ -204,6 +209,9 @@ Invalid PIN code.
 | `name_taken` | The household already has a profile with that name. |
 | `name_invalid` | The name is empty, too long or uses characters that aren't allowed. |
 | `main_account_protected` | The main account can't be deleted as a profile. |
+| `announcement_invalid` | The announcement's message, severity or dates aren't allowed. |
+| `announcement_limit` | 50 announcements are stored. Delete one first. |
+| `announcement_not_found` | No announcement has that id. |
 | `bonfire_not_owner`, `bonfire_not_member`, `bonfire_own_group`, `bonfire_member_not_found` | Bonfire group actions that don't apply to the caller. |
 | `profile_not_found`, `user_not_found`, `library_not_found`, `image_not_found`, `not_found` | The thing named doesn't exist. |
 | `image_invalid` | The picture is missing, unreadable, too large or not an image. |
@@ -1107,6 +1115,66 @@ At most 200 files; `truncated` says there were more.
 
 One file from that folder: `?path=` the folder, `?name=` the file name. The client resizes
 it and posts it to `POST /admin/avatars`.
+
+---
+
+## Announcements
+
+Short messages from the administrator, shown on the profile screen.
+
+### `GET /plugins/profiles/announcements`
+
+**Authorisation:** signed-in user.
+
+The ones showing now, most important first: `critical`, then `warning`, then `info`,
+newest first within each. Sent with `no-store`.
+
+```json
+[
+  {
+    "id": "6f1c…",
+    "message": "The server restarts at 2am for an update.",
+    "severity": "warning",
+    "startsUtc": null,
+    "endsUtc": "2026-11-05T02:30:00Z"
+  }
+]
+```
+
+The message is plain text. Never render it as HTML. Style by `severity`, not by a colour
+of your own. Treat an unknown severity as `info`.
+
+### `GET /plugins/profiles/admin/announcements`
+
+**Authorisation:** administrator.
+
+Every stored announcement, newest first, each with `createdUtc` and `showing`. Ones that
+ended more than 30 days ago are dropped on the next save.
+
+### `POST /plugins/profiles/admin/announcements`
+
+**Authorisation:** administrator.
+
+```json
+{
+  "id": null,
+  "message": "The server restarts at 2am for an update.",
+  "severity": "warning",
+  "startsUtc": null,
+  "endsUtc": "2026-11-05T02:30:00Z"
+}
+```
+
+Leave out `id` to create one; send it to replace that one. `message` is 1 to 280
+characters. `severity` is `info` (the default), `warning` or `critical`. `startsUtc: null`
+shows it now, `endsUtc: null` keeps it until it's deleted. Dates without a zone are read
+as UTC. Returns the saved announcement. At most 50 are stored.
+
+### `POST /plugins/profiles/admin/announcements/delete`
+
+**Authorisation:** administrator.
+
+`{ "id": "…" }`. An id that's already gone isn't an error.
 
 ---
 

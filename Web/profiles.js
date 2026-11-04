@@ -218,6 +218,7 @@
         'gate.limitReached': '{count}/{max} profiles — limit reached',
         'gate.cantGetPast': "Can't get past this screen?",
         'gate.bonfireProfile': 'Bonfire Profile',
+        'gate.dismiss': 'Dismiss',
 
         'pin.enterProfilePin': 'Enter Profile PIN',
         'pin.enterMasterPin': 'Enter Master PIN',
@@ -4735,11 +4736,121 @@
                         display: none; background: none; border: none; color: rgba(255,255,255,0.28);
                         font-size: 0.72rem; margin-top: 1.5rem; cursor: pointer;
                         text-decoration: underline; padding: 6px 10px;">${t('gate.cantGetPast')}</button>
+                    <!-- Last in the markup and drawn first by the stylesheet (order: -1).
+                         The focus trap reclaims to the first control in the DOM, and on a
+                         TV that must be a profile, not an announcement's Dismiss button. -->
+                    <div id="profiles-announcements" class="profiles-announcements" style="display: none;"></div>
                 </div>
             `;
 
             this.attachOverlayInteractions(overlay, profiles);
             this.fitGateToScreen(overlay);
+            this.showAnnouncements(overlay);
+        },
+
+        /// The administrator's announcements, above the title.
+        ///
+        /// Asked for once a minute at most: the gate re-renders on every switch into and
+        /// out of manage mode, and a message that changed thirty seconds ago can wait.
+        /// Never from checkRoute — only when the gate is drawn.
+        ///
+        /// Plain text only. The message is written into textContent, never innerHTML,
+        /// because it reaches every household on the server.
+        ///
+        /// An info announcement can be dismissed on this device. The key is the id and the
+        /// text together, so one the administrator rewrites shows again. Warning and
+        /// critical stay until they end.
+        showAnnouncements: function (overlay) {
+            const draw = (items) => {
+                const box = overlay.querySelector('#profiles-announcements');
+                if (!box) return;
+                const dismissed = this._readDismissedAnnouncements();
+                const shown = (items || []).filter(a => {
+                    const sev = this._announcementSeverity(a);
+                    return sev !== 'info' || dismissed.indexOf(this._announcementKey(a)) < 0;
+                });
+                box.innerHTML = '';
+                shown.forEach(a => {
+                    const sev = this._announcementSeverity(a);
+                    const row = document.createElement('div');
+                    row.className = 'profiles-announcement';
+                    row.setAttribute('data-severity', sev);
+                    row.setAttribute('role', sev === 'critical' ? 'alert' : 'status');
+
+                    const icon = document.createElement('span');
+                    icon.className = 'material-icons profiles-announcement-icon';
+                    icon.setAttribute('aria-hidden', 'true');
+                    icon.textContent = sev === 'critical' ? 'error' : (sev === 'warning' ? 'warning' : 'info');
+                    row.appendChild(icon);
+
+                    const text = document.createElement('span');
+                    text.className = 'profiles-announcement-text';
+                    text.textContent = String(a.message || a.Message || '');
+                    row.appendChild(text);
+
+                    if (sev === 'info') {
+                        const close = document.createElement('button');
+                        close.type = 'button';
+                        close.className = 'profiles-announcement-dismiss focusable';
+                        close.setAttribute('aria-label', t('gate.dismiss'));
+                        close.title = t('gate.dismiss');
+                        close.textContent = '×';
+                        close.addEventListener('click', () => {
+                            this._dismissAnnouncement(a);
+                            draw(items);
+                        });
+                        row.appendChild(close);
+                    }
+                    box.appendChild(row);
+                });
+                box.style.display = shown.length ? '' : 'none';
+                this.fitGateToScreen(overlay);
+            };
+
+            const cached = this._announcementCache;
+            if (cached && Date.now() - cached.at < 60000) { draw(cached.items); return; }
+
+            const masterState = this.readMasterState();
+            const token = (masterState && masterState.token)
+                || (typeof ApiClient.accessToken === 'function' ? ApiClient.accessToken() : '');
+            if (!token) return;
+            fetch(ApiClient.getUrl('plugins/profiles/announcements'), {
+                headers: this.getAuthHeaders(token),
+                cache: 'no-store'
+            })
+                .then(res => res.ok ? res.json() : [])
+                .then(items => {
+                    const list = Array.isArray(items) ? items : [];
+                    this._announcementCache = { at: Date.now(), items: list };
+                    draw(list);
+                })
+                .catch(() => { /* no announcements is the safe reading */ });
+        },
+
+        _announcementSeverity: function (a) {
+            const s = String(a.severity || a.Severity || '').toLowerCase();
+            return (s === 'warning' || s === 'critical') ? s : 'info';
+        },
+
+        _announcementKey: function (a) {
+            const text = String(a.message || a.Message || '');
+            let h = 5381;
+            for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;
+            return this.normalizeGuid(a.id || a.Id || '') + ':' + h.toString(36);
+        },
+
+        _readDismissedAnnouncements: function () {
+            try {
+                const v = JSON.parse(localStorage.getItem('jpf-dismissed-announcements') || '[]');
+                return Array.isArray(v) ? v : [];
+            } catch (e) { return []; }
+        },
+
+        _dismissAnnouncement: function (a) {
+            const list = this._readDismissedAnnouncements();
+            list.push(this._announcementKey(a));
+            // Fifty is the server's own limit, so nothing still showing is ever pushed out.
+            try { localStorage.setItem('jpf-dismissed-announcements', JSON.stringify(list.slice(-50))); } catch (e) { /* private mode */ }
         },
 
         /// Shrinks the profile tiles, only as far as needed, until the whole gate fits on
