@@ -331,6 +331,30 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public List<Guid> Owners { get; set; } = new List<Guid>();
 
+        /// <summary>
+        /// Other ids this device has been seen under, folded in by a merge (R-1049, C-1003).
+        /// <para>
+        /// A merge took the old id off every device list and deleted its record. The old id
+        /// was not gone, it was the same machine at another address (the documented case is
+        /// a LAN address and a domain), so its next request made a fresh record and a
+        /// restricted profile was refused there. An alias is looked up as this record.
+        /// </para>
+        /// <para>Replaced, never edited in place, for the same reason as <see cref="Owners"/>.</para>
+        /// </summary>
+        public List<string> Aliases { get; set; } = new List<string>();
+
+        /// <summary>Most aliases a record keeps; the oldest goes first.</summary>
+        public const int MaxAliases = 16;
+
+        /// <summary>True if <paramref name="id"/> is this device's id or one of its aliases.</summary>
+        public bool Answers(string? id)
+        {
+            var wanted = id?.Trim();
+            if (string.IsNullOrEmpty(wanted)) return false;
+            if (string.Equals(DeviceId?.Trim(), wanted, StringComparison.OrdinalIgnoreCase)) return true;
+            return Aliases?.Any(a => string.Equals(a?.Trim(), wanted, StringComparison.OrdinalIgnoreCase)) ?? false;
+        }
+
         /// <summary>True if <paramref name="householdId"/> has signed in on this device.</summary>
         public bool OwnedBy(Guid householdId)
             => householdId != Guid.Empty && (MasterUserId == householdId || (Owners?.Contains(householdId) ?? false));

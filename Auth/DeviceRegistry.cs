@@ -396,8 +396,19 @@ namespace Jellyfin.Profiles.Auth
         }
 
         private static KnownDevice? LookupRow(PluginConfiguration config, string deviceId)
-            => config.KnownDevices.FirstOrDefault(d =>
-                string.Equals(d.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
+            => Row(config.KnownDevices, deviceId);
+
+        /// <summary>
+        /// The record for this id: its own, or else the one it was merged into (R-1049).
+        /// </summary>
+        internal static KnownDevice? Row(IEnumerable<KnownDevice>? devices, string? deviceId)
+        {
+            var wanted = deviceId?.Trim();
+            if (devices == null || string.IsNullOrEmpty(wanted)) return null;
+            var list = devices as IList<KnownDevice> ?? devices.ToList();
+            return list.FirstOrDefault(d => string.Equals(d.DeviceId?.Trim(), wanted, StringComparison.OrdinalIgnoreCase))
+                ?? list.FirstOrDefault(d => d.Answers(wanted));
+        }
 
         /// <summary>
         /// The names households gave their profiles - what an Android TV sign-in screen
@@ -558,8 +569,9 @@ namespace Jellyfin.Profiles.Auth
             client = client?.Trim();
             if (string.IsNullOrEmpty(deviceId)) return false;
 
-            var existing = config.KnownDevices.FirstOrDefault(d =>
-                string.Equals(d.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
+            // An id merged into another record updates that record (R-1049); it used to make
+            // a fresh one, which no device list named.
+            var existing = Row(config.KnownDevices, deviceId);
 
             var save = false;
 
@@ -679,8 +691,7 @@ namespace Jellyfin.Profiles.Auth
                 // New to this household, so a second household on a shared device is told too
                 // (R-1050). A record from before owners existed being claimed is not news.
                 var id = deviceId?.Trim();
-                var row = string.IsNullOrEmpty(id) || config.KnownDevices == null ? null
-                    : config.KnownDevices.FirstOrDefault(d => string.Equals(d.DeviceId, id, StringComparison.OrdinalIgnoreCase));
+                var row = string.IsNullOrEmpty(id) || config.KnownDevices == null ? null : Row(config.KnownDevices, id);
                 isNew = !string.IsNullOrEmpty(id) && config.KnownDevices != null
                     && (row == null || (row.MasterUserId != Guid.Empty && !row.OwnedBy(ownerId)));
 

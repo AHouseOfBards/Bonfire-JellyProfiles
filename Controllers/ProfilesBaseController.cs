@@ -1378,6 +1378,14 @@ namespace Jellyfin.Profiles.Controllers
                 return DeviceAccess.Allowed;
             }
 
+            // An id merged into an allowed device is that device (R-1049).
+            if (Auth.DeviceRegistry.Row(knownDevices, candidate) is KnownDevice merged
+                && !string.Equals(merged.DeviceId?.Trim(), candidate, StringComparison.OrdinalIgnoreCase)
+                && allowed.Any(id => string.Equals(id, merged.DeviceId?.Trim(), StringComparison.OrdinalIgnoreCase)))
+            {
+                return DeviceAccess.Allowed;
+            }
+
             if (mappings != null)
             {
                 // The household, master included: whoever is signed in on the television is
@@ -1526,6 +1534,21 @@ namespace Jellyfin.Profiles.Controllers
             // Every household that used either id still owns the one left (R-1050).
             target.Owners = Auth.DeviceRegistry.AddOwners(target.Owners,
                 new[] { target.MasterUserId, source.MasterUserId }.Concat(source.Owners ?? new List<Guid>()).ToArray());
+
+            // The old id is the same machine at another address, and will be back. It is kept
+            // as an alias so its next request is this record, on every list this one is on
+            // (R-1049). Newest last; the oldest go past the cap.
+            var aliases = (target.Aliases ?? new List<string>())
+                .Concat(source.Aliases ?? new List<string>())
+                .Append(source.DeviceId)
+                .Select(a => a?.Trim() ?? string.Empty)
+                .Where(a => a.Length > 0 && !string.Equals(a, target.DeviceId?.Trim(), StringComparison.OrdinalIgnoreCase))
+                .Reverse()
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(KnownDevice.MaxAliases)
+                .Reverse()
+                .ToList();
+            target.Aliases = aliases;
 
             config.KnownDevices.Remove(source);
             return true;

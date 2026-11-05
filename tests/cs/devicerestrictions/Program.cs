@@ -321,6 +321,22 @@ if (merge != null)
     Ok("and the merged-into device may now be used",
        Access(map, "wan-id", known) == "Allowed");
 
+    // The old id is the same machine at its other address, and it comes back. It used to
+    // make a fresh record no list named, and the profile was refused there (R-1049).
+    Ok("the old address, coming back, is still the allowed device",
+       Access(map, "lan-id", known) == "Allowed", Access(map, "lan-id", known));
+    var registry = asm.GetType("Jellyfin.Profiles.Auth.DeviceRegistry", true);
+    registry.GetMethod("Record", BindingFlags.Public | BindingFlags.Static)
+        .Invoke(null, new object[] { cfg, "lan-id", "Chrome", "Jellyfin Web", master, DateTime.UtcNow, null });
+    Ok("and its next sign-in updates that record instead of making another", known.Count == 1, known.Count + " records");
+    Ok("it is still that household's device under the old id",
+       (Guid)registry.GetMethod("FindMaster").Invoke(null, new object[] { cfg, "lan-id" }) == master);
+    known.Add(Device("phone-id", "Chrome", "Jellyfin Web", master));
+    merge.Invoke(null, new object[] { cfg, "phone-id", "wan-id" });
+    Ok("a second merge keeps the first one's old id as well",
+       Access(map, "lan-id", known) == "Allowed" && Access(map, "phone-id", known) == "Allowed");
+    Ok("while any other device is still refused", Access(map, "some-other-device", known) == "DeniedNotOnList");
+
     // Merging a device into one the profile already allows must not leave a duplicate
     // entry behind, and must not drop the restriction on the way through.
     var cfg2 = Activator.CreateInstance(cfgType);

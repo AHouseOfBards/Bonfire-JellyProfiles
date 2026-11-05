@@ -1032,7 +1032,9 @@ two addresses.
 ```
 
 Profiles allowed on `fromDeviceId` become allowed on `intoDeviceId`, and the old record is
-removed. `400` if either is unknown, they're the same, or one isn't the caller's.
+removed. `fromDeviceId` is kept as another id for the same device, so a request from it
+counts as `intoDeviceId`. `400` if either is unknown, they're the same, or one isn't the
+caller's.
 
 ### `POST /plugins/profiles/devices/merge-duplicates`
 
