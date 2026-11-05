@@ -23,6 +23,7 @@ Schema version 1. This document is the reference for it.
 - [Layout](#layout)
 - [Decorations](#decorations)
 - [Where each value is used](#where-each-value-is-used)
+- [Screenshots](#screenshots)
 - [Rules every theme passes](#rules-every-theme-passes)
 - [Getting themes](#getting-themes)
 - [Changes to this format](#changes-to-this-format)
@@ -225,8 +226,14 @@ Every decoration also has to:
   drawn, `frost` is just the fill colour. Every theme must still look right that way, so
   the screenshots include it.
 
-Each decoration has a short video recorded from the web client, in `docs/themes/`. Build
-from the description above and check against the video.
+Each decoration has a short video recorded from the web client. Build from the
+description above and check against the video.
+
+| Decoration | Video | Shows |
+| --- | --- | --- |
+| `pattern` | [pattern.webm](themes/pattern.webm) | Snowfall, its pattern drifting down. |
+| `rings` | [rings.webm](themes/rings.webm) | Nightfall on a TV, focus moving along the rings. |
+| `frost` | [frost.webm](themes/frost.webm) | Glass, the settings panel opening over the gate. |
 
 ## Where each value is used
 
@@ -258,6 +265,21 @@ A picker drawn by the server, such as the Moonfin one, draws its own tile pictur
 `background.fill` and `background.layers` behind a shape in `accent`. A profile with no
 picture gets a person in its own theme. The `Profiles` and `Switch profile` folders use the
 main account's theme. The app draws the names and the tile corners itself.
+
+## Screenshots
+
+[`docs/themes/screens/`](themes/screens/) has every built-in theme on every switcher
+screen, at phone, tablet and TV size, taken from the web client. Use them to check your
+screens against the web client's. The file is `<theme>/<screen>-<size>.webp`.
+
+- **Screens:** `picker`, `manage`, `pin`, `dialog`, `timeup`, `settings`, `themes`,
+  `announcement`, and the logo as an image (`logo`) and as text (`logotext`).
+- **Sizes:** `phone` (390×844), `tablet` (820×1180), `tv` (1920×1080, as a TV: nothing
+  drifts). A theme with `frost` also has `tv-lowpower`, with no blur.
+- Everyone in them is made up and the same in every picture.
+
+To take them again, run `node tests/screens/shoot.js`. To see which ones a change
+moved, run `node tests/screens/diff.js`. Both need Chrome.
 
 ## Rules every theme passes
 

@@ -32,3 +32,6 @@ node_modules/
 # published.
 CLAUDE.md
 .claude/
+
+# The screenshot tools fetch the icon font jellyfin-web ships; not ours to commit.
+tests/screens/.cache/
