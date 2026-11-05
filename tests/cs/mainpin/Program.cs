@@ -325,6 +325,68 @@ if (askProp != null)
     Ok("on a sub-profile the setting does nothing", !Skip(kidRow, false, false, false) && !Skip(kidRow, true, false, false));
 }
 
+// ── Forgetting a device ──────────────────────────────────────────────────────
+// It matched on the id alone: any main account could forget another household's television,
+// strip it from that household's device lists and read its profile names off the refusal
+// (R-1048).
+Console.WriteLine();
+Console.WriteLine("── Forgetting a device ─────────────────────────────────────────");
+{
+    var knownType = asm.GetType("Jellyfin.Profiles.Configuration.KnownDevice", true);
+    var known = (IList)cfgType.GetProperty("KnownDevices").GetValue(config);
+    var ownersProp = knownType.GetProperty("Owners");
+    object Device(string id, Guid last, params Guid[] owners)
+    {
+        var d = Activator.CreateInstance(knownType);
+        knownType.GetProperty("DeviceId").SetValue(d, id);
+        knownType.GetProperty("MasterUserId").SetValue(d, last);
+        knownType.GetProperty("LastSeen").SetValue(d, DateTime.UtcNow);
+        ownersProp?.SetValue(d, owners.ToList());
+        known.Add(d);
+        return d;
+    }
+    List<string> Allowed(object row) => (List<string>)mapType.GetProperty("AllowedDeviceIds").GetValue(row);
+    bool Has(string id) => known.Cast<object>().Any(d => (string)knownType.GetProperty("DeviceId").GetValue(d) == id);
+
+    var MINE = Guid.NewGuid(); world.Add(MINE, "Mine"); Map(MINE, MINE);
+    var MY_KID = Guid.NewGuid(); world.Add(MY_KID, "Mine_Kid"); var myKid = Map(MY_KID, MINE);
+    var THEIRS = Guid.NewGuid(); world.Add(THEIRS, "Theirs"); Map(THEIRS, THEIRS);
+    var THEIR_KID = Guid.NewGuid(); world.Add(THEIR_KID, "Theirs_Kid"); var theirKid = Map(THEIR_KID, THEIRS);
+    mapType.GetProperty("ProfileName").SetValue(theirKid, "Their secret kid");
+    mapType.GetProperty("ProfileName").SetValue(myKid, "My kid");
+
+    Device("their-tv", THEIRS, THEIRS);
+    Device("their-only", THEIRS, THEIRS);
+    var lounge = Device("lounge", THEIRS, MINE, THEIRS);
+    Allowed(theirKid).AddRange(new[] { "their-tv", "lounge", "their-phone" });
+    Allowed(myKid).AddRange(new[] { "lounge", "my-phone" });
+
+    var r = Call("DeleteDevice", MINE, new() { ["DeviceId"] = "their-tv" });
+    Ok("another household's device can't be forgotten", r.status == 400 && Has("their-tv"), r.status + " " + r.message);
+    Ok("nor taken off that household's lists", Allowed(theirKid).Contains("their-tv"));
+
+    Allowed(theirKid).Clear(); Allowed(theirKid).Add("their-only");
+    r = Call("DeleteDevice", MINE, new() { ["DeviceId"] = "their-only" });
+    Ok("and the refusal names none of its profiles",
+       r.status == 400 && !(r.message ?? "").Contains("secret") && !(r.message ?? "").Contains("Theirs"), r.message);
+    Allowed(theirKid).Clear(); Allowed(theirKid).AddRange(new[] { "their-tv", "lounge", "their-phone" });
+
+    r = Call("DeleteDevice", MINE, new() { ["DeviceId"] = "lounge" });
+    Ok("a shared device is forgotten for this household", r.status == 200 && !Allowed(myKid).Contains("lounge"), r.status + " " + r.message);
+    Ok("and kept for the other, on its lists, as its own",
+       Has("lounge") && Allowed(theirKid).Contains("lounge")
+       && (bool)knownType.GetMethod("OwnedBy").Invoke(lounge, new object[] { THEIRS })
+       && !(bool)knownType.GetMethod("OwnedBy").Invoke(lounge, new object[] { MINE }));
+
+    Device("my-tv", MINE, MINE);
+    Allowed(myKid).Clear(); Allowed(myKid).Add("my-tv");
+    r = Call("DeleteDevice", MINE, new() { ["DeviceId"] = "my-tv" });
+    Ok("its own only device is refused, naming its own profile", r.status == 400 && (r.message ?? "").Contains("My kid"), r.message);
+    Allowed(myKid).Clear();
+    r = Call("DeleteDevice", MINE, new() { ["DeviceId"] = "my-tv" });
+    Ok("and once it is free, its own device is forgotten outright", r.status == 200 && !Has("my-tv"), r.status + " " + r.message);
+}
+
 try { Directory.Delete(tempDir, true); } catch { }
 Console.WriteLine();
 if (fails.Count > 0)
