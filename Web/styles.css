@@ -489,6 +489,20 @@ body.profiles-no-scroll [id*="spinner"] {
     overflow-y: auto; padding: 2rem 0; box-sizing: border-box;
     opacity: 1; transition: opacity 0.22s ease;
 }
+/* The theme's font on every Bonfire surface and every control in one. A dialog is
+   appended to <body>, outside the gate, so it never had the gate's font; and a button,
+   field or list does not inherit a font in any browser. jellyfin-web only fixes that
+   for its own emby-* elements (release-10.11.z, every .scss checked), so until 1.7.2
+   every Bonfire button, PIN field and dialog was drawn in the browser's default sans,
+   whatever font the theme named. Found by the golden screenshots, not by a user. */
+.jpf-trap-surface, .create-profile-container {
+    font-family: var(--jpf-font, inherit);
+}
+#profiles-gate-overlay button, #profiles-gate-overlay input, #profiles-gate-overlay select, #profiles-gate-overlay textarea,
+.jpf-trap-surface button, .jpf-trap-surface input, .jpf-trap-surface select, .jpf-trap-surface textarea,
+.create-profile-container button, .create-profile-container input, .create-profile-container select, .create-profile-container textarea {
+    font-family: inherit;
+}
 /* Our own scroll areas get a scrollbar drawn to match them. Otherwise they take
    whatever the page's theme gives the page, which on several themes is the accent
    colour: a bright red bar down the side of a dark form. Two rules, not one, so a
