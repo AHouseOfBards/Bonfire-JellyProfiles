@@ -124,30 +124,34 @@ console.log('\n── Every list names the same themes ────────�
 
 const serverIds = (function () {
     const consts = {};
-    const re = /public const string (\w+) = "([a-z]+)";/g;
+    const re = /public const string (\w+) = "([a-z0-9-]+)";/g;
     const block = SERVER.slice(SERVER.indexOf('public static class Themes'));
     const body = block.slice(0, block.indexOf('public static readonly string[] All') + 400);
     let m;
     while ((m = re.exec(body)) !== null) consts[m[1]] = m[2];
-    const all = /public static readonly string\[\] All = \{([^}]*)\}/.exec(body);
+    const all = /public static readonly string\[\] All\s*=\s*\{([^}]*)\}/.exec(body);
     return all ? all[1].split(',').map(x => consts[x.trim()]).filter(Boolean) : [];
 })();
 const clientIds = (function () {
     const m = /const THEMES = \[([^\]]*)\]/.exec(SRC);
-    return m ? (m[1].match(/'([a-z]+)'/g) || []).map(x => x.replace(/'/g, '')) : [];
+    return m ? (m[1].match(/'([a-z0-9-]+)'/g) || []).map(x => x.replace(/'/g, '')) : [];
 })();
-const cssIds = Array.from(new Set((CSS.match(/\[data-jpf-theme="([a-z]+)"\]/g) || [])
-    .map(x => /"([a-z]+)"/.exec(x)[1])));
+const cssIds = Array.from(new Set((CSS.match(/\[data-jpf-theme="([a-z0-9-]+)"\]/g) || [])
+    .map(x => /"([a-z0-9-]+)"/.exec(x)[1])));
 const dashIds = (function () {
     const sel = /<select[^>]*id="defaultTheme"[^>]*>([\s\S]*?)<\/select>/.exec(DASH);
-    return sel ? (sel[1].match(/value="([a-z]+)"/g) || []).map(x => /"([a-z]+)"/.exec(x)[1]) : [];
+    return sel ? (sel[1].match(/value="([a-z0-9-]+)"/g) || []).map(x => /"([a-z0-9-]+)"/.exec(x)[1]) : [];
 })();
 const dashNormalize = (function () {
     const m = /function normalizeTheme[\s\S]*?const ids = \[([^\]]*)\]/.exec(DASH);
-    return m ? (m[1].match(/'([a-z]+)'/g) || []).map(x => x.replace(/'/g, '')) : [];
+    return m ? (m[1].match(/'([a-z0-9-]+)'/g) || []).map(x => x.replace(/'/g, '')) : [];
 })();
 
-ok('the server lists nine themes (' + serverIds.join(', ') + ')', serverIds.length === 9);
+const fileIds = fs.readdirSync(path.join(__dirname, '..', '..', 'Web', 'themes'))
+    .filter(f => /\.json$/.test(f) && f !== 'fonts.json').map(f => f.replace(/\.json$/, ''));
+ok('the server lists twelve themes (' + serverIds.join(', ') + ')', serverIds.length === 12);
+serverIds.forEach(id => ok('Web/themes/' + id + '.json exists', fileIds.indexOf(id) !== -1));
+fileIds.forEach(id => ok('Web/themes/' + id + '.json is a server theme', serverIds.indexOf(id) !== -1));
 ok('bonfire is one of them, and first', serverIds[0] === 'bonfire');
 [['profiles.js THEMES', clientIds], ['styles.css blocks', cssIds],
  ['the dashboard select', dashIds], ['the dashboard normalizeTheme', dashNormalize]].forEach(([where, ids]) => {
@@ -363,11 +367,11 @@ function method(name) {
 
 const constants = (function () {
     const a = /const THEMES = \[[^\]]*\];/.exec(SRC);
-    const b = /const THEME_NAMES = \{[\s\S]*?\};/.exec(SRC);
+    const b = /function themeName\(id\) \{[\s\S]*?\n    \}/.exec(SRC);
     const c = /function normalizeTheme\(value\) \{[\s\S]*?\n    \}/.exec(SRC);
     return a && b && c ? a[0] + '\n' + b[0] + '\n' + c[0] : null;
 })();
-ok('THEMES, THEME_NAMES and normalizeTheme are in the client', !!constants);
+ok('THEMES, themeName and normalizeTheme are in the client', !!constants);
 
 const names = ['applyTheme', '_readThemeCache', 'applyCachedTheme', '_setThemeSettings', 'renderThemePreview', 'renderThemePicker', 'readThemePicker'];
 const methods = {};
@@ -497,10 +501,10 @@ if (constants && names.every(n => methods[n])) {
     ok('no picker when the server does not let profiles choose', w.obj.renderThemePicker('edit', 'glass') === '');
     w.obj._themeSettings = { theme: 'bonfire', defaultTheme: 'harbor', allow: true };
     const html = w.obj.renderThemePicker('edit', 'Glass');
-    const options = (html.match(/<option value="([a-z]*)"/g) || []).map(x => /"([a-z]*)"/.exec(x)[1]);
+    const options = (html.match(/<option value="([a-z0-9-]*)"/g) || []).map(x => /"([a-z0-9-]*)"/.exec(x)[1]);
     ok('it offers "server default" first, then every theme (' + options.join(', ') + ')',
        options[0] === '' && serverIds.every(id => options.indexOf(id) !== -1) && options.length === serverIds.length + 1);
-    ok('the default option names the server default', /profileForm\.themeDefault\{"name":"Harbor"\}/.test(html));
+    ok('the default option names the server default', /profileForm\.themeDefault\{"name":"theme\.harbor"\}/.test(html));
     ok('the stored choice is selected', /<option value="glass" selected>/.test(html));
     ok('and the preview wears it', /id="edit-theme-preview" data-jpf-theme="glass"/.test(html));
     const followHtml = w.obj.renderThemePicker('create', null);
@@ -535,9 +539,15 @@ const headBody = (function () {
 // Until 1.7.2 the head script carried a copy of every built-in's background, checked
 // here against the sheet. A theme an administrator makes could never be in that copy, so
 // it reads them from the cache profiles.js writes (checked in section 5) instead.
+// The one colour it may hold is jellyfin-web's own page colour, its fallback for a stored
+// background that is not a colour; Jellyfin Dark's plain background is that same #101010,
+// so that single assignment is taken out before looking, and nothing else is.
+const headWithoutFallback = headBody.split("b='#101010';").join('');
+ok('the head script\'s one fallback colour is jellyfin-web\'s #101010, once',
+   headBody.split("b='#101010';").length === 2);
 ok('the head script carries no theme\'s background of its own',
    headBody.length > 0 && !/tb=\{[a-z]/.test(headBody) && serverIds.every(id =>
-       !theme[id] || headBody.indexOf(String(theme[id]['--jpf-gate-bg']).slice(0, 40)) === -1));
+       !theme[id] || headWithoutFallback.indexOf(String(theme[id]['--jpf-gate-bg']).slice(0, 40)) === -1));
 
 if (headBody) {
     const vm = require('vm');
@@ -649,8 +659,24 @@ const SHAPE = ['--jpf-avatar-r', '--jpf-ring-w', '--jpf-hover-scale', '--jpf-tit
     '--jpf-btn2-weight', '--jpf-add-border', '--jpf-input-r', '--jpf-font'];
 const MIN_SHAPE_DIFFERENCES = 5;
 const lookIds = serverIds.filter(id => id !== 'bonfire');
+// A light and a dark version of one look are meant to share every shape, so a pair named
+// here is held to the opposite: identical in shape, different in colour. Named pairs
+// only, so nothing else can slip in under it.
+const SCHEME_PAIRS = [['jellyfin-dark', 'jellyfin-light']];
+const isPair = (x, y) => SCHEME_PAIRS.some(p => (p[0] === x && p[1] === y) || (p[0] === y && p[1] === x));
+SCHEME_PAIRS.forEach(([x, y]) => {
+    const a = theme[x] || {}, b = theme[y] || {};
+    // A border token is "width style colour"; the colour is the scheme's, so only the
+    // width and style are shape.
+    const shapeOf = (tk, v) => (/border/.test(tk) ? String(v).split(' ').slice(0, 2).join(' ') : v);
+    const differ = SHAPE.filter(tk => shapeOf(tk, a[tk]) !== shapeOf(tk, b[tk]));
+    ok(x + ' and ' + y + ' share every shape token' + (differ.length ? ' (not ' + differ.join(', ') + ')' : ''),
+       !!theme[x] && !!theme[y] && differ.length === 0);
+    ok(x + ' and ' + y + ' differ in background', !!theme[x] && !!theme[y] && a['--jpf-gate-bg'] !== b['--jpf-gate-bg']);
+});
 for (let i = 0; i < lookIds.length; i++) {
     for (let j = i + 1; j < lookIds.length; j++) {
+        if (isPair(lookIds[i], lookIds[j])) continue;
         const a = theme[lookIds[i]], b = theme[lookIds[j]];
         const differ = SHAPE.filter(tk => a[tk] !== undefined && b[tk] !== undefined && a[tk] !== b[tk]);
         ok(lookIds[i] + ' and ' + lookIds[j] + ' differ in ' + differ.length + ' of ' + SHAPE.length
@@ -767,7 +793,7 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
             factory(doc, { getCurrentUserId: () => 'aaaa' }, (k, v) => k + (v ? JSON.stringify(v) : ''),
                 s => String(s), () => {}, obj).showThemeSettings(null);
             const cards = [];
-            html.replace(/<button type="button" class="jpf-theme-option[^"]*"[^>]*data-theme="([a-z]*)"\s+aria-checked="(true|false)">\s*<div class="jpf-theme-preview"[^>]*data-jpf-theme="([a-z]+)"/g,
+            html.replace(/<button type="button" class="jpf-theme-option[^"]*"[^>]*data-theme="([a-z0-9-]*)"\s+aria-checked="(true|false)">\s*<div class="jpf-theme-preview"[^>]*data-jpf-theme="([a-z0-9-]+)"/g,
                 (m, value, checked, shows) => { cards.push({ value: value, checked: checked === 'true', shows: shows }); return m; });
             return { html: html, cards: cards };
         };
@@ -781,7 +807,7 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
            !!dflt && dflt.value === '' && follow.cards.filter(c => c.value === '').length === 1);
         ok('and it carries the Default tag, once',
            (follow.html.match(/themeSettings\.default/g) || []).length === 1
-           && /Crimson <span class="jpf-theme-option-tag">themeSettings\.default<\/span>/.test(follow.html));
+           && /theme\.crimson <span class="jpf-theme-option-tag">themeSettings\.default<\/span>/.test(follow.html));
         ok('a profile following the default has that card ticked, and only that one',
            follow.cards.filter(c => c.checked).length === 1 && dflt && dflt.checked);
         const chose = render('glass', 'crimson');

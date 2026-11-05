@@ -369,13 +369,15 @@ namespace Jellyfin.Profiles.Configuration
     /// re-skinning jellyfin-web would mean chasing its markup every release.
     /// <para>
     /// The ids are lowercase, stored in configuration, and are also the value of the
-    /// <c>data-jpf-theme</c> attribute the stylesheet keys on, so the three lists — this one,
-    /// <c>THEMES</c> in profiles.js and the blocks in styles.css — must agree.
+    /// <c>data-jpf-theme</c> attribute the generated CSS keys on, so the three lists — this
+    /// one, <c>THEMES</c> in profiles.js and the files in Web/themes/ — must agree.
     /// tests/js/themes.js fails if they do not.
     /// </para>
     /// <para>
-    /// Named for how each one looks, not for any service it resembles. No brand names, logos
-    /// or brand typefaces anywhere: each theme uses fonts already on the device.
+    /// Named for how each one looks, not for any service it resembles. The one exception is
+    /// Jellyfin Dark and Jellyfin Light, which match the server's own web client: that is
+    /// the project Bonfire runs inside, not another service. No other brand names, logos or
+    /// brand typefaces: every font is one Bonfire serves under the OFL (fonts.json).
     /// </para>
     /// </summary>
     public static class Themes
@@ -390,8 +392,15 @@ namespace Jellyfin.Profiles.Configuration
         public const string Harvest = "harvest";
         public const string Snowfall = "snowfall";
         public const string Bloom = "bloom";
+        public const string JellyfinDark = "jellyfin-dark";
+        public const string JellyfinLight = "jellyfin-light";
+        public const string HighContrast = "high-contrast";
 
-        public static readonly string[] All = { Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass, Harvest, Snowfall, Bloom };
+        public static readonly string[] All =
+        {
+            Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass, Harvest, Snowfall, Bloom,
+            JellyfinDark, JellyfinLight, HighContrast,
+        };
 
         /// <summary>True for one of <see cref="All"/>, in any case.</summary>
         public static bool IsKnown(string? value) =>

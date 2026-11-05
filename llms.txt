@@ -12,7 +12,7 @@
 - Profiles are created and edited from the switcher in a supported app, not from the admin dashboard.
 - Install from the plugin repository `https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json`, then restart Jellyfin. On Docker, restart the container; the dashboard's Restart button often isn't enough. One build works on both 10.11 and 12.0.
 - Bonfire doesn't edit Jellyfin's `index.html` and doesn't need any other plugin. No script tag in `index.html` is normal.
-- Themes: nine looks for Bonfire's own screens (Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass, and the seasonal Harvest, Snowfall and Bloom). Each profile can have its own, set from Settings → Theme on the main account. The administrator picks the default and can turn choosing off. The rest of Jellyfin keeps its own theme.
+- Themes: twelve looks for Bonfire's own screens (Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass, the seasonal Harvest, Snowfall and Bloom, Jellyfin Dark and Jellyfin Light, and High contrast). Each profile can have its own, set from Settings → Theme on the main account. The administrator picks the default and can turn choosing off. The rest of Jellyfin keeps its own theme.
 - Shared Bonfires: two accounts can link with a 6-character code so both households appear on one switcher.
 - Languages: English, Catalan, French, Polish, Spanish and Turkish, matching the Display language set in Jellyfin. The admin page is English only.
 - Administrators can set an emergency code that turns the profile screen off until Jellyfin restarts.

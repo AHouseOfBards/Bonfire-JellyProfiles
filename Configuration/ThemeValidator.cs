@@ -43,7 +43,7 @@ namespace Jellyfin.Profiles.Configuration
         public const int MaxBytes = 64 * 1024;
 
         /// <summary>The id of the theme that must reach 7:1 wherever the others need 4.5:1.</summary>
-        public const string HighContrastId = "high-contrast";
+        public const string HighContrastId = Themes.HighContrast;
 
         /// <summary>The decorations schema 1 knows. docs/themes.md, "Decorations".</summary>
         public static readonly string[] Decorations = { "pattern", "rings", "frost" };

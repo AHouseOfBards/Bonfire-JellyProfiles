@@ -21,7 +21,8 @@ Works with Jellyfin 10.11 and 12.0.
 - **Avatars.** Thirty built in, plus any pictures you upload for the whole server.
 - **Per-profile library artwork.** A Kids profile can show its own picture for a library
   instead of a poster from a film it can't open.
-- **Themes.** Nine looks for Bonfire's screens, three of them seasonal. Each profile can
+- **Themes.** Twelve looks for Bonfire's screens, including high contrast and two that match
+  Jellyfin's own light and dark themes. Each profile can
   have its own, set from **Settings → Theme** on the main account. Administrators choose
   the default and can turn choosing off.
 - **Your choice of switcher.** A Bonfire button in the header or a **Switch Profile**

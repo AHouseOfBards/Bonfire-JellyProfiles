@@ -35,24 +35,18 @@
 
     /// The looks Bonfire's own screens can take. Must match Themes.All on the server and
     /// the files in Web/themes/; tests/js/themes.js and tests/cs/themes hold the three
-    /// together. The names are proper names, like "Bonfire" itself, and are shown as they
-    /// are in every language, so the dashboard and every profile call a theme the same thing.
-    const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom'];
+    /// together. A theme's name is the string theme.<id> (themeName), so "High contrast"
+    /// can be translated; the proper names (Bonfire, Harvest...) are kept as they are in
+    /// every language file, so the dashboard and every profile call a theme the same thing.
+    const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom',
+        'jellyfin-dark', 'jellyfin-light', 'high-contrast'];
 
     /// First-time setup steps this script can draw (OnboardingSteps on the server). A
     /// newer server's unknown step is left out rather than shown blank.
     const ONBOARDING_STEPS = ['welcome', 'mainPin', 'resetEmail', 'firstProfile', 'switcher', 'theme'];
-    const THEME_NAMES = {
-        bonfire: 'Bonfire',
-        crimson: 'Crimson',
-        starlight: 'Starlight',
-        harbor: 'Harbor',
-        nightfall: 'Nightfall',
-        glass: 'Glass',
-        harvest: 'Harvest',
-        snowfall: 'Snowfall',
-        bloom: 'Bloom'
-    };
+    function themeName(id) {
+        return t('theme.' + normalizeTheme(id));
+    }
 
     /// GET plugins/profiles/ratings -> [[score, labels], ...], one entry per age.
     ///
@@ -840,6 +834,18 @@
         'profileForm.kidsPresetHint': 'Sets the rating to age 10. You can change it.',
         'profileForm.mainSecurityMoved': 'Your PIN and sign-in settings are in Settings → Your account.',
         'themeSettings.default': 'Default',
+        'theme.bonfire': 'Bonfire',
+        'theme.crimson': 'Crimson',
+        'theme.starlight': 'Starlight',
+        'theme.harbor': 'Harbor',
+        'theme.nightfall': 'Nightfall',
+        'theme.glass': 'Glass',
+        'theme.harvest': 'Harvest',
+        'theme.snowfall': 'Snowfall',
+        'theme.bloom': 'Bloom',
+        'theme.jellyfin-dark': 'Jellyfin Dark',
+        'theme.jellyfin-light': 'Jellyfin Light',
+        'theme.high-contrast': 'High contrast',
 
         'switcher.title': 'Switcher Style',
         'switcher.intro': 'How you reach this screen, for everyone using your account.',
@@ -1208,16 +1214,16 @@
 
             dialog.innerHTML = `
                 <div class="prompt-dialog-content" style="
-                    background: #181818;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    background: var(--jpf-panel);
+                    border: 1px solid var(--jpf-border-1);
                     border-radius: var(--jpf-r-md);
                     padding: 24px;
                     max-width: 420px;
                     width: 90%;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                 ">
-                    <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
-                    <label for="profiles-prompt-input" style="display: block; color: rgba(255,255,255,0.7); font-size: 0.85rem; margin-bottom: 6px;">${escapeHtml(label)}</label>
+                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <label for="profiles-prompt-input" style="display: block; color: var(--jpf-text-2); font-size: 0.85rem; margin-bottom: 6px;">${escapeHtml(label)}</label>
                     <input id="profiles-prompt-input" type="text" maxlength="64" value="${escapeHtml(initialValue || '')}" style="width: 100%; box-sizing: border-box; margin-bottom: 20px;" />
                     <div class="jpf-actions">
                         <button id="prompt-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
@@ -1284,16 +1290,16 @@
 
             dialog.innerHTML = `
                 <div class="select-dialog-content" style="
-                    background: #181818;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    background: var(--jpf-panel);
+                    border: 1px solid var(--jpf-border-1);
                     border-radius: var(--jpf-r-md);
                     padding: 24px;
                     max-width: 420px;
                     width: 90%;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                 ">
-                    <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
-                    <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 16px;">${escapeHtml(message)}</p>
+                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 16px;">${escapeHtml(message)}</p>
                     <select id="profiles-select-input" style="width: 100%; box-sizing: border-box; margin-bottom: 20px;">
                         ${choices}
                     </select>
@@ -1351,8 +1357,8 @@
 
             dialog.innerHTML = `
                 <div class="confirm-dialog-content" style="
-                    background: #181818;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    background: var(--jpf-panel);
+                    border: 1px solid var(--jpf-border-1);
                     border-radius: var(--jpf-r-md);
                     padding: 24px;
                     max-width: 420px;
@@ -1360,8 +1366,8 @@
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                     text-align: center;
                 ">
-                    <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
-                    <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
+                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
+                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
                     <div class="jpf-actions">
                         <button id="dialog-cancel-btn" class="profiles-btn btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.cancel')}</button>
                         <button id="dialog-confirm-btn" class="profiles-btn btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.confirm')}</button>
@@ -1433,8 +1439,8 @@
 
             dialog.innerHTML = `
                 <div class="alert-dialog-content" style="
-                    background: #181818;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    background: var(--jpf-panel);
+                    border: 1px solid var(--jpf-border-1);
                     border-radius: var(--jpf-r-md);
                     padding: 24px;
                     max-width: 420px;
@@ -1442,8 +1448,8 @@
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                     text-align: center;
                 ">
-                    <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
-                    <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
+                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
+                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
                     <div style="display: flex; justify-content: center;">
                         <button id="dialog-close-btn" class="profiles-btn btn-primary" style="padding: 10px 24px; font-weight: 600; min-width: 120px;">${t('common.ok')}</button>
                     </div>
@@ -1502,8 +1508,8 @@
             `;
             dialog.innerHTML = `
                 <div class="confirm-dialog-content" style="
-                    background: #181818;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    background: var(--jpf-panel);
+                    border: 1px solid var(--jpf-border-1);
                     border-radius: var(--jpf-r-md);
                     padding: 24px;
                     max-width: 460px;
@@ -1511,8 +1517,8 @@
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                     text-align: center;
                 ">
-                    <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
-                    <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${escapeHtml(message)}</p>
+                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${escapeHtml(message)}</p>
                     <div class="jpf-actions jpf-actions-wrap">
                         ${actions.map((a, i) => `<button type="button" data-action="${i}" class="profiles-btn ${a.primary ? 'btn-primary' : 'btn-secondary'}">${escapeHtml(a.label)}</button>`).join('')}
                     </div>
@@ -3757,10 +3763,10 @@
             `;
 
             dialog.innerHTML = `
-                <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);
+                <div style="background:var(--jpf-panel); border:1px solid var(--jpf-border-1); border-radius: var(--jpf-r-md);
                             padding:24px; max-width:460px; width:90%; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
-                    <h2 style="margin:0 0 12px 0; color:#fff; font-size:1.2rem; font-weight:700;">${t('panic.emergencyDisable')}</h2>
-                    <p style="color:rgba(255,255,255,0.7); font-size:0.9rem; line-height:1.5; margin:0 0 16px 0;">
+                    <h2 style="margin:0 0 12px 0; color:var(--jpf-text-1); font-size:1.2rem; font-weight:700;">${t('panic.emergencyDisable')}</h2>
+                    <p style="color:var(--jpf-text-2); font-size:0.9rem; line-height:1.5; margin:0 0 16px 0;">
                         ${t('panic.dialogBody')}
                     </p>
                     <input type="password" id="profiles-panic-input" autocomplete="off" placeholder="${t('panic.emergencyCodePlaceholder')}"
@@ -4030,8 +4036,8 @@
                 <div class="form-group" id="${prefix}-theme-group">
                     <label for="${prefix}-theme-select">${t('profileForm.theme')}</label>
                     <select id="${prefix}-theme-select">
-                        <option value="" ${chosen ? '' : 'selected'}>${t('profileForm.themeDefault', { name: THEME_NAMES[settings.defaultTheme] })}</option>
-                        ${THEMES.map(id => `<option value="${id}" ${chosen === id ? 'selected' : ''}>${THEME_NAMES[id]}</option>`).join('')}
+                        <option value="" ${chosen ? '' : 'selected'}>${t('profileForm.themeDefault', { name: themeName(settings.defaultTheme) })}</option>
+                        ${THEMES.map(id => `<option value="${id}" ${chosen === id ? 'selected' : ''}>${themeName(id)}</option>`).join('')}
                     </select>
                     ${this.renderThemePreview(shown, prefix + '-theme-preview')}
                     <div class="form-hint">${t('profileForm.themeHint')}</div>
@@ -4046,7 +4052,7 @@
             const shown = normalizeTheme(theme);
             return `
                 <div class="jpf-theme-preview" ${id ? `id="${id}"` : ''} data-jpf-theme="${shown}" aria-hidden="true">
-                    <span class="jpf-theme-preview-name">${THEME_NAMES[shown]}</span>
+                    <span class="jpf-theme-preview-name">${themeName(shown)}</span>
                     <span class="jpf-theme-preview-tiles">
                         <span class="jpf-theme-preview-tile"></span><span class="jpf-theme-preview-tile"></span><span class="jpf-theme-preview-tile"></span>
                     </span>
@@ -4066,7 +4072,7 @@
                     : (settings ? settings.defaultTheme : 'bonfire');
                 preview.setAttribute('data-jpf-theme', id);
                 const name = preview.querySelector('.jpf-theme-preview-name');
-                if (name) name.textContent = THEME_NAMES[id];
+                if (name) name.textContent = themeName(id);
             });
         },
 
@@ -4667,9 +4673,9 @@
                     "background:rgba(0,0,0,0.85); backdrop-filter:blur(8px);" +
                     "display:flex; align-items:center; justify-content:center; z-index:" + DIALOG_Z + ";";
                 dialog.innerHTML =
-                    '<div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);' +
+                    '<div style="background:var(--jpf-panel); border:1px solid var(--jpf-border-1); border-radius: var(--jpf-r-md);' +
                     ' padding:22px; max-width:420px; width:94%; max-height:86vh; overflow:auto;">' +
-                    '<h2 style="margin:0 0 14px 0; color:#fff; font-size:1.15rem; font-weight:700;">' + t('avatar.libraryArtworkTitle') + '</h2>' +
+                    '<h2 style="margin:0 0 14px 0; color:var(--jpf-text-1); font-size:1.15rem; font-weight:700;">' + t('avatar.libraryArtworkTitle') + '</h2>' +
                     '<div id="profiles-libart-host"></div>' +
                     '<div id="profiles-libart-error" style="display:none; color:var(--jpf-danger); font-size:0.85rem;' +
                     ' font-weight:600; margin-top:8px;"></div>' +
@@ -5515,7 +5521,7 @@
                          someone locked out by a broken switcher would be standing.
                          Hidden until the server confirms a code is configured. -->
                     <button id="profiles-panic-link" tabindex="0" style="
-                        display: none; background: none; border: none; color: rgba(255,255,255,0.28);
+                        display: none; background: none; border: none; color: var(--jpf-text-3);
                         font-size: 0.72rem; margin-top: 1.5rem; cursor: pointer;
                         text-decoration: underline; padding: 6px 10px;">${t('gate.cantGetPast')}</button>
                     <!-- Last in the markup and drawn first by the stylesheet (order: -1).
@@ -6894,11 +6900,11 @@
                 z-index: ${DIALOG_Z};
             `;
             dialog.innerHTML = `
-                <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);
+                <div style="background:var(--jpf-panel); border:1px solid var(--jpf-border-1); border-radius: var(--jpf-r-md);
                             padding:22px; max-width:340px; width:92%; box-shadow:0 10px 30px rgba(0,0,0,0.5); text-align:center;
                             user-select:none; -webkit-user-select:none;">
-                    <h2 style="margin:0 0 4px 0; color:#fff; font-size:1.15rem; font-weight:700;">${t('avatar.positionYourPicture')}</h2>
-                    <p style="color:rgba(255,255,255,0.55); font-size:0.78rem; margin:0 0 14px 0;">
+                    <h2 style="margin:0 0 4px 0; color:var(--jpf-text-1); font-size:1.15rem; font-weight:700;">${t('avatar.positionYourPicture')}</h2>
+                    <p style="color:var(--jpf-text-2); font-size:0.78rem; margin:0 0 14px 0;">
                         ${t('avatar.dragOrArrows')}
                     </p>
                     <!-- data-profiles-own-keys marks the arrows as this element's own, so
@@ -7517,7 +7523,7 @@
                     <div class="form-group">
                         <div class="section-inline-header">
                             <label style="margin: 0;">${t('profileForm.enabledLibraries')}</label>
-                            <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
+                            <label class="library-check-label" style="font-size: 0.85rem; color: var(--jpf-text-2); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
                                 <input type="checkbox" id="create-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: var(--jpf-accent);" />
                                 <span>${t('common.selectAll')}</span>
                             </label>
@@ -7865,7 +7871,7 @@
                     <div class="form-group">
                         <div class="section-inline-header">
                             <label style="margin: 0;">${t('profileForm.libraries')}</label>
-                            <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
+                            <label class="library-check-label" style="font-size: 0.85rem; color: var(--jpf-text-2); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
                                 <input type="checkbox" id="edit-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: var(--jpf-accent);" />
                                 <span>${t('common.selectAll')}</span>
                             </label>
@@ -8264,7 +8270,7 @@
                     <div id="account-links-slot"></div>
                     <div id="bonfire-container" style="width: 100%; min-height: 100px; display: flex; flex-direction: column; gap: 1.5rem;">
                         <div style="display: flex; justify-content: center; padding: 20px;">
-                            <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: jpfSpin 1s linear infinite;"></div>
+                            <div class="profiles-loading-spinner" style="border: 3px solid var(--jpf-border-1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: jpfSpin 1s linear infinite;"></div>
                         </div>
                         <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
                             <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
@@ -9084,7 +9090,7 @@
                         aria-checked="${id === chosen}">
                     ${this.renderThemePreview(id)}
                     <span class="jpf-theme-option-label">
-                        <span>${THEME_NAMES[id]}</span>
+                        <span>${themeName(id)}</span>
                         <span class="material-icons jpf-theme-option-check" aria-hidden="true">check_circle</span>
                     </span>
                 </button>
@@ -9281,7 +9287,7 @@
                         aria-checked="${id === current}">
                     ${this.renderThemePreview(id)}
                     <span class="jpf-theme-option-label">
-                        <span>${THEME_NAMES[id]}${id === settings.defaultTheme
+                        <span>${themeName(id)}${id === settings.defaultTheme
                             ? ` <span class="jpf-theme-option-tag">${t('themeSettings.default')}</span>` : ''}</span>
                         <span class="material-icons jpf-theme-option-check" aria-hidden="true">check_circle</span>
                     </span>
@@ -9570,7 +9576,7 @@
                         </div>
 
                         <div class="bonfire-form-group">
-                            <label style="font-size: 1rem; font-weight: 600; color: #fff; display: block; margin-bottom: 8px;">${t('bonfire.members', { count: ownedMembers.length })}</label>
+                            <label style="font-size: 1rem; font-weight: 600; color: var(--jpf-text-1); display: block; margin-bottom: 8px;">${t('bonfire.members', { count: ownedMembers.length })}</label>
                             <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border); border-radius: var(--jpf-input-r); padding: 8px;">
                                 ${ownedMembers.length > 0 ? ownedMembers.map(m => {
                                     const mUserId = m.userId || m.UserId;
@@ -9646,7 +9652,7 @@
                         ${t('bonfire.lanSwitchHint', { extra: hasPinSet ? '' : t('bonfire.lanSwitchHintExtra') })}
                     </div>
                     ${isAdmin ? `
-                    <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid var(--jpf-warn); border-radius: var(--jpf-r-sm); font-size: 0.75rem; line-height: 1.5; color: rgba(255,255,255,0.8);">
+                    <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid var(--jpf-warn); border-radius: var(--jpf-r-sm); font-size: 0.75rem; line-height: 1.5; color: var(--jpf-text-1);">
                         <strong style="color: var(--jpf-warn);">${t('bonfire.adminAccountWarning')}</strong> ${t('bonfire.adminAccountWarningBody')}
                     </div>` : ''}
                     <div style="margin-left: 1.6rem; margin-top: 8px; font-size: 0.72rem; line-height: 1.5; opacity: 0.45;">

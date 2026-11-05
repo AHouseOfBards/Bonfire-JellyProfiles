@@ -336,10 +336,22 @@ for (const file of files) {
 // Counted as a bare quoted literal rather than as t('key'), because several keys are
 // legitimately reached through a table (the parental-rating options are a list of
 // [value, key] pairs) and a t()-only scan would call all of those dead too.
+//
+// A theme's name is the one key reached by building it: the client shows t(name.key)
+// from the theme's own file (Web/themes/<id>.json), so a key a theme file names is used.
+// The pattern takes a hyphen because theme ids have them (theme.high-contrast); without
+// it those keys were not read as defined at all, so a dead one could never be reported.
 {
     const profilesJs = fs.readFileSync(PROFILES_JS, 'utf8');
-    const defined = [...profilesJs.matchAll(/^\s{8}'([a-zA-Z0-9_.]+)':/gm)].map(m => m[1]);
+    const themesDir = path.join(HERE, '..', 'themes');
+    const themeKeys = fs.readdirSync(themesDir).filter(f => /\.json$/.test(f) && f !== 'fonts.json')
+        .map(f => {
+            const theme = JSON.parse(fs.readFileSync(path.join(themesDir, f), 'utf8'));
+            return theme && theme.name && typeof theme.name.key === 'string' ? theme.name.key : null;
+        }).filter(Boolean);
+    const defined = [...profilesJs.matchAll(/^\s{8}'([a-zA-Z0-9_.-]+)':/gm)].map(m => m[1]);
     const dead = defined.filter(k => {
+        if (themeKeys.indexOf(k) !== -1) return false;
         const literal = "'" + k + "'";
         let count = 0, at = 0;
         while ((at = profilesJs.indexOf(literal, at)) !== -1) { count++; at += literal.length; }

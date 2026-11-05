@@ -68,7 +68,7 @@ An app that follows only the required parts still looks like the theme.
 | `schema` | integer | `1`. |
 | `id` | string | Lower case letters, digits and `-`. Never changes once published. |
 | `revision` | integer | Goes up whenever the file changes. Cache on `id` + `revision`. |
-| `scheme` | string | `dark` or `light`: whether the theme's text is light on dark, or dark on light. |
+| `scheme` | string | `dark` or `light`: whether the theme's text is light on dark, or dark on light. A light theme gets lighter shadows. Nothing in Bonfire's own CSS may paint white on a theme's surface; `tests/js/lightsafe.js` lists each exception and why. |
 | `name` | object | `{ "key": "theme.harvest" }` for a built-in, translated through Bonfire's strings. `{ "text": "Our Theme" }` for an administrator's. |
 | `aliases` | string[] | Old ids that now mean this theme. A profile set to one of them gets this one. |
 

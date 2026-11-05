@@ -1,0 +1,135 @@
+{
+  "schema": 1,
+  "id": "high-contrast",
+  "revision": 1,
+  "scheme": "dark",
+  "name": {
+    "key": "theme.high-contrast"
+  },
+  "aliases": [],
+  "colors": {
+    "accent": "#ffd400",
+    "accentFocus": "#ffe766",
+    "onAccent": "#000000",
+    "text1": "#ffffff",
+    "text2": "#e6e6e6",
+    "text3": "#c2c2c2",
+    "surface1": "#ffffff0f",
+    "surface2": "#ffffff1a",
+    "surface3": "#ffffff29",
+    "border1": "#ffffff80",
+    "border2": "#ffffffb3",
+    "border3": "#ffffffe6",
+    "panel": "#0d0d0d",
+    "ring": "#ffd400",
+    "name": "#ffffff",
+    "nameFocus": "#ffd400",
+    "shadow": "#000000",
+    "danger": "#ff6060",
+    "warning": "#ffb000"
+  },
+  "background": {
+    "fill": "#000000",
+    "layers": []
+  },
+  "shape": {
+    "radius": {
+      "small": 4,
+      "medium": 8,
+      "large": 12
+    },
+    "avatar": {
+      "kind": "rounded",
+      "radius": 12
+    },
+    "ringWidth": 5,
+    "button": {
+      "kind": "rounded",
+      "radius": 8
+    },
+    "input": {
+      "radius": 6
+    }
+  },
+  "type": {
+    "font": {
+      "family": "Atkinson Hyperlegible Next",
+      "fallback": "sans-serif"
+    },
+    "title": {
+      "weight": 800,
+      "spacing": 0,
+      "scale": 1.1
+    },
+    "name": {
+      "weight": 700,
+      "scale": 1.1,
+      "opacity": 1
+    },
+    "button": {
+      "case": "none",
+      "spacing": 0.02,
+      "weight": 700
+    }
+  },
+  "depth": {
+    "avatar": null,
+    "title": null,
+    "sheet": null
+  },
+  "focus": {
+    "scale": 1.08,
+    "glow": null
+  },
+  "parts": {
+    "button2": {
+      "fill": "#000000",
+      "text": "#ffffff",
+      "border": {
+        "width": 2,
+        "style": "solid",
+        "color": "#ffffff"
+      },
+      "focus": {
+        "fill": "#ffd400",
+        "text": "#000000",
+        "border": {
+          "width": 2,
+          "style": "solid",
+          "color": "#ffd400"
+        },
+        "glow": null
+      }
+    },
+    "addTile": {
+      "fill": "#000000",
+      "border": {
+        "width": 3,
+        "style": "dashed",
+        "color": "#ffffff"
+      },
+      "text": "#ffffff",
+      "focusFill": "#ffd40029"
+    },
+    "card": {
+      "fill": "#000000",
+      "line": "#ffffffb3"
+    },
+    "sheet": {
+      "fill": "#00000000",
+      "border": {
+        "width": 1,
+        "style": "solid",
+        "color": "#00000000"
+      }
+    },
+    "input": {
+      "fill": "#000000",
+      "line": "#ffffff"
+    }
+  },
+  "layout": {
+    "households": "open"
+  },
+  "decorations": []
+}

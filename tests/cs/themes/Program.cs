@@ -30,8 +30,8 @@ void Ok(string name, bool cond, string detail = null)
 
 Console.WriteLine("── The theme list ───────────────────────────────────────────────");
 
-var expected = new[] { "bonfire", "crimson", "starlight", "harbor", "nightfall", "glass", "harvest", "snowfall", "bloom" };
-Ok("nine themes, Bonfire first (" + string.Join(", ", Themes.All) + ")",
+var expected = new[] { "bonfire", "crimson", "starlight", "harbor", "nightfall", "glass", "harvest", "snowfall", "bloom", "jellyfin-dark", "jellyfin-light", "high-contrast" };
+Ok("twelve themes, Bonfire first (" + string.Join(", ", Themes.All) + ")",
    Themes.All.SequenceEqual(expected));
 Ok("every id is lowercase, which is what the stylesheet keys on",
    Themes.All.All(id => id == id.ToLowerInvariant()));

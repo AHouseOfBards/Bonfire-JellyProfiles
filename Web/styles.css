@@ -117,7 +117,7 @@
     border-radius: var(--jpf-r-md);
     border: 1px solid var(--jpf-border-2);
     background: var(--jpf-gate-bg);
-    color: #fff;
+    color: var(--jpf-text-1);
     font-family: var(--jpf-font);
     text-align: center;
 }
@@ -295,13 +295,13 @@
 .jpf-theme-person:hover,
 .jpf-theme-person:focus {
     border-color: var(--jpf-border-3);
-    color: #fff;
+    color: var(--jpf-text-1);
     outline: none;
 }
 .jpf-theme-person[aria-checked="true"] {
     border-color: var(--jpf-accent);
     background: var(--jpf-accent-a18);
-    color: #fff;
+    color: var(--jpf-text-1);
 }
 .jpf-theme-status {
     text-align: center;
@@ -339,7 +339,7 @@
 .picture-change-btn[aria-expanded="true"] {
     background-color: var(--jpf-accent-a18);
     border-color: var(--jpf-accent-a60);
-    color: #fff;
+    color: var(--jpf-text-1);
 }
 @media (prefers-reduced-motion: reduce) {
     .picture-caret {
@@ -476,7 +476,7 @@ body.profiles-no-scroll [id*="spinner"] {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
     background: var(--jpf-gate-bg);
     z-index: 99999; display: flex; align-items: center; justify-content: center;
-    color: #fff; font-family: var(--jpf-font);
+    color: var(--jpf-text-1); font-family: var(--jpf-font);
     overflow-y: auto; padding: 2rem 0; box-sizing: border-box;
     opacity: 1; transition: opacity 0.22s ease;
 }
@@ -486,7 +486,7 @@ body.profiles-no-scroll [id*="spinner"] {
    browser that does not know one of the forms keeps the other. */
 #profiles-gate-overlay, .create-profile-container {
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+    scrollbar-color: var(--jpf-border-3) transparent;
 }
 #profiles-gate-overlay::-webkit-scrollbar,
 .create-profile-container::-webkit-scrollbar {
@@ -498,7 +498,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 #profiles-gate-overlay::-webkit-scrollbar-thumb,
 .create-profile-container::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.22); border-radius: var(--jpf-r-sm);
+    background: var(--jpf-border-3); border-radius: var(--jpf-r-sm);
 }
 .profiles-modal-content {
     text-align: center; max-width: 900px; width: 90%;
@@ -598,7 +598,7 @@ body.profiles-no-scroll [id*="spinner"] {
     font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: -0.02em;
-    color: #fff;
+    color: var(--jpf-text-1);
 }
 .profiles-grid {
     display: flex; flex-wrap: wrap; gap: 3rem; justify-content: center; width: 100%;
@@ -701,7 +701,7 @@ body.profiles-no-scroll [id*="spinner"] {
     height: 18px;
     border-radius: 50%;
     border: 2px solid var(--jpf-border-3);
-    border-top-color: #fff;
+    border-top-color: currentColor;
     animation: jpfSpin 0.8s linear infinite;
 }
 /* The spinner still turns — it is the only thing reporting progress — but
@@ -833,10 +833,10 @@ body.profiles-no-scroll [id*="spinner"] {
 .profile-card:focus .profile-avatar.is-transparent img,
 .profile-card:focus-within .profile-avatar.is-transparent img {
     filter:
-        drop-shadow(3px 0 0 rgba(255, 255, 255, 0.92))
-        drop-shadow(-3px 0 0 rgba(255, 255, 255, 0.92))
-        drop-shadow(0 3px 0 rgba(255, 255, 255, 0.92))
-        drop-shadow(0 -3px 0 rgba(255, 255, 255, 0.92))
+        drop-shadow(3px 0 0 var(--jpf-ring))
+        drop-shadow(-3px 0 0 var(--jpf-ring))
+        drop-shadow(0 3px 0 var(--jpf-ring))
+        drop-shadow(0 -3px 0 var(--jpf-ring))
         drop-shadow(0 6px 20px var(--jpf-accent));
 }
 /* The small circular renderings clip to a circle already, so they
@@ -870,7 +870,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .profile-card:hover .add-avatar,
 .profile-card:focus .add-avatar,
 .profile-card:focus-within .add-avatar {
-    border-color: var(--jpf-ring); color: #fff;
+    border-color: var(--jpf-ring); color: var(--jpf-name-hover);
     background: var(--jpf-add-hover-bg) !important;
 }
 .profile-name {
@@ -945,7 +945,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 #bonfire-join-input {
     background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border);
-    border-radius: var(--jpf-input-r); padding: 10px; color: #fff; font-size: 1rem;
+    border-radius: var(--jpf-input-r); padding: 10px; color: var(--jpf-text-1); font-size: 1rem;
     transition: border-color 0.25s, box-shadow 0.25s;
     position: relative !important;
 }
@@ -1116,7 +1116,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 #profile-pin-input, #master-pin-input, #main-pin-new, #pin-reset-new, #pin-reset-code {
     background: var(--jpf-input-bg); border: 2px solid var(--jpf-input-border);
-    border-radius: var(--jpf-input-r); color: #fff; font-size: 2.5rem; text-align: center;
+    border-radius: var(--jpf-input-r); color: var(--jpf-text-1); font-size: 2.5rem; text-align: center;
     padding: 12px; width: 180px; letter-spacing: 0.6rem;
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
     -webkit-text-security: disc;
@@ -1340,13 +1340,13 @@ body.profiles-no-scroll [id*="spinner"] {
 .bonfire-form-group input[type="text"],
 .form-group input[type="password"] {
     background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border);
-    border-radius: var(--jpf-input-r); padding: 10px; color: #fff; font-size: 1rem;
+    border-radius: var(--jpf-input-r); padding: 10px; color: var(--jpf-text-1); font-size: 1rem;
 }
 .form-group select {
     background: var(--jpf-input-bg) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
     background-size: 20px;
     border: 1px solid var(--jpf-input-border);
-    border-radius: var(--jpf-input-r); padding: 10px; color: #fff; font-size: 1rem;
+    border-radius: var(--jpf-input-r); padding: 10px; color: var(--jpf-text-1); font-size: 1rem;
     cursor: pointer;
     appearance: none;
     -webkit-appearance: none;
@@ -1355,7 +1355,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .form-group select option {
     background-color: var(--jpf-panel);
-    color: #fff;
+    color: var(--jpf-text-1);
 }
 .form-group input:focus, .form-group select:focus {
     border-color: var(--jpf-accent); outline: none;
@@ -1370,12 +1370,12 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .color-dot:hover,
 .color-dot:focus {
-    border-color: rgba(255,255,255,0.8);
+    border-color: var(--jpf-text-2);
     transform: scale(1.1);
     outline: none;
 }
 .color-dot.active {
-    border-color: #fff; transform: scale(1.1);
+    border-color: var(--jpf-text-1); transform: scale(1.1);
 }
 /* No max-height, for the same reason as .libart-list below. Capped at 140px it
    showed about four libraries of a real server's twenty, in a box that scrolled
@@ -1519,7 +1519,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .library-check-label:focus, .library-check-label:hover {
     background: var(--jpf-surface-2);
-    color: #fff;
+    color: var(--jpf-text-1);
     outline: none;
 }
 .library-check-label:focus input, .library-check-label:hover input {
@@ -1556,7 +1556,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .profile-section-title {
     font-size: 1.05rem;
     font-weight: 700;
-    color: #fff;
+    color: var(--jpf-text-1);
     margin: 0;
     line-height: 1.3;
 }
@@ -1684,7 +1684,7 @@ body.profiles-no-scroll [id*="spinner"] {
     flex: 1 1 auto;
     min-width: 0;
 }
-.jpf-more-title { font-size: 1.05rem; font-weight: 700; color: #fff; }
+.jpf-more-title { font-size: 1.05rem; font-weight: 700; color: var(--jpf-text-1); }
 .jpf-more-hint { font-size: 0.8rem; color: var(--jpf-text-3); }
 .jpf-more-caret { transition: transform 0.2s; }
 .jpf-more[open] .jpf-more-caret { transform: rotate(180deg); }
@@ -1892,7 +1892,7 @@ body.profiles-no-scroll [id*="spinner"] {
     display: inline-flex; align-items: center; gap: 6px;
     background: var(--jpf-accent-a18);
     border: 1px solid var(--jpf-accent-a45);
-    color: #fff; border-radius: 999px;
+    color: var(--jpf-text-1); border-radius: 999px;
     padding: 3px 6px 3px 12px; font-size: 0.85rem;
     max-width: 100%; word-break: break-word;
 }
@@ -1904,7 +1904,7 @@ body.profiles-no-scroll [id*="spinner"] {
     transition: background 0.2s, color 0.2s;
 }
 .tag-chip-remove:hover, .tag-chip-remove:focus {
-    background: var(--jpf-border-3); color: #fff; outline: none;
+    background: var(--jpf-border-3); color: var(--jpf-text-1); outline: none;
 }
 .tag-input-row {
     display: flex; gap: 8px;
@@ -1965,7 +1965,7 @@ body.profiles-no-scroll [id*="spinner"] {
     border-radius: var(--jpf-input-r);
     padding: 10px;
     padding-right: 36px;
-    color: #fff;
+    color: var(--jpf-text-1);
     font-size: 1rem;
     cursor: pointer;
     user-select: none;
