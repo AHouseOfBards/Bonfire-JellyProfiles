@@ -125,7 +125,7 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(typeof(AccountLinksResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult<AccountLinksResponse> RemoveAccountLink([FromBody] RemoveAccountLinkRequest request)
+        public async Task<ActionResult<AccountLinksResponse>> RemoveAccountLink([FromBody] RemoveAccountLinkRequest request)
         {
             var caller = GetCurrentUserId();
             if (caller == null) return Unauthorized();
@@ -143,8 +143,9 @@ namespace Jellyfin.Profiles.Controllers
             else return Unauthorized(LinkNotFoundMessage);
 
             if (!RemoveLink(household, account)) return BadRequest(LinkNotFoundMessage);
+            await SignOutClosedEntriesAsync().ConfigureAwait(false);
 
-            var who = _userManager.GetUserById(me)?.Username ?? me.ToString();
+            var who =_userManager.GetUserById(me)?.Username ?? me.ToString();
             var other = _userManager.GetUserById(household == me ? account : household)?.Username ?? "an account";
             LogActivity(household == me
                     ? who + " took " + other + " off their switcher"
@@ -197,12 +198,13 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult AdminRemoveAccountLink([FromBody] AdminAccountLinkRequest request)
+        public async Task<ActionResult> AdminRemoveAccountLink([FromBody] AdminAccountLinkRequest request)
         {
             var adminError = RequireAdministrator("take an account off a switcher");
             if (adminError != null) return adminError;
             if (request == null) return BadRequest("Missing request body.");
             if (!RemoveLink(request.HouseholdId, request.UserId)) return BadRequest(LinkNotFoundMessage);
+            await SignOutClosedEntriesAsync().ConfigureAwait(false);
 
             LogActivity(CallerName() + " took " + (_userManager.GetUserById(request.UserId)?.Username ?? "an account")
                     + " off " + (_userManager.GetUserById(request.HouseholdId)?.Username ?? "a household") + "'s switcher",

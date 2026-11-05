@@ -164,7 +164,8 @@ var sessionStub = (SessionStub)(object)sessions;
 SessionStub.OnRevoke = id => world.Log.Add("revoke " + id);
 World.MappedNow = id => Row(id) is object mr && (Guid)mapType.GetProperty("MasterUserId").GetValue(mr) != id;
 
-(int status, object value) Call(string method, Guid caller, Dictionary<string, object> body = null, string pinHeader = null, string ip = "192.168.1.20")
+(int status, object value) Call(string method, Guid caller, Dictionary<string, object> body = null, string pinHeader = null, string ip = "192.168.1.20",
+    string deviceId = null)
 {
     var r = ctrlType.GetMethod(method);
     if (r == null) return (-404, "no route " + method);
@@ -172,6 +173,7 @@ World.MappedNow = id => Row(id) is object mr && (Guid)mapType.GetProperty("Maste
     var args = ctor.GetParameters().Select(p =>
         p.ParameterType == typeof(IUserManager) ? users
         : p.ParameterType == typeof(ISessionManager) ? sessions
+        : p.ParameterType == typeof(MediaBrowser.Controller.Devices.IDeviceManager) ? DeviceStub.Create()
         : p.ParameterType == typeof(INetworkManager) ? NetworkStub.Create()
         : p.ParameterType == typeof(ILibraryManager) ? Loose<ILibraryManager>.Create()
         : p.ParameterType.Name.StartsWith("ILogger") ? Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(ctrlType))
@@ -184,6 +186,8 @@ World.MappedNow = id => Row(id) is object mr && (Guid)mapType.GetProperty("Maste
         RequestServices = new Services(),
     };
     http.Connection.RemoteIpAddress = IPAddress.Parse(ip);
+    if (deviceId != null)
+        http.Request.Headers["Authorization"] = "MediaBrowser Client=\"Jellyfin Web\", Device=\"Firefox\", DeviceId=\"" + deviceId + "\", Version=\"10.11.0\"";
     if (pinHeader != null) http.Request.Headers["X-Bonfire-Master-Pin"] = pinHeader;
     c.ControllerContext = new ControllerContext { HttpContext = http };
 
@@ -386,6 +390,40 @@ r = Call("SwitchProfile", OTHER, B(("ProfileId", DAD)));
 Ok("another household can't open it", Refused(r) && sessionStub.Opened.Count(x => x == DAD) == 1, Text(r));
 r = Call("SwitchProfile", DAD, B(("ProfileId", HOME), ("Pin", "1234")));
 Ok("and the added account sees nothing of the household", Refused(r), Text(r));
+
+// ── Taking the door away ─────────────────────────────────────────────────────
+Section("Taking the door away");
+
+// /switch hands back an ordinary Jellyfin token, and those don't expire. Removing a link or
+// kicking a member took the door away and left whoever was through it inside (R-1302).
+SessionStub.SignedOut.Clear();
+r = Call("SwitchProfile", HOME, B(("ProfileId", MUM), ("Pin", "4321")), deviceId: "living-room");
+Ok("the household opens Mum on the living-room TV", r.status == 200, Text(r));
+Call("SwitchProfile", HOME, B(("ProfileId", DAD)), deviceId: "living-room");
+Call("SwitchProfile", HOME, B(("ProfileId", KID)), deviceId: "living-room");
+r = Call("RemoveAccountLink", HOME, B(("UserId", MUM), ("MasterPin", "1234")));
+Ok("taking Mum off the switcher signs Mum out on the TV that opened her",
+   r.status == 200 && SessionStub.SignedOut.Contains((MUM, "living-room")), string.Join(", ", SessionStub.SignedOut));
+Ok("only Mum: an account still added stays signed in", !SessionStub.SignedOut.Any(x => x.user == DAD));
+Ok("and the household's own profiles are never touched", !SessionStub.SignedOut.Any(x => x.user == KID || x.user == HOME));
+ResetLimits();
+Call("AddAccountLink", HOME, B(("Username", "Mum"), ("Password", "mumpw"), ("MasterPin", "1234")));
+
+SessionStub.SignedOut.Clear();
+mapType.GetProperty("PinHash").SetValue(Row(OKID), Hash("2468"));
+var fire = Activator.CreateInstance(groupType);
+groupType.GetProperty("OwnerUserId").SetValue(fire, OTHER);
+((IList)groupType.GetProperty("MemberUserIds").GetValue(fire)).Add(HOME);
+var fires = (IList)cfgType.GetProperty("BonfireGroups").GetValue(config);
+fires.Add(fire);
+r = Call("SwitchProfile", HOME, B(("ProfileId", OKID), ("Pin", "2468")), deviceId: "living-room");
+Ok("a Bonfire member opens the neighbour's kid with its PIN", r.status == 200, Text(r));
+r = Call("KickBonfireMember", OTHER, B(("MemberId", HOME)));
+Ok("kicking the member signs the neighbour's kid out on that TV",
+   r.status == 200 && SessionStub.SignedOut.Contains((OKID, "living-room")), Text(r) + " | " + string.Join(", ", SessionStub.SignedOut));
+fires.Remove(fire);
+mapType.GetProperty("PinHash").SetValue(Row(OKID), null);
+world.Log.Clear(); // the switches above synced the profiles' policies; nothing below is about them
 
 // ── The administrator ────────────────────────────────────────────────────────
 Section("The administrator");
@@ -676,6 +714,30 @@ public class SessionStub : DispatchProxy
                 Revoked.Add((Guid)args[0]);
                 OnRevoke((Guid)args[0]);
                 return Task.CompletedTask;
+            case "Logout" when args.Length == 1 && args[0] is Jellyfin.Database.Implementations.Entities.Security.Device d:
+                SignedOut.Add((d.UserId, d.DeviceId));
+                return Task.CompletedTask;
+        }
+        return Loose.Default(m.ReturnType);
+    }
+
+    /// <summary>(account, device) pairs signed out one device at a time.</summary>
+    public static List<(Guid user, string device)> SignedOut = new();
+}
+
+/// <summary>Jellyfin's device rows: every (account, device) pair asked about has one.</summary>
+public class DeviceStub : DispatchProxy
+{
+    public static MediaBrowser.Controller.Devices.IDeviceManager Create()
+        => Create<MediaBrowser.Controller.Devices.IDeviceManager, DeviceStub>();
+
+    protected override object Invoke(MethodInfo m, object[] args)
+    {
+        if (m.Name == "GetDevices" && args[0] is Jellyfin.Data.Queries.DeviceQuery q && q.UserId is Guid u && !string.IsNullOrEmpty(q.DeviceId))
+        {
+            var d = new Jellyfin.Database.Implementations.Entities.Security.Device(u, "Jellyfin Web", "10.11.0", "Firefox", q.DeviceId);
+            return new MediaBrowser.Model.Querying.QueryResult<Jellyfin.Database.Implementations.Entities.Security.Device>(
+                new List<Jellyfin.Database.Implementations.Entities.Security.Device> { d });
         }
         return Loose.Default(m.ReturnType);
     }
