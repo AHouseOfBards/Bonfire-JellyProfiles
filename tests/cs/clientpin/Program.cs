@@ -798,6 +798,38 @@ if (reconcile != null)
            == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
        users[MASTER].AuthenticationProviderId);
 
+    // Accounts bound here that the configuration no longer knows about (R-1318). Jellyfin
+    // replaces an unreadable PluginConfiguration.xml with defaults, and a rollback drops
+    // what an older build can't read: the mappings are gone, the accounts are still bound,
+    // and a bound account is offered no provider but this one. With the feature off it is
+    // offered nothing at all, so a main account's real password stopped working.
+    var ORPHANM = Guid.NewGuid();
+    var ORPHANKID = Guid.NewGuid();
+    users[ORPHANM] = MakeUser(ORPHANM, "forgotten");
+    users[ORPHANM].AuthenticationProviderId = providerType.FullName;
+    users[ORPHANKID] = MakeUser(ORPHANKID, "forgotten_kids");
+    users[ORPHANKID].AuthenticationProviderId = providerType.FullName;
+    reconcile.Invoke(task, null);
+    Ok("a main account bound here that no household lists any more is put back on Jellyfin's",
+       users[ORPHANM].AuthenticationProviderId == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
+       users[ORPHANM].AuthenticationProviderId);
+    Ok("and so is a forgotten profile", users[ORPHANKID].AuthenticationProviderId
+       == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider", users[ORPHANKID].AuthenticationProviderId);
+
+    // The same with the configuration reset to its defaults: no mappings, feature off.
+    var saved = mappings.Cast<object>().ToList();
+    mappings.Clear();
+    enableProp.SetValue(config, false);
+    users[ORPHANM].AuthenticationProviderId = providerType.FullName;
+    users[MASTER].AuthenticationProviderId = providerType.FullName;
+    reconcile.Invoke(task, null);
+    Ok("after a reset to defaults, no account is left on a provider that is switched off",
+       users.Values.All(u => u.AuthenticationProviderId != providerType.FullName),
+       string.Join(", ", users.Values.Where(u => u.AuthenticationProviderId == providerType.FullName).Select(u => u.Username)));
+    foreach (var row in saved) mappings.Add(row);
+    users.Remove(ORPHANM);
+    users.Remove(ORPHANKID);
+
     enableProp.SetValue(config, true);
 }
 
@@ -1296,6 +1328,9 @@ public class RecordingUserManager : DispatchProxy
             case "UpdateUserAsync":
                 _writes.Add(((User)args[0]).AuthenticationProviderId);
                 return Task.CompletedTask;
+
+            case "get_Users":
+                return _users.Values.ToList();
 
             default:
                 throw new NotSupportedException(

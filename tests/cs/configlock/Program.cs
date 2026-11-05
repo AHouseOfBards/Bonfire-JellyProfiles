@@ -220,7 +220,9 @@ var allowed = new Dictionary<string, string>(StringComparer.Ordinal)
     ["JsCacheLock"]  = "static readonly; guards the one-time profiles.js cache",
     ["PatchLock"]    = "static readonly in ProfilesBootstrapTask; guards index.html patching",
     ["_cleanupLock"] = "static readonly in RateLimiter; guards the sweep",
-    ["CodesLock"]    = "static readonly in Mail.EmailCodes; guards issuing, checking and spending a code",
+    ["SaveAndCopyLock"]
+                     = "static readonly in Plugin; one configuration save and its .lastgood copy at a time",
+    ["CodesLock"]    ="static readonly in Mail.EmailCodes; guards issuing, checking and spending a code",
     ["UsageLock"]    = "static readonly in Auth.ViewingTracker; guards viewing time, extra time and requests",
     ["ViewingTracker.UsageLock"]
                      = "the same static readonly field, qualified from the timer and the gate",

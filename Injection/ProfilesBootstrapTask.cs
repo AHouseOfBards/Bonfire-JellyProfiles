@@ -431,12 +431,20 @@ namespace Jellyfin.Profiles
             // Restoring is the literal default provider rather than MasterProviderId, which
             // for a master would read back whatever it is currently bound to — this provider
             // — and pin it there permanently.
+            var belongsHere = new HashSet<Guid>();
+            if (enabled)
+            {
+                foreach (var m in rows.Where(m => m.MasterUserId != m.ProfileUserId && m.MasterUserId != Guid.Empty))
+                    belongsHere.Add(m.ProfileUserId);
+            }
+
             foreach (var masterId in rows.Select(m => m.MasterUserId).Where(id => id != Guid.Empty).Distinct())
             {
                 var qualifies = enabled
                     && rows.Any(m => m.ProfileUserId == masterId && m.MasterUserId == masterId
                                      && !string.IsNullOrEmpty(m.PinHash))
                     && rows.Any(m => m.MasterUserId == masterId && m.ProfileUserId != masterId);
+                if (qualifies) belongsHere.Add(masterId);
 
                 Point(masterId, current =>
                 {
@@ -450,6 +458,31 @@ namespace Jellyfin.Profiles
 
                     return boundHere ? DefaultProviderIdFallback : null;
                 });
+            }
+
+            // Every other account still bound here (R-1318). The loops above only visit what
+            // the configuration lists, and the configuration can forget: Jellyfin replaces an
+            // unreadable file with defaults, and a rollback drops what an older build can't
+            // read. Such an account is offered no provider but this one, which refuses it -
+            // and with the feature off, offers it nothing at all - so a main account's real
+            // password stopped working. Jellyfin's own provider is right for all of them: a
+            // profile's password is random, so it is simply closed until it is a profile again.
+            List<Jellyfin.Database.Implementations.Entities.User> everyone;
+            try
+            {
+                everyone = _userManager.Users.ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ProfilesPlugin: could not list accounts to find any left on Bonfire's provider.");
+                everyone = new List<Jellyfin.Database.Implementations.Entities.User>();
+            }
+
+            foreach (var user in everyone)
+            {
+                if (belongsHere.Contains(user.Id)) continue;
+                if (!string.Equals(user.AuthenticationProviderId, ours, StringComparison.OrdinalIgnoreCase)) continue;
+                Point(user.Id, _ => DefaultProviderIdFallback);
             }
 
             if (changed > 0)
@@ -506,6 +539,18 @@ namespace Jellyfin.Profiles
         public Task StartAsync(CancellationToken cancellationToken)
         {
             CleanupOldDlls();
+
+            // Before the reconciliation, which binds accounts by what the configuration lists:
+            // a restored configuration puts them back where they were (R-1127, R-1318).
+            _ = Plugin.Instance?.Configuration;
+            if (Plugin.RestoredFrom != null)
+            {
+                if (Plugin.Restored)
+                    _logger.LogWarning("ProfilesPlugin: the configuration file would not read, so the last copy that saved cleanly was restored. The unreadable file is kept at {Path}.", Plugin.RestoredFrom);
+                else
+                    _logger.LogError("ProfilesPlugin: the configuration file would not read and there was no earlier copy to restore, so Bonfire started empty. The unreadable file is kept at {Path}.", Plugin.RestoredFrom);
+            }
+
             ReconcileAuthProviders();
             lock (PatchLock)
             {
