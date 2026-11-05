@@ -371,7 +371,7 @@ namespace Jellyfin.Profiles.Controllers
                 var policy = _userManager.GetUserDto(user, string.Empty).Policy;
                 var wasHidden = policy.IsHidden;
                 var wasProvider = user.AuthenticationProviderId;
-                var enabled =ProfileFoldersFrom(policy, householdPolicy, out var allLibraries);
+                var enabled = ProfileFoldersFrom(policy, householdPolicy, out var allLibraries);
                 var blockedTags = NormalizeTags(policy.BlockedTags);
                 var allowedTags = NormalizeTags(policy.AllowedTags);
                 policy.IsHidden = true;

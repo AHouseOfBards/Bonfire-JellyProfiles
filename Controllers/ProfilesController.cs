@@ -3007,10 +3007,12 @@ namespace Jellyfin.Profiles.Controllers
 
             ThemeChange result;
             string resolved;
+            // Read before the lock: a user lookup can reach the database, and nothing else
+            // waits on ConfigLock for that.
+            var ownName = _userManager.GetUserById(masterUserId)?.Username;
             lock (ConfigLock)
             {
-                result = Themes.SetFor(config, masterUserId, request.ProfileId, request.Theme,
-                    _userManager.GetUserById(masterUserId)?.Username);
+                result = Themes.SetFor(config, masterUserId, request.ProfileId, request.Theme, ownName);
                 var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
                 resolved = Themes.Resolve(row, config);
                 if (result == ThemeChange.Changed) Plugin.Instance?.SaveConfiguration();
