@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bonfire dashboard</title>
+<style>
+    /* An approximation of jellyfin-web's dark dashboard around the plugin page: the icon
+       font, the root size, and plain dark form controls. The real ones (emby-input,
+       emby-checkbox, emby-select) are web components this page does not have, so a control
+       here is the right size and place but not the right look. */
+    @font-face { font-family: 'Material Icons'; font-style: normal; font-weight: 400; src: url(/fixture/material-icons.woff2) format('woff2'); }
+    .material-icons { font-family: 'Material Icons'; font-weight: normal; font-style: normal; font-size: 24px; line-height: 1;
+        display: inline-block; white-space: nowrap; direction: ltr; font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; }
+    html { font-family: Arial, Helvetica, sans-serif; line-height: 1.35; font-size: 93%; -webkit-font-smoothing: antialiased; }
+    html.layout-mobile { font-size: 90%; }
+    html, body { margin: 0; background: #101010; color: rgba(255, 255, 255, 0.87); }
+    :root { --accent: #00a4dc; }
+    .content-primary { padding: 1em 2em 4em; max-width: 54em; }
+    .layout-mobile .content-primary { padding: 1em 1em 4em; }
+    .sectionTitle { font-size: 1.4em; font-weight: 400; margin: 1.2em 0 0.6em; }
+    .fieldDescription { color: rgba(255, 255, 255, 0.6); font-size: 0.9em; margin-top: 0.25em; }
+    .inputContainer, .selectContainer, .checkboxContainer { margin-bottom: 1.6em; }
+    .inputLabel, .selectLabel { display: block; margin-bottom: 0.25em; }
+    input[type=text], input[type=number], input[type=email], input[type=password], input[type=url], select, textarea {
+        box-sizing: border-box; width: 100%; font: inherit; color: inherit; background: #292929;
+        border: 0.07em solid #292929; border-radius: 0.2em; padding: 0.4em 0.25em; }
+    textarea { min-height: 5em; }
+    input[type=checkbox] { width: 1.2em; height: 1.2em; margin: 0 0.6em 0 0; vertical-align: middle; accent-color: var(--accent); }
+    button { font: inherit; color: inherit; background: #303030; border: 0; border-radius: 0.2em; padding: 0.9em 1em; cursor: pointer; }
+    button.button-submit { background: var(--accent); color: #fff; }
+    a { color: var(--accent); }
+    * { caret-color: transparent !important; }
+</style>
+</head>
+<body>
+<script src="/dashboard.js"></script>
+<div class="content-primary">
+{{DASHBOARD}}
+</div>
+<script>window.__show();</script>
+</body>
+</html>

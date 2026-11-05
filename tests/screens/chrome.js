@@ -29,7 +29,12 @@ function findChrome() {
 const DEVICES = {
     phone: { width: 390, height: 844, mobile: true, scale: 2 },
     tablet: { width: 820, height: 1180, mobile: true, scale: 1 },
-    tv: { width: 1920, height: 1080, mobile: false, scale: 1 }
+    tv: { width: 1920, height: 1080, mobile: false, scale: 1 },
+    // The review's extra shapes (not in the goldens): a laptop with a mouse, a phone on its
+    // side, and a 720p television, where jellyfin-web's root is 20px rather than 27.
+    desktop: { width: 1440, height: 900, mobile: false, scale: 1 },
+    'phone-land': { width: 844, height: 390, mobile: true, scale: 2 },
+    tv720: { width: 1280, height: 720, mobile: false, scale: 1 }
 };
 
 async function launch() {

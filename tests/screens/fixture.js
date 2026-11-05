@@ -50,6 +50,25 @@ function start(port, options) {
             return send(200, TYPES['.html'], fs.readFileSync(path.join(__dirname, 'page.html')));
         }
         if (url.pathname === '/blank') return send(200, TYPES['.html'], '<!doctype html><title>blank</title>');
+        // The dashboard page, inside a stand-in for jellyfin-web's dashboard (dashboard.js).
+        if (url.pathname === '/dashboard') {
+            const page = fs.readFileSync(path.join(__dirname, 'dashboard.html'), 'utf8');
+            const plugin = fs.readFileSync(path.join(ROOT, 'Web', 'profilesDashboard.html'), 'utf8');
+            return send(200, TYPES['.html'], page.replace('{{DASHBOARD}}', () => plugin));
+        }
+        if (url.pathname === '/dashboard.js') {
+            return send(200, TYPES['.js'], fs.readFileSync(path.join(__dirname, 'dashboard.js')));
+        }
+        // GET /themes, built from the files the server reads: the built-ins, no custom ones.
+        if (url.pathname === '/fixture/themes.json') {
+            const dir = path.join(ROOT, 'Web', 'themes');
+            const themes = fs.readdirSync(dir).filter(f => /\.json$/.test(f) && f !== 'fonts.json').sort()
+                .map(f => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')));
+            const fonts = (JSON.parse(fs.readFileSync(path.join(dir, 'fonts.json'), 'utf8')).fonts || [])
+                .map(f => ({ family: f.family, fallback: f.fallback, files: [] }));
+            return send(200, 'application/json', JSON.stringify({ schema: 1, 'default': 'bonfire', profilesCanChoose: true,
+                hidden: [], themes, fonts, patterns: [], logo: { image: null, text: null, alt: null } }));
+        }
         if (url.pathname === '/scenes.js') {
             return send(200, TYPES['.js'], fs.readFileSync(path.join(__dirname, 'scenes.js')));
         }

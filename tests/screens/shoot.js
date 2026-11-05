@@ -70,7 +70,8 @@ async function main() {
         // being registered here too.
         await c.open('http://127.0.0.1:' + s.port + '/?scene=picker', 'tablet');
         const all = await c.evaluate('window.__scenes');
-        const scenes = a.scene ? a.scene.split(',') : all;
+        const review = await c.evaluate('window.__reviewScenes || []');
+        const scenes = !a.scene ? all : a.scene === 'review' ? review : a.scene === 'all' ? all.concat(review) : a.scene.split(',');
         for (const theme of themes) {
             const frost = (theme.decorations || []).some(d => d && d.name === 'frost');
             const devices = (a.device ? a.device.split(',') : ['phone', 'tablet', 'tv'].concat(frost ? ['tv-lowpower'] : []));
@@ -87,6 +88,17 @@ async function main() {
                     // The same picture every run: anything that loops (a drifting pattern)
                     // is held at its first frame, and any entrance is run to its end.
                     await c.evaluate('document.getAnimations().forEach(function(a){var t=a.effect&&a.effect.getComputedTiming();if(t&&t.iterations===Infinity){a.pause();a.currentTime=0;}else{try{a.finish();}catch(e){}}})');
+                    // --full yes: a screen taller than the device is shot whole, by growing the
+                    // window to fit whatever scrolls. For reading a long form, not a golden:
+                    // anything sized in vh grows with it.
+                    if (a.full === 'yes') {
+                        const extra = await c.evaluate('Math.max.apply(null,[0].concat([].slice.call(document.querySelectorAll("*")).filter(function(e){var o=getComputedStyle(e).overflowY;return (o==="auto"||o==="scroll")&&e.scrollHeight>e.clientHeight+1;}).map(function(e){return e.scrollHeight-e.clientHeight;})))');
+                        if (extra > 0) {
+                            const d = chrome.DEVICES[size];
+                            await c.page('Emulation.setDeviceMetricsOverride', { width: d.width, height: Math.min(d.height + extra, 8000), deviceScaleFactor: d.scale, mobile: d.mobile });
+                            await c.evaluate('new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(r)})})');
+                        }
+                    }
                     const said = [].concat(r.error ? ['error: ' + r.error] : [], r.misses.map(m => 'unanswered: ' + m), r.console);
                     if (said.length) { problems++; console.log('  ' + theme.id + ' ' + scene + ' ' + device + '\n    ' + said.join('\n    ')); }
                     fs.writeFileSync(path.join(dir, scene + '-' + device + '.webp'), await c.shot('webp', 82));
