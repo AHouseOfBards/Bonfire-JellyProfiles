@@ -139,6 +139,22 @@ namespace Jellyfin.Profiles.Controllers
             ("A daily limit is between", "limits_invalid"),
             ("More time is between", "limits_invalid"),
             ("That time zone isn't known", "time_zone_invalid"),
+
+            // Other accounts in a switcher, and an account made a profile (1.7.2).
+            ("That username or password isn't right", "credentials_wrong"),
+            ("That's your own account", "not_linkable"),
+            ("That's a profile. Add its main account", "not_linkable"),
+            ("That account is already here", "already_linked"),
+            ("A household can show up to", "link_limit"),
+            ("An administrator account needs a PIN", "admin_pin_required"),
+            ("That account isn't shown there", "link_not_found"),
+            ("User not found", "user_not_found"),
+            ("An administrator can't be made a profile", "not_convertible"),
+            ("That account is already a profile", "not_convertible"),
+            ("Choose a main account, not a profile", "not_convertible"),
+            ("Choose another account's household", "not_convertible"),
+            ("It has profiles of its own", "not_convertible"),
+            ("It's in a Bonfire. Leave it first", "not_convertible"),
         };
 
         /// <summary>The code for an error, from its status and message.</summary>

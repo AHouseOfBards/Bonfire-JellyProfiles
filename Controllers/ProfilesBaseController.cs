@@ -400,14 +400,46 @@ namespace Jellyfin.Profiles.Controllers
         /// hiding the tile.
         /// </para>
         /// </summary>
+        /// <param name="linkedAccounts">
+        /// The accounts shown in the caller's household (issue #39), each with whether it is an
+        /// administrator. See <see cref="LinkedAccount"/> for the rules.
+        /// </param>
         internal static SwitchRules EvaluateSwitch(
             IReadOnlyList<ProfileMapping> mappings,
             Guid callerMasterUserId,
             Guid targetId,
             ICollection<Guid> linkedMasterIds,
-            bool isLocal)
+            bool isLocal,
+            IReadOnlyDictionary<Guid, bool>? linkedAccounts)
         {
             var target = mappings.FirstOrDefault(m => m.ProfileUserId == targetId);
+
+            // Checked ahead of a Bonfire, whose rules would refuse an account with no PIN. The
+            // link's password was the consent; a Bonfire code never was.
+            if (targetId != callerMasterUserId && linkedAccounts != null && linkedAccounts.TryGetValue(targetId, out var linkedIsAdmin))
+            {
+                // Linked as a main account and made a profile since: the link is stale, and a
+                // profile is only ever opened from its own household or a Bonfire.
+                if (target != null && target.MasterUserId != Guid.Empty && target.MasterUserId != targetId)
+                {
+                    return new SwitchRules { Unauthorized = true, Target = target };
+                }
+
+                if (string.IsNullOrEmpty(target?.PinHash))
+                {
+                    return linkedIsAdmin
+                        ? new SwitchRules { Target = target, CrossHousehold = true, Refusal = AccountLinks.AdminNeedsPinMessage }
+                        : new SwitchRules { Target = target, CrossHousehold = true };
+                }
+
+                // An administrator's PIN is asked for on every network.
+                return new SwitchRules
+                {
+                    Target = target,
+                    CrossHousehold = true,
+                    HouseholdLanBypass = !linkedIsAdmin && isLocal && target!.AllowHouseholdLanBypass
+                };
+            }
 
             Guid household;
             if (targetId == callerMasterUserId) household = callerMasterUserId;
@@ -1762,6 +1794,29 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
             return linked;
+        }
+
+        /// <summary>
+        /// The accounts shown in <paramref name="householdId"/>'s switcher (issue #39) that still
+        /// exist, each with whether it is an administrator, for <see cref="EvaluateSwitch(IReadOnlyList{ProfileMapping}, Guid, Guid, ICollection{Guid}, bool, IReadOnlyDictionary{Guid, bool}?)"/>.
+        /// Read live: an account made an administrator after it was added is treated as one.
+        /// </summary>
+        protected Dictionary<Guid, bool> LinkedAccountsFor(Guid householdId, PluginConfiguration config)
+        {
+            List<Guid> ids;
+            lock (ConfigLock)
+            {
+                ids = AccountLinks.In(config, householdId);
+            }
+
+            var result = new Dictionary<Guid, bool>();
+            foreach (var id in ids)
+            {
+                var user = _userManager.GetUserById(id);
+                if (user != null) result[id] = IsAdministratorAccount(user);
+            }
+
+            return result;
         }
 
         protected int GetMaxProfilesForUser(Guid userId, PluginConfiguration config)

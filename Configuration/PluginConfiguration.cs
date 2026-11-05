@@ -22,6 +22,9 @@ namespace Jellyfin.Profiles.Configuration
         public List<ProfileMapping> Mappings { get; set; } = new List<ProfileMapping>();
         public List<KnownDevice> KnownDevices { get; set; } = new List<KnownDevice>();
         public List<BonfireGroup> BonfireGroups { get; set; } = new List<BonfireGroup>();
+
+        /// <summary>Other accounts shown in a household's switcher (issue #39). See <see cref="LinkedAccount"/>.</summary>
+        public List<LinkedAccount> LinkedAccounts { get; set; } = new List<LinkedAccount>();
         public List<UserProfileLimitOverride> UserProfileLimitOverrides { get; set; } = new List<UserProfileLimitOverride>();
         // AuditLogs have been moved to a separate audit_log.json file so they no longer
         // cause a full PluginConfiguration.xml rewrite on every profile switch.
@@ -56,6 +59,7 @@ namespace Jellyfin.Profiles.Configuration
             copy.Mappings = Mappings?.Select(m => m.CopyForReading()).ToList() ?? new List<ProfileMapping>();
             copy.KnownDevices = KnownDevices?.ToList() ?? new List<KnownDevice>();
             copy.BonfireGroups = BonfireGroups?.ToList() ?? new List<BonfireGroup>();
+            copy.LinkedAccounts = LinkedAccounts?.Select(l => l.Copy()).ToList() ?? new List<LinkedAccount>();
             copy.UserProfileLimitOverrides = UserProfileLimitOverrides?.ToList() ?? new List<UserProfileLimitOverride>();
             copy.AvatarLibrary = AvatarLibrary?.ToList() ?? new List<AvatarLibraryItem>();
             copy.QuickConnectSharedDeviceNames = QuickConnectSharedDeviceNames?.ToList() ?? new List<string>();

@@ -77,6 +77,7 @@ namespace Jellyfin.Profiles.Controllers
             bool localHidesOthers = localMapping?.HideOthersSubProfilesFromMe ?? false;
 
             var linkedMasterIds = GetLinkedMasterUserIds(masterUserId, config);
+            var addedAccounts = LinkedAccountsFor(masterUserId, config);
             var profileList = new List<object>();
 
             foreach (var linkedId in linkedMasterIds)
@@ -92,11 +93,19 @@ namespace Jellyfin.Profiles.Controllers
                 //  - Your own account: BypassPinOnLocalNetwork, or AskPinToOpen turned off.
                 //  - A linked account: only AllowHouseholdLanBypass, which belongs to that
                 //    account's owner. Your own settings never reach across a link.
+                //  - An account also added to this household (issue #39): the added account's
+                //    rules, which is what /switch applies to it.
                 bool crossHousehold = linkedId != masterUserId;
+                bool added = crossHousehold && addedAccounts.ContainsKey(linkedId);
+                var addedRules = added
+                    ? EvaluateSwitch(config.Mappings, masterUserId, linkedId, linkedMasterIds, isLocal, addedAccounts)
+                    : null;
                 bool masterRequiresPin = linkedMapping != null
                     && !string.IsNullOrEmpty(linkedMapping.PinHash)
                     && !CanSkipPin(linkedMapping, isLocal, crossHousehold,
-                        householdLanBypass: isLocal && linkedMapping.AllowHouseholdLanBypass);
+                        householdLanBypass: addedRules != null
+                            ? addedRules.HouseholdLanBypass
+                            : isLocal && linkedMapping.AllowHouseholdLanBypass);
 
                 profileList.Add(new
                 {
@@ -124,6 +133,9 @@ namespace Jellyfin.Profiles.Controllers
                         ? (linkedMapping?.AllowedDeviceIds ?? new List<string>())
                         : new List<string>(),
                     IsBonfire = (linkedId != masterUserId),
+                    // Shown with its Bonfire, profiles and all, even when also added here:
+                    // only its PIN rule is the added account's.
+                    IsLinked = false,
                     ProfileImage = ImageForViewer(linkedMapping?.ProfileImage, linkedId == masterUserId),
                     MasterUserId = linkedId
                 });
@@ -153,7 +165,7 @@ namespace Jellyfin.Profiles.Controllers
                     var shadowProfiles = config.Mappings
                         .Where(m => m.MasterUserId == linkedId && m.ProfileUserId != linkedId)
                         .Select(m => (Row: m, Rules: EvaluateSwitch(
-                            mappingsSnapshot, masterUserId, m.ProfileUserId, linkedMasterIds, isLocal)))
+                            mappingsSnapshot, masterUserId, m.ProfileUserId, linkedMasterIds, isLocal, addedAccounts)))
                         // Mirror /switch exactly. A tile it would refuse — hidden by either
                         // household, or PIN-less in another household without its owner's
                         // consent — is a door that does not open.
@@ -196,6 +208,40 @@ namespace Jellyfin.Profiles.Controllers
 
                     profileList.AddRange(shadowProfiles);
                 }
+            }
+
+            // Accounts added to this household (issue #39), after its own and its Bonfire's.
+            // The account only: its own profiles belong to its own household. One that is
+            // also in a Bonfire with this household is already above.
+            foreach (var addedId in addedAccounts.Keys.Where(id => !linkedMasterIds.Contains(id)))
+            {
+                var addedUser = _userManager.GetUserById(addedId);
+                if (addedUser == null) continue;
+                var rules = EvaluateSwitch(config.Mappings, masterUserId, addedId, linkedMasterIds, isLocal, addedAccounts);
+                // A tile /switch would refuse is a door that does not open.
+                if (rules.Unauthorized || rules.Refusal != null) continue;
+                var row = rules.Target;
+                bool hasPin = !string.IsNullOrEmpty(row?.PinHash);
+                profileList.Add(new
+                {
+                    ProfileUserId = addedId,
+                    ProfileName = addedUser.Username,
+                    AvatarInitial = string.IsNullOrEmpty(addedUser.Username) ? "?" : addedUser.Username.Substring(0, 1).ToUpper(),
+                    AvatarColor = row?.AvatarColor ?? "#00A4DC",
+                    TransparentAvatar = row?.TransparentAvatar ?? false,
+                    Theme = (string?)null,
+                    RequiresPin = hasPin && !CanSkipPin(row, isLocal, true, rules.HouseholdLanBypass),
+                    HasPin = hasPin,
+                    IsMaster = true,
+                    IsAdministrator = addedAccounts[addedId],
+                    LockoutMinutes = row?.LockoutMinutes ?? 5,
+                    BypassPinOnLocalNetwork = false,
+                    AllowedDeviceIds = new List<string>(),
+                    IsBonfire = true,
+                    IsLinked = true,
+                    ProfileImage = ImageForViewer(row?.ProfileImage, false),
+                    MasterUserId = addedId
+                });
             }
 
             // Apps ask for this every time the profile screen opens, and on a television
@@ -702,7 +748,8 @@ namespace Jellyfin.Profiles.Controllers
             // one TV actually want (issue #13). It is theirs to grant and nobody else's — the
             // caller's own BypassPinOnLocalNetwork does not carry across a link — and only on
             // the local network, so a leaked code is worth nothing outside the house.
-            var rules = EvaluateSwitch(config.Mappings, callerMasterUserId, request.ProfileId, linkedMasterIds, isLocal);
+            var rules = EvaluateSwitch(config.Mappings, callerMasterUserId, request.ProfileId, linkedMasterIds, isLocal,
+                LinkedAccountsFor(callerMasterUserId, config));
             if (rules.Unauthorized)
             {
                 return Unauthorized("Unauthorized profile switch attempt.");
@@ -941,7 +988,8 @@ namespace Jellyfin.Profiles.Controllers
 
             // Same rules as /switch, through the same function, so this endpoint can never
             // green-light a switch /switch would then refuse.
-            var rules = EvaluateSwitch(config.Mappings, callerMasterUserId, request.ProfileId, linkedMasterIds, isLocal);
+            var rules = EvaluateSwitch(config.Mappings, callerMasterUserId, request.ProfileId, linkedMasterIds, isLocal,
+                LinkedAccountsFor(callerMasterUserId, config));
             if (rules.Unauthorized)
             {
                 return Unauthorized("Unauthorized profile PIN verification.");
@@ -1012,6 +1060,13 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == user.Id);
                     var limitOverride = config.UserProfileLimitOverrides?.FirstOrDefault(o => o.UserId == user.Id)?.MaxProfiles;
+                    List<Guid> added;
+                    bool inBonfire;
+                    lock (ConfigLock)
+                    {
+                        added = AccountLinks.In(config, user.Id);
+                        inBonfire = config.BonfireGroups.Any(g => g.OwnerUserId == user.Id || g.MemberUserIds.Contains(user.Id));
+                    }
                     masterUsersList.Add(new
                     {
                         ProfileUserId = user.Id,
@@ -1019,7 +1074,15 @@ namespace Jellyfin.Profiles.Controllers
                         RequiresPin = mapping != null && !string.IsNullOrEmpty(mapping.PinHash),
                         MaxProfiles = GetMaxProfilesForUser(user.Id, config),
                         LimitOverride = limitOverride,
-                        ProfileImage = mapping?.ProfileImage
+                        ProfileImage = mapping?.ProfileImage,
+                        // For "Make it a profile", which refuses both.
+                        IsAdministrator = IsAdministratorAccount(user),
+                        InBonfire = inBonfire,
+                        // Other accounts shown in this household's switcher (issue #39).
+                        Added = added
+                            .Select(id => new { UserId = id, Name = _userManager.GetUserById(id)?.Username })
+                            .Where(a => a.Name != null)
+                            .ToList()
                     });
                 }
             }
@@ -1247,6 +1310,10 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     g.MemberUserIds?.RemoveAll(id => !Exists(id));
                 }
+
+                // An account shown in another household's switcher, where either side is gone.
+                // Nothing to review: a tile for an account that doesn't exist is never drawn.
+                config.LinkedAccounts?.RemoveAll(l => !Exists(l.UserId) || !Exists(l.HouseholdId));
 
                 // Devices are NOT touched here. A device outliving the profile that used it is
                 // normal — the hardware is still in the house — and dropping one that some
@@ -1526,6 +1593,13 @@ namespace Jellyfin.Profiles.Controllers
                 if (hasMappings) config.Mappings = mappings;
                 Auth.ViewingTracker.Invalidate();
                 if (hasGroups) config.BonfireGroups = groups;
+                if (TryProperty(root, "LinkedAccounts", out _))
+                {
+                    config.LinkedAccounts = (incoming.LinkedAccounts ?? new List<LinkedAccount>())
+                        .Where(l => l != null && l.UserId != l.HouseholdId && Exists(l.UserId) && Exists(l.HouseholdId))
+                        .GroupBy(l => (l.HouseholdId, l.UserId)).Select(g => g.First())
+                        .ToList();
+                }
                 if (hasDevices) config.KnownDevices = incoming.KnownDevices;
                 if (hasLimits) config.UserProfileLimitOverrides = incoming.UserProfileLimitOverrides;
                 if (hasAvatars) config.AvatarLibrary = incoming.AvatarLibrary;

@@ -25,6 +25,7 @@ for Bonfire's own client. It's documented because other people build against it 
 - [Library artwork](#library-artwork)
 - [Devices](#devices)
 - [Bonfire](#bonfire)
+- [Other accounts](#other-accounts)
 - [Preferences](#preferences)
 - [First-time setup](#first-time-setup)
 - [Email](#email)
@@ -38,7 +39,7 @@ for Bonfire's own client. It's documented because other people build against it 
 
 ## All routes
 
-All 83 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 89 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -86,6 +87,9 @@ All 83 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `POST /plugins/profiles/bonfire/regenerate-code` | user | Change the code. |
 | `POST /plugins/profiles/bonfire/leave` | user | Leave a Bonfire. |
 | `POST /plugins/profiles/bonfire/delete-group` | user | End your Bonfire. |
+| `GET /plugins/profiles/accounts/links` | user | Other accounts on the caller's switcher, and the switchers it's on. |
+| `POST /plugins/profiles/accounts/links/add` | user | Add another account, with its password. |
+| `POST /plugins/profiles/accounts/links/remove` | user | Take an account off, or leave another switcher. |
 | `GET /plugins/profiles/preferences` | user | Switcher preferences. |
 | `POST /plugins/profiles/preferences` | user | Change them. |
 | `POST /plugins/profiles/theme` | user | Set one profile's theme. |
@@ -125,6 +129,9 @@ All 83 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `POST /plugins/profiles/admin/retry-injection` | admin | Retry writing the script tag. |
 | `POST /plugins/profiles/admin/set-profile-limit` | admin | One account's profile limit. |
 | `POST /plugins/profiles/admin/standalone` | admin | Make a profile its own account. |
+| `POST /plugins/profiles/admin/make-profile` | admin | Make an account a profile of another. |
+| `POST /plugins/profiles/admin/links` | admin | Add an account to a switcher. |
+| `POST /plugins/profiles/admin/links/remove` | admin | Take it off. |
 | `GET /plugins/profiles/admin/audit-logs` | admin | The switch log. |
 
 ## Authentication
@@ -293,6 +300,13 @@ Invalid PIN code.
 | `email_invalid`, `email_missing` | The address isn't valid, or there's none confirmed. |
 | `code_expired`, `code_missing` | The email code has expired, or none was sent. |
 | `email_send_failed` | The mail server refused the message. |
+| `credentials_wrong` | The username or password for the account being added is wrong. |
+| `not_linkable` | That account can't be added: it's the caller's own, or it's a profile. |
+| `already_linked` | That account is already on the switcher. |
+| `link_limit` | The switcher already shows 10 other accounts. |
+| `admin_pin_required` | An administrator account needs a PIN before it can be added. |
+| `link_not_found` | That account isn't on that switcher. |
+| `not_convertible` | That account can't be made a profile. The body says why. |
 | `bonfire_not_owner`, `bonfire_not_member`, `bonfire_own_group`, `bonfire_member_not_found` | Bonfire group actions that don't apply to the caller. |
 | `profile_not_found`, `user_not_found`, `library_not_found`, `image_not_found`, `not_found` | The thing named doesn't exist. |
 | `image_invalid` | The picture is missing, unreadable, too large or not an image. |
@@ -399,7 +413,8 @@ Every profile the caller can switch to: their own household, then any linked Bon
 | `allowedTags` | string[] | The profile's own allowed tags. Empty means no allow-list. |
 | `bypassPinOnLocalNetwork` | boolean | Skip the PIN on the home network. |
 | `allowedDeviceIds` | string[] | Devices it may be opened on. Empty means any. |
-| `isBonfire` | boolean | Belongs to another household in the caller's Bonfire. |
+| `isBonfire` | boolean | Belongs to another household in the caller's Bonfire, or is an [added account](#other-accounts). |
+| `isLinked` | boolean | Another main account added to the caller's switcher. Opening it signs into that account. |
 | `profileImage` | string | `/plugins/profiles/image/{id}?v=…`, an `http(s)` URL, or null. |
 | `masterUserId` | GUID | The main account it belongs to. |
 | `viewing` | object | Profiles in the caller's household with [viewing hours](#viewing-hours) on. The `GET /limits/{profileId}` shape without `rules`. Otherwise null. |
@@ -1114,6 +1129,61 @@ Ends the caller's Bonfire and removes everyone from it.
 
 ---
 
+## Other accounts
+
+A main account can show another main account on its switcher. The tile opens that
+account itself, not its profiles. Adding needs the other account's password, typed once
+and never stored, or an administrator. Nothing about the added account changes, and it
+sees nothing of the switcher it's on.
+
+- Opening it asks for its own Bonfire PIN if it has one, otherwise nothing. Its owner's
+  home-network setting applies.
+- An administrator account must have a PIN, and it's always asked.
+- A switcher shows up to 10 other accounts. One account can be on many.
+- Either side can take it off.
+- The [profile picker](#the-profile-picker-beta) doesn't show added accounts.
+
+These routes are for main accounts, and take the main account's PIN (see
+[The main account's PIN](#the-main-accounts-pin)).
+
+### `GET /plugins/profiles/accounts/links`
+
+**Authorisation:** signed-in user, as a main account.
+
+```json
+{
+  "added": [{ "userId": "…", "name": "grandma", "hasPin": true, "byAdministrator": false, "linkedUtc": "2026-11-04T18:00:00Z" }],
+  "shownIn": [{ "userId": "…", "name": "john", "hasPin": false, "byAdministrator": true, "linkedUtc": "2026-11-01T09:12:00Z" }]
+}
+```
+
+`added` is on the caller's switcher. `shownIn` lists the switchers the caller is on.
+
+### `POST /plugins/profiles/accounts/links/add`
+
+**Authorisation:** signed-in user, as a main account.
+
+```json
+{ "username": "grandma", "password": "…", "masterPin": "1234" }
+```
+
+Returns the `GET` shape. A wrong password counts against the same limits as a wrong PIN,
+and against the account's own lockout in Jellyfin. Errors: `credentials_wrong`,
+`not_linkable`, `already_linked`, `link_limit`, `admin_pin_required`, `429`.
+
+### `POST /plugins/profiles/accounts/links/remove`
+
+**Authorisation:** signed-in user, as a main account.
+
+```json
+{ "userId": "…", "masterPin": "1234" }
+```
+
+Send `userId` to take an account off the caller's switcher, or `householdId` to take the
+caller off someone else's. Returns the `GET` shape. `link_not_found` otherwise.
+
+---
+
 ## Preferences
 
 Each household chooses these for itself. A profile reads its main account's, and only the
@@ -1824,6 +1894,8 @@ Bonfire writes these to **Dashboard → Activity**. `type` is what to filter on.
 | `BonfirePinLocked` | A PIN was locked by too many wrong tries. Once per lock, not per try. |
 | `BonfirePinReset` | An administrator cleared a PIN. |
 | `BonfireProfileMadeAccount` | An administrator made a profile its own account. |
+| `BonfireAccountMadeProfile` | An administrator made an account a profile. |
+| `BonfireAccountLinked`, `BonfireAccountUnlinked` | An account was added to a switcher, or taken off. |
 | `BonfireMaintenanceOn`, `BonfireMaintenanceOff` | The server was closed or reopened. |
 | `BonfireEmergencyDisable` | Someone used the emergency disable code. |
 
@@ -1888,6 +1960,8 @@ Every account and profile, and whether the client script is reaching browsers.
 | Field | Description |
 | --- | --- |
 | `subProfiles` | Group them by `masterUserId`. Names change. |
+| `isAdministrator`, `inBonfire` | On each main account. Neither can be made a profile. |
+| `added` | On each main account: `[{ "userId", "name" }]`, the other accounts on its switcher. |
 | `injectionSucceeded` | The script is reaching browsers. |
 | `isVersionStale` | The script tag on disk is an older version. The switcher still works. Always false under `middleware`. |
 | `failureReason` | What's wrong, or null. |
@@ -2034,6 +2108,41 @@ new password, on Jellyfin's own provider even if its main account uses LDAP or S
 shows on the sign-in screen if its main account does. `username` is optional; blank
 keeps the current one. Returns `{ "userId": "…", "username": "Sam" }`. It can't be
 undone.
+
+### `POST /plugins/profiles/admin/make-profile`
+
+**Authorisation:** administrator.
+
+```json
+{ "userId": "…", "householdId": "…", "profileName": "Sam" }
+```
+
+The reverse of `standalone`. The account becomes a profile of `householdId` and keeps its
+user, so watch history stays. It keeps its PIN, libraries, tags and picture. Its password
+is replaced with a random one, its sessions are signed out, and it's hidden from the
+sign-in screen. Its email and added accounts are removed. `profileName` is optional;
+blank keeps the username. Returns `{ "profileUserId": "…", "profileName": "Sam" }`.
+
+`not_convertible` for an administrator, an account with profiles, one in a Bonfire, one
+that's already a profile, or a `householdId` that is a profile. `profile_limit` and
+`name_taken` as for `/create`.
+
+### `POST /plugins/profiles/admin/links`
+
+**Authorisation:** administrator.
+
+```json
+{ "householdId": "…", "userId": "…" }
+```
+
+Adds `userId` to `householdId`'s switcher without its password. Same errors as
+[`accounts/links/add`](#post-pluginsprofilesaccountslinksadd), less `credentials_wrong`.
+
+### `POST /plugins/profiles/admin/links/remove`
+
+**Authorisation:** administrator.
+
+Same body. Takes it off. `link_not_found` if it isn't there.
 
 ### `GET /plugins/profiles/admin/audit-logs`
 

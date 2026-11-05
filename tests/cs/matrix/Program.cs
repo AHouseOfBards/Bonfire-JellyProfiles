@@ -449,7 +449,8 @@ if (evalSwitch != null)
 
     string Outcome(Guid target, bool isLocal, bool consent = false, bool ownerHides = false, bool iHide = false)
     {
-        var r = evalSwitch.Invoke(null, new object[] { Rows(consent, ownerHides, iHide), mine, target, linked, isLocal });
+        // No accounts added to this household: those rules are tests/cs/accountlinks.
+        var r = evalSwitch.Invoke(null, new object[] { Rows(consent, ownerHides, iHide), mine, target, linked, isLocal, null });
         var ty = r.GetType();
         if ((bool)ty.GetProperty("Unauthorized").GetValue(r)) return "unauthorized";
         if (ty.GetProperty("Refusal").GetValue(r) != null) return "refused";
@@ -474,7 +475,7 @@ if (evalSwitch != null)
 var controllerSrc = System.IO.File.ReadAllText(RepoPath("Controllers", "ProfilesController.cs"))
     .Replace("\r\n", "\n");
 Check("/switch uses it",
-    controllerSrc.Contains("var rules = EvaluateSwitch(config.Mappings, callerMasterUserId, request.ProfileId, linkedMasterIds, isLocal);\n            if (rules.Unauthorized)\n            {\n                return Unauthorized(\"Unauthorized profile switch attempt.\");"), true);
+    controllerSrc.Contains("var rules = EvaluateSwitch(config.Mappings, callerMasterUserId, request.ProfileId, linkedMasterIds, isLocal,\n                LinkedAccountsFor(callerMasterUserId, config));\n            if (rules.Unauthorized)\n            {\n                return Unauthorized(\"Unauthorized profile switch attempt.\");"), true);
 Check("/verify-pin uses it",
     controllerSrc.Contains("return Unauthorized(\"Unauthorized profile PIN verification.\");")
     && System.Text.RegularExpressions.Regex.Matches(controllerSrc, @"EvaluateSwitch\(").Count >= 3, true);
