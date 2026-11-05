@@ -268,8 +268,9 @@ fails isn't saved, and the settings page names the value at fault.
 
   | Pair | Minimum |
   | --- | --- |
-  | `text1`, `name`, and the title on the background | 7 : 1 |
+  | `text1`, and the title, on the background | 7 : 1 |
   | `text1` on `panel` | 7 : 1 |
+  | `name`, at `type.name.opacity`, on the background | 4.5 : 1 |
   | `text2` on the background | 4.5 : 1 |
   | `text3` on the background | 3 : 1 |
   | `onAccent` on `accent`, and on `accentFocus` | 4.5 : 1 |
@@ -296,10 +297,15 @@ as `If-None-Match` and you get `304` until something changes.
   "default": "bonfire",
   "profilesCanChoose": true,
   "themes": [ { "schema": 1, "id": "harvest", "revision": 4, "…": "…" } ],
-  "fonts": [ { "family": "Lora", "files": [ { "weight": 400, "style": "normal", "url": "/plugins/profiles/themes/fonts/lora-400.woff2" } ] } ],
+  "fonts": [ { "family": "Lora", "fallback": "serif", "files": [ { "weight": 400, "style": "normal", "url": "/plugins/profiles/themes/fonts/lora-400.woff2" } ] } ],
+  "patterns": [ { "name": "leaves", "url": "/plugins/profiles/themes/patterns/leaves" } ],
   "logo": { "image": "/plugins/profiles/themes/logo?v=3", "text": null }
 }
 ```
+
+- **A pattern's picture** is the entry in `patterns` whose `name` is the decoration's
+  `image`. It's SVG.
+- **A font with no `files`** isn't served yet. Use its `fallback`.
 
 - **Which theme a profile uses** is in `/list`, as each profile's `theme`. When it's
   `null`, use `default`. An id you don't recognise is an alias or a deleted theme: look

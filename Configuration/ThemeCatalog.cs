@@ -34,6 +34,15 @@ namespace Jellyfin.Profiles.Configuration
         public static IReadOnlyList<string> BuiltInIds =>
             Loaded.Value.Themes.Select(t => (string)t["id"]!).ToList();
 
+        /// <summary>The font families a theme may name.</summary>
+        public static IReadOnlyList<string> FontFamilies =>
+            Loaded.Value.Fonts.Select(f => f?["family"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null)
+                .Where(s => s != null).Select(s => s!).ToList();
+
+        /// <summary>Every problem with a theme file, against the fonts and pictures Bonfire holds.</summary>
+        public static IReadOnlyList<ThemeProblem> Validate(JsonNode? theme) =>
+            ThemeValidator.Validate(theme, FontFamilies, Patterns.Keys);
+
         /// <summary>
         /// What profiles.js is given in place of its <c>__BONFIRE_THEMES__</c> marker: the
         /// themes, the fonts, and each pattern as a data: URL so the web client fetches
@@ -60,6 +69,57 @@ namespace Jellyfin.Profiles.Configuration
                 ["patterns"] = patterns,
             };
             return payload.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
+        }
+
+        /// <summary>Where a pattern picture is served, relative to the server.</summary>
+        public static string PatternUrl(string name) => "/plugins/profiles/themes/patterns/" + Uri.EscapeDataString(name);
+
+        /// <summary>
+        /// What <c>GET /plugins/profiles/themes</c> returns: docs/themes.md, "Getting themes".
+        /// For other apps, so unlike <see cref="ClientPayload"/> the pictures are addresses
+        /// to fetch, and the web client's own notes on a font (the names it goes by when
+        /// installed) stay out of it.
+        /// </summary>
+        public static string PublicPayload(string defaultTheme, bool profilesCanChoose)
+        {
+            var fonts = new JsonArray();
+            foreach (var f in Loaded.Value.Fonts)
+            {
+                if (f is not JsonObject font) continue;
+                fonts.Add(new JsonObject
+                {
+                    ["family"] = font["family"]?.DeepClone(),
+                    ["fallback"] = font["fallback"]?.DeepClone(),
+                    // Bonfire serves no font files yet; an app uses the fallback until it does.
+                    ["files"] = new JsonArray(),
+                });
+            }
+
+            var patterns = new JsonArray();
+            foreach (var name in Patterns.Keys.OrderBy(k => k, StringComparer.Ordinal))
+            {
+                patterns.Add(new JsonObject { ["name"] = name, ["url"] = PatternUrl(name) });
+            }
+
+            var payload = new JsonObject
+            {
+                ["schema"] = ThemeValidator.Schema,
+                ["default"] = defaultTheme,
+                ["profilesCanChoose"] = profilesCanChoose,
+                ["themes"] = new JsonArray(BuiltIn.Select(t => (JsonNode)t.DeepClone()).ToArray()),
+                ["fonts"] = fonts,
+                ["patterns"] = patterns,
+                // No logo yet; an app draws none.
+                ["logo"] = new JsonObject { ["image"] = null, ["text"] = null },
+            };
+            return payload.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
+        }
+
+        /// <summary>A strong validator for <paramref name="payload"/>: its SHA-256, quoted.</summary>
+        public static string ETagFor(string payload)
+        {
+            var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(payload));
+            return "\"" + Convert.ToHexString(hash, 0, 16).ToLowerInvariant() + "\"";
         }
 
         private sealed record Catalog(List<JsonObject> Themes, JsonArray Fonts, Dictionary<string, string> Patterns);

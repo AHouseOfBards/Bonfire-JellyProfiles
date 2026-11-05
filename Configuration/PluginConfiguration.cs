@@ -380,7 +380,7 @@ namespace Jellyfin.Profiles.Configuration
     /// </summary>
     public static class Themes
     {
-        /// <summary>Bonfire's own look. Follows the server's Jellyfin accent colour.</summary>
+        /// <summary>Bonfire's own look: a fixed one since 1.7.2, not the server's accent.</summary>
         public const string Bonfire = "bonfire";
         public const string Crimson = "crimson";
         public const string Starlight = "starlight";

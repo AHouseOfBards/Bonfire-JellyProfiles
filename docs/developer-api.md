@@ -39,7 +39,7 @@ for Bonfire's own client. It's documented because other people build against it 
 
 ## All routes
 
-All 89 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 91 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -93,6 +93,8 @@ All 89 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `GET /plugins/profiles/preferences` | user | Switcher preferences. |
 | `POST /plugins/profiles/preferences` | user | Change them. |
 | `POST /plugins/profiles/theme` | user | Set one profile's theme. |
+| `GET /plugins/profiles/themes` | anon | Every theme, for other apps. |
+| `GET /plugins/profiles/themes/patterns/{name}` | anon | One pattern picture. |
 | `GET /plugins/profiles/onboarding` | user | First-time setup for this account. |
 | `POST /plugins/profiles/onboarding/done` | user | Record that it was seen. |
 | `GET /plugins/profiles/avatars` | user | The avatar library. |
@@ -147,7 +149,7 @@ Authorization: MediaBrowser Client="<Client>", Device="<Device>", DeviceId="<Dev
 token. A key has no user, so routes for a household (`/list`, `/me`, `/create` and the
 rest) refuse one.
 
-Eight routes are reachable without a token, because they're needed before anyone signs in.
+Ten routes are reachable without a token, because they're needed before anyone signs in.
 
 | Endpoint | Why it is anonymous |
 | --- | --- |
@@ -159,6 +161,8 @@ Eight routes are reachable without a token, because they're needed before anyone
 | `POST /panic` | Has to work when Bonfire is what's blocking the interface. Rate limited. |
 | `GET /info` | Read before sign-in to decide what to show. Server-wide settings only. |
 | `GET /panic-state` | Says only whether Bonfire is disabled. |
+| `GET /themes` | An app draws its switcher before sign-in. Only the default theme and whether profiles may choose. |
+| `GET /themes/patterns/{name}` | Pictures those themes use. Built-in files only. |
 
 The image routes can be reached by anyone who knows the id. Ids are GUIDs, so they can't
 be guessed.
@@ -1296,7 +1300,7 @@ proper names and aren't translated.
 
 | Id | Look |
 | --- | --- |
-| `bonfire` | The default. Follows the server's Jellyfin accent colour. |
+| `bonfire` | The default. |
 | `crimson` | Flat charcoal, red, square tiles, outlined capital-letter buttons. |
 | `starlight` | Flat navy, round tiles with a white ring, solid buttons that invert. |
 | `harbor` | Blue-grey gradient, bold type, round tiles, slate buttons. |
@@ -1335,6 +1339,35 @@ Errors:
 - `403`: the caller is a profile rather than the main account, `profileId` is outside
   the household, or the server doesn't let profiles choose.
 - `429`: too many wrong PINs.
+
+### `GET /plugins/profiles/themes`
+
+**Authorisation:** anonymous.
+
+Every theme as a file, for an app that draws its own switcher. The file format is in
+[Themes](themes.md).
+
+```json
+{
+  "schema": 1,
+  "default": "bonfire",
+  "profilesCanChoose": true,
+  "themes": [ { "schema": 1, "id": "harvest", "revision": 1, "…": "…" } ],
+  "fonts": [ { "family": "Georgia", "fallback": "serif", "files": [] } ],
+  "patterns": [ { "name": "leaves", "url": "/plugins/profiles/themes/patterns/leaves" } ],
+  "logo": { "image": null, "text": null }
+}
+```
+
+Sent with an `ETag`. Send it back as `If-None-Match` and you get `304` until something
+changes, including the server's default theme.
+
+### `GET /plugins/profiles/themes/patterns/{name}`
+
+**Authorisation:** anonymous.
+
+One pattern picture, as SVG. `name` is a decoration's `image`; the `url` in
+[`/themes`](#get-pluginsprofilesthemes) points here. `404` for a name Bonfire doesn't hold.
 
 ---
 

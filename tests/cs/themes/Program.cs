@@ -223,6 +223,138 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
         Ok("nothing outside ASCII reaches the script, so no U+2028 either",
            payloadText.All(ch => ch < 0x80));
         Ok("and nothing that can end the script it sits in", payloadText.IndexOf("</", StringComparison.Ordinal) == -1);
+
+        Console.WriteLine();
+        Console.WriteLine("── GET /themes, for other apps ──────────────────────────────────");
+        var pubText = ThemeCatalog.PublicPayload("harbor", false);
+        var pub = System.Text.Json.Nodes.JsonNode.Parse(pubText)!.AsObject();
+        Ok("it says schema 1", (int)pub["schema"]! == 1);
+        Ok("and the server's default and whether profiles may choose, as given",
+           (string)pub["default"]! == "harbor" && (bool)pub["profilesCanChoose"]! == false);
+        Ok("the same theme files the web client gets",
+           System.Text.Json.Nodes.JsonNode.DeepEquals(pub["themes"], payload["themes"]));
+        var pubPatterns = pub["patterns"]!.AsArray();
+        Ok("each pattern as an address to fetch, not a data: URL",
+           pubPatterns.Count == svgs.Length && pubPatterns.All(p =>
+               (string)p!["url"]! == "/plugins/profiles/themes/patterns/" + (string)p!["name"]!));
+        // The names a font goes by when installed are the web client's business; an app
+        // given them would try to match local fonts that differ device to device.
+        Ok("fonts carry a family, a fallback and files, and nothing else",
+           pub["fonts"]!.AsArray().All(f => f!.AsObject().Select(p => p.Key).OrderBy(k => k)
+               .SequenceEqual(new[] { "fallback", "family", "files" })));
+        Ok("every theme it sends passes the validator but for the known entries",
+           pub["themes"]!.AsArray().All(t => ThemeCatalog.Validate(t).All(p =>
+               (string)t!["id"]! == "bonfire" && p.Path == "colors.onAccent")));
+        var tag = ThemeCatalog.ETagFor(pubText);
+        Ok("its ETag is a quoted hash", System.Text.RegularExpressions.Regex.IsMatch(tag, "^\"[0-9a-f]{32}\"$"));
+        Ok("the same answer, the same ETag", ThemeCatalog.ETagFor(ThemeCatalog.PublicPayload("harbor", false)) == tag);
+        Ok("a new default, a new ETag, so no app keeps the old one",
+           ThemeCatalog.ETagFor(ThemeCatalog.PublicPayload("glass", false)) != tag
+           && ThemeCatalog.ETagFor(ThemeCatalog.PublicPayload("harbor", true)) != tag);
+
+        // The routes themselves: anonymous, but checked by apidocs.js against the table that
+        // says so. Here, that they read the catalog and nothing else.
+        var ctl = File.ReadAllText(Path.Combine(root, "Controllers", "ProfilesController.Themes.cs"));
+        Ok("the pattern route looks the name up, never builds a path from it",
+           ctl.Contains("ThemeCatalog.Patterns.TryGetValue(name", StringComparison.Ordinal)
+           && !ctl.Contains("Path.Combine", StringComparison.Ordinal) && !ctl.Contains("File.", StringComparison.Ordinal));
+        Ok("and serves SVG with a policy that runs no script",
+           ctl.Contains("\"default-src 'none'; style-src 'unsafe-inline'\"", StringComparison.Ordinal)
+           && ctl.Contains("nosniff", StringComparison.Ordinal));
+        Ok("/themes reads the settings inside ConfigLock", System.Text.RegularExpressions.Regex.IsMatch(ctl,
+           @"lock \(ConfigLock\)\s*\{\s*var config = Plugin\.Instance\?\.Configuration;"));
+
+        Console.WriteLine();
+        Console.WriteLine("── The validator: every built-in passes it ──────────────────────");
+        // A problem here is a theme the settings page would refuse to save if an
+        // administrator duplicated it unchanged. Known ones are listed with the decision they
+        // wait on, and each entry FAILS once the problem is gone, so none outlives its cause.
+        var known = new Dictionary<string, string>
+        {
+            // White on Jellyfin's blue, Bonfire's button since it wore the server's accent.
+            // tests/js/themes.js tracks the same failure.
+            ["bonfire colors.onAccent contrast"] = "1.7.2 theme review: Bonfire gets colours of its own",
+        };
+        foreach (var f in files)
+        {
+            var file = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(f))!;
+            var id = (string)file["id"]!;
+            var problems = ThemeCatalog.Validate(file);
+            foreach (var p in problems)
+            {
+                var key = id + " " + p.Path + " " + p.Code;
+                if (known.ContainsKey(key)) continue;
+                Ok(id + ": " + p.Path + " (" + p.Code + ") " + p.Detail, false);
+            }
+
+            Ok(id + " has no problem the list below does not name",
+               problems.All(p => known.ContainsKey(id + " " + p.Path + " " + p.Code)));
+        }
+
+        foreach (var k in known)
+        {
+            var id = k.Key.Split(' ')[0];
+            var f = files.FirstOrDefault(x => Path.GetFileNameWithoutExtension(x) == id);
+            var still = f != null && ThemeCatalog.Validate(System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(f)))
+                .Any(p => id + " " + p.Path + " " + p.Code == k.Key);
+            Ok("known: " + k.Key + " (" + k.Value + "); remove the entry if it is fixed", still);
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("── The validator: each broken file is caught, at the value at fault ");
+        // Harvest, which passes, broken one way at a time. Each must give the problem named,
+        // at the path named: a validator that said "invalid" without saying where would leave
+        // an administrator guessing, and one that missed a case lets it through to the screen.
+        var harvestText = File.ReadAllText(Path.Combine(dir, "harvest.json"));
+        System.Text.Json.Nodes.JsonObject Harvest() => System.Text.Json.Nodes.JsonNode.Parse(harvestText)!.AsObject();
+        void Caught(string what, Action<System.Text.Json.Nodes.JsonObject> breakIt, string path, string code)
+        {
+            var t = Harvest();
+            breakIt(t);
+            var problems = ThemeCatalog.Validate(t);
+            Ok(what + " → " + path + " (" + code + ")", problems.Any(p => p.Path == path && p.Code == code),
+               problems.Count == 0 ? "no problems" : string.Join("; ", problems.Select(p => p.Path + " " + p.Code)));
+        }
+
+        Ok("Harvest itself passes", ThemeCatalog.Validate(Harvest()).Count == 0);
+        Caught("a field schema 1 does not have", t => t["css"] = "body{}", "css", "unknown");
+        Caught("one inside a section", t => t["colors"]!["glow"] = "#ffffff", "colors.glow", "unknown");
+        Caught("a required colour missing", t => t["colors"]!.AsObject().Remove("accent"), "colors.accent", "missing");
+        Caught("a colour that is not one", t => t["colors"]!["ring"] = "orange", "colors.ring", "type");
+        Caught("a number given as text", t => t["shape"]!["ringWidth"] = "3", "shape.ringWidth", "type");
+        Caught("a number out of range", t => t["focus"]!["scale"] = 3, "focus.scale", "range");
+        Caught("an id with capitals and a space", t => t["id"] = "Bad Id", "id", "range");
+        Caught("a later schema", t => t["schema"] = 2, "schema", "range");
+        Caught("faint secondary text", t => t["colors"]!["text2"] = "#ffffff40", "colors.text2", "contrast");
+        // One layer whose LAST stop is white: the fill and the other stops are fine, so only
+        // a check of every stop on its own sees it.
+        Caught("a gradient unreadable only at one end",
+               t => t["background"]!["layers"]![0]!["stops"]![2]!["color"] = "#f0f0f0", "colors.text1", "contrast");
+        Caught("a name too faint at its opacity",
+               t => t["type"]!["name"]!["opacity"] = 0.5, "colors.name", "contrast");
+        Caught("button text too close to the hovered accent only",
+               t => t["colors"]!["accentFocus"] = "#5a2a10", "colors.onAccent", "contrast");
+        Caught("second-button text on its see-through fill",
+               t => t["parts"]!["button2"]!["text"] = "#a07040", "parts.button2.text", "contrast");
+        Caught("an error colour that is blue", t => t["colors"]!["danger"] = "#3366ff", "colors.danger", "hue");
+        Caught("a warning colour that is green", t => t["colors"]!["warning"] = "#33cc33", "colors.warning", "hue");
+        Caught("a font Bonfire does not serve", t => t["type"]!["font"]!["family"] = "Comic Sans MS", "type.font.family", "font");
+        Caught("a pattern Bonfire does not hold", t => t["decorations"]![0]!["image"] = "skulls", "decorations[0].image", "pattern");
+        Caught("a decoration schema 1 does not know",
+               t => t["decorations"]!.AsArray().Add(new System.Text.Json.Nodes.JsonObject { ["name"] = "sparkle" }), "decorations[1].name", "range");
+        Caught("an address in the name", t => t["name"] = new System.Text.Json.Nodes.JsonObject { ["text"] = "https://example.com" }, "name.text", "address");
+        Caught("an address in a field nothing reads",
+               t => t["colors"]!["glow"] = "url(//x)", "colors.glow", "address");
+        Caught("a name with a key and a text", t => t["name"]!["text"] = "Mine", "name", "missing");
+        Caught("a see-through background", t => t["background"]!["fill"] = "#30170b80", "background.fill", "range");
+        Caught("a file too big to be a theme",
+               t => t["aliases"] = new System.Text.Json.Nodes.JsonArray(Enumerable.Range(0, 7000).Select(i => (System.Text.Json.Nodes.JsonNode)("alias-" + i)).ToArray()), "", "size");
+        Caught("High contrast held to 7:1 where others need 4.5",
+               t => { t["id"] = ThemeValidator.HighContrastId; t["colors"]!["text2"] = "#ffffff99"; }, "colors.text2", "contrast");
+        var notHigh = Harvest();
+        notHigh["colors"]!["text2"] = "#ffffff99";
+        Ok("and the same text2 passes for any other theme", !ThemeCatalog.Validate(notHigh).Any(p => p.Path == "colors.text2"));
+        Ok("not an object at all", ThemeCatalog.Validate(System.Text.Json.Nodes.JsonNode.Parse("[1]")).Any(p => p.Code == "type"));
     }
 }
 
