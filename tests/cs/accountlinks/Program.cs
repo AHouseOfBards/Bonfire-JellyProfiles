@@ -40,7 +40,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 //    still an account, and only then mapped; it keeps its PIN, libraries and tags, loses
 //    its main-account row, email and links, and the household's restrictions go on top.
 //
-// Against 77b0d04 the first assertion fails: there is no such route.
+// Against 77b0d04 the first assertion fails: there is no such route. Against 74aa924 the
+// lockout checks fail: it checked the password through UserManager.AuthenticateUser.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -151,6 +152,12 @@ Map(ADMIN2, ADMIN2, "Root", pin: "9999");
 Map(OTHER, OTHER, "Neighbour");
 Map(OKID, OTHER, "Kid");
 
+var DIRECTORY = Guid.NewGuid(); world.Add(DIRECTORY, "Directory", "dpw");  // signs in through LDAP
+typeof(User).GetProperty("AuthenticationProviderId").SetValue(world.Users[DIRECTORY], "Jellyfin.Plugin.LDAP_Auth.LdapAuthenticationProviderPlugin");
+var GONE = Guid.NewGuid();    world.Add(GONE, "Gone", "gpw");                 // turned off in Jellyfin
+world.Disabled.Add(GONE);
+DefaultAuthenticationProvider.W = world;
+
 var users = World.Create(world);
 var sessions = SessionStub.Create();
 var sessionStub = (SessionStub)(object)sessions;
@@ -174,6 +181,7 @@ World.MappedNow = id => Row(id) is object mr && (Guid)mapType.GetProperty("Maste
     {
         User = new ClaimsPrincipal(new ClaimsIdentity(caller == Guid.Empty ? Array.Empty<Claim>()
             : new[] { new Claim("Jellyfin-UserId", caller.ToString()) }, caller == Guid.Empty ? null : "test")),
+        RequestServices = new Services(),
     };
     http.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.20");
     if (pinHeader != null) http.Request.Headers["X-Bonfire-Master-Pin"] = pinHeader;
@@ -258,7 +266,19 @@ Ok("and no session was made by trying", world.Sessions == 0);
 
 r = Call("AddAccountLink", HOME, B(("Username", "dad"), ("Password", "dadpw"), ("MasterPin", "1234")));
 Ok("the right password adds it", r.status == 200 && Linked(HOME, DAD), Text(r));
-Ok("checked without making a session", world.Sessions == 0 && world.AuthCalls.All(c => c.EndsWith(" session=False")), string.Join(" | ", world.AuthCalls));
+// AuthenticateUser counts a wrong password towards the account's lockout, and with one set
+// Jellyfin turns the account off: a household could disable someone by guessing. So the
+// password goes to Jellyfin's provider, which only compares it.
+Ok("checked by Jellyfin's own provider, with no session", world.Sessions == 0 && world.ProviderCalls.Count > 0, string.Join(" | ", world.ProviderCalls));
+Ok("so a wrong password never counts towards the account's lockout", world.AuthCalls.Count == 0 && world.LockoutCount.Count == 0,
+   string.Join(" | ", world.AuthCalls));
+var rq = Call("AddAccountLink", HOME, B(("Username", "Gone"), ("Password", "gpw"), ("MasterPin", "1234")));
+Ok("an account turned off in Jellyfin isn't added, in the same words", rq.status == 400 && (string)rq.value == "That username or password isn't right."
+   && !Linked(HOME, GONE), Text(rq));
+rq = Call("AddAccountLink", HOME, B(("Username", "Directory"), ("Password", "dpw"), ("MasterPin", "1234")));
+Ok("one that signs in through LDAP or SSO is for an administrator to add", rq.status == 400
+   && (string)rq.value == "That account signs in another way. Ask your server administrator to add it." && !Linked(HOME, DIRECTORY), Text(rq));
+Ok("and its password isn't tried anywhere", !world.ProviderCalls.Contains("Directory") && world.AuthCalls.Count == 0);
 var added = (IEnumerable)P(r.value, "Added");
 Ok("and the reply lists it", added != null && added.Cast<object>().Any(a => (Guid)P(a, "UserId") == DAD && (string)P(a, "Name") == "Dad"));
 r = Call("AddAccountLink", HOME, B(("Username", "Dad"), ("Password", "dadpw"), ("MasterPin", "1234")));
@@ -278,9 +298,10 @@ int lastStatus = 0;
 for (int i = 0; i < 12 && lastStatus != 429; i++)
     lastStatus = Call("AddAccountLink", HOME, B(("Username", "Lodger"), ("Password", "guess" + i), ("MasterPin", "1234"))).status;
 Ok("guessing passwords is stopped", lastStatus == 429, lastStatus.ToString());
-int triesBefore = world.AuthCalls.Count;
+int triesBefore = world.ProviderCalls.Count;
 r = Call("AddAccountLink", HOME, B(("Username", "Lodger"), ("Password", "lpw"), ("MasterPin", "1234")));
-Ok("and once stopped, even the right one isn't tried", r.status == 429 && world.AuthCalls.Count == triesBefore, Text(r));
+Ok("and once stopped, even the right one isn't tried", r.status == 429 && world.ProviderCalls.Count == triesBefore, Text(r));
+Ok("and none of that guessing counted towards the Lodger's lockout", !world.LockoutCount.ContainsKey(LODGER));
 ResetLimits();
 
 // ── Seeing and removing ──────────────────────────────────────────────────────
@@ -432,6 +453,9 @@ public class World
     public Dictionary<Guid, UserPolicy> Policies = new();
     public List<string> Log = new();
     public List<string> AuthCalls = new();
+    public List<string> ProviderCalls = new();
+    public HashSet<Guid> Disabled = new();
+    public Dictionary<Guid, int> LockoutCount = new();
     public int Sessions;
     public static Func<Guid, bool> MappedNow = _ => false;
 
@@ -464,7 +488,7 @@ public class WorldProxy : DispatchProxy
         var p = W.Policies[id];
         return new UserPolicy
         {
-            IsAdministrator = W.Admins.Contains(id), IsHidden = p.IsHidden, EnableAllFolders = p.EnableAllFolders,
+            IsAdministrator = W.Admins.Contains(id), IsDisabled = W.Disabled.Contains(id), IsHidden = p.IsHidden, EnableAllFolders = p.EnableAllFolders,
             EnabledFolders = p.EnabledFolders, BlockedMediaFolders = p.BlockedMediaFolders, BlockedTags = p.BlockedTags,
             AllowedTags = p.AllowedTags, AuthenticationProviderId = W.Users[id].AuthenticationProviderId, PasswordResetProviderId = "x",
             MaxParentalRating = p.MaxParentalRating,
@@ -490,7 +514,12 @@ public class WorldProxy : DispatchProxy
                 W.AuthCalls.Add(name + " session=" + args[3]);
                 var found = W.Users.Values.FirstOrDefault(x => string.Equals(x.Username, name, StringComparison.OrdinalIgnoreCase));
                 if (found == null || !W.Passwords.TryGetValue(found.Id, out var pw) || pw != (string)args[1])
+                {
+                    // What Jellyfin does here: IncrementInvalidLoginAttemptCount, and with a
+                    // lockout set, the account is turned off at the limit.
+                    if (found != null) W.LockoutCount[found.Id] = W.LockoutCount.GetValueOrDefault(found.Id) + 1;
                     return Task.FromException<User>(new System.Security.Authentication.AuthenticationException("Invalid username or password entered."));
+                }
                 if ((bool)args[3]) W.Sessions++;
                 return Task.FromResult(found);
             case "UpdatePolicyAsync":
@@ -515,6 +544,45 @@ public class WorldProxy : DispatchProxy
         }
         return Loose.Default(m.ReturnType);
     }
+}
+
+// Jellyfin's two registered providers, as the plugin finds them in the request's services.
+// The real DefaultAuthenticationProvider compares the hash and nothing else; the lockout
+// count lives in UserManager, which is what the add route must not go through.
+public sealed class DefaultAuthenticationProvider : MediaBrowser.Controller.Authentication.IAuthenticationProvider,
+    MediaBrowser.Controller.Authentication.IRequiresResolvedUser
+{
+    public static World W;
+    public string Name => "Default";
+    public bool IsEnabled => true;
+    public Task<MediaBrowser.Controller.Authentication.ProviderAuthenticationResult> Authenticate(string username, string password)
+        => throw new InvalidOperationException("the plugin must hand over the resolved user");
+    public Task<MediaBrowser.Controller.Authentication.ProviderAuthenticationResult> Authenticate(string username, string password, User resolvedUser)
+    {
+        W.ProviderCalls.Add(username);
+        if (resolvedUser == null || !W.Passwords.TryGetValue(resolvedUser.Id, out var pw) || pw != password)
+            throw new MediaBrowser.Controller.Authentication.AuthenticationException("Invalid username or password");
+        return Task.FromResult(new MediaBrowser.Controller.Authentication.ProviderAuthenticationResult { Username = username });
+    }
+    public bool HasPassword(User user) => true;
+    public Task ChangePassword(User user, string newPassword) => Task.CompletedTask;
+}
+
+public sealed class InvalidAuthProvider : MediaBrowser.Controller.Authentication.IAuthenticationProvider
+{
+    public string Name => "InvalidOrMissingAuthenticationProvider";
+    public bool IsEnabled => false;
+    public Task<MediaBrowser.Controller.Authentication.ProviderAuthenticationResult> Authenticate(string username, string password)
+        => throw new MediaBrowser.Controller.Authentication.AuthenticationException("refused");
+    public bool HasPassword(User user) => true;
+    public Task ChangePassword(User user, string newPassword) => Task.CompletedTask;
+}
+
+public sealed class Services : IServiceProvider
+{
+    public object GetService(Type t) => t == typeof(IEnumerable<MediaBrowser.Controller.Authentication.IAuthenticationProvider>)
+        ? new MediaBrowser.Controller.Authentication.IAuthenticationProvider[] { new InvalidAuthProvider(), new DefaultAuthenticationProvider() }
+        : null;
 }
 
 public static class Loose

@@ -142,6 +142,7 @@ namespace Jellyfin.Profiles.Controllers
 
             // Other accounts in a switcher, and an account made a profile (1.7.2).
             ("That username or password isn't right", "credentials_wrong"),
+            ("That account signs in another way", "admin_must_add"),
             ("That's your own account", "not_linkable"),
             ("That's a profile. Add its main account", "not_linkable"),
             ("That account is already here", "already_linked"),

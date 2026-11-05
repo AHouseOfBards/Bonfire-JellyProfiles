@@ -21,6 +21,7 @@ namespace Jellyfin.Profiles.Controllers
         internal const string CredentialsWrongMessage = "That username or password isn't right.";
         internal const string LinkNotFoundMessage = "That account isn't shown there.";
         internal const string MainAccountOnlyMessage = "Only the main account can do that.";
+        internal const string AdminMustAddMessage = "That account signs in another way. Ask your server administrator to add it.";
 
         // ── Other accounts in the switcher ───────────────────────────────────────────
 
@@ -73,21 +74,26 @@ namespace Jellyfin.Profiles.Controllers
             var limited = BeginPinAttempt(address, household);
             if (limited != null) return limited;
 
-            Jellyfin.Database.Implementations.Entities.User? account = null;
-            try
+            // The password is checked by Jellyfin's own provider, not UserManager.AuthenticateUser.
+            // That one counts a wrong password towards the account's lockout, and an account
+            // with a lockout set is turned off after three: anyone in a household could get
+            // somebody else's account disabled by typing wrong passwords on purpose. The rate
+            // limit above is what stops guessing here.
+            var account = _userManager.GetUserByName(username);
+            if (account != null && !PasswordChecksHere(account))
             {
-                // isUserSession false: no session is made and the account's last sign-in
-                // isn't touched. A wrong password still counts towards its own lockout.
-                account = await _userManager.AuthenticateUser(
-                    username, request.Password!, HttpContext.Connection.RemoteIpAddress?.ToString() ?? string.Empty, false)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogInformation("ProfilesPlugin: adding {Name} to a switcher was refused: {Reason}", username, ex.Message);
+                // LDAP, SSO and the like keep the password somewhere Bonfire can't ask
+                // without going through the lockout.
+                return BadRequest(AdminMustAddMessage);
             }
 
-            if (account == null) return BadRequest(CredentialsWrongMessage);
+            if (account == null
+                || (_userManager.GetUserDto(account, string.Empty).Policy?.IsDisabled ?? false)
+                || !await PasswordMatchesAsync(account, request.Password!).ConfigureAwait(false))
+            {
+                return BadRequest(CredentialsWrongMessage);
+            }
+
             EndPinAttempt(address, household);
 
             lock (ConfigLock)
@@ -207,6 +213,45 @@ namespace Jellyfin.Profiles.Controllers
                 if (live.LinkedAccounts.RemoveAll(l => l.HouseholdId == household && l.UserId == account) == 0) return false;
                 Plugin.Instance?.SaveConfiguration();
                 return true;
+            }
+        }
+
+        /// <summary>
+        /// Whether the account's password lives in Jellyfin: on Jellyfin's own provider, or
+        /// on Bonfire's PIN provider, which hands passwords to Jellyfin's.
+        /// </summary>
+        private static bool PasswordChecksHere(Jellyfin.Database.Implementations.Entities.User account)
+        {
+            var id = account.AuthenticationProviderId ?? string.Empty;
+            return id.EndsWith(".DefaultAuthenticationProvider", StringComparison.Ordinal)
+                || string.Equals(id, typeof(Auth.BonfirePinAuthenticationProvider).FullName, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Checks a password with Jellyfin's own provider, which compares the hash and
+        /// nothing else: no lockout count, no session, no last-login time.
+        /// </summary>
+        private async Task<bool> PasswordMatchesAsync(Jellyfin.Database.Implementations.Entities.User account, string password)
+        {
+            var jellyfins = Auth.BonfirePinAuthenticationProvider.JellyfinsProvider(HttpContext?.RequestServices);
+            if (jellyfins == null)
+            {
+                _logger.LogError("ProfilesPlugin: Jellyfin's own authentication provider wasn't found, so {Name}'s password can't be checked.", account.Username);
+                return false;
+            }
+
+            try
+            {
+                if (jellyfins is MediaBrowser.Controller.Authentication.IRequiresResolvedUser resolved)
+                    await resolved.Authenticate(account.Username, password, account).ConfigureAwait(false);
+                else
+                    await jellyfins.Authenticate(account.Username, password).ConfigureAwait(false);
+                return true;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogInformation("ProfilesPlugin: adding {Name} to a switcher was refused: {Reason}", account.Username, ex.Message);
+                return false;
             }
         }
 

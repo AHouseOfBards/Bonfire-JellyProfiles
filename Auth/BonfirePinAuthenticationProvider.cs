@@ -539,9 +539,16 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>Jellyfin's own <c>DefaultAuthenticationProvider</c>; see <see cref="DelegateToJellyfin"/>.</summary>
-        private IAuthenticationProvider? FindJellyfinsProvider()
+        private IAuthenticationProvider? FindJellyfinsProvider() => JellyfinsProvider(_services);
+
+        /// <summary>
+        /// Jellyfin's own password provider, from a service container. Also used to check
+        /// a password without <c>UserManager.AuthenticateUser</c>, which counts a wrong one
+        /// towards the account's lockout (see <c>AddAccountLink</c>).
+        /// </summary>
+        internal static IAuthenticationProvider? JellyfinsProvider(IServiceProvider? services)
         {
-            var providers = _services?.GetService(typeof(IEnumerable<IAuthenticationProvider>))
+            var providers = services?.GetService(typeof(IEnumerable<IAuthenticationProvider>))
                 as IEnumerable<IAuthenticationProvider>;
 
             return providers?.FirstOrDefault(p =>
