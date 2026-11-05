@@ -219,6 +219,18 @@ namespace Jellyfin.Profiles.Configuration
         public List<CustomFont> CustomFonts { get; set; } = new();
 
         /// <summary>
+        /// The logo image (1.7.2): a file in <see cref="ThemeLogo.Folder"/>, named by its
+        /// contents' hash. Null for none. An image wins over <see cref="LogoText"/>.
+        /// </summary>
+        public string? LogoImage { get; set; }
+
+        /// <summary>A line of text shown where a logo image would be, when there is none.</summary>
+        public string? LogoText { get; set; }
+
+        /// <summary>What a screen reader says for the logo image.</summary>
+        public string? LogoAlt { get; set; }
+
+        /// <summary>
         /// The time zone a household's viewing hours are read in until its main account picks
         /// one. Empty is the server's own zone. See <see cref="HouseholdTime"/>.
         /// </summary>

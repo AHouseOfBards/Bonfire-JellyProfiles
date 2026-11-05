@@ -66,7 +66,148 @@ namespace Jellyfin.Profiles.Controllers
                     custom,
                     fonts = config.CustomFonts.Select(f => FontEntry(f, config)).ToList(),
                     builtInFonts = ThemeCatalog.FontFamilies,
+                    // The same three fields GET /themes gives every app.
+                    logo = JsonNode.Parse(ThemeCatalog.LogoPayload(config).ToJsonString()),
+                    maxLogoBytes = ThemeLogo.MaxBytes,
                 });
+            }
+        }
+
+        /// <summary>
+        /// Sets the logo's text and alt text. Both are replaced: leave one out, or send "",
+        /// to clear it. The image is its own route.
+        /// </summary>
+        [HttpPut("admin/themes/logo")]
+        [Produces("application/json")]
+        public ActionResult SetThemeLogo([FromBody] JsonElement body)
+        {
+            var adminError = RequireAdministrator("manage themes");
+            if (adminError != null) return adminError;
+
+            if (body.ValueKind != JsonValueKind.Object) return BadRequest("Send the logo's text and alt text.");
+            string? Read(string name) =>
+                TryProperty(body, name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+            string? text, alt;
+            try
+            {
+                text = ThemeLogo.CleanText(Read("text"), ThemeLogo.MaxText);
+            }
+            catch (ArgumentException)
+            {
+                return BadRequest("Logo text is one line of up to " + ThemeLogo.MaxText + " characters.");
+            }
+
+            try
+            {
+                alt = ThemeLogo.CleanText(Read("alt"), ThemeLogo.MaxAlt);
+            }
+            catch (ArgumentException)
+            {
+                return BadRequest("Logo alt text is one line of up to " + ThemeLogo.MaxAlt + " characters.");
+            }
+
+            lock (ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (config == null) return BadRequest("Plugin configuration missing.");
+                config.LogoText = text;
+                config.LogoAlt = alt;
+                Plugin.Instance?.SaveConfiguration();
+                return Ok(JsonNode.Parse(ThemeCatalog.LogoPayload(config).ToJsonString()));
+            }
+        }
+
+        /// <summary>Uploads the logo image. The body is the file: PNG, JPEG or WebP, up to 1 MB.</summary>
+        [HttpPost("admin/themes/logo/image")]
+        [RequestSizeLimit(ThemeLogo.MaxBytes + 4096)]
+        [Produces("application/json")]
+        public async Task<ActionResult> UploadThemeLogo()
+        {
+            var adminError = RequireAdministrator("manage themes");
+            if (adminError != null) return adminError;
+
+            if (Request.ContentLength > ThemeLogo.MaxBytes) return BadRequest("That logo is larger than 1 MB.");
+            byte[] bytes;
+            using (var copy = new MemoryStream())
+            {
+                var buffer = new byte[81920];
+                int read;
+                while ((read = await Request.Body.ReadAsync(buffer.AsMemory(0, buffer.Length)).ConfigureAwait(false)) > 0)
+                {
+                    copy.Write(buffer, 0, read);
+                    if (copy.Length > ThemeLogo.MaxBytes) return BadRequest("That logo is larger than 1 MB.");
+                }
+
+                bytes = copy.ToArray();
+            }
+
+            if (bytes.Length == 0) return BadRequest("Choose a logo image.");
+
+            LogoImageInfo info;
+            try
+            {
+                info = ThemeLogo.Read(bytes);
+            }
+            catch (InvalidDataException e)
+            {
+                Response.Headers[ErrorCodes.Header] = "image_invalid";
+                return BadRequest(e.Message);
+            }
+
+            var file = ThemeLogo.FileNameFor(bytes, info);
+            string? old;
+            lock (ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (config == null) return BadRequest("Plugin configuration missing.");
+
+                // Written before it is named, so the configuration never names a missing file.
+                Directory.CreateDirectory(ThemeLogo.Folder);
+                System.IO.File.WriteAllBytes(Path.Combine(ThemeLogo.Folder, file), bytes);
+                old = config.LogoImage;
+                config.LogoImage = file;
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            if (old != null && old != file) DeleteLogoFile(old);
+            return Ok(new { image = ThemeLogo.Url(file), width = info.Width, height = info.Height });
+        }
+
+        /// <summary>Removes the logo image. The text, if any, shows instead.</summary>
+        [HttpDelete("admin/themes/logo/image")]
+        public ActionResult DeleteThemeLogo()
+        {
+            var adminError = RequireAdministrator("manage themes");
+            if (adminError != null) return adminError;
+
+            string? old;
+            lock (ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (config == null) return BadRequest("Plugin configuration missing.");
+                old = config.LogoImage;
+                config.LogoImage = null;
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            if (old != null) DeleteLogoFile(old);
+            return NoContent();
+        }
+
+        /// <summary>Deletes a replaced logo file. Named by a checked hash, so the join cannot leave the folder.</summary>
+        private void DeleteLogoFile(string file)
+        {
+            if (!ThemeLogo.IsFileName(file)) return;
+            try
+            {
+                var path = Path.Combine(ThemeLogo.Folder, file);
+                if (System.IO.File.Exists(path)) System.IO.File.Delete(path);
+            }
+            catch (IOException e)
+            {
+                // No longer named anywhere, so never served: a file left behind costs disk only.
+                _logger.LogWarning(e, "ProfilesPlugin: could not delete the old logo {File}.", file);
             }
         }
 

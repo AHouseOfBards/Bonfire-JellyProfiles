@@ -304,7 +304,7 @@ as `If-None-Match` and you get `304` until something changes.
                "files": [ { "subset": "latin", "url": "/plugins/profiles/themes/fonts/lora-latin.woff2", "format": "woff2",
                             "style": "normal", "weight": [400, 700], "unicodeRange": "U+0000-00FF,…" } ] } ],
   "patterns": [ { "name": "leaves", "url": "/plugins/profiles/themes/patterns/leaves" } ],
-  "logo": { "image": "/plugins/profiles/themes/logo?v=3", "text": null }
+  "logo": { "image": "/plugins/profiles/themes/logo/9be1…04.png", "text": null, "alt": "The Hayes House" }
 }
 ```
 
@@ -323,7 +323,8 @@ as `If-None-Match` and you get `304` until something changes.
   `null`, use `default`. An id you don't recognise is an alias or a deleted theme: look
   for it in `aliases`, and otherwise use `default`.
 - **The logo** is shown at the top right of every switcher screen. It's an `image`, or
-  when there's none a line of `text` in `text2`, or nothing.
+  when there's none a line of `text` in `text2`, or nothing. Give the image `alt` for
+  screen readers. Keep it inside the TV safe area: 5% in from each edge.
 
 ## Changes to this format
 

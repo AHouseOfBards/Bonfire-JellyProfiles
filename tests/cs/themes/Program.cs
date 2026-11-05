@@ -304,9 +304,28 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
         // The routes themselves: anonymous, but checked by apidocs.js against the table that
         // says so. Here, that they read the catalog and nothing else.
         var ctl = File.ReadAllText(Path.Combine(root, "Controllers", "ProfilesController.Themes.cs"));
-        Ok("the pattern route looks the name up, never builds a path from it",
-           ctl.Contains("ThemeCatalog.Patterns.TryGetValue(name", StringComparison.Ordinal)
-           && !ctl.Contains("Path.Combine", StringComparison.Ordinal) && !ctl.Contains("File.", StringComparison.Ordinal));
+        // Read per route, not over the file. This read the whole file, which was right while
+        // it held only these routes; the logo route (1.7.2) joins a checked hash to its folder,
+        // and a whole-file search could not tell that from a pattern route building a path.
+        string Body(string method)
+        {
+            var at = ctl.IndexOf("public ActionResult " + method + "(", StringComparison.Ordinal);
+            if (at < 0) return null;
+            var open = ctl.IndexOf('{', at);
+            for (int i = open, depth = 0; i < ctl.Length; i++)
+            {
+                if (ctl[i] == '{') depth++;
+                else if (ctl[i] == '}' && --depth == 0) return ctl.Substring(open, i - open + 1);
+            }
+            return null;
+        }
+        foreach (var route in new[] { "GetThemePattern", "GetThemeFont" })
+        {
+            var body = Body(route);
+            Ok(route + " builds no path from its name", body != null
+               && !body.Contains("Path.Combine", StringComparison.Ordinal) && !body.Contains("File.", StringComparison.Ordinal));
+        }
+        Ok("the pattern route looks the name up", Body("GetThemePattern")?.Contains("ThemeCatalog.Patterns.TryGetValue(name", StringComparison.Ordinal) == true);
         Ok("and serves SVG with a policy that runs no script",
            ctl.Contains("\"default-src 'none'; style-src 'unsafe-inline'\"", StringComparison.Ordinal)
            && ctl.Contains("nosniff", StringComparison.Ordinal));

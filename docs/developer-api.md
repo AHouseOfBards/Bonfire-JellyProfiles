@@ -39,7 +39,7 @@ for Bonfire's own client. It's documented because other people build against it 
 
 ## All routes
 
-All 99 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 103 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -96,6 +96,7 @@ All 99 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `GET /plugins/profiles/themes` | anon | Every theme, for other apps. |
 | `GET /plugins/profiles/themes/patterns/{name}` | anon | One pattern picture. |
 | `GET /plugins/profiles/themes/fonts/{file}` | anon | One font file, or its licence. |
+| `GET /plugins/profiles/themes/logo/{file}` | anon | The server's logo image. |
 | `GET /plugins/profiles/onboarding` | user | First-time setup for this account. |
 | `POST /plugins/profiles/onboarding/done` | user | Record that it was seen. |
 | `GET /plugins/profiles/avatars` | user | The avatar library. |
@@ -125,6 +126,9 @@ All 99 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `PUT /plugins/profiles/admin/themes/hidden` | admin | Choose which built-in themes to hide. |
 | `POST /plugins/profiles/admin/themes/fonts` | admin | Upload a font. |
 | `DELETE /plugins/profiles/admin/themes/fonts/{file}` | admin | Delete one. |
+| `PUT /plugins/profiles/admin/themes/logo` | admin | Set the logo's text and alt text. |
+| `POST /plugins/profiles/admin/themes/logo/image` | admin | Upload the logo image. |
+| `DELETE /plugins/profiles/admin/themes/logo/image` | admin | Remove it. |
 | `GET /plugins/profiles/admin/email` | admin | Outgoing mail settings and confirmed addresses. |
 | `POST /plugins/profiles/admin/email` | admin | Save the outgoing mail settings. |
 | `POST /plugins/profiles/admin/email/test` | admin | Send a test message, which makes email available. |
@@ -157,7 +161,7 @@ Authorization: MediaBrowser Client="<Client>", Device="<Device>", DeviceId="<Dev
 token. A key has no user, so routes for a household (`/list`, `/me`, `/create` and the
 rest) refuse one.
 
-Eleven routes are reachable without a token, because they're needed before anyone signs in.
+Twelve routes are reachable without a token, because they're needed before anyone signs in.
 
 | Endpoint | Why it is anonymous |
 | --- | --- |
@@ -172,6 +176,7 @@ Eleven routes are reachable without a token, because they're needed before anyon
 | `GET /themes` | An app draws its switcher before sign-in. Only the default theme, whether profiles may choose, and which themes are hidden. |
 | `GET /themes/patterns/{name}` | Pictures those themes use. Built-in files only. |
 | `GET /themes/fonts/{file}` | Fonts those themes use, and their licences. Built-in files, and fonts the administrator uploaded. |
+| `GET /themes/logo/{file}` | The logo on the switcher, shown before sign-in. Only the current one. |
 
 The image routes can be reached by anyone who knows the id. Ids are GUIDs, so they can't
 be guessed.
@@ -292,6 +297,7 @@ Invalid PIN code.
 | `font_limit` | 20 fonts are stored. Delete one first. |
 | `font_not_found` | No uploaded font has that file name. |
 | `font_in_use` | A custom theme uses that font. |
+| `logo_invalid` | Logo text or alt text is longer than allowed or more than one line. |
 | `pin_wrong` | Wrong PIN. |
 | `pin_missing` | The main account's PIN wasn't sent. See [The main account's PIN](#the-main-accounts-pin). |
 | `main_pin_required` | The server requires main accounts to have a PIN, and this one has none. |
@@ -1394,9 +1400,12 @@ the custom themes and uploaded fonts, for a client that already has the built-in
                    "style": "normal", "weight": [400, 400], "unicodeRange": null } ] }
   ],
   "patterns": [ { "name": "leaves", "url": "/plugins/profiles/themes/patterns/leaves" } ],
-  "logo": { "image": null, "text": null }
+  "logo": { "image": "/plugins/profiles/themes/logo/9be1…04.png", "text": null, "alt": "The Hayes House" }
 }
 ```
+
+`logo` is shown at the top right of every switcher screen: the `image` when there is one,
+otherwise `text`, otherwise nothing. `alt` is for screen readers.
 
 Sent with an `ETag`. Send it back as `If-None-Match` and you get `304` until something
 changes, including the server's default theme.
@@ -1506,6 +1515,37 @@ returns the font already there. Returns the font as listed by
 **Authorisation:** administrator.
 
 Deletes an uploaded font and its file. `400` while a custom theme uses it.
+
+### `PUT /plugins/profiles/admin/themes/logo`
+
+**Authorisation:** administrator.
+
+```json
+{ "text": "The Hayes House", "alt": "The Hayes House" }
+```
+
+Replaces both. Leave one out or send `""` to clear it. Each is one line: `text` up to 40
+characters, `alt` up to 100. Returns the logo as [`/themes`](#get-pluginsprofilesthemes) gives it.
+
+### `POST /plugins/profiles/admin/themes/logo/image`
+
+**Authorisation:** administrator.
+
+The body is the image: PNG, JPEG or WebP, up to 1 MB, 16 to 4096 pixels on each side. Not
+SVG or GIF. Replaces the current image. Returns `{ "image": "…", "width": 400, "height": 120 }`.
+
+### `DELETE /plugins/profiles/admin/themes/logo/image`
+
+**Authorisation:** administrator.
+
+Removes the image. The text shows instead, if there is one.
+
+### `GET /plugins/profiles/themes/logo/{file}`
+
+**Authorisation:** anonymous.
+
+The logo image. The address changes whenever the image does, so it can be cached for good.
+`404` for anything but the current logo.
 
 ---
 

@@ -174,6 +174,11 @@ namespace Jellyfin.Profiles.Controllers
             ("Delete a font first", "font_limit"),
             ("No such font", "font_not_found"),
             ("A theme uses that font", "font_in_use"),
+            ("Logo text is one line", "logo_invalid"),
+            ("Logo alt text is one line", "logo_invalid"),
+            ("Send the logo's text", "logo_invalid"),
+            ("That logo is larger than", "image_invalid"),
+            ("Choose a logo image", "image_invalid"),
         };
 
         /// <summary>The code for an error, from its status and message.</summary>

@@ -177,10 +177,23 @@ namespace Jellyfin.Profiles.Configuration
                 ["themes"] = themes,
                 ["fonts"] = fonts,
                 ["patterns"] = patterns,
-                // No logo yet; an app draws none.
-                ["logo"] = new JsonObject { ["image"] = null, ["text"] = null },
+                ["logo"] = LogoPayload(config),
             };
             return payload.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
+        }
+
+        /// <summary>
+        /// The logo as GET /themes gives it: the image's address or null, the text or null,
+        /// and the alt text. A stored value that no longer passes its rule is left out, so a
+        /// hand-edited configuration cannot put an address or a second line on screen.
+        /// </summary>
+        public static JsonObject LogoPayload(PluginConfiguration config)
+        {
+            string? text = null, alt = null;
+            try { text = ThemeLogo.CleanText(config.LogoText, ThemeLogo.MaxText); } catch (ArgumentException) { }
+            try { alt = ThemeLogo.CleanText(config.LogoAlt, ThemeLogo.MaxAlt); } catch (ArgumentException) { }
+            var image = ThemeLogo.IsFileName(config.LogoImage) ? ThemeLogo.Url(config.LogoImage!) : null;
+            return new JsonObject { ["image"] = image, ["text"] = text, ["alt"] = alt };
         }
 
         /// <summary>A strong validator for <paramref name="payload"/>: its SHA-256, quoted.</summary>

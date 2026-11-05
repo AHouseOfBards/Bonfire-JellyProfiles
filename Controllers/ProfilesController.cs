@@ -1651,6 +1651,23 @@ namespace Jellyfin.Profiles.Controllers
                         .Where(Themes.IsBuiltIn).Select(id => id.Trim().ToLowerInvariant())
                         .Where(id => id != Themes.Bonfire).Distinct().ToList();
                 }
+                // The logo, through the same rules as its routes. An image whose file is not on
+                // this server is dropped, like a font: a backup holds the name, not the file.
+                if (TryProperty(root, "LogoImage", out _))
+                {
+                    config.LogoImage = ThemeLogo.IsFileName(incoming.LogoImage)
+                        && System.IO.File.Exists(Path.Combine(ThemeLogo.Folder, incoming.LogoImage!)) ? incoming.LogoImage : null;
+                }
+                if (TryProperty(root, "LogoText", out _))
+                {
+                    try { config.LogoText = ThemeLogo.CleanText(incoming.LogoText, ThemeLogo.MaxText); }
+                    catch (ArgumentException) { config.LogoText = null; }
+                }
+                if (TryProperty(root, "LogoAlt", out _))
+                {
+                    try { config.LogoAlt = ThemeLogo.CleanText(incoming.LogoAlt, ThemeLogo.MaxAlt); }
+                    catch (ArgumentException) { config.LogoAlt = null; }
+                }
                 // A default the file also hides stays the default, and comes out of hiding.
                 var importedDefault = TryProperty(root, "DefaultTheme", out _) ? incoming.DefaultTheme : config.DefaultTheme;
                 if (!string.IsNullOrWhiteSpace(importedDefault))

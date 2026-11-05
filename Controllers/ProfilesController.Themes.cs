@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Text;
 using Jellyfin.Profiles.Configuration;
@@ -83,6 +84,30 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             return File(found.Value.Bytes, found.Value.ContentType);
+        }
+
+        /// <summary>The server's logo image, by the name GET /themes gives it.</summary>
+        [HttpGet("themes/logo/{file}")]
+        public ActionResult GetThemeLogo(string file)
+        {
+            // Only the current logo, by a name that can only be a hash and an extension, so
+            // the join below cannot leave the folder and an old logo is not served on.
+            bool current;
+            lock (ConfigLock)
+            {
+                current = ThemeLogo.IsFileName(file) && Plugin.Instance?.Configuration?.LogoImage == file;
+            }
+
+            var path = Path.Combine(ThemeLogo.Folder, file);
+            if (!current || !System.IO.File.Exists(path)) return NotFound();
+
+            Response.Headers["X-Content-Type-Options"] = "nosniff";
+            // Named by its contents: a new logo is a new address, so this one never changes.
+            Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
+            Response.Headers["Access-Control-Allow-Origin"] = "*";
+            var type = file.EndsWith(".png", StringComparison.Ordinal) ? "image/png"
+                : file.EndsWith(".webp", StringComparison.Ordinal) ? "image/webp" : "image/jpeg";
+            return PhysicalFile(path, type);
         }
 
         /// <summary>One pattern picture, by the name a theme's decoration gives.</summary>

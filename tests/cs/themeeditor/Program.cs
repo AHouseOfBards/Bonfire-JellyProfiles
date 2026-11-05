@@ -568,6 +568,133 @@ var partBody = getPart is ContentResult pr ? JsonNode.Parse(pr.Content) : null;
 Ok("and ?part=custom only the custom one", partBody != null && partBody["themes"]!.AsArray().Count == 1);
 
 Console.WriteLine();
+Console.WriteLine("── The logo ─────────────────────────────────────────────────────");
+
+// Images built here, header by header: each format the reader knows, and the ones it must not.
+byte[] Png(int w, int h)
+{
+    var b = new byte[64];
+    new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, (byte)'I', (byte)'H', (byte)'D', (byte)'R' }.CopyTo(b, 0);
+    Put32(b, 16, (uint)w); Put32(b, 20, (uint)h);
+    return b;
+}
+byte[] Jpeg(int w, int h)
+{
+    var b = new List<byte> { 0xFF, 0xD8, 0xFF, 0xE0, 0, 16 };
+    b.AddRange(new byte[14]);
+    b.AddRange(new byte[] { 0xFF, 0xC0, 0, 17, 8, (byte)(h >> 8), (byte)h, (byte)(w >> 8), (byte)w, 3 });
+    b.AddRange(new byte[12]);
+    return b.ToArray();
+}
+byte[] WebP(int w, int h)
+{
+    var b = new byte[40];
+    Encoding.ASCII.GetBytes("RIFF").CopyTo(b, 0); Encoding.ASCII.GetBytes("WEBP").CopyTo(b, 8); Encoding.ASCII.GetBytes("VP8X").CopyTo(b, 12);
+    b[24] = (byte)(w - 1); b[25] = (byte)((w - 1) >> 8); b[27] = (byte)(h - 1); b[28] = (byte)((h - 1) >> 8);
+    return b;
+}
+string LogoRefusal(byte[] bytes)
+{
+    try { ThemeLogo.Read(bytes); return null; }
+    catch (InvalidDataException e) { return e.Message; }
+    catch (Exception e) { return "WRONG " + e.GetType().Name; }
+}
+
+var pngInfo = ThemeLogo.Read(Png(400, 120));
+Ok("a PNG reads as one, with its size", pngInfo.Extension == ".png" && pngInfo.Width == 400 && pngInfo.Height == 120);
+var jpgInfo = ThemeLogo.Read(Jpeg(300, 90));
+Ok("a JPEG reads its size from the frame header", jpgInfo.Extension == ".jpg" && jpgInfo.Width == 300 && jpgInfo.Height == 90);
+var webpInfo = ThemeLogo.Read(WebP(512, 128));
+Ok("a WebP too", webpInfo.Extension == ".webp" && webpInfo.Width == 512 && webpInfo.Height == 128);
+foreach (var (label, bytes) in new (string, byte[])[]
+{
+    ("an SVG, which can carry script", Encoding.UTF8.GetBytes("<svg xmlns=\"http://www.w3.org/2000/svg\" onload=\"alert(1)\"/>")),
+    ("a GIF", Encoding.ASCII.GetBytes("GIF89a").Concat(new byte[40]).ToArray()),
+    ("a PNG 8 pixels wide", Png(8, 100)),
+    ("a PNG 5000 pixels wide", Png(5000, 100)),
+    ("a PNG cut off in its header", Png(100, 100).Take(18).ToArray()),
+    ("nothing", new byte[0]),
+})
+{
+    var r = LogoRefusal(bytes);
+    Ok("refused: " + label + " (" + r + ")", r != null && !r.StartsWith("WRONG", StringComparison.Ordinal));
+}
+var logoNoise = new List<string>();
+for (var i = 0; i < 300; i++)
+{
+    var copy = (i % 3 == 0 ? Png(200, 60) : i % 3 == 1 ? Jpeg(200, 60) : WebP(200, 60)).ToArray();
+    for (var k = 0; k < 1 + rng.Next(3); k++) copy[rng.Next(copy.Length)] = (byte)rng.Next(256);
+    if (rng.Next(4) == 0) copy = copy.Take(rng.Next(copy.Length)).ToArray();
+    var r = LogoRefusal(copy);
+    if (r != null && r.StartsWith("WRONG", StringComparison.Ordinal)) logoNoise.Add(r);
+}
+Ok("300 damaged images: each read or refused, never another exception", logoNoise.Count == 0, string.Join(" | ", logoNoise.Distinct()));
+
+Ok("logo text: trimmed, one line, up to 40", ThemeLogo.CleanText("  The Hayes House ", 40) == "The Hayes House" && ThemeLogo.CleanText(" ", 40) == null);
+foreach (var badText in new[] { new string('x', 41), "two\nlines", "tab\there" })
+{
+    var threw = false;
+    try { ThemeLogo.CleanText(badText, 40); } catch (ArgumentException) { threw = true; }
+    Ok("logo text refused: " + badText.Replace("\n", "\\n").Replace("\t", "\\t").Substring(0, Math.Min(12, badText.Length)), threw);
+}
+
+foreach (var (method, verb, template, argsFor) in new (string, string, string, Func<object[]>)[]
+{
+    ("SetThemeLogo", "HttpPutAttribute", "admin/themes/logo", () => new object[] { Json(new JsonObject { ["text"] = "x" }) }),
+    ("UploadThemeLogo", "HttpPostAttribute", "admin/themes/logo/image", () => Array.Empty<object>()),
+    ("DeleteThemeLogo", "HttpDeleteAttribute", "admin/themes/logo/image", () => Array.Empty<object>()),
+})
+{
+    var m = ctrlType.GetMethod(method);
+    var attr = m?.GetCustomAttributes().FirstOrDefault(a => a.GetType().Name == verb);
+    Ok(method + " at " + verb.Replace("Attribute", "").Replace("Http", "").ToUpperInvariant() + " /" + template,
+       (string)attr?.GetType().GetProperty("Template")?.GetValue(attr) == template);
+    if (m == null) continue;
+    var r = Call(As(false, Png(100, 40)), method, argsFor());
+    Ok("  refuses a caller with no token", Status(r) == 401, Status(r).ToString());
+}
+Ok("and changed nothing", live.LogoImage == null && live.LogoText == null);
+
+var setText = Call(As(true), "SetThemeLogo", Json(new JsonObject { ["text"] = " The Hayes House ", ["alt"] = "Hayes" }));
+Ok("an administrator sets the text and alt text", Status(setText) == 200 && live.LogoText == "The Hayes House" && live.LogoAlt == "Hayes");
+Ok("text over 40 characters is refused, and nothing changes",
+   Status(Call(As(true), "SetThemeLogo", Json(new JsonObject { ["text"] = new string('x', 41) }))) == 400 && live.LogoText == "The Hayes House");
+var logoPub = JsonNode.Parse(ThemeCatalog.PublicPayload(live))!["logo"]!;
+Ok("GET /themes gives the text, the alt and no image",
+   (string)logoPub["text"]! == "The Hayes House" && (string)logoPub["alt"]! == "Hayes" && logoPub["image"] == null);
+
+var firstLogo = Png(400, 120);
+var up1 = Call(As(true, firstLogo), "UploadThemeLogo");
+var firstName = ThemeLogo.FileNameFor(firstLogo, ThemeLogo.Read(firstLogo));
+Ok("an administrator uploads an image, stored under its hash", Status(up1) == 200 && live.LogoImage == firstName
+   && File.ReadAllBytes(Path.Combine(ThemeLogo.Folder, firstName)).SequenceEqual(firstLogo), Body(up1)?.ToJsonString());
+Ok("GET /themes now gives its address, which changes when the image does",
+   (string)JsonNode.Parse(ThemeCatalog.PublicPayload(live))!["logo"]!["image"]! == "/plugins/profiles/themes/logo/" + firstName);
+var servedLogo = Call(As(false), "GetThemeLogo", firstName);
+Ok("served to anyone, as image/png", servedLogo is PhysicalFileResult pf && pf.ContentType == "image/png");
+var svgUp = Call(As(true, Encoding.UTF8.GetBytes("<svg onload=alert(1)>")), "UploadThemeLogo");
+Ok("an SVG upload is refused, and the logo stays", Status(svgUp) == 400 && live.LogoImage == firstName);
+
+var secondLogo = Jpeg(300, 90);
+Call(As(true, secondLogo), "UploadThemeLogo");
+var secondName = ThemeLogo.FileNameFor(secondLogo, ThemeLogo.Read(secondLogo));
+Ok("a new image replaces it, and the old file goes", live.LogoImage == secondName && !File.Exists(Path.Combine(ThemeLogo.Folder, firstName)));
+// Put back as if its delete had failed: only the current logo is served, file or no file.
+File.WriteAllBytes(Path.Combine(ThemeLogo.Folder, firstName), firstLogo);
+Ok("the old address is no longer served, even with its file still there", Status(Call(As(false), "GetThemeLogo", firstName)) == 404);
+File.Delete(Path.Combine(ThemeLogo.Folder, firstName));
+Ok("nor any name that is not the current logo's", Status(Call(As(false), "GetThemeLogo", "../PluginConfiguration.xml")) == 404);
+Ok("deleting it leaves the text", Status(Call(As(true), "DeleteThemeLogo")) == 204 && live.LogoImage == null
+   && live.LogoText == "The Hayes House" && !File.Exists(Path.Combine(ThemeLogo.Folder, secondName)));
+
+live.LogoText = "two\nlines";
+live.LogoImage = "../../evil.png";
+var handEdited = JsonNode.Parse(ThemeCatalog.PublicPayload(live))!["logo"]!;
+Ok("a hand-edited configuration's bad text and bad image name are left out", handEdited["text"] == null && handEdited["image"] == null);
+live.LogoText = null;
+live.LogoImage = null;
+
+Console.WriteLine();
 Console.WriteLine("── Error codes ──────────────────────────────────────────────────");
 var codes = asm.GetType("Jellyfin.Profiles.Controllers.ErrorCodes", true).GetMethod("For");
 string Code(int status, string msg) => (string)codes.Invoke(null, new object[] { status, msg });
