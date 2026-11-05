@@ -144,9 +144,8 @@
 .jpf-theme-preview-tile:first-child {
     box-shadow: 0 0 0 var(--jpf-ring-w) var(--jpf-ring);
 }
-.jpf-theme-preview[data-jpf-theme="nightfall"] .jpf-theme-preview-tile { box-shadow: 0 0 0 2px #0a0714, 0 0 0 4px #e04ed9; }
-.jpf-theme-preview[data-jpf-theme="nightfall"] .jpf-theme-preview-tile:nth-child(2) { box-shadow: 0 0 0 2px #0a0714, 0 0 0 4px #9a64ff; }
-.jpf-theme-preview[data-jpf-theme="nightfall"] .jpf-theme-preview-tile:nth-child(3) { box-shadow: 0 0 0 2px #0a0714, 0 0 0 4px #4f6dff; }
+/* A theme with rings frames its preview tiles too: themeCss writes those from the
+   theme's own gradients, so no theme's colours are kept here. */
 .jpf-theme-preview-button {
     padding: 4px 12px;
     border-radius: var(--jpf-btn-radius);

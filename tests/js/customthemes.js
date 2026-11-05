@@ -184,6 +184,33 @@ console.log('\n── Its font ────────────────�
         && srcs.every(x => /^src: url\("[^"\\]*"\) format\("woff2"\);$/.test(x)), srcs.join(' | '));
 }
 
+console.log('\n── Preview rings come from the file ──────────────────────────');
+{
+    // styles.css carried Nightfall's three preview colours by hand, so a custom theme with
+    // rings had none in its preview, and an edit to nightfall.json left the old ones.
+    const sheet = require('fs').readFileSync(require('path').join(L.ROOT, 'Web', 'styles.css'), 'utf8');
+    const named = sheet.match(/\[data-jpf-theme="[a-z0-9-]+"\]/g) || [];
+    ok('styles.css names no theme (' + named.join(', ') + ')', named.length === 0);
+
+    const w = world();
+    const h = w.helpers;
+    const night = payload.themes.filter(x => x.id === 'nightfall')[0];
+    const rings = night.decorations.filter(d => d.name === 'rings')[0];
+    const mix = (a, b) => '#' + [1, 3, 5].map(i => ('0' + Math.round((parseInt(a.slice(i, i + 2), 16) + parseInt(b.slice(i, i + 2), 16)) / 2).toString(16)).slice(-2)).join('');
+    const css = h.themeCss(night, {});
+    [1, 2, 3].forEach(k => {
+        const g = rings.gradients[(k - 1) % rings.gradients.length];
+        const want = '.jpf-theme-preview[data-jpf-theme="nightfall"] .jpf-theme-preview-tile:nth-child(' + k + ') { box-shadow: 0 0 0 2px '
+            + rings.gap.toLowerCase() + ', 0 0 0 4px ' + mix(g[0], g[1]) + '; }';
+        ok('Nightfall\'s preview tile ' + k + ' is framed halfway along its gradient (' + mix(g[0], g[1]) + ')', css.indexOf(want) !== -1);
+    });
+    const ringed = custom('ringed', 'nightfall');
+    w.obj.useCustomThemes({ themes: [ringed] }, false);
+    ok('and so is a custom theme\'s, from its own file',
+        h.themeCss(w.state().themes[0], {}).indexOf('.jpf-theme-preview[data-jpf-theme="ringed"] .jpf-theme-preview-tile:nth-child(1)') !== -1);
+    ok('a theme without rings writes none', h.themeCss(payload.themes.filter(x => x.id === 'harvest')[0], {}).indexOf('.jpf-theme-preview[') === -1);
+}
+
 console.log('\n── Startup, the answer, and the copy on the device ────────────');
 (async () => {
     const answer = { themes: [custom('mine')], fonts: [FONT], hidden: ['glass'] };

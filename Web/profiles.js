@@ -540,6 +540,21 @@
                 + sel + ' .profile-card:hover .profile-avatar-container,\n'
                 + sel + ' .profile-card:focus .profile-avatar-container,\n'
                 + sel + ' .profile-card:focus-within .profile-avatar-container { transform: scale(' + focusScale + '); }\n';
+            // The small preview in the pickers: three tiles, each framed in the colour
+            // halfway along its gradient (a box-shadow cannot be a gradient). Written here
+            // from the file, not in styles.css, which used to carry Nightfall's three
+            // colours by hand: a custom theme with rings had none in its preview, and an
+            // edit to Nightfall's file left the preview showing the old ones.
+            const mid = p => {
+                const a = hex(p && p[0]), b = hex(p && p[1]);
+                if (!a || !b) return col(a || b);
+                const x = rgbOf(a), y = rgbOf(b);
+                return '#' + [0, 1, 2].map(i => ('0' + Math.round((x[i] + y[i]) / 2).toString(16)).slice(-2)).join('');
+            };
+            for (let k = 1; k <= 3; k++) {
+                css += '.jpf-theme-preview' + sel + ' .jpf-theme-preview-tile:nth-child(' + k + ') { box-shadow: 0 0 0 2px '
+                    + gap + ', 0 0 0 4px ' + mid(rings.gradients[(k - 1) % n]) + '; }\n';
+            }
         }
 
         // frost: backdrop-filter is Chromium 76, so webOS 4.5 and 5 keep the plain
