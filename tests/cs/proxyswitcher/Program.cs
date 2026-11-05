@@ -412,6 +412,15 @@ Ok("with a PIN set, the main account's tile asks for it like any other",
    Names(mainPad) == "1, 2, 3, 4, 5, 6, 7, 8, 9, 0, Delete, OK", Names(mainPad));
 var stillPicker = Get("/UserViews");
 Ok("and opens nothing until it is typed", !stillPicker.reachedJellyfin && Names(stillPicker.body) == "Profiles", Names(stillPicker.body));
+// OK before four digits is not a guess. It spent one of the five tries, so five presses on
+// an empty keypad locked the profile on every app (R-1034). Each press is on the keypad the
+// last one returned, as the app does; the same tile twice is the app's reload, not a press.
+var shortOk = mainPad;
+for (var i = 0; i < 6; i++) shortOk = Press(shortOk, "OK");
+Ok("OK on an empty keypad just shows the keypad again", Names(shortOk) == Names(mainPad), Names(shortOk));
+var twoDigits = Press(Press(mainPad, "1"), "2");
+var twoThenOk = Press(twoDigits, "OK ••");
+Ok("so does OK with too few digits, keeping what was typed", Names(twoThenOk) == Names(twoDigits), Names(twoThenOk));
 var mainWrong = Press(Press(Press(Press(Press(mainPad, "1"), "2"), "3"), "4"), "OK ••••");
 Ok("a profile's PIN does not open it", Names(mainWrong).StartsWith("Wrong PIN"), Names(mainWrong));
 var mainIn = Press(Press(Press(Press(Press(mainWrong, "5"), "6"), "7"), "8"), "OK ••••");

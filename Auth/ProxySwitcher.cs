@@ -81,6 +81,9 @@ namespace Jellyfin.Profiles.Auth
 
         private const int MaxPinLength = 8;
 
+        /// <summary>No PIN is shorter; the sign-in form refuses anything shorter too.</summary>
+        private const int MinPinLength = 4;
+
         // ── Entry point ─────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -609,6 +612,14 @@ namespace Jellyfin.Profiles.Auth
                 default:
                     var entered = key.Entered.Length >= MaxPinLength ? key.Entered : key.Entered + key.Key;
                     return Keypad(session, key.ProfileId, entered, key.Id);
+            }
+
+            // OK before four digits cannot be a PIN, and it used to spend one of the five tries
+            // like a wrong one, so five presses on an empty keypad locked the profile on every
+            // app (R-1034). Show the keypad again, with what was typed, and count nothing.
+            if (key.Entered.Length < MinPinLength)
+            {
+                return Keypad(session, key.ProfileId, key.Entered, key.Id);
             }
 
             // The app's second load of the same OK tile. Counting it would spend two of the
