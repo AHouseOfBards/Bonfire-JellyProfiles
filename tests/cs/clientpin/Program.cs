@@ -182,6 +182,16 @@ NameIt(MASTER, "bard");
 NameIt(KID, "kids");
 NameIt(GUEST, "guest");
 
+// A PIN only works on a device the household has signed in on with its password (R-1344),
+// so everything below that is not about devices runs on the family television.
+var devicesList = (System.Collections.IList)cfgType.GetProperty("KnownDevices").GetValue(config);
+var knownType = asm.GetType("Jellyfin.Profiles.Configuration.KnownDevice", true);
+var requestDevice = asm.GetType("Jellyfin.Profiles.Auth.RequestDevice", true);
+var capture = requestDevice.GetMethod("Capture", BindingFlags.Public | BindingFlags.Static, new[] { typeof(string) });
+devicesList.Clear();
+Remember("family-tv", MASTER);
+FromDevice("family-tv");
+
 static User MakeUser(Guid id, string name)
 {
     var u = new User(name, "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
@@ -274,11 +284,6 @@ Ok("an empty PIN does not open a PIN-protected profile",
 //
 // The behaviour that was wanted is kept: type nothing, get in — on a device the household
 // signed in on. Everywhere else it is refused.
-var devicesList = (System.Collections.IList)cfgType.GetProperty("KnownDevices").GetValue(config);
-var knownType = asm.GetType("Jellyfin.Profiles.Configuration.KnownDevice", true);
-var requestDevice = asm.GetType("Jellyfin.Profiles.Auth.RequestDevice", true);
-var capture = requestDevice.GetMethod("Capture", BindingFlags.Public | BindingFlags.Static, new[] { typeof(string) });
-
 Ok("the provider can see which device a request came from", capture != null);
 
 // ── an app that gets the profile picker ─────────────────────────────────────
@@ -292,17 +297,17 @@ Ok("the provider can see which app a request came from", captureClient != null &
 if (captureClient != null && proxyProp != null)
 {
     proxyProp.SetValue(config, new List<string> { "moonfin" });
-    captureClient.Invoke(null, new object[] { null, "Moonfin for Android TV" });
+    captureClient.Invoke(null, new object[] { "family-tv", "Moonfin for Android TV" });
     Ok("a profile's PIN is refused on an app that gets the picker",
        Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
     Ok("while the main account still signs in there with its own PIN",
        Try(MakeUser(MASTER, "bard"), "9999") == "bard");
-    captureClient.Invoke(null, new object[] { null, "Jellyfin Android TV" });
+    captureClient.Invoke(null, new object[] { "family-tv", "Jellyfin Android TV" });
     Ok("and the profile still opens on any other app", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
     proxyProp.SetValue(config, new List<string>());
-    captureClient.Invoke(null, new object[] { null, "Moonfin for Android TV" });
+    captureClient.Invoke(null, new object[] { "family-tv", "Moonfin for Android TV" });
     Ok("and on Moonfin too once it is unticked", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
-    captureClient.Invoke(null, new object[] { null, null });
+    captureClient.Invoke(null, new object[] { "family-tv", null });
 }
 
 void Remember(string deviceId, Guid owner)
@@ -343,13 +348,27 @@ FromDevice("neighbours-tv");
 Ok("and refused from a device belonging to a different household",
    Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
 
-// A PIN is a real credential, so it stands on its own and is not device-bound. Someone
-// away from home entering their PIN on a phone is the case this protects.
+// THIS USED TO EXPECT THE OPPOSITE: "a PIN is a real credential, so it stands on its own".
+// It is four digits, and with the full system name ("Bardkids") it was four digits from
+// any address on the internet, for an administrator's account as much as a child's. The
+// rule now (R-1344, decided for every account, administrators included): a PIN works only
+// on a device the household has signed in on with a password. The password still works
+// anywhere.
 FromDevice("some-strangers-laptop");
-Ok("a profile WITH a PIN still opens with it from any device",
+Ok("a profile's PIN does not open it from a device the household has never used",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
+Ok("nor from no device at all", ((Func<string>)(() => { FromDevice(null); return Try(MakeUser(KID, "Bardkids"), "4821"); }))() == "!AuthenticationException");
+FromDevice("neighbours-tv");
+Ok("nor from another household's television", Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
+FromDevice("some-strangers-laptop");
+Ok("a main account's PIN does not open it from there either",
+   Try(MakeUser(MASTER, "bard"), "9999") == "!AuthenticationException");
+Ok("while its password still does", Try(MakeUser(MASTER, "bard"), DefaultAuthenticationProvider.ThePassword) == "bard");
+for (int i = 0; i < 8; i++) Try(MakeUser(KID, "Bardkids"), "000" + i);
+FromDevice("family-tv");
+Ok("a stranger's guesses do not pause the PIN on the family television",
    Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
-Ok("and still refuses the wrong PIN there",
-   Try(MakeUser(KID, "Bardkids"), "4822") == "!AuthenticationException");
+Ok("where the main account's PIN works too", Try(MakeUser(MASTER, "bard"), "9999") == "bard");
 
 Console.WriteLine();
 Console.WriteLine("── The name the household typed ───────────────────────────────");
@@ -518,6 +537,12 @@ Ok("but a master's own password change is handed to Jellyfin", changed == "retur
 Console.WriteLine();
 Console.WriteLine("── Guessing a PIN is limited, per account ─────────────────────");
 
+// On the family television: anywhere else the PIN is refused before it is counted, and
+// every assertion below would pass without the limit (R-1344).
+devicesList.Clear();
+Remember("family-tv", MASTER);
+FromDevice("family-tv");
+
 // Jellyfin's lockout never applied here: LoginAttemptsBeforeLockout is null on every
 // account Bonfire creates, and Jellyfin reads null as "never lock". So a four-digit PIN
 // sat behind no limit at all, reachable by anything that can POST /Users/AuthenticateByName.
@@ -597,6 +622,11 @@ Console.WriteLine("── The emergency disable must not lock anyone out ──�
 // InvalidAuthProvider — so a master bound for its PIN lost its password on the one day the
 // administrator most needs to sign in.
 var panicField = pluginType.GetField("_panicDisabled", Any);
+// On the family television, so it is the disable that refuses the PINs below (R-1344).
+devicesList.Clear();
+Remember("family-tv", MASTER);
+FromDevice("family-tv");
+Ok("(the PINs open there with Bonfire on)", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids" && Try(BoundUser(MASTER, "bard"), "9999") == "bard");
 panicField.SetValue(null, true);
 try
 {
@@ -855,8 +885,11 @@ FromDevice("family-tv");
 Ok("the allowed device opens the profile with its PIN",
    Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
 
-FromDevice("some-strangers-laptop");
-Ok("a device not on the list is refused, correct PIN and all",
+// A household device, so it is the list that refuses it: a stranger's laptop is refused
+// before the list is read (R-1344) and would pass this without testing it.
+Remember("bedroom-tv", MASTER);
+FromDevice("bedroom-tv");
+Ok("a household device not on the list is refused, correct PIN and all",
    Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
 
 FromDevice(null);
@@ -873,7 +906,8 @@ Ok("and it looks like every other refusal",
 // An empty list has always meant "any device". Removing the last entry must not quietly
 // become a lockout.
 allowed.Clear();
-Ok("with no list at all, any device opens it again",
+FromDevice("bedroom-tv");
+Ok("with no list at all, any of the household's devices opens it again",
    Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
 
 devicesList.Clear();
@@ -1203,7 +1237,7 @@ Ok("typing the full account name on the one television a profile is restricted t
 // than the one sent is not this sign-in.
 ResetAllowance(KID);
 FromDevice(Sha1Hex("0123456789abcdef" + "+Bardkids"));
-Ok("the same name typed on a television nobody has signed in on is still refused by the restriction",
+Ok("the same name typed on a television nobody has signed in on is still refused",
    !Sign("Bardkids", "4821", MakeUser(KID, "Bardkids")).Success);
 kidAllowed.Clear();
 

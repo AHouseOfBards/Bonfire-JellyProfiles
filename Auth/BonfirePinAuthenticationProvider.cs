@@ -255,7 +255,21 @@ namespace Jellyfin.Profiles.Auth
                 // against the throttle. A master's ordinary password sign-in, on the web or
                 // anywhere else, comes through here too and must never use up the PIN
                 // allowance or be slowed by it.
-                if (master != null && !Plugin.IsPanicDisabled && LooksLikePin(password))
+                //
+                // And only on a device this household has signed in on with a password
+                // (R-1344). This branch had no device check at all, so an administrator's four
+                // digits opened the server from any address on the internet. Elsewhere the
+                // PIN is skipped, not refused: the password below still works there.
+                if (master != null && !Plugin.IsPanicDisabled && LooksLikePin(password)
+                    && !KnownToHousehold(config, deviceId, resolvedUser.Id))
+                {
+                    _logger.LogInformation(
+                        "ProfilesPlugin: a PIN for master account {UserId} from device {DeviceId}, which it has "
+                        + "not signed in on with its password; only the password is being checked.",
+                        resolvedUser.Id,
+                        string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId);
+                }
+                else if (master != null && !Plugin.IsPanicDisabled && LooksLikePin(password))
                 {
                     if (!BeginPinAttempt(resolvedUser.Id))
                     {
@@ -354,9 +368,7 @@ namespace Jellyfin.Profiles.Auth
                 // box does anything would otherwise be let in.
                 if (!string.IsNullOrEmpty(password)) throw Decline();
 
-                var seenFor = DeviceRegistry.FindMaster(config, deviceId);
-
-                if (seenFor == Guid.Empty || seenFor != mapping.MasterUserId)
+                if (!KnownToHousehold(config, deviceId, mapping.MasterUserId))
                 {
                     _logger.LogWarning(
                         "ProfilesPlugin: refused to open PIN-less profile {ProfileId} from device {DeviceId}, "
@@ -377,6 +389,21 @@ namespace Jellyfin.Profiles.Auth
             // Nothing that is not PIN-shaped can match, so it is refused without spending a
             // key derivation on it or an attempt from the allowance.
             if (!LooksLikePin(password)) throw Decline();
+
+            // A PIN only works on a device the household has signed in on with a password
+            // (R-1344, Logan's rule for every account). It used to stand on its own here, so
+            // a profile typed by its full system name ("Bard_Family") was four digits from
+            // anywhere. Checked before the allowance, so a stranger's guesses cannot pause
+            // the PIN for the household's own television either.
+            if (!KnownToHousehold(config, deviceId, mapping.MasterUserId))
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: refused a PIN for profile {ProfileId} from device {DeviceId}, which this "
+                    + "household has not signed in on.",
+                    mapping.ProfileUserId,
+                    string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId);
+                throw Decline();
+            }
 
             // Jellyfin's own lockout does not cover this: LoginAttemptsBeforeLockout is null
             // on every account Bonfire creates, and Jellyfin reads null as "never lock". A
@@ -446,6 +473,18 @@ namespace Jellyfin.Profiles.Auth
 
             throw new AuthenticationException(
                 "A Bonfire profile's PIN is changed in Bonfire, not as an account password.");
+        }
+
+        /// <summary>
+        /// True if <paramref name="householdId"/> has signed in on this device with its
+        /// password: the record <see cref="BonfireSessionListener"/> writes. A device id is
+        /// client-supplied, so this raises the bar from "anywhere" to "an id this household
+        /// uses"; the PIN is still the credential.
+        /// </summary>
+        private static bool KnownToHousehold(PluginConfiguration? config, string? deviceId, Guid householdId)
+        {
+            if (householdId == Guid.Empty) return false;
+            return DeviceRegistry.FindMaster(config, deviceId) == householdId;
         }
 
         /// <summary>A PIN as Bonfire accepts one: four to eight digits.</summary>
