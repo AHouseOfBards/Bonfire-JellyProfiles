@@ -157,6 +157,17 @@ namespace Jellyfin.Profiles.Auth
                 session = FindOrRegister(token, request, Controllers.ProfilesBaseController.ReadConfigSnapshot(), services, logger);
                 if (session == null) return false;
             }
+            else if (!await StillSignedInAsync(session, services, logger).ConfigureAwait(false))
+            {
+                // Signed out by an administrator, or its password changed: Jellyfin has
+                // revoked the token, but a session known here was never asked again, so the
+                // app kept listing profiles, opening the PIN-less ones and streaming as them
+                // until the server restarted (R-1030). Dropped, the next request is the
+                // app's own, and Jellyfin refuses it as it should.
+                await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
+                Sessions.TryRemove(token, out _);
+                return false;
+            }
 
             // Unticked since: behave as today. The list is replaced, never edited, when the
             // settings are saved, so reading it here without the lock is safe.
@@ -337,10 +348,56 @@ namespace Jellyfin.Profiles.Auth
             public volatile ActingAs? Acting;
             public Guid LastWrongOk;
             public DateTime LastWrongOkAt;
+
+            /// <summary>When Jellyfin last confirmed the main token, in <c>Clock</c> ticks.</summary>
+            public long CheckedTicks = Clock().Ticks;
         }
 
         /// <summary>The profile a session is in. A record so it can be swapped in one write.</summary>
         private sealed record ActingAs(Guid ProfileId, string Token);
+
+        /// <summary>How long a known main token is trusted before Jellyfin is asked again.</summary>
+        internal static readonly TimeSpan RecheckEvery = TimeSpan.FromSeconds(45);
+
+        /// <summary>The clock the recheck reads. A harness replaces it; nothing else does.</summary>
+        internal static Func<DateTime> Clock = () => DateTime.UtcNow;
+
+        /// <summary>
+        /// Whether the main account's token is still one Jellyfin knows, asked at most once
+        /// per <see cref="RecheckEvery"/>: this runs on every request, video segments
+        /// included, and a device lookup is a database query. Cannot tell (no device
+        /// manager) counts as yes, so a failure of ours never signs a household out.
+        /// </summary>
+        private static Task<bool> StillSignedInAsync(ProxySession session, Services services, ILogger logger)
+        {
+            var now = Clock().Ticks;
+            var last = Interlocked.Read(ref session.CheckedTicks);
+            if (now - last < RecheckEvery.Ticks) return Task.FromResult(true);
+
+            // One request in a burst does the asking; the rest find the stamp fresh.
+            if (Interlocked.CompareExchange(ref session.CheckedTicks, now, last) != last) return Task.FromResult(true);
+
+            if (services.Devices == null) return Task.FromResult(true);
+
+            try
+            {
+                var device = services.Devices.GetDevices(new DeviceQuery { AccessToken = session.MasterToken })?.Items?.FirstOrDefault();
+                var valid = device != null && device.UserId == session.MasterId;
+                if (!valid)
+                {
+                    logger.LogInformation(
+                        "ProfilesPlugin: {Client} on {Device} was signed out in Jellyfin; ending its profile picker.",
+                        session.Client, session.Device);
+                }
+
+                return Task.FromResult(valid);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogDebug(ex, "ProfilesPlugin: could not recheck the picker's main token; keeping it.");
+                return Task.FromResult(true);
+            }
+        }
 
         private static ProxySession? FindOrRegister(
             string token, HttpRequest request, PluginConfiguration? config, Services services, ILogger logger)

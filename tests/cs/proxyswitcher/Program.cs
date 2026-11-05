@@ -103,11 +103,12 @@ var usernames = new Dictionary<Guid, string> { [MASTER] = "Bard", [KIDS] = "Bard
 
 const string MOON_TOKEN = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const string ATV_TOKEN = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-var devices = DeviceManagerStub.Create(new Dictionary<string, (Guid, string)>
+var deviceTokens = new Dictionary<string, (Guid, string)>
 {
     [MOON_TOKEN] = (MASTER, "Moonfin for Android TV"),
     [ATV_TOKEN] = (MASTER, "Jellyfin Android TV"),
-});
+};
+var devices = DeviceManagerStub.Create(deviceTokens);
 var sessions = SessionManagerStub.Create();
 var sessionLog = (SessionManagerStub)(object)sessions;
 
@@ -449,6 +450,47 @@ else
     askProp.SetValue(kidsRow, true);
 }
 mappings.Remove(mainRow);
+
+Console.WriteLine();
+Console.WriteLine("── The main account signed out in Jellyfin ─────────────────────");
+
+// R-1030: a known token was never asked about again. An administrator signing the TV out, or
+// a password change, left the picker listing profiles and opening PIN-less ones until restart.
+var clockField = switcher.GetField("Clock", BindingFlags.Static | BindingFlags.NonPublic);
+if (clockField == null)
+{
+    Ok("the picker rechecks a known main token on a clock", false, "no Clock in this build");
+}
+else
+{
+    var realNow = DateTime.UtcNow;
+    var skew = TimeSpan.Zero;
+    clockField.SetValue(null, (Func<DateTime>)(() => realNow + skew));
+    skew += TimeSpan.FromSeconds(60);
+    Get("/UserViews");                       // the first look after a minute: one lookup, stamped
+    var lookups = DeviceManagerStub.Calls;
+    skew += TimeSpan.FromSeconds(10);
+    for (var i = 0; i < 20; i++) Get("/UserViews");
+    Ok("a token seen a few seconds ago is not asked about again, however many requests",
+       DeviceManagerStub.Calls == lookups, (DeviceManagerStub.Calls - lookups) + " lookups");
+    skew += TimeSpan.FromSeconds(60);
+    Get("/UserViews");
+    Ok("but a minute later it is asked, once", DeviceManagerStub.Calls == lookups + 1, (DeviceManagerStub.Calls - lookups) + " lookups");
+
+    var minted = sessionLog.Minted.Count;
+    deviceTokens.Remove(MOON_TOKEN);        // signed out in Dashboard -> Devices
+    skew += TimeSpan.FromSeconds(60);
+    var gone = Get("/UserViews");
+    Ok("once Jellyfin has signed the app out, the picker stops answering for it",
+       gone.reachedJellyfin, gone.reachedJellyfin ? "" : "the picker still answered: " + Names(gone.body));
+    var goneAgain = Get("/UserViews");
+    Ok("and keeps passing it to Jellyfin, which refuses it", goneAgain.reachedJellyfin);
+    var tryOpen = Get("/Users/" + N(MASTER) + "/Items?ParentId=" + openId);
+    Ok("a tile it was shown opens nothing", tryOpen.reachedJellyfin && sessionLog.Minted.Count == minted, sessionLog.Minted.Count + " vs " + minted);
+
+    deviceTokens[MOON_TOKEN] = (MASTER, "Moonfin for Android TV");
+    clockField.SetValue(null, (Func<DateTime>)(() => DateTime.UtcNow));
+}
 
 Console.WriteLine();
 Console.WriteLine("── The live connection ─────────────────────────────────────────");
