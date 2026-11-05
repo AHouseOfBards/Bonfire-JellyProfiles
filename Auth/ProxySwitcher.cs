@@ -699,7 +699,8 @@ namespace Jellyfin.Profiles.Auth
                     // UserId, or SessionManager falls back to a name lookup (issue #15).
                     UserId = user.Id,
                     Username = user.Username,
-                    RemoteEndPoint = context.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1",
+                    // The client's, not the proxy's: Jellyfin decides "remote access" from this.
+                    RemoteEndPoint = ClientAddress.Of(context)?.ToString() ?? "127.0.0.1",
                     App = string.IsNullOrEmpty(session.Client) ? "Moonfin" : session.Client,
                     DeviceName = string.IsNullOrEmpty(session.Device) ? "Bonfire picker" : session.Device,
                     DeviceId = string.IsNullOrEmpty(session.DeviceId) ? "bonfire-picker-" + user.Id.ToString("N")[..8] : session.DeviceId,
@@ -1096,7 +1097,8 @@ namespace Jellyfin.Profiles.Auth
         {
             try
             {
-                var ip = context.Connection.RemoteIpAddress;
+                // Through Jellyfin's known proxies: see ClientAddress (R-1029).
+                var ip = ClientAddress.Of(context);
                 return ip != null && services.Network != null && services.Network.IsInLocalNetwork(ip);
             }
             catch (Exception)

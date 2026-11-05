@@ -94,7 +94,8 @@ object Map(Guid profile, Guid master, string name, string pin = null)
 }
 
 var mappings = (System.Collections.IList)cfgType.GetProperty("Mappings").GetValue(config);
-mappings.Add(Map(KIDS, MASTER, "Kids", pin: "1234"));
+var kidsMapping = Map(KIDS, MASTER, "Kids", pin: "1234");
+mappings.Add(kidsMapping);
 mappings.Add(Map(OPEN, MASTER, "Open"));
 Set("ProxyClients", new List<string> { "moonfin" });
 
@@ -115,7 +116,23 @@ var services = new ServiceCollection()
     .AddSingleton(sessions)
     .AddSingleton(UserManagerStub.Create(usernames))
     .AddSingleton(NetworkStub.Create())
+    // What Jellyfin registers from Networking → Known proxies: a reverse proxy on this host.
+    .AddSingleton(Microsoft.Extensions.Options.Options.Create(KnownProxy("127.0.0.1")))
     .BuildServiceProvider();
+
+static Microsoft.AspNetCore.Builder.ForwardedHeadersOptions KnownProxy(string address)
+{
+    var o = new Microsoft.AspNetCore.Builder.ForwardedHeadersOptions
+    {
+        ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+            | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+            | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost,
+        ForwardLimit = null,
+    };
+    o.KnownProxies.Clear();
+    o.KnownProxies.Add(IPAddress.Parse(address));
+    return o;
+}
 
 // What Jellyfin was handed, for the last request that reached it.
 string seenPath = null, seenQuery = null, seenAuth = null;
@@ -151,7 +168,8 @@ MemoryStream lastBytes = null;
 
 // One request through the real middleware. Returns the body the app got, or null when
 // Jellyfin answered it (seenPath says what Jellyfin saw).
-(int status, string body, bool reachedJellyfin) Get(string pathAndQuery, string token = MOON_TOKEN, string client = "Moonfin for Android TV", string method = "GET")
+(int status, string body, bool reachedJellyfin) Get(string pathAndQuery, string token = MOON_TOKEN, string client = "Moonfin for Android TV", string method = "GET",
+    string remote = "203.0.113.9", string forwardedFor = null)
 {
     seenPath = seenQuery = seenAuth = null;
     var ctx = new DefaultHttpContext { RequestServices = services };
@@ -159,7 +177,8 @@ MemoryStream lastBytes = null;
     var q = pathAndQuery.IndexOf('?');
     ctx.Request.Path = q < 0 ? pathAndQuery : pathAndQuery[..q];
     if (q >= 0) ctx.Request.QueryString = new QueryString(pathAndQuery[q..]);
-    ctx.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.9");
+    ctx.Connection.RemoteIpAddress = IPAddress.Parse(remote);
+    if (forwardedFor != null) ctx.Request.Headers["X-Forwarded-For"] = forwardedFor;
     ctx.Request.Headers["Authorization"] =
         "MediaBrowser Client=\"" + client + "\", Device=\"Shield\", DeviceId=\"moon-1\", Version=\"1.4.0\", Token=\"" + token + "\"";
     var sink = new MemoryStream();
@@ -287,6 +306,18 @@ Console.WriteLine();
 Console.WriteLine("── A profile with a PIN: the keypad ────────────────────────────");
 
 var kidsId = IdOf(back, "Kids");
+
+// Its owner skips the PIN at home. Bonfire's middleware runs in front of Jellyfin's
+// forwarded-headers handling, so behind a reverse proxy every request arrived from the
+// proxy's own address and looked like home (R-1029).
+mapType.GetProperty("BypassPinOnLocalNetwork").SetValue(kidsMapping, true);
+var proxied = Get("/Users/" + N(MASTER) + "/Items?ParentId=" + kidsId + "&Recursive=false", remote: "127.0.0.1", forwardedFor: "203.0.113.9");
+Ok("behind a reverse proxy, a Moonfin on the internet still gets the keypad",
+   Names(proxied.body).StartsWith("1, 2, 3") && sessionLog.Minted.Count == 1, Names(proxied.body));
+mapType.GetProperty("BypassPinOnLocalNetwork").SetValue(kidsMapping, false);
+// (Home through the same proxy is savedsignins' case: opening it here would sign the
+// picker in and change everything below.)
+
 var pad = Children(kidsId);
 Ok("opening it shows a keypad, and signs nothing in",
    Names(pad) == "1, 2, 3, 4, 5, 6, 7, 8, 9, 0, Delete, OK" && sessionLog.Minted.Count == 1, Names(pad));
@@ -538,9 +569,13 @@ public class NetworkStub : DispatchProxy
 {
     public static INetworkManager Create() => Create<INetworkManager, NetworkStub>();
 
+    // Loopback and 192.168.x.x are home, judged on the address passed in, as Jellyfin's is.
     protected override object Invoke(MethodInfo m, object[] args)
-        => m.Name == "IsInLocalNetwork" ? false
-           : throw new NotSupportedException("INetworkManager." + m.Name + " is not modelled");
+    {
+        if (m.Name != "IsInLocalNetwork") throw new NotSupportedException("INetworkManager." + m.Name + " is not modelled");
+        var text = args[0]?.ToString() ?? string.Empty;
+        return text == "127.0.0.1" || text.StartsWith("192.168.", StringComparison.Ordinal);
+    }
 }
 
 public sealed class RecordingSocket : WebSocket

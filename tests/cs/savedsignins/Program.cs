@@ -140,12 +140,14 @@ Set("EnableClientProfileList", false); // the lock must not depend on the list
 
 // Drives the real middleware with one request and returns the rows it signed out.
 (List<(Guid user, string id)> revoked, string body) Drive(
-    string deviceId, string token = null, bool local = false, bool sessionThrows = false)
+    string deviceId, string token = null, bool local = false, bool sessionThrows = false,
+    string viaProxy = null, string forwardedFor = null, string knownProxy = null)
 {
     var sessions = SessionManagerStub.Create(sessionThrows);
     var devices = DeviceManagerStub.Create(Rows());
     var users = UserManagerStub.Create(usernames);
-    var network = NetworkStub.Create(local);
+    // Behind a proxy the stub judges the address it is actually given, as Jellyfin's does.
+    var network = viaProxy == null ? NetworkStub.Create(local) : NetworkStub.ByAddress();
 
     var next = new RequestDelegate(async c =>
     {
@@ -158,7 +160,28 @@ Set("EnableClientProfileList", false); // the lock must not depend on the list
     var ctx = new DefaultHttpContext();
     ctx.Request.Method = "GET";
     ctx.Request.Path = "/Users/Public";
-    ctx.Connection.RemoteIpAddress = IPAddress.Parse(local ? "192.168.1.20" : "203.0.113.9");
+    ctx.Connection.RemoteIpAddress = IPAddress.Parse(viaProxy ?? (local ? "192.168.1.20" : "203.0.113.9"));
+    if (viaProxy != null)
+    {
+        // What Jellyfin registers from Networking → Known proxies (ApiServiceCollectionExtensions
+        // .ConfigureForwardHeaders): forward For, Proto and Host, trusting only that proxy.
+        var fwd = new Microsoft.AspNetCore.Builder.ForwardedHeadersOptions
+        {
+            ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+                | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+                | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost,
+            ForwardLimit = null,
+        };
+        fwd.KnownProxies.Clear();
+        fwd.KnownProxies.Add(IPAddress.Parse(knownProxy ?? viaProxy));
+        var sc = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<
+            Microsoft.Extensions.Options.IOptions<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>>(
+            sc, Microsoft.Extensions.Options.Options.Create(fwd));
+        ctx.RequestServices = Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(sc);
+        if (forwardedFor != null) ctx.Request.Headers["X-Forwarded-For"] = forwardedFor;
+        ctx.Request.Headers["X-Forwarded-Proto"] = "https";
+    }
     ctx.Request.Headers["Authorization"] =
         "MediaBrowser Client=\"Jellyfin Roku\", Device=\"Living Room\", Version=\"3.1.0\", DeviceId=\""
         + deviceId + "\"" + (token == null ? "" : ", Token=\"" + token + "\"");
@@ -212,6 +235,18 @@ var home = Drive(ROKU, local: true);
 Ok("at home, the profile whose owner skips the PIN there keeps its sign-in",
    !Has(home.revoked, LAN, ROKU + "lan"), Show(home.revoked));
 Ok("while the other PIN profile is still locked", Has(home.revoked, KIDS, ROKU + "kids"), Show(home.revoked));
+
+// Bonfire's middleware runs in front of Jellyfin's forwarded-headers handling, so behind a
+// reverse proxy every request used to arrive from the proxy's own, local, address (R-1029).
+var proxied = Drive(ROKU, viaProxy: "127.0.0.1", forwardedFor: "203.0.113.9");
+Ok("behind a known proxy, a Roku on the internet is away from home",
+   Has(proxied.revoked, LAN, ROKU + "lan"), Show(proxied.revoked));
+var proxiedHome = Drive(ROKU, viaProxy: "127.0.0.1", forwardedFor: "192.168.1.20");
+Ok("and one at home, through the same proxy, is home",
+   !Has(proxiedHome.revoked, LAN, ROKU + "lan"), Show(proxiedHome.revoked));
+var spoofed = Drive(ROKU, viaProxy: "203.0.113.9", knownProxy: "127.0.0.1", forwardedFor: "192.168.1.20");
+Ok("a home address claimed by something that isn't the known proxy is not believed",
+   Has(spoofed.revoked, LAN, ROKU + "lan"), Show(spoofed.revoked));
 
 var signedIn = Drive(ROKU, token: "abc123");
 Ok("a request carrying a token is somebody signed in, not a picker", signedIn.revoked.Count == 0, Show(signedIn.revoked));
@@ -350,9 +385,23 @@ public class NetworkStub : DispatchProxy
         return proxy;
     }
 
+    private bool _byAddress;
+
+    /// <summary>Local means loopback or 192.168.x.x, judged on the address passed in.</summary>
+    public static INetworkManager ByAddress()
+    {
+        var proxy = Create<INetworkManager, NetworkStub>();
+        ((NetworkStub)(object)proxy)._byAddress = true;
+        return proxy;
+    }
+
     protected override object Invoke(MethodInfo m, object[] args)
-        => m.Name == "IsInLocalNetwork" ? _local
-           : throw new NotSupportedException("INetworkManager." + m.Name + " is not modelled");
+    {
+        if (m.Name != "IsInLocalNetwork") throw new NotSupportedException("INetworkManager." + m.Name + " is not modelled");
+        if (!_byAddress) return _local;
+        var text = args[0]?.ToString() ?? string.Empty;
+        return text == "127.0.0.1" || text.StartsWith("192.168.", StringComparison.Ordinal);
+    }
 }
 
 sealed class StubPaths : MediaBrowser.Common.Configuration.IApplicationPaths

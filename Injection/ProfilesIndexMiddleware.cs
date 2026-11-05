@@ -526,7 +526,7 @@ namespace Jellyfin.Profiles
                         context.Response.ContentType,
                         household,
                         userManager,
-                        context.Connection.RemoteIpAddress?.ToString(),
+                        Auth.ClientAddress.Of(context)?.ToString(),
                         _logger,
                         config);
                 }
@@ -607,7 +607,8 @@ namespace Jellyfin.Profiles
             bool isLocal;
             try
             {
-                var remoteIp = context.Connection.RemoteIpAddress;
+                // Through Jellyfin's known proxies: this runs before its forwarding (R-1029).
+                var remoteIp = Auth.ClientAddress.Of(context);
                 isLocal = remoteIp != null && networkManager != null && networkManager.IsInLocalNetwork(remoteIp);
             }
             catch (Exception ex)
