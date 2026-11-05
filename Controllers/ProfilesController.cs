@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Jellyfin.Profiles.Configuration;
 using Jellyfin.Profiles.Models;
@@ -406,7 +407,7 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
-            var themeError = ValidateTheme(request.Theme);
+            var themeError = ValidateTheme(request.Theme, config);
             if (themeError != null) return BadRequest(themeError);
 
             // Reject an allow-list that shares no tags with the master's, which would leave the
@@ -529,7 +530,7 @@ namespace Jellyfin.Profiles.Controllers
                     TransparentAvatar = request.TransparentAvatar ?? false,
                     // Only while profiles may choose. Stored otherwise, it would surface the
                     // day choosing is turned on, as a choice nobody remembers making.
-                    Theme = config.AllowProfileThemes ? ThemeToStore(request.Theme) : null,
+                    Theme = config.AllowProfileThemes ? ThemeToStore(request.Theme, config) : null,
                     IsHidden = true,
                     LockoutMinutes = ClampLockoutMinutes(request.LockoutMinutes ?? 5),
                     // Store the selected libraries as the plugin's own ground truth
@@ -1616,8 +1617,46 @@ namespace Jellyfin.Profiles.Controllers
                     config.DefaultAskOnStartup = incoming.DefaultAskOnStartup;
                 if (TryProperty(root, "DefaultSwitcherLocation", out _))
                     config.DefaultSwitcherLocation = incoming.DefaultSwitcherLocation;
+                // Themes before the default, which may name one of them, and each through the
+                // same checks as its route. A font whose file is not in this server's data
+                // folder is dropped: a backup holds the list, not the files.
+                if (TryProperty(root, "CustomFonts", out _))
+                {
+                    config.CustomFonts = (incoming.CustomFonts ?? new List<CustomFont>())
+                        .Where(f => f != null && ThemeCatalog.IsCustomFontFileName(f.File) && Woff2Font.IsSafeFamily(f.Family ?? string.Empty)
+                            && ThemeCatalog.CustomFontFallbacks.Contains(f.Fallback)
+                            && System.IO.File.Exists(Path.Combine(ThemeCatalog.CustomFontFolder, f.File)))
+                        .GroupBy(f => f.File).Select(g => g.First())
+                        .Take(ThemeCatalog.MaxCustomFonts)
+                        .ToList();
+                }
+                if (TryProperty(root, "CustomThemes", out _))
+                {
+                    var keep = new List<CustomTheme>();
+                    foreach (var c in incoming.CustomThemes ?? new List<CustomTheme>())
+                    {
+                        if (c == null || keep.Count >= ThemeCatalog.MaxCustomThemes || keep.Any(k => k.Id == c.Id)) continue;
+                        JsonNode? node;
+                        try { node = JsonNode.Parse(c.Json ?? string.Empty); }
+                        catch (JsonException) { continue; }
+                        if (node?["id"] is not JsonValue idv || !idv.TryGetValue<string>(out var nodeId) || nodeId != c.Id) continue;
+                        if (ThemeCatalog.ValidateCustom(node, config).Count == 0)
+                            keep.Add(new CustomTheme { Id = c.Id, Json = node.ToJsonString() });
+                    }
+                    config.CustomThemes = keep;
+                }
+                if (TryProperty(root, "HiddenThemes", out _))
+                {
+                    config.HiddenThemes = (incoming.HiddenThemes ?? new List<string>())
+                        .Where(Themes.IsBuiltIn).Select(id => id.Trim().ToLowerInvariant())
+                        .Where(id => id != Themes.Bonfire).Distinct().ToList();
+                }
+                // A default the file also hides stays the default, and comes out of hiding.
+                var importedDefault = TryProperty(root, "DefaultTheme", out _) ? incoming.DefaultTheme : config.DefaultTheme;
+                if (!string.IsNullOrWhiteSpace(importedDefault))
+                    config.HiddenThemes.Remove(importedDefault.Trim().ToLowerInvariant());
                 if (TryProperty(root, "DefaultTheme", out _))
-                    config.DefaultTheme = Themes.Normalize(incoming.DefaultTheme);
+                    config.DefaultTheme = Themes.Normalize(incoming.DefaultTheme, config);
                 if (TryProperty(root, "DefaultTimeZone", out _))
                     config.DefaultTimeZone = HouseholdTime.TryFind(incoming.DefaultTimeZone, out _) ? incoming.DefaultTimeZone.Trim() : string.Empty;
                 if (TryProperty(root, "AllowProfileThemes", out _))
@@ -1665,14 +1704,14 @@ namespace Jellyfin.Profiles.Controllers
         /// An unknown one is refused rather than quietly stored as the default, because a
         /// typo that saves as "default" looks exactly like the setting not taking.
         /// </summary>
-        internal static string? ValidateTheme(string? theme) =>
-            string.IsNullOrWhiteSpace(theme) || Themes.IsKnown(theme)
+        internal static string? ValidateTheme(string? theme, PluginConfiguration config) =>
+            string.IsNullOrWhiteSpace(theme) || Themes.IsKnown(theme, config)
                 ? null
-                : "Theme must be one of: " + string.Join(", ", Themes.All) + ".";
+                : "Theme must be one of: " + string.Join(", ", Themes.Offered(config)) + ".";
 
         /// <summary>What a valid request's theme is stored as: null for "follow the default".</summary>
-        internal static string? ThemeToStore(string? theme) =>
-            Themes.IsKnown(theme) ? Themes.Normalize(theme) : null;
+        internal static string? ThemeToStore(string? theme, PluginConfiguration config) =>
+            Themes.IsKnown(theme, config) ? Themes.Normalize(theme, config) : null;
 
         [HttpPost("update")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -1729,7 +1768,7 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
-            var themeError = ValidateTheme(request.Theme);
+            var themeError = ValidateTheme(request.Theme, config);
             if (themeError != null) return BadRequest(themeError);
 
             var targetUser = _userManager.GetUserById(request.ProfileId);
@@ -1877,7 +1916,7 @@ namespace Jellyfin.Profiles.Controllers
                     // theme arriving anyway is a stale page, not a decision.
                     if (request.Theme != null && config.AllowProfileThemes)
                     {
-                        mappingEntry.Theme = ThemeToStore(request.Theme);
+                        mappingEntry.Theme = ThemeToStore(request.Theme, config);
                     }
 
                     if (!string.IsNullOrEmpty(request.AvatarLibraryId))
@@ -2746,8 +2785,8 @@ namespace Jellyfin.Profiles.Controllers
                 EmergencyCodeConfigured = !string.IsNullOrEmpty(config.PanicCodeHash),
                 // Read from the signed-in account's OWN row, not the master's: unlike the
                 // switcher settings above, a theme belongs to one profile.
-                Theme = Themes.Resolve(currentMapping, config.DefaultTheme, config.AllowProfileThemes),
-                DefaultTheme = Themes.Normalize(config.DefaultTheme),
+                Theme = Themes.Resolve(currentMapping, config),
+                DefaultTheme = Themes.Normalize(config.DefaultTheme, config),
                 AllowProfileThemes = config.AllowProfileThemes,
                 // Read on every page load already, so the web client learns here whether to
                 // fetch /onboarding at all rather than asking on every load.
@@ -2913,7 +2952,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 result = Themes.SetFor(config, masterUserId, request.ProfileId, request.Theme);
                 var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
-                resolved = Themes.Resolve(row, config.DefaultTheme, config.AllowProfileThemes);
+                resolved = Themes.Resolve(row, config);
                 if (result == ThemeChange.Changed) Plugin.Instance?.SaveConfiguration();
             }
 
@@ -2922,7 +2961,7 @@ namespace Jellyfin.Profiles.Controllers
                 case ThemeChange.NotAllowed:
                     return StatusCode(StatusCodes.Status403Forbidden, "This server does not let profiles choose a theme.");
                 case ThemeChange.UnknownTheme:
-                    return BadRequest(ValidateTheme(request.Theme));
+                    return BadRequest(ValidateTheme(request.Theme, config));
                 case ThemeChange.NotInHousehold:
                     return Unauthorized("Unauthorized profile update attempt.");
             }
@@ -2931,7 +2970,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 ProfileId = request.ProfileId,
                 Theme = resolved,
-                Stored = Themes.IsKnown(request.Theme) ? Themes.Normalize(request.Theme) : null
+                Stored = Themes.IsKnown(request.Theme, config) ? Themes.Normalize(request.Theme, config) : null
             });
         }
 
@@ -4824,12 +4863,6 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest($"Switcher location must be '{SwitcherLocations.Button}' or '{SwitcherLocations.Menu}'.");
             }
 
-            // Refused rather than normalised, for the same reason as the location above.
-            if (request.DefaultTheme != null && !Themes.IsKnown(request.DefaultTheme))
-            {
-                return BadRequest("Default theme must be one of: " + string.Join(", ", Themes.All) + ".");
-            }
-
             if (!string.IsNullOrEmpty(request.DefaultTimeZone) && !HouseholdTime.TryFind(request.DefaultTimeZone, out _))
             {
                 return BadRequest("That time zone isn't known to this server.");
@@ -4898,6 +4931,14 @@ namespace Jellyfin.Profiles.Controllers
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return BadRequest("Plugin configuration missing.");
 
+                // Refused rather than normalised, for the same reason as the location above.
+                // Checked here, before anything is assigned, because what is offered depends on
+                // the custom and hidden themes, which are read under the lock.
+                if (request.DefaultTheme != null && !Themes.IsKnown(request.DefaultTheme, config))
+                {
+                    return BadRequest("Default theme must be one of: " + string.Join(", ", Themes.Offered(config)) + ".");
+                }
+
                 if (request.ProfileImageQuality != null)
                     config.ProfileImageQuality = ImageQualities.Normalize(request.ProfileImageQuality);
                 if (request.MaxProfilesPerUser.HasValue)
@@ -4913,7 +4954,7 @@ namespace Jellyfin.Profiles.Controllers
                 if (request.DefaultSwitcherLocation != null)
                     config.DefaultSwitcherLocation = SwitcherLocations.Normalize(request.DefaultSwitcherLocation);
                 if (request.DefaultTheme != null)
-                    config.DefaultTheme = Themes.Normalize(request.DefaultTheme);
+                    config.DefaultTheme = Themes.Normalize(request.DefaultTheme, config);
                 if (request.DefaultTimeZone != null)
                     config.DefaultTimeZone = request.DefaultTimeZone.Trim();
                 if (request.DefaultTimeZone != null)

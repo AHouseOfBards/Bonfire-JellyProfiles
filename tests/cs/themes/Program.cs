@@ -30,6 +30,9 @@ void Ok(string name, bool cond, string detail = null)
 
 Console.WriteLine("── The theme list ───────────────────────────────────────────────");
 
+var Plain = new PluginConfiguration();
+PluginConfiguration Srv(string def, bool allow) => new PluginConfiguration { DefaultTheme = def, AllowProfileThemes = allow };
+
 var expected = new[] { "bonfire", "crimson", "starlight", "harbor", "nightfall", "glass", "harvest", "snowfall", "bloom", "jellyfin-dark", "jellyfin-light", "high-contrast" };
 Ok("twelve themes, Bonfire first (" + string.Join(", ", Themes.All) + ")",
    Themes.All.SequenceEqual(expected));
@@ -38,14 +41,14 @@ Ok("every id is lowercase, which is what the stylesheet keys on",
 
 foreach (var id in expected)
 {
-    Ok(id + " is known", Themes.IsKnown(id));
+    Ok(id + " is known", Themes.IsKnown(id, Plain));
     Ok(id.ToUpperInvariant() + " is known too, and normalises to " + id,
-       Themes.IsKnown(id.ToUpperInvariant()) && Themes.Normalize(id.ToUpperInvariant()) == id);
+       Themes.IsKnown(id.ToUpperInvariant(), Plain) && Themes.Normalize(id.ToUpperInvariant(), Plain) == id);
 }
 foreach (var bad in new[] { null, "", "   ", "default", "neon", "bonfire-dark" })
 {
     Ok("'" + (bad ?? "null") + "' is not a theme, and normalises to bonfire",
-       !Themes.IsKnown(bad) && Themes.Normalize(bad) == Themes.Bonfire);
+       !Themes.IsKnown(bad, Plain) && Themes.Normalize(bad, Plain) == Themes.Bonfire);
 }
 
 Console.WriteLine();
@@ -54,19 +57,19 @@ Console.WriteLine("── Which theme an account sees ────────�
 ProfileMapping Row(string theme) => new ProfileMapping { ProfileUserId = Guid.NewGuid(), Theme = theme };
 
 Ok("its own choice, when choosing is allowed",
-   Themes.Resolve(Row("glass"), "crimson", allowChoice: true) == "glass");
+   Themes.Resolve(Row("glass"), Srv("crimson", true)) == "glass");
 Ok("the server default, when it has not chosen",
-   Themes.Resolve(Row(null), "crimson", allowChoice: true) == "crimson");
+   Themes.Resolve(Row(null), Srv("crimson", true)) == "crimson");
 Ok("the server default, when choosing is turned off — whatever it chose",
-   Themes.Resolve(Row("glass"), "crimson", allowChoice: false) == "crimson");
+   Themes.Resolve(Row("glass"), Srv("crimson", false)) == "crimson");
 Ok("the server default for an account with no row at all",
-   Themes.Resolve(null, "harbor", allowChoice: true) == "harbor");
+   Themes.Resolve(null, Srv("harbor", true)) == "harbor");
 Ok("a stored choice in another case still counts",
-   Themes.Resolve(Row("Starlight"), "crimson", allowChoice: true) == "starlight");
+   Themes.Resolve(Row("Starlight"), Srv("crimson", true)) == "starlight");
 Ok("a stored id that is no longer a theme falls back to the default, not to nothing",
-   Themes.Resolve(Row("retired"), "nightfall", allowChoice: true) == "nightfall");
+   Themes.Resolve(Row("retired"), Srv("nightfall", true)) == "nightfall");
 Ok("and a broken default falls back to Bonfire",
-   Themes.Resolve(Row(null), "nonsense", allowChoice: true) == Themes.Bonfire);
+   Themes.Resolve(Row(null), Srv("nonsense", true)) == Themes.Bonfire);
 
 Console.WriteLine();
 Console.WriteLine("── What the create and update routes accept ────────────────────");
@@ -80,8 +83,8 @@ Ok("ThemeToStore is reachable", toStore != null);
 
 if (validate != null && toStore != null)
 {
-    string V(string v) => (string)validate.Invoke(null, new object[] { v });
-    string S(string v) => (string)toStore.Invoke(null, new object[] { v });
+    string V(string v) => (string)validate.Invoke(null, new object[] { v, Plain });
+    string S(string v) => (string)toStore.Invoke(null, new object[] { v, Plain });
 
     foreach (var good in new[] { null, "", "glass", "Glass", "CRIMSON" })
         Ok("'" + (good ?? "null") + "' is accepted", V(good) == null);
@@ -110,7 +113,9 @@ before.Mappings.Add(new ProfileMapping { ProfileUserId = Guid.NewGuid(), MasterU
 string xml;
 using (var w = new StringWriter()) { serializer.Serialize(w, before); xml = w.ToString(); }
 var old = System.Xml.Linq.XDocument.Parse(xml);
-old.Descendants().Where(e => e.Name.LocalName is "DefaultTheme" or "AllowProfileThemes" or "Theme").ToList()
+old.Descendants().Where(e => e.Name.LocalName is "DefaultTheme" or "AllowProfileThemes" or "Theme"
+       // 1.7.2's lists did not exist then either.
+       or "CustomThemes" or "HiddenThemes" or "CustomFonts").ToList()
    .ForEach(e => e.Remove());
 Ok("the old document really has no theme elements",
    !old.Descendants().Any(e => e.Name.LocalName.Contains("Theme")));
@@ -230,7 +235,7 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
 
         Console.WriteLine();
         Console.WriteLine("── GET /themes, for other apps ──────────────────────────────────");
-        var pubText = ThemeCatalog.PublicPayload("harbor", false);
+        var pubText = ThemeCatalog.PublicPayload(Srv("harbor", false));
         var pub = System.Text.Json.Nodes.JsonNode.Parse(pubText)!.AsObject();
         Ok("it says schema 1", (int)pub["schema"]! == 1);
         Ok("and the server's default and whether profiles may choose, as given",
@@ -291,10 +296,10 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
                (string)t!["id"]! == "bonfire" && p.Path == "colors.onAccent")));
         var tag = ThemeCatalog.ETagFor(pubText);
         Ok("its ETag is a quoted hash", System.Text.RegularExpressions.Regex.IsMatch(tag, "^\"[0-9a-f]{32}\"$"));
-        Ok("the same answer, the same ETag", ThemeCatalog.ETagFor(ThemeCatalog.PublicPayload("harbor", false)) == tag);
+        Ok("the same answer, the same ETag", ThemeCatalog.ETagFor(ThemeCatalog.PublicPayload(Srv("harbor", false))) == tag);
         Ok("a new default, a new ETag, so no app keeps the old one",
-           ThemeCatalog.ETagFor(ThemeCatalog.PublicPayload("glass", false)) != tag
-           && ThemeCatalog.ETagFor(ThemeCatalog.PublicPayload("harbor", true)) != tag);
+           ThemeCatalog.ETagFor(ThemeCatalog.PublicPayload(Srv("glass", false))) != tag
+           && ThemeCatalog.ETagFor(ThemeCatalog.PublicPayload(Srv("harbor", true))) != tag);
 
         // The routes themselves: anonymous, but checked by apidocs.js against the table that
         // says so. Here, that they read the catalog and nothing else.

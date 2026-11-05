@@ -81,10 +81,17 @@ namespace Jellyfin.Profiles.Configuration
         /// to fetch, and the web client's own notes on a font (the names it goes by when
         /// installed) stay out of it.
         /// </summary>
-        public static string PublicPayload(string defaultTheme, bool profilesCanChoose)
+        /// <param name="config">The configuration, read under ConfigLock by the caller.</param>
+        /// <param name="customOnly">
+        /// <c>?part=custom</c>: only what the administrator added, for the web client, which
+        /// already holds the built-ins in profiles.js and would otherwise download every one of
+        /// them again on every television.
+        /// </param>
+        public static string PublicPayload(PluginConfiguration config, bool customOnly = false)
         {
+            var defaultTheme = Themes.Normalize(config.DefaultTheme, config);
             var fonts = new JsonArray();
-            foreach (var f in Loaded.Value.Fonts)
+            foreach (var f in customOnly ? new JsonArray() : Loaded.Value.Fonts)
             {
                 if (f is not JsonObject font) continue;
 
@@ -120,6 +127,38 @@ namespace Jellyfin.Profiles.Configuration
                 fonts.Add(entry);
             }
 
+            // An uploaded font is one file holding every character it has, so one entry with
+            // no subset and no range: an app loads it for everything.
+            foreach (var font in config.CustomFonts)
+            {
+                fonts.Add(new JsonObject
+                {
+                    ["family"] = font.Family,
+                    ["fallback"] = font.Fallback,
+                    ["custom"] = true,
+                    ["files"] = new JsonArray(new JsonObject
+                    {
+                        ["subset"] = null,
+                        ["url"] = FontUrl(font.File),
+                        ["format"] = "woff2",
+                        ["style"] = "normal",
+                        ["weight"] = new JsonArray(font.WeightMin, font.WeightMax),
+                        ["unicodeRange"] = null,
+                    }),
+                });
+            }
+
+            var themes = new JsonArray();
+            if (!customOnly)
+            {
+                foreach (var t in BuiltIn)
+                {
+                    if (Themes.IsKnown((string)t["id"]!, config)) themes.Add(t.DeepClone());
+                }
+            }
+
+            foreach (var t in ValidCustomThemes(config)) themes.Add(t.DeepClone());
+
             var patterns = new JsonArray();
             foreach (var name in Patterns.Keys.OrderBy(k => k, StringComparer.Ordinal))
             {
@@ -130,8 +169,12 @@ namespace Jellyfin.Profiles.Configuration
             {
                 ["schema"] = ThemeValidator.Schema,
                 ["default"] = defaultTheme,
-                ["profilesCanChoose"] = profilesCanChoose,
-                ["themes"] = new JsonArray(BuiltIn.Select(t => (JsonNode)t.DeepClone()).ToArray()),
+                ["profilesCanChoose"] = config.AllowProfileThemes,
+                // Built-ins the administrator took out of the pickers. They are not in
+                // "themes"; a profile that chose one is drawn in the default.
+                ["hidden"] = new JsonArray(config.HiddenThemes.Where(Themes.IsBuiltIn).Where(id => id != Themes.Bonfire)
+                    .Distinct(StringComparer.Ordinal).Select(id => (JsonNode)JsonValue.Create(id)!).ToArray()),
+                ["themes"] = themes,
                 ["fonts"] = fonts,
                 ["patterns"] = patterns,
                 // No logo yet; an app draws none.
@@ -170,13 +213,128 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>Where a font file is served, relative to the server.</summary>
         public static string FontUrl(string file) => "/plugins/profiles/themes/fonts/" + Uri.EscapeDataString(file);
 
+        // ── An administrator's own themes and fonts (1.7.2) ─────────────────────────────
+
+        /// <summary>At most this many custom themes. Each is up to 64 KB, sent to every client.</summary>
+        public const int MaxCustomThemes = 40;
+
+        /// <summary>At most this many uploaded fonts.</summary>
+        public const int MaxCustomFonts = 20;
+
+        /// <summary>An uploaded font larger than this is refused unread.</summary>
+        public const int MaxFontBytes = 2 * 1024 * 1024;
+
+        /// <summary>What an uploaded font may fall back to: what the web client draws (themeCss).</summary>
+        public static readonly string[] CustomFontFallbacks = { "sans-serif", "serif" };
+
+        private static readonly System.Text.RegularExpressions.Regex CustomFontName =
+            new("^[0-9a-f]{32}\\.woff2$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        /// <summary>Where uploaded fonts are kept: the plugin's data folder, <c>fonts/</c>.</summary>
+        public static string CustomFontFolder => Path.Combine(
+            Plugin.Instance?.AppPaths.DataPath ?? Path.GetTempPath(), "plugins", "ProfilesManagement", "fonts");
+
+        /// <summary>
+        /// The name an uploaded font is stored and served under: the first half of its SHA-256.
+        /// Named by contents, so the same file uploaded twice is one file, and a name can never
+        /// carry a path.
+        /// </summary>
+        public static string CustomFontFileName(byte[] bytes) =>
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes), 0, 16).ToLowerInvariant() + ".woff2";
+
+        /// <summary>True for a name <see cref="CustomFontFileName"/> could have produced.</summary>
+        public static bool IsCustomFontFileName(string? name) => name != null && CustomFontName.IsMatch(name);
+
+        /// <summary>The built-in font families and the uploaded ones.</summary>
+        public static IReadOnlyList<string> FontFamiliesFor(PluginConfiguration config) =>
+            FontFamilies.Concat(config.CustomFonts.Select(f => f.Family)).ToList();
+
+        /// <summary>Every id a built-in theme answers to: its own and its aliases.</summary>
+        public static IReadOnlyCollection<string> BuiltInNames => Loaded.Value.Names;
+
+        /// <summary>
+        /// Every problem with an administrator's theme: <see cref="Validate"/> against the
+        /// built-in and uploaded fonts, and the three rules only a custom theme has. Its id
+        /// cannot be one a built-in answers to, or the two would be drawn as one. It names
+        /// itself in text, since a key would need a translation nobody wrote. And it has no
+        /// aliases, which exist so a renamed built-in keeps the profiles that chose it.
+        /// </summary>
+        public static IReadOnlyList<ThemeProblem> ValidateCustom(JsonNode? theme, PluginConfiguration config)
+        {
+            var problems = ThemeValidator.Validate(theme, FontFamiliesFor(config), Patterns.Keys).ToList();
+            if (theme is not JsonObject t) return problems;
+
+            if (t["id"] is JsonValue iv && iv.TryGetValue<string>(out var id) && BuiltInNames.Contains(id))
+                problems.Add(new ThemeProblem("id", "taken", "A built-in theme already uses this id."));
+            if (t["name"] is JsonObject name && name.ContainsKey("key"))
+                problems.Add(new ThemeProblem("name.key", "range", "A custom theme gives its name as text."));
+            if (t["aliases"] is JsonArray aliases && aliases.Count > 0)
+                problems.Add(new ThemeProblem("aliases", "range", "A custom theme has no aliases."));
+            return problems;
+        }
+
+        /// <summary>
+        /// The administrator's themes that still pass <see cref="ValidateCustom"/>, parsed, in
+        /// the order they were added. Checked on the way out as well as in, so a configuration
+        /// edited by hand, or a font deleted from under a theme, leaves that theme out rather
+        /// than in front of anyone. Each answer is kept, keyed by the text and the fonts it
+        /// was checked against, because GET /themes is anonymous and asked often.
+        /// </summary>
+        public static IReadOnlyList<JsonObject> ValidCustomThemes(PluginConfiguration config)
+        {
+            var fontsKey = string.Join("\u0001", config.CustomFonts.Select(f => f.Family));
+            var list = new List<JsonObject>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var custom in config.CustomThemes)
+            {
+                if (custom == null || string.IsNullOrEmpty(custom.Json) || !seen.Add(custom.Id ?? string.Empty)) continue;
+                if (CustomParsed.Count > 500) CustomParsed.Clear();
+                var parsed = CustomParsed.GetOrAdd(fontsKey + "\u0002" + custom.Json, _ =>
+                {
+                    JsonNode? node;
+                    try
+                    {
+                        node = JsonNode.Parse(custom.Json);
+                    }
+                    catch (JsonException)
+                    {
+                        return null;
+                    }
+
+                    return node is JsonObject o && ValidateCustom(o, config).Count == 0 ? o : null;
+                });
+                if (parsed != null && parsed["id"] is JsonValue v && v.TryGetValue<string>(out var id) && id == custom.Id)
+                    list.Add(parsed);
+            }
+
+            return list;
+        }
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, JsonObject?> CustomParsed =
+            new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// One uploaded font, by its stored name, when the configuration still lists it. Null
+        /// otherwise. The name is checked against <see cref="IsCustomFontFileName"/> and the
+        /// list before it is joined to the folder.
+        /// </summary>
+        public static (byte[] Bytes, string ContentType, string ETag)? CustomFontFile(string name, PluginConfiguration config)
+        {
+            if (!IsCustomFontFileName(name) || !config.CustomFonts.Any(f => f.File == name)) return null;
+            var path = Path.Combine(CustomFontFolder, name);
+            if (!File.Exists(path)) return null;
+            // Named by its hash, so the name is the validator.
+            return (File.ReadAllBytes(path), "font/woff2", "\"" + name.Substring(0, 32) + "\"");
+        }
+
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (byte[] Bytes, string ETag)> FontBytes =
             new(StringComparer.Ordinal);
 
         private const string FontPrefix = "Jellyfin.Profiles.Themes.Fonts.";
 
         private sealed record Catalog(
-            List<JsonObject> Themes, JsonArray Fonts, JsonObject Subsets, Dictionary<string, string> Patterns, HashSet<string> FontFiles);
+            List<JsonObject> Themes, JsonArray Fonts, JsonObject Subsets, Dictionary<string, string> Patterns, HashSet<string> FontFiles,
+            HashSet<string> Names);
 
         private static readonly Lazy<Catalog> Loaded = new(Load);
 
@@ -223,7 +381,18 @@ namespace Jellyfin.Profiles.Configuration
             themes = themes.OrderBy(t => (string)t["id"]! == Themes.Bonfire ? 0 : 1)
                 .ThenBy(t => (string)t["id"]!, StringComparer.Ordinal)
                 .ToList();
-            return new Catalog(themes, fonts, subsets, patterns, fontFiles);
+            var names = new HashSet<string>(Themes.All, StringComparer.Ordinal);
+            foreach (var t in themes)
+            {
+                names.Add((string)t["id"]!);
+                if (t["aliases"] is not JsonArray aliases) continue;
+                foreach (var a in aliases)
+                {
+                    if (a is JsonValue av && av.TryGetValue<string>(out var alias)) names.Add(alias);
+                }
+            }
+
+            return new Catalog(themes, fonts, subsets, patterns, fontFiles, names);
 
             string Read(string resource)
             {

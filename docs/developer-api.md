@@ -39,7 +39,7 @@ for Bonfire's own client. It's documented because other people build against it 
 
 ## All routes
 
-All 92 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 99 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -118,6 +118,13 @@ All 92 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `POST /plugins/profiles/admin/panic-code` | admin | Set or clear the code. |
 | `POST /plugins/profiles/admin/settings` | admin | Server-wide settings. |
 | `POST /plugins/profiles/admin/onboarding/show-again` | admin | Show first-time setup to every main account again. |
+| `GET /plugins/profiles/admin/themes` | admin | Custom themes, hidden themes and uploaded fonts. |
+| `POST /plugins/profiles/admin/themes/validate` | admin | Check a theme without saving it. |
+| `PUT /plugins/profiles/admin/themes/custom/{id}` | admin | Save a custom theme. |
+| `DELETE /plugins/profiles/admin/themes/custom/{id}` | admin | Delete one. |
+| `PUT /plugins/profiles/admin/themes/hidden` | admin | Choose which built-in themes to hide. |
+| `POST /plugins/profiles/admin/themes/fonts` | admin | Upload a font. |
+| `DELETE /plugins/profiles/admin/themes/fonts/{file}` | admin | Delete one. |
 | `GET /plugins/profiles/admin/email` | admin | Outgoing mail settings and confirmed addresses. |
 | `POST /plugins/profiles/admin/email` | admin | Save the outgoing mail settings. |
 | `POST /plugins/profiles/admin/email/test` | admin | Send a test message, which makes email available. |
@@ -162,9 +169,9 @@ Eleven routes are reachable without a token, because they're needed before anyon
 | `POST /panic` | Has to work when Bonfire is what's blocking the interface. Rate limited. |
 | `GET /info` | Read before sign-in to decide what to show. Server-wide settings only. |
 | `GET /panic-state` | Says only whether Bonfire is disabled. |
-| `GET /themes` | An app draws its switcher before sign-in. Only the default theme and whether profiles may choose. |
+| `GET /themes` | An app draws its switcher before sign-in. Only the default theme, whether profiles may choose, and which themes are hidden. |
 | `GET /themes/patterns/{name}` | Pictures those themes use. Built-in files only. |
-| `GET /themes/fonts/{file}` | Fonts those themes use, and their licences. Built-in files only. |
+| `GET /themes/fonts/{file}` | Fonts those themes use, and their licences. Built-in files, and fonts the administrator uploaded. |
 
 The image routes can be reached by anyone who knows the id. Ids are GUIDs, so they can't
 be guessed.
@@ -275,6 +282,16 @@ Invalid PIN code.
 | `admin_only` | Only an administrator can do this. |
 | `not_your_profile` | The profile belongs to another household. |
 | `themes_locked` | The server doesn't let profiles choose a theme. |
+| `theme_invalid` | The theme isn't valid. The body lists each problem. Also a theme that can't be hidden. |
+| `theme_limit` | 40 custom themes are stored. Delete one first. |
+| `theme_not_found` | No custom theme has that id. |
+| `theme_in_use` | That theme is the default. Choose another default first. |
+| `font_invalid` | The file isn't a WOFF2 font that can draw Latin letters, is over 2 MB, or the name or fallback isn't allowed. |
+| `font_rights` | `rights=true` wasn't sent. |
+| `font_taken` | A font with that name is already on the server. |
+| `font_limit` | 20 fonts are stored. Delete one first. |
+| `font_not_found` | No uploaded font has that file name. |
+| `font_in_use` | A custom theme uses that font. |
 | `pin_wrong` | Wrong PIN. |
 | `pin_missing` | The main account's PIN wasn't sent. See [The main account's PIN](#the-main-accounts-pin). |
 | `main_pin_required` | The server requires main accounts to have a PIN, and this one has none. |
@@ -1302,21 +1319,28 @@ proper names and aren't translated.
 
 | Id | Look |
 | --- | --- |
-| `bonfire` | The default. |
-| `crimson` | Flat charcoal, red, square tiles, outlined capital-letter buttons. |
-| `starlight` | Flat navy, round tiles with a white ring, solid buttons that invert. |
-| `harbor` | Blue-grey gradient, bold type, round tiles, slate buttons. |
-| `nightfall` | Black into purple, gradient rings, pill buttons. |
+| `bonfire` | The default. Night blue with a warm glow, amber, round tiles. |
+| `crimson` | A dark theatre. Deep red, gold, a serif. |
+| `starlight` | Navy with a few stars, round tiles with a white ring. |
+| `harbor` | A harbour at dusk. Blue-grey, bold type, slate buttons. |
+| `nightfall` | Black into purple with a rose glow, gradient rings, pill buttons. |
 | `glass` | Soft coloured blur, small round tiles, frosted buttons. |
 | `harvest` | Autumn. Brown into amber with drifting leaves, leaf-shaped tiles, a serif. |
 | `snowfall` | Winter. Night blue with falling snow, frosted rings, white outlined buttons. |
 | `bloom` | Spring. Fresh green with blossoms, soft rounded tiles, pink highlights. |
+| `jellyfin-dark` | Jellyfin's own dark look. |
+| `jellyfin-light` | Jellyfin's own light look. |
+| `high-contrast` | Yellow on black, large type. |
 
 A theme is per profile. Set it with `theme` on [`/create`](#post-pluginsprofilescreate) or
 [`/update`](#post-pluginsprofilesupdate), or on its own with
 [`/theme`](#post-pluginsprofilestheme); read the one to show from
 [`/preferences`](#get-pluginsprofilespreferences). The administrator sets the default and
 whether profiles may choose, under [`admin/settings`](#post-pluginsprofilesadminsettings).
+
+An administrator can also hide built-in themes and add their own; see
+[Custom themes](#custom-themes). A profile that chose a hidden or deleted theme sees the
+default, and gets its choice back if the theme returns.
 
 ### `POST /plugins/profiles/theme`
 
@@ -1349,17 +1373,25 @@ Errors:
 Every theme as a file, for an app that draws its own switcher. The file format is in
 [Themes](themes.md).
 
+Hidden built-ins are left out of `themes` and named in `hidden`. Custom themes come after
+the built-ins, and uploaded fonts after the built-in fonts. `?part=custom` returns only
+the custom themes and uploaded fonts, for a client that already has the built-ins.
+
 ```json
 {
   "schema": 1,
   "default": "bonfire",
   "profilesCanChoose": true,
+  "hidden": [ "glass" ],
   "themes": [ { "schema": 1, "id": "harvest", "revision": 1, "…": "…" } ],
   "fonts": [
     { "family": "Noto Sans", "fallback": "sans-serif", "licence": "/plugins/profiles/themes/fonts/noto-sans-OFL.txt",
       "files": [ { "subset": "latin", "url": "/plugins/profiles/themes/fonts/noto-sans-latin.woff2", "format": "woff2",
                    "style": "normal", "weight": [100, 900], "unicodeRange": "U+0000-00FF,…" } ] },
-    { "family": "Georgia", "fallback": "serif", "files": [] }
+    { "family": "Georgia", "fallback": "serif", "files": [] },
+    { "family": "Shop Sign", "fallback": "sans-serif", "custom": true,
+      "files": [ { "subset": null, "url": "/plugins/profiles/themes/fonts/3f9c…e1.woff2", "format": "woff2",
+                   "style": "normal", "weight": [400, 400], "unicodeRange": null } ] }
   ],
   "patterns": [ { "name": "leaves", "url": "/plugins/profiles/themes/patterns/leaves" } ],
   "logo": { "image": null, "text": null }
@@ -1383,8 +1415,97 @@ One pattern picture, as SVG. `name` is a decoration's `image`; the `url` in
 One font file (`font/woff2`), or the licence that comes with it (`text/plain`). The `url`
 and `licence` in [`/themes`](#get-pluginsprofilesthemes) point here. Each font is a
 variable font covering its `weight` range, in one file per `subset`; use the file whose
-`unicodeRange` holds the character. Every font is under the SIL Open Font License. Sent
-with `Access-Control-Allow-Origin: *` and an `ETag`. `404` for a file Bonfire doesn't hold.
+`unicodeRange` holds the character. Every built-in font is under the SIL Open Font License.
+An uploaded font is one file with no subset; use it for everything. Sent with
+`Access-Control-Allow-Origin: *` and an `ETag`. `404` for a file Bonfire doesn't hold.
+
+### Custom themes
+
+An administrator can add up to 40 themes of their own and hide any built-in but Bonfire.
+A custom theme is a theme file, schema 1, checked by the same rules as the built-ins (see
+[Themes](themes.md), "Rules every theme passes"), plus three of its own: its `id` can't
+be one a built-in uses, its name is `name.text`, and it has no `aliases`. It may use the
+built-in fonts and any uploaded font.
+
+A problem is `{ "path": "colors.text2", "code": "contrast", "detail": "…" }`. `detail` is
+English; show your own text by `code`.
+
+### `GET /plugins/profiles/admin/themes`
+
+**Authorisation:** administrator.
+
+```json
+{
+  "default": "bonfire",
+  "profilesCanChoose": true,
+  "maxCustomThemes": 40,
+  "maxCustomFonts": 20,
+  "maxFontBytes": 2097152,
+  "builtIn": [ { "id": "bonfire", "hidden": false }, { "id": "glass", "hidden": true } ],
+  "custom": [ { "id": "shop", "theme": { "schema": 1, "id": "shop", "…": "…" }, "problems": [] } ],
+  "fonts": [ { "family": "Shop Sign", "file": "3f9c…e1.woff2", "url": "/plugins/profiles/themes/fonts/3f9c…e1.woff2",
+               "weightMin": 400, "weightMax": 400, "fallback": "sans-serif", "usedBy": [ "shop" ] } ],
+  "builtInFonts": [ "Noto Sans", "…" ]
+}
+```
+
+Every custom theme is listed, with its problems. One with problems isn't offered
+anywhere until it's fixed.
+
+### `POST /plugins/profiles/admin/themes/validate`
+
+**Authorisation:** administrator.
+
+The body is a theme file. Returns `{ "problems": [ … ] }`, empty when it passes. Saves
+nothing.
+
+### `PUT /plugins/profiles/admin/themes/custom/{id}`
+
+**Authorisation:** administrator.
+
+The body is a theme file whose `id` is `{id}`. Adds it, or replaces the custom theme with
+that id. Returns `{ "id": "shop", "created": true }`. `400` with
+`{ "message": "…", "problems": [ … ] }` when it doesn't pass, and `400` when 40 are
+already stored.
+
+### `DELETE /plugins/profiles/admin/themes/custom/{id}`
+
+**Authorisation:** administrator.
+
+Deletes a custom theme. `404` if there's none with that id, `400` if it's the default.
+
+### `PUT /plugins/profiles/admin/themes/hidden`
+
+**Authorisation:** administrator.
+
+```json
+{ "hidden": [ "glass", "starlight" ] }
+```
+
+Replaces the list. Built-in ids only, never `bonfire` or the default. Returns the list
+as stored.
+
+### `POST /plugins/profiles/admin/themes/fonts`
+
+**Authorisation:** administrator.
+
+The body is the font file itself: WOFF2, at most 2 MB, able to draw A–Z, a–z and 0–9.
+
+| Query | Required | Description |
+| --- | --- | --- |
+| `rights` | Yes | `true`: the administrator has the right to use the font. |
+| `fallback` | No | `sans-serif` (the default) or `serif`. |
+| `family` | No | The name to use. Letters, digits, spaces, `-`, `_` and `.`, up to 64. Defaults to the name in the file. |
+
+The file is stored under a name made from its contents. Uploading the same file again
+returns the font already there. Returns the font as listed by
+[`admin/themes`](#get-pluginsprofilesadminthemes). Up to 20 fonts.
+
+### `DELETE /plugins/profiles/admin/themes/fonts/{file}`
+
+**Authorisation:** administrator.
+
+Deletes an uploaded font and its file. `400` while a custom theme uses it.
 
 ---
 

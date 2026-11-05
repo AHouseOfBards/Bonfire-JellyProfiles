@@ -298,6 +298,7 @@ as `If-None-Match` and you get `304` until something changes.
   "schema": 1,
   "default": "bonfire",
   "profilesCanChoose": true,
+  "hidden": [],
   "themes": [ { "schema": 1, "id": "harvest", "revision": 4, "…": "…" } ],
   "fonts": [ { "family": "Lora", "fallback": "serif", "licence": "/plugins/profiles/themes/fonts/lora-OFL.txt",
                "files": [ { "subset": "latin", "url": "/plugins/profiles/themes/fonts/lora-latin.woff2", "format": "woff2",
@@ -313,6 +314,10 @@ as `If-None-Match` and you get `304` until something changes.
   one whose `unicodeRange` holds the character. Every one is under the SIL Open Font
   License, at `licence`.
 - **A font with no `files`** isn't one Bonfire serves. Use its `fallback`.
+- **An uploaded font** has `custom: true` and one file with no `subset`. Use it for
+  everything.
+- **Custom themes** are the administrator's own, after the built-ins. They pass the same
+  rules. Built-ins the administrator hid are left out and listed in `hidden`.
 
 - **Which theme a profile uses** is in `/list`, as each profile's `theme`. When it's
   `null`, use `default`. An id you don't recognise is an alias or a deleted theme: look

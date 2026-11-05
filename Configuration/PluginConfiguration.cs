@@ -192,9 +192,31 @@ namespace Jellyfin.Profiles.Configuration
         public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;
 
         /// <summary>
-        /// The theme every account sees until it picks its own. One of <see cref="Themes.All"/>.
+        /// The theme every account sees until it picks its own: a built-in that is not hidden,
+        /// or one of <see cref="CustomThemes"/>. See <see cref="Themes.IsKnown"/>.
         /// </summary>
         public string DefaultTheme { get; set; } = Themes.Bonfire;
+
+        /// <summary>
+        /// Themes an administrator made or imported (1.7.2). Each is one theme file, schema 1,
+        /// kept as the text it was saved as. Validated by <see cref="ThemeCatalog.Validate"/>
+        /// on the way in and again on the way out, so a configuration edited by hand cannot
+        /// put an address or an unreadable colour in front of anyone.
+        /// </summary>
+        public List<CustomTheme> CustomThemes { get; set; } = new();
+
+        /// <summary>
+        /// Built-in themes taken out of every picker. Never Bonfire, which is what everything
+        /// falls back to, and never the current <see cref="DefaultTheme"/>. A profile that chose
+        /// one sees the default instead; its choice is kept for if the theme comes back.
+        /// </summary>
+        public List<string> HiddenThemes { get; set; } = new();
+
+        /// <summary>
+        /// Fonts an administrator uploaded: WOFF2 files kept in the plugin's data folder
+        /// (<see cref="ThemeCatalog.CustomFontFolder"/>), named by their contents' hash.
+        /// </summary>
+        public List<CustomFont> CustomFonts { get; set; } = new();
 
         /// <summary>
         /// The time zone a household's viewing hours are read in until its main account picks
@@ -402,22 +424,43 @@ namespace Jellyfin.Profiles.Configuration
             JellyfinDark, JellyfinLight, HighContrast,
         };
 
-        /// <summary>True for one of <see cref="All"/>, in any case.</summary>
-        public static bool IsKnown(string? value) =>
+        /// <summary>True for one of <see cref="All"/>, in any case, hidden or not.</summary>
+        public static bool IsBuiltIn(string? value) =>
             !string.IsNullOrWhiteSpace(value)
             && All.Contains(value.Trim().ToLowerInvariant());
 
-        /// <summary>Maps arbitrary input to a known theme, falling back to <see cref="Bonfire"/>.</summary>
-        public static string Normalize(string? value) =>
-            IsKnown(value) ? value!.Trim().ToLowerInvariant() : Bonfire;
+        /// <summary>
+        /// True for a theme this server offers: a built-in the administrator has not hidden
+        /// (Bonfire always), or one of its <see cref="PluginConfiguration.CustomThemes"/>.
+        /// The configuration is required, not optional: before 1.7.2 this took only the value,
+        /// and a call left without it would quietly have refused every custom theme.
+        /// </summary>
+        public static bool IsKnown(string? value, PluginConfiguration config)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return false;
+            var id = value.Trim().ToLowerInvariant();
+            if (All.Contains(id)) return id == Bonfire || !config.HiddenThemes.Contains(id);
+            return config.CustomThemes.Any(c => c.Id == id);
+        }
+
+        /// <summary>Maps arbitrary input to a theme this server offers, falling back to <see cref="Bonfire"/>.</summary>
+        public static string Normalize(string? value, PluginConfiguration config) =>
+            IsKnown(value, config) ? value!.Trim().ToLowerInvariant() : Bonfire;
 
         /// <summary>
         /// The theme one account sees: its own choice when the server lets accounts choose and
-        /// it has made one, otherwise the server's default. A stored choice is kept while
-        /// choosing is turned off, so turning it back on restores everybody's pick.
+        /// it has made one the server still offers, otherwise the server's default. A stored
+        /// choice is kept while choosing is turned off, or while its theme is hidden or
+        /// deleted, so undoing either gives everybody their pick back.
         /// </summary>
-        public static string Resolve(ProfileMapping? mapping, string? serverDefault, bool allowChoice) =>
-            allowChoice && IsKnown(mapping?.Theme) ? Normalize(mapping!.Theme) : Normalize(serverDefault);
+        public static string Resolve(ProfileMapping? mapping, PluginConfiguration config) =>
+            config.AllowProfileThemes && IsKnown(mapping?.Theme, config)
+                ? Normalize(mapping!.Theme, config)
+                : Normalize(config.DefaultTheme, config);
+
+        /// <summary>Every theme the pickers offer, Bonfire first, built-ins before custom.</summary>
+        public static List<string> Offered(PluginConfiguration config) =>
+            All.Where(id => IsKnown(id, config)).Concat(config.CustomThemes.Select(c => c.Id)).ToList();
 
         /// <summary>
         /// Sets one profile's theme for the account that owns it: the rule behind
@@ -428,7 +471,7 @@ namespace Jellyfin.Profiles.Configuration
         public static ThemeChange SetFor(PluginConfiguration config, System.Guid masterUserId, System.Guid profileId, string? theme)
         {
             if (!config.AllowProfileThemes) return ThemeChange.NotAllowed;
-            if (!string.IsNullOrWhiteSpace(theme) && !IsKnown(theme)) return ThemeChange.UnknownTheme;
+            if (!string.IsNullOrWhiteSpace(theme) && !IsKnown(theme, config)) return ThemeChange.UnknownTheme;
 
             // The master's own row, or one of its profiles. A linked Bonfire's profiles have
             // a different master, so they are someone else's to change.
@@ -436,9 +479,38 @@ namespace Jellyfin.Profiles.Configuration
             if (row == null || (row.MasterUserId != masterUserId && row.ProfileUserId != masterUserId))
                 return ThemeChange.NotInHousehold;
 
-            row.Theme = IsKnown(theme) ? Normalize(theme) : null;
+            row.Theme = IsKnown(theme, config) ? Normalize(theme, config) : null;
             return ThemeChange.Changed;
         }
+    }
+
+    /// <summary>One administrator's theme: <see cref="PluginConfiguration.CustomThemes"/>.</summary>
+    public class CustomTheme
+    {
+        /// <summary>The theme's id, the same as the <c>id</c> inside <see cref="Json"/>.</summary>
+        public string Id { get; set; } = string.Empty;
+
+        /// <summary>The theme file, as saved.</summary>
+        public string Json { get; set; } = string.Empty;
+    }
+
+    /// <summary>One uploaded font: <see cref="PluginConfiguration.CustomFonts"/>.</summary>
+    public class CustomFont
+    {
+        /// <summary>The family name read out of the file's own name table.</summary>
+        public string Family { get; set; } = string.Empty;
+
+        /// <summary>The file in <see cref="ThemeCatalog.CustomFontFolder"/>: its hash and .woff2.</summary>
+        public string File { get; set; } = string.Empty;
+
+        /// <summary>The lightest and heaviest weight the file draws, read from it.</summary>
+        public int WeightMin { get; set; } = 400;
+
+        /// <summary>See <see cref="WeightMin"/>.</summary>
+        public int WeightMax { get; set; } = 400;
+
+        /// <summary>sans-serif or serif: what to draw with where the file cannot be used.</summary>
+        public string Fallback { get; set; } = "sans-serif";
     }
 
     /// <summary>What <see cref="Themes.SetFor"/> did.</summary>

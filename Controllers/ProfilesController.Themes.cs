@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text;
 using Jellyfin.Profiles.Configuration;
 using Microsoft.AspNetCore.Http;
@@ -21,19 +22,18 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>Every theme, the fonts and pictures they use, and the server's default.</summary>
         [HttpGet("themes")]
         [Produces("application/json")]
-        public ActionResult GetThemes()
+        public ActionResult GetThemes([FromQuery] string? part = null)
         {
-            string defaultTheme;
-            bool allow;
+            // Built under the lock: it reads the custom theme and font lists, which a save can
+            // change underneath it. Cheap, since each custom theme's check is cached.
+            string payload;
             lock (ConfigLock)
             {
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return NotFound();
-                defaultTheme = Themes.Normalize(config.DefaultTheme);
-                allow = config.AllowProfileThemes;
+                payload = ThemeCatalog.PublicPayload(config, customOnly: part == "custom");
             }
 
-            var payload = ThemeCatalog.PublicPayload(defaultTheme, allow);
             var etag = ThemeCatalog.ETagFor(payload);
             Response.Headers["ETag"] = etag;
             // Revalidated every time: the default theme can change at any moment, and an
@@ -51,8 +51,22 @@ namespace Jellyfin.Profiles.Controllers
         [HttpGet("themes/fonts/{file}")]
         public ActionResult GetThemeFont(string file)
         {
-            // Looked up among the embedded files, never joined to a path.
+            // Looked up among the embedded files, never joined to a path. An uploaded font is
+            // looked up in the configuration's list first, by a name that can only be a hash.
             var found = ThemeCatalog.FontFile(file);
+            if (found == null && ThemeCatalog.IsCustomFontFileName(file))
+            {
+                PluginConfiguration? snapshot = null;
+                lock (ConfigLock)
+                {
+                    var config = Plugin.Instance?.Configuration;
+                    if (config != null && config.CustomFonts.Any(f => f.File == file))
+                        snapshot = new PluginConfiguration { CustomFonts = config.CustomFonts.Where(f => f.File == file).ToList() };
+                }
+
+                if (snapshot != null) found = ThemeCatalog.CustomFontFile(file, snapshot);
+            }
+
             if (found == null) return NotFound();
 
             Response.Headers["X-Content-Type-Options"] = "nosniff";

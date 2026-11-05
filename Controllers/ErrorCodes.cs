@@ -156,6 +156,24 @@ namespace Jellyfin.Profiles.Controllers
             ("Choose another account's household", "not_convertible"),
             ("It has profiles of its own", "not_convertible"),
             ("It's in a Bonfire. Leave it first", "not_convertible"),
+
+            // Custom themes and fonts (1.7.2). "That theme isn't valid" and an unreadable font
+            // file carry their codes from the route: theme_invalid and font_invalid.
+            ("Delete a custom theme first", "theme_limit"),
+            ("No such theme", "theme_not_found"),
+            ("That's the default theme. Choose another default first", "theme_in_use"),
+            ("Only built-in themes can be hidden", "theme_invalid"),
+            ("Bonfire can't be hidden", "theme_invalid"),
+            ("Send the list of themes to hide", "theme_invalid"),
+            ("Confirm you have the right to use this font", "font_rights"),
+            ("A font falls back to", "font_invalid"),
+            ("A font name can use", "font_invalid"),
+            ("That font is larger than", "font_invalid"),
+            ("Choose a WOFF2 font file", "font_invalid"),
+            ("Bonfire already has a font called", "font_taken"),
+            ("Delete a font first", "font_limit"),
+            ("No such font", "font_not_found"),
+            ("A theme uses that font", "font_in_use"),
         };
 
         /// <summary>The code for an error, from its status and message.</summary>
