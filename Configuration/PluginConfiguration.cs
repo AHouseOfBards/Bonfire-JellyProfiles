@@ -536,7 +536,7 @@ namespace Jellyfin.Profiles.Configuration
         /// The caller holds <c>ConfigLock</c> and saves. Empty or null means "follow the
         /// server default". Nothing is changed unless the answer is <see cref="ThemeChange.Changed"/>.
         /// </summary>
-        public static ThemeChange SetFor(PluginConfiguration config, System.Guid masterUserId, System.Guid profileId, string? theme)
+        public static ThemeChange SetFor(PluginConfiguration config, System.Guid masterUserId, System.Guid profileId, string? theme, string? ownName = null)
         {
             if (!config.AllowProfileThemes) return ThemeChange.NotAllowed;
             if (!string.IsNullOrWhiteSpace(theme) && !IsKnown(theme, config)) return ThemeChange.UnknownTheme;
@@ -544,6 +544,23 @@ namespace Jellyfin.Profiles.Configuration
             // The master's own row, or one of its profiles. A linked Bonfire's profiles have
             // a different master, so they are someone else's to change.
             var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+
+            // A main account has no row until something creates one, and first-time setup is
+            // exactly when a new one picks its theme: it was refused as "not in household" and
+            // got a 401 (R-1157). Only its own row is made here, the way UpdatePreferences
+            // makes it, and only now that every refusal above has been passed.
+            if (row == null && profileId == masterUserId)
+            {
+                row = new ProfileMapping
+                {
+                    ProfileUserId = masterUserId,
+                    MasterUserId = masterUserId,
+                    ProfileName = string.IsNullOrEmpty(ownName) ? "Master" : ownName,
+                    IsHidden = false
+                };
+                config.Mappings.Add(row);
+            }
+
             if (row == null || (row.MasterUserId != masterUserId && row.ProfileUserId != masterUserId))
                 return ThemeChange.NotInHousehold;
 

@@ -174,6 +174,22 @@ Ok("an account with no row is refused", Themes.SetFor(h, master, Guid.NewGuid(),
 Ok("an unknown theme is refused, and stores nothing",
    Themes.SetFor(h, master, child, "neon") == ThemeChange.UnknownTheme && h.Mappings[1].Theme == "crimson");
 
+// R-1157: a new main account has no row until something creates one, and first-time setup
+// is where it picks its theme. It was refused as "not in household".
+h = House();
+var newMain = Guid.NewGuid();
+Ok("a new main account with no row can set its own theme",
+   Themes.SetFor(h, newMain, newMain, "harbor", "Newcomer") == ThemeChange.Changed
+   && h.Mappings.Any(m => m.ProfileUserId == newMain && m.MasterUserId == newMain && m.Theme == "harbor" && m.ProfileName == "Newcomer" && !m.IsHidden));
+Ok("one row, not one per call", Themes.SetFor(h, newMain, newMain, "crimson") == ThemeChange.Changed
+   && h.Mappings.Count(m => m.ProfileUserId == newMain) == 1);
+h = House();
+Ok("the row is only made once the theme is accepted",
+   Themes.SetFor(h, newMain, newMain, "neon") == ThemeChange.UnknownTheme && h.Mappings.All(m => m.ProfileUserId != newMain));
+h.AllowProfileThemes = false;
+Ok("or the server lets profiles choose", Themes.SetFor(h, newMain, newMain, "harbor") == ThemeChange.NotAllowed && h.Mappings.All(m => m.ProfileUserId != newMain));
+Ok("and it still cannot make a row for somebody else", Themes.SetFor(House(), master, Guid.NewGuid(), "harbor") == ThemeChange.NotInHousehold);
+
 h = House();
 h.AllowProfileThemes = false;
 Ok("nothing is set while the server does not let profiles choose",

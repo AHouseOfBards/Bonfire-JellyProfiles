@@ -3009,7 +3009,8 @@ namespace Jellyfin.Profiles.Controllers
             string resolved;
             lock (ConfigLock)
             {
-                result = Themes.SetFor(config, masterUserId, request.ProfileId, request.Theme);
+                result = Themes.SetFor(config, masterUserId, request.ProfileId, request.Theme,
+                    _userManager.GetUserById(masterUserId)?.Username);
                 var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
                 resolved = Themes.Resolve(row, config);
                 if (result == ThemeChange.Changed) Plugin.Instance?.SaveConfiguration();
