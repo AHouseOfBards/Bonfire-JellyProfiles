@@ -1724,6 +1724,29 @@ namespace Jellyfin.Profiles.Controllers
                         .Take(Configuration.Announcements.MaxCount)
                         .ToList();
                 }
+                // Confirmed addresses, for accounts this server has.
+                if (TryProperty(root, "AccountEmails", out _))
+                {
+                    config.AccountEmails = (incoming.AccountEmails ?? new List<AccountEmail>())
+                        .Where(a => a != null && Exists(a.UserId))
+                        .GroupBy(a => a.UserId).Select(g => g.First())
+                        .ToList();
+                }
+
+                // Everything else the file carries, so a setting added to the configuration
+                // next month is restored the day it is added. The list above was the whole of
+                // import until now, and the SMTP settings, confirmed addresses, the PIN-reset
+                // switch, maintenance, first-time setup, starter avatars and the Quick Connect
+                // fields were each added after it was written, none came back from a backup,
+                // and the answer was still "success" (R-1146). Only what is named in
+                // ImportNotRestored stays as the server has it.
+                foreach (var property in typeof(PluginConfiguration).GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    if (property.DeclaringType != typeof(PluginConfiguration) || !property.CanRead || !property.CanWrite) continue;
+                    if (ImportHandledAbove.Contains(property.Name) || ImportNotRestored.Contains(property.Name)) continue;
+                    if (!TryProperty(root, property.Name, out _)) continue;
+                    property.SetValue(config, property.GetValue(incoming));
+                }
 
                 Plugin.Instance?.SaveConfiguration();
             }
@@ -1741,6 +1764,29 @@ namespace Jellyfin.Profiles.Controllers
                 bonfires = (incoming.BonfireGroups ?? new List<BonfireGroup>()).Count
             });
         }
+
+        /// <summary>The settings ImportConfiguration restores one by one, each through its own rules.</summary>
+        private static readonly HashSet<string> ImportHandledAbove = new(StringComparer.Ordinal)
+        {
+            "MaxProfilesPerUser", "PinGuessesPerDay", "RequireMainPin", "Mappings", "KnownDevices", "BonfireGroups",
+            "LinkedAccounts", "UserProfileLimitOverrides", "AvatarLibrary", "DisallowCustomAvatarUploads",
+            "ProfileImageQuality", "DefaultAskOnStartup", "DefaultSwitcherLocation", "CustomFonts", "CustomThemes",
+            "HiddenThemes", "LogoImage", "LogoText", "LogoAlt", "DefaultTheme", "DefaultTimeZone", "AllowProfileThemes",
+            "IndexInjectionMode", "EnableClientPinLogin", "EnableClientProfileList", "PanicCodeHash", "ProxyClients",
+            "Announcements", "AccountEmails",
+        };
+
+        /// <summary>
+        /// The only settings an import leaves as the server has them. Short on purpose: the
+        /// default is that a setting is restored.
+        /// <para><c>CrossHouseholdEntries</c> records which devices came in from outside a
+        /// household, with the tokens issued to them: the state of this server's sign-ins,
+        /// not a setting, and a backup of another day's would name devices that are gone.</para>
+        /// </summary>
+        private static readonly HashSet<string> ImportNotRestored = new(StringComparer.Ordinal)
+        {
+            "CrossHouseholdEntries",
+        };
 
         /// <summary>
         /// Null for an acceptable theme: null or "" (follow the server default) or a known id.
