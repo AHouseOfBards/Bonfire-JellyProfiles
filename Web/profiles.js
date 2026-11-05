@@ -11238,10 +11238,16 @@
 
             if (store) {
                 try {
+                    // The answer as it came, not `next`: restoreCustomThemes reads the copy
+                    // with the same reader, and the reader's output is a different shape. Kept
+                    // as `next`, every uploaded font came back from the copy as nothing, so a
+                    // theme's text drew in its fallback until the server answered.
+                    //
                     // Up to forty themes of up to 64 KB each could crowd out everything else
                     // this origin keeps. Past that, the copy is dropped; the theme still
                     // arrives with the answer, a moment after the first frame.
-                    if (text.length <= 512 * 1024) localStorage.setItem(this.config.customThemesKey, text);
+                    const copy = JSON.stringify(answer);
+                    if (copy.length <= 512 * 1024) localStorage.setItem(this.config.customThemesKey, copy);
                     else localStorage.removeItem(this.config.customThemesKey);
                 } catch (e) { /* storage full or blocked */ }
             }

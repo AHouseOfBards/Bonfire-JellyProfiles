@@ -244,6 +244,11 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
     w.addSheet();
     w.obj.applyCustomThemesCss();
     ok('and is there once the sheet is', !!w.els['jpf-themes-custom']);
+    // The copy is read by the same reader as the answer. It used to be the reader's own
+    // output, a different shape, so an uploaded font came back from it as nothing and the
+    // theme's text drew in the fallback until the server answered.
+    ok('with its uploaded font, from the copy alone', w.state().fonts.length === 1
+        && w.els['jpf-themes-custom'].textContent.indexOf('Bonfire Shop Sign') !== -1);
 
     // The server's preferences arrived before the themes: they are read again after.
     w = world({}, answer);
