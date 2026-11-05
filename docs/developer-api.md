@@ -810,6 +810,8 @@ sends), signed in as a main account that has profiles:
 - **The app is always shown the main account's id**, in `/Users/Me`, `/Users/{id}` and the
   live connection. The name is the profile's.
 - **Signing a profile in directly is refused** on a listed app.
+- **Folders, and profiles with no picture, get a picture drawn by the server**: a 256×256
+  PNG in the theme's colours. Its image tag changes when the theme does.
 
 The picker is held in memory: after a server restart the app is back at the picker. An
 app with its own Bonfire switcher should not be listed.

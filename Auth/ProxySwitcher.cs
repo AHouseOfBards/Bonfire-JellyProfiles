@@ -202,6 +202,18 @@ namespace Jellyfin.Profiles.Auth
             {
                 if (pictured.Kind != TileKind.Profile || !HasImage(config, pictured.ProfileId))
                 {
+                    if (DrawnTile(session, pictured, config) is { } drawn)
+                    {
+                        var png = TileImage.Png(drawn.Theme, drawn.Glyph);
+                        context.Response.StatusCode = StatusCodes.Status200OK;
+                        context.Response.ContentType = "image/png";
+                        context.Response.ContentLength = png.Length;
+                        // Asked for by tag, and the tag changes with the picture.
+                        context.Response.Headers[HeaderNames.CacheControl] = "public, max-age=86400";
+                        await context.Response.Body.WriteAsync(png, context.RequestAborted).ConfigureAwait(false);
+                        return true;
+                    }
+
                     context.Response.StatusCode = StatusCodes.Status404NotFound;
                     return true;
                 }
@@ -890,9 +902,42 @@ namespace Jellyfin.Profiles.Auth
                 var image = config!.Mappings.First(m => m.ProfileUserId == tile.ProfileId).ProfileImage ?? string.Empty;
                 tags["Primary"] = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(image))).ToLowerInvariant();
             }
+            else if (DrawnTile(session, tile, config) is { } drawn)
+            {
+                // A picture Bonfire draws in the theme's colours (1.7.2), tagged by what it
+                // shows, so an app redraws it when the theme changes and not otherwise.
+                tags["Primary"] = TileImage.Tag(drawn.Theme, drawn.Glyph);
+            }
 
             dto["ImageTags"] = tags;
             return dto;
+        }
+
+        /// <summary>
+        /// The theme and glyph for a tile Bonfire draws, or null for one it does not: a
+        /// profile with no picture of its own takes a person in its own theme; the two folders
+        /// take theirs in the main account's. Keys and notices stay plain: their label is the
+        /// whole of what they say.
+        /// </summary>
+        private static (JsonObject Theme, TileGlyph Glyph)? DrawnTile(ProxySession session, Tile tile, PluginConfiguration? config)
+        {
+            if (config == null) return null;
+            TileGlyph glyph;
+            Guid whose;
+            switch (tile.Kind)
+            {
+                case TileKind.Profile: glyph = TileGlyph.Person; whose = tile.ProfileId; break;
+                case TileKind.SwitchView: glyph = TileGlyph.Switch; whose = session.MasterId; break;
+                case TileKind.ProfilesView: glyph = TileGlyph.Profiles; whose = session.MasterId; break;
+                default: return null;
+            }
+
+            // The lists Resolve reads are the ones a settings save replaces.
+            lock (Controllers.ProfilesBaseController.ConfigLock)
+            {
+                var row = config.Mappings?.FirstOrDefault(m => m.ProfileUserId == whose);
+                return (ThemeCatalog.ThemeFor(Themes.Resolve(row, config), config), glyph);
+            }
         }
 
         private static bool HasImage(PluginConfiguration? config, Guid profileId)

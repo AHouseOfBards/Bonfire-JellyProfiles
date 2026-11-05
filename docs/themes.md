@@ -236,6 +236,7 @@ values matches the web client.
 | Screen part | Uses |
 | --- | --- |
 | Screen | `background` |
+| Logo, top right | `logo.image`, or `logo.text` in `text2`; 5% in from the edges on a TV |
 | "Who's watching?" title | `text1`, `type.title`, `depth.title` |
 | Household heading | `layout.households`; `text3` with `open`, `text1` in a panel |
 | Household panel | `surface1`, `border1`, `shape.radius.large`, `depth.sheet` |
@@ -253,8 +254,10 @@ values matches the web client.
 | Announcement banners | `surface2`, `text1`, `shape.radius.medium`; a stripe on the leading edge in `accent`, `warning` or `danger` by severity |
 | Viewing time under a name | `name`, faint; `warning` when the profile can't watch now |
 
-A picker drawn by the server, such as the Moonfin one, uses the same values for its tiles:
-`background.fill` behind, `shape.avatar`, and `accent` for the selected key.
+A picker drawn by the server, such as the Moonfin one, draws its own tile pictures:
+`background.fill` and `background.layers` behind a shape in `accent`. A profile with no
+picture gets a person in its own theme. The `Profiles` and `Switch profile` folders use the
+main account's theme. The app draws the names and the tile corners itself.
 
 ## Rules every theme passes
 

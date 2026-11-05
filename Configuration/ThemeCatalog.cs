@@ -323,6 +323,18 @@ namespace Jellyfin.Profiles.Configuration
             return list;
         }
 
+        /// <summary>
+        /// The theme file for <paramref name="id"/>: a built-in, or a custom theme that still
+        /// passes; Bonfire for anything else. The caller holds ConfigLock.
+        /// </summary>
+        public static JsonObject ThemeFor(string? id, PluginConfiguration config)
+        {
+            var wanted = Themes.Normalize(id, config);
+            return BuiltIn.FirstOrDefault(t => (string?)t["id"] == wanted)
+                ?? ValidCustomThemes(config).FirstOrDefault(t => (string?)t["id"] == wanted)
+                ?? BuiltIn.First(t => (string?)t["id"] == Themes.Bonfire);
+        }
+
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, JsonObject?> CustomParsed =
             new(StringComparer.Ordinal);
 

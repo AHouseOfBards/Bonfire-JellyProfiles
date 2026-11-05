@@ -145,6 +145,10 @@ var next = new RequestDelegate(async c =>
 
 var instance = Activator.CreateInstance(mwType, next, Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(mwType)));
 
+// The last response and its raw bytes, for a picture.
+HttpResponse lastResponse = null;
+MemoryStream lastBytes = null;
+
 // One request through the real middleware. Returns the body the app got, or null when
 // Jellyfin answered it (seenPath says what Jellyfin saw).
 (int status, string body, bool reachedJellyfin) Get(string pathAndQuery, string token = MOON_TOKEN, string client = "Moonfin for Android TV", string method = "GET")
@@ -159,6 +163,8 @@ var instance = Activator.CreateInstance(mwType, next, Activator.CreateInstance(t
     ctx.Request.Headers["Authorization"] =
         "MediaBrowser Client=\"" + client + "\", Device=\"Shield\", DeviceId=\"moon-1\", Version=\"1.4.0\", Token=\"" + token + "\"";
     var sink = new MemoryStream();
+    lastResponse = ctx.Response;
+    lastBytes = sink;
     ctx.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>(new StreamResponseBodyFeature(sink));
 
     var invoke = mwType.GetMethod("Invoke");
@@ -202,6 +208,37 @@ Ok("listing them opens nothing", sessionLog.Minted.Count == 0, string.Join(",", 
 
 var item = Get("/Users/" + N(MASTER) + "/Items/" + profilesId);
 Ok("the Profiles library answers its own details", (string)JsonNode.Parse(item.body)?["Name"] == "Profiles", item.body);
+
+Console.WriteLine();
+Console.WriteLine("── Tiles drawn in the theme's colours ──────────────────────────");
+
+// A profile with no picture, and the Profiles folder, used to have no image: the app drew
+// its own blank folder. Bonfire now draws one (1.7.2), tagged by what it shows.
+string TagOf(string body, string name) =>
+    (string)Items(body).FirstOrDefault(i => (string)i["Name"] == name)?["ImageTags"]?["Primary"];
+var openTag = TagOf(tiles, "Open");
+var viewTag = TagOf(views.body, "Profiles");
+Ok("a profile with no picture has an image tag (" + openTag + ")", openTag != null && openTag.StartsWith("b", StringComparison.Ordinal));
+Ok("so does the Profiles folder (" + viewTag + ")", viewTag != null && viewTag.StartsWith("b", StringComparison.Ordinal));
+byte[] Picture(string id)
+{
+    var r = Get("/Items/" + id + "/Images/Primary?tag=x&maxWidth=300");
+    return r.status == 200 && lastResponse.ContentType == "image/png" && !r.reachedJellyfin ? lastBytes.ToArray() : null;
+}
+var openPng = Picture(IdOf(tiles, "Open"));
+Ok("asking for it gets a PNG from Bonfire, not Jellyfin",
+   openPng != null && openPng.Take(8).SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }));
+var viewPng = Picture(profilesId);
+Ok("a different one for the folder", viewPng != null && !viewPng.SequenceEqual(openPng));
+
+// The profile's own theme: change it and the tag and picture change with it.
+var openRow = mappings.Cast<object>().First(m => (Guid)mapType.GetProperty("ProfileUserId").GetValue(m) == OPEN);
+mapType.GetProperty("Theme")?.SetValue(openRow, "harvest");
+var retagged = TagOf(Children(profilesId), "Open");
+Ok("a profile's tile follows its own theme: a new tag when it changes", retagged != null && retagged != openTag, retagged);
+Ok("and a new picture", Picture(IdOf(tiles, "Open")) is byte[] harvestPng && !harvestPng.SequenceEqual(openPng));
+Ok("the folder's stays the main account's", TagOf(Get("/UserViews").body, "Profiles") == viewTag);
+mapType.GetProperty("Theme")?.SetValue(openRow, null);
 
 Console.WriteLine();
 Console.WriteLine("── Opening a profile with no PIN ───────────────────────────────");
