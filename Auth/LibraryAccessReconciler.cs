@@ -38,9 +38,16 @@ namespace Jellyfin.Profiles.Auth
     /// wins and the healing behaviour is unchanged.</description></item>
     /// </list>
     ///
-    /// <para>The cost of that asymmetry is that removing a library in Dashboard → Users does
-    /// not stick. It is reported rather than hidden, and the documented place to take a
-    /// library away is the profile's own editor.</para>
+    /// <para>The cost of that asymmetry was that removing a library in Dashboard → Users did
+    /// not stick: it came back at the next sign-in (R-1042). <see cref="Reconcile"/> still
+    /// works that way, and is what a profile from an older configuration gets once.</para>
+    ///
+    /// <para><b>R-1042, Logan's decision.</b> Bonfire now records the list it last wrote to
+    /// the account (<c>ProfileMapping.LastAppliedFolders</c>), the way
+    /// <see cref="InheritedLimits"/> records the limits. With that record the ambiguity is
+    /// gone: an account that still matches it has not been touched, and one that differs
+    /// was changed by somebody, so the change is adopted in both directions — see
+    /// <see cref="ReconcileWithLastApplied"/>.</para>
     ///
     /// <para>Pure and static so it can be driven directly by a harness: every case below is
     /// a list comparison, and the controller it serves needs six injected services to
@@ -69,9 +76,66 @@ namespace Jellyfin.Profiles.Auth
             /// </summary>
             public List<Guid> Missing { get; init; } = new();
 
-            /// <summary>True when <see cref="Granted"/> changed the stored list.</summary>
-            public bool StoredListChanged => Granted.Count > 0;
+            /// <summary>
+            /// Folders taken off the account since Bonfire last wrote it, now taken from the
+            /// profile too. Only ever set by <see cref="ReconcileWithLastApplied"/>.
+            /// </summary>
+            public List<Guid> Removed { get; init; } = new();
+
+            /// <summary>True when <see cref="Granted"/> or <see cref="Removed"/> changed the stored list.</summary>
+            public bool StoredListChanged => Granted.Count > 0 || Removed.Count > 0;
         }
+
+        /// <summary>
+        /// Reconciles a profile's stored list against the account's, knowing what Bonfire last
+        /// wrote there (R-1042).
+        /// <list type="bullet">
+        /// <item><description><b>No record</b> (a configuration from before this): exactly
+        /// <see cref="Reconcile"/>, grants adopted and removals not.</description></item>
+        /// <item><description><b>The account is on "all libraries"</b>: the shape a reset
+        /// leaves, with no per-library list to read. The stored list is re-applied.</description></item>
+        /// <item><description><b>The account matches the record</b>: nobody touched it. The
+        /// stored list is re-applied, which is also what picks up a library the main account
+        /// gained since.</description></item>
+        /// <item><description><b>It differs</b>: somebody changed it in Dashboard → Users.
+        /// What they added joins the stored list and what they took away leaves it. Only the
+        /// difference from the record counts, so a stored library the account never carried
+        /// (one the main account lacks) is kept for when it gets it.</description></item>
+        /// </list>
+        /// A reset to an explicit empty list would read as "everything removed". That is the
+        /// direction that shows less, never more, and Jellyfin's default policy is "all
+        /// libraries", which is handled above.
+        /// </summary>
+        public static Reconciliation ReconcileWithLastApplied(
+            IEnumerable<Guid>? stored,
+            IEnumerable<Guid>? accountCurrent,
+            bool accountEnableAllFolders,
+            IEnumerable<Guid>? lastApplied)
+        {
+            if (lastApplied == null) return Reconcile(stored, accountCurrent, accountEnableAllFolders);
+
+            var storedList = Clean(stored);
+            if (accountEnableAllFolders) return new Reconciliation { Authority = storedList };
+
+            var accountList = Clean(accountCurrent);
+            var lastList = Clean(lastApplied);
+
+            var granted = accountList.Where(id => !lastList.Contains(id)).ToList();
+            var removed = lastList.Where(id => !accountList.Contains(id)).ToList();
+            if (granted.Count == 0 && removed.Count == 0) return new Reconciliation { Authority = storedList };
+
+            return new Reconciliation
+            {
+                Authority = storedList.Where(id => !removed.Contains(id))
+                    .Concat(granted.Where(id => !storedList.Contains(id)))
+                    .ToList(),
+                Granted = granted.Where(id => !storedList.Contains(id)).ToList(),
+                Removed = removed.Where(id => storedList.Contains(id)).ToList(),
+            };
+        }
+
+        private static List<Guid> Clean(IEnumerable<Guid>? ids) =>
+            (ids ?? Enumerable.Empty<Guid>()).Where(id => id != Guid.Empty).Distinct().ToList();
 
         /// <summary>
         /// Reconciles a profile's stored list against the account's current one.

@@ -29,7 +29,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 //   - what the main account lost, the profile loses;
 //   - where the profile was narrower, it stays narrower;
 //   - a main account's own row is never touched, and an account already right is not
-//     rewritten (this runs twice on every sign-in).
+//     rewritten (this runs twice on every sign-in);
+//   - a library an administrator adds or removes in Dashboard -> Users stays that way,
+//     and a reset is still repaired (R-1042: removals used to come back, because the
+//     stored list won). Red against 6e74bac: 12 fail.
 //
 // Shown able to go red by deleting the line in ApplyCoreAsync that intersects the
 // profile's libraries with the main account's (`authorityFolders = authorityFolders
@@ -169,6 +172,106 @@ Console.WriteLine("── Libraries ──────────────�
     Ok("a profile narrower than its main account stays narrower (" + Show(w?.EnabledFolders) + ")",
        w != null && !w.EnableAllFolders && Show(w.EnabledFolders) == "L2");
     Ok("with the rest blocked", w != null && Show(w.BlockedMediaFolders) == "L1,L3");
+}
+
+// ── Libraries changed in Dashboard -> Users (R-1042) ────────────────────────
+// A library an administrator took off a profile's account came back at the next sign-in:
+// the stored list won, because a removal and a reset looked the same. Bonfire now records
+// what it last wrote, so a change on the account is adopted both ways and a reset is
+// still repaired.
+Console.WriteLine();
+Console.WriteLine("── Libraries changed in Dashboard -> Users (R-1042) ────────────");
+{
+    var lastProp = mapType.GetProperty("LastAppliedFolders");
+    object RowOf(Guid id) => mappings.Cast<object>().First(m => (Guid)mapType.GetProperty("ProfileUserId").GetValue(m) == id);
+    List<Guid> Stored(Guid id) => (List<Guid>)mapType.GetProperty("EnabledFolders").GetValue(RowOf(id));
+    void AdminSets(Guid id, params Guid[] folders)
+    {
+        var pol = World.Copy(world.Policies[id]);
+        pol.EnableAllFolders = false;
+        pol.EnabledFolders = folders;
+        world.Policies[id] = pol;
+    }
+    UserPolicy Now(Guid id) => world.Policies[id];
+
+    Ok("the mapping records the libraries Bonfire last applied", lastProp != null);
+
+    var master = Policy(u => u.EnableAllFolders = true);
+    var p = Household(master, Policy(u => u.EnabledFolders = new[] { L1, L2 }), folders: new() { L1, L2 });
+    Apply(p);
+    Ok("the first sign-in records what it applied (" + Show(lastProp?.GetValue(RowOf(p)) as List<Guid>) + ")",
+       lastProp != null && Show(lastProp.GetValue(RowOf(p)) as List<Guid>) == "L1,L2");
+
+    AdminSets(p, L1);
+    Apply(p);
+    Ok("a library an administrator removed stays removed (" + Show(Now(p).EnabledFolders) + ")", Show(Now(p).EnabledFolders) == "L1");
+    Ok("and the profile's own list agrees, so its editor shows it (" + Show(Stored(p)) + ")", Show(Stored(p)) == "L1");
+    Apply(p);
+    Ok("and it holds at the sign-in after (" + Show(Now(p).EnabledFolders) + ")", Show(Now(p).EnabledFolders) == "L1");
+
+    AdminSets(p, L1, L3);
+    Apply(p);
+    Ok("a library an administrator granted stays granted (" + Show(Now(p).EnabledFolders) + ")", Show(Now(p).EnabledFolders) == "L1,L3");
+    Ok("and joins the profile's own list (" + Show(Stored(p)) + ")", Show(Stored(p)) == "L1,L3");
+
+    // A reset: Jellyfin's default policy, every library, no list.
+    var reset = World.Copy(Now(p)); reset.EnableAllFolders = true; reset.EnabledFolders = Array.Empty<Guid>();
+    world.Policies[p] = reset;
+    Apply(p);
+    Ok("a reset account is still repaired to the profile's list (" + Show(Now(p).EnabledFolders) + ")",
+       !Now(p).EnableAllFolders && Show(Now(p).EnabledFolders) == "L1,L3");
+    Ok("and the reset is not taken as a change (" + Show(Stored(p)) + ")", Show(Stored(p)) == "L1,L3");
+
+    // Taking a library away from the main account still takes it from the profile, and
+    // that is Bonfire's own write, not an administrator's change to the profile.
+    var lim = Household(Policy(u => u.EnabledFolders = new[] { L1, L2 }),
+                        Policy(u => u.EnabledFolders = new[] { L1, L2 }), folders: new() { L1, L2 });
+    Apply(lim);
+    world.Policies[world.Masters[lim]] = Policy(u => u.EnabledFolders = new[] { L1 });
+    Apply(lim);
+    world.Policies[world.Masters[lim]] = Policy(u => u.EnabledFolders = new[] { L1, L2 });
+    Apply(lim);
+    Ok("a library the main account lost and got back returns to the profile (" + Show(Now(lim).EnabledFolders) + ")",
+       Show(Now(lim).EnabledFolders) == "L1,L2");
+
+    // A configuration from before the record: the old rule once, then recorded.
+    var old = Household(Policy(u => u.EnableAllFolders = true),
+                        Policy(u => u.EnabledFolders = new[] { L1 }), folders: new() { L1, L2 });
+    lastProp?.SetValue(RowOf(old), null);
+    Apply(old);
+    Ok("an old configuration with no record keeps today's behaviour once (" + Show(Now(old).EnabledFolders) + ")",
+       Show(Now(old).EnabledFolders) == "L1,L2");
+    Ok("and is recorded", lastProp != null && Show(lastProp.GetValue(RowOf(old)) as List<Guid>) == "L1,L2");
+    AdminSets(old, L2);
+    Apply(old);
+    Ok("after which an administrator's removal holds there too (" + Show(Now(old).EnabledFolders) + ")",
+       Show(Now(old).EnabledFolders) == "L2");
+
+    // Old configurations must still load, and the record must survive a save.
+    var xml = new System.Xml.Serialization.XmlSerializer(cfgType);
+    var cfg = Activator.CreateInstance(cfgType);
+    var row = Activator.CreateInstance(mapType);
+    mapType.GetProperty("ProfileUserId").SetValue(row, Guid.NewGuid());
+    lastProp?.SetValue(row, new List<Guid> { L1, L3 });
+    ((IList)cfgType.GetProperty("Mappings").GetValue(cfg)).Add(row);
+    var sw = new StringWriter();
+    xml.Serialize(sw, cfg);
+    var back = xml.Deserialize(new StringReader(sw.ToString()));
+    var backRow = ((IList)cfgType.GetProperty("Mappings").GetValue(back))[0];
+    Ok("the record survives a save and a load (" + Show(lastProp?.GetValue(backRow) as List<Guid>) + ")",
+       lastProp != null && Show(lastProp.GetValue(backRow) as List<Guid>) == "L1,L3");
+    var oldXml = System.Text.RegularExpressions.Regex.Replace(sw.ToString(), @"<LastAppliedFolders>.*?</LastAppliedFolders>", "",
+        System.Text.RegularExpressions.RegexOptions.Singleline);
+    object oldBack = null;
+    try { oldBack = xml.Deserialize(new StringReader(oldXml)); } catch (Exception ex) { Console.WriteLine("    " + ex.Message); }
+    var oldRow = oldBack == null ? null : ((IList)cfgType.GetProperty("Mappings").GetValue(oldBack))[0];
+    // XmlSerializer hands back an EMPTY list, not null, for a list element that is absent,
+    // so "no record" arrives as empty. ProfilePolicySync treats the two alike.
+    Ok("a configuration saved before it existed loads, with no record",
+       oldRow != null && !oldXml.Contains("LastAppliedFolders")
+       && (lastProp == null || ((lastProp.GetValue(oldRow) as List<Guid>)?.Count ?? 0) == 0),
+       "loaded=" + (oldRow != null) + " stripped=" + !oldXml.Contains("LastAppliedFolders")
+       + " record=" + (lastProp == null ? "n/a" : Show(lastProp.GetValue(oldRow) as List<Guid>) + (lastProp.GetValue(oldRow) == null ? "(null)" : "")));
 }
 
 // ── Tags ─────────────────────────────────────────────────────────────────────

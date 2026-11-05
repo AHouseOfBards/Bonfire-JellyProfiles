@@ -70,16 +70,16 @@ If nothing appears, open the app's web inspector and look for a message starting
 
 ## A profile's library access keeps reverting
 
-Change a profile's libraries in **Edit Profile → Libraries**, not in
-**Dashboard → Users**.
-
 Each profile keeps its own library list and re-applies it when someone enters the
 profile. That's what restores a profile after Jellyfin resets a user's settings.
 
-- **Adding** a library in Dashboard → Users works. The profile keeps it from the next
-  time it's entered.
-- **Removing** one there doesn't stick, because it looks the same as a reset. Untick it
-  in **Edit Profile → Libraries** instead.
+Adding or removing a library in **Dashboard → Users** sticks from 1.7.2: the profile's
+list follows it. Two exceptions:
+
+- A profile set to every library (nothing ticked in **Edit Profile → Libraries**) always
+  gets every library its main account has. Tick the ones it should have instead.
+- On a profile not entered since the upgrade, a removal made before its first sign-in
+  comes back once. Remove it again.
 
 A profile can never get a library its main account doesn't have.
 

@@ -537,6 +537,9 @@ namespace Jellyfin.Profiles.Controllers
                     EnabledFolders = validatedFolders,
                     // Nothing ticked means every library the master has, then and later.
                     AllLibraries = request.EnabledFolders == null,
+                    // What was just written to the account, when it was a list. Without it the
+                    // next sign-in would read this write as an administrator's change (R-1042).
+                    LastAppliedFolders = request.EnabledFolders != null ? validatedFolders.ToList() : null,
                     BlockedTags = profileBlockedTags,
                     AllowedTags = profileAllowedTags,
                     BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork ?? false,
@@ -2041,6 +2044,11 @@ namespace Jellyfin.Profiles.Controllers
                         mappingEntry.EnabledFolders = validatedFolders;
                         // Nothing ticked means every library the master has, then and later.
                         mappingEntry.AllLibraries = request.EnabledFolders == null;
+                        // What was just written to the account, so the next sign-in does not
+                        // take this save for an administrator's change in Dashboard -> Users
+                        // (R-1042). Null when the master's own folder policy was copied: the
+                        // sign-in records what it applies.
+                        mappingEntry.LastAppliedFolders = request.EnabledFolders != null ? validatedFolders.ToList() : null;
                     }
 
                     // Store the profile's own tag lists, not the master-merged result, so later

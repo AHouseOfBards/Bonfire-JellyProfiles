@@ -881,6 +881,15 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public ProfileLimits? LastAppliedLimits { get; set; }
 
+        /// <summary>
+        /// The library list Bonfire last wrote to the profile's account, so a change made on
+        /// the account in Dashboard -> Users can be told apart from Bonfire's own write and
+        /// from a reset (R-1042). Null on a configuration from before this existed: the first
+        /// sign-in then behaves as it always did and records it. See
+        /// <see cref="Auth.LibraryAccessReconciler.ReconcileWithLastApplied"/>.
+        /// </summary>
+        public List<Guid>? LastAppliedFolders { get; set; }
+
         /// <summary>A copy for <see cref="PluginConfiguration.SnapshotForReading"/>.</summary>
         public ProfileMapping CopyForReading()
         {
@@ -889,6 +898,7 @@ namespace Jellyfin.Profiles.Configuration
             copy.LastAppliedLimits = LastAppliedLimits?.Copy();
             copy.AllowedDeviceIds = AllowedDeviceIds?.ToList() ?? new List<string>();
             copy.EnabledFolders = EnabledFolders?.ToList();
+            copy.LastAppliedFolders = LastAppliedFolders?.ToList();
             copy.BlockedTags = BlockedTags?.ToList();
             copy.AllowedTags = AllowedTags?.ToList();
             copy.LibraryArtwork = LibraryArtwork?.ToList() ?? new List<LibraryArtwork>();
