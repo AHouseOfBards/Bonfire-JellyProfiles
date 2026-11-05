@@ -29,27 +29,19 @@ namespace Jellyfin.Profiles.Controllers
         internal static readonly RateLimiter Panic = new(maxAttempts: 5, windowMinutes: 60);
 
         /// <summary>
-        /// Per profile, across every address: the web switcher's PIN check. <see cref="Pin"/>
-        /// is keyed on address and profile together, which a caller with more than one
-        /// address (any IPv6 host has billions) simply walks around.
+        /// Per account, across every address and every door: the quarter-hour half of
+        /// <see cref="PinBudget"/>. Keyed on the account, not the address, because a caller
+        /// with more than one address (any IPv6 host has billions) walks around an address
+        /// key.
         /// </summary>
-        internal static readonly RateLimiter PinPerProfile = new(maxAttempts: 10, windowMinutes: 15);
+        internal static readonly RateLimiter AccountPin = new(maxAttempts: 5, windowMinutes: 15);
 
         /// <summary>
-        /// Per account, for a PIN typed into another app's sign-in screen. That path is
-        /// reachable by anyone who can POST /Users/AuthenticateByName, and Jellyfin's own
-        /// lockout does not cover it: <c>LoginAttemptsBeforeLockout</c> is null on every
-        /// account Bonfire creates, which Jellyfin reads as "never lock". Keyed on the
-        /// account, not the address, for the same reason as <see cref="PinPerProfile"/>.
+        /// The same accounts, over a day: the other half of <see cref="PinBudget"/>. Five
+        /// every fifteen minutes is still 480 a day, which gets through a four-digit PIN in
+        /// about three weeks; twenty a day makes it most of a year.
         /// </summary>
-        internal static readonly RateLimiter ClientPin = new(maxAttempts: 5, windowMinutes: 15);
-
-        /// <summary>
-        /// The same accounts, over a day. Five every fifteen minutes is still 480 a day,
-        /// which gets through a four-digit PIN in about three weeks; twenty a day makes it
-        /// most of a year.
-        /// </summary>
-        internal static readonly RateLimiter ClientPinDaily = new(maxAttempts: 20, windowMinutes: 24 * 60);
+        internal static readonly RateLimiter AccountPinDaily = new(maxAttempts: PinBudget.DailyLimit, windowMinutes: 24 * 60);
 
         /// <summary>
         /// Per account, for its password typed into another household's "add an account".
@@ -106,9 +98,17 @@ namespace Jellyfin.Profiles.Controllers
         /// one lock. Call <see cref="Reset"/> when the attempt succeeds.
         /// </para>
         /// </summary>
-        public bool TryBegin(string key)
+        public bool TryBegin(string key) => TryBeginWithin(key, _maxAttempts);
+
+        /// <summary>
+        /// <see cref="TryBegin(string)"/> against a lower limit than the one this limiter was
+        /// made with, for a limit an administrator may make stricter. Never higher. Its own
+        /// name, not an overload: harnesses find TryBegin by name.
+        /// </summary>
+        public bool TryBeginWithin(string key, int maxAttempts)
         {
             if (string.IsNullOrEmpty(key)) return true;
+            var max = Math.Min(Math.Max(maxAttempts, 1), _maxAttempts);
             PruneExpiredEntries();
 
             while (true)
@@ -125,7 +125,7 @@ namespace Jellyfin.Profiles.Controllers
 
                     var now = DateTime.UtcNow;
                     list.RemoveAll(t => t < now.AddMinutes(-_windowMinutes));
-                    if (list.Count >= _maxAttempts) return false;
+                    if (list.Count >= max) return false;
 
                     list.Add(now);
                     return true;

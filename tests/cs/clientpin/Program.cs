@@ -559,8 +559,10 @@ FromDevice("family-tv");
 // account Bonfire creates, and Jellyfin reads null as "never lock". So a four-digit PIN
 // sat behind no limit at all, reachable by anything that can POST /Users/AuthenticateByName.
 var rlType = asm.GetType("Jellyfin.Profiles.Controllers.RateLimiter", true);
-var limiters = new[] { "ClientPin", "ClientPinDaily" }
-    .Select(n => rlType.GetField(n, Any)?.GetValue(null))
+// The account's one allowance (PinBudget): a quarter hour, then a day. Read under the names
+// they had before R-1002 too, so this file still runs against an older build.
+var limiters = new[] { ("AccountPin", "ClientPin"), ("AccountPinDaily", "ClientPinDaily") }
+    .Select(n => rlType.GetField(n.Item1, Any)?.GetValue(null) ?? rlType.GetField(n.Item2, Any)?.GetValue(null))
     .ToArray();
 var rlReset = rlType.GetMethod("Reset", Any);
 Ok("the provider has its own PIN limits", limiters.All(l => l != null));
@@ -585,6 +587,24 @@ var burst = Enumerable.Range(0, 40).Select(i => Task.Run(() => Try(MakeUser(KID,
 Task.WaitAll(burst);
 Ok("forty guesses at once still use up the allowance",
    Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
+ForgetAttempts(KID);
+
+// A guess the quarter hour refused is not a guess, and must not spend the day (R-1001). Both
+// were counted on every request, so twenty refused requests from anyone closed a profile's
+// PIN for a day, renewable one request at a time.
+for (int i = 0; i < 25; i++) Try(MakeUser(KID, "Bardkids"), (10000 + i).ToString());
+rlReset.Invoke(limiters[0], new object[] { KID.ToString("N") });   // the quarter hour passes
+Ok("refused guesses don't use up the day: five counted, and the right PIN opens after the quarter hour",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+ForgetAttempts(KID);
+
+// The day: twenty, however they are spread over the quarter hours.
+for (int batch = 0; batch < 4; batch++)
+{
+    for (int i = 0; i < 5; i++) Try(MakeUser(KID, "Bardkids"), (20000 + batch * 10 + i).ToString());
+    rlReset.Invoke(limiters[0], new object[] { KID.ToString("N") });
+}
+Ok("twenty wrong in a day close the PIN for the day", Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
 ForgetAttempts(KID);
 
 // Something that cannot be a PIN is refused without spending an attempt on it.
@@ -1142,7 +1162,7 @@ async Task<(string Username, bool Success)> AuthenticateWithProvider(
 var rateLimiter = asm.GetType("Jellyfin.Profiles.Controllers.RateLimiter", true);
 void ResetAllowance(Guid id)
 {
-    foreach (var f in new[] { "ClientPin", "ClientPinDaily" })
+    foreach (var f in new[] { "AccountPin", "AccountPinDaily", "ClientPin", "ClientPinDaily" })
     {
         var limiter = rateLimiter.GetField(f, Any)?.GetValue(null) ?? rateLimiter.GetProperty(f, Any)?.GetValue(null);
         limiter?.GetType().GetMethod("Reset", Any)?.Invoke(limiter, new object[] { id.ToString("N") });

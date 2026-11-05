@@ -1141,10 +1141,9 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>
         /// Counts one PIN attempt for the web switcher, or returns the 429 to send. Per
-        /// address and profile, and per profile across every address — see
-        /// <see cref="RateLimiter.PinPerProfile"/>. Counted before the PIN is checked, so
-        /// concurrent guesses cannot all pass together. Pair with <see cref="EndPinAttempt"/>
-        /// on success.
+        /// address and profile, and against the account's one allowance across every door
+        /// (<see cref="PinBudget"/>). Counted before the PIN is checked, so concurrent guesses
+        /// cannot all pass together. Pair with <see cref="EndPinAttempt"/> on success.
         /// </summary>
         protected ActionResult? BeginPinAttempt(string addressKey, Guid profileId)
         {
@@ -1154,11 +1153,10 @@ namespace Jellyfin.Profiles.Controllers
                 return TooManyAttempts(RateLimiter.Pin, addressKey, "Too many failed PIN attempts.");
             }
 
-            var profileKey = profileId.ToString("N");
-            if (!RateLimiter.PinPerProfile.TryBegin(profileKey))
+            if (!PinBudget.TryBegin(profileId))
             {
-                LogLockout(profileId, profileKey);
-                return TooManyAttempts(RateLimiter.PinPerProfile, profileKey, "Too many failed PIN attempts.");
+                LogLockout(profileId, profileId.ToString("N"));
+                return TooManyAttempts(PinBudget.RetryAfter(profileId), "Too many failed PIN attempts.");
             }
 
             return null;
@@ -1188,7 +1186,7 @@ namespace Jellyfin.Profiles.Controllers
         protected static void EndPinAttempt(string addressKey, Guid profileId)
         {
             RateLimiter.Pin.Reset(addressKey);
-            RateLimiter.PinPerProfile.Reset(profileId.ToString("N"));
+            PinBudget.End(profileId);
         }
 
         /// <summary>
@@ -1199,11 +1197,13 @@ namespace Jellyfin.Profiles.Controllers
         /// </summary>
         protected bool VerifyMasterPinLimited(string? pin, ProfileMapping masterMapping, PluginConfiguration config, out ActionResult? refusal)
         {
-            var key = "master-pin:" + masterMapping.ProfileUserId.ToString("N");
-            if (!RateLimiter.PinPerProfile.TryBegin(key))
+            // The same allowance as every other door to this PIN (PinBudget). It had its own,
+            // ten a quarter hour with no daily cap, and a child reaches it through "more time".
+            var mainId = masterMapping.ProfileUserId;
+            if (!PinBudget.TryBegin(mainId))
             {
-                LogLockout(masterMapping.ProfileUserId, key);
-                refusal = TooManyAttempts(RateLimiter.PinPerProfile, key, "Too many failed PIN attempts.");
+                LogLockout(mainId, mainId.ToString("N"));
+                refusal = TooManyAttempts(PinBudget.RetryAfter(mainId), "Too many failed PIN attempts.");
                 return false;
             }
 
@@ -1213,7 +1213,7 @@ namespace Jellyfin.Profiles.Controllers
                 return false;
             }
 
-            RateLimiter.PinPerProfile.Reset(key);
+            PinBudget.End(mainId);
             refusal = null;
             return true;
         }
@@ -1230,8 +1230,10 @@ namespace Jellyfin.Profiles.Controllers
         /// </para>
         /// </summary>
         internal ActionResult TooManyAttempts(RateLimiter limiter, string key, string what)
+            => TooManyAttempts(limiter.RetryAfter(key), what);
+
+        internal ActionResult TooManyAttempts(TimeSpan wait, string what)
         {
-            var wait = limiter.RetryAfter(key);
             if (wait > TimeSpan.Zero)
             {
                 Response.Headers["Retry-After"] =

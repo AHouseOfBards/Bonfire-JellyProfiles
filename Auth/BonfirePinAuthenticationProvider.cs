@@ -491,25 +491,14 @@ namespace Jellyfin.Profiles.Auth
                && value.All(char.IsAsciiDigit);
 
         /// <summary>
-        /// Counts one PIN attempt against this account and says whether it may be made.
-        /// Counted before the PIN is checked, so parallel guesses cannot all pass the check
-        /// together. Both windows are consulted every time.
+        /// Counts one PIN attempt against this account and says whether it may be made: the
+        /// account's one allowance, shared with the web (<see cref="Controllers.PinBudget"/>).
+        /// Counted before the PIN is checked, so parallel guesses cannot all pass together.
         /// </summary>
-        internal static bool BeginPinAttempt(Guid userId)
-        {
-            var key = userId.ToString("N");
-            var shortWindow = Controllers.RateLimiter.ClientPin.TryBegin(key);
-            var day = Controllers.RateLimiter.ClientPinDaily.TryBegin(key);
-            return shortWindow && day;
-        }
+        internal static bool BeginPinAttempt(Guid userId) => Controllers.PinBudget.TryBegin(userId);
 
         /// <summary>A PIN was right: the account's allowance starts again.</summary>
-        internal static void EndPinAttempt(Guid userId)
-        {
-            var key = userId.ToString("N");
-            Controllers.RateLimiter.ClientPin.Reset(key);
-            Controllers.RateLimiter.ClientPinDaily.Reset(key);
-        }
+        internal static void EndPinAttempt(Guid userId) => Controllers.PinBudget.End(userId);
 
         /// <summary>
         /// Whether Jellyfin has this account bound to this provider — the one case where

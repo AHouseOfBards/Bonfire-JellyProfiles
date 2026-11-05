@@ -456,8 +456,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // The lock a forgotten PIN usually ends in.
-            RateLimiter.PinPerProfile.Reset("master-pin:" + mainId.ToString("N"));
-            RateLimiter.PinPerProfile.Reset(mainId.ToString("N"));
+            PinBudget.End(mainId);
             ProfilesBootstrapTask.ReconcileAuthProvidersNow();
             LogActivity(name + "'s PIN was reset by email", "PinReset", mainId,
                 severity: LogLevel.Warning);

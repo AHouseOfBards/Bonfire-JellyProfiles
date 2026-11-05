@@ -325,6 +325,49 @@ if (askProp != null)
     Ok("on a sub-profile the setting does nothing", !Skip(kidRow, false, false, false) && !Skip(kidRow, true, false, false));
 }
 
+// ── One allowance for the main PIN ───────────────────────────────────────────
+// Three doors to the same PIN each had their own count, and only another app's sign-in box
+// had a daily cap: about 1,900 guesses a day, four digits in about three days (R-1002,
+// R-1298).
+Console.WriteLine();
+Console.WriteLine("── One allowance for the main PIN ──────────────────────────────");
+{
+    var rl = asm.GetType("Jellyfin.Profiles.Controllers.RateLimiter", true);
+    var flags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
+    object Limiter(string name) => rl.GetField(name, flags)?.GetValue(null);
+    void ResetKey(object limiter, string key) => limiter?.GetType().GetMethod("Reset")?.Invoke(limiter, new object[] { key });
+    var provider = asm.GetType("Jellyfin.Profiles.Auth.BonfirePinAuthenticationProvider", true);
+    var appBegin = provider.GetMethod("BeginPinAttempt", flags);
+
+    var SHARED = Guid.NewGuid(); world.Add(SHARED, "Shared"); Map(SHARED, SHARED, pin: "1234");
+    var n = SHARED.ToString("N");
+    // The quarter hour passing, under the names before and after R-1002.
+    void QuarterHourPasses() { ResetKey(Limiter("AccountPin"), n); ResetKey(Limiter("PinPerProfile"), "master-pin:" + n); }
+    void ForgetAll()
+    {
+        foreach (var f in rl.GetFields(flags).Where(f => f.FieldType == rl))
+            foreach (var key in new[] { n, "master-pin:" + n }) ResetKey(f.GetValue(null), key);
+    }
+    var prefs = new Dictionary<string, object> { ["AskOnStartup"] = (bool?)false };
+
+    ForgetAll();
+    for (int i = 0; i < 5; i++) Call("UpdatePreferences", SHARED, prefs, headerPin: "9999");
+    Ok("five wrong on the web use up the same allowance as another app's sign-in box",
+       appBegin != null && !(bool)appBegin.Invoke(null, new object[] { SHARED }));
+
+    ForgetAll();
+    for (int batch = 0; batch < 4; batch++)
+    {
+        for (int i = 0; i < 5; i++) Call("UpdatePreferences", SHARED, prefs, headerPin: "9999");
+        QuarterHourPasses();
+    }
+    var right = Call("UpdatePreferences", SHARED, prefs, headerPin: "1234");
+    Ok("twenty wrong in a day close the main PIN for the day on the web too", right.status == 429, right.status + " " + right.message);
+    ForgetAll();
+    right = Call("UpdatePreferences", SHARED, prefs, headerPin: "1234");
+    Ok("and the right PIN works again once the day is over", !PinRefusal(right), right.status + " " + right.message);
+}
+
 // ── Forgetting a device ──────────────────────────────────────────────────────
 // It matched on the id alone: any main account could forget another household's television,
 // strip it from that household's device lists and read its profile names off the refusal
