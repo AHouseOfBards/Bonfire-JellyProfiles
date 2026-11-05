@@ -534,6 +534,22 @@ Ok("past the household's limit is refused", r.status == 400 && ((string)r.value)
 cfgType.GetProperty("MaxProfilesPerUser").SetValue(config, 5);
 Ok("and none of that changed anything", world.Log.Count == 0 && P(Row(DAD), "MasterUserId") == null, string.Join(" | ", world.Log));
 
+// R-1070: the password change is the step that can fail, and it came after the account had
+// been signed out and hidden, with no Bonfire row to show for it. A failure must leave it
+// exactly as it was: still shown, still on its provider, never signed out.
+world.Log.Clear();
+var dadProvider = world.Users[DAD].AuthenticationProviderId;
+var dadHidden = world.Policies[DAD].IsHidden;
+world.FailPassword = true;
+r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME)));
+world.FailPassword = false;
+Ok("a password that cannot be changed fails the request", r.status == 500, Text(r));
+Ok("the account is not left hidden", world.Policies[DAD].IsHidden == dadHidden, "hidden=" + world.Policies[DAD].IsHidden);
+Ok("nor moved to another provider", world.Users[DAD].AuthenticationProviderId == dadProvider, world.Users[DAD].AuthenticationProviderId);
+Ok("nor signed out", At("revoke " + DAD) < 0, string.Join(" | ", world.Log));
+Ok("and it is still no profile", P(Row(DAD), "MasterUserId") == null);
+Ok("its password is untouched", world.Passwords[DAD] == "dadpw");
+
 world.Log.Clear();
 r = Call("MakeProfile", ADMIN, B(("UserId", LODGER), ("HouseholdId", HOME), ("ProfileName", " Lodger ")));
 Ok("it succeeds", r.status == 200, Text(r));
@@ -554,7 +570,10 @@ Ok("on Jellyfin's own provider", world.Users[LODGER].AuthenticationProviderId ==
 Ok("its old password no longer opens it", world.Passwords[LODGER] != "lpw" && world.Passwords[LODGER].Length >= 32);
 
 int At(string prefix) => world.Log.FindIndex(l => l.StartsWith(prefix));
-Ok("it was signed out first", At("revoke " + LODGER) == 0, string.Join(" | ", world.Log));
+// Was "signed out first" (At == 0). That order is the R-1070 bug: sign-out cannot be undone,
+// so it now waits for the password change, the one step that can fail.
+Ok("it was signed out", At("revoke " + LODGER) >= 0, string.Join(" | ", world.Log));
+Ok("once the password was changed, not before", At("revoke " + LODGER) > At("password " + LODGER), string.Join(" | ", world.Log));
 Ok("the password was changed while it was still an account",
    world.Log.Any(l => l.StartsWith("password " + LODGER + " mapped=False")), string.Join(" | ", world.Log));
 // Set through the provider the account is on at that moment: Jellyfin's, not Bonfire's.
@@ -581,6 +600,7 @@ public class World
     public HashSet<Guid> Disabled = new();
     public Dictionary<Guid, int> LockoutCount = new();
     public int Sessions;
+    public bool FailPassword;
     public static Func<Guid, bool> MappedNow = _ => false;
 
     public void Add(Guid id, string name, string password, bool admin = false)
@@ -662,6 +682,7 @@ public class WorldProxy : DispatchProxy
                 return Task.CompletedTask;
             case "ChangePassword":
                 var pid = args[0] is User cu ? cu.Id : (Guid)args[0];
+                if (W.FailPassword) return Task.FromException(new InvalidOperationException("the provider refused the password"));
                 W.Passwords[pid] = (string)args[1];
                 W.Log.Add("password " + pid + " mapped=" + World.MappedNow(pid) + " provider=" + W.Users[pid].AuthenticationProviderId);
                 return Task.CompletedTask;

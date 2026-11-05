@@ -358,22 +358,20 @@ namespace Jellyfin.Profiles.Controllers
 
                 var householdPolicy = _userManager.GetUserDto(householdUser, string.Empty).Policy;
 
-                // 1. Out of every session its password gave it.
-                try
-                {
-                    await _sessionManager.RevokeUserTokens(user.Id, null).ConfigureAwait(false);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    _logger.LogWarning(ex, "ProfilesPlugin: could not sign {User} out before making it a profile.", user.Username);
-                }
+                // Sign-out is step 3, after the password. It used to come first, with the hiding
+                // below: when the password change then threw, the account was left hidden from
+                // the sign-in screen, signed out, and with no Bonfire row to explain why
+                // (R-1070). Everything before the password is put back if it fails; a session
+                // that has been revoked cannot be.
 
-                // 2. Hidden from the sign-in screen, like every profile, and on Jellyfin's own
+                // 1. Hidden from the sign-in screen, like every profile, and on Jellyfin's own
                 //    provider. Jellyfin's UpdatePolicyAsync writes the policy's provider onto
                 //    the account, so both go in the one write.
                 var provider = StandaloneProviderId(request.HouseholdId);
                 var policy = _userManager.GetUserDto(user, string.Empty).Policy;
-                var enabled = ProfileFoldersFrom(policy, householdPolicy, out var allLibraries);
+                var wasHidden = policy.IsHidden;
+                var wasProvider = user.AuthenticationProviderId;
+                var enabled =ProfileFoldersFrom(policy, householdPolicy, out var allLibraries);
                 var blockedTags = NormalizeTags(policy.BlockedTags);
                 var allowedTags = NormalizeTags(policy.AllowedTags);
                 policy.IsHidden = true;
@@ -386,7 +384,7 @@ namespace Jellyfin.Profiles.Controllers
                     await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
                 }
 
-                // 3. A password nobody knows, set while it is not yet a profile: Bonfire's own
+                // 2. A password nobody knows, set while it is not yet a profile: Bonfire's own
                 //    provider refuses a password change for one.
                 try
                 {
@@ -395,8 +393,37 @@ namespace Jellyfin.Profiles.Controllers
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     _logger.LogError(ex, "ProfilesPlugin: could not replace {User}'s password before making it a profile.", user.Username);
+                    try
+                    {
+                        // Back to how it was shown and where it signs in; one write, as above.
+                        var back = _userManager.GetUserDto(user, string.Empty).Policy;
+                        back.IsHidden = wasHidden;
+                        back.AuthenticationProviderId = wasProvider;
+                        await _userManager.UpdatePolicyAsync(user.Id, back).ConfigureAwait(false);
+                        var current = _userManager.GetUserById(request.UserId) ?? user;
+                        if (!string.Equals(current.AuthenticationProviderId, wasProvider, StringComparison.Ordinal))
+                        {
+                            current.AuthenticationProviderId = wasProvider;
+                            await _userManager.UpdateUserAsync(current).ConfigureAwait(false);
+                        }
+                    }
+                    catch (Exception undo) when (undo is not OperationCanceledException)
+                    {
+                        _logger.LogError(undo, "ProfilesPlugin: could not put {User} back after its password change failed. Check it in Dashboard → Users.", user.Username);
+                    }
+
                     return StatusCode(StatusCodes.Status500InternalServerError,
                         "Its password couldn't be changed, so it wasn't made a profile. See the server log.");
+                }
+
+                // 3. Out of every session its old password gave it.
+                try
+                {
+                    await _sessionManager.RevokeUserTokens(user.Id, null).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "ProfilesPlugin: could not sign {User} out before making it a profile.", user.Username);
                 }
 
                 // 4. A profile. Its main-account row goes, with what only a main account has.
