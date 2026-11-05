@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "harvest",
-  "revision": 1,
+  "revision": 2,
   "scheme": "dark",
   "name": {
     "key": "theme.harvest"
@@ -72,7 +72,7 @@
   },
   "type": {
     "font": {
-      "family": "Georgia",
+      "family": "Lora",
       "fallback": "serif"
     },
     "title": {

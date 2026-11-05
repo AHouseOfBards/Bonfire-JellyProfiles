@@ -1,117 +1,154 @@
 {
   "schema": 1,
   "id": "crimson",
-  "revision": 1,
+  "revision": 2,
   "scheme": "dark",
   "name": {
     "key": "theme.crimson"
   },
   "aliases": [],
   "colors": {
-    "accent": "#e0242e",
-    "accentFocus": "#b81a23",
+    "accent": "#d03040",
+    "accentFocus": "#b52535",
     "onAccent": "#ffffff",
-    "text1": "#ffffffeb",
-    "text2": "#ffffffad",
-    "text3": "#ffffff73",
-    "surface1": "#ffffff08",
-    "surface2": "#ffffff0f",
-    "surface3": "#ffffff1c",
-    "border1": "#ffffff14",
-    "border2": "#ffffff26",
-    "border3": "#ffffff42",
-    "panel": "#141414",
-    "ring": "#ffffff",
-    "name": "#808080",
-    "nameFocus": "#e5e5e5",
+    "text1": "#fbf1e4eb",
+    "text2": "#fbf1e4b0",
+    "text3": "#fbf1e47a",
+    "surface1": "#f3c96908",
+    "surface2": "#f3c96910",
+    "surface3": "#f3c9691c",
+    "border1": "#f3c96914",
+    "border2": "#f3c96926",
+    "border3": "#f3c96942",
+    "panel": "#22101a",
+    "ring": "#e8c46a",
+    "name": "#f5e6c8",
+    "nameFocus": "#ffffff",
     "shadow": "#000000",
     "danger": "#ff6b6b",
-    "warning": "#ff9900"
+    "warning": "#ffa31a"
   },
   "background": {
-    "fill": "#141414"
+    "fill": "#1a0b10",
+    "layers": [
+      {
+        "type": "radial",
+        "shape": "ellipse",
+        "x": 50,
+        "y": 0,
+        "stops": [
+          {
+            "color": "#4a1020",
+            "at": 0
+          },
+          {
+            "color": "#2a0c15",
+            "at": 50
+          },
+          {
+            "color": "#1a0b10",
+            "at": 100
+          }
+        ]
+      }
+    ]
   },
   "shape": {
     "radius": {
       "small": 2,
-      "medium": 4,
+      "medium": 3,
       "large": 4
     },
     "avatar": {
       "kind": "square",
       "radius": 4
     },
-    "ringWidth": 3,
+    "ringWidth": 2,
     "button": {
       "kind": "square"
     },
     "input": {
-      "radius": 0
+      "radius": 2
     }
   },
   "type": {
     "font": {
-      "family": "Helvetica Neue",
-      "fallback": "sans-serif"
+      "family": "Playfair Display",
+      "fallback": "serif"
     },
     "title": {
-      "weight": 500,
-      "spacing": 0,
+      "weight": 700,
+      "spacing": 0.01,
       "scale": 1.15
     },
     "name": {
-      "weight": 400,
+      "weight": 500,
       "scale": 1.05,
       "opacity": 1
     },
     "button": {
       "case": "upper",
-      "spacing": 0.2,
-      "weight": 400
+      "spacing": 0.12,
+      "weight": 600
     }
   },
   "depth": {
-    "avatar": null,
-    "title": null,
+    "avatar": {
+      "x": 0,
+      "y": 14,
+      "blur": 30,
+      "opacity": 0.6
+    },
+    "title": {
+      "x": 0,
+      "y": 2,
+      "blur": 12,
+      "opacity": 0.6
+    },
     "sheet": null
   },
   "focus": {
-    "scale": 1,
-    "glow": null
+    "scale": 1.04,
+    "glow": {
+      "x": 0,
+      "y": 0,
+      "blur": 24,
+      "color": "#e8c46a4d"
+    }
   },
   "parts": {
     "button2": {
       "fill": "#00000000",
-      "text": "#808080",
+      "text": "#f5e6c8",
       "border": {
         "width": 1,
         "style": "solid",
-        "color": "#808080"
+        "color": "#e8c46a80"
       },
       "focus": {
-        "fill": "#00000000",
-        "text": "#ffffff",
+        "fill": "#e8c46a",
+        "text": "#2a1a05",
         "border": {
           "width": 1,
           "style": "solid",
-          "color": "#ffffff"
+          "color": "#e8c46a"
         },
         "glow": null
       }
     },
     "addTile": {
-      "fill": "#00000000",
+      "fill": "#f3c96908",
       "border": {
-        "width": 3,
-        "style": "solid",
-        "color": "#00000000"
+        "width": 1,
+        "style": "dashed",
+        "color": "#e8c46a66"
       },
-      "text": "#808080",
-      "focusFill": "#00000000"
+      "text": "#e8c46a",
+      "focusFill": "#e8c46a1f"
     },
     "card": {
-      "fill": "#00000000",
-      "line": "#333333"
+      "fill": "#f3c96908",
+      "line": "#e8c46a26"
     },
     "sheet": {
       "fill": "#00000000",
@@ -122,8 +159,8 @@
       }
     },
     "input": {
-      "fill": "#333333",
-      "line": "#333333"
+      "fill": "#2a141e",
+      "line": "#e8c46a40"
     }
   },
   "layout": {

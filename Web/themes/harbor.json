@@ -1,50 +1,50 @@
 {
   "schema": 1,
   "id": "harbor",
-  "revision": 1,
+  "revision": 2,
   "scheme": "dark",
   "name": {
     "key": "theme.harbor"
   },
   "aliases": [],
   "colors": {
-    "accent": "#1a98ff",
-    "accentFocus": "#4aadff",
-    "onAccent": "#0b1219",
-    "text1": "#ffffffeb",
-    "text2": "#ffffffad",
-    "text3": "#ffffff73",
-    "surface1": "#ffffff08",
-    "surface2": "#ffffff0f",
-    "surface3": "#ffffff1c",
-    "border1": "#ffffff14",
-    "border2": "#ffffff26",
-    "border3": "#ffffff42",
-    "panel": "#1b2836",
-    "ring": "#ffffff",
-    "name": "#ffffff",
+    "accent": "#4fd1c5",
+    "accentFocus": "#79ded5",
+    "onAccent": "#06201d",
+    "text1": "#effcfaeb",
+    "text2": "#effcfab0",
+    "text3": "#effcfa78",
+    "surface1": "#bff3ec08",
+    "surface2": "#bff3ec0f",
+    "surface3": "#bff3ec1c",
+    "border1": "#bff3ec14",
+    "border2": "#bff3ec26",
+    "border3": "#bff3ec42",
+    "panel": "#132b33",
+    "ring": "#bff3ec",
+    "name": "#ecfbf8",
     "nameFocus": "#ffffff",
     "shadow": "#000000",
     "danger": "#ff6b6b",
-    "warning": "#ff9900"
+    "warning": "#ffa31a"
   },
   "background": {
-    "fill": "#182b3c",
+    "fill": "#0b1a20",
     "layers": [
       {
         "type": "linear",
         "angle": 180,
         "stops": [
           {
-            "color": "#1f3549",
+            "color": "#11303a",
             "at": 0
           },
           {
-            "color": "#182b3c",
-            "at": 50
+            "color": "#0e222a",
+            "at": 55
           },
           {
-            "color": "#0f1d29",
+            "color": "#0b1a20",
             "at": 100
           }
         ]
@@ -54,84 +54,95 @@
   "shape": {
     "radius": {
       "small": 4,
-      "medium": 4,
-      "large": 8
+      "medium": 8,
+      "large": 12
     },
     "avatar": {
-      "kind": "circle"
+      "kind": "rounded",
+      "radius": 18
     },
     "ringWidth": 3,
     "button": {
       "kind": "rounded",
-      "radius": 4
+      "radius": 6
     },
     "input": {
-      "radius": 4
+      "radius": 6
     }
   },
   "type": {
     "font": {
-      "family": "Segoe UI",
+      "family": "Montserrat",
       "fallback": "sans-serif"
     },
     "title": {
-      "weight": 700,
-      "spacing": 0,
-      "scale": 0.9
+      "weight": 800,
+      "spacing": 0.02,
+      "scale": 1.05
     },
     "name": {
       "weight": 700,
-      "scale": 0.9,
+      "scale": 0.95,
       "opacity": 1
     },
     "button": {
-      "case": "none",
-      "spacing": 0,
-      "weight": 600
+      "case": "upper",
+      "spacing": 0.08,
+      "weight": 700
     }
   },
   "depth": {
-    "avatar": null,
+    "avatar": {
+      "x": 0,
+      "y": 8,
+      "blur": 20,
+      "opacity": 0.45
+    },
     "title": null,
     "sheet": null
   },
   "focus": {
     "scale": 1.05,
-    "glow": null
+    "glow": {
+      "x": 0,
+      "y": 8,
+      "blur": 24,
+      "color": "#4fd1c54d"
+    }
   },
   "parts": {
     "button2": {
-      "fill": "#425466",
-      "text": "#ffffff",
+      "fill": "#bff3ec12",
+      "text": "#ecfbf8",
       "border": {
-        "width": 1,
+        "width": 2,
         "style": "solid",
-        "color": "#00000000"
+        "color": "#bff3ec2e"
       },
       "focus": {
-        "fill": "#ffffff",
-        "text": "#0f171e",
+        "fill": "#4fd1c5",
+        "text": "#06201d",
         "border": {
-          "width": 1,
+          "width": 2,
           "style": "solid",
-          "color": "#ffffff"
+          "color": "#4fd1c5"
         },
         "glow": null
       }
     },
     "addTile": {
-      "fill": "#425466",
+      "fill": "#bff3ec0a",
       "border": {
-        "width": 3,
-        "style": "solid",
-        "color": "#00000000"
+        "width": 2,
+        "style": "dashed",
+        "color": "#bff3ec47"
       },
-      "text": "#ffffff",
-      "focusFill": "#52687d"
+      "text": "#9fe8de",
+      "focusFill": "#4fd1c524"
     },
     "card": {
-      "fill": "#1b2836",
-      "line": "#26384a"
+      "fill": "#bff3ec08",
+      "line": "#bff3ec1a"
     },
     "sheet": {
       "fill": "#00000000",
@@ -142,8 +153,8 @@
       }
     },
     "input": {
-      "fill": "#0f1d29",
-      "line": "#425466"
+      "fill": "#11272e",
+      "line": "#bff3ec33"
     }
   },
   "layout": {

@@ -1,15 +1,15 @@
 {
   "schema": 1,
   "id": "starlight",
-  "revision": 1,
+  "revision": 2,
   "scheme": "dark",
   "name": {
     "key": "theme.starlight"
   },
   "aliases": [],
   "colors": {
-    "accent": "#1f6fe5",
-    "accentFocus": "#1a62cc",
+    "accent": "#336ee4",
+    "accentFocus": "#2a5fc8",
     "onAccent": "#ffffff",
     "text1": "#ffffffeb",
     "text2": "#ffffffad",
@@ -20,7 +20,7 @@
     "border1": "#ffffff14",
     "border2": "#ffffff26",
     "border3": "#ffffff42",
-    "panel": "#1a1d29",
+    "panel": "#181d30",
     "ring": "#f9f9f9",
     "name": "#f9f9f9",
     "nameFocus": "#ffffff",
@@ -29,7 +29,29 @@
     "warning": "#ff9900"
   },
   "background": {
-    "fill": "#1a1d29"
+    "fill": "#161b2e",
+    "layers": [
+      {
+        "type": "radial",
+        "shape": "ellipse",
+        "x": 50,
+        "y": 0,
+        "stops": [
+          {
+            "color": "#1c2443",
+            "at": 0
+          },
+          {
+            "color": "#1a2036",
+            "at": 45
+          },
+          {
+            "color": "#161b2e",
+            "at": 85
+          }
+        ]
+      }
+    ]
   },
   "shape": {
     "radius": {
@@ -40,7 +62,7 @@
     "avatar": {
       "kind": "circle"
     },
-    "ringWidth": 4,
+    "ringWidth": 3,
     "button": {
       "kind": "rounded",
       "radius": 4
@@ -51,23 +73,23 @@
   },
   "type": {
     "font": {
-      "family": "Avenir Next",
+      "family": "Outfit",
       "fallback": "sans-serif"
     },
     "title": {
-      "weight": 600,
-      "spacing": 0,
-      "scale": 0.85
+      "weight": 500,
+      "spacing": 0.01,
+      "scale": 0.95
     },
     "name": {
-      "weight": 600,
-      "scale": 1.1,
+      "weight": 500,
+      "scale": 1.05,
       "opacity": 1
     },
     "button": {
       "case": "upper",
-      "spacing": 0.12,
-      "weight": 700
+      "spacing": 0.08,
+      "weight": 600
     }
   },
   "depth": {
@@ -139,5 +161,12 @@
   "layout": {
     "households": "open"
   },
-  "decorations": []
+  "decorations": [
+    {
+      "name": "pattern",
+      "image": "stars",
+      "size": 360,
+      "drift": "none"
+    }
+  ]
 }

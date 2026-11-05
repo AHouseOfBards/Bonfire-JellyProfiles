@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "snowfall",
-  "revision": 1,
+  "revision": 2,
   "scheme": "dark",
   "name": {
     "key": "theme.snowfall"
@@ -71,8 +71,8 @@
   },
   "type": {
     "font": {
-      "family": "Palatino Linotype",
-      "fallback": "serif"
+      "family": "Quicksand",
+      "fallback": "sans-serif"
     },
     "title": {
       "weight": 400,

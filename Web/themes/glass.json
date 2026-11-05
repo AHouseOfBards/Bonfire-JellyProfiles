@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "glass",
-  "revision": 1,
+  "revision": 2,
   "scheme": "dark",
   "name": {
     "key": "theme.glass"
@@ -119,7 +119,7 @@
   },
   "type": {
     "font": {
-      "family": "System UI",
+      "family": "Inter",
       "fallback": "sans-serif"
     },
     "title": {

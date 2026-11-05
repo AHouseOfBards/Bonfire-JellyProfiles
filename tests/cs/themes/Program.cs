@@ -313,12 +313,8 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
         // A problem here is a theme the settings page would refuse to save if an
         // administrator duplicated it unchanged. Known ones are listed with the decision they
         // wait on, and each entry FAILS once the problem is gone, so none outlives its cause.
-        var known = new Dictionary<string, string>
-        {
-            // White on Jellyfin's blue, Bonfire's button since it wore the server's accent.
-            // tests/js/themes.js tracks the same failure.
-            ["bonfire colors.onAccent contrast"] = "1.7.2 theme review: Bonfire gets colours of its own",
-        };
+        // Empty since the 1.7.2 theme review fixed Bonfire's button (white on #00a4dc).
+        var known = new Dictionary<string, string>();
         foreach (var f in files)
         {
             var file = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(f))!;

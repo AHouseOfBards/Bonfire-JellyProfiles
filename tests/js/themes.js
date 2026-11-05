@@ -114,9 +114,21 @@ function contrast(a, b) {
     const x = lum(a), y = lum(b);
     return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
 }
-/** Every colour stop in a background value: one for a flat colour, each stop of a gradient. */
+/**
+ * Every colour a background shows: one for a flat colour, each stop of a gradient.
+ *
+ * A see-through stop is never seen on its own; it is painted over the layers beneath it.
+ * Until 1.7.2 one was read as if opaque: harmless while every see-through stop was dark
+ * (Glass's), wrong once a glow arrived (Campfire's orange at 28%, read as solid orange).
+ * So each see-through stop is laid over every opaque stop in the value, one pair at a
+ * time, which is at least as strict as the layer actually under it. Opaque stops are
+ * checked as they are, as before.
+ */
 function stops(v) {
-    return (String(v).match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b|rgba?\([^)]*\)/g) || []).map(parseColour).filter(Boolean);
+    const all = (String(v).match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b|rgba?\([^)]*\)/g) || []).map(parseColour).filter(Boolean);
+    const solid = all.filter(c => c.a >= 1);
+    if (!solid.length) return all;
+    return all.reduce((out, c) => out.concat(c.a >= 1 ? [c] : solid.map(s => over(c, s))), []);
 }
 
 // ── 1. The lists agree ──────────────────────────────────────────────────────────
@@ -250,12 +262,10 @@ console.log('\n── Each theme can be read on its own background ────�
 
 // Every theme, Bonfire included now that its colours are its own, against its own text.
 //
-// One known failure, tracked rather than hidden. Bonfire's button was Jellyfin's: white on
-// #00a4dc, 2.86:1, which this file never checked while Bonfire wore the server's accent.
-// Its colours are being redrawn in the 1.7.2 theme review (a warm look of its own), and
-// they are Logan's call, not a harness's. The entry FAILS once the button passes, so it
-// cannot outlive the problem; delete it then.
-const KNOWN_ON_ACCENT = { bonfire: '1.7.2 theme review: Bonfire gets colours of its own' };
+// Known failures, tracked rather than hidden; each entry FAILS once its button passes, so
+// none can outlive its problem. Empty since the 1.7.2 theme review: Bonfire's button was
+// Jellyfin's white on #00a4dc, 2.86:1, until Campfire gave it dark text on gold.
+const KNOWN_ON_ACCENT = {};
 Object.keys(KNOWN_ON_ACCENT).forEach(id => {
     const d = theme[id] || {};
     const a = parseColour(d['--jpf-accent']), o = parseColour(d['--jpf-on-accent']);
@@ -871,9 +881,11 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
 }
 
 // ── 11. The seasonal themes' decoration ─────────────────────────────────────────
-console.log('\n── Harvest, Snowfall and Bloom carry their season ─────────────');
+console.log('\n── The seasonal themes carry their season, Starlight its stars ─');
 {
-    const SEASONAL = { harvest: 'leaves', snowfall: 'snow', bloom: 'blossoms' };
+    // Named "seasonal" for the three it began with; Starlight's sparse starfield joined
+    // them in the 1.7.2 theme review.
+    const SEASONAL = { harvest: 'leaves', snowfall: 'snow', bloom: 'blossoms', starlight: 'stars' };
     Object.keys(SEASONAL).forEach(id => {
         const d = theme[id] || {};
         ok(id + ' draws its ' + SEASONAL[id] + ' as an inline picture, nothing fetched',

@@ -1099,7 +1099,7 @@
     // The colour is the gate's, through --jpf-gate-bg so a theme can set it in one place.
     // The plain colour first is for an engine without custom properties, which would
     // otherwise drop the whole declaration and paint nothing.
-    const GATE_COVER_CSS = 'html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#0d0d12;background:var(--jpf-gate-bg,radial-gradient(circle at 50% 40%,#1e1e2e 0%,#0d0d12 100%));content:""}';
+    const GATE_COVER_CSS = 'html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#121521;background:var(--jpf-gate-bg,radial-gradient(ellipse at 50% 100%,rgba(255,154,74,0.278) 0%,rgba(255,154,74,0) 55%),linear-gradient(180deg,#0f1220 0%,#1b1925 55%,#33201a 100%));content:""}';
 
     // How long the cover may stay up without the gate arriving. Each holder (the head
     // script, and profiles.js once it starts fetching the list) gets this long; a cover

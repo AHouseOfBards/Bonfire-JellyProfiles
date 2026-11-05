@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "nightfall",
-  "revision": 1,
+  "revision": 2,
   "scheme": "dark",
   "name": {
     "key": "theme.nightfall"
@@ -31,6 +31,22 @@
   "background": {
     "fill": "#130a24",
     "layers": [
+      {
+        "type": "radial",
+        "shape": "ellipse",
+        "x": 50,
+        "y": 100,
+        "stops": [
+          {
+            "color": "#ff7a9a2e",
+            "at": 0
+          },
+          {
+            "color": "#ff7a9a00",
+            "at": 50
+          }
+        ]
+      },
       {
         "type": "linear",
         "angle": 170,
@@ -74,7 +90,7 @@
   },
   "type": {
     "font": {
-      "family": "Segoe UI",
+      "family": "DM Sans",
       "fallback": "sans-serif"
     },
     "title": {

@@ -178,7 +178,7 @@ namespace Jellyfin.Profiles
                     "s.id='jpf-cover-css';" +
                     // content: comes last on purpose. A quote followed by a semicolon is
                     // where tests/js/headscript.js decides this constant ends.
-                    "s.textContent='html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#0d0d12;background:var(--jpf-gate-bg,radial-gradient(circle at 50% 40%,#1e1e2e 0%,#0d0d12 100%));content:\"\"}'+tc;" +
+                    "s.textContent='html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#121521;background:var(--jpf-gate-bg,radial-gradient(ellipse at 50% 100%,rgba(255,154,74,0.278) 0%,rgba(255,154,74,0) 55%),linear-gradient(180deg,#0f1220 0%,#1b1925 55%,#33201a 100%));content:\"\"}'+tc;" +
                     "(document.head||h).appendChild(s);" +
                     "h.setAttribute('data-jpf-cover','');" +
                     "var u=function(){h.removeAttribute('data-jpf-cover');clearTimeout(window.__jpCoverT);window.__jpCoverT=null;};" +

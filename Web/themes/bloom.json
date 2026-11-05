@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "bloom",
-  "revision": 1,
+  "revision": 2,
   "scheme": "dark",
   "name": {
     "key": "theme.bloom"
@@ -72,7 +72,7 @@
   },
   "type": {
     "font": {
-      "family": "Trebuchet MS",
+      "family": "Nunito",
       "fallback": "sans-serif"
     },
     "title": {
