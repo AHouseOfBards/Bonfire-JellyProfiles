@@ -315,6 +315,27 @@ namespace Jellyfin.Profiles.Configuration
         public Guid MasterUserId { get; set; }
 
         /// <summary>
+        /// Every household that has signed in on this device, <see cref="MasterUserId"/>
+        /// (the one seen last) among them (R-1050).
+        /// <para>
+        /// One owner per id did not fit a browser or a Roku that two households share: the
+        /// first to sign in kept it for good, so the second could not restrict a profile to
+        /// it, and its PINs were refused there once a PIN needed a household device
+        /// (R-1344). Ownership is what grants things; <see cref="MasterUserId"/> only
+        /// decides whose profiles a sign-in screen shows, since nobody is signed in to ask.
+        /// </para>
+        /// <para>
+        /// Replaced, never edited in place: a configuration snapshot shares these objects
+        /// and reads them without the lock.
+        /// </para>
+        /// </summary>
+        public List<Guid> Owners { get; set; } = new List<Guid>();
+
+        /// <summary>True if <paramref name="householdId"/> has signed in on this device.</summary>
+        public bool OwnedBy(Guid householdId)
+            => householdId != Guid.Empty && (MasterUserId == householdId || (Owners?.Contains(householdId) ?? false));
+
+        /// <summary>
         /// True once an administrator has renamed this device by hand, which stops the name
         /// being overwritten by whatever the client sends on its next request.
         /// <para>

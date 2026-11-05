@@ -3790,7 +3790,7 @@ namespace Jellyfin.Profiles.Controllers
                 var owned = config.KnownDevices.Where(d =>
                     (string.Equals(d.DeviceId, request.FromDeviceId, StringComparison.OrdinalIgnoreCase)
                      || string.Equals(d.DeviceId, request.IntoDeviceId, StringComparison.OrdinalIgnoreCase))
-                    && d.MasterUserId == masterId).ToList();
+                    && d.OwnedBy(masterId)).ToList();
 
                 if (owned.Count != 2)
                     return BadRequest("Both devices must be ones this account has used.");
@@ -3840,7 +3840,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 // This household's devices only. The list is server-wide, and grouping across
                 // it could fold another household's hardware into this one's whitelist.
-                var owned = config.KnownDevices.Where(d => d.MasterUserId == masterId).ToList();
+                var owned = config.KnownDevices.Where(d => d.OwnedBy(masterId)).ToList();
                 var groups = GroupLikelyDuplicates(owned);
 
                 if (!apply)
@@ -3903,7 +3903,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 var device = config.KnownDevices.FirstOrDefault(d =>
                     string.Equals(d.DeviceId, request.DeviceId, StringComparison.OrdinalIgnoreCase)
-                    && d.MasterUserId == masterId);
+                    && d.OwnedBy(masterId));
 
                 if (device == null) return BadRequest("Unknown device.");
 
