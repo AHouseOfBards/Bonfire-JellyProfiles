@@ -11274,5 +11274,23 @@
         }
     };
 
+    /// For the settings page's theme editor (1.7.2), which loads inside jellyfin-web after
+    /// this script. Its previews are drawn by themeCss, the one generator, so a preview is
+    /// what the theme will look like rather than a second copy's guess. css() returns text
+    /// and writes nothing; builtIns() is a copy, so the editor can start from a hidden
+    /// built-in, which GET /themes leaves out; refresh() is the startup fetch again, so a
+    /// theme just saved reaches this window's pickers without a reload. The page works
+    /// without this, minus the preview, when the script was not injected.
+    if (typeof window !== 'undefined') {
+        window.BonfireThemePreview = {
+            css: theme => themeCss(theme, BONFIRE_THEMES.patterns || {}),
+            builtIns: () => JSON.parse(JSON.stringify(Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes : [])),
+            refresh: () => {
+                ProfilesPlugin._customThemesLoad = null;
+                return ProfilesPlugin.loadCustomThemes();
+            }
+        };
+    }
+
     ProfilesPlugin.init();
 })();

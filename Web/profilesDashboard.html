@@ -268,6 +268,87 @@
     #profilesConfigurationPage .jpf-ann-meta { font-size: 0.85rem; opacity: 0.75; grid-column: 1; }
     #profilesConfigurationPage .jpf-ann-buttons { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; }
 
+    /* Themes (1.7.2): the three lists, and the editor with its preview beside the
+       fields. The preview's own look comes from the theme's tokens, which themeCss
+       writes on its data-jpf-theme; the rules here only place what it draws. */
+    #profilesConfigurationPage .jpf-te-list { margin: 0.5em 0 1em; max-width: 52em; }
+    #profilesConfigurationPage .jpf-te-item {
+        display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px;
+        padding: 0.6em 0; border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+    }
+    #profilesConfigurationPage .jpf-te-swatch {
+        width: 30px; height: 30px; flex-shrink: 0; border-radius: 6px;
+        border: 1px solid rgba(128, 128, 128, 0.45);
+    }
+    #profilesConfigurationPage .jpf-te-item-name { font-weight: 600; overflow-wrap: anywhere; }
+    #profilesConfigurationPage .jpf-te-item-meta { font-size: 0.85rem; opacity: 0.75; overflow-wrap: anywhere; }
+    #profilesConfigurationPage .jpf-te-item-bad { font-size: 0.85rem; color: #ff6b6b; }
+    #profilesConfigurationPage .jpf-te-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+    #profilesConfigurationPage .jpf-te-buttons .raised { margin: 0; }
+    #profilesConfigurationPage .jpf-te-sample { font-size: 1.15rem; }
+    #profilesConfigurationPage .jpf-te-note { margin: 0 0 0 1em; }
+    #profilesConfigurationPage .jpf-te {
+        border: 1px solid var(--jpf-accent-a35);
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin: 1em 0 2em;
+    }
+    #profilesConfigurationPage .jpf-te-title { margin: 0 0 0.75em; overflow-wrap: anywhere; }
+    #profilesConfigurationPage .jpf-te-modes {
+        display: flex; gap: 2px; margin: 0 0 1.25em;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    }
+    /* The tab strip's look, under a class of its own: initTabs binds every .jpf-tab. */
+    #profilesConfigurationPage .jpf-te-mode {
+        -webkit-appearance: none; appearance: none;
+        background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0;
+        margin: 0 0 -1px 0; padding: 0.55em 1em;
+        font: inherit; font-weight: 500; color: inherit; opacity: 0.6; cursor: pointer;
+    }
+    #profilesConfigurationPage .jpf-te-mode.is-active { opacity: 1; font-weight: 600; border-bottom-color: var(--jpf-accent); }
+    #profilesConfigurationPage .jpf-te-mode:focus-visible { outline: 2px solid var(--jpf-accent); outline-offset: -2px; }
+    #profilesConfigurationPage .jpf-te-body { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; }
+    #profilesConfigurationPage .jpf-te-fields { flex: 1 1 26em; min-width: 0; }
+    #profilesConfigurationPage .jpf-te-side { flex: 0 1 20em; min-width: 14em; position: sticky; top: 1em; }
+    #profilesConfigurationPage .jpf-te-side-title { margin: 1em 0 0.25em; }
+    #profilesConfigurationPage .jpf-te-colors {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(11em, 1fr));
+        gap: 10px 16px; margin-bottom: 1.5em;
+    }
+    #profilesConfigurationPage .jpf-te-color { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; cursor: pointer; }
+    #profilesConfigurationPage .jpf-te input[type="color"] {
+        width: 42px; height: 32px; padding: 0; flex-shrink: 0; cursor: pointer;
+        border: 1px solid rgba(128, 128, 128, 0.5); border-radius: 6px; background: none;
+    }
+    #profilesConfigurationPage .jpf-te-bad > label,
+    #profilesConfigurationPage .jpf-te-bad > span,
+    #profilesConfigurationPage .jpf-te-bad .jpf-te-adv-label { color: #ff6b6b; }
+    #profilesConfigurationPage .jpf-te-msg { flex-basis: 100%; color: #ff6b6b; font-size: 0.85rem; margin-top: 4px; }
+    #profilesConfigurationPage .jpf-te-group { margin: 0 0 0.5em; }
+    #profilesConfigurationPage .jpf-te-group > summary { cursor: pointer; font-weight: 600; padding: 0.45em 0; }
+    #profilesConfigurationPage .jpf-te-adv {
+        display: grid; grid-template-columns: minmax(10em, 15em) minmax(0, 1fr);
+        align-items: center; gap: 4px 12px; padding: 4px 0;
+    }
+    #profilesConfigurationPage .jpf-te-adv .jpf-te-msg { grid-column: 2; }
+    #profilesConfigurationPage .jpf-te-adv-label code { font-size: 0.85rem; overflow-wrap: anywhere; }
+    #profilesConfigurationPage .jpf-te-pair { display: flex; align-items: center; gap: 8px; }
+    #profilesConfigurationPage .jpf-te-input { width: 100%; box-sizing: border-box; margin: 0; }
+    #profilesConfigurationPage .jpf-te-json { font-family: monospace; font-size: 0.85rem; min-height: 4.5em; resize: vertical; }
+    #profilesConfigurationPage .jpf-te-problems { font-size: 0.9rem; }
+    #profilesConfigurationPage .jpf-te-problems ul { margin: 0; padding-left: 1.2em; }
+    #profilesConfigurationPage .jpf-te-problems li { margin: 0 0 6px; color: #ff6b6b; overflow-wrap: anywhere; }
+    #profilesConfigurationPage .jpf-te-ok { color: #51cf66; }
+    #profilesConfigurationPage .jpf-te-end { margin-top: 1.5em; }
+    #profilesConfigurationPage .jpf-te-preview-text { font-size: 0.8rem; color: var(--jpf-text-2); }
+    #profilesConfigurationPage .jpf-te-preview-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+    #profilesConfigurationPage .jpf-te-preview-primary {
+        padding: 4px 12px; font-size: 0.68rem; line-height: 1.25;
+        border-radius: var(--jpf-btn-radius);
+        background: var(--jpf-accent); color: var(--jpf-on-accent);
+        font-weight: var(--jpf-btn2-weight); text-transform: var(--jpf-btn2-case); letter-spacing: var(--jpf-btn2-spacing);
+    }
+
     /* Notice boxes. One shape, four meanings. */
     #profilesConfigurationPage .jpf-note {
         border: 1px solid var(--jpf-accent-a35);
@@ -728,6 +809,147 @@
                         <span data-i18n="admin.theme.allowProfiles">Let profiles choose their own theme</span>
                     </label>
                     <div class="fieldDescription" data-i18n="admin.theme.allowProfilesHint">Off shows everyone the default. Choices already made are kept.</div>
+                </div>
+
+                <!-- The administrator's own themes, hidden built-ins and uploaded fonts
+                     (1.7.2). Everything here saves at once through admin/themes/*; only
+                     the default above waits for Save. -->
+                <div class="sectionTitleContainer jpf-section" id="jpfThemes">
+                    <h2 class="sectionTitle" data-i18n="admin.themes.title">Themes</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.themes.lede">Hide built-in themes, make your own and add fonts. Changes here save at once.</div>
+                <div class="jpf-hidden jpf-status jpf-status-error" id="themesLoadError"></div>
+
+                <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.themes.builtIn">Built-in themes</h3>
+                <div class="fieldDescription" data-i18n="admin.themes.builtInHint">Profiles aren't offered a hidden theme.</div>
+                <div class="jpf-ob-steps" id="themesBuiltIn"></div>
+
+                <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.themes.custom">Your themes</h3>
+                <div class="jpf-te-list" id="themesCustom"></div>
+                <div class="jpf-actions">
+                    <button is="emby-button" type="button" class="raised" id="themeNew" data-i18n="admin.themes.new">New theme</button>
+                    <button is="emby-button" type="button" class="raised" id="themeImport" data-i18n="admin.themes.import">Import</button>
+                    <input type="file" id="themeImportFile" accept="application/json,.json" hidden />
+                </div>
+                <div class="jpf-hidden jpf-status" id="themesResult"></div>
+
+                <!-- The editor. Simple sets about eight values and the ones that must follow
+                     them; Advanced shows every field of the file. Both edit the same draft,
+                     which the preview wears and the server checks as it changes. -->
+                <div class="jpf-te jpf-hidden" id="themeEditor">
+                    <h3 class="jpf-te-title" id="themeEditorTitle"></h3>
+                    <div class="jpf-te-modes" role="tablist" aria-label="Editor mode" data-i18n-aria-label="admin.themes.modes">
+                        <button type="button" class="jpf-te-mode" role="tab" data-view="simple" data-i18n="admin.themes.simple">Simple</button>
+                        <button type="button" class="jpf-te-mode" role="tab" data-view="advanced" data-i18n="admin.themes.advanced">Advanced</button>
+                    </div>
+                    <div class="jpf-te-body">
+                        <div class="jpf-te-fields">
+                            <div class="selectContainer" id="teBaseBox">
+                                <label class="selectLabel" for="teBase" data-i18n="admin.themes.startFrom">Start from</label>
+                                <select is="emby-select" id="teBase"></select>
+                            </div>
+                            <div class="inputContainer jpf-te-field" data-paths="name">
+                                <label class="inputLabel" for="teName" data-i18n="admin.themes.name">Name</label>
+                                <input is="emby-input" type="text" id="teName" maxlength="40" autocomplete="off" />
+                            </div>
+                            <div class="inputContainer jpf-te-field" data-paths="id">
+                                <label class="inputLabel" for="teId" data-i18n="admin.themes.id">Id</label>
+                                <input is="emby-input" type="text" id="teId" maxlength="40" autocomplete="off" spellcheck="false" />
+                                <div class="fieldDescription" data-i18n="admin.themes.idHint">Lower case letters, digits and -. Fixed once saved.</div>
+                            </div>
+                            <div class="jpf-te-simple" id="teSimple">
+                                <div class="jpf-te-colors">
+                                    <label class="jpf-te-color jpf-te-field" data-paths="colors.accent colors.accentFocus colors.onAccent parts.button2.focus">
+                                        <input type="color" id="teAccent" data-simple="accent" />
+                                        <span data-i18n="admin.themes.accent">Accent</span>
+                                    </label>
+                                    <label class="jpf-te-color jpf-te-field" data-paths="background.fill colors.panel scheme">
+                                        <input type="color" id="teBg1" data-simple="bg1" />
+                                        <span data-i18n="admin.themes.bgTop">Background, top</span>
+                                    </label>
+                                    <label class="jpf-te-color jpf-te-field" data-paths="background.layers">
+                                        <input type="color" id="teBg2" data-simple="bg2" />
+                                        <span data-i18n="admin.themes.bgBottom">Background, bottom</span>
+                                    </label>
+                                    <label class="jpf-te-color jpf-te-field" data-paths="colors.text1 colors.text2 colors.text3 colors.name colors.nameFocus parts.button2.text parts.addTile.text">
+                                        <input type="color" id="teText" data-simple="text" />
+                                        <span data-i18n="admin.themes.text">Text</span>
+                                    </label>
+                                </div>
+                                <div class="selectContainer jpf-te-field" data-paths="type.font">
+                                    <label class="selectLabel" for="teFont" data-i18n="admin.themes.font">Font</label>
+                                    <select is="emby-select" id="teFont" data-simple="font"></select>
+                                </div>
+                                <div class="selectContainer jpf-te-field" data-paths="shape.avatar">
+                                    <label class="selectLabel" for="teAvatar" data-i18n="admin.themes.tile">Tile shape</label>
+                                    <select is="emby-select" id="teAvatar" data-simple="avatar">
+                                        <option value="circle" data-i18n="admin.themes.tileCircle">Circle</option>
+                                        <option value="rounded" data-i18n="admin.themes.tileRounded">Rounded square</option>
+                                        <option value="square" data-i18n="admin.themes.tileSquare">Square</option>
+                                        <option value="leaf" data-i18n="admin.themes.tileLeaf">Leaf</option>
+                                    </select>
+                                </div>
+                                <div class="selectContainer jpf-te-field" data-paths="shape.button">
+                                    <label class="selectLabel" for="teButton" data-i18n="admin.themes.button">Button shape</label>
+                                    <select is="emby-select" id="teButton" data-simple="button">
+                                        <option value="pill" data-i18n="admin.themes.buttonPill">Pill</option>
+                                        <option value="rounded" data-i18n="admin.themes.buttonRounded">Rounded</option>
+                                        <option value="square" data-i18n="admin.themes.buttonSquare">Square</option>
+                                    </select>
+                                </div>
+                                <div class="selectContainer jpf-te-field" data-paths="decorations">
+                                    <label class="selectLabel" for="tePattern" data-i18n="admin.themes.pattern">Pattern</label>
+                                    <select is="emby-select" id="tePattern" data-simple="pattern"></select>
+                                </div>
+                            </div>
+                            <div class="jpf-te-advanced jpf-hidden" id="teAdvanced">
+                                <div class="fieldDescription jpf-lede" data-i18n="admin.themes.advancedHint">Every value in the theme file. Lists are written as JSON.</div>
+                                <div id="teAdvancedFields"></div>
+                            </div>
+                        </div>
+                        <div class="jpf-te-side">
+                            <div id="tePreview"></div>
+                            <h4 class="jpf-te-side-title" data-i18n="admin.themes.problems">Problems</h4>
+                            <div class="jpf-te-problems" id="teProblems" aria-live="polite"></div>
+                        </div>
+                    </div>
+                    <div class="jpf-actions jpf-te-end">
+                        <button is="emby-button" type="button" class="raised button-submit" id="teSave" data-i18n="admin.themes.save">Save theme</button>
+                        <button is="emby-button" type="button" class="raised" id="teCancel" data-i18n="admin.themes.cancel">Cancel</button>
+                    </div>
+                    <div class="jpf-hidden jpf-status" id="teResult"></div>
+                </div>
+
+                <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.themes.fonts">Fonts</h3>
+                <div class="fieldDescription" data-i18n="admin.themes.fontsHint">For your own themes. WOFF2, up to 2 MB.</div>
+                <div class="jpf-te-list" id="themesFonts"></div>
+                <div class="jpf-form-narrow jpf-block-end">
+                    <div class="jpf-actions">
+                        <button is="emby-button" type="button" class="raised" id="fontChoose" data-i18n="admin.themes.fontChoose">Choose a font file</button>
+                        <span class="jpf-dim" id="fontFileName"></span>
+                    </div>
+                    <input type="file" id="fontFile" accept=".woff2,font/woff2" hidden />
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="fontFamily" data-i18n="admin.themes.fontName">Font name</label>
+                        <input is="emby-input" type="text" id="fontFamily" maxlength="64" autocomplete="off" />
+                        <div class="fieldDescription" data-i18n="admin.themes.fontNameHint">Blank uses the name inside the file.</div>
+                    </div>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="fontFallback" data-i18n="admin.themes.fontFallback">Fallback</label>
+                        <select is="emby-select" id="fontFallback">
+                            <option value="sans-serif" data-i18n="admin.themes.sans">Sans-serif</option>
+                            <option value="serif" data-i18n="admin.themes.serif">Serif</option>
+                        </select>
+                        <div class="fieldDescription" data-i18n="admin.themes.fontFallbackHint">Used while the font loads, or if it can't.</div>
+                    </div>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="fontRights" />
+                            <span data-i18n="admin.themes.fontRights">I have the right to use this font</span>
+                        </label>
+                    </div>
+                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow" id="fontUpload" data-i18n="admin.themes.fontUpload">Upload font</button>
+                    <div class="jpf-hidden jpf-status" id="fontResult"></div>
                 </div>
 
                 <div class="sectionTitleContainer jpf-section" id="jpfViewing">
@@ -1415,7 +1637,102 @@
                 'admin.panic.rejected': 'The server refused that code.',
 
                 'admin.report.copied': 'Copied.',
-                'admin.report.selectIt': 'Select the text below and copy it.'
+                'admin.report.selectIt': 'Select the text below and copy it.',
+
+                'admin.themes.loadFailed': 'Couldn\'t load themes.',
+                'admin.themes.hide': 'Hide',
+                'admin.themes.isDefault': 'Default',
+                'admin.themes.alwaysOn': 'Always offered',
+                'admin.themes.none': 'None yet.',
+                'admin.themes.count': '{n} of {max}',
+                'admin.themes.notOffered': 'Has problems, so it isn\'t offered. Edit it to fix them.',
+                'admin.themes.edit': 'Edit',
+                'admin.themes.duplicate': 'Duplicate',
+                'admin.themes.export': 'Export',
+                'admin.themes.delete': 'Delete',
+                'admin.themes.deleteTitle': 'Delete theme',
+                'admin.themes.deleteConfirm': 'Delete {name}? Profiles using it get the default.',
+                'admin.themes.deleted': 'Deleted.',
+                'admin.themes.hiddenSaved': 'Saved.',
+                'admin.themes.newTitle': 'New theme',
+                'admin.themes.editTitle': 'Edit {name}',
+                'admin.themes.newName': 'My theme',
+                'admin.themes.copyName': '{name} copy',
+                'admin.themes.patternNone': 'None',
+                'admin.themes.pattern.leaves': 'Leaves',
+                'admin.themes.pattern.snow': 'Snow',
+                'admin.themes.pattern.blossoms': 'Blossoms',
+                'admin.themes.pattern.stars': 'Stars',
+                'admin.themes.group.file': 'Scheme',
+                'admin.themes.group.colors': 'Colours',
+                'admin.themes.group.background': 'Background',
+                'admin.themes.group.shape': 'Shape',
+                'admin.themes.group.type': 'Type',
+                'admin.themes.group.depth': 'Depth and focus',
+                'admin.themes.group.parts': 'Parts',
+                'admin.themes.group.layout': 'Layout',
+                'admin.themes.group.decorations': 'Decorations',
+                'admin.themes.previewText': 'Secondary text',
+                'admin.themes.previewPrimary': 'Continue',
+                'admin.themes.previewSecondary': 'Cancel',
+                'admin.themes.noPreview': 'No preview: Bonfire\'s script isn\'t running on this page.',
+                'admin.themes.noProblems': 'No problems.',
+                'admin.themes.checkFailed': 'Couldn\'t check the theme.',
+                'admin.themes.fixFirst': 'Fix the problems first.',
+                'admin.themes.created': '{name} added.',
+                'admin.themes.saved': '{name} saved.',
+                'admin.themes.imported': '{name} imported.',
+                'admin.themes.saveFailed': 'Couldn\'t save.',
+                'admin.themes.notJson': 'That file isn\'t a theme.',
+                'admin.themes.replaceTitle': 'Replace theme',
+                'admin.themes.replaceConfirm': 'Replace {name} with the imported file?',
+                'admin.themes.noFonts': 'None yet.',
+                'admin.themes.fontWeight': 'Weight {w}',
+                'admin.themes.fontWeights': 'Weights {min}–{max}',
+                'admin.themes.fallbackSans': 'Sans-serif fallback',
+                'admin.themes.fallbackSerif': 'Serif fallback',
+                'admin.themes.fontUsedBy': 'Used by {themes}',
+                'admin.themes.fontUnused': 'Not used',
+                'admin.themes.fontInUseHint': 'A theme uses it. Change that theme first.',
+                'admin.themes.fontDeleteTitle': 'Delete font',
+                'admin.themes.fontDeleteConfirm': 'Delete {name}?',
+                'admin.themes.fontPick': 'Choose a font file first.',
+                'admin.themes.fontTooBig': 'That file is over {mb} MB.',
+                'admin.themes.err.invalid': 'That theme has problems. Fix them and save again.',
+                'admin.themes.err.limit': 'Delete a theme first. A server keeps up to {max}.',
+                'admin.themes.err.inUse': 'That\'s the default theme. Choose and save another default first.',
+                'admin.themes.err.notFound': 'That theme is gone. Reload the page.',
+                'admin.themes.err.fontInvalid': 'That file isn\'t a WOFF2 font Bonfire can use.',
+                'admin.themes.err.fontRights': 'Confirm you have the right to use this font.',
+                'admin.themes.err.fontTaken': 'There\'s already a font with that name.',
+                'admin.themes.err.fontLimit': 'Delete a font first. A server keeps up to {max}.',
+                'admin.themes.err.fontInUse': 'A theme uses that font. Change or delete the theme first.',
+                'admin.themes.err.fontNotFound': 'That font is gone. Reload the page.',
+                'admin.themes.err.fontFailed': 'Couldn\'t upload the font.',
+                'admin.themes.p.contrast': 'Contrast {ratio}:1 on {on}. Needs {min}:1.',
+                'admin.themes.p.contrastShort': 'Not enough contrast.',
+                'admin.themes.p.between': 'Must be from {min} to {max}.',
+                'admin.themes.p.oneOf': 'Must be one of: {values}.',
+                'admin.themes.p.opaque': 'Can\'t be see-through.',
+                'admin.themes.p.hundreds': 'Must be a multiple of 100.',
+                'admin.themes.p.id': 'Lower case letters, digits and -, up to 40.',
+                'admin.themes.p.name': '1 to 40 characters, on one line.',
+                'admin.themes.p.nameText': 'Give the theme a name.',
+                'admin.themes.p.aliases': 'Must be empty in your own theme.',
+                'admin.themes.p.range': 'Out of range.',
+                'admin.themes.p.missing': 'Required.',
+                'admin.themes.p.colour': 'Must be a colour: #rrggbb or #rrggbbaa.',
+                'admin.themes.p.type': 'Wrong kind of value.',
+                'admin.themes.p.unknown': 'Not part of the theme format.',
+                'admin.themes.p.red': 'Must read as red.',
+                'admin.themes.p.amber': 'Must read as amber.',
+                'admin.themes.p.font': 'Not a font Bonfire has.',
+                'admin.themes.p.pattern': 'Not a pattern Bonfire has.',
+                'admin.themes.p.address': 'Themes can\'t link to other files or sites.',
+                'admin.themes.p.size': 'Too large. A theme is at most 64 KB.',
+                'admin.themes.p.taken': 'A built-in theme uses this id.',
+                'admin.themes.p.idInUse': 'Another of your themes uses this id.',
+                'admin.themes.p.json': 'Not valid JSON.'
             };
 
             /// The loaded translation's admin.* keys, or null for English.
@@ -1583,7 +1900,10 @@
                     page.querySelector('#defaultAskOnStartup').checked = config.DefaultAskOnStartup !== false;
                     page.querySelector('#defaultSwitcherLocation').value =
                         config.DefaultSwitcherLocation === 'menu' ? 'menu' : 'button';
-                    page.querySelector('#defaultTheme').value = normalizeTheme(config.DefaultTheme);
+                    // Kept as well as shown: a custom default has no option until the Themes
+                    // section has drawn the list, and Save must not read that gap as Bonfire.
+                    page._wantedDefaultTheme = normalizeTheme(config.DefaultTheme, page._themeOffered);
+                    page.querySelector('#defaultTheme').value = page._wantedDefaultTheme;
                     page.querySelector('#allowProfileThemes').checked = config.AllowProfileThemes !== false;
                     loadTimeZones(page, config.DefaultTimeZone || '');
                     loadOnboarding(page, config.Onboarding || {});
@@ -1611,6 +1931,7 @@
                     loadAvatarHealth(page);
                     loadPanicStatus(page);
                     loadAnnouncements(page);
+                    loadThemes(page);
                     loadMaintenance(page);
                     loadEmail(page);
                     loadOrphanStatus(page);
@@ -1629,7 +1950,8 @@
 
             // The one authorization header this page builds for itself. Every other call
             // here goes through ApiClient.ajax, which builds its own; this exists for the
-            // single request that wants a Blob back.
+            // two requests it can't make: one that wants a Blob back, and the font upload,
+            // whose body is the file itself.
             //
             // `MediaBrowser` scheme, and nothing else. Jellyfin 12.0 disables legacy
             // authorization by default and migrates existing installs to off; with it off
@@ -2638,14 +2960,19 @@
                 return v === 'high' || v === 'maximum' ? v : 'standard';
             }
 
-            // The server's Themes.All. The server refuses anything else, so this keeps a
-            // stale or hand-edited value from turning Save into an error.
+            // A theme the server will take as the default, or Bonfire. The server refuses
+            // anything else, so this keeps a stale or hand-edited value from turning Save into
+            // an error. `offered` is what the Themes section found the server offers (1.7.2:
+            // the built-ins less the hidden ones, then the administrator's own). Before that
+            // answer arrives, any well-formed id is let through: the default may be a custom
+            // theme, and quietly saving Bonfire over it would be worse than a refusal.
             // The list lives inside the function so it can be lifted out whole for a test.
-            function normalizeTheme(value) {
+            function normalizeTheme(value, offered) {
                 const ids = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom',
                     'jellyfin-dark', 'jellyfin-light', 'high-contrast'];
-                const v = String(value || '').toLowerCase();
-                return ids.indexOf(v) !== -1 ? v : 'bonfire';
+                const v = String(value || '').trim().toLowerCase();
+                if (Array.isArray(offered)) return offered.indexOf(v) !== -1 ? v : 'bonfire';
+                return ids.indexOf(v) !== -1 || /^[a-z0-9-]{1,40}$/.test(v) ? v : 'bonfire';
             }
 
             function currentImageSpec() {
@@ -2915,9 +3242,10 @@
                         const name = field(files[i], 'name');
                         setStatus(t('admin.avatars.importing', { n: i + 1, total: files.length }));
 
-                        // The only hand-rolled request on this page — everything else goes
-                        // through ApiClient.ajax, which builds this header itself. It is
-                        // hand-rolled because the response is wanted as a Blob.
+                        // One of two hand-rolled requests on this page (the font upload is
+                        // the other) — everything else goes through ApiClient.ajax, which
+                        // builds this header itself. It is hand-rolled because the response
+                        // is wanted as a Blob.
                         //
                         // It used to send X-Emby-Token. Jellyfin 12.0 turns legacy
                         // authorization off by default and migrates existing installs to
@@ -3186,6 +3514,1220 @@
                 text.addEventListener('input', function () {
                     page.querySelector('#annCount').textContent = text.value.length + ' / 280';
                 });
+            }
+
+            // ── Themes (1.7.2) ────────────────────────────────────────────────────
+            //
+            // The administrator's own themes, the built-ins they hide, and the fonts they
+            // upload, through admin/themes/* (docs/developer-api.md, "Custom themes"). Each
+            // change saves at once; only the default theme waits for Save, being one of the
+            // settings that sends.
+            //
+            // A theme's name, a font's name and any key in an imported file are whatever an
+            // administrator typed, so each is set as text or escaped before it becomes
+            // markup. tests/js/adminthemes.js runs these functions with hostile values.
+
+            /// The id the editor's preview wears. themeCss keys a theme's tokens on its id,
+            /// and the theme being edited may be the one this page itself wears, which a
+            /// preview under the real id would repaint as the administrator typed.
+            const THEME_PREVIEW_ID = 'jpf--editor-preview';
+
+            /// Every field of a theme file that Advanced shows, in the order of docs/themes.md:
+            /// [group's string key, [[path, kind, options]]]. A list or a shadow is edited as JSON, because
+            /// its shape varies (a shadow may be null; a layer may be linear or radial).
+            function themeFieldList() {
+                const colour = function (path) { return [path, 'color']; };
+                const num = function (path, min, max, step) { return [path, 'number', [min, max, step]]; };
+                const pick = function (path, values) { return [path, 'choice', values]; };
+                const border = function (path) {
+                    return [num(path + '.width', 0, 8, 1), pick(path + '.style', ['solid', 'dashed', 'dotted']), colour(path + '.color')];
+                };
+                return [
+                    ['admin.themes.group.file', [pick('scheme', ['dark', 'light'])]],
+                    ['admin.themes.group.colors', ['accent', 'accentFocus', 'onAccent', 'text1', 'text2', 'text3', 'surface1', 'surface2', 'surface3',
+                        'border1', 'border2', 'border3', 'panel', 'ring', 'name', 'nameFocus', 'shadow', 'danger', 'warning']
+                        .map(function (k) { return colour('colors.' + k); })],
+                    ['admin.themes.group.background', [colour('background.fill'), ['background.layers', 'json']]],
+                    ['admin.themes.group.shape', [
+                        num('shape.radius.small', 0, 64, 1), num('shape.radius.medium', 0, 64, 1), num('shape.radius.large', 0, 64, 1),
+                        pick('shape.avatar.kind', ['circle', 'square', 'rounded', 'leaf']), num('shape.avatar.radius', 0, 200, 1),
+                        num('shape.ringWidth', 0, 12, 1),
+                        pick('shape.button.kind', ['pill', 'rounded', 'square']), num('shape.button.radius', 0, 64, 1),
+                        num('shape.input.radius', 0, 64, 1)]],
+                    ['admin.themes.group.type', [
+                        ['type.font.family', 'font'], pick('type.font.fallback', ['sans-serif', 'serif', 'rounded']),
+                        num('type.title.weight', 100, 900, 100), num('type.title.spacing', -0.2, 0.5, 0.01), num('type.title.scale', 0.5, 2, 0.05),
+                        num('type.name.weight', 100, 900, 100), num('type.name.scale', 0.5, 2, 0.05), num('type.name.opacity', 0.5, 1, 0.05),
+                        pick('type.button.case', ['none', 'upper']), num('type.button.spacing', -0.2, 0.5, 0.01),
+                        num('type.button.weight', 100, 900, 100)]],
+                    ['admin.themes.group.depth', [['depth.avatar', 'json'], ['depth.title', 'json'], ['depth.sheet', 'json'],
+                        num('focus.scale', 1, 1.25, 0.01), ['focus.glow', 'json']]],
+                    ['admin.themes.group.parts', [colour('parts.button2.fill'), colour('parts.button2.text')]
+                        .concat(border('parts.button2.border'),
+                            [colour('parts.button2.focus.fill'), colour('parts.button2.focus.text')],
+                            border('parts.button2.focus.border'), [['parts.button2.focus.glow', 'json'],
+                            colour('parts.addTile.fill')], border('parts.addTile.border'),
+                            [colour('parts.addTile.text'), colour('parts.addTile.focusFill'),
+                                colour('parts.card.fill'), colour('parts.card.line'), colour('parts.sheet.fill')],
+                            border('parts.sheet.border'), [colour('parts.input.fill'), colour('parts.input.line')])],
+                    ['admin.themes.group.layout', [pick('layout.households', ['panels', 'open'])]],
+                    ['admin.themes.group.decorations', [['decorations', 'json']]]
+                ];
+            }
+
+            function getThemePath(obj, path) {
+                return String(path).split('.').reduce(function (o, k) {
+                    return o && typeof o === 'object' ? o[k] : undefined;
+                }, obj);
+            }
+
+            /// Sets one value by its dotted path, making the objects above it. `undefined`
+            /// removes it, which is how an optional field is left out.
+            function setThemePath(obj, path, value) {
+                const keys = String(path).split('.');
+                let o = obj;
+                for (let i = 0; i < keys.length - 1; i++) {
+                    if (!o[keys[i]] || typeof o[keys[i]] !== 'object' || Array.isArray(o[keys[i]])) {
+                        if (value === undefined) return;
+                        o[keys[i]] = {};
+                    }
+                    o = o[keys[i]];
+                }
+                if (value === undefined) delete o[keys[keys.length - 1]];
+                else o[keys[keys.length - 1]] = value;
+            }
+
+            /// A problem at `path` is about a field that owns `owned`: the same path, or one
+            /// inside it. "background.layers[0].stops[1].color" belongs to background.layers.
+            function themePathOwns(owned, path) {
+                const p = String(path || '');
+                return p === owned || p.indexOf(owned + '.') === 0 || p.indexOf(owned + '[') === 0;
+            }
+
+            /// "Shop Sign" → "shop-sign": the id a new theme is offered, accents dropped.
+            function themeSlug(name) {
+                let s = String(name || '').toLowerCase();
+                try { s = s.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) { /* old engine */ }
+                s = s.replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 40).replace(/-+$/, '');
+                return s || 'theme';
+            }
+
+            /// `base`, or base-2, base-3… whichever is not taken, kept to 40 characters.
+            function uniqueThemeId(base, taken) {
+                let id = base;
+                for (let n = 2; taken.indexOf(id) !== -1; n++) {
+                    const suffix = '-' + n;
+                    id = base.slice(0, 40 - suffix.length).replace(/-+$/, '') + suffix;
+                }
+                return id;
+            }
+
+            function themeRgb(hex) {
+                const m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(String(hex || ''));
+                return m ? [0, 2, 4].map(function (i) { return parseInt(m[1].slice(i, i + 2), 16); }) : null;
+            }
+
+            function themeMix(a, b, amount) {
+                const x = themeRgb(a), y = themeRgb(b);
+                if (!x || !y) return a;
+                return '#' + x.map(function (c, i) {
+                    return ('0' + Math.round(c + (y[i] - c) * amount).toString(16)).slice(-2);
+                }).join('');
+            }
+
+            /// WCAG relative luminance and contrast, for choosing the text on a new accent.
+            /// The server is what checks a theme; this only picks a sensible start.
+            function themeLuminance(hex) {
+                const c = themeRgb(hex) || [0, 0, 0];
+                const lin = c.map(function (v) {
+                    v /= 255;
+                    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+                });
+                return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+            }
+
+            function themeContrast(a, b) {
+                const x = themeLuminance(a), y = themeLuminance(b);
+                return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+            }
+
+            /// What the Simple controls show for a draft. Colours are #rrggbb: a colour
+            /// picker has no alpha.
+            function simpleThemeValues(draft) {
+                const six = function (v) {
+                    const s = String(v || '').slice(0, 7).toLowerCase();
+                    return themeRgb(s) ? s : '#000000';
+                };
+                const bg = draft.background || {};
+                const linear = (Array.isArray(bg.layers) ? bg.layers : []).filter(function (l) {
+                    return l && l.type === 'linear' && Array.isArray(l.stops) && l.stops.length >= 2;
+                })[0];
+                const pattern = (Array.isArray(draft.decorations) ? draft.decorations : []).filter(function (d) {
+                    return d && d.name === 'pattern';
+                })[0];
+                return {
+                    accent: six(getThemePath(draft, 'colors.accent')),
+                    bg1: six(linear ? linear.stops[0] && linear.stops[0].color : bg.fill),
+                    bg2: six(linear ? linear.stops[linear.stops.length - 1] && linear.stops[linear.stops.length - 1].color : bg.fill),
+                    text: six(getThemePath(draft, 'colors.text1')),
+                    font: String(getThemePath(draft, 'type.font.family') || ''),
+                    avatar: String(getThemePath(draft, 'shape.avatar.kind') || 'circle'),
+                    button: String(getThemePath(draft, 'shape.button.kind') || 'pill'),
+                    pattern: pattern && typeof pattern.image === 'string' ? pattern.image : ''
+                };
+            }
+
+            /// One Simple control applied to the draft: the value it names, and the few that
+            /// must follow it for the theme to stay readable. Advanced sets them one by one.
+            /// `fonts` is [{ family, fallback }].
+            function simpleThemeEdit(draft, control, value, fonts) {
+                const hex = String(value || '').toLowerCase();
+                const setIf = function (path, v) { if (getThemePath(draft, path) !== undefined) setThemePath(draft, path, v); };
+                if (control === 'accent') {
+                    if (!themeRgb(hex)) return;
+                    // Black text on a light accent, white on a dark one; the focus shade moves
+                    // away from the text, so both states keep their contrast. Pure black,
+                    // not a near-black: at the crossover, around #757575, the better of
+                    // black and white is 4.58:1, and #111111 would leave it at 4.35.
+                    const dark = themeContrast(hex, '#000000') >= themeContrast(hex, '#ffffff');
+                    const on = dark ? '#000000' : '#ffffff';
+                    setThemePath(draft, 'colors.accent', hex);
+                    setThemePath(draft, 'colors.accentFocus', themeMix(hex, dark ? '#ffffff' : '#000000', 0.18));
+                    setThemePath(draft, 'colors.onAccent', on);
+                    setIf('parts.button2.focus.fill', hex);
+                    setIf('parts.button2.focus.text', on);
+                    setIf('parts.button2.focus.border.color', hex);
+                } else if (control === 'bg1' || control === 'bg2') {
+                    if (!themeRgb(hex)) return;
+                    const now = simpleThemeValues(draft);
+                    const top = control === 'bg1' ? hex : now.bg1;
+                    const bottom = control === 'bg2' ? hex : now.bg2;
+                    // Two colours top to bottom, or one. Whatever layers the starting theme
+                    // had go: Simple cannot show them, so it should not keep them unseen.
+                    draft.background = top === bottom ? { fill: top, layers: [] } : {
+                        fill: top,
+                        layers: [{ type: 'linear', angle: 180, stops: [{ color: top, at: 0 }, { color: bottom, at: 100 }] }]
+                    };
+                    setThemePath(draft, 'colors.panel', top);
+                    draft.scheme = themeLuminance(themeMix(top, bottom, 0.5)) > 0.4 ? 'light' : 'dark';
+                } else if (control === 'text') {
+                    if (!themeRgb(hex)) return;
+                    setThemePath(draft, 'colors.text1', hex);
+                    setThemePath(draft, 'colors.text2', hex + 'b3');
+                    setThemePath(draft, 'colors.text3', hex + '80');
+                    setThemePath(draft, 'colors.name', hex);
+                    setThemePath(draft, 'colors.nameFocus', hex);
+                    setIf('parts.button2.text', hex);
+                    setIf('parts.addTile.text', hex);
+                } else if (control === 'font') {
+                    const font = (fonts || []).filter(function (f) { return f.family === value; })[0];
+                    setThemePath(draft, 'type.font', { family: String(value || ''), fallback: font && font.fallback ? font.fallback : 'sans-serif' });
+                } else if (control === 'avatar') {
+                    if (getThemePath(draft, 'shape.avatar.kind') === value) return;
+                    const radius = { rounded: 30, leaf: 10, square: 6 }[value];
+                    setThemePath(draft, 'shape.avatar', radius === undefined ? { kind: value } : { kind: value, radius: radius });
+                } else if (control === 'button') {
+                    if (getThemePath(draft, 'shape.button.kind') === value) return;
+                    const old = getThemePath(draft, 'shape.button.radius');
+                    setThemePath(draft, 'shape.button', value === 'rounded'
+                        ? { kind: value, radius: typeof old === 'number' ? old : 10 } : { kind: value });
+                } else if (control === 'pattern') {
+                    const rest = (Array.isArray(draft.decorations) ? draft.decorations : []).filter(function (d) {
+                        return !d || d.name !== 'pattern';
+                    });
+                    if (value) rest.unshift({ name: 'pattern', image: String(value), size: 240, drift: 'none' });
+                    draft.decorations = rest;
+                }
+            }
+
+            /// A new theme from `base`: its look, a name of the administrator's and an id of
+            /// its own. A custom theme gives its name as text and has no aliases.
+            function newThemeDraft(base, name, taken) {
+                const draft = JSON.parse(JSON.stringify(base && typeof base === 'object' ? base : {}));
+                draft.schema = 1;
+                draft.name = { text: String(name || '').slice(0, 40) };
+                draft.aliases = [];
+                draft.id = uniqueThemeId(themeSlug(name), taken);
+                draft.revision = 1;
+                return draft;
+            }
+
+            /// A theme's name for a list: a built-in's as the default-theme select words it
+            /// (data.builtInNames), a custom one's text, or else its id.
+            function themeDisplayName(data, id) {
+                const custom = ((data && data.custom) || []).filter(function (c) { return c.id === id; })[0];
+                if (custom) {
+                    const text = getThemePath(custom.theme, 'name.text');
+                    return typeof text === 'string' && text ? text : id;
+                }
+                const names = (data && data.builtInNames) || {};
+                return Object.prototype.hasOwnProperty.call(names, id) && names[id] ? names[id] : id;
+            }
+
+            /// The built-ins' names from the select's own options, which carry them in the
+            /// page's language: those strings are the markup's (admin.theme.*), so t() has no
+            /// English for them.
+            function builtInThemeNames(options) {
+                const names = {};
+                Array.prototype.forEach.call(options || [], function (o) {
+                    if (o && o.value) names[o.value] = String(o.textContent || '').trim();
+                });
+                return names;
+            }
+
+            /// What the default-theme select lists: the built-ins less the hidden ones
+            /// (never Bonfire), then the administrator's themes that pass. `keep` stays listed
+            /// whatever it is, so the saved default never drops out of its own select.
+            function themeOfferedIds(data, keep) {
+                const built = ((data && data.builtIn) || []).filter(function (b) {
+                    return b.id === 'bonfire' || !b.hidden || b.id === keep;
+                }).map(function (b) { return b.id; });
+                const custom = ((data && data.custom) || []).filter(function (c) {
+                    return !(c.problems && c.problems.length) || c.id === keep;
+                }).map(function (c) { return c.id; });
+                return built.concat(custom);
+            }
+
+            /// The built-in list: each theme with a Hide box. Bonfire and the default can't be
+            /// hidden, so theirs are off and say why.
+            function builtInThemeRowsHtml(data) {
+                const def = data['default'];
+                return ((data && data.builtIn) || []).map(function (b) {
+                    const locked = b.id === 'bonfire' || b.id === def;
+                    const note = b.id === def ? t('admin.themes.isDefault') : b.id === 'bonfire' ? t('admin.themes.alwaysOn') : '';
+                    return '<div class="jpf-ob-row">' +
+                           '<span class="jpf-ob-name">' + escapeHtml(themeDisplayName(data, b.id)) +
+                           (note ? ' <span class="fieldDescription jpf-ob-note">' + escapeHtml(note) + '</span>' : '') + '</span>' +
+                           '<label class="jpf-ob-box"><input type="checkbox" class="jpfThemeHide" data-theme="' + escapeHtml(b.id) + '"' +
+                           (b.hidden && !locked ? ' checked' : '') + (locked ? ' disabled' : '') + ' />' +
+                           '<span>' + escapeHtml(t('admin.themes.hide')) + '</span></label>' +
+                           '</div>';
+                }).join('');
+            }
+
+            /// The administrator's themes, each with its four actions.
+            function customThemeRowsHtml(data) {
+                const list = (data && data.custom) || [];
+                if (!list.length) return '<div class="fieldDescription">' + escapeHtml(t('admin.themes.none')) + '</div>';
+                const action = function (act, id, key) {
+                    return '<button is="emby-button" type="button" class="raised jpf-te-act" data-act="' + act + '" data-id="' +
+                           escapeHtml(id) + '"><span>' + escapeHtml(t(key)) + '</span></button>';
+                };
+                return list.map(function (c) {
+                    // A colour from the file goes into a style attribute only in the one shape
+                    // a colour can have.
+                    const fill = String(getThemePath(c.theme, 'background.fill') || '');
+                    const swatch = /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(fill) ? ' style="background: ' + fill + '"' : '';
+                    const bad = c.problems && c.problems.length;
+                    const meta = [c.id];
+                    if (c.id === data['default']) meta.push(t('admin.themes.isDefault'));
+                    return '<div class="jpf-te-item">' +
+                           '<span class="jpf-te-swatch"' + swatch + '></span>' +
+                           '<div class="jpf-grow">' +
+                           '<div class="jpf-te-item-name">' + escapeHtml(themeDisplayName(data, c.id)) + '</div>' +
+                           '<div class="jpf-te-item-meta">' + escapeHtml(meta.join(' · ')) + '</div>' +
+                           (bad ? '<div class="jpf-te-item-bad">' + escapeHtml(t('admin.themes.notOffered')) + '</div>' : '') +
+                           '</div>' +
+                           '<div class="jpf-te-buttons">' +
+                           action('edit', c.id, 'admin.themes.edit') + action('duplicate', c.id, 'admin.themes.duplicate') +
+                           action('export', c.id, 'admin.themes.export') + action('delete', c.id, 'admin.themes.delete') +
+                           '</div></div>';
+                }).join('') +
+                    '<div class="fieldDescription">' + escapeHtml(t('admin.themes.count', { n: list.length, max: data.maxCustomThemes || 40 })) + '</div>';
+            }
+
+            /// A font name as CSS writes it: what themeCss in profiles.js keeps of a family
+            /// (letters, digits, spaces and hyphens), so the sample here and the preview name
+            /// the same face.
+            function themeFontCssName(family) {
+                return String(family || '').replace(/[^A-Za-z0-9 -]/g, '');
+            }
+
+            /// The address of an uploaded font, or '' for anything that is not one.
+            function themeFontUrl(url) {
+                const u = String(url || '');
+                return /^\/plugins\/profiles\/themes\/fonts\/[0-9a-f]{32}\.woff2$/.test(u) ? ApiClient.getUrl(u.slice(1)) : '';
+            }
+
+            /// @font-face for each uploaded font under its plain name, for the samples in the
+            /// list and for a preview of a font the client script has not fetched yet.
+            function themeFontFaceCss(data) {
+                return ((data && data.fonts) || []).map(function (f) {
+                    const name = themeFontCssName(f.family);
+                    const url = themeFontUrl(f.url).replace(/["\\\n\r]/g, '');
+                    const lo = Math.round(Number(f.weightMin)) || 400, hi = Math.round(Number(f.weightMax)) || lo;
+                    if (!name || !url) return '';
+                    return "@font-face { font-family: '" + name + "'; font-style: normal; font-weight: " +
+                           (lo === hi ? lo : lo + ' ' + hi) + '; font-display: swap; src: url("' + url + '") format("woff2"); }\n';
+                }).join('');
+            }
+
+            /// The uploaded fonts, each in itself, with the themes that use it.
+            function fontRowsHtml(data) {
+                const list = (data && data.fonts) || [];
+                if (!list.length) return '<div class="fieldDescription">' + escapeHtml(t('admin.themes.noFonts')) + '</div>';
+                return list.map(function (f) {
+                    const used = (f.usedBy || []).map(function (id) { return themeDisplayName(data, id); });
+                    const weights = f.weightMin === f.weightMax
+                        ? t('admin.themes.fontWeight', { w: f.weightMin })
+                        : t('admin.themes.fontWeights', { min: f.weightMin, max: f.weightMax });
+                    const meta = [weights, t(f.fallback === 'serif' ? 'admin.themes.fallbackSerif' : 'admin.themes.fallbackSans'),
+                        used.length ? t('admin.themes.fontUsedBy', { themes: used.join(', ') }) : t('admin.themes.fontUnused')];
+                    const name = themeFontCssName(f.family);
+                    return '<div class="jpf-te-item">' +
+                           '<div class="jpf-grow">' +
+                           '<div class="jpf-te-item-name jpf-te-sample"' + (name ? ' style="font-family: \'' + escapeHtml(name) + '\', ' +
+                               (f.fallback === 'serif' ? 'serif' : 'sans-serif') + '"' : '') + '>' + escapeHtml(f.family) + '</div>' +
+                           '<div class="jpf-te-item-meta">' + escapeHtml(meta.join(' · ')) + '</div>' +
+                           '</div>' +
+                           '<div class="jpf-te-buttons"><button is="emby-button" type="button" class="raised jpf-te-font-delete" data-file="' +
+                           escapeHtml(f.file) + '"' + (used.length ? ' disabled title="' + escapeHtml(t('admin.themes.fontInUseHint')) + '"' : '') +
+                           '><span>' + escapeHtml(t('admin.themes.delete')) + '</span></button></div>' +
+                           '</div>';
+                }).join('') +
+                    '<div class="fieldDescription">' + escapeHtml(t('admin.themes.count', { n: list.length, max: data.maxCustomFonts || 20 })) + '</div>';
+            }
+
+            /// One problem in the administrator's language. The server's `code` says what kind;
+            /// its `detail` is English, so the numbers in it are read out and put in a
+            /// translated sentence, and anything this page does not know shows as it came.
+            function themeProblemText(p) {
+                const code = String((p && p.code) || '');
+                const detail = String((p && p.detail) || '');
+                const path = String((p && p.path) || '');
+                let m;
+                switch (code) {
+                    case 'contrast':
+                        m = /^([0-9.]+):1, ([0-9.]+):1 needed, on (.+?)\.?$/.exec(detail);
+                        return m ? t('admin.themes.p.contrast', { ratio: m[1], min: m[2], on: m[3] }) : t('admin.themes.p.contrastShort');
+                    case 'range':
+                        if ((m = /^Must be from (-?[0-9.]+) to (-?[0-9.]+)\.$/.exec(detail))) return t('admin.themes.p.between', { min: m[1], max: m[2] });
+                        if ((m = /^Must be one of: (.+)\.$/.exec(detail))) return t('admin.themes.p.oneOf', { values: m[1] });
+                        if (/see-through/.test(detail)) return t('admin.themes.p.opaque');
+                        if (/multiple of 100/.test(detail)) return t('admin.themes.p.hundreds');
+                        if (path === 'id') return t('admin.themes.p.id');
+                        if (path === 'name.text') return t('admin.themes.p.name');
+                        if (path === 'name.key') return t('admin.themes.p.nameText');
+                        if (path === 'aliases') return t('admin.themes.p.aliases');
+                        return t('admin.themes.p.range');
+                    case 'missing': return path === 'name' ? t('admin.themes.p.nameText') : t('admin.themes.p.missing');
+                    case 'type': return /colour/.test(detail) ? t('admin.themes.p.colour') : t('admin.themes.p.type');
+                    case 'unknown': return t('admin.themes.p.unknown');
+                    case 'hue': return path === 'colors.warning' ? t('admin.themes.p.amber') : t('admin.themes.p.red');
+                    case 'font': return t('admin.themes.p.font');
+                    case 'pattern': return t('admin.themes.p.pattern');
+                    case 'address': return t('admin.themes.p.address');
+                    case 'size': return t('admin.themes.p.size');
+                    case 'taken': return t('admin.themes.p.taken');
+                    // This page's own two: an id another custom theme has, and a JSON field
+                    // that does not parse.
+                    case 'inUse': return t('admin.themes.p.idInUse');
+                    case 'json': return t('admin.themes.p.json');
+                    default: return detail || code;
+                }
+            }
+
+            function themeProblemsHtml(problems) {
+                if (!problems.length) return '<div class="jpf-te-ok">' + escapeHtml(t('admin.themes.noProblems')) + '</div>';
+                return '<ul>' + problems.map(function (p) {
+                    return '<li>' + (p.path ? '<code>' + escapeHtml(p.path) + '</code> ' : '') + escapeHtml(themeProblemText(p)) + '</li>';
+                }).join('') + '</ul>';
+            }
+
+            /// The message for a refused request, and the problems when it carried them. A
+            /// translated page says it in its own words, by X-Bonfire-Error; in English the
+            /// server's sentence is used, which was written for this page and is more exact.
+            function readThemeError(err, fallbackKey, data) {
+                const keys = {
+                    theme_invalid: 'admin.themes.err.invalid', theme_limit: 'admin.themes.err.limit',
+                    theme_in_use: 'admin.themes.err.inUse', theme_not_found: 'admin.themes.err.notFound',
+                    font_invalid: 'admin.themes.err.fontInvalid', font_rights: 'admin.themes.err.fontRights',
+                    font_taken: 'admin.themes.err.fontTaken', font_limit: 'admin.themes.err.fontLimit',
+                    font_in_use: 'admin.themes.err.fontInUse', font_not_found: 'admin.themes.err.fontNotFound'
+                };
+                const code = err && err.headers && typeof err.headers.get === 'function' ? (err.headers.get('X-Bonfire-Error') || '') : '';
+                const key = Object.prototype.hasOwnProperty.call(keys, code) ? keys[code] : '';
+                const vars = { max: code === 'font_limit' ? (data && data.maxCustomFonts) || 20 : (data && data.maxCustomThemes) || 40 };
+                const body = err && typeof err.text === 'function'
+                    ? err.text().then(function (s) { return s || ''; }, function () { return ''; })
+                    : Promise.resolve('');
+                return body.then(function (text) {
+                    let message = text, problems = null;
+                    try {
+                        const parsed = JSON.parse(text);
+                        if (parsed && typeof parsed === 'object') {
+                            message = typeof parsed.message === 'string' ? parsed.message : '';
+                            problems = Array.isArray(parsed.problems) ? parsed.problems : null;
+                        } else if (typeof parsed === 'string') {
+                            message = parsed;
+                        }
+                    } catch (e) { /* plain text */ }
+                    if (key && (adminStrings || !message)) message = t(key, vars);
+                    return { code: code, message: message || t(fallbackKey), problems: problems };
+                });
+            }
+
+            function showThemeStatus(page, selector, msg, good) {
+                const el = page.querySelector(selector);
+                if (!el) return;
+                el.textContent = msg || '';
+                el.style.color = good ? '#51cf66' : '#ff6b6b';
+                el.classList.toggle('jpf-hidden', !msg);
+            }
+
+            /// After a change the client script in this window should see: the pickers here
+            /// and the custom-theme CSS. Other tabs pick it up on their next load.
+            function refreshClientThemes() {
+                try {
+                    const api = window.BonfireThemePreview;
+                    if (api && typeof api.refresh === 'function') api.refresh();
+                } catch (e) { /* an older client script */ }
+            }
+
+            function loadThemes(page) {
+                const box = page.querySelector('#themesCustom');
+                if (!box) return;
+                // The catalogue is the public list: the built-ins' files to start from, the
+                // fonts with their fallbacks, and the pattern names. It can fail on its own.
+                const catalog = ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/themes')).then(null, function () { return null; });
+                Promise.all([ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/admin/themes')), catalog]).then(function (both) {
+                    page._themes = { data: both[0] || {}, catalog: both[1] };
+                    showThemeStatus(page, '#themesLoadError', '', false);
+                    renderThemes(page);
+                }, function () {
+                    showThemeStatus(page, '#themesLoadError', t('admin.themes.loadFailed'), false);
+                });
+            }
+
+            function renderThemes(page) {
+                const data = page._themes.data;
+                const select = page.querySelector('#defaultTheme');
+                if (select && !page._themeStaticOptions) page._themeStaticOptions = Array.prototype.slice.call(select.options);
+                data.builtInNames = builtInThemeNames(page._themeStaticOptions);
+                page.querySelector('#themesBuiltIn').innerHTML = builtInThemeRowsHtml(data);
+                page.querySelector('#themesCustom').innerHTML = customThemeRowsHtml(data);
+                page.querySelector('#themesFonts').innerHTML = fontRowsHtml(data);
+                let style = document.getElementById('jpfThemeFontsCss');
+                if (!style) {
+                    style = document.createElement('style');
+                    style.id = 'jpfThemeFontsCss';
+                    document.head.appendChild(style);
+                }
+                style.textContent = themeFontFaceCss(data);
+                renderDefaultThemeOptions(page);
+            }
+
+            /// The default-theme select, from what the server offers. The built-in options
+            /// in the markup are kept and reused, so their translations stay with them.
+            function renderDefaultThemeOptions(page) {
+                const select = page.querySelector('#defaultTheme');
+                const data = page._themes && page._themes.data;
+                if (!select || !data) return;
+                if (!page._themeStaticOptions) page._themeStaticOptions = Array.prototype.slice.call(select.options);
+                const current = select.value || page._wantedDefaultTheme || data['default'];
+                const offered = themeOfferedIds(data, current);
+                page._themeOffered = offered;
+                select.innerHTML = '';
+                offered.forEach(function (id) {
+                    let option = page._themeStaticOptions.filter(function (o) { return o.value === id; })[0];
+                    if (!option) {
+                        option = document.createElement('option');
+                        option.value = id;
+                        option.textContent = themeDisplayName(data, id);
+                    }
+                    select.appendChild(option);
+                });
+                select.value = normalizeTheme(current, offered);
+            }
+
+            /// Built-ins to start from: the catalogue's, and from the client script the ones
+            /// the catalogue leaves out because they are hidden. Then the custom themes.
+            function themeBases(page) {
+                const data = page._themes.data;
+                const catalog = page._themes.catalog;
+                let files = catalog && Array.isArray(catalog.themes) ? catalog.themes.slice() : [];
+                try {
+                    const api = window.BonfireThemePreview;
+                    if (api && typeof api.builtIns === 'function') files = files.concat(api.builtIns());
+                } catch (e) { /* an older client script */ }
+                const out = [];
+                (data.builtIn || []).forEach(function (b) {
+                    const file = files.filter(function (f) { return f && f.id === b.id; })[0];
+                    if (file) out.push({ key: 'b:' + b.id, name: themeDisplayName(data, b.id), theme: file });
+                });
+                (data.custom || []).forEach(function (c) {
+                    out.push({ key: 'c:' + c.id, name: themeDisplayName(data, c.id), theme: c.theme });
+                });
+                return out;
+            }
+
+            /// Every font a theme may use, with its fallback: the built-ins from the catalogue
+            /// (its names alone if that failed) and the uploaded ones.
+            function themeFonts(page) {
+                const data = page._themes.data;
+                const catalog = page._themes.catalog;
+                const out = [];
+                const add = function (family, fallback) {
+                    if (typeof family === 'string' && family && !out.some(function (f) { return f.family === family; })) {
+                        out.push({ family: family, fallback: fallback || 'sans-serif' });
+                    }
+                };
+                (catalog && Array.isArray(catalog.fonts) ? catalog.fonts : []).forEach(function (f) { if (f) add(f.family, f.fallback); });
+                (data.builtInFonts || []).forEach(function (f) { add(f, 'sans-serif'); });
+                (data.fonts || []).forEach(function (f) { add(f.family, f.fallback); });
+                return out;
+            }
+
+            function themePatterns(page) {
+                const catalog = page._themes.catalog;
+                return (catalog && Array.isArray(catalog.patterns) ? catalog.patterns : [])
+                    .map(function (p) { return p && p.name; })
+                    .filter(function (n) { return typeof n === 'string' && /^[a-z0-9-]+$/.test(n); });
+            }
+
+            function takenThemeIds(page) {
+                const data = page._themes.data;
+                return (data.builtIn || []).map(function (b) { return b.id; })
+                    .concat((data.custom || []).map(function (c) { return c.id; }));
+            }
+
+            function fillSelect(select, items, value) {
+                select.innerHTML = '';
+                items.forEach(function (item) {
+                    const option = document.createElement('option');
+                    option.value = item[0];
+                    option.textContent = item[1];
+                    select.appendChild(option);
+                });
+                if (value !== undefined) select.value = value;
+            }
+
+            /// Opens the editor on `draft`. `mode` is 'new' (a fresh id) or 'edit' (the id is
+            /// fixed and a save replaces that theme).
+            function openThemeEditor(page, draft, mode) {
+                const editor = page.querySelector('#themeEditor');
+                const ed = {
+                    mode: mode, draft: draft, view: 'simple', idTouched: mode === 'edit',
+                    seq: 0, timer: null, problems: [], jsonErrors: {},
+                    revision: typeof draft.revision === 'number' ? draft.revision : 0
+                };
+                page._themeEditor = ed;
+                const nameText = getThemePath(draft, 'name.text');
+                page.querySelector('#themeEditorTitle').textContent = mode === 'edit'
+                    ? t('admin.themes.editTitle', { name: typeof nameText === 'string' && nameText ? nameText : draft.id })
+                    : t('admin.themes.newTitle');
+
+                const bases = themeBases(page);
+                page.querySelector('#teBaseBox').classList.toggle('jpf-hidden', mode !== 'new' || !bases.length);
+                fillSelect(page.querySelector('#teBase'), [['', '—']].concat(bases.map(function (b) { return [b.key, b.name]; })), '');
+                page.querySelector('#teName').value = typeof nameText === 'string' ? nameText : '';
+                const idInput = page.querySelector('#teId');
+                idInput.value = typeof draft.id === 'string' ? draft.id : '';
+                idInput.readOnly = mode === 'edit';
+
+                const patterns = themePatterns(page);
+                // The four Bonfire ships, by name; one a newer server adds shows as its name.
+                const patternKeys = {
+                    leaves: 'admin.themes.pattern.leaves', snow: 'admin.themes.pattern.snow',
+                    blossoms: 'admin.themes.pattern.blossoms', stars: 'admin.themes.pattern.stars'
+                };
+                const patternName = function (n) {
+                    return Object.prototype.hasOwnProperty.call(patternKeys, n) ? t(patternKeys[n]) : n;
+                };
+                fillSelect(page.querySelector('#teFont'), themeFonts(page).map(function (f) { return [f.family, f.family]; }));
+                fillSelect(page.querySelector('#tePattern'), [['', t('admin.themes.patternNone')]]
+                    .concat(patterns.map(function (n) { return [n, patternName(n)]; })));
+
+                buildThemeAdvanced(page);
+                page.querySelector('#tePreview').innerHTML =
+                    '<div class="jpf-theme-preview" data-jpf-theme="' + THEME_PREVIEW_ID + '" aria-hidden="true">' +
+                    '<span class="jpf-theme-preview-name"></span>' +
+                    '<span class="jpf-theme-preview-tiles"><span class="jpf-theme-preview-tile"></span>' +
+                    '<span class="jpf-theme-preview-tile"></span><span class="jpf-theme-preview-tile"></span></span>' +
+                    '<span class="jpf-te-preview-text">' + escapeHtml(t('admin.themes.previewText')) + '</span>' +
+                    '<span class="jpf-te-preview-actions"><span class="jpf-te-preview-primary">' + escapeHtml(t('admin.themes.previewPrimary')) +
+                    '</span><span class="jpf-theme-preview-button">' + escapeHtml(t('admin.themes.previewSecondary')) + '</span></span>' +
+                    '</div>';
+                showThemeStatus(page, '#teResult', '', false);
+                setThemeEditorView(page, 'simple');
+                editor.classList.remove('jpf-hidden');
+                themeDraftChanged(page, true);
+                try { editor.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { editor.scrollIntoView(); }
+                page.querySelector('#teName').focus();
+            }
+
+            function closeThemeEditor(page) {
+                const ed = page._themeEditor;
+                if (ed) clearTimeout(ed.timer);
+                page._themeEditor = null;
+                page.querySelector('#themeEditor').classList.add('jpf-hidden');
+                const style = document.getElementById('jpfThemeEditorCss');
+                if (style) style.textContent = '';
+            }
+
+            /// Advanced's fields, built once: they are the same for every theme.
+            function buildThemeAdvanced(page) {
+                const box = page.querySelector('#teAdvancedFields');
+                if (box.dataset.built) return;
+                box.dataset.built = '1';
+                let n = 0;
+                box.innerHTML = themeFieldList().map(function (group, g) {
+                    return '<details class="jpf-te-group"' + (g === 1 ? ' open' : '') + '><summary>' +
+                        escapeHtml(t(group[0])) + '</summary>' +
+                        group[1].map(function (f) {
+                            const path = f[0], kind = f[1], opt = f[2];
+                            const id = 'teField' + (n++);
+                            const attrs = ' id="' + id + '" data-path="' + path + '" data-kind="' + kind + '"';
+                            let control;
+                            if (kind === 'color') {
+                                control = '<span class="jpf-te-pair"><input type="color" class="jpf-te-pick" data-pick="' + path + '" tabindex="-1" aria-hidden="true" />' +
+                                    '<input type="text" class="emby-input jpf-te-input"' + attrs + ' spellcheck="false" maxlength="9" /></span>';
+                            } else if (kind === 'number') {
+                                control = '<input type="number" class="emby-input jpf-te-input"' + attrs +
+                                    ' min="' + opt[0] + '" max="' + opt[1] + '" step="' + opt[2] + '" />';
+                            } else if (kind === 'choice' || kind === 'font') {
+                                control = '<select class="emby-select emby-select-withcolor jpf-te-input"' + attrs + '><option value="">—</option>' +
+                                    (opt || []).map(function (v) { return '<option value="' + v + '">' + v + '</option>'; }).join('') + '</select>';
+                            } else {
+                                control = '<textarea class="emby-textarea jpf-te-input jpf-te-json"' + attrs + ' rows="3" spellcheck="false"></textarea>';
+                            }
+                            return '<div class="jpf-te-field jpf-te-adv" data-paths="' + path + '">' +
+                                '<label class="jpf-te-adv-label" for="' + id + '"><code>' + path + '</code></label>' + control + '</div>';
+                        }).join('') + '</details>';
+                }).join('');
+            }
+
+            /// Puts the draft into the controls of one view. Called on opening and on every
+            /// switch, so each view shows what the other did.
+            function fillThemeEditor(page) {
+                const ed = page._themeEditor;
+                const draft = ed.draft;
+                if (ed.view === 'simple') {
+                    const v = simpleThemeValues(draft);
+                    page.querySelector('#teAccent').value = v.accent;
+                    page.querySelector('#teBg1').value = v.bg1;
+                    page.querySelector('#teBg2').value = v.bg2;
+                    page.querySelector('#teText').value = v.text;
+                    const font = page.querySelector('#teFont');
+                    if (v.font && !Array.prototype.some.call(font.options, function (o) { return o.value === v.font; })) {
+                        const option = document.createElement('option');
+                        option.value = v.font;
+                        option.textContent = v.font;
+                        font.appendChild(option);
+                    }
+                    font.value = v.font;
+                    page.querySelector('#teAvatar').value = v.avatar;
+                    page.querySelector('#teButton').value = v.button;
+                    page.querySelector('#tePattern').value = v.pattern;
+                    return;
+                }
+                const fonts = themeFonts(page);
+                page.querySelectorAll('#teAdvancedFields .jpf-te-input').forEach(function (el) {
+                    const path = el.getAttribute('data-path');
+                    const kind = el.getAttribute('data-kind');
+                    const value = getThemePath(draft, path);
+                    if (kind === 'font') {
+                        const names = fonts.map(function (f) { return f.family; });
+                        if (typeof value === 'string' && value && names.indexOf(value) === -1) names.push(value);
+                        fillSelect(el, [['', '—']].concat(names.map(function (f) { return [f, f]; })));
+                    }
+                    if (kind === 'json') {
+                        el.value = value === undefined ? '' : JSON.stringify(value, null, 2);
+                    } else if (kind === 'number') {
+                        el.value = typeof value === 'number' ? String(value) : '';
+                    } else {
+                        el.value = value === undefined || value === null ? '' : String(value);
+                    }
+                    if (kind === 'color') {
+                        const pick = el.parentNode.querySelector('.jpf-te-pick');
+                        const six = String(value || '').slice(0, 7);
+                        pick.value = themeRgb(six) ? six.toLowerCase() : '#000000';
+                    }
+                });
+                ed.jsonErrors = {};
+            }
+
+            function setThemeEditorView(page, view) {
+                const ed = page._themeEditor;
+                if (!ed) return;
+                ed.view = view === 'advanced' ? 'advanced' : 'simple';
+                page.querySelector('#teSimple').classList.toggle('jpf-hidden', ed.view !== 'simple');
+                page.querySelector('#teAdvanced').classList.toggle('jpf-hidden', ed.view !== 'advanced');
+                page.querySelectorAll('#themeEditor .jpf-te-mode').forEach(function (b) {
+                    const on = b.getAttribute('data-view') === ed.view;
+                    b.classList.toggle('is-active', on);
+                    b.setAttribute('aria-selected', on ? 'true' : 'false');
+                });
+                fillThemeEditor(page);
+                showThemeProblems(page);
+            }
+
+            /// One edited control, into the draft.
+            function editThemeDraft(page, el) {
+                const ed = page._themeEditor;
+                if (!ed) return false;
+                const draft = ed.draft;
+                if (el.id === 'teName') {
+                    draft.name = { text: el.value.trim() };
+                    if (!ed.idTouched) {
+                        draft.id = uniqueThemeId(themeSlug(el.value), takenThemeIds(page));
+                        page.querySelector('#teId').value = draft.id;
+                    }
+                } else if (el.id === 'teId') {
+                    if (ed.mode === 'edit') return false;
+                    ed.idTouched = true;
+                    draft.id = el.value.trim();
+                } else if (el.id === 'teBase') {
+                    const base = themeBases(page).filter(function (b) { return b.key === el.value; })[0];
+                    if (!base) return false;
+                    // A new look under the name and id already typed.
+                    const keep = { id: draft.id, name: draft.name };
+                    ed.draft = newThemeDraft(base.theme, '', []);
+                    ed.draft.id = keep.id;
+                    ed.draft.name = keep.name;
+                    fillThemeEditor(page);
+                } else if (el.getAttribute('data-simple')) {
+                    simpleThemeEdit(draft, el.getAttribute('data-simple'), el.value, themeFonts(page));
+                } else if (el.getAttribute('data-pick')) {
+                    // The picker sets the colour and keeps the alpha the text box has.
+                    const path = el.getAttribute('data-pick');
+                    const text = el.parentNode.querySelector('.jpf-te-input');
+                    const cur = String(getThemePath(draft, path) || '');
+                    text.value = el.value + (/^#[0-9a-fA-F]{8}$/.test(cur) ? cur.slice(7) : '');
+                    setThemePath(draft, path, text.value);
+                } else if (el.getAttribute('data-path')) {
+                    const path = el.getAttribute('data-path');
+                    const kind = el.getAttribute('data-kind');
+                    const raw = el.value.trim();
+                    if (kind === 'json') {
+                        delete ed.jsonErrors[path];
+                        if (raw === '') setThemePath(draft, path, undefined);
+                        else {
+                            try { setThemePath(draft, path, JSON.parse(raw)); } catch (e) { ed.jsonErrors[path] = true; }
+                        }
+                    } else if (kind === 'number') {
+                        // Not a number is sent as typed, so the server names it.
+                        setThemePath(draft, path, raw === '' ? undefined : (isFinite(Number(raw)) ? Number(raw) : raw));
+                    } else {
+                        setThemePath(draft, path, raw === '' ? undefined : raw);
+                        if (kind === 'color' && themeRgb(raw.slice(0, 7)) && (raw.length === 7 || raw.length === 9)) {
+                            el.parentNode.querySelector('.jpf-te-pick').value = raw.slice(0, 7).toLowerCase();
+                        }
+                    }
+                } else {
+                    return false;
+                }
+                return true;
+            }
+
+            /// The file as it would be saved: name trimmed, revision one past the stored one.
+            function themeDraftForSave(ed) {
+                const body = JSON.parse(JSON.stringify(ed.draft));
+                body.revision = ed.mode === 'edit' ? Math.max(1, Math.floor(ed.revision) + 1) : 1;
+                return body;
+            }
+
+            /// What this page knows before the server does: an id of the wrong shape or one
+            /// another custom theme already has, and a JSON field that does not parse.
+            function localThemeProblems(page) {
+                const ed = page._themeEditor;
+                const out = [];
+                const id = String(ed.draft.id || '');
+                if (ed.mode !== 'edit') {
+                    if (!/^[a-z0-9-]{1,40}$/.test(id)) out.push({ path: 'id', code: 'range', detail: '' });
+                    else if ((page._themes.data.custom || []).some(function (c) { return c.id === id; })) out.push({ path: 'id', code: 'inUse', detail: '' });
+                }
+                Object.keys(ed.jsonErrors).forEach(function (path) { out.push({ path: path, code: 'json', detail: '' }); });
+                return out;
+            }
+
+            /// Every problem, beside the field it is about where that field is showing, and all
+            /// of them in the list under the preview.
+            function showThemeProblems(page) {
+                const ed = page._themeEditor;
+                if (!ed) return;
+                const local = localThemeProblems(page);
+                // The server's id complaint and ours would say the same thing twice.
+                const problems = local.concat(ed.problems.filter(function (p) {
+                    return !(p.path === 'id' && local.some(function (l) { return l.path === 'id'; }));
+                }));
+                const fields = Array.prototype.slice.call(page.querySelectorAll('#themeEditor .jpf-te-field'));
+                fields.forEach(function (field) {
+                    field.classList.remove('jpf-te-bad');
+                    Array.prototype.slice.call(field.querySelectorAll('.jpf-te-msg')).forEach(function (m) { m.parentNode.removeChild(m); });
+                });
+                problems.forEach(function (p) {
+                    fields.forEach(function (field) {
+                        if (field.closest('.jpf-hidden')) return;
+                        const owns = (field.getAttribute('data-paths') || '').split(' ').some(function (o) { return o && themePathOwns(o, p.path); });
+                        if (!owns) return;
+                        field.classList.add('jpf-te-bad');
+                        const msg = document.createElement('div');
+                        msg.className = 'jpf-te-msg';
+                        msg.textContent = themeProblemText(p);
+                        field.appendChild(msg);
+                    });
+                });
+                page.querySelector('#teProblems').innerHTML = ed.checkFailed
+                    ? '<div class="jpf-error">' + escapeHtml(t('admin.themes.checkFailed')) + '</div>'
+                    : themeProblemsHtml(problems);
+            }
+
+            /// The preview at once; the server's check a moment after the last change.
+            function themeDraftChanged(page, now) {
+                const ed = page._themeEditor;
+                if (!ed) return;
+                renderThemeDraftPreview(page);
+                showThemeProblems(page);
+                clearTimeout(ed.timer);
+                ed.timer = setTimeout(function () { validateThemeDraft(page); }, now ? 0 : 400);
+            }
+
+            function renderThemeDraftPreview(page) {
+                const ed = page._themeEditor;
+                const box = page.querySelector('#tePreview');
+                const card = box.querySelector('.jpf-theme-preview');
+                const api = window.BonfireThemePreview;
+                let style = document.getElementById('jpfThemeEditorCss');
+                if (!api || typeof api.css !== 'function' || !card) {
+                    box.innerHTML = '<div class="fieldDescription">' + escapeHtml(t('admin.themes.noPreview')) + '</div>';
+                    return;
+                }
+                if (!style) {
+                    style = document.createElement('style');
+                    style.id = 'jpfThemeEditorCss';
+                    document.head.appendChild(style);
+                }
+                let css = '';
+                try { css = api.css(Object.assign({}, ed.draft, { id: THEME_PREVIEW_ID })) || ''; } catch (e) { css = ''; }
+                style.textContent = css;
+                const name = getThemePath(ed.draft, 'name.text');
+                card.querySelector('.jpf-theme-preview-name').textContent = typeof name === 'string' && name ? name : t('admin.themes.newTitle');
+            }
+
+            function validateThemeDraft(page) {
+                const ed = page._themeEditor;
+                if (!ed) return;
+                const seq = ++ed.seq;
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('plugins/profiles/admin/themes/validate'),
+                    contentType: 'application/json',
+                    dataType: 'json',
+                    data: JSON.stringify(themeDraftForSave(ed))
+                }).then(function (res) {
+                    // A slower answer to an older draft is not this draft's.
+                    if (page._themeEditor !== ed || seq !== ed.seq) return;
+                    ed.checkFailed = false;
+                    ed.problems = res && Array.isArray(res.problems) ? res.problems : [];
+                    showThemeProblems(page);
+                }, function () {
+                    if (page._themeEditor !== ed || seq !== ed.seq) return;
+                    ed.checkFailed = true;
+                    showThemeProblems(page);
+                });
+            }
+
+            function saveThemeDraft(page) {
+                const ed = page._themeEditor;
+                if (!ed) return;
+                if (localThemeProblems(page).length) {
+                    showThemeProblems(page);
+                    showThemeStatus(page, '#teResult', t('admin.themes.fixFirst'), false);
+                    return;
+                }
+                const body = themeDraftForSave(ed);
+                ApiClient.ajax({
+                    type: 'PUT',
+                    url: ApiClient.getUrl('plugins/profiles/admin/themes/custom/' + encodeURIComponent(body.id)),
+                    contentType: 'application/json',
+                    dataType: 'json',
+                    data: JSON.stringify(body)
+                }).then(function (res) {
+                    closeThemeEditor(page);
+                    const name = getThemePath(body, 'name.text') || body.id;
+                    showThemeStatus(page, '#themesResult', t(res && res.created ? 'admin.themes.created' : 'admin.themes.saved', { name: name }), true);
+                    loadThemes(page);
+                    refreshClientThemes();
+                }, function (err) {
+                    readThemeError(err, 'admin.themes.saveFailed', page._themes.data).then(function (e) {
+                        if (page._themeEditor !== ed) return;
+                        if (e.problems) {
+                            ed.problems = e.problems;
+                            showThemeProblems(page);
+                        }
+                        showThemeStatus(page, '#teResult', e.message, false);
+                    });
+                });
+            }
+
+            function exportTheme(theme) {
+                const id = theme && /^[a-z0-9-]{1,40}$/.test(String(theme.id)) ? theme.id : 'theme';
+                const blob = new Blob([JSON.stringify(theme, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = id + '.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+            }
+
+            /// A file that did not save, made ready for the editor: a custom theme's name is
+            /// text and it has no aliases, so those two are put right and the rest is left
+            /// for the administrator to see.
+            function importedThemeDraft(parsed) {
+                const draft = JSON.parse(JSON.stringify(parsed));
+                draft.aliases = [];
+                if (!draft.name || typeof draft.name !== 'object' || typeof draft.name.text !== 'string') draft.name = { text: '' };
+                return draft;
+            }
+
+            /// An imported file goes through the same save as the editor, so the server checks
+            /// it. One that fails opens in the editor with its problems.
+            function importThemeFile(page, file) {
+                const reader = new FileReader();
+                reader.onload = function () {
+                    let parsed = null;
+                    try { parsed = JSON.parse(reader.result); } catch (e) { /* below */ }
+                    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                        showThemeStatus(page, '#themesResult', t('admin.themes.notJson'), false);
+                        return;
+                    }
+                    const data = page._themes.data;
+                    const id = typeof parsed.id === 'string' ? parsed.id : '';
+                    const existing = (data.custom || []).filter(function (c) { return c.id === id; })[0];
+                    const editInstead = function (problems) {
+                        openThemeEditor(page, importedThemeDraft(parsed), existing ? 'edit' : 'new');
+                        if (problems) {
+                            page._themeEditor.problems = problems;
+                            showThemeProblems(page);
+                        }
+                    };
+                    if (!/^[a-z0-9-]{1,40}$/.test(id)) { editInstead(null); return; }
+                    const send = function () {
+                        ApiClient.ajax({
+                            type: 'PUT',
+                            url: ApiClient.getUrl('plugins/profiles/admin/themes/custom/' + encodeURIComponent(id)),
+                            contentType: 'application/json',
+                            dataType: 'json',
+                            data: JSON.stringify(parsed)
+                        }).then(function () {
+                            const name = getThemePath(parsed, 'name.text') || id;
+                            showThemeStatus(page, '#themesResult', t('admin.themes.imported', { name: name }), true);
+                            loadThemes(page);
+                            refreshClientThemes();
+                        }, function (err) {
+                            readThemeError(err, 'admin.themes.saveFailed', data).then(function (e) {
+                                if (e.problems) editInstead(e.problems);
+                                showThemeStatus(page, e.problems ? '#teResult' : '#themesResult', e.message, false);
+                            });
+                        });
+                    };
+                    if (existing) {
+                        Dashboard.confirm(t('admin.themes.replaceConfirm', { name: themeDisplayName(data, id) }),
+                            t('admin.themes.replaceTitle')).then(send);
+                    } else {
+                        send();
+                    }
+                };
+                reader.onerror = function () { showThemeStatus(page, '#themesResult', t('admin.themes.notJson'), false); };
+                reader.readAsText(file);
+            }
+
+            function customThemeAction(page, act, id) {
+                const data = page._themes.data;
+                const entry = (data.custom || []).filter(function (c) { return c.id === id; })[0];
+                if (!entry) return;
+                if (act === 'edit') {
+                    openThemeEditor(page, JSON.parse(JSON.stringify(entry.theme || {})), 'edit');
+                    // The stored file's own problems, until the first check answers.
+                    page._themeEditor.problems = entry.problems || [];
+                    showThemeProblems(page);
+                } else if (act === 'duplicate') {
+                    const name = t('admin.themes.copyName', { name: themeDisplayName(data, id) });
+                    openThemeEditor(page, newThemeDraft(entry.theme, name, takenThemeIds(page)), 'new');
+                } else if (act === 'export') {
+                    exportTheme(entry.theme);
+                } else if (act === 'delete') {
+                    Dashboard.confirm(t('admin.themes.deleteConfirm', { name: themeDisplayName(data, id) }), t('admin.themes.deleteTitle')).then(function () {
+                        ApiClient.ajax({
+                            type: 'DELETE',
+                            url: ApiClient.getUrl('plugins/profiles/admin/themes/custom/' + encodeURIComponent(id))
+                        }).then(function () {
+                            if (page._themeEditor && page._themeEditor.mode === 'edit' && page._themeEditor.draft.id === id) closeThemeEditor(page);
+                            showThemeStatus(page, '#themesResult', t('admin.themes.deleted'), true);
+                            loadThemes(page);
+                            refreshClientThemes();
+                        }, function (err) {
+                            readThemeError(err, 'admin.themes.saveFailed', data).then(function (e) {
+                                showThemeStatus(page, '#themesResult', e.message, false);
+                            });
+                        });
+                    });
+                }
+            }
+
+            function saveHiddenThemes(page) {
+                const hidden = Array.prototype.filter.call(page.querySelectorAll('.jpfThemeHide'), function (box) {
+                    return box.checked && !box.disabled;
+                }).map(function (box) { return box.getAttribute('data-theme'); });
+                ApiClient.ajax({
+                    type: 'PUT',
+                    url: ApiClient.getUrl('plugins/profiles/admin/themes/hidden'),
+                    contentType: 'application/json',
+                    dataType: 'json',
+                    data: JSON.stringify({ hidden: hidden })
+                }).then(function () {
+                    showThemeStatus(page, '#themesResult', t('admin.themes.hiddenSaved'), true);
+                    loadThemes(page);
+                    refreshClientThemes();
+                }, function (err) {
+                    readThemeError(err, 'admin.themes.saveFailed', page._themes.data).then(function (e) {
+                        showThemeStatus(page, '#themesResult', e.message, false);
+                        loadThemes(page);
+                    });
+                });
+            }
+
+            /// "Outfit-VariableFont_wght.woff2" → "Outfit". Only a start: the box can be
+            /// edited, and left blank the server uses the name inside the file.
+            function fontNameFromFile(fileName) {
+                return String(fileName || '')
+                    .replace(/\.woff2$/i, '')
+                    .replace(/[\[(].*$/, '')
+                    .replace(/[-_ ]+(variablefont|regular|thin|extralight|light|medium|semibold|bold|extrabold|black|italic)(?![a-z]).*$/i, '')
+                    .replace(/[-_]+/g, ' ')
+                    .replace(/[^A-Za-z0-9 .]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .slice(0, 64);
+            }
+
+            function uploadThemeFont(page) {
+                const file = page._themeFontFile;
+                const data = page._themes ? page._themes.data : {};
+                const max = data.maxFontBytes || 2097152;
+                const say = function (msg, good) { showThemeStatus(page, '#fontResult', msg, good); };
+                if (!file) { say(t('admin.themes.fontPick'), false); return; }
+                if (!/\.woff2$/i.test(file.name || '')) { say(t('admin.themes.err.fontInvalid'), false); return; }
+                if (file.size > max) { say(t('admin.themes.fontTooBig', { mb: Math.round(max / 1048576) }), false); return; }
+                if (!page.querySelector('#fontRights').checked) { say(t('admin.themes.err.fontRights'), false); return; }
+                const query = { rights: 'true', fallback: page.querySelector('#fontFallback').value === 'serif' ? 'serif' : 'sans-serif' };
+                const family = page.querySelector('#fontFamily').value.trim();
+                if (family) query.family = family;
+                const button = page.querySelector('#fontUpload');
+                button.disabled = true;
+                // Hand-rolled, like the avatar folder import: the body is the file itself,
+                // which ApiClient.ajax would try to serialise.
+                fetch(ApiClient.getUrl('plugins/profiles/admin/themes/fonts', query), {
+                    method: 'POST',
+                    headers: { 'Authorization': authorizationHeader(), 'Content-Type': 'font/woff2' },
+                    body: file
+                }).then(function (res) {
+                    if (!res.ok) return Promise.reject(res);
+                    return res.json();
+                }).then(function (font) {
+                    button.disabled = false;
+                    page._themeFontFile = null;
+                    page.querySelector('#fontFile').value = '';
+                    page.querySelector('#fontFileName').textContent = '';
+                    page.querySelector('#fontFamily').value = '';
+                    page.querySelector('#fontRights').checked = false;
+                    say(t('admin.themes.created', { name: (font && font.family) || family }), true);
+                    loadThemes(page);
+                    refreshClientThemes();
+                }, function (err) {
+                    button.disabled = false;
+                    readThemeError(err, 'admin.themes.err.fontFailed', data).then(function (e) { say(e.message, false); });
+                });
+            }
+
+            function deleteThemeFont(page, fileName) {
+                const data = page._themes.data;
+                const font = (data.fonts || []).filter(function (f) { return f.file === fileName; })[0];
+                if (!font) return;
+                Dashboard.confirm(t('admin.themes.fontDeleteConfirm', { name: font.family }), t('admin.themes.fontDeleteTitle')).then(function () {
+                    ApiClient.ajax({
+                        type: 'DELETE',
+                        url: ApiClient.getUrl('plugins/profiles/admin/themes/fonts/' + encodeURIComponent(fileName))
+                    }).then(function () {
+                        showThemeStatus(page, '#fontResult', t('admin.themes.deleted'), true);
+                        loadThemes(page);
+                        refreshClientThemes();
+                    }, function (err) {
+                        readThemeError(err, 'admin.themes.saveFailed', data).then(function (e) {
+                            showThemeStatus(page, '#fontResult', e.message, false);
+                        });
+                    });
+                });
+            }
+
+            function bindThemes(page) {
+                const editor = page.querySelector('#themeEditor');
+                if (!editor || editor.dataset.bound) return;
+                editor.dataset.bound = '1';
+                const ready = function () { return !!(page._themes && page._themes.data); };
+
+                page.querySelector('#themesBuiltIn').addEventListener('change', function (e) {
+                    if (e.target.classList.contains('jpfThemeHide') && ready()) saveHiddenThemes(page);
+                });
+                page.querySelector('#themesCustom').addEventListener('click', function (e) {
+                    const button = e.target.closest('.jpf-te-act');
+                    if (button && ready()) customThemeAction(page, button.getAttribute('data-act'), button.getAttribute('data-id'));
+                });
+                page.querySelector('#themesFonts').addEventListener('click', function (e) {
+                    const button = e.target.closest('.jpf-te-font-delete');
+                    if (button && !button.disabled && ready()) deleteThemeFont(page, button.getAttribute('data-file'));
+                });
+                page.querySelector('#themeNew').addEventListener('click', function () {
+                    if (!ready()) return;
+                    const bases = themeBases(page);
+                    if (!bases.length) {
+                        showThemeStatus(page, '#themesResult', t('admin.themes.loadFailed'), false);
+                        return;
+                    }
+                    const bonfire = bases.filter(function (b) { return b.key === 'b:bonfire'; })[0] || bases[0];
+                    openThemeEditor(page, newThemeDraft(bonfire.theme, t('admin.themes.newName'), takenThemeIds(page)), 'new');
+                });
+                const importFile = page.querySelector('#themeImportFile');
+                page.querySelector('#themeImport').addEventListener('click', function () {
+                    importFile.value = '';
+                    importFile.click();
+                });
+                importFile.addEventListener('change', function () {
+                    const chosen = importFile.files && importFile.files[0];
+                    if (chosen && ready()) importThemeFile(page, chosen);
+                });
+
+                const edited = function (e) {
+                    if (editThemeDraft(page, e.target)) themeDraftChanged(page);
+                };
+                editor.addEventListener('input', edited);
+                editor.addEventListener('change', edited);
+                page.querySelectorAll('#themeEditor .jpf-te-mode').forEach(function (b) {
+                    b.addEventListener('click', function () { setThemeEditorView(page, b.getAttribute('data-view')); });
+                });
+                page.querySelector('#teSave').addEventListener('click', function () { saveThemeDraft(page); });
+                page.querySelector('#teCancel').addEventListener('click', function () { closeThemeEditor(page); });
+
+                const fontFile = page.querySelector('#fontFile');
+                page.querySelector('#fontChoose').addEventListener('click', function () {
+                    fontFile.value = '';
+                    fontFile.click();
+                });
+                fontFile.addEventListener('change', function () {
+                    const chosen = fontFile.files && fontFile.files[0];
+                    page._themeFontFile = chosen || null;
+                    page.querySelector('#fontFileName').textContent = chosen ? chosen.name : '';
+                    if (chosen) page.querySelector('#fontFamily').value = fontNameFromFile(chosen.name);
+                    showThemeStatus(page, '#fontResult', '', false);
+                });
+                page.querySelector('#fontUpload').addEventListener('click', function () { uploadThemeFont(page); });
+
+                // A saved default changes what can be hidden and deleted.
+                window.addEventListener('jpf-settings-changed', function () { loadThemes(page); });
             }
 
             // ── Standalone accounts ───────────────────────────────────────────────
@@ -3949,7 +5491,7 @@
                     enableStarterAvatars: page.querySelector('#enableStarterAvatars').checked,
                     defaultAskOnStartup: page.querySelector('#defaultAskOnStartup').checked,
                     defaultSwitcherLocation: page.querySelector('#defaultSwitcherLocation').value === 'menu' ? 'menu' : 'button',
-                    defaultTheme: normalizeTheme(page.querySelector('#defaultTheme').value),
+                    defaultTheme: normalizeTheme(page.querySelector('#defaultTheme').value || page._wantedDefaultTheme, page._themeOffered),
                     allowProfileThemes: page.querySelector('#allowProfileThemes').checked,
                     defaultTimeZone: page.querySelector('#defaultTimeZone').value,
                     indexInjectionMode: page.querySelector('#indexInjectionMode').value,
@@ -4034,6 +5576,7 @@
                 bindReport(page);
                 bindOnboarding(page);
                 bindAnnouncements(page);
+                bindThemes(page);
                 bindMaintenance(page);
                 bindEmail(page);
                 bindOrphanScan(page);
