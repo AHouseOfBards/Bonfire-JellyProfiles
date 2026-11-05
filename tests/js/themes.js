@@ -379,7 +379,9 @@ const constants = (function () {
     const a = /const THEMES = \[[^\]]*\];/.exec(SRC);
     const b = /function themeName\(id\) \{[\s\S]*?\n    \}/.exec(SRC);
     const c = /function normalizeTheme\(value\) \{[\s\S]*?\n    \}/.exec(SRC);
-    return a && b && c ? a[0] + '\n' + b[0] + '\n' + c[0] : null;
+    // The checks above say the three are there; what runs is every helper they now lean
+    // on (custom themes, 1.7.2), from the one list in _lib.
+    return a && b && c ? L.themeHelpers(SRC) : null;
 })();
 ok('THEMES, themeName and normalizeTheme are in the client', !!constants);
 

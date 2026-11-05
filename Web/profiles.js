@@ -44,8 +44,86 @@
     /// First-time setup steps this script can draw (OnboardingSteps on the server). A
     /// newer server's unknown step is left out rather than shown blank.
     const ONBOARDING_STEPS = ['welcome', 'mainPin', 'resetEmail', 'firstProfile', 'switcher', 'theme'];
+
+    /// The administrator's own themes and fonts, and the built-ins they hid (1.7.2), from
+    /// GET themes?part=custom. Empty until that answers, or until the copy cached on this
+    /// device is read at startup (restoreCustomThemes). The built-ins are spliced into this
+    /// file; these cannot be, because profiles.js is cached for the life of the server and
+    /// an administrator changes them at any moment.
+    let CUSTOM_THEMES = { themes: [], fonts: [], hidden: [] };
+
+    /// Caps on what is read, the server's own (ThemeCatalog.MaxCustomThemes, MaxCustomFonts).
+    const MAX_CUSTOM_THEMES = 40;
+    const MAX_CUSTOM_FONTS = 20;
+
+    function customTheme(id) {
+        return CUSTOM_THEMES.themes.filter(c => c.id === id)[0] || null;
+    }
+
+    /// True for a built-in, hidden or not, or a custom theme this script has been told of.
+    function isThemeId(value) {
+        const v = String(value || '').toLowerCase();
+        return THEMES.indexOf(v) !== -1 || !!customTheme(v);
+    }
+
+    /// What the pickers offer: the built-ins less the hidden ones (never Bonfire), then the
+    /// custom themes in the order they were made. Themes.Offered on the server.
+    function offeredThemes() {
+        return THEMES.filter(id => id === 'bonfire' || CUSTOM_THEMES.hidden.indexOf(id) === -1)
+            .concat(CUSTOM_THEMES.themes.map(c => c.id));
+    }
+
+    /// A stored choice the pickers can tick, lower case, or '' for one they do not offer.
+    function offeredChoice(value) {
+        const v = String(value || '').toLowerCase();
+        return v && offeredThemes().indexOf(v) !== -1 ? v : '';
+    }
+
+    /// A theme's name as text. A built-in's is the string theme.<id>; a custom theme's is
+    /// the name.text the administrator typed, which is not markup: see themeName.
+    function themeNameText(id) {
+        const v = normalizeTheme(id);
+        const custom = customTheme(v);
+        if (custom) return custom.name && typeof custom.name.text === 'string' && custom.name.text ? custom.name.text : v;
+        return t('theme.' + v);
+    }
+
+    /// A theme's name for a template that becomes innerHTML. Escaped, because a custom
+    /// theme's name is whatever an administrator typed.
     function themeName(id) {
-        return t('theme.' + normalizeTheme(id));
+        return escapeHtml(themeNameText(id));
+    }
+
+    /// A ?part=custom answer, or the copy of one cached here, in the shape this script uses.
+    /// Anything malformed is dropped rather than trusted: themeCss forces every value into
+    /// its type as it writes CSS, and this keeps a custom theme from ever taking a
+    /// built-in's id, whose block would then be drawn twice.
+    function readCustomThemes(answer) {
+        const out = { themes: [], fonts: [], hidden: [] };
+        if (!answer || typeof answer !== 'object') return out;
+        (Array.isArray(answer.themes) ? answer.themes : []).forEach(c => {
+            if (!c || typeof c !== 'object' || typeof c.id !== 'string' || !/^[a-z0-9-]{1,40}$/.test(c.id)) return;
+            if (THEMES.indexOf(c.id) !== -1 || out.themes.some(x => x.id === c.id)) return;
+            if (out.themes.length < MAX_CUSTOM_THEMES) out.themes.push(c);
+        });
+        (Array.isArray(answer.fonts) ? answer.fonts : []).forEach(f => {
+            if (!f || f.custom !== true || typeof f.family !== 'string' || !f.family) return;
+            const one = Array.isArray(f.files) ? f.files[0] : null;
+            const url = one && typeof one.url === 'string' ? one.url : '';
+            if (!/^\/plugins\/profiles\/themes\/fonts\/[0-9a-f]{32}\.woff2$/.test(url)) return;
+            const w = one && Array.isArray(one.weight) ? one.weight : [];
+            if (out.fonts.length >= MAX_CUSTOM_FONTS || out.fonts.some(x => x.family === f.family)) return;
+            out.fonts.push({
+                family: f.family,
+                fallback: f.fallback === 'serif' ? 'serif' : 'sans-serif',
+                weight: typeof w[0] === 'number' && typeof w[1] === 'number' ? [w[0], w[1]] : [400, 400],
+                file: url
+            });
+        });
+        (Array.isArray(answer.hidden) ? answer.hidden : []).forEach(id => {
+            if (typeof id === 'string' && id !== 'bonfire' && THEMES.indexOf(id) !== -1 && out.hidden.indexOf(id) === -1) out.hidden.push(id);
+        });
+        return out;
     }
 
     /// Jellyfin Dark and Jellyfin Light have a match in jellyfin-web's own theme list;
@@ -104,9 +182,12 @@
         }).filter(Boolean).sort((a, b) => a[0] - b[0]);
     }
 
+    /// A theme this script can draw, or Bonfire. A hidden built-in still counts: the server
+    /// resolves a profile on one to the default before it says what to show, and a preview
+    /// of one must not turn into Bonfire. A custom theme counts once it is known.
     function normalizeTheme(value) {
         const v = String(value || '').toLowerCase();
-        return THEMES.indexOf(v) !== -1 ? v : 'bonfire';
+        return isThemeId(v) ? v : 'bonfire';
     }
 
     /// A library or user id as the server writes one: 32 hex digits, dashed or not.
@@ -319,8 +400,9 @@
         // its own, so declaring it never changes how jellyfin-web draws its own Noto Sans;
         // and where it is not declared (an engine without variable fonts) that first name
         // simply matches nothing and the next one is used.
-        const fontEntry = (BONFIRE_THEMES.fonts || []).filter(f => f && f.family === g(type.font, 'family'))[0];
-        const names = (fontEntry && fontEntry.files ? [servedFontName(fontEntry.family)] : [])
+        const fontEntry = (BONFIRE_THEMES.fonts || []).concat(CUSTOM_THEMES.fonts)
+            .filter(f => f && f.family === g(type.font, 'family'))[0];
+        const names = (fontEntry && (fontEntry.files || fontEntry.file) ? [servedFontName(fontEntry.family)] : [])
             .concat([fontName(g(type.font, 'family'))], fontEntry && Array.isArray(fontEntry.local)
             ? fontEntry.local.map(fontName) : []).filter((n, i, all) => n && all.indexOf(n) === i && n !== 'System UI');
         const fallback = g(type.font, 'fallback') === 'serif' ? 'serif' : 'sans-serif';
@@ -537,12 +619,34 @@
         return css;
     }
 
+    /// @font-face for each uploaded font: one file holding every character it has, so no
+    /// unicode-range. A variable one is left out on an engine without variable fonts, for the
+    /// same reason as fontFaceCss; a static one is drawn everywhere.
+    function customFontFaceCss(urlFor, variable) {
+        let css = '';
+        CUSTOM_THEMES.fonts.forEach(f => {
+            const lo = Math.round(f.weight[0]), hi = Math.round(f.weight[1]);
+            if (!isFinite(lo) || !isFinite(hi) || (lo !== hi && !variable)) return;
+            const url = String(urlFor(f.file)).replace(/["\\\n\r]/g, '');
+            css += "@font-face {\n    font-family: '" + servedFontName(f.family) + "';\n    font-style: normal;\n"
+                + '    font-weight: ' + (lo === hi ? lo : lo + ' ' + hi) + ';\n    font-display: swap;\n'
+                + '    src: url("' + url + '") format("woff2");\n}\n';
+        });
+        return css;
+    }
+
+    /// Every custom theme as CSS. Their ids are never a built-in's (readCustomThemes), so
+    /// no block here ties with one in the stylesheet's style element.
+    function customThemesCss() {
+        return CUSTOM_THEMES.themes.map(c => themeCss(c, BONFIRE_THEMES.patterns || {})).join('');
+    }
+
     /// The gate's background for one theme, as themeCss writes it, or '' for a theme this
     /// build does not have. Read out of themeCss's own output rather than worked out again,
     /// so the startup cover cannot drift from the gate it stands in for.
     function gateBackground(id) {
         const theme = (Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes : [])
-            .filter(t => t && t.id === id)[0];
+            .filter(t => t && t.id === id)[0] || customTheme(id);
         if (!theme) return '';
         const m = /--jpf-gate-bg: ([^;]*);/.exec(themeCss(theme, BONFIRE_THEMES.patterns || {}));
         return m ? m[1] : '';
@@ -1165,7 +1269,10 @@
             deviceGateKey: 'jellyfin_profiles_device_gate',
             // The last theme this browser was told for an account, so the first paint is
             // already in it rather than switching a moment after the gate appears.
-            themeKey: 'jellyfin_profiles_theme'
+            themeKey: 'jellyfin_profiles_theme',
+            // The last ?part=custom answer, so a profile on a custom theme starts in it
+            // instead of in Bonfire until the server answers.
+            customThemesKey: 'jellyfin_profiles_custom_themes'
         },
         pluginId: 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9',
         isManageMode: false,
@@ -2756,8 +2863,12 @@
             this._step('applyDeviceClasses', () => this.applyDeviceClasses());
             // Same reason: the first frame of the gate should already be in this
             // account's theme.
+            // Before applyCachedTheme, which would otherwise turn a custom theme it does not
+            // know yet into Bonfire for the first frame.
+            this._step('restoreCustomThemes', () => this.restoreCustomThemes());
             this._step('applyCachedTheme', () => this.applyCachedTheme());
             this._step('injectStyles', () => this.injectStyles());
+            this._step('loadCustomThemes', () => this.loadCustomThemes());
             // Before anything that can decide about the gate, so every one of those
             // decisions knows whether a cover is waiting on it.
             this._step('_adoptCover', () => this._adoptCover());
@@ -3958,6 +4069,8 @@
         applyTheme: function (theme) {
             const root = document.documentElement;
             if (!root) return;
+            // Kept as asked, so a custom theme that arrives after this is put on then.
+            this._wantedTheme = String(theme || '').toLowerCase();
             const id = normalizeTheme(theme);
             if (root.getAttribute('data-jpf-theme') !== id) root.setAttribute('data-jpf-theme', id);
         },
@@ -4017,6 +4130,9 @@
             // A server older than this build sends none of these. Leave the page as it is
             // and offer no picker, rather than pretend the server knows about themes.
             if (read('theme') === undefined) return;
+            // As sent, for useCustomThemes: a custom theme named here before its file has
+            // arrived normalises to Bonfire below, and is read again once it has.
+            this._lastThemePrefs = prefs;
 
             const settings = {
                 theme: normalizeTheme(read('theme')),
@@ -4059,8 +4175,7 @@
             const settings = this._themeSettings;
             if (!settings || !settings.allow) return '';
 
-            const chosen = stored && THEMES.indexOf(String(stored).toLowerCase()) !== -1
-                ? String(stored).toLowerCase() : '';
+            const chosen = offeredChoice(stored);
             const shown = chosen || settings.defaultTheme;
 
             return `
@@ -4068,7 +4183,7 @@
                     <label for="${prefix}-theme-select">${t('profileForm.theme')}</label>
                     <select id="${prefix}-theme-select">
                         <option value="" ${chosen ? '' : 'selected'}>${t('profileForm.themeDefault', { name: themeName(settings.defaultTheme) })}</option>
-                        ${THEMES.map(id => `<option value="${id}" ${chosen === id ? 'selected' : ''}>${themeName(id)}</option>`).join('')}
+                        ${offeredThemes().map(id => `<option value="${id}" ${chosen === id ? 'selected' : ''}>${themeName(id)}</option>`).join('')}
                     </select>
                     ${this.renderThemePreview(shown, prefix + '-theme-preview')}
                     <div class="form-hint">${t('profileForm.themeHint')}</div>
@@ -4103,7 +4218,7 @@
                     : (settings ? settings.defaultTheme : 'bonfire');
                 preview.setAttribute('data-jpf-theme', id);
                 const name = preview.querySelector('.jpf-theme-preview-name');
-                if (name) name.textContent = themeName(id);
+                if (name) name.textContent = themeNameText(id);
             });
         },
 
@@ -9113,8 +9228,7 @@
             const main = (this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
             if (!settings || !settings.allow || !main) { (skip || next)(); return; }
 
-            const stored = main.theme && THEMES.indexOf(String(main.theme).toLowerCase()) !== -1
-                ? String(main.theme).toLowerCase() : '';
+            const stored = offeredChoice(main.theme);
             let chosen = stored || settings.defaultTheme;
             const option = (id) => `
                 <button type="button" class="jpf-theme-option focusable" role="radio" data-id="${id}"
@@ -9128,7 +9242,7 @@
             `;
             const content = this._onboardingFrame(t('onboarding.themeTitle'), `
                 <p class="jpf-onboarding-text">${t('onboarding.themeBody')}</p>
-                <div class="jpf-theme-grid" role="radiogroup">${THEMES.map(option).join('')}</div>
+                <div class="jpf-theme-grid" role="radiogroup">${offeredThemes().map(option).join('')}</div>
             `, t('onboarding.next'), skip);
             if (!content) return;
 
@@ -9302,8 +9416,7 @@
             const signedIn = this.normalizeGuid(ApiClient.getCurrentUserId());
             const pick = (id) => people.find(p => this.normalizeGuid(p.profileUserId) === this.normalizeGuid(id));
             const person = pick(selectedId) || pick(signedIn) || people.find(p => p.isMaster) || people[0];
-            const stored = person.theme && THEMES.indexOf(String(person.theme).toLowerCase()) !== -1
-                ? String(person.theme).toLowerCase() : '';
+            const stored = offeredChoice(person.theme);
             // What the profile is wearing: its own choice, or the server's default.
             const current = stored || settings.defaultTheme;
 
@@ -9340,7 +9453,7 @@
                         `).join('')}
                     </div>` : ''}
                     <div class="jpf-theme-grid" role="radiogroup" aria-label="${escapeHtml(person.profileName)}">
-                        ${THEMES.map(option).join('')}
+                        ${offeredThemes().map(option).join('')}
                     </div>
                     <div class="jpf-theme-status" id="theme-settings-status" role="status"></div>
                     <div class="jpf-theme-match" id="theme-settings-match" hidden></div>
@@ -9420,7 +9533,7 @@
             const offer = jellyfinWebOffer(theme, stored);
             if (!offer) return;
             box.innerHTML = `
-                <p class="jpf-theme-match-text">${escapeHtml(t('themeSettings.matchJellyfin', { name: themeName(theme) }))}</p>
+                <p class="jpf-theme-match-text">${escapeHtml(t('themeSettings.matchJellyfin', { name: themeNameText(theme) }))}</p>
                 <div class="jpf-theme-match-actions">
                     <button type="button" id="theme-match-yes" class="profiles-btn btn-secondary focusable">${t('themeSettings.matchYes')}</button>
                     <button type="button" id="theme-match-no" class="profiles-btn btn-secondary focusable">${t('themeSettings.matchNo')}</button>
@@ -11050,6 +11163,8 @@
             // fails on every one.
             style.textContent = BONFIRE_STYLES + '\n' + allThemesCss();
             document.head.appendChild(style);
+            // After the stylesheet, as the copy restored at startup could not be.
+            this.applyCustomThemesCss();
             this.injectFonts();
         },
 
@@ -11072,6 +11187,75 @@
             style.id = 'jpf-fonts';
             style.textContent = css;
             document.head.appendChild(style);
+        },
+
+        // ── Custom themes (1.7.2) ────────────────────────────────────────────────────
+
+        /// The copy of the last answer kept on this device, put to use before anything is
+        /// drawn. Read once, at startup.
+        restoreCustomThemes: function () {
+            let raw = null;
+            try { raw = JSON.parse(localStorage.getItem(this.config.customThemesKey) || 'null'); } catch (e) { /* unreadable */ }
+            if (raw) this.useCustomThemes(raw, false);
+        },
+
+        /// GET themes?part=custom, once per page load and never from checkRoute. Anonymous,
+        /// so it works on the gate before anyone has signed in. Sent no-cache with an ETag,
+        /// so the browser's own cache turns an unchanged answer into a 304. A failure keeps
+        /// whatever the device already had.
+        loadCustomThemes: function () {
+            if (this._customThemesLoad) return this._customThemesLoad;
+            this._customThemesLoad = fetch(pluginUrl('/plugins/profiles/themes?part=custom'))
+                .then(res => (res.ok ? res.json() : null))
+                .then(answer => { if (answer) this.useCustomThemes(answer, true); })
+                .catch(() => { /* offline or an older server: keep the cached copy */ });
+            return this._customThemesLoad;
+        },
+
+        /// Puts an answer in place: the list, the CSS in a style element of its own, the
+        /// device's copy, and the theme the page was asked for, which may be one of these.
+        useCustomThemes: function (answer, store) {
+            const next = readCustomThemes(answer);
+            const text = JSON.stringify(next);
+            const changed = text !== this._customThemesText;
+            this._customThemesText = text;
+            CUSTOM_THEMES = next;
+
+            if (store) {
+                try {
+                    // Up to forty themes of up to 64 KB each could crowd out everything else
+                    // this origin keeps. Past that, the copy is dropped; the theme still
+                    // arrives with the answer, a moment after the first frame.
+                    if (text.length <= 512 * 1024) localStorage.setItem(this.config.customThemesKey, text);
+                    else localStorage.removeItem(this.config.customThemesKey);
+                } catch (e) { /* storage full or blocked */ }
+            }
+            if (!changed) return;
+
+            // Not before the stylesheet is in: injectStyles puts this block after it.
+            if (document.getElementById('jpf-styles')) this.applyCustomThemesCss();
+            if (this._lastThemePrefs) this._setThemeSettings(this._lastThemePrefs);
+            else if (this._wantedTheme) this.applyTheme(this._wantedTheme);
+        },
+
+        /// The custom themes and their fonts in <style id="jpf-themes-custom">, after the
+        /// stylesheet. Rewritten only when what it holds changes.
+        applyCustomThemesCss: function () {
+            if (!document.head) return;
+            let variable = false;
+            try { variable = !!(window.CSS && CSS.supports && CSS.supports('font-variation-settings', 'normal')); } catch (e) { /* old engine */ }
+            const css = customThemesCss() + customFontFaceCss(pluginUrl, variable);
+            let style = document.getElementById('jpf-themes-custom');
+            if (!css) {
+                if (style) style.parentNode.removeChild(style);
+                return;
+            }
+            if (!style) {
+                style = document.createElement('style');
+                style.id = 'jpf-themes-custom';
+                document.head.appendChild(style);
+            }
+            if (style.textContent !== css) style.textContent = css;
         }
     };
 

@@ -182,7 +182,8 @@ console.log('\n── The web client declares them, and uses them ────�
     ok('once', !!inject && /getElementById\('jpf-fonts'\)\) return;/.test(inject[1]));
     ok('through pluginUrl, so a packaged client asks the server', !!inject && /fontFaceCss\(pluginUrl\)/.test(inject[1]));
     ok('when the sheet goes in, and again when the server answers',
-        /style\.textContent = BONFIRE_STYLES[^\n]*\n\s*document\.head\.appendChild\(style\);\s*this\.injectFonts\(\);/.test(src)
+        // The custom themes' block may sit between (1.7.2): it goes after the sheet too.
+        /style\.textContent = BONFIRE_STYLES[^\n]*\n\s*document\.head\.appendChild\(style\);(?:\s*\/\/[^\n]*|\s*this\.applyCustomThemesCss\(\);)*\s*this\.injectFonts\(\);/.test(src)
         && /this\.applyTheme\(settings\.theme\);\s*this\.injectFonts\(\);/.test(src));
 }
 

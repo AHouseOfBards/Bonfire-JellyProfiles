@@ -77,7 +77,7 @@ function load(store, opts) {
     };
     const t = (key, vars) => key + (vars ? JSON.stringify(vars) : '');
     const factory = new Function('document', 'localStorage', 't',
-        [parts.THEMES, parts.JELLYFIN_WEB_THEMES, parts.normalizeTheme, parts.themeName, parts.escapeHtml,
+        [L.themeHelpers(SRC), parts.JELLYFIN_WEB_THEMES,
             parts.jellyfinWebThemeKey, parts.jellyfinWebOffer].join('\n')
         + '\nconst obj = {};\nobj._offerJellyfinTheme = function (' + parts._offerJellyfinTheme.params + ') {'
         + parts._offerJellyfinTheme.body + '};\n'

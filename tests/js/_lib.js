@@ -151,13 +151,22 @@ function themesCss(src) {
  * The generator's functions, run out of `src` with the theme files as BONFIRE_THEMES:
  * { themeCss, allThemesCss, fontFaceCss, gateBackground } — whichever that build has.
  */
-function themeGenerator(src, payload) {
+function themeGenerator(src, payload, custom) {
     const js = typeof src === 'string' ? src : readProfiles();
-    const names = ['themeCss', 'allThemesCss', 'servedFontName', 'fontFaceCss', 'gateBackground']
+    // The custom-theme half (1.7.2) where the build has it: CUSTOM_THEMES is passed in like
+    // BONFIRE_THEMES, raw (an answer from GET themes?part=custom), and read through the
+    // build's own readCustomThemes, so a harness gives it what the server would.
+    const names = ['themeCss', 'allThemesCss', 'servedFontName', 'fontFaceCss', 'gateBackground',
+        'customTheme', 'readCustomThemes', 'customFontFaceCss', 'customThemesCss']
         .filter(n => new RegExp('function\\s+' + n + '\\s*\\(').test(js));
-    const factory = new Function('BONFIRE_THEMES',
-        names.map(n => extractFunction(js, n)).join('\n') + '\nreturn {' + names.join(', ') + '};');
-    return factory(payload || themesPayload());
+    const themes = /const THEMES = (\[[^\]]*\]);/.exec(js);
+    const factory = new Function('BONFIRE_THEMES', 'CUSTOM_RAW', 'THEMES',
+        'const MAX_CUSTOM_THEMES = 40, MAX_CUSTOM_FONTS = 20;\n'
+        + names.map(n => extractFunction(js, n)).join('\n')
+        + '\nconst CUSTOM_THEMES = typeof readCustomThemes === "function" ? readCustomThemes(CUSTOM_RAW) : { themes: [], fonts: [], hidden: [] };'
+        + '\nreturn {' + names.concat(['CUSTOM_THEMES']).join(', ') + '};');
+    // eslint-disable-next-line no-new-func
+    return factory(payload || themesPayload(), custom || null, themes ? new Function('return ' + themes[1])() : []);
 }
 
 /**
@@ -305,7 +314,31 @@ function dashboardI18n(script) {
         + extractFunction(script, 't') + '\n';
 }
 
+/**
+ * The client's theme list and everything that answers "which themes are there": THEMES,
+ * the custom-theme state (1.7.2) and the functions over it, as source to put in front of a
+ * harness's own code. Only what `src` has, so an older checkout still loads.
+ *
+ * One place, because these grew from three declarations to eleven, and three harnesses
+ * each listing them by hand would drift into running a normalizeTheme with no custom list.
+ */
+function themeHelpers(src) {
+    const js = typeof src === 'string' ? src : readProfiles();
+    const out = [];
+    const decl = re => { const m = re.exec(js); if (m) out.push(m[0]); };
+    decl(/const THEMES = \[[^\]]*\];/);
+    decl(/let CUSTOM_THEMES = \{[^\n]*\};/);
+    decl(/const MAX_CUSTOM_THEMES = \d+;/);
+    decl(/const MAX_CUSTOM_FONTS = \d+;/);
+    ['escapeHtml', 'customTheme', 'isThemeId', 'offeredThemes', 'offeredChoice', 'themeNameText', 'themeName',
+        'readCustomThemes', 'normalizeTheme']
+        .filter(n => new RegExp('function\\s+' + n + '\\s*\\(').test(js))
+        .forEach(n => out.push(extractFunction(js, n)));
+    return out.join('\n');
+}
+
 module.exports = {
+    themeHelpers,
     ROOT,
     profilesPath, dashboardPath, i18nDir,
     readProfiles, readDashboard,
