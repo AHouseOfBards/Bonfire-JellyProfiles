@@ -313,6 +313,16 @@
 .jpf-theme-status.is-error {
     color: var(--jpf-danger);
 }
+/* The offer to match jellyfin-web's own theme, under the cards. Flex with gap rather
+   than grid: grid is Chromium 57 and webOS 4.5 is 53. */
+.jpf-theme-match {
+    display: flex; flex-direction: column; align-items: center; gap: var(--jpf-gap);
+    margin-top: 12px; text-align: center;
+}
+.jpf-theme-match[hidden] { display: none; }
+.jpf-theme-match-text { margin: 0; font-size: 0.95rem; color: var(--jpf-text-1); }
+.jpf-theme-match-text.is-error { color: var(--jpf-danger); }
+.jpf-theme-match-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--jpf-gap); }
 /* Administrator-supplied avatar picker.
    auto-fill rather than a fixed count so it reflows from a phone to a TV
    without a media query, and scrolls internally instead of pushing the
@@ -2084,6 +2094,8 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-no-flex-gap .jpf-theme-preview-tiles > * + * { margin-left: 12px; }
 .jpf-no-flex-gap .jpf-theme-grid > * { margin: 0 6px 12px; }
 .jpf-no-flex-gap .jpf-theme-people > * { margin: 0 4px 8px; }
+.jpf-no-flex-gap .jpf-theme-match > * + * { margin-top: var(--jpf-gap); }
+.jpf-no-flex-gap .jpf-theme-match-actions > * { margin: 0 6px 8px; }
 .jpf-no-flex-gap .jpf-choice > * + * { margin-left: 12px; }
 .jpf-no-flex-gap .jpf-actions > * + * { margin-left: 12px; }
 .jpf-no-flex-gap .jpf-theme-option > * + * { margin-top: 8px; }

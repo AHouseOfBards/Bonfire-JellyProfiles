@@ -48,6 +48,33 @@
         return t('theme.' + normalizeTheme(id));
     }
 
+    /// Jellyfin Dark and Jellyfin Light have a match in jellyfin-web's own theme list;
+    /// no other theme does. Choosing one OFFERS to switch the rest of Jellyfin too, and
+    /// never does it unasked: jellyfin-web's theme is the person's, not Bonfire's.
+    ///
+    /// jellyfin-web keeps that theme on the device, not on the server: userSettings.theme()
+    /// is set('appTheme', id, false), and appSettings stores it in localStorage as
+    /// "<userId>-appTheme" (src/scripts/settings/userSettings.js and appSettings.js,
+    /// release-10.11.z). Nothing stored means its default, "dark". It is read again on
+    /// every page change (autoThemes.js, viewbeforeshow), so a value written here shows
+    /// from the next page opened, with no reload.
+    const JELLYFIN_WEB_THEMES = { 'jellyfin-dark': 'dark', 'jellyfin-light': 'light' };
+
+    /// The localStorage key jellyfin-web reads a user's theme from, or null for anything
+    /// that is not a user id. jellyfin-web's ids are the server's: 32 hex digits, no dashes.
+    function jellyfinWebThemeKey(userId) {
+        const id = String(userId || '').toLowerCase().replace(/-/g, '');
+        return /^[0-9a-f]{32}$/.test(id) ? id + '-appTheme' : null;
+    }
+
+    /// The jellyfin-web theme to offer when a profile is given `theme`, or null when there
+    /// is nothing to offer: a theme with no match, or a match the profile already has here.
+    function jellyfinWebOffer(theme, stored) {
+        const match = JELLYFIN_WEB_THEMES[theme];
+        if (!match) return null;
+        return (stored || 'dark') === match ? null : match;
+    }
+
     /// GET plugins/profiles/ratings -> [[score, labels], ...], one entry per age.
     ///
     /// The server reads the rating table of its own Preferred metadata country — the one
@@ -834,6 +861,10 @@
         'profileForm.kidsPresetHint': 'Sets the rating to age 10. You can change it.',
         'profileForm.mainSecurityMoved': 'Your PIN and sign-in settings are in Settings → Your account.',
         'themeSettings.default': 'Default',
+        'themeSettings.matchJellyfin': 'Use {name} for the rest of Jellyfin on this device too?',
+        'themeSettings.matchYes': 'Use it',
+        'themeSettings.matchNo': 'No thanks',
+        'themeSettings.matchDone': 'Done. It shows from the next page.',
         'theme.bonfire': 'Bonfire',
         'theme.crimson': 'Crimson',
         'theme.starlight': 'Starlight',
@@ -9312,6 +9343,7 @@
                         ${THEMES.map(option).join('')}
                     </div>
                     <div class="jpf-theme-status" id="theme-settings-status" role="status"></div>
+                    <div class="jpf-theme-match" id="theme-settings-match" hidden></div>
                     <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
                         <button id="theme-settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
                     </div>
@@ -9354,6 +9386,7 @@
                         // No "Saved." line: the tick moving to the card is the confirmation.
                         // The status line is for a failure only.
                         this.showThemeSettings(person.profileUserId);
+                        this._offerJellyfinTheme(person, shownNow);
                         const chosen = document.querySelector('.jpf-theme-option[aria-checked="true"]');
                         if (chosen) chosen.focus();
                     })
@@ -9371,6 +9404,37 @@
                     || content.querySelector('.jpf-theme-option');
                 if (first) first.focus();
             }, 150);
+        },
+
+        /// After Settings → Theme gives a profile Jellyfin Dark or Light: offers to set that
+        /// profile's own jellyfin-web theme on this device to match, and does nothing unless
+        /// the offer is taken. Any profile of the household, not only the one signed in: the
+        /// setting is keyed by user id, so it waits for that profile to open here. See
+        /// JELLYFIN_WEB_THEMES for where jellyfin-web keeps it.
+        _offerJellyfinTheme: function (person, theme) {
+            const key = jellyfinWebThemeKey(person && person.profileUserId);
+            const box = document.querySelector('#theme-settings-match');
+            if (!key || !box) return;
+            let stored = null;
+            try { stored = localStorage.getItem(key); } catch (e) { return; }
+            const offer = jellyfinWebOffer(theme, stored);
+            if (!offer) return;
+            box.innerHTML = `
+                <p class="jpf-theme-match-text">${escapeHtml(t('themeSettings.matchJellyfin', { name: themeName(theme) }))}</p>
+                <div class="jpf-theme-match-actions">
+                    <button type="button" id="theme-match-yes" class="profiles-btn btn-secondary focusable">${t('themeSettings.matchYes')}</button>
+                    <button type="button" id="theme-match-no" class="profiles-btn btn-secondary focusable">${t('themeSettings.matchNo')}</button>
+                </div>`;
+            box.hidden = false;
+            box.querySelector('#theme-match-yes').addEventListener('click', () => {
+                let done = true;
+                try { localStorage.setItem(key, offer); } catch (e) { done = false; }
+                box.innerHTML = `<p class="jpf-theme-match-text${done ? '' : ' is-error'}">${escapeHtml(t(done ? 'themeSettings.matchDone' : 'errors.couldNotSaveThat'))}</p>`;
+            });
+            box.querySelector('#theme-match-no').addEventListener('click', () => {
+                box.innerHTML = '';
+                box.hidden = true;
+            });
         },
 
         showSwitcherModeModal: function () {
