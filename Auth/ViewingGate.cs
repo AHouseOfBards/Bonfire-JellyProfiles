@@ -141,9 +141,12 @@ namespace Jellyfin.Profiles.Auth
 
             try
             {
-                var token = ProxySwitcher.ReadToken(request);
-                if (string.IsNullOrEmpty(token)) return false;
-                var userId = MaintenanceGate.UserOf(token, devices);
+                // Jellyfin's own reading of the request, not ours (R-1295; see RequestAuth).
+                var userId = await RequestAuth.UserIdAsync(context, () =>
+                {
+                    var token = ProxySwitcher.ReadToken(request);
+                    return string.IsNullOrEmpty(token) ? Guid.Empty : MaintenanceGate.UserOf(token, devices);
+                }).ConfigureAwait(false);
                 if (userId == Guid.Empty) return false;
 
                 // Asked for here, not injected: only a refusal of PlaybackInfo needs it.

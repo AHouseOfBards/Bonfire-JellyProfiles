@@ -136,6 +136,11 @@ namespace Jellyfin.Profiles.Auth
             var live = Plugin.Instance?.Configuration;
             if (named && !ProxyClients.MayBe(live, auth, emby)) return false;
 
+            // Our own reading, not Jellyfin's (RequestAuth), on purpose: the token here only
+            // finds the picker's session, and whoever sends it signed in with the main
+            // account's password. A shape this misreads skips the picker and leaves them the
+            // main account they already hold. Asking Jellyfin would cost a database lookup on
+            // every request on the server. The gates, which refuse a child, ask Jellyfin (R-1295).
             var token = ReadToken(request);
             if (string.IsNullOrEmpty(token)) return false;
 

@@ -363,6 +363,54 @@ panicField.SetValue(null, false);
 Ok("(and it is back after a restart)", Refused(Send("/Users/" + N(MEMBER) + "/Items", MEMBER_TOKEN)));
 
 Console.WriteLine();
+Console.WriteLine("── Who is asking is Jellyfin's to say ──────────────────────────");
+
+// The gate read the headers itself and disagreed with Jellyfin four ways; where it found
+// no user it let the request through, and Jellyfin then served it as the member (R-1295).
+// Here the authorization context answers as Jellyfin does for each shape.
+(int status, string body, bool reached, HttpResponse response) Crafted(Action<HttpRequest> shape, Guid? jellyfinSays, bool apiKey = false)
+{
+    seenPath = seenBody = seenAuth = null;
+    var sp = new ServiceCollection()
+        .AddSingleton(devices)
+        .AddSingleton(sessions)
+        .AddSingleton(userManager)
+        .AddSingleton(NetworkStub.Create())
+        .AddSingleton<MediaBrowser.Controller.Net.IAuthorizationContext>(new JellyfinSays(jellyfinSays, apiKey))
+        .BuildServiceProvider();
+    var ctx = new DefaultHttpContext { RequestServices = sp };
+    ctx.Request.Method = "GET";
+    ctx.Request.Path = "/Users/" + N(MEMBER) + "/Items";
+    ctx.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.9");
+    shape(ctx.Request);
+    var sink = new MemoryStream();
+    ctx.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>(new StreamResponseBodyFeature(sink));
+    var invoke = mwType.GetMethod("Invoke");
+    var args = invoke.GetParameters().Select(p =>
+        p.ParameterType == typeof(HttpContext) ? ctx
+        : p.ParameterType == typeof(IUserManager) ? userManager
+        : p.ParameterType == typeof(IDeviceManager) ? devices
+        : p.ParameterType == typeof(ISessionManager) ? sessions
+        : p.ParameterType == typeof(INetworkManager) ? sp.GetService<INetworkManager>()
+        : (object)null).ToArray();
+    ((Task)invoke.Invoke(instance, args)).GetAwaiter().GetResult();
+    return (ctx.Response.StatusCode, Encoding.UTF8.GetString(sink.ToArray()), seenPath != null, ctx.Response);
+}
+
+Close(true);
+var crafted = Crafted(r => r.Headers["Authorization"] = "Emby Token=\"" + MEMBER_TOKEN + "\", Client=\"x\"", MEMBER);
+Ok("the Emby scheme, which Jellyfin reads with legacy authorization on, is the member", Refused(crafted), Show(crafted));
+crafted = Crafted(r => { r.Headers["Authorization"] = "Foo Client=\"x\", Token=\"junk\""; r.QueryString = new QueryString("?ApiKey=" + MEMBER_TOKEN); }, MEMBER);
+Ok("so is a junk scheme with the member's token as ?ApiKey", Refused(crafted), Show(crafted));
+crafted = Crafted(r => r.Headers["Authorization"] = "MediaBrowser Token=\"" + ADMIN_TOKEN + "\", Token=\"" + MEMBER_TOKEN + "\"", MEMBER);
+Ok("so are two tokens, where Jellyfin takes the last", Refused(crafted), Show(crafted));
+crafted = Crafted(r => r.Headers["Authorization"] = "MediaBrowser Token=\"" + MEMBER_TOKEN + "\"", ADMIN);
+Ok("and an administrator stays an administrator, whatever the header says", Through(crafted), Show(crafted));
+crafted = Crafted(r => r.QueryString = new QueryString("?ApiKey=" + API_KEY), null, apiKey: true);
+Ok("an API key is no account and is let through", Through(crafted), Show(crafted));
+Close(false);
+
+Console.WriteLine();
 Console.WriteLine("── GET /info ───────────────────────────────────────────────────");
 
 var ctrlType = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesController", true);
@@ -564,4 +612,29 @@ sealed class StubXml : MediaBrowser.Model.Serialization.IXmlSerializer
         => throw new NotSupportedException();
     public object DeserializeFromBytes(Type type, byte[] buffer)
         => throw new NotSupportedException();
+}
+
+// Jellyfin's IAuthorizationContext, answering as Jellyfin decided for the request in hand:
+// the account the token belongs to, an API key, or nobody.
+sealed class JellyfinSays : MediaBrowser.Controller.Net.IAuthorizationContext
+{
+    private readonly Guid? _user;
+    private readonly bool _apiKey;
+    public JellyfinSays(Guid? user, bool apiKey) { _user = user; _apiKey = apiKey; }
+
+    public Task<MediaBrowser.Controller.Net.AuthorizationInfo> GetAuthorizationInfo(HttpContext requestContext)
+        => GetAuthorizationInfo(requestContext.Request);
+
+    public Task<MediaBrowser.Controller.Net.AuthorizationInfo> GetAuthorizationInfo(HttpRequest requestContext)
+    {
+        var info = new MediaBrowser.Controller.Net.AuthorizationInfo { Token = "t", IsAuthenticated = _user != null || _apiKey, IsApiKey = _apiKey };
+        if (_user is Guid id)
+        {
+            var u = new User("someone", "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
+                "Jellyfin.Server.Implementations.Users.DefaultPasswordResetProvider");
+            typeof(User).GetProperty("Id").SetValue(u, id);
+            info.User = u;
+        }
+        return Task.FromResult(info);
+    }
 }

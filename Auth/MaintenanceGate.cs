@@ -304,11 +304,13 @@ namespace Jellyfin.Profiles.Auth
                     }
                 }
 
-                var token = ProxySwitcher.ReadToken(request);
-                if (string.IsNullOrEmpty(token)) return false;
-
+                // Jellyfin's own reading of the request, not ours (R-1295; see RequestAuth).
                 // An API key, or a token Jellyfin will refuse anyway: not ours to answer.
-                var userId = UserOf(token, devices);
+                var userId = await RequestAuth.UserIdAsync(context, () =>
+                {
+                    var token = ProxySwitcher.ReadToken(request);
+                    return string.IsNullOrEmpty(token) ? Guid.Empty : UserOf(token, devices);
+                }).ConfigureAwait(false);
                 if (userId == Guid.Empty || IsAdmin(users, userId)) return false;
 
                 if (!Refuses(m, request.Method, path, userId, sessions)) return false;

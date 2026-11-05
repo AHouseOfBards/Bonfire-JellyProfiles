@@ -599,6 +599,35 @@ Ok("once a minute, not once a retry", stub.Messages.Count == 1);
 http = Through("/Items/" + item + "/PlaybackInfo", "tok-main", "dev-main").GetAwaiter().GetResult();
 Ok("the parent's own request goes through", !(bool)http.Items["handled"]);
 
+// Who a request is from is Jellyfin's to say. The gate read the headers itself and
+// disagreed with Jellyfin four ways; where it found no user it let the request through,
+// and Jellyfin then served it as the child (R-1295). Here the authorization context
+// answers as Jellyfin does for each header shape; the gate must follow it.
+async Task<bool> Crafted(Action<HttpRequest> shape, Guid? jellyfinSays, bool apiKey = false)
+{
+    var ctx = new DefaultHttpContext();
+    ctx.Request.Method = "GET";
+    ctx.Request.Path = "/Items/" + item + "/PlaybackInfo";
+    shape(ctx.Request);
+    ctx.Response.Body = new MemoryStream();
+    ctx.RequestServices = new ServiceCollection()
+        .AddSingleton<ILibraryManager>(library)
+        .AddSingleton<MediaBrowser.Controller.Net.IAuthorizationContext>(new JellyfinSays(jellyfinSays, apiKey))
+        .BuildServiceProvider();
+    var devices = DeviceStub.Create(new Dictionary<string, Guid> { ["tok-kid"] = KID, ["tok-main"] = MAIN });
+    return await (Task<bool>)gate.GetMethod("TryRefuseAsync").Invoke(null, new object[] { ctx, devices, sessions, NullLogger.Instance });
+}
+Ok("the Emby scheme, which Jellyfin reads with legacy authorization on, is the child",
+   Crafted(r => r.Headers["Authorization"] = "Emby Token=\"tok-kid\", Client=\"x\"", KID).GetAwaiter().GetResult());
+Ok("so is a junk scheme with the child's token as ?ApiKey",
+   Crafted(r => { r.Headers["Authorization"] = "Foo Client=\"x\", Token=\"junk\""; r.QueryString = new QueryString("?ApiKey=tok-kid"); }, KID).GetAwaiter().GetResult());
+Ok("so are two tokens, where Jellyfin takes the last",
+   Crafted(r => r.Headers["Authorization"] = "MediaBrowser Token=\"tok-main\", Token=\"tok-kid\"", KID).GetAwaiter().GetResult());
+Ok("and the main account's token stays the main account's, whatever the header says",
+   !Crafted(r => r.Headers["Authorization"] = "MediaBrowser Token=\"tok-kid\"", MAIN).GetAwaiter().GetResult());
+Ok("an API key is no account and is let through",
+   !Crafted(r => r.QueryString = new QueryString("?ApiKey=server-key"), null, apiKey: true).GetAwaiter().GetResult());
+
 // Nobody limited: the gate costs a count and asks Jellyfin nothing.
 foreach (var id in new[] { KID, OKID }) Call("SetViewingLimits", ADMIN, B(("DailyMinutes", 0)), id);
 Fresh();
@@ -912,4 +941,29 @@ sealed class StubXml : MediaBrowser.Model.Serialization.IXmlSerializer
         => throw new NotSupportedException();
     public object DeserializeFromBytes(Type type, byte[] buffer)
         => throw new NotSupportedException();
+}
+
+// Jellyfin's IAuthorizationContext, answering as Jellyfin decided for the request in hand:
+// the account the token belongs to, an API key, or nobody.
+sealed class JellyfinSays : MediaBrowser.Controller.Net.IAuthorizationContext
+{
+    private readonly Guid? _user;
+    private readonly bool _apiKey;
+    public JellyfinSays(Guid? user, bool apiKey) { _user = user; _apiKey = apiKey; }
+
+    public Task<MediaBrowser.Controller.Net.AuthorizationInfo> GetAuthorizationInfo(HttpContext requestContext)
+        => GetAuthorizationInfo(requestContext.Request);
+
+    public Task<MediaBrowser.Controller.Net.AuthorizationInfo> GetAuthorizationInfo(HttpRequest requestContext)
+    {
+        var info = new MediaBrowser.Controller.Net.AuthorizationInfo { Token = "t", IsAuthenticated = _user != null || _apiKey, IsApiKey = _apiKey };
+        if (_user is Guid id)
+        {
+            var u = new User("someone", "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
+                "Jellyfin.Server.Implementations.Users.DefaultPasswordResetProvider");
+            typeof(User).GetProperty("Id").SetValue(u, id);
+            info.User = u;
+        }
+        return Task.FromResult(info);
+    }
 }
