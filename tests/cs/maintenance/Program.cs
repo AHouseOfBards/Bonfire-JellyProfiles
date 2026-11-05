@@ -202,6 +202,11 @@ Console.WriteLine("── Open ────────────────�
 Close(false);
 Ok("a household member's request goes through", Through(Send("/Users/" + N(MEMBER) + "/Items", MEMBER_TOKEN)));
 Ok("and their sign-in", Through(Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Guest\",\"Pw\":\"x\"}")));
+// What the member starts now is what keeps playing once it closes. "Already playing" is what
+// the gate itself let start, not what a session says it is playing: any client can say that
+// with POST /Sessions/Playing, no PlaybackInfo needed (R-1297).
+Ok("the member starts a film", Through(Send("/Items/" + FILM + "/PlaybackInfo", MEMBER_TOKEN, "POST", "{}")));
+Ok("and a song", Through(Send("/Items/" + SONG + "/PlaybackInfo", MEMBER_TOKEN, "POST", "{}")));
 
 Console.WriteLine();
 Console.WriteLine("── Closed: a household member ──────────────────────────────────");
@@ -229,6 +234,12 @@ Ok("and the report that it stopped", Through(Send("/Sessions/Playing/Stopped", M
 var fresh = Send("/Videos/" + N(OTHER) + "/stream.mkv?static=true", MEMBER_TOKEN);
 Ok("but a direct stream of anything else is refused, PlaybackInfo or not", Refused(fresh), Show(fresh));
 Ok("even what someone else is playing", Refused(Send("/videos/" + N(OTHER) + "/hls1/main/0.mp4", MEMBER_TOKEN)));
+// POST /Sessions/Playing sets NowPlayingItem on the session with nothing checked. It used to
+// be the whole test of "already playing", so reporting an item first let anyone stream it.
+sessionLog.Sessions.Add(SessionManagerStub.Make("s-member-forged", MEMBER, playing: true, item: OTHER));
+var forged = Send("/Videos/" + OTHER + "/stream.mkv?static=true", MEMBER_TOKEN);
+Ok("an item the app only says it is playing is refused", Refused(forged), Show(forged));
+Ok("and so is its audio", Refused(Send("/Audio/" + N(OTHER) + "/universal", MEMBER_TOKEN)));
 Ok("a stream URL with no item id is refused", Refused(Send("/Audio/stream.mp3", MEMBER_TOKEN)));
 Ok("and so is the report that starts something", Refused(Send("/Sessions/Playing", MEMBER_TOKEN, "POST", "{}")));
 Ok("the account's own record still answers (/Users/Me)", Through(Send("/Users/Me", MEMBER_TOKEN)));
@@ -307,6 +318,7 @@ var tiles = Moon("/Users/" + N(ADMIN) + "/Items?ParentId=" + IdOf(views.body, "P
 var kidTile = IdOf(tiles, "Kid");
 Moon("/Users/" + N(ADMIN) + "/Items?ParentId=" + kidTile);
 Ok("(the kid's profile is open)", sessionLog.Minted.Contains(KID), string.Join(",", sessionLog.Minted));
+Moon("/Items/" + FILM + "/PlaybackInfo");   // the kid starts the film while it is open
 
 Close(true);
 var signInByShownName = Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Kid\",\"Pw\":\"1234\"}");

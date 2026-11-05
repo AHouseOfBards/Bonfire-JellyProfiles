@@ -21,7 +21,9 @@ namespace Jellyfin.Profiles.Auth
     ///
     /// <para><b>What is refused:</b> PlaybackInfo for a video, which is how every Jellyfin app
     /// starts one, and a video stream of anything the profile is not already playing, which is
-    /// how an app that builds its own URL would. A stream of what is playing is let through
+    /// how an app that builds its own URL would. "Playing" is what this gate let start, kept
+    /// in <see cref="PlaybackRecord"/>; a session's own NowPlayingItem is the client's word
+    /// and proves nothing (R-1297). A stream of what is playing is let through
     /// until the timer's grace is over (<see cref="ViewingTimer"/>), then refused too, for an
     /// app that ignored the stop. Progress and stop reports always go through.</para>
     ///
@@ -94,6 +96,26 @@ namespace Jellyfin.Profiles.Auth
             return end > start && Guid.TryParse(path[start..end], out var id) ? id : null;
         }
 
+        /// <summary>
+        /// Records a PlaybackInfo or video stream the gates let through, which is what
+        /// "already playing" means afterwards (<see cref="PlaybackRecord"/>, R-1297). Also
+        /// called by the profile picker for the profile it is acting as.
+        /// </summary>
+        internal static void NoteAllowed(string path, Guid userId)
+        {
+            switch (Classify(path))
+            {
+                case Kind.PlaybackInfo:
+                    var played = PlaybackInfoItem(path.TrimEnd('/') + "/");
+                    if (played != null) PlaybackRecord.Note(userId, played.Value);
+                    break;
+                case Kind.VideoStream:
+                    var streamed = MaintenanceGate.StreamItemId(path);
+                    if (streamed != null) PlaybackRecord.Note(userId, streamed.Value);
+                    break;
+            }
+        }
+
         /// <summary>True for something playing that counts: video, or anything not known to be audio.</summary>
         internal static bool IsVideo(BaseItemDto? item)
         {
@@ -146,12 +168,15 @@ namespace Jellyfin.Profiles.Auth
         public static async Task<bool> TryRefuseAsync(
             HttpContext context, IDeviceManager? devices, ISessionManager? sessions, ILogger logger)
         {
-            // The whole cost while nobody is limited.
-            if (ViewingTracker.Index().Count == 0) return false;
-
             var request = context.Request;
             var path = request.Path.Value ?? string.Empty;
-            if (Classify(path) == Kind.None) return false;
+
+            // The whole cost while nobody is limited, except a PlaybackInfo: that is noted so
+            // "already playing" means something when a limit or maintenance starts later
+            // (see PlaybackRecord). Once per playback, not per segment.
+            var limitsActive = ViewingTracker.Index().Count > 0;
+            var kind = limitsActive ? Classify(path) : (Classify(path) == Kind.PlaybackInfo ? Kind.PlaybackInfo : Kind.None);
+            if (kind == Kind.None) return false;
 
             try
             {
@@ -165,8 +190,12 @@ namespace Jellyfin.Profiles.Auth
 
                 // Asked for here, not injected: only a refusal of PlaybackInfo needs it.
                 var library = context.RequestServices?.GetService(typeof(ILibraryManager)) as ILibraryManager;
-                var refusal = Check(path, userId, sessions, library, ViewingTracker.Now());
-                if (refusal == null) return false;
+                var refusal = limitsActive ? Check(path, userId, sessions, library, ViewingTracker.Now()) : null;
+                if (refusal == null)
+                {
+                    NoteAllowed(path, userId);
+                    return false;
+                }
 
                 var deviceId = Controllers.ProfilesBaseController.ParseAuthorizationParameter(
                     request.Headers["Authorization"], request.Headers["X-Emby-Authorization"], "DeviceId");

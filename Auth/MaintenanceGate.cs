@@ -200,8 +200,8 @@ namespace Jellyfin.Profiles.Auth
 
         /// <summary>
         /// True for a request that belongs to something the account is already playing: a
-        /// progress or stop report, or a stream of the item one of its sessions has as now
-        /// playing. The "playing" report that starts something is not.
+        /// progress or stop report, or a stream of an item the gates let it start
+        /// (<see cref="PlaybackRecord"/>). The "playing" report that starts something is not.
         /// </summary>
         internal static bool ContinuesPlayback(string path, Guid userId, ISessionManager? sessions)
         {
@@ -214,15 +214,12 @@ namespace Jellyfin.Profiles.Auth
                     || rest.Equals("/Ping", StringComparison.OrdinalIgnoreCase);
             }
 
+            // What the gates let start, not what a session says it is playing. This used to read
+            // session.NowPlayingItem, which POST /Sessions/Playing sets with nothing checked:
+            // report an item first, then stream it, and the gate called it "already playing"
+            // (R-1297). <paramref name="sessions"/> is no longer consulted.
             var item = StreamItemId(path);
-            if (item == null || sessions == null) return false;
-
-            foreach (var s in sessions.Sessions)
-            {
-                if (s.UserId == userId && s.NowPlayingItem != null && s.NowPlayingItem.Id == item.Value) return true;
-            }
-
-            return false;
+            return item != null && PlaybackRecord.Has(userId, item.Value);
         }
 
         /// <summary>The item id after <c>/Videos/</c> or <c>/Audio/</c>, or null.</summary>

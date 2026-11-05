@@ -558,6 +558,16 @@ Ok("a trailing slash changes nothing", Kind("/Items/" + item + "/PlaybackInfo/")
 
 // Kid: hours 15:00–20:00 on weekdays and 60 minutes. Wednesday 22:00, no extra time left.
 cfgType.GetProperty("DefaultTimeZone").SetValue(config, "Europe/London");
+
+// "Already playing" is what the gate let start, not what a session says it is playing: any
+// client can report an item with POST /Sessions/Playing and nothing checks it (R-1297). So
+// Kid starts the film at 16:00, inside its hours, through the gate; the rest of this section
+// is at 23:00, with that film the only thing the gate has seen start.
+clockNow = Utc(2026, 11, 4, 16); Fresh();
+var film = Guid.NewGuid();
+libStub.Items[film] = MediaType.Video;
+var started = Through("/Items/" + film + "/PlaybackInfo", "tok-kid", "dev-kid").GetAwaiter().GetResult();
+Ok("Kid starts a film inside its hours", !(bool)started.Items["handled"]);
 clockNow = Utc(2026, 11, 4, 23); Fresh();
 object Check(string path, Guid who) => Static(gate, "Check", path, who, sessions, library, clockNow);
 string Code(object refusal) => refusal == null ? null : (string)refusal.GetType().GetField("Item1").GetValue(refusal);
@@ -583,8 +593,36 @@ Ok("PlaybackInfo with a trailing slash is refused", Code(Check("/Items/" + item 
 
 stub.Sessions.Add(SessionStub.Make("kid-tv", KID, item, deviceId: "dev-kid"));
 Ok("a download is not 'what is playing': it goes on no grace", Code(Check("/Items/" + item + "/Download", KID)) == "outside_viewing_hours");
-Ok("a stream of what is already playing goes on until the grace is over", Check("/Videos/" + item + "/hls1/main/3.ts", KID) == null);
+// The film Kid started at 16:00 (above), not `item`: what counts is what the gate let start.
+Ok("a stream of what is already playing goes on until the grace is over", Check("/Videos/" + film + "/hls1/main/3.ts", KID) == null);
 Ok("a stream of anything else does not", Code(Check("/Videos/" + Guid.NewGuid() + "/stream.mkv", KID)) == "outside_viewing_hours");
+// What a session says it is playing proves nothing: Kid reports an item with POST
+// /Sessions/Playing, never having been allowed it, and then asks for the stream.
+var forgedItem = Guid.NewGuid();
+var forgedSession = SessionStub.Make("kid-forged", KID, forgedItem, deviceId: "dev-kid");
+stub.Sessions.Add(forgedSession);
+Ok("an item the app only says it is playing is refused", Code(Check("/Videos/" + forgedItem + "/hls1/main/3.ts", KID)) == "outside_viewing_hours");
+Ok("and so is its main stream", Code(Check("/Videos/" + forgedItem + "/stream.mkv", KID)) == "outside_viewing_hours");
+stub.Sessions.Remove(forgedSession);
+
+// The record is bounded and expires, in memory.
+var record = asm.GetType("Jellyfin.Profiles.Auth.PlaybackRecord");
+Ok("the gate keeps a record of what it let start", record != null);
+if (record != null)
+{
+    var recNow = DateTime.UtcNow;
+    record.GetField("Now", Any).SetValue(null, (Func<DateTime>)(() => recNow));
+    var u = Guid.NewGuid(); var it = Guid.NewGuid();
+    Static(record, "Note", u, it);
+    Ok("an item noted is playing for that account", (bool)Static(record, "Has", u, it));
+    Ok("not for another account", !(bool)Static(record, "Has", Guid.NewGuid(), it));
+    recNow = recNow.AddHours(24);
+    Ok("and it expires", !(bool)Static(record, "Has", u, it));
+    var max = (int)record.GetField("MaxEntries", Any).GetValue(null);
+    for (var i = 0; i < max + 50; i++) Static(record, "Note", Guid.NewGuid(), Guid.NewGuid());
+    Ok("and it is bounded", (int)Static(record, "Count") <= max, ((int)Static(record, "Count")).ToString());
+    record.GetField("Now", Any).SetValue(null, (Func<DateTime>)(() => DateTime.UtcNow));
+}
 
 // Spent limit, inside the hours: daily_limit_reached.
 clockNow = Utc(2026, 11, 5, 16); Fresh();

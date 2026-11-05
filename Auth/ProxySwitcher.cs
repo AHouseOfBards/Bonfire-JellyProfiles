@@ -274,6 +274,8 @@ namespace Jellyfin.Profiles.Auth
                     await ViewingGate.WriteRefusalAsync(context, code, state).ConfigureAwait(false);
                     return true;
                 }
+
+                ViewingGate.NoteAllowed(request.Path.Value ?? string.Empty, acting.ProfileId);
             }
 
             // Acting as a profile: the request goes to Jellyfin as that profile.
