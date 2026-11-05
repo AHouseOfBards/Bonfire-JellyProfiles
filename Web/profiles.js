@@ -1314,6 +1314,15 @@
         _switchLock: false,
         _switcherPrefs: null,
         _switcherPrefsLoading: false,
+        // How long a request the route poll makes on its own is left alone after it
+        // fails. The poll runs every 500 ms, so without this a failing server was asked
+        // twice a second by every open page — exactly when it could least afford it.
+        POLL_RETRY_MS: 30000,
+        // /list requests out now, when the oldest of them left, and when the poll may ask
+        // again after a failure. See _requestList.
+        _listInFlight: 0,
+        _listSentAt: 0,
+        _listRetryAt: 0,
         // { theme, defaultTheme, allow } from the server, or null until it answers. The
         // profile form offers a theme picker only once this says choosing is allowed.
         _themeSettings: null,
@@ -3252,8 +3261,18 @@
                 if (this.shouldAskOnStartup()
                     && !this.isProfileSessionActive()
                     && !document.getElementById('profiles-gate-overlay')) {
-                    skipReveal = true;
-                    this.interceptHomeAndShowProfiles();
+                    // This used to call interceptHomeAndShowProfiles on every tick until the
+                    // gate existed, and each call sent its own /list: a slow server got a
+                    // pile of them, a down one got one every 500 ms. Now: a request already
+                    // out means the gate is on its way, so keep the page hidden and wait for
+                    // it; a recent failure means it is not, so let the page show (the catch
+                    // dropped the cover) and ask again when POLL_RETRY_MS is up.
+                    if (this._listPending()) {
+                        skipReveal = true;
+                    } else if (this._listPollMayRequest()) {
+                        skipReveal = true;
+                        this.interceptHomeAndShowProfiles();
+                    }
                 }
             } else {
                 // If we navigate away from home, ensure the overlay is removed if it somehow got stuck
@@ -3614,6 +3633,7 @@
         },
 
         isMonitoringUsers: false,
+        _usersMappingsRetryAt: 0,
         subProfileIdsToHide: null,
         usersObserver: null,
 
@@ -3626,6 +3646,13 @@
                 this.applyUsersHide();
                 return;
             }
+            // A failed fetch settles for POLL_RETRY_MS before it is asked again. The catch
+            // below used to just reset isMonitoringUsers, and checkRoute calls this on every
+            // 500 ms tick, so a server that answered 403 (a non-admin on this page) or was
+            // down got a request twice a second for as long as the page stayed open. Kept
+            // across navigation on purpose: leaving and coming back is not news to a server
+            // that just failed.
+            if (this._usersMappingsRetryAt && Date.now() < this._usersMappingsRetryAt) return;
             this.isMonitoringUsers = true;
 
             const masterState = this.readMasterState();
@@ -3655,6 +3682,7 @@
             })
             .catch(err => {
                 console.error("ProfilesPlugin: Error fetching admin mappings for hide logic:", err);
+                this._usersMappingsRetryAt = Date.now() + this.POLL_RETRY_MS;
                 this.isMonitoringUsers = false;
             });
         },
@@ -4500,6 +4528,45 @@
             this.fetchAndRenderProfiles(apiClient, known ? known.masterUserId : currentUserId, token);
         },
 
+        /// Every request for the profile list goes through here, so the route poll can see
+        /// one already out and a recent failure before it sends another.
+        ///
+        /// Two poll paths ask for the list — the gate (interceptHomeAndShowProfiles) and
+        /// the button's prefetch — and neither used to know about a request in flight or a
+        /// failure. The gate path asked on every tick until the gate was drawn, so a slow
+        /// server collected a pile of identical requests and a down one got a request every
+        /// 500 ms; the prefetch had a pending flag but cleared it on failure with no pause.
+        /// Only the poll consults this (_listPollMayRequest): a person who saves a profile
+        /// or goes back to the grid still gets the request they asked for.
+        _requestList: function (apiClient, token, init) {
+            if (this._listInFlight === 0) this._listSentAt = Date.now();
+            this._listInFlight++;
+            const done = () => { this._listInFlight = Math.max(0, this._listInFlight - 1); };
+            return fetch(apiClient.getUrl('plugins/profiles/list'),
+                         Object.assign({ headers: this.getAuthHeaders(token) }, init || {}))
+                .then(res => {
+                    done();
+                    this._listRetryAt = res.ok ? 0 : Date.now() + this.POLL_RETRY_MS;
+                    return res;
+                }, err => {
+                    done();
+                    this._listRetryAt = Date.now() + this.POLL_RETRY_MS;
+                    throw err;
+                });
+        },
+
+        /// True when one is already out. A request that has not answered within
+        /// POLL_RETRY_MS is treated as lost: fetch has no timeout of its own, and a hung
+        /// connection would otherwise keep the gate from ever being asked for again.
+        _listPending: function () {
+            return this._listInFlight > 0 && Date.now() - this._listSentAt < this.POLL_RETRY_MS;
+        },
+
+        /// Whether the route poll may send a /list request now.
+        _listPollMayRequest: function () {
+            return !this._listPending() && Date.now() >= this._listRetryAt;
+        },
+
         /// Drops the prefetch cache so the next render is guaranteed to hit the server.
         /// Must be called after anything that changes profile state — otherwise the render
         /// that follows a save shows the pre-save snapshot.
@@ -4532,27 +4599,28 @@
                 return;
             }
 
-            const url = apiClient.getUrl(`plugins/profiles/list`);
-
-            fetch(url, {
+            this._requestList(apiClient, masterToken, {
                 // Never let a conditional/heuristic cache answer this — it drives the
                 // PIN and library state shown in the editor.
-                cache: 'no-store',
-                headers: this.getAuthHeaders(masterToken)
+                cache: 'no-store'
             })
             .then(res => {
                 if (res.status === 401) {
                     this.handleSessionExpired();
                     throw new Error("Unauthorized");
                 }
+                // A 500 used to go on to res.json() and be drawn as whatever its body
+                // parsed to. It is a failure like any other.
+                if (!res.ok) throw new Error('Profile list unavailable (' + res.status + ')');
                 return res.json();
             })
             .then(profiles => {
-                // Not a reason to drop the startup cover: the route poll re-asks for the
-                // list on every tick until the gate exists, so a stale ticket is usually
-                // just one of those duplicates arriving after another has drawn the gate —
-                // or before it, with the gate still on its way. Dropping here showed home
-                // through the gate's fade. A cover nothing replaces is the backstop's.
+                // Not a reason to drop the startup cover: a stale ticket is usually a list
+                // that another request has already drawn the gate from (a user action
+                // while the poll's request was out — the poll itself no longer sends a
+                // second, see _requestList), or one with the gate still on its way.
+                // Dropping here showed home through the gate's fade. A cover nothing
+                // replaces is the backstop's.
                 if (!this.navIsCurrent(ticket)) return;
                 const normalized = this.normalizeProfiles(profiles);
                 // The household's own master: the master tile that is not a linked Bonfire.
@@ -4567,10 +4635,17 @@
             })
             .catch(err => {
                 console.error("Failed to load sub-profiles:", err);
-                // No gate is coming from this attempt. The poll will try again and the
-                // home screen may show in between — which is the honest state of things.
+                // No gate is coming from this attempt. The poll will try again after
+                // POLL_RETRY_MS and the home screen shows in between — which is the honest
+                // state of things. _requestList has already set the pause for a failed
+                // request; this covers a body that would not parse or a grid that would not
+                // draw, which retrying twice a second would not fix either.
+                this._listRetryAt = Date.now() + this.POLL_RETRY_MS;
                 this._dropCover();
-                localStorage.removeItem(this.config.masterStorageKey);
+                // The saved master is NOT forgotten here any more. It was, on every failure
+                // — a network blip, a 500, a restart — which cost the household its master
+                // for no reason. Only a 401 says the session is gone, and that path is
+                // handleSessionExpired's, which clears it itself.
             });
         },
 
@@ -10609,6 +10684,13 @@
                     this._geoSearchedAt = geoNow;
                     this._geoAnchor = this._findGeometricHeaderAnchor();
                 }
+                // The resize has been answered, so the flag is spent. It used to be
+                // cleared only on the corner-pill path below, so on a theme where this
+                // search found an anchor a single resize left it set for good, and the
+                // branch above re-ran the whole walk on every tick for the rest of the
+                // session. With no anchor the pill path still needs it to re-place the
+                // pill, and clears it there.
+                if (this._geoAnchor) this._fallbackPosDirty = false;
                 const anchor = this._geoAnchor;
                 if (anchor) {
                     if (bubble && bubble.classList.contains('profiles-floating-fallback')) {
@@ -10677,6 +10759,10 @@
         // consumed by fetchAndRenderProfiles for instant, flash-free overlay display.
         _prefetchProfiles: function () {
             if (this._profilePrefetchPending || (this.cachedProfiles && this.cachedProfiles.length)) return;
+            // The pending flag below was cleared on any failure with nothing to slow the
+            // next attempt, so a failing server got a /list from every open home screen
+            // every 500 ms. The shared guard also stops this racing the gate's request.
+            if (!this._listPollMayRequest()) return;
             // With the gate off the button stands without a profile session, so this is
             // reached on every home tick before any master state exists — a storage read and
             // a JSON.parse twice a second, for nothing. Back off three seconds after finding
@@ -10690,9 +10776,15 @@
             this._prefetchNoMasterAt = 0;
 
             this._profilePrefetchPending = true;
-            const url = ApiClient.getUrl('plugins/profiles/list');
-            fetch(url, { headers: this.getAuthHeaders(masterState.token) })
+            this._requestList(ApiClient, masterState.token)
                 .then(res => {
+                    // A 401 used to be swallowed with every other failure, leaving a dead
+                    // session on screen with a button that could not open anything. It is
+                    // the same expired session the gate's request handles.
+                    if (res.status === 401) {
+                        this.handleSessionExpired();
+                        throw new Error('Unauthorized');
+                    }
                     if (!res.ok) throw new Error();
                     return res.json();
                 })
@@ -10722,7 +10814,12 @@
                     const currentRouteType = this._lastRouteType || 'other';
                     this.evaluateFloatingBubbleVisibility(currentRouteType);
                 })
-                .catch(() => { this._profilePrefetchPending = false; });
+                .catch(() => {
+                    this._profilePrefetchPending = false;
+                    // Also set by _requestList for a failed request; this covers a body
+                    // that would not parse.
+                    this._listRetryAt = Date.now() + this.POLL_RETRY_MS;
+                });
         },
 
         // ── Header-container detection ───────────────────────────────────────────
