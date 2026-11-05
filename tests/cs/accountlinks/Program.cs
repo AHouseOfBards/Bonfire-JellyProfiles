@@ -164,7 +164,7 @@ var sessionStub = (SessionStub)(object)sessions;
 SessionStub.OnRevoke = id => world.Log.Add("revoke " + id);
 World.MappedNow = id => Row(id) is object mr && (Guid)mapType.GetProperty("MasterUserId").GetValue(mr) != id;
 
-(int status, object value) Call(string method, Guid caller, Dictionary<string, object> body = null, string pinHeader = null)
+(int status, object value) Call(string method, Guid caller, Dictionary<string, object> body = null, string pinHeader = null, string ip = "192.168.1.20")
 {
     var r = ctrlType.GetMethod(method);
     if (r == null) return (-404, "no route " + method);
@@ -183,7 +183,7 @@ World.MappedNow = id => Row(id) is object mr && (Guid)mapType.GetProperty("Maste
             : new[] { new Claim("Jellyfin-UserId", caller.ToString()) }, caller == Guid.Empty ? null : "test")),
         RequestServices = new Services(),
     };
-    http.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.20");
+    http.Connection.RemoteIpAddress = IPAddress.Parse(ip);
     if (pinHeader != null) http.Request.Headers["X-Bonfire-Master-Pin"] = pinHeader;
     c.ControllerContext = new ControllerContext { HttpContext = http };
 
@@ -283,6 +283,9 @@ var added = (IEnumerable)P(r.value, "Added");
 Ok("and the reply lists it", added != null && added.Cast<object>().Any(a => (Guid)P(a, "UserId") == DAD && (string)P(a, "Name") == "Dad"));
 r = Call("AddAccountLink", HOME, B(("Username", "Dad"), ("Password", "dadpw"), ("MasterPin", "1234")));
 Ok("twice is refused", r.status == 400 && (string)r.value == "That account is already here.", Text(r));
+// Every refusal above counted towards the limit, right password or not; only an add clears
+// it (R-1068). Start the next cases from a clean count.
+ResetLimits();
 r = Call("AddAccountLink", HOME, B(("Username", "Parent"), ("Password", "parentpw"), ("MasterPin", "1234")));
 Ok("its own account is refused", r.status == 400 && !Linked(HOME, HOME), Text(r));
 world.Passwords[OKID] = "kidpw";
@@ -302,6 +305,38 @@ int triesBefore = world.ProviderCalls.Count;
 r = Call("AddAccountLink", HOME, B(("Username", "Lodger"), ("Password", "lpw"), ("MasterPin", "1234")));
 Ok("and once stopped, even the right one isn't tried", r.status == 429 && world.ProviderCalls.Count == triesBefore, Text(r));
 Ok("and none of that guessing counted towards the Lodger's lockout", !world.LockoutCount.ContainsKey(LODGER));
+ResetLimits();
+
+// A right password used to clear the count before the link was refused, and the caller
+// always has one to hand: an account already on its switcher. So four guesses, one known
+// password, four more, for ever (R-1068).
+for (int i = 0; i < 4; i++)
+    Call("AddAccountLink", HOME, B(("Username", "Lodger"), ("Password", "guess" + i), ("MasterPin", "1234")));
+r = Call("AddAccountLink", HOME, B(("Username", "Dad"), ("Password", "dadpw"), ("MasterPin", "1234")));
+Ok("a right password that adds nothing is still refused", r.status == 400 && (string)r.value == "That account is already here.", Text(r));
+lastStatus = 0;
+for (int i = 4; i < 9 && lastStatus != 429; i++)
+    lastStatus = Call("AddAccountLink", HOME, B(("Username", "Lodger"), ("Password", "guess" + i), ("MasterPin", "1234"))).status;
+Ok("and it doesn't clear the count: guessing is still stopped", lastStatus == 429, lastStatus.ToString());
+ResetLimits();
+
+// Every other limit here is per address or per household, and both are cheap to change.
+// The account being guessed is the one thing every guess shares.
+lastStatus = 0;
+int lodgerTries = 0;
+var callers = new[] { (HOME, "1234"), (MUM, "4321"), (ADMIN2, "9999") };
+for (int i = 0; i < 30 && lastStatus != 429; i++)
+{
+    var (who, pin) = callers[i % 3];
+    int before = world.ProviderCalls.Count;
+    lastStatus = Call("AddAccountLink", who, B(("Username", "Lodger"), ("Password", "guess" + i), ("MasterPin", pin)),
+        ip: "10.0.0." + (i + 1)).status;
+    if (world.ProviderCalls.Count > before) lodgerTries++;
+}
+Ok("guessing one account from many households and addresses is stopped too", lastStatus == 429, lastStatus.ToString());
+Ok("after at most ten tries of its password", lodgerTries <= 10, lodgerTries.ToString());
+r = Call("AddAccountLink", OTHER, B(("Username", "Lodger"), ("Password", "lpw")), ip: "10.0.9.9");
+Ok("and while it is, not even the right one from somewhere new is tried", r.status == 429 && !Linked(OTHER, LODGER), Text(r));
 ResetLimits();
 
 // ── Seeing and removing ──────────────────────────────────────────────────────

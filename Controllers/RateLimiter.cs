@@ -51,6 +51,17 @@ namespace Jellyfin.Profiles.Controllers
         /// </summary>
         internal static readonly RateLimiter ClientPinDaily = new(maxAttempts: 20, windowMinutes: 24 * 60);
 
+        /// <summary>
+        /// Per account, for its password typed into another household's "add an account".
+        /// Never reset by a success. The per-address and per-household limits in front of it
+        /// were each cleared by any right password, and a caller always has one to hand (its
+        /// own account, or one already on its switcher), so together they limited nothing
+        /// (R-1068). Addresses and households are cheap to change; the account being guessed
+        /// is the one thing every guess shares. Keyed on the name typed, so a name that
+        /// doesn't exist is counted the same and can't be told apart by the 429.
+        /// </summary>
+        internal static readonly RateLimiter LinkPerAccount = new(maxAttempts: 10, windowMinutes: 60);
+
         // ── State ──────────────────────────────────────────────────────────────────
         private readonly int _maxAttempts;
         private readonly int _windowMinutes;

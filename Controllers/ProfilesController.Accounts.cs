@@ -73,6 +73,9 @@ namespace Jellyfin.Profiles.Controllers
             var address = "link:" + (HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
             var limited = BeginPinAttempt(address, household);
             if (limited != null) return limited;
+            var accountKey = "link:" + username.ToUpperInvariant();
+            if (!RateLimiter.LinkPerAccount.TryBegin(accountKey))
+                return TooManyAttempts(RateLimiter.LinkPerAccount, accountKey, "Too many failed attempts.");
 
             // The password is checked by Jellyfin's own provider, not UserManager.AuthenticateUser.
             // That one counts a wrong password towards the account's lockout, and an account
@@ -94,8 +97,6 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest(CredentialsWrongMessage);
             }
 
-            EndPinAttempt(address, household);
-
             lock (ConfigLock)
             {
                 var live = Plugin.Instance?.Configuration;
@@ -105,6 +106,11 @@ namespace Jellyfin.Profiles.Controllers
                 live.LinkedAccounts.Add(new LinkedAccount { HouseholdId = household, UserId = account.Id, LinkedUtc = DateTime.UtcNow });
                 Plugin.Instance?.SaveConfiguration();
             }
+
+            // Only once something was actually added. Cleared straight after the password
+            // matched, an account already on the switcher was a free reset between guesses
+            // at any other account's password (R-1068). LinkPerAccount is never cleared.
+            EndPinAttempt(address, household);
 
             var householdName = _userManager.GetUserById(household)?.Username ?? household.ToString();
             LogActivity(householdName + " added " + account.Username + " to their switcher", "AccountLinked", account.Id);
