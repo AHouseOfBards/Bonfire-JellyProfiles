@@ -229,6 +229,7 @@
         'gate.limitReached': '{count}/{max} profiles — limit reached',
         'gate.cantGetPast': "Can't get past this screen?",
         'gate.bonfireProfile': 'Bonfire Profile',
+        'gate.addedAccount': 'Added account',
         'gate.dismiss': 'Dismiss',
 
         'maintenance.title': 'Closed for maintenance',
@@ -532,6 +533,28 @@
         'switcher.manageNeedsMaster': 'Open {name} first, then choose Manage Profiles.',
 
         'bonfire.yourBonfireTitle': 'Your Bonfire',
+        'links.title': 'Other accounts on this screen',
+        'links.subtitle': 'Their tile opens their own account',
+        'links.none': 'None yet.',
+        'links.username': 'Their username',
+        'links.password': 'Their password',
+        'links.hint': "They type it once. It isn't saved.",
+        'links.add': 'Add account',
+        'links.needBoth': 'Enter their username and password.',
+        'links.added': '{name} added.',
+        'links.withPin': 'Opens with their PIN',
+        'links.noPin': 'Opens without a PIN',
+        'links.remove': 'Remove',
+        'links.removeAria': 'Remove {name}',
+        'links.removeTitle': 'Remove {name}?',
+        'links.removeBody': 'Their tile leaves this screen. Adding it again needs their password.',
+        'links.removed': 'Removed.',
+        'links.shownTitle': 'Your account on other screens',
+        'links.leave': 'Leave',
+        'links.leaveAria': "Leave {name}'s screen",
+        'links.leaveTitle': "Leave {name}'s screen?",
+        'links.leaveBody': 'Your tile leaves their screen.',
+        'links.manageBody': "{name}'s own account, added to this screen.",
         'bonfire.hostedTitle': 'Your Hosted Bonfire',
         'bonfire.shareCode': 'Share this code to invite someone to your Bonfire:',
         'bonfire.members': 'Members ({count})',
@@ -1424,6 +1447,9 @@
                 blockedTags: pick(p, 'blockedTags', []),
                 allowedTags: pick(p, 'allowedTags', []),
                 isBonfire: pick(p, 'isBonfire', false),
+                // Another account added to this household's screen (issue #39). Also
+                // isBonfire, so nothing that looks for "our own" counts it.
+                isLinked: pick(p, 'isLinked', false) === true,
                 profileImage: pick(p, 'profileImage', null),
                 masterUserId: pick(p, 'masterUserId', null),
                 // Viewing hours and limits (1.7.2): null for a profile without them.
@@ -4946,7 +4972,11 @@
             // Group profiles by masterUserId
             const grouped = {};
             for (const p of profiles) {
-                const key = this.normalizeGuid(p.masterUserId || (p.isBonfire ? '' : localMasterId));
+                // An added account sits with the household it was added to, not in a
+                // section of its own: it is one more person on this screen.
+                const key = p.isLinked
+                    ? localMasterId
+                    : this.normalizeGuid(p.masterUserId || (p.isBonfire ? '' : localMasterId));
                 if (!grouped[key]) {
                     grouped[key] = [];
                 }
@@ -5000,7 +5030,7 @@
                     signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' aria-current="true"' : ''
                 }>
                     <div class="profile-avatar-container">
-                        ${p.isMaster ? `
+                        ${p.isMaster && !p.isLinked ? `
                         <div class="profile-crown">
                             <svg viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px; color: var(--jpf-warn); filter: drop-shadow(0 2px 5px rgba(0,0,0,0.55));">
                                 <path d="M5 16h14a1 1 0 0 0 1-.76l2.89-10.12a.5.5 0 0 0-.74-.53l-5.6 3.73-4.11-6.17a.5.5 0 0 0-.88 0L7.45 8.32 1.85 4.59a.5.5 0 0 0-.74.53L4 15.24a1 1 0 0 0 1 .76z"/>
@@ -5034,8 +5064,8 @@
                         </div>
                         ` : ''}
                         ${p.isBonfire ? `
-                        <div class="profile-bonfire-indicator" title="${t('gate.bonfireProfile')}">
-                            <span class="material-icons" style="font-size: 1.15rem; color: #fff;">local_fire_department</span>
+                        <div class="profile-bonfire-indicator" title="${p.isLinked ? t('gate.addedAccount') : t('gate.bonfireProfile')}">
+                            <span class="material-icons" style="font-size: 1.15rem; color: #fff;">${p.isLinked ? 'link' : 'local_fire_department'}</span>
                         </div>
                         ` : ''}
                     </div>
@@ -5444,7 +5474,9 @@
                             this.executeProfileSwitch(profileId, null);
                         }
                     };
-                    if (this.isManageMode) {
+                    if (this.isManageMode && profile.isLinked) {
+                        this.showAddedAccount(profile);
+                    } else if (this.isManageMode) {
                         this.showEditProfileModal(profile);
                     } else if (profile.viewing && !profile.viewing.allowed) {
                         // Out of time: say so first. Browsing is still allowed, so the
@@ -7887,6 +7919,7 @@
             content.innerHTML = `
                 <h1 class="profiles-title">${t('bonfire.yourBonfireTitle')}</h1>
                 <div class="create-profile-container" style="max-width: 500px; width: 100%;">
+                    <div id="account-links-slot"></div>
                     <div id="bonfire-container" style="width: 100%; min-height: 100px; display: flex; flex-direction: column; gap: 1.5rem;">
                         <div style="display: flex; justify-content: center; padding: 20px;">
                             <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: jpfSpin 1s linear infinite;"></div>
@@ -7909,6 +7942,7 @@
 
             attachBackBtnListener();
 
+            this._bindAccountLinks(content.querySelector('#account-links-slot'));
             this.loadBonfireStatus(content, apiClient, masterState.token);
 
             // Auto-focus first focusable element for TV D-pad navigation
@@ -7916,6 +7950,120 @@
                 const first = content.querySelector('input, button');
                 if (first) first.focus();
             }, 250);
+        },
+
+        /// Settings → Sharing: other accounts shown on this household's screen (issue #39),
+        /// and the screens this account is shown on. Each tile opens that person's own
+        /// account, so there is one watch history and nothing to keep in step.
+        ///
+        /// Adding one takes its password, typed here once; the server checks it and keeps
+        /// nothing. Every route answers with the whole list, so each action redraws from it.
+        _bindAccountLinks: function (slot) {
+            if (!slot) return;
+            let data = null;
+            const status = () => slot.querySelector('#links-status');
+            const say = (text, bad) => {
+                const el = status();
+                if (!el) return;
+                el.textContent = text || '';
+                el.style.color = bad ? 'var(--jpf-danger)' : '';
+            };
+            const list = (key) => (this._field(data, key) || []).map(x => ({
+                id: this._field(x, 'userId'),
+                name: this._field(x, 'name') || '',
+                hasPin: this._field(x, 'hasPin') === true
+            }));
+
+            const draw = () => {
+                if (!document.body.contains(slot)) return;
+                const added = list('added');
+                const shown = list('shownIn');
+                const row = (x, cls, label, aria) => `
+                    <div class="jpf-link-row">
+                        <span class="jpf-link-name">
+                            <span>${escapeHtml(x.name)}</span>
+                            ${cls === 'links-remove' ? `<span class="form-hint">${x.hasPin ? t('links.withPin') : t('links.noPin')}</span>` : ''}
+                        </span>
+                        <button type="button" class="profiles-btn btn-secondary ${cls}" data-id="${escapeHtml(x.id)}" data-name="${escapeHtml(x.name)}" aria-label="${escapeHtml(aria)}">${label}</button>
+                    </div>`;
+                slot.innerHTML = this.renderSection('group_add', t('links.title'), t('links.subtitle'), `
+                    ${added.length
+                        ? `<div class="jpf-link-list">${added.map(x => row(x, 'links-remove', t('links.remove'), t('links.removeAria', { name: x.name }))).join('')}</div>`
+                        : `<div class="form-hint">${t('links.none')}</div>`}
+                    <div class="form-group">
+                        <label for="links-username">${t('links.username')}</label>
+                        <input type="text" id="links-username" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    </div>
+                    <div class="form-group">
+                        <label for="links-password">${t('links.password')}</label>
+                        <input type="password" id="links-password" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                        <div class="form-hint">${t('links.hint')}</div>
+                    </div>
+                    <button type="button" id="links-add" class="profiles-btn btn-primary">${t('links.add')}</button>
+                    ${shown.length ? `
+                    <div class="form-group" style="margin-top: 1.25rem;">
+                        <label>${t('links.shownTitle')}</label>
+                        <div class="jpf-link-list">${shown.map(x => row(x, 'links-leave', t('links.leave'), t('links.leaveAria', { name: x.name }))).join('')}</div>
+                    </div>` : ''}
+                    <div id="links-status" class="form-hint" role="status" aria-live="polite"></div>
+                `);
+
+                const user = slot.querySelector('#links-username');
+                const pass = slot.querySelector('#links-password');
+                let busy = false;
+                const add = () => {
+                    const name = (user.value || '').trim();
+                    if (!name || !pass.value) { say(t('links.needBoth'), true); return; }
+                    if (busy) return;
+                    busy = true;
+                    this._emailCall('accounts/links/add', { username: name, password: pass.value })
+                        .then(reply => { data = reply; draw(); say(t('links.added', { name: name })); })
+                        .catch(err => { busy = false; pass.value = ''; say(err.message, true); });
+                };
+                slot.querySelector('#links-add').addEventListener('click', add);
+                pass.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
+                user.addEventListener('keydown', (e) => { if (e.key === 'Enter') pass.focus(); });
+
+                const bind = (cls, body, title, message) => {
+                    Array.prototype.forEach.call(slot.querySelectorAll('.' + cls), btn => {
+                        btn.addEventListener('click', () => {
+                            const id = btn.getAttribute('data-id');
+                            const name = btn.getAttribute('data-name') || '';
+                            this.showActionsDialog(title(name), message, [
+                                { label: cls === 'links-remove' ? t('links.remove') : t('links.leave'), primary: true, run: () => {
+                                    this._emailCall('accounts/links/remove', body(id))
+                                        .then(reply => { data = reply; draw(); say(t('links.removed')); })
+                                        .catch(err => say(err.message, true));
+                                } },
+                                { label: t('common.cancel') }
+                            ]);
+                        });
+                    });
+                };
+                bind('links-remove', id => ({ userId: id }), name => t('links.removeTitle', { name: name }), t('links.removeBody'));
+                bind('links-leave', id => ({ householdId: id }), name => t('links.leaveTitle', { name: name }), t('links.leaveBody'));
+            };
+
+            this._emailCall('accounts/links')
+                .then(reply => { data = reply; draw(); })
+                .catch(() => { slot.innerHTML = ''; });
+        },
+
+        /// An added account chosen in Manage Profiles: it isn't this household's to edit,
+        /// so the only thing to do with it is take it off the screen.
+        showAddedAccount: function (profile) {
+            const name = profile.profileName || '';
+            this.showActionsDialog(name, t('links.manageBody', { name: name }), [
+                { label: t('links.remove'), primary: true, run: () => {
+                    this._emailCall('accounts/links/remove', { userId: profile.profileUserId })
+                        .then(() => {
+                            const st = this.readMasterState();
+                            if (st) this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.token, true);
+                        })
+                        .catch(err => this.showAlert(t('errors.error'), escapeHtml(err.message)));
+                } },
+                { label: t('common.cancel') }
+            ]);
         },
 
         /// Settings → Your account: the main account's PIN and sign-in settings, and the

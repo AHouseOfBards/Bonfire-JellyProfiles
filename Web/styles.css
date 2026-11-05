@@ -2496,6 +2496,11 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-viewing-asked { color: var(--jpf-warn); font-weight: 600; }
 .jpf-actions-wrap { justify-content: center; }
 
+/* Other accounts on this screen (issue #39): one row per account, its Remove at the end. */
+.jpf-link-row { display: flex; align-items: center; gap: var(--jpf-gap); margin-bottom: 8px; }
+.jpf-link-name { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.jpf-link-name .form-hint { font-weight: 400; margin-top: 2px; }
+
 /* ── "More settings" under a profile form's Basics (1.7.2) ──────────
    A <details>: closed until asked for, opened with Enter on a remote.
    The marker is drawn by us (the caret), so the browser's is hidden in
@@ -2937,6 +2942,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-no-flex-gap .jpf-email-check > * + * { margin-left: 0.5rem; }
 .jpf-no-flex-gap .jpf-viewing-day > * + * { margin-left: var(--jpf-gap); }
 .jpf-no-flex-gap .jpf-viewing-dayname > * + * { margin-left: 0.5rem; }
+.jpf-no-flex-gap .jpf-link-row > * + * { margin-left: var(--jpf-gap); }
 .jpf-no-flex-gap .jpf-more-label > * + * { margin-top: 2px; }
 @media (max-width: 899px) {
     .jpf-no-flex-gap .jpf-more-body > * + * { margin-top: 1.5rem; }
