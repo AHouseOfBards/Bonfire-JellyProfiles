@@ -9,6 +9,7 @@ using Jellyfin.Database.Implementations.Entities.Security;
 using MediaBrowser.Controller.Devices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Jellyfin.Extensions.Json;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Configuration;
@@ -76,8 +77,16 @@ var dto = new UserDto
     Name = "Bardkids",
     Id = profileId,
     ServerId = "abc123",
+    HasPassword = true,
+    HasConfiguredPassword = true,
+    PrimaryImageTag = "tag1",
+    EnableAutoLogin = false,
+    LastLoginDate = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc),
+    LastActivityDate = new DateTime(2026, 11, 2, 12, 0, 0, DateTimeKind.Utc),
     Policy = new UserPolicy
     {
+        IsAdministrator = true,
+        BlockedTags = new[] { "secret-tag" },
         SyncPlayAccess = SyncPlayUserAccessType.JoinGroups,
         BlockUnratedItems = new[] { UnratedItem.Movie, UnratedItem.Series },
         AuthenticationProviderId = "x",
@@ -112,12 +121,25 @@ Ok("a profile is added to an empty list", produced != null);
 var json = produced == null ? "" : Encoding.UTF8.GetString(produced);
 Console.WriteLine("        " + (json.Length > 150 ? json.Substring(0, 150) + "…" : json));
 
-// The two that crashed the app, checked as values rather than as "it looks like JSON".
-Ok("enums are written as strings, not integers",
-   json.Contains("\"JoinGroups\"", StringComparison.Ordinal),
-   "SyncPlayAccess came out as a number — no JsonStringEnumConverter");
-Ok("enum arrays too", json.Contains("\"Movie\"", StringComparison.Ordinal));
-Ok("and nested configuration enums", json.Contains("\"Always\"", StringComparison.Ordinal));
+// R-1043: this is an anonymous endpoint, and the entry used to be Jellyfin's whole UserDto:
+// Policy (administrator, folders, tags, schedules), Configuration, last login. Only what a
+// tile is drawn from is written now, so the enums that crashed 1.6.1.2 (Policy's SyncPlayAccess
+// and BlockUnratedItems, Configuration's SubtitleMode) are no longer in the entry at all, and
+// the three assertions that checked they were written as strings have nothing to check. The
+// Guid assertions below still apply to the ids that are written.
+Ok("the account's policy is not published", !json.Contains("Policy", StringComparison.OrdinalIgnoreCase)
+   && !json.Contains("IsAdministrator", StringComparison.OrdinalIgnoreCase) && !json.Contains("secret-tag", StringComparison.Ordinal));
+Ok("nor its configuration", !json.Contains("Configuration\"", StringComparison.OrdinalIgnoreCase)
+   && !json.Contains("SubtitleMode", StringComparison.OrdinalIgnoreCase));
+Ok("nor when it last signed in or was active", !json.Contains("LastLoginDate", StringComparison.OrdinalIgnoreCase)
+   && !json.Contains("LastActivityDate", StringComparison.OrdinalIgnoreCase));
+{
+    var entry = (JsonNode.Parse(json) as JsonArray)?[0] as JsonObject;
+    var keys = entry == null ? "" : string.Join(",", entry.Select(p => p.Key).OrderBy(k => k));
+    Ok("it carries exactly what a tile is drawn from", keys == "EnableAutoLogin,HasConfiguredPassword,HasPassword,Id,Name,PrimaryImageTag,ServerId", keys);
+    Ok("with the values Jellyfin gave", entry != null && (string)entry["PrimaryImageTag"] == "tag1" && (bool)entry["HasPassword"]
+       && (bool)entry["HasConfiguredPassword"] && (string)entry["ServerId"] == "abc123");
+}
 
 Ok("Guids are dashless, the way Jellyfin writes them",
    json.Contains("8e3cdfa579a84bb9bd9a0e96b7dc974a", StringComparison.OrdinalIgnoreCase),
@@ -163,8 +185,12 @@ if (parsed != null)
     Ok("with exactly one user in it", parsed.Length == 1, parsed.Length.ToString());
     Ok("the id survives", parsed[0].Id == profileId);
     Ok("the name survives", parsed[0].Name == "Bardkids");
-    Ok("and the enum survives as its own value",
-       parsed[0].Policy?.SyncPlayAccess == SyncPlayUserAccessType.JoinGroups);
+    // Was "the enum survives as its own value" (Policy.SyncPlayAccess); see R-1043 above.
+    // (Not asserted as Policy == null: Jellyfin's own UserDto fills a missing Policy with a
+    // default one, so that says nothing about the wire. "the account's policy is not
+    // published" above checks the bytes.)
+    Ok("and nothing of the real policy came back through it", parsed[0].Policy?.IsAdministrator != true && parsed[0].Policy?.SyncPlayAccess != SyncPlayUserAccessType.JoinGroups);
+    Ok("the flags a password box needs survive", parsed[0].HasPassword == true && parsed[0].PrimaryImageTag == "tag1");
 }
 
 Console.WriteLine();
@@ -174,8 +200,9 @@ var camel = Encoding.UTF8.GetString(Run("application/json; profile=\"CamelCase\"
 Ok("camelCase is honoured when the response asked for it",
    camel.Contains("\"name\"", StringComparison.Ordinal)
    && !camel.Contains("\"Name\"", StringComparison.Ordinal));
-Ok("and camelCase still writes enums as strings",
-   camel.Contains("\"JoinGroups\"", StringComparison.Ordinal));
+// Was "camelCase still writes enums as strings"; the entry has no enums now (R-1043).
+Ok("and camelCase carries the same reduced entry",
+   camel.Contains("\"hasPassword\"", StringComparison.Ordinal) && !camel.Contains("policy", StringComparison.OrdinalIgnoreCase));
 
 UserDto[] camelParsed = null;
 try { camelParsed = JsonSerializer.Deserialize<UserDto[]>(camel, JsonDefaults.CamelCaseOptions); }
