@@ -305,7 +305,7 @@ Invalid PIN code.
 | `pin_needed_for_bonfire` | The account has no PIN, so it can't be opened through a Bonfire. |
 | `bonfire_code_wrong` | Wrong or malformed Bonfire code. |
 | `code_wrong` | Wrong emergency disable code, or none is set. Also a wrong email code. |
-| `device_not_allowed` | The profile is limited to other devices. |
+| `device_not_allowed` | The profile is limited to other devices. Also the 403 on Jellyfin's `POST /QuickConnect/Authorize` when a profile authorizes a device it could not sign in itself. |
 | `profile_disabled` | The profile's account is turned off in Jellyfin. |
 | `too_many_sessions` | Jellyfin's session limit for the account was reached. |
 | `sign_in_failed` | Jellyfin refused to create the session. See the server log. |

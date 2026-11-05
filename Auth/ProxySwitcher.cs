@@ -287,6 +287,20 @@ namespace Jellyfin.Profiles.Auth
                 }
 
                 ViewingGate.NoteAllowed(request.Path.Value ?? string.Empty, acting.ProfileId);
+
+                // A Quick Connect authorize is a sign-in of the device that asked for the code,
+                // as this profile. The gate in front of us saw the main account's token and
+                // judged nobody (R-1335).
+                if (QuickConnectAuthorize.IsAuthorizePath(request.Method, request.Path.Value))
+                {
+                    var qcRefusal = QuickConnectAuthorize.Refusal(config ?? Controllers.ProfilesBaseController.ReadConfigSnapshot(), acting.ProfileId, request.Query["code"].ToString());
+                    if (qcRefusal != null)
+                    {
+                        logger.LogInformation("ProfilesPlugin: refused a Quick Connect authorize for profile {ProfileId} on the picker: {Reason}", acting.ProfileId, qcRefusal);
+                        await QuickConnectAuthorize.WriteRefusalAsync(context, qcRefusal).ConfigureAwait(false);
+                        return true;
+                    }
+                }
             }
 
             // Acting as a profile: the request goes to Jellyfin as that profile.

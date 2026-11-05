@@ -195,6 +195,14 @@ namespace Jellyfin.Profiles
                 return;
             }
 
+            // A profile authorizing a Quick Connect code: Jellyfin creates that session itself,
+            // past every rule the PIN sign-in has (R-1335). One path check otherwise.
+            if (Auth.QuickConnectAuthorize.IsAuthorizePath(context.Request.Method, context.Request.Path.Value)
+                && await RefuseQuickConnectAuthorizeAsync(context, deviceManager).ConfigureAwait(false))
+            {
+                return;
+            }
+
             // Quick Connect on a device somebody has already signed in on. Answered here
             // rather than passed along, because the client's only route to its password
             // field is this request failing.
@@ -228,6 +236,11 @@ namespace Jellyfin.Profiles
                     await context.Response.WriteAsync("\"Quick connect is disabled\"").ConfigureAwait(false);
                     return;
                 }
+
+                // Allowed: note which device asked for which code on the way out, because the
+                // authorize request names only the code. See Auth/QuickConnectAuthorize.cs.
+                await RememberQuickConnectAsync(context).ConfigureAwait(false);
+                return;
             }
 
             // The two responses that tell a client which account it is. Renaming the
@@ -748,6 +761,85 @@ namespace Jellyfin.Profiles
             context.Response.ContentLength = rewritten.Length;
             context.Response.Headers[HeaderNames.CacheControl] = "no-cache, no-store, must-revalidate";
             await context.Response.Body.WriteAsync(rewritten, context.RequestAborted).ConfigureAwait(false);
+        }
+
+        /// <summary>Passes Initiate through, remembering the code and the device that asked.</summary>
+        private async Task RememberQuickConnectAsync(HttpContext context)
+        {
+            var originalBody = context.Features.Get<IHttpResponseBodyFeature>();
+            if (originalBody == null)
+            {
+                await _next(context).ConfigureAwait(false);
+                return;
+            }
+
+            byte[] produced;
+            using (var captured = new MemoryStream())
+            {
+                var capture = new StreamResponseBodyFeature(captured);
+                var negotiation = SuspendContentNegotiation(context.Request);
+                context.Features.Set<IHttpResponseBodyFeature>(capture);
+
+                try
+                {
+                    await _next(context).ConfigureAwait(false);
+                    await capture.CompleteAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    context.Features.Set(originalBody);
+                    RestoreContentNegotiation(context.Request, negotiation);
+                }
+
+                produced = captured.ToArray();
+            }
+
+            if (context.Response.HasStarted) return;
+
+            if (context.Response.StatusCode == StatusCodes.Status200OK
+                && !context.Response.Headers.ContainsKey(HeaderNames.ContentEncoding))
+            {
+                Auth.QuickConnectAuthorize.Remember(produced);
+            }
+
+            await PassThroughAsync(context, produced).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Answers a Quick Connect authorize with 403 when the profile it is for may not sign
+        /// that device in. The account is the <c>userId</c> asked for, or the caller.
+        /// </summary>
+        private async Task<bool> RefuseQuickConnectAuthorizeAsync(HttpContext context, IDeviceManager? devices)
+        {
+            try
+            {
+                var request = context.Request;
+                Guid target = Guid.TryParse(request.Query["userId"].ToString(), out var asked) ? asked : Guid.Empty;
+                if (target == Guid.Empty)
+                {
+                    target = await Auth.RequestAuth.UserIdAsync(context, () =>
+                    {
+                        var token = Auth.ProxySwitcher.ReadToken(request);
+                        return string.IsNullOrEmpty(token) ? Guid.Empty : Auth.MaintenanceGate.UserOf(token, devices);
+                    }).ConfigureAwait(false);
+                }
+
+                if (target == Guid.Empty) return false;
+
+                var refusal = Auth.QuickConnectAuthorize.Refusal(
+                    Controllers.ProfilesBaseController.ReadConfigSnapshot(), target, request.Query["code"].ToString());
+                if (refusal == null) return false;
+
+                _logger.LogInformation(
+                    "ProfilesPlugin: refused a Quick Connect authorize for profile {ProfileId}: {Reason}", target, refusal);
+                await Auth.QuickConnectAuthorize.WriteRefusalAsync(context, refusal).ConfigureAwait(false);
+                return true;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException && !context.Response.HasStarted)
+            {
+                _logger.LogWarning(ex, "ProfilesPlugin: the Quick Connect authorize check failed; passing it on.");
+                return false;
+            }
         }
 
         /// <summary>

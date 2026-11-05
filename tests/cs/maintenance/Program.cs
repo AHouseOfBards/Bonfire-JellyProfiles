@@ -121,11 +121,13 @@ const string ADMIN_TOKEN = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const string MEMBER_TOKEN = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const string MOON_TOKEN = "cccccccccccccccccccccccccccccccc";
 const string API_KEY = "dddddddddddddddddddddddddddddddd";
+const string KID_TOKEN = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 var devices = DeviceManagerStub.Create(new Dictionary<string, (Guid, string)>
 {
     [ADMIN_TOKEN] = (ADMIN, "Jellyfin Web"),
     [MEMBER_TOKEN] = (MEMBER, "Jellyfin Web"),
     [MOON_TOKEN] = (ADMIN, "Moonfin for Android TV"),
+    [KID_TOKEN] = (KID, "Jellyfin Web"),
 });
 var sessions = SessionManagerStub.Create();
 var sessionLog = (SessionManagerStub)(object)sessions;
@@ -139,6 +141,7 @@ var services = new ServiceCollection()
     .BuildServiceProvider();
 
 string seenPath = null, seenBody = null, seenAuth = null;
+string qcCode = "000000";
 var next = new RequestDelegate(async c =>
 {
     seenPath = c.Request.Path.Value;
@@ -147,6 +150,13 @@ var next = new RequestDelegate(async c =>
         seenBody = await r.ReadToEndAsync();
 
     var body = "{}";
+    if (seenPath.EndsWith("/QuickConnect/Initiate", StringComparison.OrdinalIgnoreCase))
+    {
+        // What Jellyfin's QuickConnectManager answers: the code to show, and the device that asked.
+        string Header(string key) => System.Text.RegularExpressions.Regex.Match(seenAuth, key + "=\"([^\"]*)\"").Groups[1].Value;
+        body = "{\"Secret\":\"secret-" + qcCode + "\",\"Code\":\"" + qcCode + "\",\"DeviceId\":\"" + Header("DeviceId")
+             + "\",\"DeviceName\":\"" + Header("Device") + "\",\"AppName\":\"" + Header("Client") + "\",\"AppVersion\":\"1.0\",\"Authenticated\":false}";
+    }
     if (seenPath.EndsWith("/UserViews", StringComparison.OrdinalIgnoreCase))
         body = "{\"Items\":[{\"Name\":\"Movies\",\"Id\":\"11111111111111111111111111111111\",\"Type\":\"CollectionFolder\"}],\"TotalRecordCount\":1,\"StartIndex\":0}";
     c.Response.StatusCode = 200;
@@ -156,7 +166,8 @@ var next = new RequestDelegate(async c =>
 var instance = Activator.CreateInstance(mwType, next, Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(mwType)));
 
 (int status, string body, bool reached, HttpResponse response) Send(
-    string pathAndQuery, string token = null, string method = "GET", string body = null, string client = "Jellyfin Web")
+    string pathAndQuery, string token = null, string method = "GET", string body = null, string client = "Jellyfin Web",
+    string deviceId = "dev-1")
 {
     seenPath = seenBody = seenAuth = null;
     var ctx = new DefaultHttpContext { RequestServices = services };
@@ -166,7 +177,7 @@ var instance = Activator.CreateInstance(mwType, next, Activator.CreateInstance(t
     if (q >= 0) ctx.Request.QueryString = new QueryString(pathAndQuery[q..]);
     ctx.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.9");
     ctx.Request.Headers["Authorization"] =
-        "MediaBrowser Client=\"" + client + "\", Device=\"Shield\", DeviceId=\"dev-1\", Version=\"1.0\""
+        "MediaBrowser Client=\"" + client + "\", Device=\"Shield\", DeviceId=\"" + deviceId + "\", Version=\"1.0\""
         + (token == null ? "" : ", Token=\"" + token + "\"");
     if (body != null)
     {
@@ -342,6 +353,61 @@ var minted = sessionLog.Minted.Count;
 var again = Moon("/Users/" + N(ADMIN) + "/Items?ParentId=" + IdOf(tiles2, "Kid"));
 Ok("the picker will not open the kid's profile", sessionLog.Minted.Count == minted, string.Join(",", sessionLog.Minted));
 Ok("and says why", Items(again.body).Any(i => ((string)i["Name"] ?? "").Contains("maintenance")), again.body);
+
+Console.WriteLine();
+Console.WriteLine("── Quick Connect: a profile authorizing a device ───────────────");
+
+// Authorizing a code makes Jellyfin create the session itself (QuickConnectManager calls
+// AuthenticateDirect), for the device that asked, so it never reaches the PIN provider and
+// none of its rules. A profile on its allowed device could sign in a device its household
+// had not allowed, or one of the apps that only get the picker (R-1335). The device is the
+// one that asked for the code, not the one authorizing it.
+Close(false);
+var allowedList = new List<string> { "dev-good" };
+mapType.GetProperty("AllowedDeviceIds").SetValue(map, allowedList);
+string Initiated(string code, string device, string client = "Jellyfin Web")
+{
+    qcCode = code;
+    Send("/QuickConnect/Initiate", null, "POST", "", client: client, deviceId: device);
+    return code;
+}
+(int status, string body, bool reached, HttpResponse response) Authorize(string code, string token, string extra = "", string client = "Jellyfin Web")
+    => Send("/QuickConnect/Authorize?code=" + code + extra, token, "POST", "", client: client);
+
+var qcBad = Authorize(Initiated("111111", "dev-bad"), KID_TOKEN);
+Ok("a profile cannot authorize a device that is not on its list", !qcBad.reached && qcBad.status == 403, Show(qcBad));
+Ok("and the refusal says so, in a code an app can read", qcBad.response.Headers["X-Bonfire-Error"].ToString() == "device_not_allowed", qcBad.response.Headers["X-Bonfire-Error"].ToString());
+Ok("a device on its list is authorized", Through(Authorize(Initiated("222222", "dev-good"), KID_TOKEN)));
+var qcUnknown = Authorize("333333", KID_TOKEN);
+Ok("a code this server never saw asked for is refused: its device cannot be judged", !qcUnknown.reached && qcUnknown.status == 403, Show(qcUnknown));
+Ok("the main account authorizes any device", Through(Authorize(Initiated("444444", "dev-bad"), ADMIN_TOKEN)));
+var qcFor = Authorize(Initiated("555555", "dev-bad"), ADMIN_TOKEN, "&userId=" + KID);
+Ok("and is judged as the profile when it authorizes for one", !qcFor.reached && qcFor.status == 403, Show(qcFor));
+
+allowedList.Clear();
+Ok("a profile with no list authorizes any device", Through(Authorize(Initiated("666666", "dev-bad"), KID_TOKEN)));
+// A code the server never saw (after a restart) is refused only where a rule could have
+// refused it. With no list and no picker app ticked nothing could, and refusing would break
+// an ordinary household's Quick Connect for ten minutes after every restart.
+var qcUnknownTicked = Authorize("333334", KID_TOKEN);
+Ok("an unknown code is still refused to an unrestricted profile while a picker app is ticked", !qcUnknownTicked.reached && qcUnknownTicked.status == 403, Show(qcUnknownTicked));
+Set("ProxyClients", new List<string>());
+Ok("but allowed to an unrestricted profile when no rule could apply", Through(Authorize("333335", KID_TOKEN)));
+Set("ProxyClients", new List<string> { "moonfin" });
+var qcMoon = Authorize(Initiated("777777", "dev-tv", "Moonfin for Android TV"), KID_TOKEN);
+Ok("but not an app that gets the picker instead", !qcMoon.reached && qcMoon.status == 403, Show(qcMoon));
+Ok("nor, for the main account, is that app refused", Through(Authorize(Initiated("888888", "dev-tv", "Moonfin for Android TV"), ADMIN_TOKEN)));
+
+// Through the picker: the app's token is the main account's, the request reaches Jellyfin as the kid's.
+var views3 = Moon("/UserViews");
+var tiles3 = Moon("/Users/" + N(ADMIN) + "/Items?ParentId=" + IdOf(views3.body, "Profiles")).body;
+Moon("/Users/" + N(ADMIN) + "/Items?ParentId=" + IdOf(tiles3, "Kid"));
+allowedList.Add("dev-good");   // the kid is open on this television; the list is for the next device
+var qcPicker = Send("/QuickConnect/Authorize?code=" + Initiated("999999", "dev-bad"), MOON_TOKEN, "POST", "", client: "Moonfin for Android TV");
+Ok("a profile open on the picker is judged too", !qcPicker.reached && qcPicker.status == 403, Show(qcPicker));
+Ok("and a device on its list goes through the picker as it would directly",
+   Through(Send("/QuickConnect/Authorize?code=" + Initiated("101010", "dev-good"), MOON_TOKEN, "POST", "", client: "Moonfin for Android TV")), seenAuth);
+allowedList.Clear();
 
 Console.WriteLine();
 Console.WriteLine("── Turning it on tells people ──────────────────────────────────");
