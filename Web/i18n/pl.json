@@ -425,6 +425,8 @@
   "admin.households.lede": "Każde konto główne i jego profile. Możesz wyczyścić dowolny kod PIN.",
   "admin.households.maxProfiles": "Profile na konto",
   "admin.households.maxProfilesHint": "Od 1 do 20. Pierwszeństwo ma własny limit konta, ustawiony wyżej.",
+  "admin.households.pinPerDay": "Próby PIN-u dziennie",
+  "admin.households.pinPerDayHint": "Błędne próby na konto, we wszystkich aplikacjach łącznie. Od 1 do 20.",
   "admin.save": "Zapisz",
   "admin.orphans.title": "Pozostałe wpisy",
   "admin.orphans.lede": "Zostają, gdy profil usunięto w Panelu → Użytkownicy zamiast w Bonfire. Nadal liczą się do limitu konta. Skanowanie niczego nie zmienia.",

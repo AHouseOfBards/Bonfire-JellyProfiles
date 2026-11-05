@@ -425,6 +425,8 @@
   "admin.households.lede": "Chaque compte principal et ses profils. Vous pouvez effacer n'importe quel code PIN.",
   "admin.households.maxProfiles": "Profils par compte",
   "admin.households.maxProfilesHint": "De 1 à 20. La limite propre à un compte, définie plus haut, l'emporte.",
+  "admin.households.pinPerDay": "Essais de PIN par jour",
+  "admin.households.pinPerDayHint": "Essais erronés par compte, toutes applications confondues. De 1 à 20.",
   "admin.save": "Enregistrer",
   "admin.orphans.title": "Enregistrements restants",
   "admin.orphans.lede": "Laissés quand un profil est supprimé dans Tableau de bord → Utilisateurs au lieu de Bonfire. Ils comptent toujours dans la limite du compte. L'analyse ne modifie rien.",

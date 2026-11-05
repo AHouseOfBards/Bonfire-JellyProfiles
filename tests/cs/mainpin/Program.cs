@@ -366,6 +366,24 @@ Console.WriteLine("── One allowance for the main PIN ───────�
     ForgetAll();
     right = Call("UpdatePreferences", SHARED, prefs, headerPin: "1234");
     Ok("and the right PIN works again once the day is over", !PinRefusal(right), right.status + " " + right.message);
+
+    // An administrator may make the day stricter, never looser (Logan's decision).
+    SetConfig("PinGuessesPerDay", 3);
+    ForgetAll();
+    for (int i = 0; i < 3; i++) Call("UpdatePreferences", SHARED, prefs, headerPin: "9999");
+    right = Call("UpdatePreferences", SHARED, prefs, headerPin: "1234");
+    Ok("an administrator's lower figure closes the day sooner", right.status == 429, right.status + " " + right.message);
+    SetConfig("PinGuessesPerDay", 99);
+    ForgetAll();
+    for (int batch = 0; batch < 4; batch++)
+    {
+        for (int i = 0; i < 5; i++) Call("UpdatePreferences", SHARED, prefs, headerPin: "9999");
+        QuarterHourPasses();
+    }
+    right = Call("UpdatePreferences", SHARED, prefs, headerPin: "1234");
+    Ok("and a higher one counts as twenty", right.status == 429, right.status + " " + right.message);
+    SetConfig("PinGuessesPerDay", 20);
+    ForgetAll();
 }
 
 // ── Forgetting a device ──────────────────────────────────────────────────────

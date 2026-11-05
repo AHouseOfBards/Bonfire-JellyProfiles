@@ -32,6 +32,16 @@ namespace Jellyfin.Profiles.Controllers
         private static string Key(Guid accountId) => accountId.ToString("N");
 
         /// <summary>
+        /// The day's allowance: the administrator's figure, which may only be lower than
+        /// <see cref="DailyLimit"/>. A value out of range (a hand-edited file) is the limit.
+        /// </summary>
+        internal static int PerDay(Configuration.PluginConfiguration? config)
+        {
+            var wanted = config?.PinGuessesPerDay ?? DailyLimit;
+            return wanted >= 1 && wanted <= DailyLimit ? wanted : DailyLimit;
+        }
+
+        /// <summary>
         /// Counts one guess at <paramref name="accountId"/>'s PIN before it is checked, and
         /// says whether it may be checked at all.
         /// </summary>
@@ -39,7 +49,8 @@ namespace Jellyfin.Profiles.Controllers
         {
             var key = Key(accountId);
             if (!RateLimiter.AccountPin.TryBegin(key)) return false;
-            return RateLimiter.AccountPinDaily.TryBegin(key);
+            // A plain int read off the live configuration: atomic, and no lock is needed.
+            return RateLimiter.AccountPinDaily.TryBeginWithin(key, PerDay(Plugin.Instance?.Configuration));
         }
 
         /// <summary>The PIN was right: both counts start again.</summary>
@@ -55,7 +66,7 @@ namespace Jellyfin.Profiles.Controllers
         {
             var key = Key(accountId);
             var a = RateLimiter.AccountPin.RetryAfter(key);
-            var b = RateLimiter.AccountPinDaily.RetryAfter(key);
+            var b = RateLimiter.AccountPinDaily.RetryAfterWithin(key, PerDay(Plugin.Instance?.Configuration));
             return a > b ? a : b;
         }
     }

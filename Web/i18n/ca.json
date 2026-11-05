@@ -425,6 +425,8 @@
   "admin.households.lede": "Cada compte principal i els seus perfils. Pots esborrar qualsevol PIN.",
   "admin.households.maxProfiles": "Perfils per compte",
   "admin.households.maxProfilesHint": "De l'1 al 20. El límit propi d'un compte, fixat més amunt, té prioritat.",
+  "admin.households.pinPerDay": "Intents de PIN al dia",
+  "admin.households.pinPerDayHint": "Intents erronis per compte, a totes les aplicacions. De l'1 al 20.",
   "admin.save": "Desa",
   "admin.orphans.title": "Registres sobrants",
   "admin.orphans.lede": "Queden quan s'elimina un perfil a Tauler → Usuaris en lloc de fer-ho a Bonfire. Continuen comptant per al límit del compte. Analitzar no canvia res.",

@@ -436,6 +436,8 @@
   "admin.households.lede": "Her ana hesap ve profilleri. Herhangi bir PIN'i temizleyebilirsiniz.",
   "admin.households.maxProfiles": "Hesap başına profil",
   "admin.households.maxProfilesHint": "1 ile 20 arası. Yukarıda ayarlanan hesaba özel sınır önceliklidir.",
+  "admin.households.pinPerDay": "Günlük PIN denemesi",
+  "admin.households.pinPerDayHint": "Hesap başına yanlış deneme, tüm uygulamalar birlikte. 1 ile 20 arası.",
   "admin.save": "Kaydet",
   "admin.orphans.title": "Artık kayıtlar",
   "admin.orphans.lede": "Bir profil Bonfire yerine Pano → Kullanıcılar'dan silindiğinde geride kalır. Hâlâ hesabın sınırına sayılırlar. Taramak hiçbir şeyi değiştirmez.",

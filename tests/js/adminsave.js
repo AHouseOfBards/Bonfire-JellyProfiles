@@ -58,6 +58,7 @@ async function run(fieldValues) {
 
     const fields = Object.assign({
         maxProfiles: '5',
+        pinGuessesPerDay: '20',
         requireMainPin: false,
         enablePinResetByEmail: false,
         disallowCustomAvatars: false,
@@ -203,6 +204,7 @@ console.log('\n── It sends the six settings and nothing else ─────
 
 const expected = [
     'maxProfilesPerUser',
+    'pinGuessesPerDay',
     'requireMainPin',
     'enablePinResetByEmail',
     'disallowCustomAvatarUploads',
@@ -295,6 +297,14 @@ const empty = await run({ maxProfiles: '' });
 const emptyBody = sent(empty);
 ok('an empty box falls back to 5 (sent ' + emptyBody.maxProfilesPerUser + ')',
    emptyBody.maxProfilesPerUser === 5);
+
+// PIN tries a day: lower only, so anything above 20 is sent as 20 (R-1002).
+const tooMany = sent(await run({ pinGuessesPerDay: '50' }));
+ok('PIN tries a day above 20 is sent as 20 (sent ' + tooMany.pinGuessesPerDay + ')', tooMany.pinGuessesPerDay === 20);
+const fewer = sent(await run({ pinGuessesPerDay: '3' }));
+ok('and a lower figure is sent as typed (sent ' + fewer.pinGuessesPerDay + ')', fewer.pinGuessesPerDay === 3);
+const noTries = sent(await run({ pinGuessesPerDay: '' }));
+ok('an empty box is twenty (sent ' + noTries.pinGuessesPerDay + ')', noTries.pinGuessesPerDay === 20);
 
 ok('the clamped value is written back to the box, so it shows what was saved '
    + '(box reads ' + negative.elements.maxProfiles.value + ')',

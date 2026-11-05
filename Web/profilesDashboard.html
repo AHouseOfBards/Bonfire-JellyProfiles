@@ -683,6 +683,14 @@
                     <input is="emby-input" type="number" id="maxProfiles" min="1" max="20" required />
                     <div class="fieldDescription" data-i18n="admin.households.maxProfilesHint">1 to 20. An account's own limit, set above, wins.</div>
                 </div>
+                <details class="jpf-advanced jpf-block-end">
+                    <summary data-i18n="admin.advanced.title">Advanced</summary>
+                    <div class="inputContainer jpf-form-narrow">
+                        <label class="inputLabel" for="pinGuessesPerDay" data-i18n="admin.households.pinPerDay">PIN tries a day</label>
+                        <input is="emby-input" type="number" id="pinGuessesPerDay" min="1" max="20" />
+                        <div class="fieldDescription" data-i18n="admin.households.pinPerDayHint">Wrong tries per account, all apps together. 1 to 20.</div>
+                    </div>
+                </details>
                 <div class="buttonContainer jpf-block-end">
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
                 </div>
@@ -1886,6 +1894,7 @@
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
+                    page.querySelector('#pinGuessesPerDay').value = config.PinGuessesPerDay || 20;
                     page.querySelector('#requireMainPin').checked = !!config.RequireMainPin;
                     page.dataset.requireMainPin = config.RequireMainPin ? '1' : '';
                     // Also set by renderEmail; set here too, or a page whose email read
@@ -5368,7 +5377,7 @@
                         'Main accounts: ' + masters.length + ', profiles: ' + subs.length
                             + ', main accounts without a PIN: ' + masters.filter(function (x) { return field(x, 'requiresPin') !== true; }).length,
                         'Profiles per account: ' + (c.MaxProfilesPerUser || 5),
-                        'Require main PIN: ' + on(c.RequireMainPin),
+                        'Require main PIN: ' + on(c.RequireMainPin) + ', PIN tries a day: ' + (c.PinGuessesPerDay || 20),
                         'Email: ' + (page._emailState || 'unknown') + ', PIN reset by email: ' + on(c.EnablePinResetByEmail),
                         'PIN sign-in on apps: ' + on(c.EnableClientPinLogin) + ', profiles on sign-in screens: ' + on(c.EnableClientProfileList)
                             + ', skip Quick Connect: ' + on(c.SkipQuickConnectOnKnownDevices),
@@ -5482,9 +5491,14 @@
                 const typed = parseInt(page.querySelector('#maxProfiles').value, 10);
                 const maxProfiles = Number.isFinite(typed) ? Math.min(20, Math.max(1, typed)) : 5;
                 page.querySelector('#maxProfiles').value = maxProfiles;
+                // Lower only: the server refuses more than 20, so clamp to what it takes.
+                const typedTries = parseInt(page.querySelector('#pinGuessesPerDay').value, 10);
+                const pinGuessesPerDay = Number.isFinite(typedTries) ? Math.min(20, Math.max(1, typedTries)) : 20;
+                page.querySelector('#pinGuessesPerDay').value = pinGuessesPerDay;
 
                 const sent = {
                     maxProfilesPerUser: maxProfiles,
+                    pinGuessesPerDay: pinGuessesPerDay,
                     requireMainPin: page.querySelector('#requireMainPin').checked,
                     enablePinResetByEmail: page.querySelector('#enablePinResetByEmail').checked,
                     disallowCustomAvatarUploads: page.querySelector('#disallowCustomAvatars').checked,

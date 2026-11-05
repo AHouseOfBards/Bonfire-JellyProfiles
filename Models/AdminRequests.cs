@@ -43,6 +43,8 @@ namespace Jellyfin.Profiles.Models
     public class AdminSettingsRequest
     {
         public int? MaxProfilesPerUser { get; set; }
+        /// <summary>Wrong PIN tries an account may have in a day, 1 to 20. Null leaves it alone.</summary>
+        public int? PinGuessesPerDay { get; set; }
         public bool? RequireMainPin { get; set; }
         public bool? DisallowCustomAvatarUploads { get; set; }
         public bool? EnableStarterAvatars { get; set; }

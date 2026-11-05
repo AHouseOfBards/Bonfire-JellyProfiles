@@ -425,6 +425,8 @@
   "admin.households.lede": "Cada cuenta principal y sus perfiles. Puedes borrar cualquier PIN.",
   "admin.households.maxProfiles": "Perfiles por cuenta",
   "admin.households.maxProfilesHint": "De 1 a 20. El límite propio de una cuenta, fijado arriba, tiene prioridad.",
+  "admin.households.pinPerDay": "Intentos de PIN al día",
+  "admin.households.pinPerDayHint": "Intentos fallidos por cuenta, en todas las aplicaciones. De 1 a 20.",
   "admin.save": "Guardar",
   "admin.orphans.title": "Registros sobrantes",
   "admin.orphans.lede": "Quedan cuando se elimina un perfil en Panel → Usuarios en lugar de en Bonfire. Siguen contando para el límite de la cuenta. Analizar no cambia nada.",

@@ -2137,6 +2137,7 @@ anything added since you read it.
 | Field | Type | Description |
 | --- | --- | --- |
 | `maxProfilesPerUser` | integer | Profiles per account, 1 to 20. |
+| `pinGuessesPerDay` | integer | Wrong PIN tries an account may have in a day, across the web, other apps and the picker. 1 to 20, default 20. It can only be lowered. |
 | `requireMainPin` | boolean | Main accounts must set a PIN before changing profiles or settings. |
 | `disallowCustomAvatarUploads` | boolean | Pictures only from the avatar library. |
 | `enableStarterAvatars` | boolean | Offer the starter avatars. |

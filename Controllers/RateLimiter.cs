@@ -159,9 +159,13 @@ namespace Jellyfin.Profiles.Controllers
         /// because a further failed attempt does not extend it.
         /// </para>
         /// </summary>
-        public TimeSpan RetryAfter(string ipAddress)
+        public TimeSpan RetryAfter(string ipAddress) => RetryAfterWithin(ipAddress, _maxAttempts);
+
+        /// <summary><see cref="RetryAfter"/> against the lower limit given to <see cref="TryBeginWithin"/>.</summary>
+        public TimeSpan RetryAfterWithin(string ipAddress, int maxAttempts)
         {
             if (string.IsNullOrEmpty(ipAddress)) return TimeSpan.Zero;
+            var max = Math.Min(Math.Max(maxAttempts, 1), _maxAttempts);
 
             if (!_attempts.TryGetValue(ipAddress, out var list)) return TimeSpan.Zero;
 
@@ -169,13 +173,16 @@ namespace Jellyfin.Profiles.Controllers
             {
                 var cutoff = DateTime.UtcNow.AddMinutes(-_windowMinutes);
                 list.RemoveAll(t => t < cutoff);
-                if (list.Count < _maxAttempts) return TimeSpan.Zero;
+                if (list.Count < max) return TimeSpan.Zero;
 
-                // The window frees a slot when its oldest entry ages out.
-                var oldest = list[0];
-                foreach (var t in list) if (t < oldest) oldest = t;
+                // A slot frees when enough of the oldest entries age out to bring the count
+                // under the limit: the oldest one at the full limit, a later one under a
+                // lower limit.
+                var sorted = new List<DateTime>(list);
+                sorted.Sort();
+                var freeing = sorted[list.Count - max];
 
-                var wait = oldest.AddMinutes(_windowMinutes) - DateTime.UtcNow;
+                var wait = freeing.AddMinutes(_windowMinutes) - DateTime.UtcNow;
                 return wait > TimeSpan.Zero ? wait : TimeSpan.Zero;
             }
         }

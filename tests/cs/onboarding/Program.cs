@@ -342,6 +342,18 @@ var direct = Directory.GetFiles(Path.Combine(RepoRoot(), "Controllers"), "*.cs")
     .Select(x => Path.GetFileName(x.f) + ":" + (x.i + 1)).ToList();
 Ok("no controller reads _userManager.Users directly", direct.Count == 0, string.Join(", ", direct));
 
+// PIN tries a day (R-1002): a security limit an administrator may lower, never raise.
+Console.WriteLine();
+Console.WriteLine("── PIN tries a day ─────────────────────────────────────────────");
+var triesProp = cfgType.GetProperty("PinGuessesPerDay");
+Ok("it is twenty unless lowered", triesProp != null && (int)triesProp.GetValue(Activator.CreateInstance(cfgType)) == 20);
+var lowered = Admin(new() { ["PinGuessesPerDay"] = (int?)5 });
+Ok("an administrator can lower it", lowered.status == 200 && triesProp != null && (int)triesProp.GetValue(config) == 5, lowered.status + " " + lowered.value);
+var raised = Admin(new() { ["PinGuessesPerDay"] = (int?)21 });
+Ok("but not raise it past twenty", raised.status == 400 && (int)(triesProp?.GetValue(config) ?? 0) == 5, raised.status + " " + raised.value);
+Ok("nor set it to nothing", Admin(new() { ["PinGuessesPerDay"] = (int?)0 }).status == 400);
+Ok("and only an administrator", Admin(new() { ["PinGuessesPerDay"] = (int?)1 }, OLD).status != 200 && (int)(triesProp?.GetValue(config) ?? 0) == 5);
+
 try { Directory.Delete(tempDir, true); } catch { }
 Console.WriteLine();
 if (fails.Count > 0)

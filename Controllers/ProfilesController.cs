@@ -1620,6 +1620,9 @@ namespace Jellyfin.Profiles.Controllers
 
                 if (TryProperty(root, "MaxProfilesPerUser", out _))
                     config.MaxProfilesPerUser = incoming.MaxProfilesPerUser;
+                // Only ever stricter: a file can't raise it past the limit (PinBudget.PerDay).
+                if (TryProperty(root, "PinGuessesPerDay", out _))
+                    config.PinGuessesPerDay = PinBudget.PerDay(incoming);
                 if (TryProperty(root, "RequireMainPin", out _))
                     config.RequireMainPin = incoming.RequireMainPin;
                 if (TryProperty(root, "DisallowCustomAvatarUploads", out _))
@@ -4950,6 +4953,13 @@ namespace Jellyfin.Profiles.Controllers
                 if (limitError != null) return BadRequest(limitError);
             }
 
+            // A security limit: lower, never higher (R-1002).
+            if (request.PinGuessesPerDay.HasValue
+                && (request.PinGuessesPerDay.Value < 1 || request.PinGuessesPerDay.Value > PinBudget.DailyLimit))
+            {
+                return BadRequest($"PIN tries a day must be 1 to {PinBudget.DailyLimit}.");
+            }
+
             // Normalize() silently falls back to a default, which is right when reading a
             // configuration written by an older version and wrong when an administrator is
             // telling us what they want: saving "middleware" because they typed something
@@ -5041,6 +5051,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.ProfileImageQuality = ImageQualities.Normalize(request.ProfileImageQuality);
                 if (request.MaxProfilesPerUser.HasValue)
                     config.MaxProfilesPerUser = request.MaxProfilesPerUser.Value;
+                if (request.PinGuessesPerDay.HasValue)
+                    config.PinGuessesPerDay = request.PinGuessesPerDay.Value;
                 if (request.RequireMainPin.HasValue)
                     config.RequireMainPin = request.RequireMainPin.Value;
                 if (request.DisallowCustomAvatarUploads.HasValue)

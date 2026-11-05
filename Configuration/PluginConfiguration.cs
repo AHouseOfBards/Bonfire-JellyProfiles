@@ -9,6 +9,13 @@ namespace Jellyfin.Profiles.Configuration
     {
         public int MaxProfilesPerUser { get; set; } = 5;
 
+        /// <summary>
+        /// Wrong PIN guesses an account may have in a day, across every door (PinBudget).
+        /// A security limit an administrator may make stricter, never looser: anything above
+        /// <c>PinBudget.DailyLimit</c> counts as that (R-1002, Logan's decision). Advanced.
+        /// </summary>
+        public int PinGuessesPerDay { get; set; } = 20;
+
         // RequireMasterPinForCreation was here until 1.7.2. Creating a profile now needs the
         // main PIN like every other change, so it had nothing left to do. A saved
         // configuration that still has the element loads fine: the serializer skips it.
