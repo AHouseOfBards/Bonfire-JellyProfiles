@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Data.Queries;
 using Jellyfin.Profiles.Configuration;
+using Jellyfin.Profiles.Controllers;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Configuration;
@@ -933,7 +934,7 @@ namespace Jellyfin.Profiles.Auth
             }
 
             // The lists Resolve reads are the ones a settings save replaces.
-            lock (Controllers.ProfilesBaseController.ConfigLock)
+            lock (ProfilesBaseController.ConfigLock)
             {
                 var row = config.Mappings?.FirstOrDefault(m => m.ProfileUserId == whose);
                 return (ThemeCatalog.ThemeFor(Themes.Resolve(row, config), config), glyph);
