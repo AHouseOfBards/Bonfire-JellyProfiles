@@ -421,6 +421,33 @@ Ok("a Bonfire member opens the neighbour's kid with its PIN", r.status == 200, T
 r = Call("KickBonfireMember", OTHER, B(("MemberId", HOME)));
 Ok("kicking the member signs the neighbour's kid out on that TV",
    r.status == 200 && SessionStub.SignedOut.Contains((OKID, "living-room")), Text(r) + " | " + string.Join(", ", SessionStub.SignedOut));
+
+// A new PIN is the other door: knowing the old one is all a device that came in proved
+// (R-1302b). The member is back in the Bonfire for this.
+groupType.GetProperty("MemberUserIds").GetValue(fire).GetType().GetMethod("Add").Invoke(groupType.GetProperty("MemberUserIds").GetValue(fire), new object[] { HOME });
+SessionStub.SignedOut.Clear();
+r = Call("SwitchProfile", HOME, B(("ProfileId", OKID), ("Pin", "2468")), deviceId: "den");
+Ok("the member opens the neighbour's kid again, in the den", r.status == 200, Text(r));
+r = Call("UpdateProfile", OTHER, B(("ProfileId", OKID), ("ProfileName", "Kid")));
+Ok("renaming the kid signs nobody out", r.status == 200 && SessionStub.SignedOut.Count == 0, Text(r) + " | " + string.Join(", ", SessionStub.SignedOut));
+r = Call("UpdateProfile", OTHER, B(("ProfileId", OKID), ("ProfileName", "Kid"), ("Pin", "1357")));
+Ok("a new PIN for the kid signs the den out",
+   r.status == 200 && SessionStub.SignedOut.Contains((OKID, "den")), Text(r) + " | " + string.Join(", ", SessionStub.SignedOut));
+r = Call("SwitchProfile", HOME, B(("ProfileId", OKID), ("Pin", "2468")), deviceId: "den");
+Ok("and the old PIN no longer opens it", r.status != 200, Text(r));
+
+SessionStub.SignedOut.Clear();
+r = Call("SwitchProfile", HOME, B(("ProfileId", MUM), ("Pin", "4321")), deviceId: "den");
+Ok("the household opens Mum in the den", r.status == 200, Text(r));
+r = Call("UpdateAccount", MUM, B(("LockoutMinutes", (int?)10), ("MasterPin", "4321")));
+Ok("Mum changing her lockout signs nobody out", r.status == 200 && SessionStub.SignedOut.Count == 0, Text(r) + " | " + string.Join(", ", SessionStub.SignedOut));
+r = Call("UpdateAccount", MUM, B(("Pin", "8765"), ("MasterPin", "4321")));
+Ok("Mum giving herself a new PIN signs the den out",
+   r.status == 200 && SessionStub.SignedOut.Contains((MUM, "den")), Text(r) + " | " + string.Join(", ", SessionStub.SignedOut));
+Ok("and only Mum", SessionStub.SignedOut.All(x => x.user == MUM), string.Join(", ", SessionStub.SignedOut));
+Call("UpdateAccount", MUM, B(("Pin", "4321"), ("MasterPin", "8765")));
+ResetLimits();
+
 fires.Remove(fire);
 mapType.GetProperty("PinHash").SetValue(Row(OKID), null);
 world.Log.Clear(); // the switches above synced the profiles' policies; nothing below is about them

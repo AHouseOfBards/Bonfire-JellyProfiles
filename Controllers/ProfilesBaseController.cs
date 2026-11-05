@@ -1850,6 +1850,32 @@ namespace Jellyfin.Profiles.Controllers
                 // In on the owner's home-network consent alone, which has since been withdrawn.
                 else if (e.WithoutPin && !string.IsNullOrEmpty(rules.Target?.PinHash) && !rules.HouseholdLanBypass) closed.Add(e);
             }
+            return await SignOutEntriesAsync(config, closed).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// A profile or account was given a new PIN: every device another household opened it
+        /// on with a PIN, or with none while it had none, is signed out (R-1302b). Knowing the
+        /// old PIN is all those ever proved. Entries in on the owner's home-network consent
+        /// stay, since that consent still stands. Call it after the change is saved, and only
+        /// for a PIN set to a value: clearing one opens a door, it closes none. Never throws.
+        /// </summary>
+        protected async Task<int> SignOutAfterPinChangeAsync(Guid profileUserId)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return 0;
+
+            List<CrossHouseholdEntry> closed;
+            lock (ConfigLock)
+            {
+                closed = config.CrossHouseholdEntries?.Where(e => e.ProfileUserId == profileUserId && !e.WithoutPin)
+                    .Select(e => e.Copy()).ToList() ?? new List<CrossHouseholdEntry>();
+            }
+            return await SignOutEntriesAsync(config, closed).ConfigureAwait(false);
+        }
+
+        private async Task<int> SignOutEntriesAsync(PluginConfiguration config, List<CrossHouseholdEntry> closed)
+        {
             if (closed.Count == 0) return 0;
 
             lock (ConfigLock)

@@ -1905,6 +1905,7 @@ namespace Jellyfin.Profiles.Controllers
                 await _userManager.UpdatePolicyAsync(targetUser.Id, targetPolicy).ConfigureAwait(false);
             }
 
+            var pinChanged = false;
             lock (ConfigLock)
             {
                 // Fetch or create mapping for this profile inside the lock
@@ -1966,6 +1967,7 @@ namespace Jellyfin.Profiles.Controllers
                     else if (request.Pin != null)
                     {
                         mappingEntry.PinHash = HashPin(request.Pin);
+                        pinChanged = true;
                     }
 
                     // Handle lockout timer update
@@ -2025,6 +2027,9 @@ namespace Jellyfin.Profiles.Controllers
             {
                 ProfilesBootstrapTask.ReconcileAuthProvidersNow();
             }
+
+            // Another household that opened it with the old PIN is out (R-1302b).
+            if (pinChanged) await SignOutAfterPinChangeAsync(request.ProfileId).ConfigureAwait(false);
 
             return Ok();
         }
@@ -3136,7 +3141,7 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
-        public ActionResult<object> UpdateAccount([FromBody] UpdateAccountRequest request)
+        public async Task<ActionResult<object>> UpdateAccount([FromBody] UpdateAccountRequest request)
         {
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
@@ -3202,6 +3207,8 @@ namespace Jellyfin.Profiles.Controllers
             // account signs in with on other apps, and that should not wait for a restart.
             if (request.Pin != null) ProfilesBootstrapTask.ReconcileAuthProvidersNow();
             if (request.TimeZone != null) Auth.ViewingTracker.Invalidate();
+            // Another household that opened it with the old PIN is out (R-1302b).
+            if (!string.IsNullOrEmpty(request.Pin)) await SignOutAfterPinChangeAsync(mainId).ConfigureAwait(false);
 
             return Ok(new { HasPin = hasPin, AskPinToOpen = askPinToOpen, BypassPinOnLocalNetwork = bypass, LockoutMinutes = lockout, TimeZone = timeZone });
         }

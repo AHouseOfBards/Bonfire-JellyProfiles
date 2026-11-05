@@ -417,7 +417,7 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult ResetPinByEmail([FromBody] PinResetRequest request)
+        public async Task<ActionResult> ResetPinByEmail([FromBody] PinResetRequest request)
         {
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
@@ -461,6 +461,8 @@ namespace Jellyfin.Profiles.Controllers
             ProfilesBootstrapTask.ReconcileAuthProvidersNow();
             LogActivity(name + "'s PIN was reset by email", "PinReset", mainId,
                 severity: LogLevel.Warning);
+            // Another household that opened it with the old PIN is out (R-1302b).
+            await SignOutAfterPinChangeAsync(mainId).ConfigureAwait(false);
 
             var language = snapshot.AccountEmails.FirstOrDefault(a => a.UserId == mainId)?.Language;
             var values = new Dictionary<string, string> { ["account"] = name };
