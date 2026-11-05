@@ -425,6 +425,26 @@ fires.Remove(fire);
 mapType.GetProperty("PinHash").SetValue(Row(OKID), null);
 world.Log.Clear(); // the switches above synced the profiles' policies; nothing below is about them
 
+// ── Guessing a Bonfire code ──────────────────────────────────────────────────
+Section("Guessing a Bonfire code");
+
+// A join cleared the count of wrong codes, and a household can always join a Bonfire whose
+// code it knows: leave it and join again. Two guesses, a rejoin, two more, for ever (R-1303).
+ResetLimits();
+var camp = Activator.CreateInstance(groupType);
+groupType.GetProperty("OwnerUserId").SetValue(camp, OTHER);
+groupType.GetProperty("BonfireCode").SetValue(camp, "KNOWN1");
+fires.Add(camp);
+Call("JoinBonfire", HOME, B(("Code", "WRONG1")), pinHeader: "1234");
+Call("JoinBonfire", HOME, B(("Code", "WRONG2")), pinHeader: "1234");
+r = Call("JoinBonfire", HOME, B(("Code", "KNOWN1")), pinHeader: "1234");
+Ok("a code it knows joins", r.status == 200 && ((IList)groupType.GetProperty("MemberUserIds").GetValue(camp)).Contains(HOME), Text(r));
+Call("LeaveBonfire", HOME, pinHeader: "1234");
+r = Call("JoinBonfire", HOME, B(("Code", "WRONG3")), pinHeader: "1234");
+Ok("and doesn't clear the count of wrong ones", r.status == 429, Text(r));
+fires.Remove(camp);
+ResetLimits();
+
 // ── The administrator ────────────────────────────────────────────────────────
 Section("The administrator");
 

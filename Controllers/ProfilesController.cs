@@ -2543,7 +2543,6 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             Guid ownerUserId;
-            bool newlyJoined = false;
 
             lock (ConfigLock)
             {
@@ -2566,14 +2565,12 @@ namespace Jellyfin.Profiles.Controllers
                 group.MemberUserIds.Add(masterId);
                 Plugin.Instance?.SaveConfiguration();
                 ownerUserId = group.OwnerUserId;
-                newlyJoined = true;
             }
 
-            if (newlyJoined)
-            {
-                RateLimiter.Bonfire.Reset(ip);
-                RateLimiter.Bonfire.Reset(accountKey);
-            }
+            // The count is never cleared by a join. It was, and a household can always join a
+            // Bonfire whose code it knows - leave it and join again - so two guesses at other
+            // households' codes, a rejoin, two more, without end (R-1303). Three a quarter
+            // hour costs someone who mistyped nothing they will notice.
 
             return Ok(new
             {
