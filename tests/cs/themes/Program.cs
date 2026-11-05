@@ -210,6 +210,10 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
 
         var fonts = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "fonts.json")))!["fonts"];
         Ok("the font list is sent as written", System.Text.Json.Nodes.JsonNode.DeepEquals(payload["fonts"], fonts));
+        var fontListNode = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "fonts.json")))!;
+        Ok("and the subsets' character ranges with it",
+           System.Text.Json.Nodes.JsonNode.DeepEquals(payload["subsets"], fontListNode["subsets"])
+           && payload["subsets"]!.AsObject().Count == 2);
 
         var pats = payload["patterns"]!.AsObject();
         var svgs = Directory.GetFiles(Path.Combine(dir, "patterns"), "*.svg");
@@ -239,9 +243,49 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
                (string)p!["url"]! == "/plugins/profiles/themes/patterns/" + (string)p!["name"]!));
         // The names a font goes by when installed are the web client's business; an app
         // given them would try to match local fonts that differ device to device.
-        Ok("fonts carry a family, a fallback and files, and nothing else",
+        Ok("fonts carry a family, a fallback, files and a licence when served, and nothing else",
            pub["fonts"]!.AsArray().All(f => f!.AsObject().Select(p => p.Key).OrderBy(k => k)
-               .SequenceEqual(new[] { "fallback", "family", "files" })));
+               .SequenceEqual(f!["files"]!.AsArray().Count > 0
+                   ? new[] { "fallback", "family", "files", "licence" } : new[] { "fallback", "family", "files" })));
+
+        Console.WriteLine();
+        Console.WriteLine("── The served fonts ─────────────────────────────────────────────");
+        var fontDir = Path.Combine(dir, "fonts");
+        var servedFonts = pub["fonts"]!.AsArray().Where(f => f!["files"]!.AsArray().Count > 0).ToList();
+        Ok("Noto Sans first, and ten served (" + servedFonts.Count + ")",
+           servedFonts.Count == 10 && (string)servedFonts[0]!["family"]! == "Noto Sans");
+        foreach (var f in servedFonts)
+        {
+            var family = (string)f!["family"]!;
+            var fileEntries = f["files"]!.AsArray();
+            Ok(family + ": a latin and a latin-ext file",
+               fileEntries.Select(x => (string)x!["subset"]!).SequenceEqual(new[] { "latin", "latin-ext" }));
+            foreach (var x in fileEntries)
+            {
+                var url = (string)x!["url"]!;
+                var fileName = url.Substring(url.LastIndexOf('/') + 1);
+                var served = ThemeCatalog.FontFile(fileName);
+                Ok(fileName + " is served, byte for byte the repository's file, as font/woff2",
+                   served != null && served.Value.ContentType == "font/woff2"
+                   && served.Value.Bytes.AsSpan().SequenceEqual(File.ReadAllBytes(Path.Combine(fontDir, fileName))));
+                Ok(fileName + " carries its subset's characters and its weights",
+                   System.Text.Json.Nodes.JsonNode.DeepEquals(x["unicodeRange"], fontListNode["subsets"]![(string)x["subset"]!])
+                   && x["weight"]!.AsArray().Count == 2);
+            }
+
+            var lic = (string)f["licence"]!;
+            var licFile = ThemeCatalog.FontFile(lic.Substring(lic.LastIndexOf('/') + 1));
+            Ok(family + "'s licence is served too, and is the OFL",
+               licFile != null && licFile.Value.ContentType.StartsWith("text/plain", StringComparison.Ordinal)
+               && System.Text.Encoding.UTF8.GetString(licFile.Value.Bytes).Contains("SIL OPEN FONT LICENSE", StringComparison.Ordinal));
+        }
+
+        foreach (var bad in new[] { "", "../fonts.json", "fonts.json", "noto-sans-latin", "NOTO-SANS-LATIN.WOFF2", "..%2Ffonts.json", "x.woff2" })
+            Ok("no file for \"" + bad + "\"", ThemeCatalog.FontFile(bad) == null);
+        Ok("the font route looks the file up, never builds a path from it",
+           File.ReadAllText(Path.Combine(root, "Controllers", "ProfilesController.Themes.cs")).Contains("ThemeCatalog.FontFile(file)", StringComparison.Ordinal));
+        Ok("and lets a packaged client, whose page is another origin, use the font",
+           File.ReadAllText(Path.Combine(root, "Controllers", "ProfilesController.Themes.cs")).Contains("Response.Headers[\"Access-Control-Allow-Origin\"] = \"*\"", StringComparison.Ordinal));
         Ok("every theme it sends passes the validator but for the known entries",
            pub["themes"]!.AsArray().All(t => ThemeCatalog.Validate(t).All(p =>
                (string)t!["id"]! == "bonfire" && p.Path == "colors.onAccent")));

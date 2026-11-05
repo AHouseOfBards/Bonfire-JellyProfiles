@@ -293,10 +293,14 @@
         const btnR = btn.kind === 'pill' ? '999px' : btn.kind === 'square' ? '0' : num(btn.radius, 8) + 'px';
         const r = shape.radius || {};
 
-        // The font: the family, the names it goes by on devices that have it installed,
-        // then the kind. Bonfire serves the family itself once the font stage lands.
+        // The font: the copy Bonfire serves (fontFaceCss), then the names it goes by on
+        // devices that have it installed, then the kind. The served copy is under a name of
+        // its own, so declaring it never changes how jellyfin-web draws its own Noto Sans;
+        // and where it is not declared (an engine without variable fonts) that first name
+        // simply matches nothing and the next one is used.
         const fontEntry = (BONFIRE_THEMES.fonts || []).filter(f => f && f.family === g(type.font, 'family'))[0];
-        const names = [fontName(g(type.font, 'family'))].concat(fontEntry && Array.isArray(fontEntry.local)
+        const names = (fontEntry && fontEntry.files ? [servedFontName(fontEntry.family)] : [])
+            .concat([fontName(g(type.font, 'family'))], fontEntry && Array.isArray(fontEntry.local)
             ? fontEntry.local.map(fontName) : []).filter((n, i, all) => n && all.indexOf(n) === i && n !== 'System UI');
         const fallback = g(type.font, 'fallback') === 'serif' ? 'serif' : 'sans-serif';
         const font = names.map(quoteFont).concat([fallback]).join(', ');
@@ -474,6 +478,42 @@
         const list = Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes.slice() : [];
         list.sort((a, b) => (a && a.id === 'bonfire' ? -1 : b && b.id === 'bonfire' ? 1 : 0));
         return list.map(t => themeCss(t, BONFIRE_THEMES.patterns || {})).join('');
+    }
+
+    /// The name a served font is declared under: its family with Bonfire's prefix, letters,
+    /// digits, spaces and hyphens only, as every font name written into CSS here is.
+    function servedFontName(family) {
+        return 'Bonfire ' + String(family || '').replace(/[^A-Za-z0-9 -]/g, '');
+    }
+
+    /// @font-face for every font Bonfire serves, one per subset, each fetched only when a
+    /// character in its unicode-range is drawn in it. `urlFor` turns a file name into the
+    /// address to fetch (pluginUrl, so a packaged client asks the server and not itself).
+    ///
+    /// Each file is a variable font spanning a range of weights. An engine without variable
+    /// fonts (Chromium 62; webOS 4.5 is 53) would draw every weight from the default one and
+    /// fake the bold, so injectFonts declares none there and the stack's installed names
+    /// are used, which is how every theme looked before Bonfire served fonts at all.
+    function fontFaceCss(urlFor) {
+        const subsets = BONFIRE_THEMES.subsets || {};
+        let css = '';
+        (BONFIRE_THEMES.fonts || []).forEach(f => {
+            if (!f || !f.files || typeof f.files !== 'object') return;
+            const w = Array.isArray(f.weight) ? f.weight : [];
+            const weight = typeof w[0] === 'number' && typeof w[1] === 'number' && isFinite(w[0]) && isFinite(w[1])
+                ? Math.round(w[0]) + ' ' + Math.round(w[1]) : '400';
+            Object.keys(subsets).forEach(sub => {
+                const file = f.files[sub];
+                const range = subsets[sub];
+                if (typeof file !== 'string' || !/^[a-z0-9-]+\.woff2$/.test(file)) return;
+                if (typeof range !== 'string' || !/^[Uu0-9A-Fa-f+, -]+$/.test(range)) return;
+                const url = String(urlFor('/plugins/profiles/themes/fonts/' + file)).replace(/["\\\n\r]/g, '');
+                css += "@font-face {\n    font-family: '" + servedFontName(f.family) + "';\n    font-style: normal;\n"
+                    + '    font-weight: ' + weight + ';\n    font-display: swap;\n'
+                    + '    src: url("' + url + '") format("woff2");\n    unicode-range: ' + range + ';\n}\n';
+            });
+        });
+        return css;
     }
 
     /// The gate's background for one theme, as themeCss writes it, or '' for a theme this
@@ -3948,6 +3988,7 @@
             };
             this._themeSettings = settings;
             this.applyTheme(settings.theme);
+            this.injectFonts();
 
             try {
                 const userId = (typeof ApiClient !== 'undefined' && ApiClient) ? this.normalizeGuid(ApiClient.getCurrentUserId()) : '';
@@ -10938,6 +10979,28 @@
             // that changed winner when the themes left the sheet, and tests/js/themes.js
             // fails on every one.
             style.textContent = BONFIRE_STYLES + '\n' + allThemesCss();
+            document.head.appendChild(style);
+            this.injectFonts();
+        },
+
+        /// The served fonts, once, in a <style> of their own. Called again from
+        /// _setThemeSettings, because a packaged client (Tizen) has no ApiClient when this
+        /// script starts and a root-relative address there asks the app, not the server. A
+        /// browser that does not fetch a font until text needs it makes declaring all of
+        /// them free.
+        injectFonts: function () {
+            if (document.getElementById('jpf-fonts')) return;
+            const inBrowser = /^https?:$/.test(window.location.protocol);
+            const hasClient = typeof ApiClient !== 'undefined' && ApiClient && typeof ApiClient.getUrl === 'function';
+            if (!inBrowser && !hasClient) return;
+            let variable = false;
+            try { variable = !!(window.CSS && CSS.supports && CSS.supports('font-variation-settings', 'normal')); } catch (e) { /* old engine */ }
+            if (!variable) return;
+            const css = fontFaceCss(pluginUrl);
+            if (!css) return;
+            const style = document.createElement('style');
+            style.id = 'jpf-fonts';
+            style.textContent = css;
             document.head.appendChild(style);
         }
     };

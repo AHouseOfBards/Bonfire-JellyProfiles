@@ -39,7 +39,7 @@ for Bonfire's own client. It's documented because other people build against it 
 
 ## All routes
 
-All 91 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 92 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -95,6 +95,7 @@ All 91 endpoints. **Auth** is what each one enforces: `user` means any signed-in
 | `POST /plugins/profiles/theme` | user | Set one profile's theme. |
 | `GET /plugins/profiles/themes` | anon | Every theme, for other apps. |
 | `GET /plugins/profiles/themes/patterns/{name}` | anon | One pattern picture. |
+| `GET /plugins/profiles/themes/fonts/{file}` | anon | One font file, or its licence. |
 | `GET /plugins/profiles/onboarding` | user | First-time setup for this account. |
 | `POST /plugins/profiles/onboarding/done` | user | Record that it was seen. |
 | `GET /plugins/profiles/avatars` | user | The avatar library. |
@@ -149,7 +150,7 @@ Authorization: MediaBrowser Client="<Client>", Device="<Device>", DeviceId="<Dev
 token. A key has no user, so routes for a household (`/list`, `/me`, `/create` and the
 rest) refuse one.
 
-Ten routes are reachable without a token, because they're needed before anyone signs in.
+Eleven routes are reachable without a token, because they're needed before anyone signs in.
 
 | Endpoint | Why it is anonymous |
 | --- | --- |
@@ -163,6 +164,7 @@ Ten routes are reachable without a token, because they're needed before anyone s
 | `GET /panic-state` | Says only whether Bonfire is disabled. |
 | `GET /themes` | An app draws its switcher before sign-in. Only the default theme and whether profiles may choose. |
 | `GET /themes/patterns/{name}` | Pictures those themes use. Built-in files only. |
+| `GET /themes/fonts/{file}` | Fonts those themes use, and their licences. Built-in files only. |
 
 The image routes can be reached by anyone who knows the id. Ids are GUIDs, so they can't
 be guessed.
@@ -1353,7 +1355,12 @@ Every theme as a file, for an app that draws its own switcher. The file format i
   "default": "bonfire",
   "profilesCanChoose": true,
   "themes": [ { "schema": 1, "id": "harvest", "revision": 1, "…": "…" } ],
-  "fonts": [ { "family": "Georgia", "fallback": "serif", "files": [] } ],
+  "fonts": [
+    { "family": "Noto Sans", "fallback": "sans-serif", "licence": "/plugins/profiles/themes/fonts/noto-sans-OFL.txt",
+      "files": [ { "subset": "latin", "url": "/plugins/profiles/themes/fonts/noto-sans-latin.woff2", "format": "woff2",
+                   "style": "normal", "weight": [100, 900], "unicodeRange": "U+0000-00FF,…" } ] },
+    { "family": "Georgia", "fallback": "serif", "files": [] }
+  ],
   "patterns": [ { "name": "leaves", "url": "/plugins/profiles/themes/patterns/leaves" } ],
   "logo": { "image": null, "text": null }
 }
@@ -1368,6 +1375,16 @@ changes, including the server's default theme.
 
 One pattern picture, as SVG. `name` is a decoration's `image`; the `url` in
 [`/themes`](#get-pluginsprofilesthemes) points here. `404` for a name Bonfire doesn't hold.
+
+### `GET /plugins/profiles/themes/fonts/{file}`
+
+**Authorisation:** anonymous.
+
+One font file (`font/woff2`), or the licence that comes with it (`text/plain`). The `url`
+and `licence` in [`/themes`](#get-pluginsprofilesthemes) point here. Each font is a
+variable font covering its `weight` range, in one file per `subset`; use the file whose
+`unicodeRange` holds the character. Every font is under the SIL Open Font License. Sent
+with `Access-Control-Allow-Origin: *` and an `ETag`. `404` for a file Bonfire doesn't hold.
 
 ---
 

@@ -72,6 +72,10 @@
          explicitly so a theme id with a hyphen keeps it. See ThemeCatalog. -->
     <EmbeddedResource Include="Web/themes/*.json" LogicalName="Jellyfin.Profiles.Themes.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Web/themes/patterns/*.svg" LogicalName="Jellyfin.Profiles.Themes.Patterns.%(Filename)%(Extension)" />
+    <!-- The fonts Bonfire serves (fonts.json), and the SIL Open Font License each comes with,
+         which has to travel with the font. -->
+    <EmbeddedResource Include="Web/themes/fonts/*.woff2" LogicalName="Jellyfin.Profiles.Themes.Fonts.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Web/themes/fonts/*.txt" LogicalName="Jellyfin.Profiles.Themes.Fonts.%(Filename)%(Extension)" />
     <!-- The starter avatars (StarterAvatars.cs) and their licence. Named explicitly: the
          default manifest name would mangle the hyphen in the folder and in polar-bear. -->
     <EmbeddedResource Include="Web/starter-avatars/*.webp" LogicalName="Jellyfin.Profiles.StarterAvatars.%(Filename)%(Extension)" />

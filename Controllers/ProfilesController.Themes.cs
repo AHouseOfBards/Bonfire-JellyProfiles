@@ -47,6 +47,30 @@ namespace Jellyfin.Profiles.Controllers
             return Content(payload, "application/json", Encoding.UTF8);
         }
 
+        /// <summary>One font file Bonfire serves, or the licence that comes with it.</summary>
+        [HttpGet("themes/fonts/{file}")]
+        public ActionResult GetThemeFont(string file)
+        {
+            // Looked up among the embedded files, never joined to a path.
+            var found = ThemeCatalog.FontFile(file);
+            if (found == null) return NotFound();
+
+            Response.Headers["X-Content-Type-Options"] = "nosniff";
+            // A different plugin build can carry a different file under the same name, so a
+            // day and a revalidation rather than forever.
+            Response.Headers["Cache-Control"] = "public, max-age=86400";
+            // A font is fetched cross-origin by a packaged client (Tizen, whose page is the
+            // app), and browsers refuse a font without this.
+            Response.Headers["Access-Control-Allow-Origin"] = "*";
+            Response.Headers["ETag"] = found.Value.ETag;
+            if (string.Equals(Request.Headers["If-None-Match"].ToString(), found.Value.ETag, StringComparison.Ordinal))
+            {
+                return StatusCode(StatusCodes.Status304NotModified);
+            }
+
+            return File(found.Value.Bytes, found.Value.ContentType);
+        }
+
         /// <summary>One pattern picture, by the name a theme's decoration gives.</summary>
         [HttpGet("themes/patterns/{name}")]
         public ActionResult GetThemePattern(string name)

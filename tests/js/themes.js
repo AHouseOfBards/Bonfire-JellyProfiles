@@ -396,13 +396,16 @@ if (constants && names.every(n => methods[n])) {
         const obj = {
             config: { themeKey: 'jellyfin_profiles_theme' },
             _themeSettings: null,
+            fontCalls: 0,
+            injectFonts() { this.fontCalls++; },
             normalizeGuid: g => String(g || '').replace(/-/g, '').toLowerCase()
         };
         // Since 1.7.2 _setThemeSettings caches each theme's gate background, which it gets
         // by running themeCss over the theme files.
         const generator = SRC.indexOf('function gateBackground(') === -1 ? ''
             : 'const BONFIRE_THEMES = ' + JSON.stringify(L.themesPayload()) + ';\n'
-              + L.extractFunction(SRC, 'themeCss') + '\n' + L.extractFunction(SRC, 'gateBackground') + '\n';
+              + ['themeCss', 'servedFontName', 'gateBackground'].filter(n => SRC.indexOf('function ' + n + '(') !== -1)
+                  .map(n => L.extractFunction(SRC, n)).join('\n') + '\n';
         const factory = new Function('document', 'localStorage', 'ApiClient', 't', 'obj',
             generator + constants + '\n' + names.map(n =>
                 'obj.' + n + ' = function (' + methods[n].params + ') {' + methods[n].body + '};').join('\n')
@@ -425,6 +428,8 @@ if (constants && names.every(n => methods[n])) {
 
     w.obj._setThemeSettings({ theme: 'glass', defaultTheme: 'harbor', allowProfileThemes: true });
     ok('the server\'s theme is applied', w.attrs['data-jpf-theme'] === 'glass');
+    // A packaged client has an ApiClient by now and may not have had one at startup.
+    ok('and the served fonts are declared then, if they were not already', w.obj.fontCalls === 1);
     const cached = JSON.parse(w.store.jellyfin_profiles_theme || 'null');
     ok('and cached for this account', !!cached && !!cached.users && cached.users.aaaa1111 === 'glass'
        && cached.last === 'glass');

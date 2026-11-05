@@ -151,8 +151,10 @@ The ground behind the switcher.
 }
 ```
 
-- `font.family` is one of the fonts in `GET /themes`. Bonfire serves them, so you don't
-  need them installed.
+- `font.family` is one of the fonts in `GET /themes`. Bonfire serves Noto Sans, Outfit,
+  Inter, Nunito, Montserrat, DM Sans, Atkinson Hyperlegible Next, Lora, Playfair Display
+  and Quicksand, so you don't need them installed. Each covers every language Bonfire is
+  translated into.
 - `font.fallback` is `sans-serif`, `serif` or `rounded`. Use it when you can't load the
   family.
 - `spacing` is letter spacing in em.
@@ -297,7 +299,9 @@ as `If-None-Match` and you get `304` until something changes.
   "default": "bonfire",
   "profilesCanChoose": true,
   "themes": [ { "schema": 1, "id": "harvest", "revision": 4, "…": "…" } ],
-  "fonts": [ { "family": "Lora", "fallback": "serif", "files": [ { "weight": 400, "style": "normal", "url": "/plugins/profiles/themes/fonts/lora-400.woff2" } ] } ],
+  "fonts": [ { "family": "Lora", "fallback": "serif", "licence": "/plugins/profiles/themes/fonts/lora-OFL.txt",
+               "files": [ { "subset": "latin", "url": "/plugins/profiles/themes/fonts/lora-latin.woff2", "format": "woff2",
+                            "style": "normal", "weight": [400, 700], "unicodeRange": "U+0000-00FF,…" } ] } ],
   "patterns": [ { "name": "leaves", "url": "/plugins/profiles/themes/patterns/leaves" } ],
   "logo": { "image": "/plugins/profiles/themes/logo?v=3", "text": null }
 }
@@ -305,7 +309,10 @@ as `If-None-Match` and you get `304` until something changes.
 
 - **A pattern's picture** is the entry in `patterns` whose `name` is the decoration's
   `image`. It's SVG.
-- **A font with no `files`** isn't served yet. Use its `fallback`.
+- **A font's `files`** are variable fonts covering `weight`, one per `subset`: use the
+  one whose `unicodeRange` holds the character. Every one is under the SIL Open Font
+  License, at `licence`.
+- **A font with no `files`** isn't one Bonfire serves. Use its `fallback`.
 
 - **Which theme a profile uses** is in `/list`, as each profile's `theme`. When it's
   `null`, use `default`. An id you don't recognise is an alias or a deleted theme: look

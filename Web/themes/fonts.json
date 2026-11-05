@@ -1,13 +1,170 @@
 {
   "schema": 1,
+  "subsets": {
+    "latin": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+    "latin-ext": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF"
+  },
   "fonts": [
     {
-      "family": "Outfit",
+      "family": "Noto Sans",
+      "fallback": "sans-serif",
       "local": [
-        "Outfit",
+        "Noto Sans"
+      ],
+      "weight": [
+        100,
+        900
+      ],
+      "files": {
+        "latin": "noto-sans-latin.woff2",
+        "latin-ext": "noto-sans-latin-ext.woff2"
+      },
+      "licence": "noto-sans-OFL.txt"
+    },
+    {
+      "family": "Outfit",
+      "fallback": "sans-serif",
+      "local": [
+        "Outfit"
+      ],
+      "weight": [
+        100,
+        900
+      ],
+      "files": {
+        "latin": "outfit-latin.woff2",
+        "latin-ext": "outfit-latin-ext.woff2"
+      },
+      "licence": "outfit-OFL.txt"
+    },
+    {
+      "family": "Inter",
+      "fallback": "sans-serif",
+      "local": [
         "Inter"
       ],
-      "fallback": "sans-serif"
+      "weight": [
+        100,
+        900
+      ],
+      "files": {
+        "latin": "inter-latin.woff2",
+        "latin-ext": "inter-latin-ext.woff2"
+      },
+      "licence": "inter-OFL.txt"
+    },
+    {
+      "family": "Nunito",
+      "fallback": "rounded",
+      "local": [
+        "Nunito"
+      ],
+      "weight": [
+        200,
+        1000
+      ],
+      "files": {
+        "latin": "nunito-latin.woff2",
+        "latin-ext": "nunito-latin-ext.woff2"
+      },
+      "licence": "nunito-OFL.txt"
+    },
+    {
+      "family": "Montserrat",
+      "fallback": "sans-serif",
+      "local": [
+        "Montserrat"
+      ],
+      "weight": [
+        100,
+        900
+      ],
+      "files": {
+        "latin": "montserrat-latin.woff2",
+        "latin-ext": "montserrat-latin-ext.woff2"
+      },
+      "licence": "montserrat-OFL.txt"
+    },
+    {
+      "family": "DM Sans",
+      "fallback": "sans-serif",
+      "local": [
+        "DM Sans"
+      ],
+      "weight": [
+        100,
+        1000
+      ],
+      "files": {
+        "latin": "dm-sans-latin.woff2",
+        "latin-ext": "dm-sans-latin-ext.woff2"
+      },
+      "licence": "dm-sans-OFL.txt"
+    },
+    {
+      "family": "Atkinson Hyperlegible Next",
+      "fallback": "sans-serif",
+      "local": [
+        "Atkinson Hyperlegible Next",
+        "Atkinson Hyperlegible"
+      ],
+      "weight": [
+        200,
+        800
+      ],
+      "files": {
+        "latin": "atkinson-hyperlegible-next-latin.woff2",
+        "latin-ext": "atkinson-hyperlegible-next-latin-ext.woff2"
+      },
+      "licence": "atkinson-hyperlegible-next-OFL.txt"
+    },
+    {
+      "family": "Lora",
+      "fallback": "serif",
+      "local": [
+        "Lora"
+      ],
+      "weight": [
+        400,
+        700
+      ],
+      "files": {
+        "latin": "lora-latin.woff2",
+        "latin-ext": "lora-latin-ext.woff2"
+      },
+      "licence": "lora-OFL.txt"
+    },
+    {
+      "family": "Playfair Display",
+      "fallback": "serif",
+      "local": [
+        "Playfair Display"
+      ],
+      "weight": [
+        400,
+        900
+      ],
+      "files": {
+        "latin": "playfair-display-latin.woff2",
+        "latin-ext": "playfair-display-latin-ext.woff2"
+      },
+      "licence": "playfair-display-OFL.txt"
+    },
+    {
+      "family": "Quicksand",
+      "fallback": "rounded",
+      "local": [
+        "Quicksand"
+      ],
+      "weight": [
+        300,
+        700
+      ],
+      "files": {
+        "latin": "quicksand-latin.woff2",
+        "latin-ext": "quicksand-latin-ext.woff2"
+      },
+      "licence": "quicksand-OFL.txt"
     },
     {
       "family": "Helvetica Neue",

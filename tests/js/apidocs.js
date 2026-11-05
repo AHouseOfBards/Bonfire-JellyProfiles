@@ -311,7 +311,9 @@ ok('and it is the real one', !!claimed && Number(claimed[1]) === R.length,
 // A single-line regex found nothing and reported the document as silent on a count it
 // states plainly — the checker being wrong reads exactly like the document being wrong.
 const anonClaim = /(\w+)\s+routes\s+are\s+reachable\s+without\s+a\s+token/.exec(apiClaims);
-const WORDS = { five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+// A word the table does not know reads as undefined, which never equals a count, so a
+// count past the list fails loudly rather than passing; extend it as the set grows.
+const WORDS = { five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14 };
 ok('the API reference names the anonymous count', !!anonClaim);
 ok('and it matches the code',
     !!anonClaim && WORDS[anonClaim[1].toLowerCase()] === anonCode.size,

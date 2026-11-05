@@ -127,14 +127,16 @@ function themesPayload() {
         .map(f => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')))
         .sort((a, b) => (a.id === 'bonfire') !== (b.id === 'bonfire') ? (a.id === 'bonfire' ? -1 : 1)
             : a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-    const fonts = JSON.parse(fs.readFileSync(path.join(dir, 'fonts.json'), 'utf8')).fonts;
+    const fontList = JSON.parse(fs.readFileSync(path.join(dir, 'fonts.json'), 'utf8'));
+    const fonts = fontList.fonts;
+    const subsets = fontList.subsets || {};
     const patterns = {};
     fs.readdirSync(path.join(dir, 'patterns')).filter(f => /\.svg$/.test(f)).sort().forEach(f => {
         patterns[f.replace(/\.svg$/, '')] = 'data:image/svg+xml,' + encodeURIComponent(
             fs.readFileSync(path.join(dir, 'patterns', f), 'utf8').trim())
             .replace(/[!'()*]/g, ch => '%' + ch.charCodeAt(0).toString(16).toUpperCase());
     });
-    return { themes, fonts, patterns };
+    return { themes, fonts, subsets, patterns };
 }
 
 /**
@@ -142,10 +144,20 @@ function themesPayload() {
  * allThemesCss out of `src` — the generator under test, not a copy of it.
  */
 function themesCss(src) {
+    return themeGenerator(src).allThemesCss();
+}
+
+/**
+ * The generator's functions, run out of `src` with the theme files as BONFIRE_THEMES:
+ * { themeCss, allThemesCss, fontFaceCss, gateBackground } — whichever that build has.
+ */
+function themeGenerator(src, payload) {
     const js = typeof src === 'string' ? src : readProfiles();
+    const names = ['themeCss', 'allThemesCss', 'servedFontName', 'fontFaceCss', 'gateBackground']
+        .filter(n => new RegExp('function\\s+' + n + '\\s*\\(').test(js));
     const factory = new Function('BONFIRE_THEMES',
-        extractFunction(js, 'themeCss') + '\n' + extractFunction(js, 'allThemesCss') + '\nreturn allThemesCss;');
-    return factory(themesPayload())();
+        names.map(n => extractFunction(js, n)).join('\n') + '\nreturn {' + names.join(', ') + '};');
+    return factory(payload || themesPayload());
 }
 
 /**
@@ -298,6 +310,6 @@ module.exports = {
     profilesPath, dashboardPath, i18nDir,
     readProfiles, readDashboard,
     extractCss, extractFunction, dashboardScript, dashboardI18n, stylesPath, readClientBundle, readSourceAndStyles,
-    stylesOnly, themesDir, themesPayload, themesCss, THEMES_MARKER,
+    stylesOnly, themesDir, themesPayload, themesCss, themeGenerator, THEMES_MARKER,
     resolveCssValue, alphaOf
 };

@@ -66,6 +66,7 @@ namespace Jellyfin.Profiles.Configuration
             {
                 ["themes"] = new JsonArray(BuiltIn.Select(t => (JsonNode)t.DeepClone()).ToArray()),
                 ["fonts"] = Fonts,
+                ["subsets"] = Loaded.Value.Subsets.DeepClone(),
                 ["patterns"] = patterns,
             };
             return payload.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
@@ -86,13 +87,37 @@ namespace Jellyfin.Profiles.Configuration
             foreach (var f in Loaded.Value.Fonts)
             {
                 if (f is not JsonObject font) continue;
-                fonts.Add(new JsonObject
+
+                // One entry per subset file, with the range of characters it holds, so an app
+                // that can only load one fetches latin and an app that can load both knows
+                // which to use for what. A family with no files is one Bonfire does not serve:
+                // the app draws its fallback.
+                var files = new JsonArray();
+                if (font["files"] is JsonObject byName)
+                {
+                    foreach (var sub in Loaded.Value.Subsets)
+                    {
+                        if (byName[sub.Key] is not JsonValue fv || !fv.TryGetValue<string>(out var file)) continue;
+                        files.Add(new JsonObject
+                        {
+                            ["subset"] = sub.Key,
+                            ["url"] = FontUrl(file),
+                            ["format"] = "woff2",
+                            ["style"] = "normal",
+                            ["weight"] = font["weight"]?.DeepClone(),
+                            ["unicodeRange"] = sub.Value?.DeepClone(),
+                        });
+                    }
+                }
+
+                var entry = new JsonObject
                 {
                     ["family"] = font["family"]?.DeepClone(),
                     ["fallback"] = font["fallback"]?.DeepClone(),
-                    // Bonfire serves no font files yet; an app uses the fallback until it does.
-                    ["files"] = new JsonArray(),
-                });
+                    ["files"] = files,
+                };
+                if (font["licence"] is JsonValue lv && lv.TryGetValue<string>(out var licence)) entry["licence"] = FontUrl(licence);
+                fonts.Add(entry);
             }
 
             var patterns = new JsonArray();
@@ -122,7 +147,36 @@ namespace Jellyfin.Profiles.Configuration
             return "\"" + Convert.ToHexString(hash, 0, 16).ToLowerInvariant() + "\"";
         }
 
-        private sealed record Catalog(List<JsonObject> Themes, JsonArray Fonts, Dictionary<string, string> Patterns);
+        /// <summary>
+        /// One file Bonfire serves from <c>Web/themes/fonts/</c>, by its file name: a font, or
+        /// the licence that comes with it. Null for a name it does not hold.
+        /// </summary>
+        public static (byte[] Bytes, string ContentType, string ETag)? FontFile(string name)
+        {
+            if (string.IsNullOrEmpty(name) || !Loaded.Value.FontFiles.Contains(name)) return null;
+            var cached = FontBytes.GetOrAdd(name, n =>
+            {
+                using var stream = typeof(ThemeCatalog).Assembly.GetManifestResourceStream(FontPrefix + n)!;
+                using var copy = new MemoryStream();
+                stream.CopyTo(copy);
+                var bytes = copy.ToArray();
+                var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+                return (bytes, "\"" + Convert.ToHexString(hash, 0, 16).ToLowerInvariant() + "\"");
+            });
+            var type = name.EndsWith(".woff2", StringComparison.Ordinal) ? "font/woff2" : "text/plain; charset=utf-8";
+            return (cached.Bytes, type, cached.ETag);
+        }
+
+        /// <summary>Where a font file is served, relative to the server.</summary>
+        public static string FontUrl(string file) => "/plugins/profiles/themes/fonts/" + Uri.EscapeDataString(file);
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (byte[] Bytes, string ETag)> FontBytes =
+            new(StringComparer.Ordinal);
+
+        private const string FontPrefix = "Jellyfin.Profiles.Themes.Fonts.";
+
+        private sealed record Catalog(
+            List<JsonObject> Themes, JsonArray Fonts, JsonObject Subsets, Dictionary<string, string> Patterns, HashSet<string> FontFiles);
 
         private static readonly Lazy<Catalog> Loaded = new(Load);
 
@@ -131,13 +185,21 @@ namespace Jellyfin.Profiles.Configuration
             var assembly = typeof(ThemeCatalog).Assembly;
             var themes = new List<JsonObject>();
             var fonts = new JsonArray();
+            var subsets = new JsonObject();
             var patterns = new Dictionary<string, string>(StringComparer.Ordinal);
+            var fontFiles = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (var name in assembly.GetManifestResourceNames().OrderBy(n => n, StringComparer.Ordinal))
             {
                 if (name.StartsWith(PatternPrefix, StringComparison.Ordinal) && name.EndsWith(".svg", StringComparison.Ordinal))
                 {
                     patterns[name.Substring(PatternPrefix.Length, name.Length - PatternPrefix.Length - 4)] = Read(name);
+                    continue;
+                }
+
+                if (name.StartsWith(FontPrefix, StringComparison.Ordinal))
+                {
+                    fontFiles.Add(name.Substring(FontPrefix.Length));
                     continue;
                 }
 
@@ -148,6 +210,7 @@ namespace Jellyfin.Profiles.Configuration
                 if (name == ThemePrefix + "fonts.json")
                 {
                     if (node?["fonts"] is JsonArray list) fonts = (JsonArray)list.DeepClone();
+                    if (node?["subsets"] is JsonObject s) subsets = (JsonObject)s.DeepClone();
                     continue;
                 }
 
@@ -160,7 +223,7 @@ namespace Jellyfin.Profiles.Configuration
             themes = themes.OrderBy(t => (string)t["id"]! == Themes.Bonfire ? 0 : 1)
                 .ThenBy(t => (string)t["id"]!, StringComparer.Ordinal)
                 .ToList();
-            return new Catalog(themes, fonts, patterns);
+            return new Catalog(themes, fonts, subsets, patterns, fontFiles);
 
             string Read(string resource)
             {
