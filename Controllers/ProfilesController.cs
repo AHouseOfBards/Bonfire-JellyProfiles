@@ -4272,6 +4272,15 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     return BadRequest("An account with that username already exists.");
                 }
+
+                // Before the first write. If this server has no rename we can call, say so now:
+                // found at the end, the profile would already be an account with a new password
+                // and the old name, and the administrator would get a 500 for a half-done job.
+                if (!CanRenameUser())
+                {
+                    return StatusCode(StatusCodes.Status500InternalServerError,
+                        "This server can't rename accounts from here. Leave the name blank and rename it in Dashboard → Users.");
+                }
             }
 
             // 1. The restrictions it has today, made current. Nothing inherits after this.
@@ -4346,7 +4355,17 @@ namespace Jellyfin.Profiles.Controllers
 
             if (username.Length > 0 && !string.Equals(username, user.Username, StringComparison.Ordinal))
             {
-                await _userManager.RenameUser(user, username).ConfigureAwait(false);
+                try
+                {
+                    await RenameUserCompat(user, username).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(ex, "ProfilesPlugin: {User} is its own account now, but could not be renamed.", user.Username);
+                    ProfilesBootstrapTask.ReconcileAuthProvidersNow();
+                    return StatusCode(StatusCodes.Status500InternalServerError,
+                        "The account was made, but it couldn't be renamed. Rename it in Dashboard → Users.");
+                }
             }
 
             // 6. The master may have just lost its last profile.

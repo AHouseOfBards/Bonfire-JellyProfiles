@@ -206,6 +206,26 @@ Ok("because it goes on Jellyfin's own provider, not the directory's", world.User
 Ok("and stays hidden, as its main account is", world.Hidden.Contains(LDAPKID));
 Ok("no account was ever given an empty provider", world.Users.Values.All(u => !string.IsNullOrEmpty(u.AuthenticationProviderId)));
 
+Console.WriteLine();
+Console.WriteLine("── A server that only has RenameUser(Guid, string, string) ─────");
+
+// R-1320: 10.11.11 and 12.0 removed RenameUser(User, string). Calling it threw
+// MissingMethodException after the password was already set.
+var SOLO = Guid.NewGuid();
+world.Add(SOLO, "Bard_Solo", BONFIRE);
+world.Hidden.Add(SOLO);
+Map(SOLO, MASTER, "Solo");
+world.GuidOnlyRename = true;
+world.Log.Clear();
+(int status, object value) guidOnly;
+string guidOnlyError = null;
+try { guidOnly = Call(ADMIN, SOLO, "Robin", "pw"); }
+catch (Exception e) { guidOnly = (-1, null); guidOnlyError = (e.InnerException ?? e).GetType().Name; }
+Ok("the rename works through the Guid overload", guidOnly.status == 200 && world.Users[SOLO].Username == "Robin",
+   guidOnly.status + " " + guidOnlyError + " " + guidOnly.value);
+Ok("it was given the old name as well", world.Log.Any(l => l == "rename " + SOLO + " from Bard_Solo"), string.Join(" | ", world.Log));
+world.GuidOnlyRename = false;
+
 try { Directory.Delete(tempDir, true); } catch { }
 return Finish();
 
@@ -232,6 +252,7 @@ public class World
     public List<string> Log = new();
     public HashSet<Guid> Hidden = new();
     public Func<Guid, bool> MappedNow = _ => false;
+    public bool GuidOnlyRename;
 
     public void Add(Guid id, string name, string provider, bool admin = false)
     {
@@ -254,6 +275,12 @@ public class World
 public class WorldProxy : DispatchProxy
 {
     public World W;
+
+    // What 10.11.11's and 12.0's UserManager has. The 10.11.5 interface the build is compiled
+    // against does not declare it, so it is a public method on the stub's own type, which is
+    // where the plugin's reflection looks, as it does on the real server.
+    public Task RenameUser(Guid userId, string oldName, string newName)
+        => (Task)Invoke(typeof(WorldProxy).GetMethod("RenameUser"), new object[] { userId, oldName, newName });
 
     protected override object Invoke(MethodInfo m, object[] args)
     {
@@ -293,9 +320,15 @@ public class WorldProxy : DispatchProxy
                 W.Log.Add("password " + id + " mapped=" + W.MappedNow(id));
                 return Task.CompletedTask;
             case "RenameUser":
-                var ru = (User)args[0];
-                W.Log.Add("rename " + ru.Id);
-                typeof(User).GetProperty("Username").SetValue(ru, (string)args[1]);
+                // Jellyfin 10.11.11 and 12.0 have only RenameUser(Guid, string, string); the
+                // build is compiled against 10.11.5's RenameUser(User, string). A DispatchProxy
+                // cannot drop a method from the interface, so on those servers this one throws
+                // what the runtime throws for a method that is not there.
+                if (args.Length == 2 && W.GuidOnlyRename)
+                    throw new MissingMethodException("IUserManager.RenameUser(User, string)");
+                var rid = args[0] is User ru ? ru.Id : (Guid)args[0];
+                W.Log.Add("rename " + rid + (args.Length == 3 ? " from " + args[1] : ""));
+                typeof(User).GetProperty("Username").SetValue(W.Users[rid], (string)args[args.Length - 1]);
                 return Task.CompletedTask;
             case "RevokeUserTokens":
                 W.Log.Add("revoke " + args[0]);

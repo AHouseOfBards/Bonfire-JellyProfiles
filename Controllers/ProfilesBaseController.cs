@@ -760,6 +760,38 @@ namespace Jellyfin.Profiles.Controllers
             return Task.CompletedTask;
         }
 
+        private static readonly ConcurrentDictionary<Type, System.Reflection.MethodInfo?> RenameUserCache = new();
+
+        private System.Reflection.MethodInfo? ResolveRenameUser() =>
+            RenameUserCache.GetOrAdd(_userManager.GetType(), t =>
+                t.GetMethod("RenameUser", PublicInstance, null,
+                    new[] { typeof(Guid), typeof(string), typeof(string) }, null)
+                ?? t.GetMethod("RenameUser", PublicInstance, null,
+                    new[] { typeof(Jellyfin.Database.Implementations.Entities.User), typeof(string) }, null));
+
+        /// <summary>Whether this server has a RenameUser overload <see cref="RenameUserCompat"/> can call.</summary>
+        protected bool CanRenameUser() => ResolveRenameUser() != null;
+
+        /// <summary>
+        /// Renames an account on whichever overload the running server has. Compiled against
+        /// 10.11.5, which has RenameUser(User, string); 10.11.11 and 12.0 removed it for
+        /// RenameUser(Guid, string, string), so the direct call threw MissingMethodException
+        /// there, after the route had already written everything else. Same approach as
+        /// <see cref="ChangePasswordCompat"/>. Throws if neither exists: callers check
+        /// <see cref="CanRenameUser"/> first, before writing anything.
+        /// </summary>
+        protected Task RenameUserCompat(
+            Jellyfin.Database.Implementations.Entities.User user, string newName)
+        {
+            var resolved = ResolveRenameUser()
+                ?? throw new MissingMethodException("IUserManager has no RenameUser this plugin can call.");
+
+            var args = resolved.GetParameters().Length == 3
+                ? new object[] { user.Id, user.Username, newName }
+                : new object[] { user, newName };
+            return (Task)resolved.Invoke(_userManager, args)!;
+        }
+
         // ── Audit log helpers ───────────────────────────────────────────────────────
         // Stored in a separate audit_log.json rather than in PluginConfiguration.xml
         // so that a profile switch never causes the entire config to be rewritten.
