@@ -156,26 +156,24 @@ namespace Jellyfin.Profiles
                     "else if(hs&&hs!=='#/'&&hs.indexOf('home')===-1)return;" +
                     // The theme, so the cover is the gate's own colour from the first frame.
                     // The stylesheet that defines --jpf-gate-bg arrives with profiles.js,
-                    // well after this, so each theme's background is repeated here — and
-                    // tests/js/themes.js fails if one stops matching styles.css. Applied
-                    // only when the cache belongs to the account signed in now, as
-                    // applyCachedTheme does; unquoted in the selectors, because a
-                    // double quote before a semicolon ends this constant for the tests.
-                    "var tb={bonfire:'radial-gradient(circle at 50% 40%, #1e1e2e 0%, #0d0d12 100%)'," +
-                        "crimson:'#141414'," +
-                        "starlight:'#1a1d29'," +
-                        "harbor:'linear-gradient(180deg, #1f3549 0%, #182b3c 50%, #0f1d29 100%)'," +
-                        "nightfall:'linear-gradient(170deg, #050507 0%, #0a0714 35%, #1f0e3a 70%, #3a1258 100%)'," +
-                        "glass:'radial-gradient(ellipse at 15% 20%, #5a3f45 0%, rgba(90, 63, 69, 0) 55%), radial-gradient(ellipse at 85% 10%, #2f4d6e 0%, rgba(47, 77, 110, 0) 60%), radial-gradient(ellipse at 70% 95%, #3a3560 0%, rgba(58, 53, 96, 0) 55%), linear-gradient(160deg, #2e3f57 0%, #24324a 60%, #1a2537 100%)'," +
-                        "harvest:'linear-gradient(165deg, #1f0f08 0%, #2e160b 45%, #42200e 100%)'," +
-                        "snowfall:'linear-gradient(180deg, #0a1a2f 0%, #0f2742 55%, #15385a 100%)'," +
-                        "bloom:'linear-gradient(160deg, #0d241a 0%, #123222 55%, #1a4430 100%)'},tc='',k;" +
-                    // { last, users: { id: theme } }, one entry per account; see
-                    // _readThemeCache in profiles.js.
-                    "var th=g('jellyfin_profiles_theme'),tu=th&&th.users,tt=null;" +
+                    // well after this, so profiles.js leaves each theme's gate background in
+                    // its cache and this reads it back. Until 1.7.2 every built-in's
+                    // background was copied out here instead, which no theme an
+                    // administrator makes could ever be in.
+                    // { last, users: { id: theme }, bg: { theme: background } }; see
+                    // _readThemeCache in profiles.js. A background is used only when it is
+                    // made of the characters a gradient needs: nothing that can end the
+                    // rule it is written into, quote, or fetch (url, image).
+                    "var th=g('jellyfin_profiles_theme'),tu=th&&th.users,tb={},tc='',tt=null,k;" +
+                    "if(th&&th.bg&&typeof th.bg==='object')for(k in th.bg)" +
+                        "if(th.bg.hasOwnProperty(k)&&/^[a-z0-9-]{1,40}$/.test(k)&&typeof th.bg[k]==='string'" +
+                        "&&/^[a-z0-9#(),.%\\s-]{1,2000}$/i.test(th.bg[k])&&!/url|image/i.test(th.bg[k]))tb[k]=th.bg[k];" +
                     "for(i=0;tu&&sv&&!tt&&i<sv.length;i++)if(sv[i]&&sv[i].AccessToken&&sv[i].UserId&&typeof tu[n(sv[i].UserId)]==='string')tt=tu[n(sv[i].UserId)];" +
                     "if(tt&&tb.hasOwnProperty(tt))h.setAttribute('data-jpf-theme',tt);" +
-                    "for(k in tb)if(tb.hasOwnProperty(k))tc+='html[data-jpf-cover][data-jpf-theme='+k+']::before{background:'+tb[k]+'}';" +
+                    // Quoted, because an id may start with a digit, which is not an
+                    // identifier. Escaped as \" so no double quote meets a semicolon, which
+                    // is where tests/js/headscript.js decides this constant ends.
+                    "for(k in tb)if(tb.hasOwnProperty(k))tc+='html[data-jpf-cover][data-jpf-theme=\"'+k+'\"]::before{background:'+tb[k]+'}';" +
                     "var s=document.createElement('style');" +
                     "s.id='jpf-cover-css';" +
                     // content: comes last on purpose. A quote followed by a semicolon is

@@ -34,7 +34,7 @@
     ];
 
     /// The looks Bonfire's own screens can take. Must match Themes.All on the server and
-    /// the [data-jpf-theme] blocks in styles.css; tests/js/themes.js holds the three
+    /// the files in Web/themes/; tests/js/themes.js and tests/cs/themes hold the three
     /// together. The names are proper names, like "Bonfire" itself, and are shown as they
     /// are in every language, so the dashboard and every profile call a theme the same thing.
     const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom'];
@@ -200,6 +200,292 @@
      * silently truncated literal, which is what got us here.
      */
     let BONFIRE_STYLES = ""; // __BONFIRE_STYLES__
+
+    /*
+     * The themes, spliced in by the server from Web/themes/*.json, the same way as the
+     * stylesheet: { themes: [...], patterns: { name: "data:image/svg+xml,..." } }.
+     * docs/themes.md describes a theme file. themeCss below turns each one into the
+     * CSS Bonfire's screens read, and injectStyles puts that after the stylesheet.
+     *
+     * This is the only place a theme becomes CSS. Other apps read the same files and
+     * draw their own way; nothing about a theme is in styles.css any more, so nothing
+     * the web client shows is out of their reach.
+     */
+    let BONFIRE_THEMES = { themes: [], patterns: {} }; // __BONFIRE_THEMES__
+
+    /// One theme file as CSS: its tokens on [data-jpf-theme="id"] (and on :root for
+    /// Bonfire, the look before any theme is known), then the rules its layout and
+    /// decorations need.
+    ///
+    /// Every value is forced into its type on the way out: a colour is #rrggbb[aa] or
+    /// nothing, a number is a number, an id is letters, digits and dashes, a font name is
+    /// letters, digits and spaces. An administrator's theme file reaches this, so a value
+    /// that could close the declaration or the rule is dropped rather than written.
+    ///
+    /// Chromium 53: no object spread, no ?. — this runs on every webOS television.
+    function themeCss(theme, patterns) {
+        if (!theme || typeof theme !== 'object') return '';
+        const id = String(theme.id || '');
+        if (!/^[a-z0-9-]{1,40}$/.test(id)) return '';
+        const g = (o, k) => (o && typeof o === 'object' ? o[k] : undefined);
+        const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
+        const hex = v => (/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(String(v || '')) ? String(v) : null);
+        const rgbOf = v => [1, 3, 5].map(i => parseInt(v.slice(i, i + 2), 16));
+        const alphaOf = v => (v.length === 9 ? Math.round(parseInt(v.slice(7), 16) / 255 * 1000) / 1000 : 1);
+        const col = (v, d) => {
+            const h = hex(v);
+            if (!h) return d || 'transparent';
+            if (h.length === 7) return h.toLowerCase();
+            const c = rgbOf(h);
+            return 'rgba(' + c[0] + ', ' + c[1] + ', ' + c[2] + ', ' + alphaOf(h) + ')';
+        };
+        const tint = (v, a) => {
+            const h = hex(v);
+            if (!h) return 'transparent';
+            const c = rgbOf(h);
+            return 'rgba(' + c[0] + ', ' + c[1] + ', ' + c[2] + ', ' + a + ')';
+        };
+        const shadowColour = hex(g(theme.colors, 'shadow')) || '#000000';
+        const shadowCss = (s, text) => {
+            if (!s || typeof s !== 'object') return 'none';
+            const colour = hex(s.color) ? col(s.color) : tint(shadowColour, num(s.opacity, 1));
+            return num(s.x, 0) + 'px ' + num(s.y, 0) + 'px ' + num(s.blur, 0) + 'px '
+                + (!text && num(s.spread, 0) ? num(s.spread, 0) + 'px ' : '') + colour;
+        };
+        const style = v => (['solid', 'dashed', 'dotted'].indexOf(v) !== -1 ? v : 'solid');
+        const borderCss = b => (b && typeof b === 'object'
+            ? num(b.width, 0) + 'px ' + style(b.style) + ' ' + col(b.color) : '0 solid transparent');
+        const fontName = v => String(v || '').replace(/[^A-Za-z0-9 -]/g, '');
+        const quoteFont = v => (/^-|^[A-Za-z]+$/.test(v) ? v : "'" + v + "'");
+
+        const c = theme.colors || {};
+        const shape = theme.shape || {};
+        const type = theme.type || {};
+        const parts = theme.parts || {};
+        const decorations = Array.isArray(theme.decorations) ? theme.decorations : [];
+        const deco = name => decorations.filter(d => d && d.name === name)[0] || null;
+        const light = theme.scheme === 'light';
+        // A theme with no accent writes nothing, so whatever wears it shows Bonfire, whose
+        // block is on :root. Not a stand-in colour: everything else in a theme is drawn
+        // around its accent, and a guessed one would be a theme nobody made.
+        const accent = hex(c.accent);
+        if (!accent) return '';
+        const sel = '[data-jpf-theme="' + id + '"]';
+
+        // The background: each layer as a CSS gradient, first on top; or the plain fill.
+        const bg = theme.background || {};
+        const layers = (Array.isArray(bg.layers) ? bg.layers : []).map(L => {
+            const stops = (Array.isArray(L && L.stops) ? L.stops : [])
+                .map(s => col(s && s.color) + ' ' + num(s && s.at, 0) + '%').join(', ');
+            if (!stops) return null;
+            return L.type === 'radial'
+                ? 'radial-gradient(' + (L.shape === 'circle' ? 'circle' : 'ellipse') + ' at ' + num(L.x, 50) + '% ' + num(L.y, 50) + '%, ' + stops + ')'
+                : 'linear-gradient(' + num(L.angle, 180) + 'deg, ' + stops + ')';
+        }).filter(Boolean);
+        const gateBg = layers.length ? layers.join(', ') : col(bg.fill, '#101010');
+
+        const av = shape.avatar || {};
+        const avatarR = av.kind === 'circle' ? '50%'
+            : av.kind === 'rounded' ? num(av.radius, 30) + '%'
+            : av.kind === 'leaf' ? '50% ' + num(av.radius, 10) + 'px'
+            : num(av.radius, 0) + 'px';
+        const btn = shape.button || {};
+        const btnR = btn.kind === 'pill' ? '999px' : btn.kind === 'square' ? '0' : num(btn.radius, 8) + 'px';
+        const r = shape.radius || {};
+
+        // The font: the family, the names it goes by on devices that have it installed,
+        // then the kind. Bonfire serves the family itself once the font stage lands.
+        const fontEntry = (BONFIRE_THEMES.fonts || []).filter(f => f && f.family === g(type.font, 'family'))[0];
+        const names = [fontName(g(type.font, 'family'))].concat(fontEntry && Array.isArray(fontEntry.local)
+            ? fontEntry.local.map(fontName) : []).filter((n, i, all) => n && all.indexOf(n) === i && n !== 'System UI');
+        const fallback = g(type.font, 'fallback') === 'serif' ? 'serif' : 'sans-serif';
+        const font = names.map(quoteFont).concat([fallback]).join(', ');
+
+        const title = type.title || {}, name = type.name || {}, button = type.button || {};
+        const b2 = parts.button2 || {}, b2f = b2.focus || {};
+        const add = parts.addTile || {}, card = parts.card || {}, sheet = parts.sheet || {}, input = parts.input || {};
+        const em = v => (num(v, 0) === 0 ? 'normal' : num(v, 0) + 'em');
+        const rings = deco('rings');
+        const focusScale = num(g(theme.focus, 'scale'), 1);
+        const panels = g(theme.layout, 'households') === 'panels';
+        const pattern = deco('pattern');
+        const patternImage = pattern && typeof pattern.image === 'string' && patterns
+            && typeof patterns[pattern.image] === 'string' && /^data:image\/svg\+xml,[^"\\]*$/.test(patterns[pattern.image])
+            ? patterns[pattern.image] : null;
+        const patternSize = pattern ? num(pattern.size, 240) : 240;
+        const ac = rgbOf(accent);
+
+        const vars = [
+            ['--jpf-accent', accent.slice(0, 7)],
+            ['--jpf-accent-rgb', ac.join(', ')],
+            ['--jpf-accent-hover', col(c.accentFocus, accent)],
+            ['--jpf-on-accent', col(c.onAccent, '#fff')],
+            ['--jpf-accent-a08', tint(accent, 0.08)], ['--jpf-accent-a18', tint(accent, 0.18)],
+            ['--jpf-accent-a30', tint(accent, 0.3)], ['--jpf-accent-a40', tint(accent, 0.4)],
+            ['--jpf-accent-a45', tint(accent, 0.45)], ['--jpf-accent-a50', tint(accent, 0.5)],
+            ['--jpf-accent-a60', tint(accent, 0.6)],
+            ['--jpf-surface-1', col(c.surface1)], ['--jpf-surface-2', col(c.surface2)], ['--jpf-surface-3', col(c.surface3)],
+            ['--jpf-border-1', col(c.border1)], ['--jpf-border-2', col(c.border2)], ['--jpf-border-3', col(c.border3)],
+            ['--jpf-text-1', col(c.text1)], ['--jpf-text-2', col(c.text2)], ['--jpf-text-3', col(c.text3)],
+            // Shadows keep their own scale, and go lighter on a light theme: the same
+            // black at the same alpha reads as a smudge on white.
+            ['--jpf-shadow-1', tint(shadowColour, light ? 0.1 : 0.2)],
+            ['--jpf-shadow-2', tint(shadowColour, light ? 0.16 : 0.4)],
+            ['--jpf-shadow-3', tint(shadowColour, light ? 0.22 : 0.55)],
+            ['--jpf-danger', col(c.danger, light ? '#e03131' : '#ff6b6b')],
+            ['--jpf-danger-quiet', light ? '#f03e3e' : '#ff8787'],
+            ['--jpf-danger-deep', light ? '#c2255c' : '#e64980'],
+            ['--jpf-warn', col(c.warning, light ? '#e8590c' : '#ff9900')],
+            ['--jpf-gate-bg', gateBg],
+            ['--jpf-panel', col(c.panel, '#1b1b28')],
+            ['--jpf-font', font],
+            ['--jpf-r-sm', num(r.small, 6) + 'px'], ['--jpf-r-md', num(r.medium, 12) + 'px'], ['--jpf-r-lg', num(r.large, 20) + 'px'],
+            ['--jpf-avatar-r', avatarR],
+            ['--jpf-avatar-shadow', shadowCss(g(theme.depth, 'avatar'))],
+            ['--jpf-ring', col(c.ring, '#fff')],
+            ['--jpf-ring-w', num(shape.ringWidth, 3) + 'px'],
+            // With rings the frame grows rather than the picture inside it: see below.
+            ['--jpf-hover-scale', rings ? 1 : focusScale],
+            ['--jpf-hover-glow', shadowCss(g(theme.focus, 'glow'))],
+            ['--jpf-title-weight', num(title.weight, 700)],
+            ['--jpf-title-spacing', num(title.spacing, 0) === 0 ? '0' : num(title.spacing, 0) + 'em'],
+            ['--jpf-title-shadow', shadowCss(g(theme.depth, 'title'), true)],
+            ['--jpf-title-scale', num(title.scale, 1)],
+            ['--jpf-name-color', col(c.name, '#fff')],
+            ['--jpf-name-hover', col(c.nameFocus, '#fff')],
+            ['--jpf-name-weight', num(name.weight, 500)],
+            ['--jpf-name-opacity', num(name.opacity, 1)],
+            ['--jpf-name-scale', num(name.scale, 1)],
+            ['--jpf-btn-radius', btnR],
+            ['--jpf-btn2-bg', col(b2.fill)],
+            ['--jpf-btn2-color', col(b2.text, '#fff')],
+            ['--jpf-btn2-border', borderCss(b2.border)],
+            ['--jpf-btn2-case', button.case === 'upper' ? 'uppercase' : 'none'],
+            ['--jpf-btn2-spacing', em(button.spacing)],
+            ['--jpf-btn2-weight', num(button.weight, 600)],
+            ['--jpf-btn2-hover-bg', col(b2f.fill)],
+            ['--jpf-btn2-hover-color', col(b2f.text, '#fff')],
+            ['--jpf-btn2-hover-border', col(g(b2f.border, 'color'))],
+            ['--jpf-btn2-hover-glow', shadowCss(b2f.glow)],
+            ['--jpf-add-bg', col(add.fill)],
+            ['--jpf-add-border', borderCss(add.border)],
+            ['--jpf-add-color', col(add.text, '#fff')],
+            ['--jpf-add-hover-bg', col(add.focusFill)],
+            ['--jpf-section-bg', panels ? 'var(--jpf-surface-1)' : 'transparent'],
+            ['--jpf-section-border', panels ? '1px solid var(--jpf-border-1)' : '0 solid transparent'],
+            ['--jpf-section-shadow', panels ? '0 10px 30px var(--jpf-shadow-1)' : 'none'],
+            ['--jpf-section-pad', panels ? '1.75rem 2rem' : '0'],
+            ['--jpf-section-rule', panels ? '1px solid var(--jpf-border-1)' : '0 solid transparent'],
+            ['--jpf-sheet-bg', col(sheet.fill)],
+            ['--jpf-sheet-border', borderCss(sheet.border)],
+            ['--jpf-sheet-shadow', shadowCss(g(theme.depth, 'sheet'))],
+            ['--jpf-card-bg', col(card.fill)],
+            ['--jpf-card-border', col(card.line)],
+            ['--jpf-input-bg', col(input.fill)],
+            ['--jpf-input-border', col(input.line)],
+            ['--jpf-input-r', num(g(shape.input, 'radius'), 8) + 'px'],
+            ['--jpf-deco', patternImage ? 'url("' + patternImage + '")' : 'none'],
+            ['--jpf-deco-size', patternSize + 'px']
+        ];
+
+        // On the attribute and on body, because the base tokens are declared on body too
+        // and a declaration on body beats one inherited from html. Bonfire also on :root:
+        // it is what every screen wears before a theme is known.
+        const selectors = (id === 'bonfire' ? [':root', 'body'] : []).concat([sel, sel + ' body']);
+        let css = selectors.join(',\n') + ' {\n' + vars.map(v => '    ' + v[0] + ': ' + v[1] + ';').join('\n') + '\n}\n';
+
+        // Without panels the tiles sit straight on the background, so the layout changes
+        // with it: one row where one fits, and a quiet heading, gone when there is only
+        // one household. The doubled attribute keeps these at the weight they had as
+        // [data-jpf-theme]:not([data-jpf-theme="bonfire"]), so the fitted gap
+        // (#profiles-gate-overlay ... .jpf-fitted) still outranks the grid rule.
+        if (!panels) {
+            const open = sel + '[data-jpf-theme]';
+            css += open + ':not(.jpf-tv) #profiles-gate-overlay .profiles-modal-content { max-width: 1240px; }\n'
+                + open + ':not(.jpf-tv) .profiles-grid { max-width: none; gap: 2rem; }\n'
+                + open + ' .profiles-home-header { justify-content: center; padding-bottom: 0; margin-bottom: 1.5rem; }\n'
+                + open + ' .profiles-home-title { font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--jpf-text-3); }\n'
+                + open + ' .profiles-home-icon { font-size: 1.1rem; }\n'
+                + open + ' .jpf-one-home .profiles-home-header { display: none; }\n';
+        }
+
+        // rings: a gradient cannot be a border colour, so each tile's frame is a disc
+        // behind it, painted in two layers: the gradient on the border box and the gap
+        // colour inside it, which leaves a ring. Opaque inside so a cut-out picture sits
+        // on the dark rather than on a gradient disc. Profile 1 takes the first gradient,
+        // profile 2 the second, and round again. Not on the add tile, which is not a person.
+        if (rings && Array.isArray(rings.gradients) && rings.gradients.length) {
+            const gap = col(rings.gap, '#000000');
+            const w = num(shape.ringWidth, 3);
+            const pair = p => 'linear-gradient(' + gap + ', ' + gap + ') padding-box,\n        linear-gradient(135deg, '
+                + col(p && p[0]) + ' 0%, ' + col(p && p[1]) + ' 100%) border-box';
+            const n = rings.gradients.length;
+            css += sel + ' .profile-avatar-container::before {\n    content: \'\';\n    position: absolute;\n'
+                + '    top: -' + (w + 4) + 'px;\n    right: -' + (w + 4) + 'px;\n    bottom: -' + (w + 4) + 'px;\n    left: -' + (w + 4) + 'px;\n'
+                + '    border-radius: 50%;\n    border: ' + w + 'px solid transparent;\n'
+                + '    background:\n        ' + pair(rings.gradients[0]) + ';\n    z-index: 0;\n    pointer-events: none;\n}\n';
+            for (let k = 2; k <= n; k++) {
+                css += sel + ' .profile-card:nth-child(' + n + 'n' + (k === n ? '' : '+' + k) + ') .profile-avatar-container::before {\n'
+                    + '    background:\n        ' + pair(rings.gradients[k - 1]) + ';\n}\n';
+            }
+            css += sel + ' .profile-card.action-add-profile .profile-avatar-container::before { display: none; }\n'
+                + sel + ' .profile-avatar { z-index: 1; box-sizing: border-box; }\n'
+                + sel + ' .profile-card:hover .profile-avatar-container,\n'
+                + sel + ' .profile-card:focus .profile-avatar-container,\n'
+                + sel + ' .profile-card:focus-within .profile-avatar-container { transform: scale(' + focusScale + '); }\n';
+        }
+
+        // frost: backdrop-filter is Chromium 76, so webOS 4.5 and 5 keep the plain
+        // see-through fills, which still read as the theme. Both spellings, because
+        // Safari only knows the prefixed one. Not the Theme page, which draws no sheet:
+        // its "backdrop-filter: none" ties with this on specificity and this comes later,
+        // being written after the stylesheet, so the page has to be left out by name.
+        const frost = deco('frost');
+        if (frost) {
+            const blur = num(frost.blur, 24);
+            const small = Math.round(blur * 2 / 3);
+            css += '@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {\n'
+                + '    ' + sel + ' .create-profile-container:not(.jpf-theme-page) {\n        -webkit-backdrop-filter: blur(' + blur + 'px) saturate(160%);\n        backdrop-filter: blur(' + blur + 'px) saturate(160%);\n    }\n'
+                + '    ' + sel + ' .btn-secondary {\n        -webkit-backdrop-filter: blur(' + small + 'px) saturate(160%);\n        backdrop-filter: blur(' + small + 'px) saturate(160%);\n    }\n}\n';
+        }
+
+        // A drifting pattern comes down, slowly: a transform on a layer one tile taller
+        // than the screen, so the compositor moves it and nothing is repainted; one tile a
+        // loop, so it joins up. Not on a television, whose browser is the slowest thing it
+        // runs on, and not for anyone who has asked their system for less motion.
+        if (patternImage && pattern.drift === 'down') {
+            const seconds = num(pattern.seconds, 32);
+            const anim = 'jpf-drift-' + patternSize;
+            css += '@media (prefers-reduced-motion: no-preference) {\n'
+                + '    ' + sel + ':not(.jpf-tv) #profiles-gate-overlay::before {\n'
+                + '        top: -' + patternSize + 'px;\n        will-change: transform;\n'
+                + '        -webkit-animation: ' + anim + ' ' + seconds + 's linear infinite;\n'
+                + '        animation: ' + anim + ' ' + seconds + 's linear infinite;\n    }\n}\n'
+                + '@-webkit-keyframes ' + anim + ' {\n    from { -webkit-transform: translateY(0); transform: translateY(0); }\n'
+                + '    to { -webkit-transform: translateY(' + patternSize + 'px); transform: translateY(' + patternSize + 'px); }\n}\n'
+                + '@keyframes ' + anim + ' {\n    from { transform: translateY(0); }\n    to { transform: translateY(' + patternSize + 'px); }\n}\n';
+        }
+        return css;
+    }
+
+    /// Every theme the server sent, as CSS, Bonfire first so each later block wins its
+    /// ties on html.
+    function allThemesCss() {
+        const list = Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes.slice() : [];
+        list.sort((a, b) => (a && a.id === 'bonfire' ? -1 : b && b.id === 'bonfire' ? 1 : 0));
+        return list.map(t => themeCss(t, BONFIRE_THEMES.patterns || {})).join('');
+    }
+
+    /// The gate's background for one theme, as themeCss writes it, or '' for a theme this
+    /// build does not have. Read out of themeCss's own output rather than worked out again,
+    /// so the startup cover cannot drift from the gate it stands in for.
+    function gateBackground(id) {
+        const theme = (Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes : [])
+            .filter(t => t && t.id === id)[0];
+        if (!theme) return '';
+        const m = /--jpf-gate-bg: ([^;]*);/.exec(themeCss(theme, BONFIRE_THEMES.patterns || {}));
+        return m ? m[1] : '';
+    }
 
     const EN_STRINGS = {
         'common.cancel': 'Cancel',
@@ -3586,11 +3872,11 @@
         },
 
         // ── Theme ──────────────────────────────────────────────────────────────────
-        // One attribute on <html>; styles.css does the rest. Per profile, so it is cached
+        // One attribute on <html>; the theme's block (themeCss) does the rest. Per profile, so it is cached
         // per account: on a shared browser the next person must not inherit the last one's.
 
         /// Puts a theme on the page. Unknown ids become Bonfire, so a stale cache or an
-        /// older server can never leave the attribute naming a theme the sheet does not have
+        /// older server can never leave the attribute naming a theme this script has no block for
         /// (which would leave the tints resolving to nothing).
         applyTheme: function (theme) {
             const root = document.documentElement;
@@ -3599,7 +3885,8 @@
             if (root.getAttribute('data-jpf-theme') !== id) root.setAttribute('data-jpf-theme', id);
         },
 
-        /// The stored themes: { last, users: { normalisedUserId: theme } }.
+        /// The stored themes: { last, users: { normalisedUserId: theme }, bg: { theme: gate
+        /// background } }. Injection/WebInjection.cs reads all three before this file loads.
         ///
         /// One entry per account, not one for the device. It was one, and a household
         /// overwrote it every time it moved between profiles: open as the main account,
@@ -3609,8 +3896,13 @@
         _readThemeCache: function () {
             let raw = null;
             try { raw = JSON.parse(localStorage.getItem(this.config.themeKey) || 'null'); } catch (e) { /* unreadable */ }
-            const cache = { last: null, users: {} };
+            const cache = { last: null, users: {}, bg: {} };
             if (!raw || typeof raw !== 'object') return cache;
+            if (raw.bg && typeof raw.bg === 'object') {
+                Object.keys(raw.bg).forEach(k => {
+                    if (typeof raw.bg[k] === 'string') cache.bg[k] = raw.bg[k];
+                });
+            }
             if (raw.users && typeof raw.users === 'object') {
                 Object.keys(raw.users).forEach(k => {
                     if (typeof raw.users[k] === 'string') cache.users[k] = raw.users[k];
@@ -3668,6 +3960,15 @@
                     const ids = Object.keys(cache.users);
                     ids.slice(0, Math.max(0, ids.length - 20)).forEach(k => { delete cache.users[k]; });
                     cache.last = settings.theme;
+                    // The gate's background for each theme still named here, for the head
+                    // script's startup cover, which runs before this file has loaded and so
+                    // cannot read a theme. It used to carry a copy of every built-in's
+                    // background; a theme an administrator makes was never in that copy.
+                    const bg = gateBackground(settings.theme);
+                    if (bg) cache.bg[settings.theme] = bg;
+                    Object.keys(cache.bg).forEach(k => {
+                        if (k !== cache.last && !Object.keys(cache.users).some(u => cache.users[u] === k)) delete cache.bg[k];
+                    });
                     localStorage.setItem(this.config.themeKey, JSON.stringify(cache));
                 }
             } catch (e) { /* storage full or blocked — it still applies for this page */ }
@@ -10632,7 +10933,11 @@
             style.id = 'jpf-styles';
             // textContent, not innerHTML. A <style> element's contents are CSS, not markup,
             // so HTML-parsing them buys nothing and can only misread the text.
-            style.textContent = BONFIRE_STYLES;
+            // The themes go after the stylesheet. Nothing should be decided by that order,
+            // though: a theme rule and a sheet rule tying on the same element is a rule
+            // that changed winner when the themes left the sheet, and tests/js/themes.js
+            // fails on every one.
+            style.textContent = BONFIRE_STYLES + '\n' + allThemesCss();
             document.head.appendChild(style);
         }
     };

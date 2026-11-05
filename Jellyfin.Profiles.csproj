@@ -68,6 +68,10 @@
          makes the 1.5.2 failure impossible at the language level. -->
     <EmbeddedResource Include="Web/styles.css" />
     <EmbeddedResource Include="Web/i18n/*.json" />
+    <!-- The built-in themes (docs/themes.md), their fonts and pattern pictures. Named
+         explicitly so a theme id with a hyphen keeps it. See ThemeCatalog. -->
+    <EmbeddedResource Include="Web/themes/*.json" LogicalName="Jellyfin.Profiles.Themes.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Web/themes/patterns/*.svg" LogicalName="Jellyfin.Profiles.Themes.Patterns.%(Filename)%(Extension)" />
     <!-- The starter avatars (StarterAvatars.cs) and their licence. Named explicitly: the
          default manifest name would mangle the hyphen in the folder and in polar-bear. -->
     <EmbeddedResource Include="Web/starter-avatars/*.webp" LogicalName="Jellyfin.Profiles.StarterAvatars.%(Filename)%(Extension)" />

@@ -483,7 +483,11 @@ ok('manage mode does not drop a square scrim on a cut-out',
 // invalid at computed-value time and silently does nothing.
 const used = new Set((src.match(/var\((--jpf-[a-z0-9-]+)\)/g) || [])
     .map(m => m.replace(/^var\(|\)$/g, '')));
-const declared = new Set((src.match(/(--jpf-[a-z0-9-]+)\s*:/g) || [])
+// Declared in the bundle, or in what themeCss writes from the theme files when the
+// script runs, which since 1.7.2 is where every theme token is. Taken from running the
+// generator, not from its source, so a token it stops writing is undeclared here.
+const CSS_ALL = L.extractCss(fs.readFileSync(SRC_PATH, 'utf8'));
+const declared = new Set(((src + '\n' + CSS_ALL).match(/(--jpf-[a-z0-9-]+)\s*:/g) || [])
     .map(m => m.replace(/\s*:$/, '')));
 const undeclared = [...used].filter(v => !declared.has(v));
 ok('every --jpf- custom property used is declared (' + used.size + ' used)',
@@ -609,7 +613,7 @@ ok('the manage-mode pencil keeps a backing it can be seen against', (() => {
     if (!m) return false;
     const bg = /background:\s*([^;]+);/.exec(m[1]);
     if (!bg) return false;
-    const value = L.resolveCssValue(src, bg[1].trim());
+    const value = L.resolveCssValue(CSS_ALL, bg[1].trim());
     return /rgba?\(\s*(?:0|1?\d|2[0-5])\s*,\s*(?:0|1?\d|2[0-5])\s*,/.test(value)
         && L.alphaOf(value) >= 0.5;
 })());

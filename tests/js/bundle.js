@@ -33,7 +33,10 @@ function ok(name, cond, detail) {
 }
 
 const js = L.readProfiles();
-const css = L.extractCss();
+// The stylesheet file alone. extractCss() also carries the CSS themeCss writes from the
+// theme files, and that CSS is built from string fragments that do sit in profiles.js,
+// so sampling it below would find the script "carrying the stylesheet" when it is not.
+const css = L.stylesOnly();
 const controller = fs.readFileSync(
     path.join(L.ROOT, 'Controllers', 'ProfilesController.cs'), 'utf8');
 
@@ -74,7 +77,17 @@ for (let i = 0; i < selectorLines.length && sample.length < 12; i += stride) {
 ok('the stylesheet yields rules to look for', sample.length >= 8,
     sample.length + ' selector lines sampled from ' + selectorLines.length);
 
-const inlined = sample.filter(sel => js.indexOf(sel) !== -1);
+/* A selector line ENDS a line in a sheet: followed by a line break, raw in a template
+ * literal or escaped as \n in a string. That is what a pasted stylesheet looks like.
+ * themeCss writes a few of the same selectors as one-line rules ("x { a: b; }"), which
+ * is the generator doing its job, not the sheet coming back, so a bare substring match
+ * would call those inline. Ending the match at the line break keeps the question exact. */
+const inlined = sample.filter(sel => {
+    for (let at = js.indexOf(sel); at !== -1; at = js.indexOf(sel, at + 1)) {
+        if (/^(\r?\n|\\n)/.test(js.slice(at + sel.length, at + sel.length + 2))) return true;
+    }
+    return false;
+});
 ok('and not one of them appears in profiles.js', inlined.length === 0,
     inlined.length ? inlined.length + ' of ' + sample.length + ' are inline, e.g. ' + inlined[0] : '');
 ok('the csproj embeds the stylesheet',
@@ -103,7 +116,7 @@ ok('PublishLocales looks for the same locales marker',
     controller.indexOf(LOCALES_MARKER) !== -1);
 
 ok('PublishStyles is actually called when the script is served',
-    /CachedProfilesJs\s*=\s*PublishStyles\(/.test(controller));
+    /CachedProfilesJs\s*=\s*PublishThemes\(PublishStyles\(/.test(controller));
 ok('and PublishLocales still is too',
     /PublishStyles\(PublishLocales\(/.test(controller));
 // JSON, not interpolation. Interpolating would put the CSS back into the position the
@@ -158,6 +171,51 @@ ok('the server does not use the relaxed JSON encoder',
     controller.indexOf('UnsafeRelaxedJsonEscaping') === -1);
 ok('and no raw U+2028/U+2029 is sitting in the stylesheet today',
     css.indexOf(' ') === -1 && css.indexOf(' ') === -1);
+
+console.log();
+console.log('── the themes marker, and the theme files it carries ───────────');
+
+/* The same contract a third time. The theme files are spliced in by PublishThemes for
+ * real clients and by _lib.readClientBundle for the harnesses; a drift between them is
+ * every theme harness checking a script nobody is served, and a marker that matches
+ * nothing is a client with no themes at all, which still parses and still runs. */
+const THEMES_MARKER = L.THEMES_MARKER;
+ok('the themes marker appears in profiles.js exactly once',
+    js.split(THEMES_MARKER).length - 1 === 1);
+ok('PublishThemes looks for the same themes marker',
+    controller.indexOf(THEMES_MARKER) !== -1,
+    'ProfilesController.cs and profiles.js disagree on the literal');
+ok('the theme payload comes from ThemeCatalog',
+    /ThemeCatalog\.ClientPayload\(\)/.test(controller));
+const catalog = fs.readFileSync(path.join(L.ROOT, 'Configuration', 'ThemeCatalog.cs'), 'utf8');
+ok('and ThemeCatalog does not use the relaxed JSON encoder either',
+    catalog.indexOf('UnsafeRelaxedJsonEscaping') === -1 && catalog.indexOf('Encoder =') === -1);
+ok('the csproj embeds the theme files and their patterns',
+    /Include="Web\/themes\/\*\.json"/.test(fs.readFileSync(path.join(L.ROOT, 'Jellyfin.Profiles.csproj'), 'utf8'))
+    && /Include="Web\/themes\/patterns\/\*\.svg"/.test(fs.readFileSync(path.join(L.ROOT, 'Jellyfin.Profiles.csproj'), 'utf8')));
+
+ok('the bundle no longer contains the unfilled themes marker',
+    bundle.indexOf(THEMES_MARKER) === -1);
+const tdecl = /let BONFIRE_THEMES = ([\s\S]*?); \/\/ __BONFIRE_THEMES__/.exec(bundle);
+ok('the themes declaration is present in the bundle', !!tdecl);
+if (tdecl) {
+    let themes = null;
+    try { themes = vm.runInNewContext('(' + tdecl[1] + ')'); } catch (e) { themes = null; }
+    const want = L.themesPayload();
+    ok('it evaluates to the theme payload, exactly',
+        themes !== null && JSON.stringify(themes) === JSON.stringify(want),
+        themes === null ? 'a parse failure' : '');
+    const files = fs.readdirSync(L.themesDir()).filter(f => f.endsWith('.json') && f !== 'fonts.json');
+    ok('and it carries every theme file in Web/themes/',
+        themes !== null && themes.themes.length === files.length && themes.themes.length >= 9,
+        themes === null ? '' : themes.themes.length + ' themes vs ' + files.length + ' files');
+    ok('Bonfire first, because each later block wins its ties by coming after it',
+        themes !== null && themes.themes[0] && themes.themes[0].id === 'bonfire');
+    const pats = fs.readdirSync(path.join(L.themesDir(), 'patterns')).filter(f => f.endsWith('.svg'));
+    ok('every pattern picture is carried as a data: URL',
+        themes !== null && pats.every(p => /^data:image\/svg\+xml,/.test(themes.patterns[p.replace(/\.svg$/, '')] || '')),
+        pats.length + ' patterns');
+}
 
 console.log();
 console.log('── contracts the split must not have broken ────────────────────');

@@ -175,6 +175,58 @@ Ok("nothing is set while the server does not let profiles choose",
    Themes.SetFor(h, master, child, "harbor") == ThemeChange.NotAllowed && h.Mappings[1].Theme == "crimson");
 
 Console.WriteLine();
+Console.WriteLine("── The theme files, as the web client is sent them ──────────────");
+// ThemeCatalog.ClientPayload is what PublishThemes puts into profiles.js. tests/_lib.js
+// builds the same thing from the folder for the JS harnesses, and bundle.js holds the
+// script side of that to _lib; this holds the server side to the same rules, so the two
+// cannot drift into checking a payload nobody is sent: every file, Bonfire first and the
+// rest by id, each pattern escaped by Uri.EscapeDataString, nothing outside ASCII.
+{
+    var root = AppContext.BaseDirectory;
+    while (root != null && !File.Exists(Path.Combine(root, "Jellyfin.Profiles.csproj"))) root = Path.GetDirectoryName(root);
+    Ok("the repository is found from the harness", root != null);
+    if (root != null)
+    {
+        var dir = Path.Combine(root, "Web", "themes");
+        var files = Directory.GetFiles(dir, "*.json").Where(f => Path.GetFileName(f) != "fonts.json").ToList();
+        var payloadText = ThemeCatalog.ClientPayload();
+        var payload = System.Text.Json.Nodes.JsonNode.Parse(payloadText)!.AsObject();
+        var sent = payload["themes"]!.AsArray().Select(n => n!.AsObject()).ToList();
+        var ids = sent.Select(t => (string)t["id"]!).ToList();
+
+        Ok("every theme file is sent (" + sent.Count + " of " + files.Count + ")", sent.Count == files.Count && sent.Count >= 9);
+        var want = ids.Where(i => i != "bonfire").OrderBy(i => i, StringComparer.Ordinal).Prepend("bonfire").ToList();
+        Ok("Bonfire first, then by id (" + string.Join(", ", ids) + ")", ids.SequenceEqual(want));
+        foreach (var f in files)
+        {
+            var file = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(f))!.AsObject();
+            var id = (string)file["id"]!;
+            var match = sent.FirstOrDefault(t => (string)t["id"]! == id);
+            Ok(Path.GetFileName(f) + " is sent exactly as written",
+               match != null && System.Text.Json.Nodes.JsonNode.DeepEquals(match, file));
+        }
+        foreach (var id in Themes.All)
+            Ok("the server theme " + id + " has a file", ids.Contains(id));
+
+        var fonts = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "fonts.json")))!["fonts"];
+        Ok("the font list is sent as written", System.Text.Json.Nodes.JsonNode.DeepEquals(payload["fonts"], fonts));
+
+        var pats = payload["patterns"]!.AsObject();
+        var svgs = Directory.GetFiles(Path.Combine(dir, "patterns"), "*.svg");
+        Ok("every pattern is sent (" + pats.Count + " of " + svgs.Length + ")", pats.Count == svgs.Length && svgs.Length >= 3);
+        foreach (var svg in svgs)
+        {
+            var name = Path.GetFileNameWithoutExtension(svg);
+            Ok(name + " is a data: URL escaped by EscapeDataString",
+               (string)pats[name]! == "data:image/svg+xml," + Uri.EscapeDataString(File.ReadAllText(svg).Trim()));
+        }
+        Ok("nothing outside ASCII reaches the script, so no U+2028 either",
+           payloadText.All(ch => ch < 0x80));
+        Ok("and nothing that can end the script it sits in", payloadText.IndexOf("</", StringComparison.Ordinal) == -1);
+    }
+}
+
+Console.WriteLine();
 if (fails.Count > 0)
 {
     foreach (var f in fails) Console.WriteLine("   - " + f);

@@ -2007,7 +2007,7 @@ namespace Jellyfin.Profiles.Controllers
                         using var stream = assembly.GetManifestResourceStream("Jellyfin.Profiles.Web.profiles.js");
                         if (stream == null) return NotFound();
                         using var reader = new StreamReader(stream);
-                        CachedProfilesJs = PublishStyles(PublishLocales(reader.ReadToEnd()));
+                        CachedProfilesJs = PublishThemes(PublishStyles(PublishLocales(reader.ReadToEnd())));
                     }
                 }
             }
@@ -2121,6 +2121,21 @@ namespace Jellyfin.Profiles.Controllers
                 marker,
                 "let BONFIRE_STYLES = " + System.Text.Json.JsonSerializer.Serialize(css)
                     + "; // __BONFIRE_STYLES__",
+                StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Fills in the themes, the same way as <see cref="PublishStyles"/>: a plain replace
+        /// on an exact literal, with JSON that <see cref="Configuration.ThemeCatalog.ClientPayload"/>
+        /// has already escaped for a script. If the marker is edited away every screen draws
+        /// in the stylesheet's base tokens, which is wrong but readable.
+        /// </summary>
+        internal static string PublishThemes(string js)
+        {
+            const string marker = "let BONFIRE_THEMES = { themes: [], patterns: {} }; // __BONFIRE_THEMES__";
+            return js.Replace(
+                marker,
+                "let BONFIRE_THEMES = " + Configuration.ThemeCatalog.ClientPayload() + "; // __BONFIRE_THEMES__",
                 StringComparison.Ordinal);
         }
 

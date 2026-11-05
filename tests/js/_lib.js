@@ -90,6 +90,15 @@ function extractCss(src) {
         // Falls through: a current build has injectStyles but no literal to find.
     }
 
+    const css = stylesOnly();
+    // Since the themes became files (1.7.2), what the browser has is the sheet followed by
+    // what themeCss writes from them. A build from before that has its themes in the sheet.
+    const js = typeof src === 'string' ? src : readProfiles();
+    return js.indexOf(THEMES_MARKER) === -1 ? css : css + '\n' + themesCss(js);
+}
+
+/** Web/styles.css alone: what PublishStyles splices in. */
+function stylesOnly() {
     const css = fs.readFileSync(stylesPath(), 'utf8');
     // THROWS on a miss for the same reason the old version did: a harness handed ''
     // still runs and still reports most of its assertions as passing.
@@ -97,6 +106,46 @@ function extractCss(src) {
         throw new Error('extractCss: Web/styles.css is only ' + css.length + ' characters');
     }
     return css;
+}
+
+const THEMES_MARKER = 'let BONFIRE_THEMES = { themes: [], patterns: {} }; // __BONFIRE_THEMES__';
+
+function themesDir() {
+    return path.join(ROOT, 'Web', 'themes');
+}
+
+/**
+ * What ProfilesController.PublishThemes puts in place of the themes marker, built the way
+ * ThemeCatalog.ClientPayload builds it: every theme file, Bonfire first, the font list,
+ * and each pattern as a data: URL escaped like Uri.EscapeDataString (encodeURIComponent
+ * leaves !'()* alone; EscapeDataString does not). tests/js/bundle.js holds the two
+ * together.
+ */
+function themesPayload() {
+    const dir = themesDir();
+    const themes = fs.readdirSync(dir).filter(f => /\.json$/.test(f) && f !== 'fonts.json')
+        .map(f => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')))
+        .sort((a, b) => (a.id === 'bonfire') !== (b.id === 'bonfire') ? (a.id === 'bonfire' ? -1 : 1)
+            : a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    const fonts = JSON.parse(fs.readFileSync(path.join(dir, 'fonts.json'), 'utf8')).fonts;
+    const patterns = {};
+    fs.readdirSync(path.join(dir, 'patterns')).filter(f => /\.svg$/.test(f)).sort().forEach(f => {
+        patterns[f.replace(/\.svg$/, '')] = 'data:image/svg+xml,' + encodeURIComponent(
+            fs.readFileSync(path.join(dir, 'patterns', f), 'utf8').trim())
+            .replace(/[!'()*]/g, ch => '%' + ch.charCodeAt(0).toString(16).toUpperCase());
+    });
+    return { themes, fonts, patterns };
+}
+
+/**
+ * The CSS the web client writes from the theme files, by running its own themeCss and
+ * allThemesCss out of `src` — the generator under test, not a copy of it.
+ */
+function themesCss(src) {
+    const js = typeof src === 'string' ? src : readProfiles();
+    const factory = new Function('BONFIRE_THEMES',
+        extractFunction(js, 'themeCss') + '\n' + extractFunction(js, 'allThemesCss') + '\nreturn allThemesCss;');
+    return factory(themesPayload())();
 }
 
 /**
@@ -147,9 +196,14 @@ function readClientBundle(src) {
     const js = typeof src === 'string' ? src : readProfiles();
     const marker = 'let BONFIRE_STYLES = ""; // __BONFIRE_STYLES__';
     if (js.indexOf(marker) === -1) return js;   // an older build, CSS still inline
-    return js.replace(
+    // An older build has no themes marker and its themes in the sheet; then the sheet is
+    // all there is to splice.
+    const styled = js.replace(
         marker,
-        'let BONFIRE_STYLES = ' + JSON.stringify(extractCss()) + '; // __BONFIRE_STYLES__');
+        'let BONFIRE_STYLES = ' + JSON.stringify(js.indexOf(THEMES_MARKER) === -1 ? extractCss(js) : stylesOnly())
+            + '; // __BONFIRE_STYLES__');
+    return styled.replace(THEMES_MARKER,
+        'let BONFIRE_THEMES = ' + JSON.stringify(themesPayload()) + '; // __BONFIRE_THEMES__');
 }
 
 /**
@@ -169,7 +223,7 @@ function readSourceAndStyles(src) {
     // An older checkout still has the CSS inline; appending it again would double
     // every rule and quietly break any "declared exactly once" assertion.
     if (js.indexOf('let BONFIRE_STYLES = ""; // __BONFIRE_STYLES__') === -1) return js;
-    return js + '\n\n' + extractCss();
+    return js + '\n\n' + extractCss(js);
 }
 
 /** The inline <script> block of the dashboard page. */
@@ -197,8 +251,13 @@ function resolveCssValue(css, value, depth) {
     depth = depth || 0;
     if (depth > 8 || value.indexOf('var(') === -1) return value;
 
-    const start = css.indexOf(':root, body {');
-    const floor = start === -1 ? '' : css.slice(start, css.indexOf('}', start));
+    // Every block on :root and body: the sheet's own (what no theme sets) and, since
+    // 1.7.2, Bonfire's, which themeCss writes on :root as well as on its attribute.
+    let floor = '';
+    const blocks = /(^|\})\s*:root,\s*body\b[^{]*\{([^}]*)\}/g;
+    const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    let b;
+    while ((b = blocks.exec(bare)) !== null) floor += b[2] + ';';
 
     const resolved = value.replace(
         /var\(\s*(--jpf-[a-z0-9-]+)\s*(?:,[^()]*)?\)/g,
@@ -239,5 +298,6 @@ module.exports = {
     profilesPath, dashboardPath, i18nDir,
     readProfiles, readDashboard,
     extractCss, extractFunction, dashboardScript, dashboardI18n, stylesPath, readClientBundle, readSourceAndStyles,
+    stylesOnly, themesDir, themesPayload, themesCss, THEMES_MARKER,
     resolveCssValue, alphaOf
 };

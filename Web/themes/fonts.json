@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "fonts": [
+    {
+      "family": "Outfit",
+      "local": [
+        "Outfit",
+        "Inter"
+      ],
+      "fallback": "sans-serif"
+    },
+    {
+      "family": "Helvetica Neue",
+      "local": [
+        "Helvetica Neue",
+        "Helvetica",
+        "Arial"
+      ],
+      "fallback": "sans-serif"
+    },
+    {
+      "family": "Avenir Next",
+      "local": [
+        "Avenir Next",
+        "Avenir",
+        "Nunito Sans",
+        "Segoe UI",
+        "Roboto"
+      ],
+      "fallback": "sans-serif"
+    },
+    {
+      "family": "Segoe UI",
+      "local": [
+        "Segoe UI",
+        "Roboto",
+        "Helvetica Neue",
+        "Arial"
+      ],
+      "fallback": "sans-serif"
+    },
+    {
+      "family": "System UI",
+      "local": [
+        "-apple-system",
+        "BlinkMacSystemFont",
+        "Helvetica Neue",
+        "Helvetica",
+        "Arial"
+      ],
+      "fallback": "sans-serif"
+    },
+    {
+      "family": "Georgia",
+      "local": [
+        "Georgia",
+        "Iowan Old Style",
+        "Palatino Linotype"
+      ],
+      "fallback": "serif"
+    },
+    {
+      "family": "Palatino Linotype",
+      "local": [
+        "Palatino Linotype",
+        "Palatino",
+        "Book Antiqua",
+        "Georgia"
+      ],
+      "fallback": "serif"
+    },
+    {
+      "family": "Trebuchet MS",
+      "local": [
+        "Trebuchet MS",
+        "Segoe UI",
+        "Helvetica Neue"
+      ],
+      "fallback": "sans-serif"
+    }
+  ]
+}

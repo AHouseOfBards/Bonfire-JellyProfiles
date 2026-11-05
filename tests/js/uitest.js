@@ -56,7 +56,11 @@ ok(count(html, '\r\r') === 0, 'dashboard has no doubled CR');
 // Markup, the "everything but the Add card" selector, and the handler.
 // Counted in the script only: a stylesheet rule styling the card (Nightfall leaves the ring
 // off it) renders nothing, and is not a fourth place the card could appear.
-ok(count(jsOnly, 'action-add-profile') === 3, 'the Add card has exactly its three references');
+// Since 1.7.2 that rule is written by themeCss, inside the script, so the generator is
+// left out of the count for the same reason the sheet always was.
+const jsNoThemeCss = jsOnly.indexOf('function themeCss(') === -1 ? jsOnly
+    : jsOnly.replace(L.extractFunction(jsOnly, 'themeCss'), '');
+ok(count(jsNoThemeCss, 'action-add-profile') === 3, 'the Add card has exactly its three references');
 const addBlock = js.slice(js.indexOf('// Manage Profiles only.'), js.indexOf('sectionsHtml +='));
 has(addBlock, 'if (this.isManageMode) {', 'Add card is gated on manage mode');
 has(addBlock, 'action-add-profile', 'the Add card is inside that gate');
