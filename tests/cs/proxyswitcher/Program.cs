@@ -383,6 +383,15 @@ var after = Get("/UserViews");
 Ok("and the next request finds the picker, not a dead profile",
    !after.reachedJellyfin && Names(after.body) == "Profiles", Names(after.body));
 
+// A main account turned off in Dashboard -> Users shuts its profiles too (R-1135). The
+// picker checked only the profile's own account, which is never the one that was turned off.
+var mintedBefore = sessionLog.Minted.Count;
+UserManagerStub.Disabled.Add(MASTER);
+var shut = Children(IdOf(Children(IdOf(after.body, "Profiles")), "Open"));
+Ok("a profile whose main account is turned off is not opened", sessionLog.Minted.Count == mintedBefore, Names(shut));
+Ok("and the keypad says why", Names(shut).Contains("turned off"), Names(shut));
+UserManagerStub.Disabled.Remove(MASTER);
+
 Console.WriteLine();
 Console.WriteLine("── Another app's requests cost nothing ─────────────────────────");
 
@@ -541,6 +550,9 @@ public class UserManagerStub : DispatchProxy
 {
     private Dictionary<Guid, string> _names;
 
+    /// <summary>Accounts turned off in Dashboard -> Users.</summary>
+    public static readonly HashSet<Guid> Disabled = new();
+
     public static IUserManager Create(Dictionary<Guid, string> names)
     {
         var proxy = Create<IUserManager, UserManagerStub>();
@@ -559,7 +571,7 @@ public class UserManagerStub : DispatchProxy
             return u;
         }
 
-        if (m.Name == "GetUserDto") return new UserDto { Policy = new UserPolicy() };
+        if (m.Name == "GetUserDto") return new UserDto { Policy = new UserPolicy { IsDisabled = Disabled.Contains(((User)args[0]).Id) } };
 
         throw new NotSupportedException("IUserManager." + m.Name + " is not modelled");
     }

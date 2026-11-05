@@ -685,7 +685,10 @@ namespace Jellyfin.Profiles.Auth
             var user = services.Users.GetUserById(profileId);
             if (user == null) return "Couldn't open this profile.";
 
-            if (services.Users.GetUserDto(user, string.Empty).Policy?.IsDisabled == true)
+            // The main account too: turning it off in Dashboard -> Users never touched its
+            // profiles' accounts, so they stayed open from the picker (R-1135).
+            if (services.Users.GetUserDto(user, string.Empty).Policy?.IsDisabled == true
+                || Controllers.ProfilesBaseController.MainAccountDisabled(services.Users, mapping))
             {
                 return "This profile is turned off.";
             }

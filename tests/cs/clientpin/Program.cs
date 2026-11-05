@@ -437,6 +437,17 @@ Ok("a display name and the right PIN resolve to the real account",
 Ok("and the wrong PIN is still refused",
    TryName("kids", "4822") == "!AuthenticationException");
 
+// A main account turned off in Dashboard -> Users shuts its profiles too (R-1135). Jellyfin
+// checks the account being signed into, which is the profile's and was never turned off.
+var offMaster = MakeUser(MASTER, "bard");
+Jellyfin.Data.UserEntityExtensions.SetPermission(offMaster, Jellyfin.Database.Implementations.Enums.PermissionKind.IsDisabled, true);
+UserManagerStub.Add(MASTER, offMaster);
+Ok("with the main account turned off, the profile's PIN no longer opens it",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
+Ok("nor by its display name", TryName("kids", "4821") == "!AuthenticationException");
+UserManagerStub.Add(MASTER, MakeUser(MASTER, "bard"));
+Ok("turned back on, it opens again", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+
 // The full system username keeps working — Jellyfin resolves it itself and never reaches
 // this path, but a client that remembers the old name must not break.
 Ok("the system username still opens the profile",

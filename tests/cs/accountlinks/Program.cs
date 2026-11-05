@@ -395,6 +395,17 @@ Ok("another household can't open it", Refused(r) && sessionStub.Opened.Count(x =
 r = Call("SwitchProfile", DAD, B(("ProfileId", HOME), ("Pin", "1234")));
 Ok("and the added account sees nothing of the household", Refused(r), Text(r));
 
+// A main account turned off in Dashboard -> Users shuts its profiles too (R-1135). /switch
+// checked only the target's own account, and a profile's is never the one that was turned off.
+var kidOpened = sessionStub.Opened.Count(x => x == KID);
+world.Disabled.Add(HOME);
+r = Call("SwitchProfile", HOME, B(("ProfileId", KID)));
+Ok("a profile whose main account is turned off cannot be entered", r.status == 400 && sessionStub.Opened.Count(x => x == KID) == kidOpened, Text(r));
+Ok("and says the account is turned off, so the app can show why", Text(r).Contains("account is turned off"), Text(r));
+world.Disabled.Remove(HOME);
+r = Call("SwitchProfile", HOME, B(("ProfileId", KID)));
+Ok("turned back on, it opens again", r.status == 200 && sessionStub.Opened.Count(x => x == KID) == kidOpened + 1, Text(r));
+
 // ── Taking the door away ─────────────────────────────────────────────────────
 Section("Taking the door away");
 
@@ -432,6 +443,12 @@ groupType.GetProperty("MemberUserIds").GetValue(fire).GetType().GetMethod("Add")
 SessionStub.SignedOut.Clear();
 r = Call("SwitchProfile", HOME, B(("ProfileId", OKID), ("Pin", "2468")), deviceId: "den");
 Ok("the member opens the neighbour's kid again, in the den", r.status == 200, Text(r));
+// The same for a Bonfire target: its own household's main account decides (R-1135).
+var okidOpened = sessionStub.Opened.Count(x => x == OKID);
+world.Disabled.Add(OTHER);
+r = Call("SwitchProfile", HOME, B(("ProfileId", OKID), ("Pin", "2468")), deviceId: "den");
+Ok("the neighbour's kid is shut when the neighbour's main account is turned off", r.status == 400 && sessionStub.Opened.Count(x => x == OKID) == okidOpened, Text(r));
+world.Disabled.Remove(OTHER);
 r = Call("UpdateProfile", OTHER, B(("ProfileId", OKID), ("ProfileName", "Kid")));
 Ok("renaming the kid signs nobody out", r.status == 200 && SessionStub.SignedOut.Count == 0, Text(r) + " | " + string.Join(", ", SessionStub.SignedOut));
 r = Call("UpdateProfile", OTHER, B(("ProfileId", OKID), ("ProfileName", "Kid"), ("Pin", "1357")));

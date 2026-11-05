@@ -302,6 +302,20 @@ namespace Jellyfin.Profiles.Auth
             // entry off. A sub-profile has no password of its own to fall back to.
             if (Plugin.IsPanicDisabled) throw Decline();
 
+            // A main account turned off in Dashboard -> Users shuts its profiles too (R-1135).
+            // Jellyfin checks the account being signed into, which is the profile's and was
+            // never the one turned off, so a PIN went on opening them. A master that can't be
+            // found is not "disabled": this only ever removes access.
+            if (_services?.GetService(typeof(IUserManager)) is IUserManager accounts
+                && accounts.GetUserById(mapping.MasterUserId) is User mainAccount
+                && Jellyfin.Data.UserEntityExtensions.HasPermission(mainAccount, Jellyfin.Database.Implementations.Enums.PermissionKind.IsDisabled))
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: refused a sign-in to profile {ProfileId}, whose main account is turned off.",
+                    mapping.ProfileUserId);
+                throw Decline();
+            }
+
             // An app that gets the picker signs in as the main account and picks there. A
             // profile signed in directly would skip the picker and its keypad, and leave a
             // profile token the app could keep, which is the Roku problem (#40) again.

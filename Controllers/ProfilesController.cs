@@ -848,6 +848,16 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest("This profile's account is turned off on the server.");
             }
 
+            // Nor does turning off the main account: a profile's own account is never the one
+            // that was turned off, so its profiles stayed enterable (R-1135).
+            if (MainAccountDisabled(_userManager, mapping))
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: refused a switch into {ProfileId}, whose main account is disabled.",
+                    request.ProfileId);
+                return BadRequest("This profile's main account is turned off on the server.");
+            }
+
             // Closed for maintenance. An administrator's own household can still switch to
             // the administrator, but not into a profile the gate would refuse anyway: the
             // switch would succeed and every request after it fail.
