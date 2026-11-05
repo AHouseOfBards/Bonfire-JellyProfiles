@@ -280,8 +280,12 @@ var rq = Call("AddAccountLink", HOME, B(("Username", "Gone"), ("Password", "gpw"
 Ok("an account turned off in Jellyfin isn't added, in the same words", rq.status == 400 && (string)rq.value == "That username or password isn't right."
    && !Linked(HOME, GONE), Text(rq));
 rq = Call("AddAccountLink", HOME, B(("Username", "Directory"), ("Password", "dpw"), ("MasterPin", "1234")));
-Ok("one that signs in through LDAP or SSO is for an administrator to add", rq.status == 400
-   && (string)rq.value == "That account signs in another way. Ask your server administrator to add it." && !Linked(HOME, DIRECTORY), Text(rq));
+// R-1069: a different message for an LDAP/SSO account needed no password, so it told anyone
+// in a household which usernames exist. Every failure before a right password reads the same.
+Ok("one that signs in through LDAP or SSO is refused in the same words, so a name can't be probed", rq.status == 400
+   && (string)rq.value == "That username or password isn't right." && !Linked(HOME, DIRECTORY), Text(rq));
+var nobody = Call("AddAccountLink", HOME, B(("Username", "NoSuchPerson"), ("Password", "dpw"), ("MasterPin", "1234")));
+Ok("and the words are those for a name that does not exist", nobody.status == rq.status && (string)nobody.value == (string)rq.value, Text(nobody));
 Ok("and its password isn't tried anywhere", !world.ProviderCalls.Contains("Directory") && world.AuthCalls.Count == 0);
 var added = (IEnumerable)P(r.value, "Added");
 Ok("and the reply lists it", added != null && added.Cast<object>().Any(a => (Guid)P(a, "UserId") == DAD && (string)P(a, "Name") == "Dad"));

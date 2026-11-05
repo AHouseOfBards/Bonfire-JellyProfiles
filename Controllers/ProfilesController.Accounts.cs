@@ -21,7 +21,6 @@ namespace Jellyfin.Profiles.Controllers
         internal const string CredentialsWrongMessage = "That username or password isn't right.";
         internal const string LinkNotFoundMessage = "That account isn't shown there.";
         internal const string MainAccountOnlyMessage = "Only the main account can do that.";
-        internal const string AdminMustAddMessage = "That account signs in another way. Ask your server administrator to add it.";
 
         // ── Other accounts in the switcher ───────────────────────────────────────────
 
@@ -86,8 +85,11 @@ namespace Jellyfin.Profiles.Controllers
             if (account != null && !PasswordChecksHere(account))
             {
                 // LDAP, SSO and the like keep the password somewhere Bonfire can't ask
-                // without going through the lockout.
-                return BadRequest(AdminMustAddMessage);
+                // without going through the lockout. Said in the same words as a wrong
+                // password or an unknown name: a message of its own, needing no password,
+                // let anyone in a household learn which usernames exist (R-1069). An
+                // administrator can still add such an account from the dashboard.
+                return BadRequest(CredentialsWrongMessage);
             }
 
             if (account == null
