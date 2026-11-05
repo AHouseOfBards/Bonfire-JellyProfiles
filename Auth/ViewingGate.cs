@@ -50,11 +50,17 @@ namespace Jellyfin.Profiles.Auth
 
             /// <summary><c>/Videos/{id}/…</c>.</summary>
             VideoStream,
+
+            /// <summary><c>/Items/{id}/Download</c> and <c>/Items/{id}/File</c>: the whole original file.</summary>
+            Download,
         }
 
         internal static Kind Classify(string path)
         {
             if (string.IsNullOrEmpty(path)) return Kind.None;
+            // ASP.NET routes "/PlaybackInfo/" to the same action, and the endswith checks below
+            // did not: a trailing slash classified as None and walked past the gate (R-1020).
+            path = path.TrimEnd('/');
             var at = path.IndexOf("/Videos/", StringComparison.OrdinalIgnoreCase);
             if (at >= 0)
             {
@@ -68,6 +74,13 @@ namespace Jellyfin.Profiles.Auth
             }
             if (path.EndsWith("/PlaybackInfo", StringComparison.OrdinalIgnoreCase)
                 && path.Contains("/Items/", StringComparison.OrdinalIgnoreCase)) return Kind.PlaybackInfo;
+            // Jellyfin serves the whole original file from these two, so a profile outside its
+            // hours could download a film and watch it offline; only /Videos and PlaybackInfo
+            // were gated before (R-1019, R-1296). Only an item's own two routes, with a real id:
+            // nothing an item page reads while browsing ends this way.
+            if ((path.EndsWith("/Download", StringComparison.OrdinalIgnoreCase)
+                    || path.EndsWith("/File", StringComparison.OrdinalIgnoreCase))
+                && PlaybackInfoItem(path + "/") != null) return Kind.Download;
             return Kind.None;
         }
 
@@ -106,10 +119,11 @@ namespace Jellyfin.Profiles.Auth
             var state = ViewingTracker.State(limited, nowUtc);
             if (state.Allowed) return null;
 
-            if (kind == Kind.PlaybackInfo)
+            if (kind == Kind.PlaybackInfo || kind == Kind.Download)
             {
                 // Music and books are not limited. An item that can't be found is judged as video.
-                var id = PlaybackInfoItem(path);
+                // A download is never "what is playing", so it gets no grace either.
+                var id = PlaybackInfoItem(path.TrimEnd('/') + "/");
                 if (id != null && library != null)
                 {
                     var item = library.GetItemById(id.Value);

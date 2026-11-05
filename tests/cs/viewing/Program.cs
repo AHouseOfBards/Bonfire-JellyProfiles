@@ -545,6 +545,16 @@ Ok("an item page's extra parts and trickplay are browsing", Kind("/Videos/" + it
 Ok("music is not limited", Kind("/Audio/" + item + "/stream.mp3") == "None");
 Ok("nor is browsing", Kind("/Users/" + KID + "/Items") == "None" && Kind("/Items/" + item) == "None");
 Ok("nor reports", Kind("/Sessions/Playing/Progress") == "None");
+// The original file is playback too: Download and File serve the whole thing (R-1019, R-1296).
+Ok("a download of the original file is playback", Kind("/Items/" + item + "/Download") == "Download"
+   && Kind("/Items/" + item + "/File") == "Download" && Kind("/items/" + item + "/download") == "Download");
+Ok("but not what an item page reads", Kind("/Items/" + item + "/Images/Primary") == "None"
+   && Kind("/Items/" + item + "/Similar") == "None" && Kind("/Items/" + item + "/Download/x") == "None"
+   && Kind("/Items/not-a-guid/Download") == "None");
+// A trailing slash is the same route to ASP.NET (R-1020).
+Ok("a trailing slash changes nothing", Kind("/Items/" + item + "/PlaybackInfo/") == "PlaybackInfo"
+   && Kind("/Items/" + item + "/Download/") == "Download" && Kind("/Videos/" + item + "/stream.mkv//") == "VideoStream"
+   && Kind("/Videos/" + item + "/AdditionalParts/") == "None");
 
 // Kid: hours 15:00–20:00 on weekdays and 60 minutes. Wednesday 22:00, no extra time left.
 cfgType.GetProperty("DefaultTimeZone").SetValue(config, "Europe/London");
@@ -564,7 +574,15 @@ Ok("PlaybackInfo for a song is let through", Check("/Items/" + song + "/Playback
 var unknownItem = Guid.NewGuid();
 Ok("one the library can't find is judged as video", Code(Check("/Items/" + unknownItem + "/PlaybackInfo", KID)) == "outside_viewing_hours");
 
+Ok("outside the hours, a download of a film is refused", Code(Check("/Items/" + item + "/Download", KID)) == "outside_viewing_hours");
+Ok("and so is the file route", Code(Check("/Items/" + item + "/File", KID)) == "outside_viewing_hours");
+Ok("a download of a song is let through", Check("/Items/" + song + "/Download", KID) == null);
+Ok("a download the library can't find is judged as video", Code(Check("/Items/" + unknownItem + "/Download", KID)) == "outside_viewing_hours");
+Ok("a download by a profile with no limits is let through", Check("/Items/" + item + "/Download", KID2) == null);
+Ok("PlaybackInfo with a trailing slash is refused", Code(Check("/Items/" + item + "/PlaybackInfo/", KID)) == "outside_viewing_hours");
+
 stub.Sessions.Add(SessionStub.Make("kid-tv", KID, item, deviceId: "dev-kid"));
+Ok("a download is not 'what is playing': it goes on no grace", Code(Check("/Items/" + item + "/Download", KID)) == "outside_viewing_hours");
 Ok("a stream of what is already playing goes on until the grace is over", Check("/Videos/" + item + "/hls1/main/3.ts", KID) == null);
 Ok("a stream of anything else does not", Code(Check("/Videos/" + Guid.NewGuid() + "/stream.mkv", KID)) == "outside_viewing_hours");
 
