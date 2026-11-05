@@ -50,7 +50,7 @@
     /// device is read at startup (restoreCustomThemes). The built-ins are spliced into this
     /// file; these cannot be, because profiles.js is cached for the life of the server and
     /// an administrator changes them at any moment.
-    let CUSTOM_THEMES = { themes: [], fonts: [], hidden: [] };
+    let CUSTOM_THEMES = { themes: [], fonts: [], hidden: [], logo: null };
 
     /// Caps on what is read, the server's own (ThemeCatalog.MaxCustomThemes, MaxCustomFonts).
     const MAX_CUSTOM_THEMES = 40;
@@ -94,12 +94,26 @@
         return escapeHtml(themeNameText(id));
     }
 
+    /// The server's logo (1.7.2), or null for none: { image, text, alt }. The image only at
+    /// the one address the server gives a logo, a hash and an extension, so nothing in the
+    /// answer can point the switcher at another site. Text is one line; ThemeLogo's limits.
+    function readLogo(logo) {
+        if (!logo || typeof logo !== 'object') return null;
+        const line = (v, max) => (typeof v === 'string' && v.length <= max && !/[\r\n]/.test(v) && v.trim() ? v.trim() : null);
+        const image = typeof logo.image === 'string' && /^\/plugins\/profiles\/themes\/logo\/[0-9a-f]{32}\.(png|jpg|webp)$/.test(logo.image)
+            ? logo.image : null;
+        const text = line(logo.text, 40);
+        if (!image && !text) return null;
+        return { image: image, text: text, alt: line(logo.alt, 100) };
+    }
+
     /// A ?part=custom answer, or the copy of one cached here, in the shape this script uses.
     /// Anything malformed is dropped rather than trusted: themeCss forces every value into
     /// its type as it writes CSS, and this keeps a custom theme from ever taking a
     /// built-in's id, whose block would then be drawn twice.
     function readCustomThemes(answer) {
-        const out = { themes: [], fonts: [], hidden: [] };
+        const out = { themes: [], fonts: [], hidden: [], logo: null };
+        if (answer && typeof answer === 'object') out.logo = readLogo(answer.logo);
         if (!answer || typeof answer !== 'object') return out;
         (Array.isArray(answer.themes) ? answer.themes : []).forEach(c => {
             if (!c || typeof c !== 'object' || typeof c.id !== 'string' || !/^[a-z0-9-]{1,40}$/.test(c.id)) return;
@@ -5692,6 +5706,7 @@
                 </div>
             `;
 
+            this.drawLogo(overlay);
             this.attachOverlayInteractions(overlay, profiles);
             this.fitGateToScreen(overlay);
             this.showAnnouncements(overlay);
@@ -11253,10 +11268,50 @@
             }
             if (!changed) return;
 
+            this.drawLogo(null);
             // Not before the stylesheet is in: injectStyles puts this block after it.
             if (document.getElementById('jpf-styles')) this.applyCustomThemesCss();
             if (this._lastThemePrefs) this._setThemeSettings(this._lastThemePrefs);
             else if (this._wantedTheme) this.applyTheme(this._wantedTheme);
+        },
+
+        /// The server's logo, top right of the gate (1.7.2). On the gate itself, not inside
+        /// .profiles-modal-content, so every screen that swaps the content (PIN, settings,
+        /// the theme page) keeps it, and it scrolls away with the page rather than sitting
+        /// over a form. Built with the DOM, never markup: the text and the alt are whatever
+        /// an administrator typed. Called when the gate is drawn and when the answer
+        /// changes; never from checkRoute. `overlay` may be null to mean the one on screen.
+        drawLogo: function (overlay) {
+            const gate = overlay || document.getElementById('profiles-gate-overlay');
+            const logo = CUSTOM_THEMES.logo;
+            let box = document.getElementById('profiles-logo');
+            const key = logo ? (logo.image || '') + '|' + (logo.text || '') + '|' + (logo.alt || '') : '';
+            if (box && (!gate || box.parentNode !== gate || box.getAttribute('data-logo') !== key)) {
+                if (box.parentNode) box.parentNode.removeChild(box);
+                box = null;
+            }
+            if (!gate || !logo || box) return;
+
+            box = document.createElement('div');
+            box.id = 'profiles-logo';
+            box.setAttribute('data-logo', key);
+            const asText = () => {
+                while (box.firstChild) box.removeChild(box.firstChild);
+                if (!logo.text) { if (box.parentNode) box.parentNode.removeChild(box); return; }
+                box.className = 'is-text';
+                box.textContent = logo.text;
+            };
+            if (logo.image) {
+                const img = document.createElement('img');
+                img.alt = logo.alt || '';
+                // A logo replaced since this device's copy was kept 404s: the text, if any.
+                img.onerror = asText;
+                img.src = pluginUrl(logo.image);
+                box.appendChild(img);
+            } else {
+                asText();
+            }
+            gate.appendChild(box);
         },
 
         /// The custom themes and their fonts in <style id="jpf-themes-custom">, after the

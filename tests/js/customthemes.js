@@ -50,7 +50,7 @@ function method(name) {
 }
 
 const FUNCS = ['readCustomThemes', 'offeredThemes', 'offeredChoice', 'themeNameText', 'customFontFaceCss', 'customThemesCss'];
-const METHODS = ['restoreCustomThemes', 'loadCustomThemes', 'useCustomThemes', 'applyCustomThemesCss', 'applyTheme'];
+const METHODS = ['restoreCustomThemes', 'loadCustomThemes', 'useCustomThemes', 'applyCustomThemesCss', 'applyTheme', 'drawLogo'];
 console.log('\n── The pieces are in the client ──────────────────────────────');
 FUNCS.forEach(n => ok(n + ' is in profiles.js', new RegExp('function\\s+' + n + '\\s*\\(').test(SRC)));
 METHODS.forEach(n => ok(n + ' is a method', !!method(n)));
@@ -209,6 +209,85 @@ console.log('\n── Preview rings come from the file ────────�
     ok('and so is a custom theme\'s, from its own file',
         h.themeCss(w.state().themes[0], {}).indexOf('.jpf-theme-preview[data-jpf-theme="ringed"] .jpf-theme-preview-tile:nth-child(1)') !== -1);
     ok('a theme without rings writes none', h.themeCss(payload.themes.filter(x => x.id === 'harvest')[0], {}).indexOf('.jpf-theme-preview[') === -1);
+}
+
+console.log('\n── The logo ──────────────────────────────────────────────────');
+{
+    const h = world().helpers;
+    const IMG = '/plugins/profiles/themes/logo/' + 'c'.repeat(32) + '.png';
+    const read = l => h.readCustomThemes({ logo: l }).logo;
+    ok('an image at the logo address is read, with its alt', JSON.stringify(read({ image: IMG, text: null, alt: 'The Hayes House' }))
+        === JSON.stringify({ image: IMG, text: null, alt: 'The Hayes House' }));
+    ok('an image anywhere else is not', read({ image: 'https://evil.example/' + 'c'.repeat(32) + '.png' }) === null
+        && read({ image: '/plugins/profiles/themes/logo/../../x.png' }) === null
+        && read({ image: IMG.replace('.png', '.svg') }) === null);
+    ok('text alone is a logo, trimmed', JSON.stringify(read({ text: '  Hayes  ' })) === JSON.stringify({ image: null, text: 'Hayes', alt: null }));
+    ok('text of two lines, or past forty characters, is not', read({ text: 'a\nb' }) === null && read({ text: 'x'.repeat(41) }) === null);
+    ok('an alt past a hundred is dropped, the logo kept', read({ image: IMG, alt: 'y'.repeat(101) }).alt === null);
+    ok('nothing, or nothing usable, is no logo', read(null) === null && read({ image: null, text: '' }) === null && read('x') === null);
+
+    // drawLogo against a DOM just real enough: elements with children, attributes, text.
+    function el(tag) {
+        return {
+            tagName: tag, id: '', className: '', attrs: {}, children: [], parentNode: null, _text: '',
+            get firstChild() { return this.children[0] || null; },
+            get textContent() { return this._text + this.children.map(c => c.textContent).join(''); },
+            set textContent(v) { this.children = []; this._text = String(v); },
+            setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; },
+            appendChild(c) { c.parentNode = this; this.children.push(c); return c; },
+            removeChild(c) { this.children = this.children.filter(x => x !== c); c.parentNode = null; return c; }
+        };
+    }
+    const gate = el('div');
+    gate.id = 'profiles-gate-overlay';
+    const byId = id => {
+        const walk = n => (n.id === id ? n : n.children.reduce((f, c) => f || walk(c), null));
+        return walk(gate);
+    };
+    const doc = { createElement: el, getElementById: byId };
+    const drawFactory = new Function('document', 'pluginUrl', 'state',
+        'let CUSTOM_THEMES = state;\nconst obj = { drawLogo: function (' + method('drawLogo').params + ') {' + method('drawLogo').body + '} };'
+        + '\nreturn { obj: obj, set: s => { CUSTOM_THEMES = s; } };');
+    const d = drawFactory(doc, u => 'https://srv' + u, { themes: [], fonts: [], hidden: [], logo: null });
+
+    d.obj.drawLogo(gate);
+    ok('no logo, nothing drawn', !byId('profiles-logo'));
+    d.set({ logo: read({ image: IMG, alt: '<b>Hayes</b>' }) });
+    d.obj.drawLogo(gate);
+    let box = byId('profiles-logo');
+    const img = box && box.children[0];
+    ok('an image logo is an <img> on the gate, through the server address', !!img && img.tagName === 'img' && box.parentNode === gate
+        && img.src === 'https://srv' + IMG);
+    ok('its alt is the administrator\'s text as text, never markup', img && img.alt === '<b>Hayes</b>');
+    d.obj.drawLogo(gate);
+    ok('drawn again, it is the same element, not a second one', gate.children.filter(c => c.id === 'profiles-logo').length === 1 && byId('profiles-logo') === box);
+
+    d.set({ logo: read({ image: IMG, text: 'Hayes <script>', alt: null }) });
+    d.obj.drawLogo(gate);
+    box = byId('profiles-logo');
+    const failed = box.children[0].onerror;
+    if (typeof failed === 'function') failed();
+    ok('an image that will not load falls back to the text, as text', typeof failed === 'function' && box.textContent === 'Hayes <script>'
+        && box.children.length === 0 && box.className === 'is-text');
+
+    d.set({ logo: read({ text: 'The Hayes House' }) });
+    d.obj.drawLogo(gate);
+    box = byId('profiles-logo');
+    ok('a changed logo replaces the old one', box.textContent === 'The Hayes House' && gate.children.filter(c => c.id === 'profiles-logo').length === 1);
+    d.set({ logo: null });
+    d.obj.drawLogo(gate);
+    ok('a logo removed on the server goes from the gate', !byId('profiles-logo'));
+
+    const sheet = require('fs').readFileSync(require('path').join(L.ROOT, 'Web', 'styles.css'), 'utf8');
+    const tv = /\.jpf-tv #profiles-logo \{([^}]*)\}/.exec(sheet);
+    ok('on a TV it sits 5% in from the top and the right, the safe area the docs promise',
+        !!tv && /top: 5vh/.test(tv[1]) && /right: 5vw/.test(tv[1]), tv ? tv[1] : 'no rule');
+    const base = /#profiles-logo \{([^}]*)\}/.exec(sheet);
+    ok('it never takes a click or a focus from a profile', !!base && /pointer-events: none/.test(base[1]));
+    ok('drawn whenever the gate is, and when the answer changes; not from checkRoute',
+        method('renderOverlayContent').body.indexOf('this.drawLogo(overlay)') !== -1
+        && method('useCustomThemes').body.indexOf('this.drawLogo(') !== -1
+        && method('checkRoute').body.indexOf('drawLogo') === -1);
 }
 
 console.log('\n── Startup, the answer, and the copy on the device ────────────');

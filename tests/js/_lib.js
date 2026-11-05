@@ -157,7 +157,7 @@ function themeGenerator(src, payload, custom) {
     // BONFIRE_THEMES, raw (an answer from GET themes?part=custom), and read through the
     // build's own readCustomThemes, so a harness gives it what the server would.
     const names = ['themeCss', 'allThemesCss', 'servedFontName', 'fontFaceCss', 'gateBackground',
-        'customTheme', 'readCustomThemes', 'customFontFaceCss', 'customThemesCss']
+        'customTheme', 'readLogo', 'readCustomThemes', 'customFontFaceCss', 'customThemesCss']
         .filter(n => new RegExp('function\\s+' + n + '\\s*\\(').test(js));
     const themes = /const THEMES = (\[[^\]]*\]);/.exec(js);
     const factory = new Function('BONFIRE_THEMES', 'CUSTOM_RAW', 'THEMES',
@@ -331,7 +331,7 @@ function themeHelpers(src) {
     decl(/const MAX_CUSTOM_THEMES = \d+;/);
     decl(/const MAX_CUSTOM_FONTS = \d+;/);
     ['escapeHtml', 'customTheme', 'isThemeId', 'offeredThemes', 'offeredChoice', 'themeNameText', 'themeName',
-        'readCustomThemes', 'normalizeTheme']
+        'readLogo', 'readCustomThemes', 'normalizeTheme']
         .filter(n => new RegExp('function\\s+' + n + '\\s*\\(').test(js))
         .forEach(n => out.push(extractFunction(js, n)));
     return out.join('\n');

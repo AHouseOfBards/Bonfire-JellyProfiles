@@ -534,6 +534,20 @@ body.profiles-no-scroll [id*="spinner"] {
     font-weight: var(--jpf-title-weight); margin-bottom: 3rem;
     text-shadow: var(--jpf-title-shadow); letter-spacing: var(--jpf-title-spacing);
 }
+/* The server's logo, top right (1.7.2). Absolute on the gate, which is the scroll box, so
+   it goes up with the page instead of floating over a long form. Never a target: it is
+   not a control, and on a TV it must not take focus from a profile. Kept small and away
+   from the title: 48px tall at most, a third of the width. On a TV, 5% in from each edge,
+   the overscan safe area docs/themes.md promises to apps drawing the same thing. */
+#profiles-logo {
+    position: absolute; top: 1rem; right: 1rem; z-index: 1;
+    max-width: 33%; pointer-events: none;
+    color: var(--jpf-text-2); font-weight: 600; font-size: 1rem; line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#profiles-logo img { display: block; max-width: 100%; max-height: 48px; width: auto; height: auto; margin-left: auto; }
+.jpf-tv #profiles-logo { top: 5vh; right: 5vw; max-width: 30vw; font-size: 1.4rem; }
+.jpf-tv #profiles-logo img { max-height: 72px; }
 /* Announcements, above the title. Each theme colours them through its own accent, warn
    and danger tokens, so no theme needs a rule of its own. Margins, not flex gap: gap on a
    flex box is Chromium 84, and webOS 4.5 is 53. */
