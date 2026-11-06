@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,15 +20,27 @@ namespace Jellyfin.Profiles.Auth
     /// client reaches, because every client authenticates.</para>
     ///
     /// <para><b>Why <see cref="ISessionManager.SessionStarted"/>.</b> It is the narrowest
-    /// event that means "somebody signed in here": one per sign-in, rather than
-    /// <c>SessionActivity</c>, which fires on every request and would put this work in front
-    /// of all of them. The trade-off is that a household already signed in when the plugin
+    /// event that means "somebody signed in here": one per sign-in. <c>SessionActivity</c>
+    /// is raised far more often (up to once every ten seconds per session), so the work is
+    /// never done from there unless the account on the session has changed; see below. The
+    /// trade-off is that a household already signed in when the plugin
     /// updates is not recorded until their next sign-in — which is self-healing, and is the
     /// same sign-in the feature asks for anyway.</para>
     ///
-    /// <para>The event is identical in 10.11.5 and 12.0 —
-    /// <c>event EventHandler&lt;SessionEventArgs&gt; SessionStarted</c> — so one assembly
-    /// serves both servers.</para>
+    /// <para><b>Why <c>SessionActivity</c> as well (R-1008).</b> SessionStarted alone misses
+    /// a second account signing in on the same app and device without signing out first.
+    /// Jellyfin keys a session by app name + device id (<c>SessionManager.GetSessionKey</c>,
+    /// release-10.11.z); <c>GetSessionInfo</c> raises SessionStarted only when
+    /// <c>GetOrAdd</c> creates the record, and otherwise writes the new account's UserId and
+    /// UserName over the old ones in place. A profile signing in on a television somebody
+    /// else last used got no policy sync and no device row. A handover does go through
+    /// <c>LogSessionActivity</c>, which raises SessionActivity at most once per ten seconds
+    /// per session, so that is watched, and the work is one dictionary compare: a change of
+    /// account on a session already seen is treated as a sign-in.</para>
+    ///
+    /// <para>The events are identical in 10.11.5 and 12.0 —
+    /// <c>event EventHandler&lt;SessionEventArgs&gt;</c> — so one assembly serves both
+    /// servers.</para>
     /// </summary>
     public class BonfireSessionListener : IHostedService
     {
@@ -51,9 +64,20 @@ namespace Jellyfin.Profiles.Auth
 
         private readonly IServiceProvider? _services;
 
+        /// <summary>
+        /// The account last seen on each session, by session id, so a handover can be told
+        /// from more activity by the same account. Emptied as sessions end.
+        /// </summary>
+        private readonly ConcurrentDictionary<string, Guid> _accountOnSession = new(StringComparer.Ordinal);
+
+        /// <summary>A ceiling, in case sessions stop being reported as ended.</summary>
+        private const int MaxTrackedSessions = 10000;
+
         public Task StartAsync(CancellationToken cancellationToken)
         {
             _sessionManager.SessionStarted += OnSessionStarted;
+            _sessionManager.SessionActivity += OnSessionActivity;
+            _sessionManager.SessionEnded += OnSessionEnded;
 
             // Said out loud on purpose. Without it, "no profiles appeared" cannot be told
             // apart from "the listener never started", and those have completely different
@@ -68,10 +92,76 @@ namespace Jellyfin.Profiles.Auth
         public Task StopAsync(CancellationToken cancellationToken)
         {
             _sessionManager.SessionStarted -= OnSessionStarted;
+            _sessionManager.SessionActivity -= OnSessionActivity;
+            _sessionManager.SessionEnded -= OnSessionEnded;
+            _accountOnSession.Clear();
             return Task.CompletedTask;
         }
 
         private void OnSessionStarted(object? sender, SessionEventArgs e)
+        {
+            var session = e?.SessionInfo;
+            if (session == null) return;
+            Remember(session);
+            OnSignedIn(session);
+        }
+
+        /// <summary>
+        /// Raised from LogSessionActivity, at most once per ten seconds per session. Must stay
+        /// a compare: anything more here is in front of every client's requests.
+        /// </summary>
+        private void OnSessionActivity(object? sender, SessionEventArgs e)
+        {
+            try
+            {
+                var session = e?.SessionInfo;
+                if (session == null || string.IsNullOrEmpty(session.Id)) return;
+                var now = session.UserId;
+
+                // First sighting: a session that was open before the plugin started. Only
+                // remembered — acting on it would run a sign-in for every open session at
+                // once on each server start, and SessionStarted covered it when it began.
+                if (!_accountOnSession.TryGetValue(session.Id, out var before))
+                {
+                    Remember(session);
+                    return;
+                }
+
+                if (before == now) return;
+
+                // Compare-and-set, so two activity events racing for one handover act once.
+                if (!_accountOnSession.TryUpdate(session.Id, now, before)) return;
+
+                // Signed out, or a request with no account: nothing to sign in.
+                if (now == Guid.Empty) return;
+
+                _logger.LogInformation(
+                    "ProfilesPlugin: {User} took over an open session on device {DeviceId} ({Client}) "
+                    + "without a sign-out, which Jellyfin does not report as a sign-in; treated as one.",
+                    session.UserName, session.DeviceId, session.Client);
+                OnSignedIn(session);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ProfilesPlugin: could not check a session for a change of account.");
+            }
+        }
+
+        private void OnSessionEnded(object? sender, SessionEventArgs e)
+        {
+            var id = e?.SessionInfo?.Id;
+            if (!string.IsNullOrEmpty(id)) _accountOnSession.TryRemove(id, out _);
+        }
+
+        private void Remember(SessionInfo session)
+        {
+            if (string.IsNullOrEmpty(session.Id)) return;
+            if (_accountOnSession.Count >= MaxTrackedSessions) _accountOnSession.Clear();
+            _accountOnSession[session.Id] = session.UserId;
+        }
+
+        /// <summary>Somebody signed in on <paramref name="session"/>: a new session, or a handover.</summary>
+        private void OnSignedIn(SessionInfo session)
         {
             // Nothing here may be allowed to escape. This runs on Jellyfin's own event
             // dispatch, not on a request, so an exception is not ours to lose politely —
@@ -80,9 +170,6 @@ namespace Jellyfin.Profiles.Auth
             // to brick a launcher row.
             try
             {
-                var session = e?.SessionInfo;
-                if (session == null) return;
-
                 SyncProfilePolicy(session.UserId);
 
                 if (string.IsNullOrWhiteSpace(session.DeviceId)) return;
