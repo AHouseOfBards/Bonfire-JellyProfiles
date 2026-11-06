@@ -1871,7 +1871,10 @@ namespace Jellyfin.Profiles.Controllers
 
                 // A new name must not be an account's username (R-1336). One it already has
                 // is left alone, so a profile named before this check can still be edited.
-                if (!string.Equals(mapping.ProfileName, request.ProfileName?.Trim(), StringComparison.OrdinalIgnoreCase))
+                // Not ProfileName?.Trim(): ValidateProfileName above has already refused a
+                // missing name, and the "?." told the compiler it might be null from here on,
+                // which failed the -warnaserror build at the two later .Trim() calls.
+                if (!string.Equals(mapping.ProfileName, request.ProfileName.Trim(), StringComparison.OrdinalIgnoreCase))
                 {
                     var takenError = ValidateProfileNameFree(_userManager, request.ProfileName, request.ProfileId);
                     if (takenError != null) return BadRequest(takenError);

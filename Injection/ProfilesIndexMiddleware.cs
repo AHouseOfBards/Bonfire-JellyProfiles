@@ -616,7 +616,10 @@ namespace Jellyfin.Profiles
             IUserManager userManager,
             IDeviceManager deviceManager,
             ISessionManager sessionManager,
-            INetworkManager networkManager)
+            // Nullable because it is null-checked, here and in InvokeAsync. Declared
+            // non-null, the caller's check (R-1334) made the argument "maybe null" to the
+            // compiler and failed the -warnaserror build.
+            INetworkManager? networkManager)
         {
             var config = Controllers.ProfilesBaseController.ReadConfigSnapshot();
             if (config?.EnableClientPinLogin != true) return;
