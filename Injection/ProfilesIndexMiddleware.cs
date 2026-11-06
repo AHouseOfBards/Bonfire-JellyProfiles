@@ -366,6 +366,7 @@ namespace Jellyfin.Profiles
             }
 
             string html;
+            var baseUrl = ReadBaseUrl(serverConfig);
             try
             {
                 var document = Encoding.UTF8.GetString(produced);
@@ -373,13 +374,13 @@ namespace Jellyfin.Profiles
                 // Already there — the file is patched on disk in "both" mode, or something
                 // else in the pipeline added the same tags. A second copy would give the
                 // browser two scripts and two gates.
-                if (WebInjection.IsFullyInjected(document))
+                if (WebInjection.IsFullyInjectedAt(document, baseUrl))
                 {
                     await PassThroughAsync(context, produced).ConfigureAwait(false);
                     return;
                 }
 
-                if (!WebInjection.Inject(document, out html))
+                if (!WebInjection.InjectAt(document, baseUrl, out html))
                 {
                     // Neither anchor found and nothing already present, so this is not a
                     // document we understand. Hand back whatever the pipeline made.
@@ -987,6 +988,23 @@ namespace Jellyfin.Profiles
             // We sit ahead of Jellyfin's UsePathBase, so a server published under a base URL
             // still shows it here. Accept both forms rather than depending on that ordering.
             return IsIndexPath(path, baseUrl) || IsIndexPath(path, null);
+        }
+
+        /// <summary>
+        /// The Base URL Jellyfin is published under, read the way Jellyfin does it
+        /// (<c>GetNetworkConfiguration().BaseUrl</c>), or empty when there is none or it
+        /// cannot be read.
+        /// </summary>
+        private static string ReadBaseUrl(IServerConfigurationManager serverConfig)
+        {
+            try
+            {
+                return WebInjection.NormalizeBaseUrl(serverConfig.GetNetworkConfiguration().BaseUrl);
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
         }
 
         private static bool IsIndexPath(string path, string? baseUrl)

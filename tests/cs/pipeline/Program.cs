@@ -409,6 +409,44 @@ var served = (long)servedProp.GetValue(null);
 // — the dashboard reports this number as "pages served".
 Check("served count is one per document actually rewritten (got " + served + ")", served == 6);
 
+Console.WriteLine();
+Console.WriteLine("── A Base URL (R-1093) ─────────────────────────────────────────");
+
+// Jellyfin's BaseUrlRedirectionMiddleware sends any path without the base to <base>/web/,
+// so a script tag that names /plugins/profiles/profiles.js is answered with HTML.
+networkConfig.BaseUrl = "/jf";
+var based = await Run("/jf/web/index.html", WriteBody(PlainIndex));
+Check("under /jf the script tag is prefixed with it",
+    based.Body.Contains("src=\"/jf/plugins/profiles/profiles.js?v="));
+Check("and no unprefixed tag is left beside it",
+    Count(based.Body, "/plugins/profiles/profiles.js") == 1);
+
+// A file patched on disk before the Base URL was set carries the bare path. That is not
+// "already injected": it has to be corrected, not passed through.
+var bare = PlainIndex.Replace("</body>",
+    "<script src=\"/plugins/profiles/profiles.js?v=" + ScriptVersionNow() + "\" defer></script></body>");
+var fixedUp = await Run("/jf/web/", WriteBody(bare));
+Check("an unprefixed tag already in the document is corrected",
+    fixedUp.Body.Contains("src=\"/jf/plugins/profiles/profiles.js?v=")
+    && Count(fixedUp.Body, "/plugins/profiles/profiles.js") == 1);
+
+networkConfig.BaseUrl = "/jf/";
+var slash = await Run("/jf/web/", WriteBody(PlainIndex));
+Check("a trailing slash on the setting does not double up",
+    slash.Body.Contains("src=\"/jf/plugins/profiles/profiles.js?v="));
+
+networkConfig.BaseUrl = "";
+var none = await Run("/web/", WriteBody(PlainIndex));
+Check("with no Base URL the tag is the bare path, as before",
+    none.Body.Contains("src=\"/plugins/profiles/profiles.js?v="));
+
+static string ScriptVersionNow() =>
+    (string)typeof(ProfilesIndexMiddleware).Assembly
+        .GetType("Jellyfin.Profiles.WebInjection", true)
+        .GetProperty("ScriptVersion", System.Reflection.BindingFlags.Static
+            | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
+        .GetValue(null);
+
 try { Directory.Delete(tempDir, true); } catch { /* best effort */ }
 
 Console.WriteLine();

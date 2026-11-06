@@ -36,8 +36,27 @@ namespace Jellyfin.Profiles
         /// /plugins/profiles/profiles.js is the path Jellyfin uses to serve embedded resources
         /// from plugin assemblies.
         /// </summary>
-        internal static string BodyScriptTag =>
-            $"<script src=\"/plugins/profiles/profiles.js?v={ScriptVersion}\" defer></script>";
+        internal static string BodyScriptTag => BodyScriptTagAt(null);
+
+        /// <summary>
+        /// The Base URL (Dashboard, Networking) as Jellyfin itself normalises it: a leading
+        /// slash, no trailing one, and nothing at all when unset.
+        /// </summary>
+        internal static string NormalizeBaseUrl(string? baseUrl)
+        {
+            var trimmed = (baseUrl ?? string.Empty).Trim().Trim('/');
+            return trimmed.Length == 0 ? string.Empty : "/" + trimmed;
+        }
+
+        /// <summary>
+        /// The script tag for a server published under <paramref name="baseUrl"/>. The tag
+        /// has to carry it: Jellyfin's BaseUrlRedirectionMiddleware answers any path without
+        /// the base by redirecting to <c>&lt;base&gt;/web/</c>, so a bare
+        /// /plugins/profiles/profiles.js comes back as the HTML page and the switcher, the
+        /// gate and the theme never load.
+        /// </summary>
+        internal static string BodyScriptTagAt(string? baseUrl) =>
+            $"<script src=\"{NormalizeBaseUrl(baseUrl)}/plugins/profiles/profiles.js?v={ScriptVersion}\" defer></script>";
 
         /// <summary>Unique substring to detect whether the body tag is already present.</summary>
         internal const string BodyMarker = "/plugins/profiles/profiles.js";
@@ -207,6 +226,12 @@ namespace Jellyfin.Profiles
             @"<script[^>]*src=[""'][^""']*/plugins/profiles/profiles\.js[^""']*[""'][^>]*>\s*(</script>)?",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+        // The src up to the plugin path, so the Base URL the tag was written for can be read
+        // back as well as the version.
+        private static readonly Regex InjectedPrefixRegex = new(
+            @"<script[^>]*src=[""']([^""']*)/plugins/profiles/profiles\.js",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         /// <summary>Version recorded in the HTML's script tag, or null if absent/unparseable.</summary>
         internal static string? GetInjectedScriptVersion(string html)
         {
@@ -222,10 +247,25 @@ namespace Jellyfin.Profiles
         /// True when both fragments are present and the body tag names this exact build, so
         /// there is nothing to do.
         /// </summary>
-        internal static bool IsFullyInjected(string html)
+        internal static bool IsFullyInjected(string html) => IsFullyInjectedAt(html, null);
+
+        /// <summary>
+        /// <see cref="IsFullyInjected(string)"/> for a server under <paramref name="baseUrl"/>:
+        /// a tag that names the right build but the wrong prefix is not injected, it is
+        /// broken.
+        /// </summary>
+        internal static bool IsFullyInjectedAt(string html, string? baseUrl)
             => html.Contains(BodyMarker, StringComparison.Ordinal)
                && html.Contains(HeadMarker, StringComparison.Ordinal)
-               && IsScriptVersionCurrent(html);
+               && IsScriptVersionCurrent(html)
+               && IsPrefixCurrent(html, baseUrl);
+
+        private static bool IsPrefixCurrent(string html, string? baseUrl)
+        {
+            var m = InjectedPrefixRegex.Match(html);
+            return m.Success
+                && string.Equals(m.Groups[1].Value, NormalizeBaseUrl(baseUrl), StringComparison.Ordinal);
+        }
 
         /// <summary>
         /// Adds both fragments to <paramref name="html"/>, updating either one if it is present
@@ -234,7 +274,13 @@ namespace Jellyfin.Profiles
         /// <param name="html">The document to inject into.</param>
         /// <param name="result">The document afterwards. Equal to the input when nothing changed.</param>
         /// <returns>True when <paramref name="result"/> differs from the input.</returns>
-        internal static bool Inject(string html, out string result)
+        internal static bool Inject(string html, out string result) => InjectAt(html, null, out result);
+
+        /// <summary>
+        /// <see cref="Inject(string, out string)"/> for a server under
+        /// <paramref name="baseUrl"/>; the body tag carries the prefix.
+        /// </summary>
+        internal static bool InjectAt(string html, string? baseUrl, out string result)
         {
             bool changed = false;
 
@@ -263,10 +309,10 @@ namespace Jellyfin.Profiles
             // ── 2. Update or inject body script ──────────────────────────────
             if (BodyScriptRegex.IsMatch(html))
             {
-                if (!IsScriptVersionCurrent(html))
+                if (!IsScriptVersionCurrent(html) || !IsPrefixCurrent(html, baseUrl))
                 {
                     // MatchEvaluator — see the note on the head script above.
-                    var tag = BodyScriptTag;
+                    var tag = BodyScriptTagAt(baseUrl);
                     html = BodyScriptRegex.Replace(html, _ => tag);
                     changed = true;
                 }
@@ -276,7 +322,7 @@ namespace Jellyfin.Profiles
                 int bodyIdx = html.IndexOf("</body>", StringComparison.OrdinalIgnoreCase);
                 if (bodyIdx != -1)
                 {
-                    html = html.Insert(bodyIdx, BodyScriptTag + NewlineOf(html));
+                    html = html.Insert(bodyIdx, BodyScriptTagAt(baseUrl) + NewlineOf(html));
                     changed = true;
                 }
             }
