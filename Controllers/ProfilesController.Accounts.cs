@@ -447,6 +447,7 @@ namespace Jellyfin.Profiles.Controllers
                         ProfileImage = ownRow?.ProfileImage,
                         Theme = config.AllowProfileThemes ? ownRow?.Theme : null,
                         IsHidden = true,
+                        KeepAccountOnDelete = !request.DeleteWithProfile,
                         LockoutMinutes = ownRow?.LockoutMinutes ?? 5,
                         EnabledFolders = enabled,
                         AllLibraries = allLibraries,

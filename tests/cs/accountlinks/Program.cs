@@ -717,6 +717,48 @@ Section("A picture that is refused leaves the one the profile has");
     Ok("creating with a refused picture answers 400 and makes no account", r.status == 400 && world.Users.Count == usersBefore, Text(r));
 }
 
+// ── Deleting a profile that was an account ───────────────────────────────────
+Section("Deleting a profile that was an account");
+
+// Making an account a profile changes its password, hides it and puts a mapping on it, and
+// recorded nothing about it having been an account. The household's main account, who is not
+// an administrator, could then delete the profile: DeleteUserAsync took the account, its
+// watch history, favourites and resume points with it (R-1134). The person who makes the
+// profile now chooses what a later delete does; keep is the default.
+// A build that does not know the field has no such request property: that is a failed case,
+// not a crash that hides the cases after it.
+(int status, object value) Soft(Func<(int status, object value)> call)
+{
+    try { return call(); }
+    catch (Exception ex) { return (-1, "threw " + ex.Message); }
+}
+var keepProp = mapType.GetProperty("KeepAccountOnDelete");
+Ok("a profile remembers whether its account is kept when it is deleted", keepProp != null);
+Ok("made with the default, the lodger's account is kept", keepProp != null && (bool)keepProp.GetValue(lodgerRow) == true);
+
+world.Log.Clear();
+r = Soft(() => Call("DeleteProfile", HOME, B(("ProfileId", LODGER), ("MasterPin", "1234"), ("Password", "newpw"))));
+Ok("the main account deletes it", r.status == 200, Text(r));
+Ok("the profile is gone from the household", Row(LODGER) == null);
+Ok("but the account still exists, with its history", world.Users.ContainsKey(LODGER), string.Join(" | ", world.Log));
+Ok("and signs in with the password it was given", world.Passwords.TryGetValue(LODGER, out var kept) && kept == "newpw");
+Ok("on Jellyfin's own provider, as when a profile is made its own account",
+   world.Users.ContainsKey(LODGER) && world.Users[LODGER].AuthenticationProviderId == JELLYFIN);
+Ok("signed out of what the profile held", At("revoke " + LODGER) >= 0, string.Join(" | ", world.Log));
+Ok("and no other account was deleted", !world.Log.Any(l => l.StartsWith("delete ")), string.Join(" | ", world.Log));
+
+// Deleted with it, when the person who made the profile said so.
+r = Soft(() => Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME), ("DeleteWithProfile", true))));
+Ok("an account can be made a profile that takes it along when deleted", r.status == 200
+   && keepProp != null && (bool)keepProp.GetValue(Row(DAD)) == false, Text(r));
+r = Call("DeleteProfile", HOME, B(("ProfileId", DAD), ("MasterPin", "1234")));
+Ok("deleting it deletes the account", r.status == 200 && !world.Users.ContainsKey(DAD), Text(r));
+
+// A profile Bonfire made itself was never anyone's account: deleting it deletes it, as before.
+world.Log.Clear();
+r = Call("DeleteProfile", HOME, B(("ProfileId", KID), ("MasterPin", "1234")));
+Ok("a profile Bonfire created is still deleted with its account", r.status == 200 && !world.Users.ContainsKey(KID), Text(r));
+
 try { Directory.Delete(tempDir, true); } catch { }
 return Finish();
 
@@ -811,6 +853,11 @@ public class WorldProxy : DispatchProxy
             case "UpdateUserAsync":
                 var changed = (User)args[0];
                 W.Log.Add("provider " + changed.Id + " " + changed.AuthenticationProviderId);
+                return Task.CompletedTask;
+            case "DeleteUserAsync":
+                // What takes the account and its watch history with it.
+                W.Log.Add("delete " + (Guid)args[0]);
+                W.Users.Remove((Guid)args[0]);
                 return Task.CompletedTask;
             case "UpdateConfigurationAsync":
                 return Task.CompletedTask;

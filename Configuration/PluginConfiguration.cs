@@ -854,6 +854,22 @@ namespace Jellyfin.Profiles.Configuration
         /// </remarks>
         public bool TransparentAvatar { get; set; }
         public bool IsHidden { get; set; } = true;
+
+        /// <summary>
+        /// Set on a profile that was a real account (made a profile by an administrator): deleting
+        /// the profile removes it from the household and leaves the account, with its watch
+        /// history, as an account of its own (R-1134). Not set on a profile Bonfire created, whose
+        /// account exists only for it and is deleted with it. The person who makes the profile
+        /// chooses; keep is the default.
+        /// <para>
+        /// Nothing recorded which profiles were made from accounts before this field, so those
+        /// read false and are deleted with their account, as they always were. They can't be told
+        /// apart from a created profile, and guessing wrong would leave an orphaned account behind
+        /// for every profile ever created.
+        /// </para>
+        /// </summary>
+        public bool KeepAccountOnDelete { get; set; }
+
         /// <summary>
         /// Minutes of inactivity before auto-lock. 0 = never. Default 5.
         /// Only honoured when the profile has a PIN set.

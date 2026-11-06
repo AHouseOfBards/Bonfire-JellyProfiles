@@ -683,8 +683,11 @@ Returns `200`. Errors as for `/create`.
 Deletes a profile and its Jellyfin account.
 
 ```json
-{ "profileId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b", "masterPin": "1234" }
+{ "profileId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b", "masterPin": "1234", "password": "optional" }
 ```
+
+A profile made from an existing account (`deleteWithProfile` false) is not deleted: the
+account stays and signs in on its own with `password`, or a random one if that's empty.
 
 Returns `200`. `500` if the account couldn't be deleted; it's disabled instead, so it can't
 be signed in to, and the profile stays listed so you can try again.
@@ -2345,8 +2348,11 @@ undone.
 **Authorisation:** administrator.
 
 ```json
-{ "userId": "…", "householdId": "…", "profileName": "Sam" }
+{ "userId": "…", "householdId": "…", "profileName": "Sam", "deleteWithProfile": false }
 ```
+
+`deleteWithProfile` decides what deleting the profile later does. `false` (the default)
+keeps the account: it leaves the household and signs in on its own. `true` deletes it.
 
 The reverse of `standalone`. The account becomes a profile of `householdId` and keeps its
 user, so watch history stays. It keeps its PIN, libraries, tags and picture. Its password

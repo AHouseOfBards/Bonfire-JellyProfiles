@@ -625,6 +625,20 @@ namespace Jellyfin.Profiles.Controllers
             // so the ghost account remains visible and manageable in the dashboard).
             bool userFullyDeleted = false;
             var targetUser = _userManager.GetUserById(request.ProfileId);
+            if (targetUser != null && mapping.KeepAccountOnDelete)
+            {
+                // Made from a real account, and the admin chose to keep it (R-1134): the
+                // profile leaves the household and the account stays, signing in on its own.
+                var keepPassword = string.IsNullOrEmpty(request.Password)
+                    ? Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
+                    : request.Password;
+                var kept = await ReleaseProfileAsAccountAsync(mapping, targetUser, keepPassword, string.Empty).ConfigureAwait(false);
+                if (kept.Error != null) return StatusCode(kept.Status, kept.Error);
+                LogActivity(CallerName() + " removed " + mapping.ProfileName + " and kept its account",
+                    "ProfileMadeAccount", kept.User.Id, "The account stays.");
+                return Ok();
+            }
+
             if (targetUser != null)
             {
                 try
@@ -4436,6 +4450,21 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
+            var released = await ReleaseProfileAsAccountAsync(mapping, user, request.Password, username).ConfigureAwait(false);
+            if (released.Error != null) return StatusCode(released.Status, released.Error);
+
+            return Ok(new { UserId = released.User.Id, Username = released.User.Username });
+        }
+
+        /// <summary>
+        /// Takes a profile out of its household and leaves its account standing on its own, with
+        /// a sign-in of its own: the steps of <see cref="MakeStandalone"/>, shared with deleting a
+        /// profile that was an account (R-1134). The caller has checked who may do it, and that
+        /// the new username, if any, is free. Returns an error and the status to send, or none.
+        /// </summary>
+        private async Task<(int Status, string? Error, Jellyfin.Database.Implementations.Entities.User User)> ReleaseProfileAsAccountAsync(
+            ProfileMapping mapping, Jellyfin.Database.Implementations.Entities.User user, string password, string username)
+        {
             // 1. The restrictions it has today, made current. Nothing inherits after this.
             if (ShouldInheritMasterPolicy(mapping, mapping.ProfileUserId, mapping.MasterUserId))
             {
@@ -4458,7 +4487,7 @@ namespace Jellyfin.Profiles.Controllers
             lock (ConfigLock)
             {
                 var config = Plugin.Instance?.Configuration;
-                var row = config?.Mappings?.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
+                var row = config?.Mappings?.FirstOrDefault(m => m.ProfileUserId == mapping.ProfileUserId);
                 if (row != null)
                 {
                     config!.Mappings.Remove(row);
@@ -4471,7 +4500,7 @@ namespace Jellyfin.Profiles.Controllers
             //    from Jellyfin's user list and nobody is told to type its name. Before the
             //    provider below: Jellyfin's UpdatePolicyAsync also writes the policy's
             //    provider id onto the account, so a policy write after it would undo it.
-            user = _userManager.GetUserById(request.ProfileId) ?? user;
+            user = _userManager.GetUserById(mapping.ProfileUserId) ?? user;
             var masterAccount = _userManager.GetUserById(mapping.MasterUserId);
             var hidden = masterAccount != null && _userManager.GetUserDto(masterAccount, string.Empty).Policy?.IsHidden == true;
             var ownPolicy = _userManager.GetUserDto(user, string.Empty).Policy;
@@ -4479,7 +4508,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 ownPolicy.IsHidden = hidden;
                 await _userManager.UpdatePolicyAsync(user.Id, ownPolicy).ConfigureAwait(false);
-                user = _userManager.GetUserById(request.ProfileId) ?? user;
+                user = _userManager.GetUserById(mapping.ProfileUserId) ?? user;
             }
 
             // 5. Its own sign-in, on Jellyfin's own provider. Never an empty id: see
@@ -4496,14 +4525,14 @@ namespace Jellyfin.Profiles.Controllers
             // what is left to do rather than pretending nothing happened.
             try
             {
-                await ChangePasswordCompat(user, request.Password).ConfigureAwait(false);
+                await ChangePasswordCompat(user, password).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogError(ex, "ProfilesPlugin: {User} is its own account now, but its password could not be set.", user.Username);
                 ProfilesBootstrapTask.ReconcileAuthProvidersNow();
-                return StatusCode(StatusCodes.Status500InternalServerError,
-                    "The account was made, but its password couldn't be set. Set it in Dashboard → Users.");
+                return (StatusCodes.Status500InternalServerError,
+                    "The account was made, but its password couldn't be set. Set it in Dashboard → Users.", user);
             }
 
             if (username.Length > 0 && !string.Equals(username, user.Username, StringComparison.Ordinal))
@@ -4516,8 +4545,8 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     _logger.LogError(ex, "ProfilesPlugin: {User} is its own account now, but could not be renamed.", user.Username);
                     ProfilesBootstrapTask.ReconcileAuthProvidersNow();
-                    return StatusCode(StatusCodes.Status500InternalServerError,
-                        "The account was made, but it couldn't be renamed. Rename it in Dashboard → Users.");
+                    return (StatusCodes.Status500InternalServerError,
+                        "The account was made, but it couldn't be renamed. Rename it in Dashboard → Users.", user);
                 }
             }
 
@@ -4534,7 +4563,7 @@ namespace Jellyfin.Profiles.Controllers
             LogActivity(CallerName() + " made " + mapping.ProfileName + " its own account, " + user.Username,
                 "ProfileMadeAccount", user.Id, "It no longer belongs to " + masterName + ".");
 
-            return Ok(new { UserId = user.Id, Username = user.Username });
+            return (0, null, user);
         }
 
         /// <summary>

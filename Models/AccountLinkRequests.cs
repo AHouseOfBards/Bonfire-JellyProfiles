@@ -41,6 +41,12 @@ namespace Jellyfin.Profiles.Models
 
         /// <summary>The name on its tile. Empty keeps its username.</summary>
         public string? ProfileName { get; set; }
+
+        /// <summary>
+        /// What deleting the profile later does to the account. False (the default) keeps it,
+        /// with its watch history, as an account of its own; true deletes it with the profile.
+        /// </summary>
+        public bool DeleteWithProfile { get; set; }
     }
 
     /// <summary>GET /accounts/links.</summary>

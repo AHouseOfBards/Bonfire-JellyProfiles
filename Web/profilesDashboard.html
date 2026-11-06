@@ -1507,6 +1507,9 @@
                 'admin.toProfile.name': 'Name',
                 'admin.toProfile.keepName': 'Keep its username',
                 'admin.toProfile.go': 'Make profile',
+                'admin.toProfile.later': 'When the profile is deleted',
+                'admin.toProfile.laterKeep': 'Keep the account',
+                'admin.toProfile.laterDelete': 'Delete the account',
                 'admin.toProfile.confirm': '{name} becomes a profile of {household}. Its password stops working.',
                 'admin.toProfile.done': '{name} is now a profile of {household}.',
                 'admin.toProfile.failed': 'Couldn\'t make it a profile.',
@@ -2456,6 +2459,7 @@
                                      '<label class="jpf-sa-label">' + escapeHtml(t('admin.toProfile.household')) + '<select is="emby-select" class="to-profile-household">' + households.map(option).join('') + '</select></label>' +
                                      '<label class="jpf-sa-label">' + escapeHtml(t('admin.toProfile.name')) +
                                      '<input is="emby-input" type="text" class="to-profile-name" autocomplete="off" placeholder="' + escapeHtml(t('admin.toProfile.keepName')) + '" /></label>' +
+                                     '<label class="jpf-sa-label">' + escapeHtml(t('admin.toProfile.later')) + '<select is="emby-select" class="to-profile-later"><option value="keep">' + escapeHtml(t('admin.toProfile.laterKeep')) + '</option><option value="delete">' + escapeHtml(t('admin.toProfile.laterDelete')) + '</option></select></label>' +
                                      '<button type="button" class="raised button-submit button-mini to-profile-go jpf-sa-btn">' + escapeHtml(t('admin.toProfile.go')) + '</button>' +
                                      '</div>'
                                    : '') +
@@ -4859,7 +4863,7 @@
                                 .filter(function (m) { return normId(field(m, 'profileUserId')) === normId(accountId); })[0];
                             const name = typed || (own ? field(own, 'profileName') : '') || '';
                             Dashboard.confirm(t('admin.toProfile.confirm', { name: name, household: householdName }), t('admin.toProfile.button')).then(function () {
-                                post('admin/make-profile', { userId: accountId, householdId: target, profileName: typed })
+                                post('admin/make-profile', { userId: accountId, householdId: target, profileName: typed, deleteWithProfile: box.querySelector('.to-profile-later').value === 'delete' })
                                     .then(function () {
                                         const done = t('admin.toProfile.done', { name: name, household: householdName });
                                         if (typeof Dashboard.alert === 'function') Dashboard.alert(done); else show(done, true);
