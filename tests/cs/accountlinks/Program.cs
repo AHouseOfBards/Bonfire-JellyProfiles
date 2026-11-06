@@ -545,11 +545,28 @@ Ok("never one in a Bonfire", r.status == 400 && (string)r.value == "It's in a Bo
 groups.Remove(group);
 r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME), ("ProfileName", "kid")));
 Ok("a name the household already has is refused", r.status == 400 && (string)r.value == "A profile with this name already exists.", Text(r));
+// A display name that is someone's username (R-1336). Jellyfin looks a typed name up as a
+// username first, so a "Mum" tile reached the real Mum: it could never sign in, and every
+// wrong PIN counted against her. Refused wherever a name is set; an account's own name is
+// the one it is allowed to keep.
+r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME), ("ProfileName", "mum")));
+Ok("a name that is another account's username is refused, whatever its case", r.status == 400 && ((string)r.value).Contains("already exists"), Text(r));
+// Creating one gets as far as making the account when it is not refused, which this
+// world cannot do: that surfaces as an exception, and a failed case rather than a crash.
+try { r = Call("CreateProfile", HOME, B(("ProfileName", "Dad"), ("MasterPin", "1234"))); }
+catch (Exception ex) { r = (-1, "threw " + (ex.InnerException ?? ex).GetType().Name); }
+Ok("so is creating a profile with it", r.status == 400 && ((string)r.value).Contains("already exists"), Text(r));
+r = Call("UpdateProfile", HOME, B(("ProfileId", KID), ("ProfileName", "mum"), ("MasterPin", "1234")));
+Ok("so is renaming one to it", r.status == 400 && ((string)r.value).Contains("already exists"), Text(r));
 cfgType.GetProperty("MaxProfilesPerUser").SetValue(config, 1);
 r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME)));
 Ok("past the household's limit is refused", r.status == 400 && ((string)r.value).StartsWith("Maximum profile limit"), Text(r));
 cfgType.GetProperty("MaxProfilesPerUser").SetValue(config, 5);
 Ok("and none of that changed anything", world.Log.Count == 0 && P(Row(DAD), "MasterUserId") == null, string.Join(" | ", world.Log));
+// (After that check: this one is a real update and logs its writes.)
+r = Call("UpdateProfile", HOME, B(("ProfileId", KID), ("ProfileName", "Kid"), ("MasterPin", "1234")));
+Ok("a profile keeping its own name is not stopped by the name check", r.status == 200, Text(r));
+world.Log.Clear();
 
 // R-1070: the password change is the step that can fail, and it came after the account had
 // been signed out and hidden, with no Bonfire row to show for it. A failure must leave it

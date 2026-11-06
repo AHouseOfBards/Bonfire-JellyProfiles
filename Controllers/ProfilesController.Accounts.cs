@@ -337,7 +337,8 @@ namespace Jellyfin.Profiles.Controllers
             if (IsAdministratorAccount(user)) return BadRequest("An administrator can't be made a profile.");
 
             var name = string.IsNullOrWhiteSpace(request.ProfileName) ? user.Username : request.ProfileName.Trim();
-            var nameError = ValidateProfileName(name);
+            // The account keeps its own username, which is also its default name.
+            var nameError = ValidateProfileName(name) ?? ValidateProfileNameFree(_userManager, name, user.Id);
             if (nameError != null) return BadRequest(nameError);
 
             var config = Plugin.Instance?.Configuration;

@@ -345,6 +345,26 @@ namespace Jellyfin.Profiles.Auth
                     // displayed name straight into the username field.
                     var named = ProfileNameRewriter.FriendlyNameFor(config, userId);
 
+                    // Not when the name is another account's username (R-1336). Jellyfin looks
+                    // a typed name up as a username first, so a "Bob" tile would sign in as
+                    // the real Bob: it could never open, and each wrong PIN would count
+                    // against him. The profile keeps its system username, which is its own.
+                    // This covers a name chosen before the create/rename check existed and an
+                    // account made later. If the lookup itself fails the system username is
+                    // shown: a plainer tile, never a lost one.
+                    if (named != null)
+                    {
+                        try
+                        {
+                            var other = userManager.GetUserByName(named.Trim());
+                            if (other != null && other.Id != userId) named = null;
+                        }
+                        catch (Exception)
+                        {
+                            named = null;
+                        }
+                    }
+
                     if (named != null)
                     {
                         // Whichever casing this response negotiated - missing the other one

@@ -2148,6 +2148,20 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
+        /// Why <paramref name="name"/> cannot be a profile's name because an account already
+        /// goes by it, or null (R-1336). Jellyfin's <c>AuthenticateUser</c> looks a typed name
+        /// up with <c>GetUserByName</c> before it asks any provider, so a "Bob" tile signs in
+        /// as the real Bob: the tile can never open, and each wrong PIN is counted against
+        /// Bob. <paramref name="except"/> is an account allowed to keep its own name.
+        /// </summary>
+        internal static string? ValidateProfileNameFree(IUserManager users, string? name, Guid? except = null)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            var taken = users.GetUserByName(name.Trim());
+            return taken != null && taken.Id != except ? "A user with this name already exists." : null;
+        }
+
+        /// <summary>
         /// A PIN as Bonfire stores one: four to eight ASCII digits. <c>char.IsDigit</c> also
         /// accepts every other script's digits, so a PIN could be saved that no television
         /// remote can type and that the sign-in provider would never try.

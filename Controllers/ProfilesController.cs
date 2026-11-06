@@ -364,7 +364,7 @@ namespace Jellyfin.Profiles.Controllers
             // all it did was leave this one door open.
             if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
 
-            var nameError = ValidateProfileName(request.ProfileName);
+            var nameError = ValidateProfileName(request.ProfileName) ?? ValidateProfileNameFree(_userManager, request.ProfileName);
             if (nameError != null) return BadRequest(nameError);
 
             // One creation at a time. The limit is counted before the account is created and
@@ -1867,6 +1867,14 @@ namespace Jellyfin.Profiles.Controllers
                 if (mapping == null || mapping.MasterUserId != masterUserId)
                 {
                     return Unauthorized("Unauthorized profile update attempt.");
+                }
+
+                // A new name must not be an account's username (R-1336). One it already has
+                // is left alone, so a profile named before this check can still be edited.
+                if (!string.Equals(mapping.ProfileName, request.ProfileName?.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    var takenError = ValidateProfileNameFree(_userManager, request.ProfileName, request.ProfileId);
+                    if (takenError != null) return BadRequest(takenError);
                 }
             }
 

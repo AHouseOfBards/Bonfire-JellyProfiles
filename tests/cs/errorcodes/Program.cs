@@ -169,6 +169,7 @@ foreach (var (text, code) in new[]
     ("This profile isn't allowed on this device.", "device_not_allowed"),
     ("This profile has too many active sessions.", "too_many_sessions"),
     ("Enter a name for the profile.", "name_invalid"),
+    ("A user with this name already exists.", "name_taken"),
     ("This profile has no viewing limits.", "not_limited"),
     ("Email isn't set up on this server.", "email_unavailable"),
     ("That code isn't right.", "code_wrong"),

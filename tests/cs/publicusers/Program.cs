@@ -856,6 +856,18 @@ if (resolve != null)
        friendlyCamel.Contains("\"kids\"", StringComparison.Ordinal)
        && !friendlyCamel.Contains("Bardkids", StringComparison.Ordinal));
 
+    // A display name that is another account's username is not offered (R-1336). Jellyfin
+    // looks a typed name up as a username before it asks the provider anything, so a "kids"
+    // tile would sign in as the real "kids": it could never open, and each wrong PIN would
+    // count against that account. The profile falls back to its system username, which is
+    // its own. This covers a config that predates the check and an account made later.
+    UserManagerStub.Usernames.Add("Kids");
+    var collided = Encoding.UTF8.GetString(Run("application/json", "[]", config));
+    Ok("a profile whose name is another account's username keeps its system username",
+       collided.Contains("Bardkids", StringComparison.Ordinal) && !collided.Contains("\"kids\"", StringComparison.Ordinal),
+       collided.Length > 400 ? collided.Substring(0, 200) : collided);
+    UserManagerStub.Usernames.Clear();
+
     // Nothing to rename is not an error - a master, or a server that has not upgraded its
     // mappings, must come back exactly as Jellyfin wrote it.
     mappings.Clear();
@@ -1390,6 +1402,9 @@ public class UserManagerStub : DispatchProxy
     private UserDto _dto;
     private int _failDtoCalls;
 
+    /// <summary>Usernames of other accounts on the server.</summary>
+    public static readonly HashSet<string> Usernames = new(StringComparer.OrdinalIgnoreCase);
+
     // failFirstDtoCalls: how many GetUserDto calls throw before one succeeds - the shape of
     // a SQLite busy error that clears a moment later.
     public static IUserManager Create(Guid id, UserDto dto, int failFirstDtoCalls = 0)
@@ -1411,6 +1426,14 @@ public class UserManagerStub : DispatchProxy
             // to an entity shape that has moved twice.
             case "GetUserById":
                 return (Guid)args[0] == _id
+                    ? System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
+                        typeof(Jellyfin.Database.Implementations.Entities.User))
+                    : null;
+
+            // Other accounts on the server, by username: the injector asks whether a profile's
+            // display name is one of them (R-1336).
+            case "GetUserByName":
+                return Usernames.Contains((string)args[0], StringComparer.OrdinalIgnoreCase)
                     ? System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
                         typeof(Jellyfin.Database.Implementations.Entities.User))
                     : null;
