@@ -159,6 +159,7 @@
   "profileForm.pinLengthCreate": "El PIN ha de tenir entre 4 i 8 xifres.",
   "profileForm.pinLengthEdit": "El PIN ha de tenir entre 4 i 8 xifres — n'has escrit {count}.",
   "profileForm.deleteConfirmMessage": "Segur que vols eliminar el perfil «{name}» i el seu compte d'usuari associat? Aquesta acció no es pot desfer.",
+  "profileForm.deleteConfirmKept": "Vols eliminar el perfil «{name}»? El compte es conserva. Un administrador n'establirà la contrasenya a Tauler → Usuaris.",
   "profileForm.deleteDeviceTitle": "Elimina l'historial del dispositiu",
   "profileForm.deleteDeviceMessage": "Vols eliminar aquest dispositiu? Les restriccions d'accés associades també desapareixen.",
   "panic.emergencyDisable": "Desactivació d'emergència",

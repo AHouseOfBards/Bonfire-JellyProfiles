@@ -197,6 +197,8 @@ namespace Jellyfin.Profiles.Controllers
                                 BlockedTags = ownerView ? (m.BlockedTags ?? new List<string>()) : new List<string>(),
                                 AllowedTags = ownerView ? (m.AllowedTags ?? new List<string>()) : new List<string>(),
                                 BypassPinOnLocalNetwork = m.BypassPinOnLocalNetwork,
+                                // Only so the delete confirmation can say the account stays.
+                                KeepAccountOnDelete = ownerView && m.KeepAccountOnDelete,
                                 AllowedDeviceIds = ownerView ? (m.AllowedDeviceIds ?? new List<string>()) : new List<string>(),
                                 IsBonfire = (linkedId != masterUserId),
                                 ProfileImage = ImageForViewer(m.ProfileImage, linkedId == masterUserId),

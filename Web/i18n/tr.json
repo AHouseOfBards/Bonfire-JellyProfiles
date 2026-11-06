@@ -178,6 +178,7 @@
   "profileForm.pinLengthCreate": "PIN 4–8 rakamdan oluşmalıdır.",
   "profileForm.pinLengthEdit": "PIN 4–8 rakamdan oluşmalıdır — {count} rakam girdiniz.",
   "profileForm.deleteConfirmMessage": "\"{name}\" profilini ve ona bağlı kullanıcı hesabını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.",
+  "profileForm.deleteConfirmKept": "\"{name}\" profili silinsin mi? Hesap korunur. Bir yönetici parolasını Kontrol Paneli → Kullanıcılar bölümünden belirler.",
   "profileForm.deleteDeviceTitle": "Cihaz geçmişini sil",
   "profileForm.deleteDeviceMessage": "Bu cihaz kaldırılsın mı? Bu cihaza ait erişim kısıtlamaları da kaldırılır.",
 

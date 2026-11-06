@@ -159,6 +159,7 @@
   "profileForm.pinLengthCreate": "Kod PIN musi mieć od 4 do 8 cyfr.",
   "profileForm.pinLengthEdit": "Kod PIN musi mieć od 4 do 8 cyfr (wprowadzona liczba cyfr: {count}).",
   "profileForm.deleteConfirmMessage": "Czy na pewno chcesz usunąć profil „{name}” wraz z powiązanym kontem użytkownika? Ta czynność jest nieodwracalna.",
+  "profileForm.deleteConfirmKept": "Usunąć profil „{name}”? Konto zostanie zachowane. Administrator ustawi jego hasło w Panel → Użytkownicy.",
   "profileForm.deleteDeviceTitle": "Usuń historię urządzenia",
   "profileForm.deleteDeviceMessage": "Czy usunąć to urządzenie? Powiązane z nim ograniczenia dostępu również zostaną usunięte.",
   "panic.emergencyDisable": "Wyłączenie awaryjne",

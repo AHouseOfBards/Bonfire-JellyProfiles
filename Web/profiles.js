@@ -862,6 +862,7 @@
         'profileForm.pinLengthCreate': 'PIN must be 4–8 digits.',
         'profileForm.pinLengthEdit': 'A PIN must be 4-8 digits — you entered {count}.',
         'profileForm.deleteConfirmMessage': 'Are you sure you want to delete profile "{name}" and its underlying user account? This action is irreversible.',
+        'profileForm.deleteConfirmKept': 'Delete profile "{name}"? Its account is kept. An admin sets its password in Dashboard → Users.',
         'profileForm.deleteDeviceTitle': 'Delete Device History',
         'profileForm.deleteDeviceMessage': 'Remove this device? Any access restrictions for it go too.',
 
@@ -8565,7 +8566,7 @@
                 const delBtn = document.getElementById('edit-delete-btn');
                 if (delBtn) {
                     delBtn.addEventListener('click', () => {
-                        this.showConfirmDialog(t('profileForm.deleteProfile'), t('profileForm.deleteConfirmMessage', { name: escapeHtml(profile.profileName) }), () => {
+                        this.showConfirmDialog(t('profileForm.deleteProfile'), t(profile.keepAccountOnDelete ? 'profileForm.deleteConfirmKept' : 'profileForm.deleteConfirmMessage', { name: escapeHtml(profile.profileName) }), () => {
                             this.executeProfileDeletion(profile.profileUserId);
                         });
                     });
