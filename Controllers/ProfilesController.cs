@@ -924,6 +924,20 @@ namespace Jellyfin.Profiles.Controllers
             };
             tPolicy = sw.ElapsedMilliseconds;
 
+            // The profile's earlier sessions on this same device go first. Jellyfin counts
+            // them against MaxActiveSessions before it replaces any, so they made the switch
+            // fail and the page reload into the picker in a loop (issue #41).
+            // Best effort: if this fails, the switch goes ahead as it did before.
+            try
+            {
+                await Auth.SameDeviceSessions.EndAsync(_sessionManager, _deviceManager, ReadConfigSnapshot(),
+                    targetUser.Id, authRequest.DeviceId, _logger).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ProfilesPlugin: could not end {User}'s earlier sessions on this device.", targetUser.Username);
+            }
+
             // Authenticate directly bypassing password check (securely validated caller + PIN validation)
             // Never let this throw past us: Jellyfin's exception middleware turns these into a 401,
             // and the client reads a 401 as "the caller's session expired" and signs the master out.
