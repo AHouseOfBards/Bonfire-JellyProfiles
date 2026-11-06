@@ -780,13 +780,57 @@ namespace Jellyfin.Profiles.Configuration
         public int RemoteClientBitrateLimit { get; set; }
         public int MaxActiveSessions { get; set; }
         public bool ForceRemoteSourceTranscoding { get; set; }
-        public Jellyfin.Database.Implementations.Enums.SyncPlayUserAccessType SyncPlayAccess { get; set; }
-        public List<Jellyfin.Data.Enums.UnratedItem> BlockUnratedItems { get; set; } = new();
+
+        // The two Jellyfin enums are stored as plain text, under the element names they always
+        // had, and converted here where they are used (R-1127). They were stored as the enum
+        // itself, so a Jellyfin that renamed or dropped a member made the whole configuration
+        // fail to load, every household's, not this one limit. XmlSerializer refuses an
+        // unknown name outright; text it reads, and a name this build doesn't know is kept as
+        // written (the server that wrote it may know it) and ignored where it is used.
+        // Files written before the change load unchanged: the same elements, the same text.
+        // (tests/golden holds one, and tests/cs/goldenconfig reads it.)
+        //
+        // Jellyfin 10.11.5 and master have the same members (SyncPlayUserAccessType:
+        // CreateAndJoinGroups, JoinGroups, None; UnratedItem: Movie, Trailer, Series, Music,
+        // Book, LiveTvChannel, LiveTvProgram, ChannelContent, Other), so nothing is lost
+        // today. This is for the release that changes them.
+
+        /// <summary>The stored text of <see cref="SyncPlayAccess"/>.</summary>
+        [System.Xml.Serialization.XmlElement("SyncPlayAccess")]
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string SyncPlayAccessName { get; set; } = nameof(Jellyfin.Database.Implementations.Enums.SyncPlayUserAccessType.CreateAndJoinGroups);
+
+        /// <summary>The stored text of <see cref="BlockUnratedItems"/>.</summary>
+        [System.Xml.Serialization.XmlArray("BlockUnratedItems")]
+        [System.Xml.Serialization.XmlArrayItem("UnratedItem")]
+        [System.Text.Json.Serialization.JsonIgnore]
+        public List<string> BlockUnratedItemNames { get; set; } = new();
+
+        /// <summary>A name this build doesn't know reads as the enum's first value, which is "no limit".</summary>
+        [System.Xml.Serialization.XmlIgnore]
+        public Jellyfin.Database.Implementations.Enums.SyncPlayUserAccessType SyncPlayAccess
+        {
+            get => Enum.TryParse<Jellyfin.Database.Implementations.Enums.SyncPlayUserAccessType>(SyncPlayAccessName, true, out var v) ? v : default;
+            set => SyncPlayAccessName = value.ToString();
+        }
+
+        /// <summary>
+        /// A new list on every read, with the names this build doesn't know left out: assign
+        /// to change it, adding to the one returned changes nothing.
+        /// </summary>
+        [System.Xml.Serialization.XmlIgnore]
+        public List<Jellyfin.Data.Enums.UnratedItem> BlockUnratedItems
+        {
+            get => (BlockUnratedItemNames ?? new List<string>())
+                .Select(n => Enum.TryParse<Jellyfin.Data.Enums.UnratedItem>(n, true, out var v) ? (Jellyfin.Data.Enums.UnratedItem?)v : null)
+                .Where(v => v.HasValue).Select(v => v!.Value).ToList();
+            set => BlockUnratedItemNames = (value ?? new List<Jellyfin.Data.Enums.UnratedItem>()).Select(v => v.ToString()).ToList();
+        }
 
         public ProfileLimits Copy()
         {
             var copy = (ProfileLimits)MemberwiseClone();
-            copy.BlockUnratedItems = BlockUnratedItems?.ToList() ?? new();
+            copy.BlockUnratedItemNames = BlockUnratedItemNames?.ToList() ?? new();
             return copy;
         }
     }

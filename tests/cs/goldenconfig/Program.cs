@@ -172,6 +172,40 @@ foreach (var file in files)
     Ok("and after the second", d2 == null, d2);
 }
 
+// R-1127: two Jellyfin enums used to be stored by name, so a Jellyfin that renamed or dropped a
+// member made the whole file unreadable: not the one limit, every household. They are plain
+// text now, converted where they are used, and a name this build does not know is kept as it
+// was written (the server that wrote it may know it) and ignored where it is used.
+Console.WriteLine();
+Console.WriteLine("── A name Jellyfin no longer has ───────────────────────────────────");
+if (files.Count > 0)
+{
+    var changedNames = File.ReadAllText(files[0])
+        .Replace("<SyncPlayAccess>JoinGroups</SyncPlayAccess>", "<SyncPlayAccess>FutureMode</SyncPlayAccess>")
+        .Replace("<UnratedItem>Series</UnratedItem>", "<UnratedItem>Hologram</UnratedItem>");
+    Ok("the test file really has the unknown names", changedNames.Contains("FutureMode") && changedNames.Contains("Hologram"));
+
+    object cfg = null;
+    string error = null;
+    try { cfg = Read(changedNames); }
+    catch (Exception e) { error = (e.InnerException ?? e).Message; }
+    Ok("the whole file still loads", cfg != null, error);
+    if (cfg != null)
+    {
+        var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(cfg);
+        Ok("with every household in it", mappings.Count == 2, mappings.Count.ToString());
+        var limits = mappings[0].GetType().GetProperty("OwnLimits").GetValue(mappings[0]);
+        var limitsType = limits.GetType();
+        var access = limitsType.GetProperty("SyncPlayAccess").GetValue(limits);
+        Ok("the access type it can't name counts as the enum's first value, not an error", Convert.ToInt32(access) == 0, access?.ToString());
+        var blocked = ((IEnumerable)limitsType.GetProperty("BlockUnratedItems").GetValue(limits)).Cast<object>().Select(o => o.ToString()).ToList();
+        Ok("the kinds it can name are kept and the one it can't is left out", blocked.SequenceEqual(new[] { "Movie", "Trailer" }), string.Join(",", blocked));
+        var again = Write(cfg);
+        Ok("written back, the names it didn't know are still there", again.Contains("<SyncPlayAccess>FutureMode</SyncPlayAccess>") && again.Contains("<UnratedItem>Hologram</UnratedItem>"));
+        Ok("and the known ones are written as they always were", again.Contains("<UnratedItem>Movie</UnratedItem>") && again.Contains("<UnratedItem>Trailer</UnratedItem>"));
+    }
+}
+
 Console.WriteLine();
 if (fails.Count > 0)
 {
