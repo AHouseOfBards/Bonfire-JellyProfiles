@@ -52,6 +52,13 @@ jobs:
       - name: Run the C# harnesses against the .NET 10 build
         run: bash tests/run.sh cs10
 
+      # The plugin compiles against Jellyfin 10.11.5, so a green build says nothing about the
+      # servers it runs on. This resolves every Jellyfin member the built DLL references
+      # against the newest 10.11 and against 12.0. Its own step because it restores those
+      # packages from NuGet (network), which tests/run.sh must not need.
+      - name: Check the plugin against newer Jellyfin
+        run: SKIP_BUILD=1 bash tests/binchk.sh
+
       # Contributors are told to run this before opening a PR (Web/i18n/README.md).
       # Nothing enforced it, so the first person to forget shipped a broken catalogue.
       - name: Validate translations

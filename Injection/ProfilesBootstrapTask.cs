@@ -470,7 +470,17 @@ namespace Jellyfin.Profiles
             List<Jellyfin.Database.Implementations.Entities.User> everyone;
             try
             {
-                everyone = _userManager.Users.ToList();
+                // By name, never `_userManager.Users`: that property became GetUsers() in
+                // 10.11.7 (and is gone in 12.0), and a direct reference compiles against 10.11.5
+                // and throws MissingMethodException everywhere newer - which this catch then
+                // swallowed, so the safety net below silently never ran. tests/binchk.sh found it.
+                var type = _userManager.GetType();
+                var method = type.GetMethod("GetUsers", System.Type.EmptyTypes);
+                var listed = method != null
+                    ? method.Invoke(_userManager, null)
+                    : type.GetProperty("Users")?.GetValue(_userManager);
+                everyone = ((IEnumerable<Jellyfin.Database.Implementations.Entities.User>?)listed
+                            ?? Enumerable.Empty<Jellyfin.Database.Implementations.Entities.User>()).ToList();
             }
             catch (Exception ex)
             {
