@@ -18,7 +18,14 @@ namespace Jellyfin.Profiles.Models
         /// server does not let profiles choose.
         /// </summary>
         public string? Theme { get; set; }
+        /// <summary>A rating score such as "14". Null or "" = no limit of its own.</summary>
         public string? MaxParentalRating { get; set; }
+        /// <summary>
+        /// True gives every library the main account has, including ones added later, the
+        /// same as leaving <see cref="EnabledFolders"/> out on create. Accepted here so a
+        /// client can say it the same way on /create and /update (R-1144).
+        /// </summary>
+        public bool? AllLibraries { get; set; }
         /// <summary>
         /// Library ids, as strings, parsed by the controller (ProfilesBaseController.ParseFolderIds).
         /// <para>

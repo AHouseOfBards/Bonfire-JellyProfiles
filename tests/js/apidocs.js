@@ -343,6 +343,33 @@ for (const [file, needle, what] of [
     ok('  and the README links to it', readme.indexOf('(' + file + ')') !== -1);
 }
 
+// The Stability section promises that a field left out keeps its stored value (R-1144,
+// R-1159, R-1326). It used to carve out an exception, and three routes broke the promise
+// without saying so: their request types had plain bool and int fields, which read a
+// left-out field as false or 0. So the promise is checked against the types, field by
+// field: on the routes that change stored settings, a value-type field must be nullable,
+// or it cannot tell "left out" from "off". ProfileId is the route's key, not a setting.
+const stability = (doc.split('## Stability')[1] || '').split('\n---')[0];
+ok('Stability promises a left-out field keeps its value', /leave out[\s\S]{0,40}keep their stored value/.test(stability));
+ok('  and names no exception to it', !/exception|unless the field/i.test(stability));
+for (const [file, cls] of [
+    ['UpdateProfileRequest.cs', 'UpdateProfileRequest'],
+    ['UpdateBonfireSettingsRequest.cs', 'UpdateBonfireSettingsRequest'],
+    ['ViewingRequests.cs', 'SetViewingRulesRequest'],
+]) {
+    const src = fs.readFileSync(path.join(L.ROOT, 'Models', file), 'utf8');
+    const start = src.indexOf('class ' + cls);
+    const body = start === -1 ? '' : src.slice(start, src.indexOf('\n    }', start));
+    ok(cls + ' is where it was', start !== -1);
+    // Only what JSON can set: `{ get; private set; }` (WeekendMinutesSent) is bookkeeping.
+    const re = /public\s+(bool|int|long|double|decimal|DateTime)\s+(\w+)\s*\{\s*get;\s*set;/g;
+    const plain = [];
+    let m;
+    while ((m = re.exec(body))) if (m[2] !== 'ProfileId') plain.push(m[1] + ' ' + m[2]);
+    ok('  ' + cls + ': every value-type setting can be left out', plain.length === 0,
+        plain.join(', ') + ' — make it nullable');
+}
+
 console.log();
 console.log('  ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) {

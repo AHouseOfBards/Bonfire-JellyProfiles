@@ -385,8 +385,8 @@ you.
   raises `apiVersion`.
 - **Checking for a feature:** read `features` in `GET /info` rather than comparing
   version numbers. A new feature that a client has to know about gets a flag there.
-- Optional request fields that you leave out keep their stored value, unless the field
-  says otherwise. `maxParentalRating` on `/update` is the exception: see that route.
+- Optional request fields that you leave out, or send as `null`, keep their stored value.
+  "No limit" and "every library" are explicit values, such as `""` or `allLibraries`.
 - Error wording can change in any release. Branch on `X-Bonfire-Error`, not the text.
 - `apiVersion` in `GET /info` goes up only when a released route changes in a way that
   breaks callers.
@@ -440,7 +440,7 @@ Every profile the caller can switch to: their own household, then any linked Bon
 | `lockoutMinutes` | integer | Minutes of inactivity before the profile locks. `0` is never. |
 | `maxSubProfiles` | integer | Main accounts only. How many profiles it may have. |
 | `enabledFolders` | GUID[] | Profiles only. The libraries it was given. |
-| `allLibraries` | boolean | Profiles only. It was saved with no library ticked, so it follows the main account's libraries, including ones added later. |
+| `allLibraries` | boolean | Profiles only. It was given every library, so it follows the main account's, including ones added later. |
 | `blockedTags` | string[] | The profile's own blocked tags. The main account's are added when it's opened. |
 | `allowedTags` | string[] | The profile's own allowed tags. Empty means no allow-list. |
 | `bypassPinOnLocalNetwork` | boolean | Skip the PIN on the home network. |
@@ -632,8 +632,9 @@ Errors: `400` for a bad PIN, `pin_wrong`, `pin_missing` or `main_pin_required`; 
 | `avatarColor` | string | No | Hex colour. Left out, it's the first colour from Bonfire's palette that nobody in the household has. |
 | `transparentAvatar` | boolean | No | Don't paint the colour behind the picture. |
 | `theme` | string | No | A [theme](#themes) id. Omit or `""` to follow the server default. Ignored while the server doesn't let profiles choose. |
-| `maxParentalRating` | string | No | A rating score, such as `"6"`, `"10"`, `"14"` or `"17"`. Never above the main account's. Omit for no limit of its own. |
-| `enabledFolders` | GUID[] | No | The libraries it may see. `[]` is none. Omit or `null` for every library the main account has, including ones added later. |
+| `maxParentalRating` | string | No | A rating score, such as `"6"`, `"10"`, `"14"` or `"17"`. Never above the main account's. `""` or omitted is no limit of its own. Anything else is `400`. |
+| `enabledFolders` | GUID[] | No | The libraries it may see. `[]` is none. |
+| `allLibraries` | boolean | No | `true` for every library the main account has, including ones added later. Not with `enabledFolders`. On `/create`, leaving out both means the same. |
 | `blockedTags` | string[] | No | Tags it must not see, on top of the main account's. |
 | `allowedTags` | string[] | No | If set, it sees only items with one of these tags. Untagged items are hidden too. `400` if none of them is allowed for the main account. |
 | `lockoutMinutes` | integer | No | Minutes before it locks. `0` is never. Defaults to 5. |
@@ -647,25 +648,24 @@ Errors: `400` for a bad PIN, `pin_wrong`, `pin_missing` or `main_pin_required`; 
 
 Response: `{ "profileUserId": "…", "profileName": "Kids" }`.
 
-Errors: `400` for a bad PIN, a taken name, the profile limit, an unknown theme, or allowed
-tags the main account doesn't allow; `main_pin_required` while the server requires main
+Errors: `400` for a bad PIN, a taken name, the profile limit, an unknown theme, a rating
+that isn't a score, both `allLibraries` and `enabledFolders`, or allowed tags the main
+account doesn't allow; `main_pin_required` while the server requires main
 PINs and the account has none.
 
 ### `POST /plugins/profiles/update`
 
 **Authorisation:** signed-in user.
 
-Takes the same fields as `/create`, plus `profileId`. Most fields left out stay as they
-are; these don't:
+Takes the same fields as `/create`, plus `profileId`. `profileName` is required. Every
+other field left out or `null` stays as it is.
 
-| Field | Left out or `null` |
-| --- | --- |
-| `profileName` | Required. |
-| `maxParentalRating` | Removes the profile's own limit. The main account's still applies. |
-| `enabledFolders` | Every library the main account has, including ones added later. |
+Values worth knowing:
 
-Other values worth knowing:
-
+- **`maxParentalRating`:** `""` removes the profile's own limit (the main account's still
+  applies), `null` keeps it.
+- **Libraries:** `allLibraries: true` gives every library, `enabledFolders` gives that
+  list, and sending neither keeps them. Both at once is `400`.
 - **`pin`:** `""` clears it, `null` keeps it.
 - **`profileImage`:** `""` clears it, `null` keeps it.
 - **`theme`:** `""` goes back to the server default, `null` keeps it.
@@ -1113,7 +1113,7 @@ The name is kept even when the device reports a different one. Trimmed to 64 cha
 { "hideMySubProfilesFromOthers": false, "hideOthersSubProfilesFromMe": false, "allowHouseholdLanBypass": false }
 ```
 
-The two hide flags are required. Leave `allowHouseholdLanBypass` out to keep it as it is.
+A field left out keeps its value.
 
 Before turning the bypass on, a client should warn about two things:
 
@@ -1820,8 +1820,10 @@ administrator. The main account needs a PIN to turn limits on.
 }
 ```
 
-Replaces the profile's rules. Up to 28 windows; limits 0 to 1440. `language` is the
-language of the messages its apps get. Returns the `GET` shape.
+A field left out keeps its value. `weekendMinutes: null` is the same as other days; left
+out, it keeps its value. `[]`, `0` and `false` turn each part off. Up to 28 windows;
+limits 0 to 1440. `language` is the language of the messages its apps get. Returns the
+`GET` shape.
 
 Errors: `400` with `limits_invalid`, `limits_for_profiles` or `main_pin_required`; `403`.
 

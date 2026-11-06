@@ -75,6 +75,12 @@ function makeContent() {
         return (byId[id] = node);
     };
     content.querySelectorAll = sel => {
+        // '.cls:checked' is the same nodes, filtered on .checked — so a harness can tick
+        // a box by setting .checked on the node '.cls' gave it. Without this the forms'
+        // ticked-library lists always came back empty.
+        if (/^\.[\w-]+:checked$/.test(sel)) {
+            return content.querySelectorAll(sel.slice(0, -':checked'.length)).filter(n => n.checked);
+        }
         if (!/^\.[\w-]+$/.test(sel)) return [];
         const cls = sel.slice(1);
         if (byClass[cls]) return byClass[cls];
@@ -84,6 +90,8 @@ function makeContent() {
         while ((m = re.exec(html))) {
             const at = m.index;
             const node = makeNode(attrsOf(m[0]));
+            node.checked = /\schecked(\s|>|\/)/.test(m[0]);
+            if (node.attrs.value !== undefined) node.value = node.attrs.value;
             // A device row's name, for the merge picker.
             const nameM = /class="device-row-name"[^>]*>([^<]*)</.exec(html.slice(at, at + 1200));
             node.querySelector = s => (s === '.device-row-name' && nameM ? { textContent: nameM[1] } : null);

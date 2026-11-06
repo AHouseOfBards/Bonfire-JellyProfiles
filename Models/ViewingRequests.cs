@@ -4,19 +4,41 @@ using Jellyfin.Profiles.Configuration;
 
 namespace Jellyfin.Profiles.Models
 {
-    /// <summary>POST /limits/{profileId}. Replaces the profile's rules.</summary>
+    /// <summary>
+    /// POST /limits/{profileId}. A field left out keeps its stored value (R-1326). These were
+    /// plain bool and int, so a left-out field arrived as false or 0 and a client changing
+    /// only the hours switched the daily limit off.
+    /// </summary>
     public class SetViewingRulesRequest
     {
-        public bool HoursEnabled { get; set; }
+        /// <summary>Null keeps it.</summary>
+        public bool? HoursEnabled { get; set; }
+
+        /// <summary>Null keeps them; [] is none.</summary>
         public List<ViewingWindow>? Windows { get; set; }
 
-        /// <summary>Minutes a day; 0 is no limit.</summary>
-        public int DailyMinutes { get; set; }
+        /// <summary>Minutes a day; 0 is no limit. Null keeps it.</summary>
+        public int? DailyMinutes { get; set; }
 
-        /// <summary>Minutes on Saturday and Sunday. Null is the same as every day; 0 is no limit.</summary>
-        public int? WeekendMinutes { get; set; }
+        private int? _weekendMinutes;
 
-        /// <summary>The language the messages to the profile's apps are written in.</summary>
+        /// <summary>
+        /// Minutes on Saturday and Sunday; 0 is no limit. Sent as null, it is the same as every
+        /// day. Left out, it keeps its stored value: null already meant "same as every day"
+        /// here, so presence is what tells the two apart (<see cref="WeekendMinutesSent"/>).
+        /// </summary>
+        public int? WeekendMinutes
+        {
+            get => _weekendMinutes;
+            set { _weekendMinutes = value; WeekendMinutesSent = true; }
+        }
+
+        /// <summary>True when the body named weekendMinutes at all. The JSON reader calls a
+        /// setter only for a property that is present.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public bool WeekendMinutesSent { get; private set; }
+
+        /// <summary>The language the messages to the profile's apps are written in. Null keeps it.</summary>
         public string? Language { get; set; }
 
         public string? MasterPin { get; set; }

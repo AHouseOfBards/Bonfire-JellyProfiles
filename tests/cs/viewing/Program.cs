@@ -685,7 +685,9 @@ Ok("an API key is no account and is let through",
    !Crafted(r => r.QueryString = new QueryString("?ApiKey=server-key"), null, apiKey: true).GetAwaiter().GetResult());
 
 // Nobody limited: the gate costs a count and asks Jellyfin nothing.
-foreach (var id in new[] { KID, OKID }) Call("SetViewingLimits", ADMIN, B(("DailyMinutes", 0)), id);
+// Every part said: since R-1326 a part left out keeps what was set, so "DailyMinutes 0" on
+// its own would leave KID's school-day hours on.
+foreach (var id in new[] { KID, OKID }) Call("SetViewingLimits", ADMIN, B(("HoursEnabled", false), ("Windows", WindowList()), ("DailyMinutes", 0)), id);
 Fresh();
 DeviceStub.Calls = 0;
 http = Through("/Items/" + item + "/PlaybackInfo", "tok-kid", "dev-kid").GetAwaiter().GetResult();
@@ -701,7 +703,8 @@ void Tick() => ((Task)Static(timer, "TickAsync", sessions, clockNow, NullLogger.
 double Used(Guid id) => (int)Get(Static(tracker, "State", id, clockNow), "UsedMinutes");
 
 // Kid: 10 minutes a day, no hours. English this time.
-Call("SetViewingLimits", MAIN, B(("DailyMinutes", 10), ("MasterPin", "1234")), KID);
+// The language is said too: left out, it now keeps the French set above (R-1326).
+Call("SetViewingLimits", MAIN, B(("HoursEnabled", false), ("Windows", WindowList()), ("DailyMinutes", 10), ("Language", ""), ("MasterPin", "1234")), KID);
 Fresh();
 stub.Sessions.Clear();
 stub.Messages.Clear();

@@ -198,7 +198,10 @@ console.log('── 7. "tick nothing" means every library, later ones too ──
     const create = method('CreateProfileCore');
     const update = method('UpdateProfile');
     ok('creating with nothing ticked records it', /AllLibraries\s*=\s*request\.EnabledFolders\s*==\s*null/.test(create));
-    ok('and so does saving with nothing ticked', /AllLibraries\s*=\s*request\.EnabledFolders\s*==\s*null/.test(update));
+    // Since R-1144 the edit form says "every library" as allLibraries: true, and a
+    // left-out list keeps what is stored, so the record follows the flag, not a null list.
+    // tests/cs/partialupdate checks the stored record through the real route.
+    ok('and so does saving with nothing ticked', /mappingEntry\.AllLibraries\s*=\s*request\.AllLibraries\s*==\s*true/.test(update));
     const form = L.extractFunction(src.replace(/showEditProfileModal:\s*function/, 'function showEditProfileModal'), 'showEditProfileModal');
     ok('the edit form shows such a profile with nothing ticked',
         /if\s*\(\s*profile\.allLibraries\s*\)\s*\{\s*isChecked\s*=\s*false;/.test(form));
@@ -212,7 +215,8 @@ console.log('── 2. the rating\'s sub-score on save ────────�
     const writes = [...up.matchAll(/MaxParentalSubRating\s*=\s*null/g)].map(m => m.index);
     const guarded = writes.every(i => {
         const before = up.slice(Math.max(0, i - 400), i);
-        return /if\s*\(\s*requestedRating\s*!=\s*targetPolicy\.MaxParentalRating\s*\)\s*\{[^}]*$/.test(before);
+        // R-1144 put "was a rating sent at all" in front of the same comparison.
+        return /if\s*\(\s*(?:request\.MaxParentalRating\s*!=\s*null\s*&&\s*)?requestedRating\s*!=\s*targetPolicy\.MaxParentalRating\s*\)\s*\{[^}]*$/.test(before);
     });
     ok('the sub-score is only dropped when the score changes', writes.length > 0 && guarded,
         writes.length + ' write(s)');

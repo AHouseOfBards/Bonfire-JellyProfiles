@@ -152,20 +152,27 @@ namespace Jellyfin.Profiles.Controllers
                 if (!ManagementAllowed(mainId, config, request.MasterPin, out var refusal)) return refusal!;
             }
 
-            var windows = request.Windows ?? new List<ViewingWindow>();
+            // What is stored now, for every field the request leaves out (R-1326). These were
+            // replaced whole, and the request's plain bool and int read a left-out field as
+            // off and 0.
+            var current = profile.Viewing ?? new ViewingRules();
+
+            var windows = request.Windows ?? current.Windows ?? new List<ViewingWindow>();
             if (windows.Count > ViewingRules.MaxWindows) return BadRequest("Too many viewing windows.");
             if (windows.Any(w => w == null || !w.IsValid)) return BadRequest("A viewing window isn't valid. Times are HH:mm.");
-            if (request.DailyMinutes < 0 || request.DailyMinutes > ViewingRules.MaxMinutes
-                || (request.WeekendMinutes.HasValue && (request.WeekendMinutes < 0 || request.WeekendMinutes > ViewingRules.MaxMinutes)))
+            var daily = request.DailyMinutes ?? current.DailyMinutes;
+            var weekend = request.WeekendMinutesSent ? request.WeekendMinutes : current.WeekendMinutes;
+            if (daily < 0 || daily > ViewingRules.MaxMinutes
+                || (weekend.HasValue && (weekend < 0 || weekend > ViewingRules.MaxMinutes)))
                 return BadRequest("A daily limit is between 0 and 1440 minutes.");
 
             var rules = new ViewingRules
             {
-                HoursEnabled = request.HoursEnabled,
+                HoursEnabled = request.HoursEnabled ?? current.HoursEnabled,
                 Windows = windows.Select(w => new ViewingWindow { Days = w.Days, Start = w.Start, End = w.End }).ToList(),
-                DailyMinutes = request.DailyMinutes,
-                WeekendMinutes = request.WeekendMinutes,
-                Language = EmailText.CleanLanguage(request.Language),
+                DailyMinutes = daily,
+                WeekendMinutes = weekend,
+                Language = request.Language != null ? EmailText.CleanLanguage(request.Language) : current.Language,
             };
             if (rules.IsLimited && !admin && !MainHasPin(mainId, config)) return BadRequest(MainPinRequiredMessage);
 

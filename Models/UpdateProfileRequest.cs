@@ -19,8 +19,20 @@ namespace Jellyfin.Profiles.Models
         /// Ignored while the server does not let profiles choose.
         /// </summary>
         public string? Theme { get; set; }
+        /// <summary>
+        /// A rating score such as "14", or "" for no limit of its own. Null = leave unchanged
+        /// (R-1144: it used to remove the limit, so a client that sent only a new name lifted a
+        /// child's rating).
+        /// </summary>
         public string? MaxParentalRating { get; set; }
         /// <summary>
+        /// True gives every library the main account has, including ones added later. Null or
+        /// false = use <see cref="EnabledFolders"/>, or leave libraries unchanged if that is
+        /// null too (R-1144: a left-out list used to mean every library).
+        /// </summary>
+        public bool? AllLibraries { get; set; }
+        /// <summary>
+        /// Null = leave unchanged; [] = none.
         /// Library ids, as strings, parsed by the controller (ProfilesBaseController.ParseFolderIds).
         /// <para>
         /// Typed as Guid this failed the whole request on a single entry that was not one —

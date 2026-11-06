@@ -410,6 +410,13 @@ namespace Jellyfin.Profiles.Controllers
             var themeError = ValidateTheme(request.Theme, config);
             if (themeError != null) return BadRequest(themeError);
 
+            // The same answers /update takes (R-1144). Checked before the account exists. A
+            // rating that isn't a score was quietly read as no limit here too.
+            if (request.AllLibraries == true && request.EnabledFolders != null)
+                return BadRequest(LibrariesTwiceMessage);
+            if (!string.IsNullOrEmpty(request.MaxParentalRating) && !int.TryParse(request.MaxParentalRating, out _))
+                return BadRequest(RatingNotScoreMessage);
+
             // Reject an allow-list that shares no tags with the master's, which would leave the
             // profile with an empty library. Checked before the user is created so we don't
             // leave a half-built account behind.
@@ -544,6 +551,8 @@ namespace Jellyfin.Profiles.Controllers
                     // Store the selected libraries as the plugin's own ground truth
                     EnabledFolders = validatedFolders,
                     // Nothing ticked means every library the master has, then and later.
+                    // On create, leaving the list out is "every library" too: there is nothing
+                    // to keep. allLibraries: true says the same thing explicitly.
                     AllLibraries = request.EnabledFolders == null,
                     // What was just written to the account, when it was a list. Without it the
                     // next sign-in would read this write as an administrator's change (R-1042).
@@ -1871,12 +1880,25 @@ namespace Jellyfin.Profiles.Controllers
             var themeError = ValidateTheme(request.Theme, config);
             if (themeError != null) return BadRequest(themeError);
 
+            // R-1144: "every library" and "no rating limit" are explicit values now, because
+            // leaving a field out keeps it. Two answers at once, or a rating that isn't a
+            // score, is refused rather than guessed at: an unreadable rating used to be
+            // read as no limit.
+            if (request.AllLibraries == true && request.EnabledFolders != null)
+                return BadRequest(LibrariesTwiceMessage);
+            int? requestedRating = null;
+            if (!string.IsNullOrEmpty(request.MaxParentalRating))
+            {
+                if (!int.TryParse(request.MaxParentalRating, out var rating)) return BadRequest(RatingNotScoreMessage);
+                requestedRating = rating;
+            }
+
             var targetUser = _userManager.GetUserById(request.ProfileId);
             if (targetUser == null) return NotFound("Target user not found.");
 
             var masterUser = _userManager.GetUserById(masterUserId);
             if (masterUser == null) return NotFound("Master user not found.");
-            
+
             var masterUserDto = _userManager.GetUserDto(masterUser, string.Empty);
             var masterPolicy = masterUserDto.Policy;
 
@@ -1946,11 +1968,11 @@ namespace Jellyfin.Profiles.Controllers
                 // score is the one already set. Dropping it on every save loosened a TV-PG
                 // limit set in Dashboard -> Users to "anything scored PG" whenever the profile
                 // was saved for any reason, a new avatar included.
-                int? requestedRating = !string.IsNullOrEmpty(request.MaxParentalRating)
-                    && int.TryParse(request.MaxParentalRating, out var rating)
-                    ? rating
-                    : null;
-                if (requestedRating != targetPolicy.MaxParentalRating)
+                //
+                // Left out (null) keeps it; "" is no limit of its own (R-1144). A left-out
+                // rating used to remove the limit, so a client that sent only a new name
+                // lifted a child's rating. Parsed and checked above, before anything is written.
+                if (request.MaxParentalRating != null && requestedRating != targetPolicy.MaxParentalRating)
                 {
                     targetPolicy.MaxParentalRating = requestedRating;
                     targetPolicy.MaxParentalSubRating = null;
@@ -1966,8 +1988,11 @@ namespace Jellyfin.Profiles.Controllers
                 targetPolicy.BlockedTags = resolvedBlockedTags;
                 targetPolicy.AllowedTags = resolvedAllowedTags;
 
-                // Library access propagation
-                if (request.EnabledFolders != null)
+                // Library access propagation. Three answers, each said on purpose (R-1144):
+                // allLibraries: true is every library, a list is that list, and neither leaves
+                // the libraries as they are. A left-out list used to mean every library, so a
+                // client sending only a new name opened every library to a child.
+                if (request.AllLibraries != true && request.EnabledFolders != null)
                 {
                     var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
                     validatedFolders = (ParseFolderIds(request.EnabledFolders) ?? new List<Guid>()).Where(id => masterAccessible.Contains(id)).ToList();
@@ -1984,7 +2009,7 @@ namespace Jellyfin.Profiles.Controllers
                     var masterBlocked = masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>();
                     targetPolicy.BlockedMediaFolders = blockedMediaFolders.Union(masterBlocked).ToArray();
                 }
-                else
+                else if (request.AllLibraries == true)
                 {
                     targetPolicy.EnableAllFolders = masterPolicy.EnableAllFolders;
                     targetPolicy.EnabledFolders = masterPolicy.EnabledFolders;
@@ -2068,13 +2093,14 @@ namespace Jellyfin.Profiles.Controllers
                     if (validatedFolders != null)
                     {
                         mappingEntry.EnabledFolders = validatedFolders;
-                        // Nothing ticked means every library the master has, then and later.
-                        mappingEntry.AllLibraries = request.EnabledFolders == null;
+                        // allLibraries: every library the master has, then and later. Only
+                        // reached when the request said which (R-1144).
+                        mappingEntry.AllLibraries = request.AllLibraries == true;
                         // What was just written to the account, so the next sign-in does not
                         // take this save for an administrator's change in Dashboard -> Users
                         // (R-1042). Null when the master's own folder policy was copied: the
                         // sign-in records what it applies.
-                        mappingEntry.LastAppliedFolders = request.EnabledFolders != null ? validatedFolders.ToList() : null;
+                        mappingEntry.LastAppliedFolders = request.AllLibraries == true ? null : validatedFolders.ToList();
                     }
 
                     // Store the profile's own tag lists, not the master-merged result, so later
@@ -2868,8 +2894,12 @@ namespace Jellyfin.Profiles.Controllers
                     config.Mappings.Add(masterMapping);
                 }
 
-                masterMapping.HideMySubProfilesFromOthers = request.HideMySubProfilesFromOthers;
-                masterMapping.HideOthersSubProfilesFromMe = request.HideOthersSubProfilesFromMe;
+                // Left out keeps them (R-1159). They were plain bool, so a body without them
+                // switched both off.
+                if (request.HideMySubProfilesFromOthers.HasValue)
+                    masterMapping.HideMySubProfilesFromOthers = request.HideMySubProfilesFromOthers.Value;
+                if (request.HideOthersSubProfilesFromMe.HasValue)
+                    masterMapping.HideOthersSubProfilesFromMe = request.HideOthersSubProfilesFromMe.Value;
 
                 if (request.AllowHouseholdLanBypass.HasValue
                     && request.AllowHouseholdLanBypass.Value != masterMapping.AllowHouseholdLanBypass)

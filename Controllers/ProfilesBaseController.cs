@@ -586,6 +586,12 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>Refusal text when a PIN is needed and none was sent.</summary>
         internal const string MainPinMissingMessage = "Enter your account's PIN.";
 
+        /// <summary>/update and /create given both allLibraries: true and a library list (R-1144).</summary>
+        internal const string LibrariesTwiceMessage = "Send enabledFolders or allLibraries, not both.";
+
+        /// <summary>A maxParentalRating that isn't a score. It used to be read as no limit (R-1144).</summary>
+        internal const string RatingNotScoreMessage = "maxParentalRating must be a rating score, or \"\" for no limit.";
+
         /// <summary>
         /// Returns null when the caller is a Jellyfin administrator, or the ActionResult to
         /// return when they are not. <paramref name="action"/> completes the sentence

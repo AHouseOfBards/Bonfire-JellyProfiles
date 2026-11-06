@@ -8049,11 +8049,12 @@
                             profileName: name,
                             pin: pin,
                             avatarColor: selectedColor,
-                            maxParentalRating: rating || null,
-                            // Send null (not empty array) when no libraries are checked.
-                            // An empty array tells the server "allow no libraries",
-                            // while null means "inherit all accessible libraries from master".
+                            // "" is no limit of its own — the same word /update uses (R-1144).
+                            maxParentalRating: rating,
+                            // No box ticked means every library. Said explicitly, as /update
+                            // needs it to be: there, a left-out list now keeps what it was.
                             enabledFolders: checkedLibs.length > 0 ? checkedLibs : null,
+                            allLibraries: checkedLibs.length > 0 ? null : true,
                             blockedTags: this.getTagEditorValues(content, 'create-blocked-tags'),
                             allowedTags: this.getTagEditorValues(content, 'create-allowed-tags'),
                             masterPin: this.masterPin,
@@ -8446,9 +8447,11 @@
                             // Same guard as the create form (#33).
                             if (isGuidLike(cb.value)) rawLibs.push(cb.value);
                         });
-                        // Send null (not empty array) when no libraries are checked.
-                        // An empty array tells the server "allow no libraries",
-                        // while null means "inherit all accessible libraries from master".
+                        // No box ticked means every library, and that is sent as
+                        // allLibraries: true. It used to be enabledFolders: null, which the
+                        // server also read as "every library" — so any client that simply
+                        // left the field out lifted a child's library limits (R-1144). Null
+                        // now keeps the list, and "all" has to be said.
                         checkedLibs = rawLibs.length > 0 ? rawLibs : null;
                         // Null leaves the list as it is. With no device list to draw there
                         // are no boxes, and [] would mean "any device".
@@ -8515,8 +8518,11 @@
                             profileName: name,
                             pin: pin,
                             avatarColor: selectedColor,
-                            maxParentalRating: rating || null,
+                            // "" is "no limit of its own"; null (the main account) keeps it.
+                            // Null used to be both, so this sent null for "no limit" (R-1144).
+                            maxParentalRating: rating,
                             enabledFolders: checkedLibs,
+                            allLibraries: !profile.isMaster && checkedLibs === null ? true : null,
                             blockedTags: blockedTags,
                             allowedTags: allowedTags,
                             masterPin: this.masterPin,
