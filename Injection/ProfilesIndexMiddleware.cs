@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Profiles.Configuration;
 using MediaBrowser.Common.Net;
+using MediaBrowser.Controller;
 using MediaBrowser.Controller.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -145,7 +146,8 @@ namespace Jellyfin.Profiles
             IUserManager userManager,
             IDeviceManager deviceManager,
             ISessionManager sessionManager,
-            INetworkManager networkManager)
+            INetworkManager networkManager,
+            IServerApplicationHost appHost)
         {
             // Recorded before anything branches, because the one place that needs it is
             // authentication and Jellyfin hands a provider nothing about the request.
@@ -288,7 +290,7 @@ namespace Jellyfin.Profiles
                 return;
             }
 
-            if (!ShouldHandle(context, serverConfig))
+            if (!ShouldHandle(context, serverConfig, appHost))
             {
                 await _next(context).ConfigureAwait(false);
                 return;
@@ -950,7 +952,10 @@ namespace Jellyfin.Profiles
         /// True when this request is for the web client's index.html and we are allowed to
         /// answer it.
         /// </summary>
-        private static bool ShouldHandle(HttpContext context, IServerConfigurationManager serverConfig)
+        private static bool ShouldHandle(
+            HttpContext context,
+            IServerConfigurationManager serverConfig,
+            IServerApplicationHost? appHost)
         {
             if (!HttpMethods.IsGet(context.Request.Method))
             {
@@ -970,9 +975,15 @@ namespace Jellyfin.Profiles
             {
                 var network = serverConfig.GetNetworkConfiguration();
 
-                // If HTTPS is mandatory, a plain HTTP request is supposed to be redirected.
-                // We run ahead of that redirect, so step aside rather than answering it.
-                if (network.RequireHttps && !context.Request.IsHttps)
+                // Step aside only when Jellyfin itself will redirect this request. Its
+                // redirect is in the pipeline only when RequireHttps is set AND it is
+                // listening with HTTPS (Jellyfin.Server Startup.cs: config.RequireHttps &&
+                // ListenWithHttps). RequireHttps alone is not enough: we run before
+                // forwarded headers are applied, so behind a TLS-terminating proxy IsHttps
+                // is false on every request, and stepping aside then meant nothing was
+                // ever injected. Answering a request that is about to be redirected would
+                // only serve a page the browser is told to leave.
+                if (network.RequireHttps && !context.Request.IsHttps && ListensWithHttps(appHost))
                 {
                     return false;
                 }
@@ -995,6 +1006,20 @@ namespace Jellyfin.Profiles
         /// (<c>GetNetworkConfiguration().BaseUrl</c>), or empty when there is none or it
         /// cannot be read.
         /// </summary>
+        private static bool ListensWithHttps(IServerApplicationHost? appHost)
+        {
+            try
+            {
+                return appHost != null && appHost.ListenWithHttps;
+            }
+            catch (Exception)
+            {
+                // Unknown is "not redirecting": the cost of being wrong is one answered
+                // request that Jellyfin would have redirected, not a server with no switcher.
+                return false;
+            }
+        }
+
         private static string ReadBaseUrl(IServerConfigurationManager serverConfig)
         {
             try
