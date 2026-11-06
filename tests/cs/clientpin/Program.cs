@@ -639,6 +639,32 @@ Ok("forty guesses at once still use up the allowance",
    Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
 ForgetAttempts(KID);
 
+// R-1287: the assertion above passes against a limiter that checks, lets every guess of a
+// burst through, and counts afterwards: forty are compared, forty are counted, and the right
+// PIN is then refused all the same. What matters is how many guesses were COMPARED. The
+// provider says so when it turns one away ("too many wrong PINs"), so a provider of its own
+// with a counting logger gives the number: forty minus those. At most five, and with forty
+// distinct wrong PINs exactly five, may reach the hash.
+{
+    var counting = Activator.CreateInstance(typeof(CountingLogger<>).MakeGenericType(providerType));
+    var burstProvider = Activator.CreateInstance(providerType, counting, ServiceStub.Create());
+    ForgetAttempts(KID);
+    var gate = new System.Threading.ManualResetEventSlim(false);
+    var guesses = Enumerable.Range(0, 40).Select(i => Task.Run(() =>
+    {
+        gate.Wait();
+        try { authWithUser.Invoke(burstProvider, new object[] { "Bardkids", (3000 + i).ToString(), MakeUser(KID, "Bardkids") }); }
+        catch (TargetInvocationException) { }
+    })).ToArray();
+    gate.Set();
+    Task.WaitAll(guesses);
+    var refused = (int)counting.GetType().GetProperty("Refused").GetValue(counting);
+    var compared = 40 - refused;
+    Ok("of forty guesses at once, at most five reach the PIN comparison (" + compared + " did)", compared <= 5, compared + " compared");
+    Ok("and the other thirty-five were turned away", refused == 35, refused + " refused");
+    ForgetAttempts(KID);
+}
+
 // A guess the quarter hour refused is not a guess, and must not spend the day (R-1001). Both
 // were counted on every request, so twenty refused requests from anyone closed a profile's
 // PIN for a day, renewable one request at a time.
@@ -1381,6 +1407,21 @@ if (fails.Count > 0)
     Environment.Exit(1);
 }
 Console.WriteLine(pass + " passed, 0 failed");
+
+/// <summary>Counts the provider's "too many wrong PINs" refusals: guesses that never reached the comparison.</summary>
+public sealed class CountingLogger<T> : Microsoft.Extensions.Logging.ILogger<T>
+{
+    private int _refused;
+    public int Refused => _refused;
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state,
+        Exception exception, Func<TState, Exception, string> formatter)
+    {
+        if (formatter(state, exception).Contains("too many wrong PINs", StringComparison.Ordinal))
+            System.Threading.Interlocked.Increment(ref _refused);
+    }
+}
 
 sealed class StubPaths : MediaBrowser.Common.Configuration.IApplicationPaths
 {
