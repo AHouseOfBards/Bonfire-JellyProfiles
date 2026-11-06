@@ -6,8 +6,10 @@
 | Base path | `/plugins/profiles` |
 | Server | Jellyfin 10.11.x and 12.0 |
 
-Bodies are JSON unless stated otherwise, and fields are returned camelCase. The API exists
-for Bonfire's own client. It's documented because other people build against it too.
+Bodies are JSON unless stated otherwise. Jellyfin picks the casing of fields it returns:
+PascalCase by default, camelCase if the request sends `Accept: application/json; profile="CamelCase"`.
+Requests are read either way. The API exists for Bonfire's own client. It's documented
+because other people build against it too.
 
 ## Contents
 
