@@ -107,6 +107,7 @@ namespace Jellyfin.Profiles.Controllers
             ("That image is too large", "image_invalid"),
             ("No image supplied", "image_invalid"),
             ("Choose a picture first", "image_invalid"),
+            ("only allows pictures from the avatar library", "image_invalid"),
 
             ("Plugin configuration missing", "not_configured"),
 

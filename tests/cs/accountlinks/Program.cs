@@ -600,6 +600,106 @@ Ok("then the household's restrictions were applied to it as a profile",
    world.Log.Any(l => l.StartsWith("policy " + LODGER + " mapped=True")), string.Join(" | ", world.Log));
 Ok("returned with its name", (string)P(r.value, "ProfileName") == "Lodger");
 
+Section("A picture that is refused leaves the one the profile has");
+
+// R-1108: SaveProfileImage and CopyLibraryAvatarToProfile answered a bare null for every
+// failure, and the edit stored that null as "no picture". A 3 MB upload deleted the profile's
+// picture and answered 200. R-1109: any string under /plugins/profiles/image/ was stored as it came.
+{
+    var imageFolder = Path.Combine(tempDir, "plugins", "ProfilesManagement");
+    Directory.CreateDirectory(imageFolder);
+    var kidFile = Path.Combine(imageFolder, OKID.ToString() + ".png");
+    var original = new byte[] { 1, 2, 3, 4 };
+    File.WriteAllBytes(kidFile, original);
+    var kidRow = Row(OKID);
+    var current = "/plugins/profiles/image/" + OKID + "?v=100";
+    mapType.GetProperty("ProfileImage").SetValue(kidRow, current);
+
+    string Stored() => (string)P(Row(OKID), "ProfileImage");
+    bool Untouched() => Stored() == current && File.Exists(kidFile) && File.ReadAllBytes(kidFile).SequenceEqual(original);
+    string Png(int bytes) => "data:image/png;base64," + Convert.ToBase64String(new byte[bytes]);
+    (int status, object value) Edit(params (string, object)[] fields)
+    {
+        var body = new List<(string, object)> { ("ProfileId", OKID), ("ProfileName", "Kid") };
+        body.AddRange(fields);
+        // The later of two values for one field wins, so a case can change the name.
+        return Call("UpdateProfile", OTHER, B(body.GroupBy(f => f.Item1).Select(g => g.Last()).ToArray()));
+    }
+
+    r = Edit(("ProfileImage", Png(3 * 1024 * 1024)), ("ProfileImageThumb", ""));
+    Ok("a 3 MB picture is refused with a reason", r.status == 400 && ((string)r.value ?? "").Contains("too large"), Text(r));
+    Ok("and the picture it has is untouched", Untouched(), Stored());
+
+    r = Edit(("ProfileImage", "data:image/png;base64,@@@not base64@@@"));
+    Ok("so is one that isn't base64", r.status == 400 && ((string)r.value ?? "").Contains("could not be read") && Untouched(), Text(r));
+    r = Edit(("ProfileImage", "data:image/svg+xml;base64," + Convert.ToBase64String(new byte[] { 60, 115, 118, 103 })));
+    Ok("so is a type we don't store", r.status == 400 && ((string)r.value ?? "").Contains("supported image") && Untouched(), Text(r));
+
+    r = Edit(("AvatarLibraryId", "no-such-avatar"));
+    Ok("an avatar that isn't in the library is refused", r.status == 400 && ((string)r.value ?? "").Contains("No such avatar") && Untouched(), Text(r));
+
+    cfgType.GetProperty("DisallowCustomAvatarUploads").SetValue(config, true);
+    r = Edit(("ProfileImage", Png(10)));
+    Ok("a custom picture is refused while the server allows only library avatars",
+       r.status == 400 && ((string)r.value ?? "").Contains("avatar library") && Untouched(), Text(r));
+    cfgType.GetProperty("DisallowCustomAvatarUploads").SetValue(config, false);
+
+    r = Edit(("ProfileName", "Kidlet"), ("ProfileImage", Png(3 * 1024 * 1024)));
+    Ok("a refused picture stops the rest of the edit too: the name is not changed",
+       r.status == 400 && (string)P(Row(OKID), "ProfileName") == "Kid" && Untouched(), Text(r));
+
+    // R-1109: only this profile's own picture address, or what is already stored.
+    foreach (var bad in new[]
+    {
+        "/plugins/profiles/image/" + Guid.NewGuid(),
+        "/plugins/profiles/image/" + OKID + "\" onerror=\"x",
+        "/plugins/profiles/image/../../../etc/passwd",
+        "/plugins/profiles/image/" + OKID + "?v=1&x=2",
+        "/plugins/profiles/image/" + OKID + "?v=abc",
+    })
+    {
+        r = Edit(("ProfileImage", bad));
+        Ok("a made-up picture address is refused: " + bad, r.status == 400 && Untouched(), Text(r));
+    }
+
+    r = Edit(("ProfileImage", current));
+    Ok("what it already has is accepted", r.status == 200 && Stored() == current, Text(r));
+    r = Edit(("ProfileImage", "/plugins/profiles/image/" + OKID + "?v=200"));
+    Ok("and its own address with a new cache-buster", r.status == 200 && Stored() == "/plugins/profiles/image/" + OKID + "?v=200", Text(r));
+    current = Stored();
+
+    r = Edit(("ProfileImage", Png(10)));
+    Ok("a good picture is still saved", r.status == 200 && Stored() != null && Stored() != current && Stored().StartsWith("/plugins/profiles/image/" + OKID), Text(r));
+
+    // A library avatar chosen, then a missing one: the chosen stays.
+    var libraryFolder = Path.Combine(imageFolder, "avatars");
+    Directory.CreateDirectory(libraryFolder);
+    File.WriteAllBytes(Path.Combine(libraryFolder, "fox.png"), new byte[] { 9, 9, 9 });
+    var libType = asm.GetType("Jellyfin.Profiles.Configuration.AvatarLibraryItem", true);
+    var libItem = Activator.CreateInstance(libType);
+    libType.GetProperty("Id").SetValue(libItem, "fox");
+    libType.GetProperty("DisplayName").SetValue(libItem, "Fox");
+    libType.GetProperty("Extension").SetValue(libItem, ".png");
+    ((IList)cfgType.GetProperty("AvatarLibrary").GetValue(config)).Add(libItem);
+    r = Edit(("AvatarLibraryId", "fox"));
+    Ok("a library avatar is copied", r.status == 200 && File.ReadAllBytes(kidFile).SequenceEqual(new byte[] { 9, 9, 9 }), Text(r));
+    var afterFox = Stored();
+
+    File.Delete(Path.Combine(libraryFolder, "fox.png"));
+    r = Edit(("AvatarLibraryId", "fox"));
+    Ok("one whose file has gone is refused and the copy it had stays",
+       r.status == 400 && Stored() == afterFox && File.Exists(kidFile) && File.ReadAllBytes(kidFile).SequenceEqual(new byte[] { 9, 9, 9 }), Text(r));
+
+    r = Edit(("ProfileImage", ""));
+    Ok("an empty picture is still a deliberate removal", r.status == 200 && Stored() == null && !File.Exists(kidFile), Text(r));
+
+    // Creating: refused before the account exists.
+    var usersBefore = world.Users.Count;
+    try { r = Call("CreateProfile", OTHER, B(("ProfileName", "Fresh"), ("ProfileImage", Png(3 * 1024 * 1024)))); }
+    catch (Exception e) { r = (-1, (e.InnerException ?? e).GetType().Name); }   // the stub makes no accounts: getting that far is the failure
+    Ok("creating with a refused picture answers 400 and makes no account", r.status == 400 && world.Users.Count == usersBefore, Text(r));
+}
+
 try { Directory.Delete(tempDir, true); } catch { }
 return Finish();
 

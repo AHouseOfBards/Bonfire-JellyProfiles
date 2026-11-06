@@ -339,7 +339,7 @@ Invalid PIN code.
 | `not_convertible` | That account can't be made a profile. The body says why. |
 | `bonfire_not_owner`, `bonfire_not_member`, `bonfire_own_group`, `bonfire_member_not_found` | Bonfire group actions that don't apply to the caller. |
 | `profile_not_found`, `user_not_found`, `library_not_found`, `image_not_found`, `not_found` | The thing named doesn't exist. |
-| `image_invalid` | The picture is missing, unreadable, too large or not an image. |
+| `image_invalid` | The picture is missing, unreadable, too large, not an image, or not allowed on this server. |
 | `rate_limited` | Too many attempts. Sent with `429`. |
 | `not_configured` | Bonfire's configuration couldn't be read. |
 | `invalid_request` | Refused, for a reason with no code of its own. |

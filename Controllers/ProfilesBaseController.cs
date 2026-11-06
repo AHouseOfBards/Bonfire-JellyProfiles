@@ -2397,11 +2397,94 @@ namespace Jellyfin.Profiles.Controllers
         /// is a fair trade for a setting whose point is a consistent set.
         /// </para>
         /// </summary>
-        protected string? CopyLibraryAvatarToProfile(Guid profileId, string libraryAvatarId)
+        /// <para>
+        /// Answers (Url, Error), never a bare null: a null here was read by the callers as
+        /// "no picture", so a library avatar that did not exist removed the one the profile
+        /// had, with a 200 and no message (R-1108). Exactly one of the two is set.
+        /// </para>
+        protected (string? Url, string? Error) CopyLibraryAvatarToProfile(Guid profileId, string libraryAvatarId)
         {
+            var error = CheckLibraryAvatar(libraryAvatarId);
+            if (error != null) return (null, error);
+
             return CopyLibraryAvatar(libraryAvatarId, ProfileImageFolder, profileId.ToString())
-                ? $"/plugins/profiles/image/{profileId}?v={DateTime.UtcNow.Ticks}"
-                : null;
+                ? ($"/plugins/profiles/image/{profileId}?v={DateTime.UtcNow.Ticks}", null)
+                : (null, "That picture is no longer available.");
+        }
+
+        /// <summary>
+        /// Why a library avatar can't be chosen, or null. Writes nothing, so a caller can
+        /// refuse a request before it has changed anything else.
+        /// </summary>
+        protected string? CheckLibraryAvatar(string libraryAvatarId)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (StarterAvatars.IsStarterId(libraryAvatarId))
+            {
+                return StarterAvatars.Find(libraryAvatarId) != null && StarterAvatars.Enabled(config)
+                    ? null
+                    : "No such avatar.";
+            }
+
+            var item = config?.AvatarLibrary.FirstOrDefault(a =>
+                string.Equals(a.Id, libraryAvatarId, StringComparison.OrdinalIgnoreCase));
+            if (item == null) return "No such avatar.";
+            return FindImageFile(AvatarLibraryFolder, item.Id, false) == null ? "That picture is no longer available." : null;
+        }
+
+        /// <summary>
+        /// Why a picture can't be saved for <paramref name="profileId"/>, or null. Writes
+        /// nothing. The same rules <see cref="SaveProfileImage"/> applies, asked first so a
+        /// request that would be refused is refused before anything else in it is done.
+        /// </summary>
+        protected string? CheckProfileImage(Guid profileId, string? input, string? currentImage)
+        {
+            if (string.IsNullOrEmpty(input)) return null;
+
+            // Our own picture URL, and only this profile's: the unchanged current value, or
+            // its address with a cache-buster. Anything else under the prefix was stored
+            // unchecked, so a quote, "../" or another profile's URL could be written into
+            // what is later rendered into an img src (R-1109).
+            if (input.StartsWith("/plugins/profiles/image/", StringComparison.OrdinalIgnoreCase))
+            {
+                return IsOwnImageUrl(profileId, input) || string.Equals(input, currentImage, StringComparison.Ordinal)
+                    ? null
+                    : "Not a supported image.";
+            }
+
+            if (AreCustomAvatarsBlocked()) return "This server only allows pictures from the avatar library.";
+            if (IsValidImageUrl(input)) return null;
+            if (!input.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase)) return "Not a supported image.";
+
+            var comma = input.IndexOf(',');
+            if (comma < 0) return "That image could not be read.";
+            var header = input.Substring(0, comma);
+            if (!StorableImageFormats.Any(f => header.Contains(f.Mime, StringComparison.OrdinalIgnoreCase)))
+                return "Not a supported image.";
+
+            try
+            {
+                return Convert.FromBase64String(input.Substring(comma + 1)).Length > MaxProfileImageBytes
+                    ? "That image is too large."
+                    : null;
+            }
+            catch (FormatException)
+            {
+                return "That image could not be read.";
+            }
+        }
+
+        private static bool IsOwnImageUrl(Guid profileId, string url)
+        {
+            const string prefix = "/plugins/profiles/image/";
+            var rest = url.Substring(prefix.Length);
+            var query = rest.IndexOf('?');
+            var id = query < 0 ? rest : rest.Substring(0, query);
+            if (!Guid.TryParse(id, out var parsed) || parsed != profileId) return false;
+            if (query < 0) return true;
+
+            var tail = rest.Substring(query);
+            return tail.Length > 3 && tail.StartsWith("?v=", StringComparison.Ordinal) && tail.Substring(3).All(char.IsAsciiDigit);
         }
 
         /// <summary>
@@ -2433,11 +2516,24 @@ namespace Jellyfin.Profiles.Controllers
                     return false;
                 }
 
+                // Copied beside the old picture first, and only swapped in once it is whole.
+                // It used to delete the old one and then copy: a copy that failed halfway
+                // left the profile with no picture at all (R-1108).
                 Directory.CreateDirectory(destFolder);
-                DeleteImageFiles(destFolder, baseName);
-                using (var target = System.IO.File.Create(Path.Combine(destFolder, baseName + StarterAvatars.Extension)))
+                var stagedStarter = Path.Combine(destFolder, baseName + ".tmp");
+                try
                 {
-                    source.CopyTo(target);
+                    using (var target = System.IO.File.Create(stagedStarter))
+                    {
+                        source.CopyTo(target);
+                    }
+
+                    DeleteImageFiles(destFolder, baseName);
+                    System.IO.File.Move(stagedStarter, Path.Combine(destFolder, baseName + StarterAvatars.Extension), true);
+                }
+                finally
+                {
+                    if (System.IO.File.Exists(stagedStarter)) System.IO.File.Delete(stagedStarter);
                 }
                 return true;
             }
@@ -2463,84 +2559,102 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             Directory.CreateDirectory(destFolder);
-            DeleteImageFiles(destFolder, baseName);
 
-            bool copiedAny = false;
-            foreach (var (suffix, wantThumb) in new[] { (string.Empty, false), (ThumbSuffix, true) })
+            // Every file is copied beside the old ones first and swapped in after, so a copy
+            // that fails leaves the profile's current picture alone (R-1108).
+            var staged = new List<(string Temp, string Final)>();
+            try
             {
-                var source = FindImageFile(AvatarLibraryFolder, item.Id, wantThumb);
-                // FindImageFile falls back to the master when no thumbnail exists; only copy
-                // it into the thumbnail slot if it really is a distinct file.
-                if (source == null) continue;
-                if (wantThumb && !Path.GetFileNameWithoutExtension(source.Value.Path).EndsWith(ThumbSuffix, StringComparison.Ordinal))
-                    continue;
+                foreach (var (suffix, wantThumb) in new[] { (string.Empty, false), (ThumbSuffix, true) })
+                {
+                    var source = FindImageFile(AvatarLibraryFolder, item.Id, wantThumb);
+                    // FindImageFile falls back to the master when no thumbnail exists; only copy
+                    // it into the thumbnail slot if it really is a distinct file.
+                    if (source == null) continue;
+                    if (wantThumb && !Path.GetFileNameWithoutExtension(source.Value.Path).EndsWith(ThumbSuffix, StringComparison.Ordinal))
+                        continue;
 
-                var extension = Path.GetExtension(source.Value.Path);
-                System.IO.File.Copy(source.Value.Path, Path.Combine(destFolder, $"{baseName}{suffix}{extension}"), true);
-                copiedAny = true;
+                    var extension = Path.GetExtension(source.Value.Path);
+                    var final = Path.Combine(destFolder, $"{baseName}{suffix}{extension}");
+                    var temp = final + ".tmp";
+                    System.IO.File.Copy(source.Value.Path, temp, true);
+                    staged.Add((temp, final));
+                }
+
+                if (staged.Count == 0)
+                {
+                    _logger.LogWarning(
+                        "ProfilesPlugin: Library avatar {Avatar} is listed but has no file on disk.", item.Id);
+                    return false;
+                }
+
+                DeleteImageFiles(destFolder, baseName);
+                foreach (var (temp, final) in staged)
+                {
+                    System.IO.File.Move(temp, final, true);
+                }
+                return true;
             }
-
-            if (!copiedAny)
+            finally
             {
-                _logger.LogWarning(
-                    "ProfilesPlugin: Library avatar {Avatar} is listed but has no file on disk.", item.Id);
+                foreach (var (temp, _) in staged)
+                {
+                    if (System.IO.File.Exists(temp)) System.IO.File.Delete(temp);
+                }
             }
-
-            return copiedAny;
         }
 
-        protected string? SaveProfileImage(Guid profileId, string? profileImageInput, string? thumbInput = null)
+        /// <summary>
+        /// Saves a profile's picture. Answers (Url, Error): an empty input is a deliberate
+        /// removal and answers (null, null); a refusal answers (null, reason) and touches
+        /// nothing. It used to answer a bare null for both, and the callers stored that
+        /// straight into the profile, so a picture that was merely too large removed the
+        /// one already there, with a 200 and no message (R-1108).
+        /// </summary>
+        protected (string? Url, string? Error) SaveProfileImage(
+            Guid profileId, string? profileImageInput, string? thumbInput = null, string? currentImage = null)
         {
             var folder = ProfileImageFolder;
 
             if (string.IsNullOrEmpty(profileImageInput))
             {
                 DeleteImageFiles(folder, profileId.ToString());
-                return null;
+                return (null, null);
+            }
+
+            // Enforced by CheckProfileImage, not only by hiding the upload control, so a
+            // hand-written request cannot walk around a setting the administrator is
+            // relying on. A locked-down server accepts pictures solely through
+            // CopyLibraryAvatarToProfile.
+            var error = CheckProfileImage(profileId, profileImageInput, currentImage);
+            if (error != null)
+            {
+                _logger.LogWarning("ProfilesPlugin: Rejected a profile picture for {Id}: {Reason}", profileId, error);
+                return (null, error);
             }
 
             if (profileImageInput.StartsWith("/plugins/profiles/image/", StringComparison.OrdinalIgnoreCase))
-                return profileImageInput;
+                return (profileImageInput, null);
 
-            // Enforced here, not only by hiding the upload control, so a hand-written request
-            // cannot walk around a setting the administrator is relying on. A locked-down
-            // server accepts pictures solely through CopyLibraryAvatarToProfile.
-            if (AreCustomAvatarsBlocked())
+            if (IsValidImageUrl(profileImageInput)) return (profileImageInput.Trim(), null);
+
+            try
             {
-                _logger.LogWarning(
-                    "ProfilesPlugin: Rejected a profile picture for {Id} — this server allows library avatars only.",
-                    profileId);
-                return null;
+                var ext = WriteImageFiles(folder, profileId.ToString(), profileImageInput, thumbInput,
+                    $"profile {profileId}");
+                if (ext != null)
+                {
+                    // The cache-buster is what makes a changed picture appear immediately;
+                    // without it browsers keep showing the previous one at the same URL.
+                    return ($"/plugins/profiles/image/{profileId}?v={DateTime.UtcNow.Ticks}", null);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ProfilesPlugin: Failed to save image for {Id}.", profileId);
             }
 
-            if (IsValidImageUrl(profileImageInput)) return profileImageInput.Trim();
-
-            if (profileImageInput.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    var ext = WriteImageFiles(folder, profileId.ToString(), profileImageInput, thumbInput,
-                        $"profile {profileId}");
-                    if (ext != null)
-                    {
-                        // The cache-buster is what makes a changed picture appear immediately;
-                        // without it browsers keep showing the previous one at the same URL.
-                        return $"/plugins/profiles/image/{profileId}?v={DateTime.UtcNow.Ticks}";
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "ProfilesPlugin: Failed to save image for {Id}.", profileId);
-                }
-                return null;
-            }
-
-            // Unrecognised shape — reject rather than storing an arbitrary string that
-            // would later be rendered into an img src.
-            _logger.LogWarning(
-                "ProfilesPlugin: Rejected profile image for {Id} — not a data:image payload or a valid http(s) URL.",
-                profileId);
-            return null;
+            return (null, "That image could not be read.");
         }
 
         protected string GenerateSecureCode()
