@@ -799,7 +799,7 @@ namespace Jellyfin.Profiles.Auth
                     AppVersion = string.IsNullOrEmpty(session.Version) ? "1.0.0" : session.Version,
                 }).ConfigureAwait(false);
             }
-            catch (System.Security.SecurityException ex)
+            catch (MediaBrowser.Controller.Net.SecurityException ex)
             {
                 logger.LogWarning(ex, "ProfilesPlugin: the picker could not open {User}.", user.Username);
                 return ex.Message.Contains("device", StringComparison.OrdinalIgnoreCase)

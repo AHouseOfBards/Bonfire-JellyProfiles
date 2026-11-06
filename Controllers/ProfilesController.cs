@@ -960,7 +960,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 session = await _sessionManager.AuthenticateDirect(authRequest).ConfigureAwait(false);
             }
-            catch (System.Security.SecurityException ex)
+            catch (MediaBrowser.Controller.Net.SecurityException ex)
             {
                 _logger.LogWarning(ex, "ProfilesPlugin: Session creation refused for {User}.", targetUser.Username);
                 var reason = ex.Message.Contains("device", StringComparison.OrdinalIgnoreCase)

@@ -217,7 +217,15 @@ world.SetMax(KID, 1);
 world.Open(KID, "Jellyfin Web", "browser-2");
 r = Switch(MAIN, KID, "Jellyfin Web", "browser-1");
 Ok("but a limit still holds against another device", r.status == 400, Text(r));
-Ok("and the other device's session was not ended to make room", world.Sessions.Any(s => s.UserId == KID && s.DeviceId == "browser-2"), Live());
+// Jellyfin throws MediaBrowser.Controller.Net.SecurityException, not System.Security's: the
+// catch named the wrong type and every refusal read "Couldn't sign in".
+Ok("and says so: too many active sessions", Text(r).Contains("too many active sessions"), Text(r));Ok("and the other device's session was not ended to make room", world.Sessions.Any(s => s.UserId == KID && s.DeviceId == "browser-2"), Live());
+
+world.Reset();
+world.DeviceRefusal = true;
+r = Switch(MAIN, KID, "Jellyfin Web", "browser-1");
+Ok("a device refusal says it isn't allowed on this device", r.status == 400 && Text(r).Contains("isn't allowed on this device"), Text(r));
+world.DeviceRefusal = false;
 
 // ── 3. Which ids are one device ──────────────────────────────────────────────
 Section("Which ids are one device");
@@ -261,6 +269,7 @@ public class World
     public List<Device> Rows = new();
     public List<Guid> Ended = new();
     public string Refusal;
+    public bool DeviceRefusal;
     public ISessionManager SessionManager;
 
     public void Add(Guid id, string name)
@@ -363,6 +372,9 @@ public class WorldProxy : DispatchProxy
     private Task<MediaBrowser.Controller.Authentication.AuthenticationResult> Authenticate(AuthenticationRequest req)
     {
         var user = W.Users[req.UserId];
+        if (W.DeviceRefusal)
+            return Task.FromException<MediaBrowser.Controller.Authentication.AuthenticationResult>(
+                new MediaBrowser.Controller.Net.SecurityException("User is not allowed access from this device."));
         var count = W.Sessions.Count(i => i.UserId.Equals(user.Id));
         var max = user.MaxActiveSessions;
         if (max >= 1 && count >= max)
