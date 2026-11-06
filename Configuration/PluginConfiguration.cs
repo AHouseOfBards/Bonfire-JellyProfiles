@@ -137,6 +137,20 @@ namespace Jellyfin.Profiles.Configuration
         public bool EnableClientPinLogin { get; set; }
 
         /// <summary>
+        /// Lets a profile with no PIN, or one limited to particular devices, be signed in on
+        /// another app from outside the home network (R-1334). Off by default: those two
+        /// rest on a device id the client supplies, which anyone who has seen one can send,
+        /// so they open only for a caller Jellyfin itself places on the local network. A
+        /// profile with a PIN and no device list is unaffected: the PIN is the credential.
+        /// <para>
+        /// A setting rather than a fixed limit because households differ (a PIN-less
+        /// profile on a TV the family also uses away from home is a choice some make), and
+        /// under Advanced because a wrong value lets a stranger into a profile.
+        /// </para>
+        /// </summary>
+        public bool ClientPinLoginFromAnywhere { get; set; }
+
+        /// <summary>
         /// Adds this household's profiles to the user list a client paints its login screen
         /// from, on a device the household has already signed in on at least once.
         /// <para>

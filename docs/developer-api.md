@@ -757,6 +757,7 @@ the web client. All are off by default.
 | --- | --- |
 | `enableClientPinLogin` | Profiles, and main accounts with a PIN, can be signed in to with the PIN where an app asks for a password. Only on a device the household has signed in on with a password; elsewhere a main account needs its password. |
 | `enableClientProfileList` | `GET /Users/Public` includes the household of the device asking, and profiles show under their own name. |
+| `clientPinLoginFromAnywhere` | A profile with no PIN, or with a device list, can be signed in to from outside the home network. Off: those two open only for a caller Jellyfin places on the local network, after its known-proxy rules. A profile with a PIN and no device list is not affected. Under Advanced on the Apps tab. |
 | `skipQuickConnectOnKnownDevices` | `POST /QuickConnect/Initiate` is refused on a TV a household has used, so the app shows its password box. |
 | `proxyClients` | The apps that get the profile picker. See below. |
 
@@ -2154,6 +2155,7 @@ anything added since you read it.
 | `indexInjectionMode` | string | `middleware`, `both` or `file`. |
 | `enableClientPinLogin` | boolean | See [Sign-in from other apps](#sign-in-from-other-apps). |
 | `enableClientProfileList` | boolean | Same. |
+| `clientPinLoginFromAnywhere` | boolean | Same. |
 | `skipQuickConnectOnKnownDevices` | boolean | Same. |
 | `profileImageQuality` | string | `standard` (512 px, 2 MB), `high` (1024 px, 4 MB) or `maximum` (2048 px, 8 MB). |
 | `onboardingEnabled` | boolean | [First-time setup](#first-time-setup) on or off. The first time it goes on, existing accounts count as having seen it. |

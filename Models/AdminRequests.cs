@@ -59,6 +59,9 @@ namespace Jellyfin.Profiles.Models
         public bool? EnableClientPinLogin { get; set; }
         public bool? EnableClientProfileList { get; set; }
 
+        /// <summary>PIN-less and device-restricted profiles may sign in on other apps from outside the home network. Null leaves it alone.</summary>
+        public bool? ClientPinLoginFromAnywhere { get; set; }
+
         public bool? SkipQuickConnectOnKnownDevices { get; set; }
 
         /// <summary>Keys from <c>ProxyClients.Catalogue</c>. Unknown keys are dropped. Null leaves it alone.</summary>

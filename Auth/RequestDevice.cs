@@ -29,6 +29,7 @@ namespace Jellyfin.Profiles.Auth
     {
         private static readonly AsyncLocal<string?> _current = new();
         private static readonly AsyncLocal<string?> _client = new();
+        private static readonly AsyncLocal<bool?> _local = new();
 
         /// <summary>
         /// The current request's device id, or null when there is no request or it carried no
@@ -57,6 +58,20 @@ namespace Jellyfin.Profiles.Auth
         {
             Capture(deviceId);
             _client.Value = string.IsNullOrWhiteSpace(client) ? null : client.Trim();
+        }
+
+        /// <summary>
+        /// Whether Jellyfin places the current request on the local network, after its own
+        /// known-proxy rules (<see cref="ClientAddress"/>). False when there is no request
+        /// or it could not be decided: unknown is never home (R-1334).
+        /// </summary>
+        public static bool IsLocal => _local.Value == true;
+
+        /// <summary>Records the device id, the app name and whether the request is from the local network.</summary>
+        public static void Capture(string? deviceId, string? client, bool local)
+        {
+            Capture(deviceId, client);
+            _local.Value = local;
         }
     }
 }

@@ -74,6 +74,7 @@ async function run(fieldValues) {
         // which is the whole reason this list is written out by hand.
         enableClientPinLogin: false,
         enableClientProfileList: false,
+        clientPinLoginFromAnywhere: false,
         skipQuickConnectOnKnownDevices: false,
         profileImageQuality: 'standard',
         onboardingEnabled: false,
@@ -217,6 +218,7 @@ const expected = [
     'indexInjectionMode',
     'enableClientPinLogin',
     'enableClientProfileList',
+    'clientPinLoginFromAnywhere',
     'skipQuickConnectOnKnownDevices',
     'proxyClients',
     'profileImageQuality',

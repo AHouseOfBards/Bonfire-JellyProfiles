@@ -33,7 +33,7 @@
     var config = {
         MaxProfilesPerUser: 5, RequireMainPin: false, DisallowCustomAvatarUploads: false, EnableStarterAvatars: true,
         ProfileImageQuality: 'standard', DefaultAskOnStartup: true, EnableClientPinLogin: false,
-        EnableClientProfileList: false, SkipQuickConnectOnKnownDevices: false, ProxyClients: [],
+        EnableClientProfileList: false, SkipQuickConnectOnKnownDevices: false, ClientPinLoginFromAnywhere: false, ProxyClients: [],
         QuickConnectSharedDeviceNames: [], EnablePinResetByEmail: false, DefaultSwitcherLocation: 'button',
         DefaultTheme: 'bonfire', AllowProfileThemes: true, DefaultTimeZone: '', IndexInjectionMode: 'middleware',
         Onboarding: { Enabled: true, RequireMainPin: false, WelcomeText: '' },

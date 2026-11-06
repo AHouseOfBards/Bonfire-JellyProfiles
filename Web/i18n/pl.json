@@ -664,6 +664,8 @@
   "admin.apps.profileListHint": "Profile gospodarstwa pojawiają się na urządzeniach, na których się logowało. Zmienia to listę użytkowników, którą czyta każda aplikacja na tym serwerze.",
   "admin.apps.skipQuickConnect": "Otwieraj pole hasła zamiast Szybkiego połączenia",
   "admin.apps.skipQuickConnectHint": "Na Android TV, gdy gospodarstwo zalogowało się już na tym telewizorze. Pierwsze logowanie nadal używa Szybkiego połączenia.",
+  "admin.apps.fromAnywhere": "Otwieraj z dowolnego miejsca profile bez PIN-u lub ograniczone do urządzeń",
+  "admin.apps.fromAnywhereHint": "Wyłączone: otwierają się tylko z sieci domowej. Profil z PIN-em i bez listy urządzeń nie jest objęty.",
   "admin.apps.pickerTitle": "Wybór profilu",
   "admin.apps.pickerLede": "Zaloguj się kontem głównym, a potem wybierz profil na ekranie głównym aplikacji.",
   "admin.apps.moonfinHint": "Gdy to jest włączone, profile nie mogą logować się bezpośrednio w Moonfin.",

@@ -161,6 +161,22 @@ namespace Jellyfin.Profiles
             // string we already hold replaces the scan for everything else.
             if (IsUserRoute(context))
             {
+                // Whether Jellyfin puts the caller at home, decided here because the provider
+                // is handed nothing about the request: the address after Jellyfin's known
+                // proxies (ClientAddress), judged by its own INetworkManager, as everywhere
+                // else in this file. Unknown is not home (R-1334).
+                bool atHome;
+                try
+                {
+                    var from = Auth.ClientAddress.Of(context);
+                    atHome = from != null && networkManager != null && networkManager.IsInLocalNetwork(from);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "ProfilesPlugin: could not tell whether a sign-in is on the local network.");
+                    atHome = false;
+                }
+
                 Auth.RequestDevice.Capture(
                     Controllers.ProfilesBaseController.ParseAuthorizationParameter(
                         context.Request.Headers["Authorization"],
@@ -169,7 +185,8 @@ namespace Jellyfin.Profiles
                     Controllers.ProfilesBaseController.ParseAuthorizationParameter(
                         context.Request.Headers["Authorization"],
                         context.Request.Headers["X-Emby-Authorization"],
-                        "Client"));
+                        "Client"),
+                    atHome);
             }
 
             // Closed for maintenance: anyone but an administrator is answered here. Before the

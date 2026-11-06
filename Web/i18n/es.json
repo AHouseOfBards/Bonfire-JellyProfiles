@@ -664,6 +664,8 @@
   "admin.apps.profileListHint": "Los perfiles de un hogar aparecen en los dispositivos donde ha iniciado sesión. Cambia la lista de usuarios que lee cada aplicación de este servidor.",
   "admin.apps.skipQuickConnect": "Abrir el campo de contraseña en lugar de Conexión rápida",
   "admin.apps.skipQuickConnectHint": "En Android TV, cuando un hogar ya ha iniciado sesión en esa TV. El primer inicio de sesión sigue usando Conexión rápida.",
+  "admin.apps.fromAnywhere": "Abrir desde cualquier lugar los perfiles sin PIN o con dispositivos limitados",
+  "admin.apps.fromAnywhereHint": "Desactivado: solo se abren desde la red doméstica. Un perfil con PIN y sin lista de dispositivos no se ve afectado.",
   "admin.apps.pickerTitle": "Selector de perfiles",
   "admin.apps.pickerLede": "Inicia sesión con la cuenta principal y elige un perfil en la pantalla de inicio de la aplicación.",
   "admin.apps.moonfinHint": "Los perfiles no pueden iniciar sesión directamente en Moonfin mientras esto esté activado.",

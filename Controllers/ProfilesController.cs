@@ -1730,6 +1730,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.EnableClientPinLogin = incoming.EnableClientPinLogin;
                 if (TryProperty(root, "EnableClientProfileList", out _))
                     config.EnableClientProfileList = incoming.EnableClientProfileList;
+                if (TryProperty(root, "ClientPinLoginFromAnywhere", out _))
+                    config.ClientPinLoginFromAnywhere = incoming.ClientPinLoginFromAnywhere;
                 if (TryProperty(root, "PanicCodeHash", out _))
                     config.PanicCodeHash = incoming.PanicCodeHash;
                 if (TryProperty(root, "ProxyClients", out _))
@@ -1792,7 +1794,7 @@ namespace Jellyfin.Profiles.Controllers
             "LinkedAccounts", "UserProfileLimitOverrides", "AvatarLibrary", "DisallowCustomAvatarUploads",
             "ProfileImageQuality", "DefaultAskOnStartup", "DefaultSwitcherLocation", "CustomFonts", "CustomThemes",
             "HiddenThemes", "LogoImage", "LogoText", "LogoAlt", "DefaultTheme", "DefaultTimeZone", "AllowProfileThemes",
-            "IndexInjectionMode", "EnableClientPinLogin", "EnableClientProfileList", "PanicCodeHash", "ProxyClients",
+            "IndexInjectionMode", "EnableClientPinLogin", "EnableClientProfileList", "ClientPinLoginFromAnywhere", "PanicCodeHash", "ProxyClients",
             "Announcements", "AccountEmails",
         };
 
@@ -5204,6 +5206,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.EnableClientPinLogin = request.EnableClientPinLogin.Value;
                 if (request.EnableClientProfileList.HasValue)
                     config.EnableClientProfileList = request.EnableClientProfileList.Value;
+                if (request.ClientPinLoginFromAnywhere.HasValue)
+                    config.ClientPinLoginFromAnywhere = request.ClientPinLoginFromAnywhere.Value;
                 if (request.SkipQuickConnectOnKnownDevices.HasValue)
                     config.SkipQuickConnectOnKnownDevices = request.SkipQuickConnectOnKnownDevices.Value;
                 if (request.ProxyClients != null)

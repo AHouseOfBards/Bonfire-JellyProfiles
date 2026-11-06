@@ -675,6 +675,8 @@
   "admin.apps.profileListHint": "Bir hanenin profilleri, oturum açtığı cihazlarda görünür. Bu, sunucudaki her uygulamanın okuduğu kullanıcı listesini değiştirir.",
   "admin.apps.skipQuickConnect": "Hızlı Bağlantı yerine parola alanını aç",
   "admin.apps.skipQuickConnectHint": "Android TV'de, bir hane o televizyonda oturum açtıktan sonra. İlk oturum açma yine Hızlı Bağlantı'yı kullanır.",
+  "admin.apps.fromAnywhere": "PIN'siz veya cihazla sınırlı profilleri her yerden aç",
+  "admin.apps.fromAnywhereHint": "Kapalı: yalnızca ev ağından açılır. PIN'li ve cihaz listesi olmayan profil etkilenmez.",
   "admin.apps.pickerTitle": "Profil seçici",
   "admin.apps.pickerLede": "Ana hesapla oturum açın, ardından uygulamanın ana ekranında bir profil seçin.",
   "admin.apps.moonfinHint": "Bu açıkken profiller Moonfin'de doğrudan oturum açamaz.",

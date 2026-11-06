@@ -1107,6 +1107,16 @@
                     </label>
                     <div class="fieldDescription" data-i18n="admin.apps.skipQuickConnectHint">On Android TV, once a household has signed in on that TV. The first sign-in still uses Quick Connect.</div>
                 </div>
+                <details class="jpf-advanced jpf-section">
+                    <summary data-i18n="admin.advanced.title">Advanced</summary>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="clientPinLoginFromAnywhere" />
+                            <span data-i18n="admin.apps.fromAnywhere">Open PIN-less and device-limited profiles from anywhere</span>
+                        </label>
+                        <div class="fieldDescription" data-i18n="admin.apps.fromAnywhereHint">Off: these open only from the home network. A profile with a PIN and no device list isn't affected.</div>
+                    </div>
+                </details>
 
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.apps.pickerTitle">Profile picker</h2>
@@ -1920,6 +1930,7 @@
                     // itself on because a configuration predates it.
                     page.querySelector('#enableClientPinLogin').checked = !!config.EnableClientPinLogin;
                     page.querySelector('#enableClientProfileList').checked = !!config.EnableClientProfileList;
+                    page.querySelector('#clientPinLoginFromAnywhere').checked = !!config.ClientPinLoginFromAnywhere;
                     page.querySelector('#skipQuickConnectOnKnownDevices').checked = !!config.SkipQuickConnectOnKnownDevices;
                     // Absent before 1.7.1.2, which is the same as none ticked.
                     const proxied = (config.ProxyClients || []).map(function (k) { return String(k).toLowerCase(); });
@@ -5317,6 +5328,7 @@
                 c.EnableStarterAvatars = sent.enableStarterAvatars;
                 c.EnableClientPinLogin = sent.enableClientPinLogin;
                 c.EnableClientProfileList = sent.enableClientProfileList;
+                c.ClientPinLoginFromAnywhere = sent.clientPinLoginFromAnywhere;
                 c.ProxyClients = sent.proxyClients;
                 c.Onboarding = Object.assign({}, c.Onboarding || {}, { Enabled: sent.onboardingEnabled });
                 page.dataset.requireMainPin = sent.requireMainPin ? '1' : '';
@@ -5380,7 +5392,8 @@
                         'Require main PIN: ' + on(c.RequireMainPin) + ', PIN tries a day: ' + (c.PinGuessesPerDay || 20),
                         'Email: ' + (page._emailState || 'unknown') + ', PIN reset by email: ' + on(c.EnablePinResetByEmail),
                         'PIN sign-in on apps: ' + on(c.EnableClientPinLogin) + ', profiles on sign-in screens: ' + on(c.EnableClientProfileList)
-                            + ', skip Quick Connect: ' + on(c.SkipQuickConnectOnKnownDevices),
+                            + ', skip Quick Connect: ' + on(c.SkipQuickConnectOnKnownDevices)
+                            + ', PIN-less sign-in from anywhere: ' + on(c.ClientPinLoginFromAnywhere),
                         'Profile picker apps: ' + ((c.ProxyClients || []).join(', ') || 'none'),
                         'Ask on startup: ' + on(c.DefaultAskOnStartup !== false) + ', switch from: ' + (c.DefaultSwitcherLocation || 'button'),
                         'Theme: ' + (c.DefaultTheme || 'bonfire') + ', profiles choose: ' + on(c.AllowProfileThemes !== false),
@@ -5511,6 +5524,7 @@
                     indexInjectionMode: page.querySelector('#indexInjectionMode').value,
                     enableClientPinLogin: page.querySelector('#enableClientPinLogin').checked,
                     enableClientProfileList: page.querySelector('#enableClientProfileList').checked,
+                    clientPinLoginFromAnywhere: page.querySelector('#clientPinLoginFromAnywhere').checked,
                     skipQuickConnectOnKnownDevices: page.querySelector('#skipQuickConnectOnKnownDevices').checked,
                     proxyClients: Array.prototype.filter.call(page.querySelectorAll('.jpfProxyClient'), function (box) {
                         return box.checked;

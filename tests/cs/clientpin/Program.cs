@@ -188,6 +188,7 @@ var devicesList = (System.Collections.IList)cfgType.GetProperty("KnownDevices").
 var knownType = asm.GetType("Jellyfin.Profiles.Configuration.KnownDevice", true);
 var requestDevice = asm.GetType("Jellyfin.Profiles.Auth.RequestDevice", true);
 var capture = requestDevice.GetMethod("Capture", BindingFlags.Public | BindingFlags.Static, new[] { typeof(string) });
+var captureAt = requestDevice.GetMethod("Capture", BindingFlags.Public | BindingFlags.Static, new[] { typeof(string), typeof(string), typeof(bool) });
 devicesList.Clear();
 Remember("family-tv", MASTER);
 FromDevice("family-tv");
@@ -319,7 +320,14 @@ void Remember(string deviceId, Guid owner)
     devicesList.Add(d);
 }
 
-void FromDevice(string deviceId) => capture.Invoke(null, new object[] { deviceId });
+// A request is at home unless a case says otherwise, as the household's own television is.
+// Where the caller is is the middleware's to decide (R-1334); a build without that records
+// nothing about it, and then the 1-argument form is all there is.
+void FromDevice(string deviceId, bool home = true)
+{
+    if (captureAt != null) captureAt.Invoke(null, new object[] { deviceId, null, home });
+    else capture.Invoke(null, new object[] { deviceId });
+}
 
 devicesList.Clear();
 Remember("family-tv", MASTER);
@@ -332,6 +340,37 @@ Ok("a profile with no PIN opens with an empty box on a device the household uses
 // anything would otherwise be let in.
 Ok("but a typed value is still refused, even on that device",
    Try(MakeUser(GUEST, "Bardguest"), "1234") == "!AuthenticationException");
+
+// A PIN-less profile, or one with a device list, rests on a device id the client supplies,
+// and "PIN login on other apps" on let it open from any network for anybody who had seen a
+// household's id (R-1334). Now it opens from the home network only, unless the
+// administrator allows anywhere. A PIN stays a credential: a profile with one and no list
+// is not asked where it is.
+var fromAnywhere = cfgType.GetProperty("ClientPinLoginFromAnywhere");
+void Anywhere(bool on) => fromAnywhere?.SetValue(config, on);
+var kidRowHere = mappings.Cast<object>().First(m => (Guid)mappingType.GetProperty("ProfileUserId").GetValue(m) == KID);
+var kidListHere = (System.Collections.IList)mappingType.GetProperty("AllowedDeviceIds").GetValue(kidRowHere);
+
+Ok("the setting for it exists, and is off by default",
+   fromAnywhere != null && (bool)fromAnywhere.GetValue(Activator.CreateInstance(cfgType)) == false);
+FromDevice("family-tv", home: false);
+Ok("a PIN-less profile is refused from outside the home network, on a device the household uses",
+   Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+Ok("a profile with a PIN and no device list still opens from outside: the PIN is the credential",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+kidListHere.Add("family-tv");
+Ok("a profile with a device list is refused from outside, on a device that is on it",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
+Anywhere(true);
+Ok("with the setting on 'anywhere', a PIN-less profile opens from outside",
+   Try(MakeUser(GUEST, "Bardguest"), "") == "Bardguest");
+Ok("and so does a profile with a device list, on a device that is on it",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+Anywhere(false);
+FromDevice("family-tv", home: true);
+Ok("at home, a PIN-less profile opens", Try(MakeUser(GUEST, "Bardguest"), "") == "Bardguest");
+Ok("and a profile with a device list opens on a device that is on it", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+kidListHere.Clear();
 
 // The hole, closed. This is the curl-from-anywhere case.
 FromDevice("some-strangers-laptop");

@@ -664,6 +664,8 @@
   "admin.apps.profileListHint": "Les profils d'un foyer apparaissent sur les appareils où il s'est connecté. Cela modifie la liste d'utilisateurs que lit chaque application de ce serveur.",
   "admin.apps.skipQuickConnect": "Ouvrir le champ du mot de passe au lieu de Connexion rapide",
   "admin.apps.skipQuickConnectHint": "Sur Android TV, une fois qu'un foyer s'est connecté sur cette TV. La première connexion passe toujours par Connexion rapide.",
+  "admin.apps.fromAnywhere": "Ouvrir de n'importe où les profils sans PIN ou limités à des appareils",
+  "admin.apps.fromAnywhereHint": "Désactivé : ils ne s'ouvrent que depuis le réseau local. Un profil avec PIN et sans liste d'appareils n'est pas concerné.",
   "admin.apps.pickerTitle": "Sélecteur de profils",
   "admin.apps.pickerLede": "Connectez-vous avec le compte principal, puis choisissez un profil sur l'écran d'accueil de l'application.",
   "admin.apps.moonfinHint": "Les profils ne peuvent pas se connecter directement sur Moonfin tant que c'est activé.",
