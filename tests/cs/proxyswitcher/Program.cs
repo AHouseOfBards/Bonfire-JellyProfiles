@@ -393,6 +393,38 @@ Ok("a profile whose main account is turned off is not opened", sessionLog.Minted
 Ok("and the keypad says why", Names(shut).Contains("turned off"), Names(shut));
 UserManagerStub.Disabled.Remove(MASTER);
 
+// Issue #41, picker side: Jellyfin counts the profile's earlier session on this device
+// against MaxActiveSessions before it replaces it, so the picker ends it first, as /switch does.
+Console.WriteLine();
+Console.WriteLine("── Earlier sessions on this device ─────────────────────────────");
+var stale = new SessionInfo(sessions, NullLogger.Instance) { Client = "Moonfin for Android TV", DeviceId = "moon-1", Id = "stale-open", UserId = OPEN };
+var theirs = new SessionInfo(sessions, NullLogger.Instance) { Client = "Moonfin for Android TV", DeviceId = "moon-1", Id = "main-own", UserId = MASTER };
+var elsewhere = new SessionInfo(sessions, NullLogger.Instance) { Client = "Jellyfin Android TV", DeviceId = "living-room-tv", Id = "tv", UserId = OPEN };
+SessionManagerStub.Existing.AddRange(new[] { stale, theirs, elsewhere });
+var viewsNow = Get("/UserViews");
+var order = SessionManagerStub.Order.Count;
+Children(IdOf(Children(IdOf(viewsNow.body, "Profiles")), "Open"));
+Ok("the profile's earlier session on this device is ended before it signs in",
+   SessionManagerStub.EndedIds.Contains("stale-open"), string.Join(",", SessionManagerStub.EndedIds));
+Ok("it is ended first, not after Jellyfin counted it",
+   SessionManagerStub.Order.Skip(order).SkipWhile(x => x != "end:stale-open").Contains("auth"),
+   string.Join(",", SessionManagerStub.Order.Skip(order)));
+Ok("the main account's own session and the profile's on another device are left alone",
+   !SessionManagerStub.EndedIds.Contains("main-own") && !SessionManagerStub.EndedIds.Contains("tv"),
+   string.Join(",", SessionManagerStub.EndedIds));
+
+// Back to the picker, then Jellyfin refuses with its own exception type (the catch named
+// System.Security's, so every refusal read "Couldn't open this profile.").
+Children(IdOf(Get("/UserViews").body, "Switch profile"));
+SessionManagerStub.Existing.Clear();
+SessionManagerStub.ThrowMessage = "User is at their maximum number of sessions.";
+var limited = Children(IdOf(Children(IdOf(Get("/UserViews").body, "Profiles")), "Open"));
+Ok("a session limit says too many sessions", Names(limited).Contains("Too many sessions"), Names(limited));
+SessionManagerStub.ThrowMessage = "User is not allowed access from this device.";
+var barred = Children(IdOf(Children(IdOf(Get("/UserViews").body, "Profiles")), "Open"));
+Ok("a device refusal says not allowed on this device", Names(barred).Contains("Not allowed on this device"), Names(barred));
+SessionManagerStub.ThrowMessage = null;
+
 Console.WriteLine();
 Console.WriteLine("── Another app's requests cost nothing ─────────────────────────");
 
@@ -538,13 +570,28 @@ public class SessionManagerStub : DispatchProxy
     public List<Guid> Minted = new();
     public List<AuthenticationRequest> Requests = new();
     public List<string> LoggedOut = new();
+    public static List<SessionInfo> Existing = new();
+    public static List<string> EndedIds = new();
+    public static List<string> Order = new();
+    public static string ThrowMessage;
 
     public static ISessionManager Create() => Create<ISessionManager, SessionManagerStub>();
 
     protected override object Invoke(MethodInfo m, object[] args)
     {
+        if (m.Name == "get_Sessions") return Existing.ToList();
+        if (m.Name == "ReportSessionEnded")
+        {
+            EndedIds.Add((string)args[0]);
+            Order.Add("end:" + (string)args[0]);
+            return default(ValueTask);
+        }
+
         if (m.Name == "AuthenticateDirect")
         {
+            Order.Add("auth");
+            if (ThrowMessage != null)
+                return Task.FromException<AuthenticationResult>(new MediaBrowser.Controller.Net.SecurityException(ThrowMessage));
             var r = (AuthenticationRequest)args[0];
             Minted.Add(r.UserId);
             Requests.Add(r);

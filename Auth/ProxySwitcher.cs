@@ -783,6 +783,19 @@ namespace Jellyfin.Profiles.Auth
                 await ProfilePolicySync.ApplyAsync(services.Users, services.Libraries, logger, profileId).ConfigureAwait(false);
             }
 
+            var deviceId = string.IsNullOrEmpty(session.DeviceId) ? "bonfire-picker-" + user.Id.ToString("N")[..8] : session.DeviceId;
+
+            // The profile's earlier sessions on this device go first: Jellyfin counts them
+            // against MaxActiveSessions before it replaces any (issue #41). Best effort, as in /switch.
+            try
+            {
+                await SameDeviceSessions.EndAsync(services.Sessions, services.Devices, config, user.Id, deviceId, logger).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "ProfilesPlugin: could not end {User}'s earlier sessions on this device.", user.Username);
+            }
+
             MediaBrowser.Controller.Authentication.AuthenticationResult result;
             try
             {
@@ -795,7 +808,7 @@ namespace Jellyfin.Profiles.Auth
                     RemoteEndPoint = ClientAddress.Of(context)?.ToString() ?? "127.0.0.1",
                     App = string.IsNullOrEmpty(session.Client) ? "Moonfin" : session.Client,
                     DeviceName = string.IsNullOrEmpty(session.Device) ? "Bonfire picker" : session.Device,
-                    DeviceId = string.IsNullOrEmpty(session.DeviceId) ? "bonfire-picker-" + user.Id.ToString("N")[..8] : session.DeviceId,
+                    DeviceId = deviceId,
                     AppVersion = string.IsNullOrEmpty(session.Version) ? "1.0.0" : session.Version,
                 }).ConfigureAwait(false);
             }
