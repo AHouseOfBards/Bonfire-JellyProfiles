@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Jellyfin.Profiles.Configuration;
 using Jellyfin.Profiles.Controllers;
 using MediaBrowser.Common.Configuration;
@@ -38,10 +39,31 @@ namespace Jellyfin.Profiles
         internal static void TripPanicDisable() => _panicDisabled = true;
 
         public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
+            : this(applicationPaths, xmlSerializer, RunningVersionText())
+        {
+        }
+
+        /// <summary>The version a harness plays; the public constructor passes the real one.</summary>
+        internal Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer, string runningVersion)
             : base(applicationPaths, xmlSerializer)
         {
             Instance = this;
             AppPaths = applicationPaths;
+
+            // Before anything in this start can save: the configuration is read lazily, on
+            // first use, and the first save is what overwrites the file.
+            BackUpIfVersionChanged(runningVersion);
+        }
+
+        private static string RunningVersionText()
+        {
+            var assembly = typeof(Plugin).Assembly;
+            var text = System.Reflection.CustomAttributeExtensions
+                .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(assembly)?.InformationalVersion
+                ?? assembly.GetName().Version?.ToString()
+                ?? "unknown";
+            var plus = text.IndexOf('+');
+            return plus > 0 ? text.Substring(0, plus) : text;
         }
 
         /// <summary>
@@ -144,6 +166,72 @@ namespace Jellyfin.Profiles
         }
 
         private static readonly object SaveAndCopyLock = new();
+
+        // ── A copy for every version change (R-1319) ────────────────────────────────
+        //
+        // The same idea as the last good copy, for the other way the file loses things: a
+        // rollback. An older version loads a file a newer one wrote, and its first save
+        // writes it back without every setting it doesn't know, so upgrading again finds
+        // them gone. Nothing kept a copy.
+        //
+        // The version that last ran is written beside the file (<file>.version). When the
+        // running one differs, the file is copied to <file>.<that version>.bak, named for the
+        // version that wrote it, before anything in this start can save. Beside the last good
+        // copy and taken under the same lock; the newest few are kept.
+
+        /// <summary>How many versioned copies are kept.</summary>
+        internal const int VersionBackupsKept = 3;
+
+        private void BackUpIfVersionChanged(string runningVersion)
+        {
+            try
+            {
+                lock (SaveAndCopyLock)
+                {
+                    var path = ConfigurationFilePath;
+                    var marker = path + ".version";
+                    var previous = System.IO.File.Exists(marker) ? System.IO.File.ReadAllText(marker).Trim() : string.Empty;
+                    if (string.Equals(previous, runningVersion, StringComparison.Ordinal)) return;
+
+                    if (System.IO.File.Exists(path))
+                    {
+                        // A file from a build that never wrote its version down: the version
+                        // that wrote it is unknown, so the copy says what it was taken before.
+                        var label = previous.Length > 0 ? previous : "before-" + runningVersion;
+                        var bak = path + "." + SafeLabel(label) + ".bak";
+                        System.IO.File.Copy(path, bak, overwrite: true);
+                        System.IO.File.SetLastWriteTimeUtc(bak, DateTime.UtcNow);
+                        PruneVersionBackups(path);
+                    }
+
+                    System.IO.File.WriteAllText(marker, runningVersion);
+                }
+            }
+            catch (Exception)
+            {
+                // A copy that couldn't be made must not stop the plugin loading. The next
+                // start tries again, because the version was not written down.
+            }
+        }
+
+        private static string SafeLabel(string label)
+        {
+            var chars = label.Select(c => char.IsLetterOrDigit(c) || c == '.' || c == '-' ? c : '_').ToArray();
+            return new string(chars);
+        }
+
+        private static void PruneVersionBackups(string configurationPath)
+        {
+            var folder = System.IO.Path.GetDirectoryName(configurationPath)!;
+            var pattern = System.IO.Path.GetFileName(configurationPath) + ".*.bak";
+            var old = new System.IO.DirectoryInfo(folder).GetFiles(pattern)
+                .OrderByDescending(f => f.LastWriteTimeUtc).ThenByDescending(f => f.Name, StringComparer.Ordinal)
+                .Skip(VersionBackupsKept);
+            foreach (var file in old)
+            {
+                try { file.Delete(); } catch (Exception) { /* left for the next start */ }
+            }
+        }
 
         /// <summary>
         /// A configuration with no households, devices, Bonfires or links: what Jellyfin's

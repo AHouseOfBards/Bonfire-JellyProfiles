@@ -93,6 +93,14 @@ If Bonfire's script doesn't load at all, the code can't run. Restart Jellyfin or
 the plugin folder. See [Limitations](limitations.md) for what the code
 does and doesn't unlock.
 
+## I rolled Bonfire back and my settings are gone
+
+An older version drops settings it doesn't know when it saves. Each time the version
+changes, Bonfire first copies `PluginConfiguration.xml` to
+`PluginConfiguration.xml.<version>.bak`, in the same folder (`plugins/configurations`).
+The last three are kept. To get a newer version's settings back, stop Jellyfin, copy that
+file over `PluginConfiguration.xml`, and start the newer version.
+
 ## Where do I get avatars?
 
 Bonfire includes thirty starter avatars from Microsoft's Fluent Emoji. You can turn them

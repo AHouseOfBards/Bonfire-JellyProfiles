@@ -89,7 +89,73 @@ var orphan = new Plugin(new StubPaths(nothing), new RealXml());
 Ok("with no good copy to go back to it starts empty", orphan.Configuration.Mappings.Count == 0);
 Ok("but the unreadable file is still kept", Directory.GetFiles(nothing, "*.unreadable-*").Length == 1);
 
-foreach (var d in new[] { dir, fresh, cleared, nothing }) { try { Directory.Delete(d, true); } catch { } }
+Console.WriteLine();
+Console.WriteLine("── A different version starts: the file is copied first (R-1319) ──");
+
+// Rolling the plugin back loads a file written by a newer one, and the first save writes it
+// back without every setting the older version doesn't know. Re-upgrading then finds them
+// gone. Nothing kept a copy. The version that last ran is written down beside the file, and
+// when the running version differs, the file is copied to <file>.<old version>.bak before
+// anything in this start can save. The newest few are kept.
+//
+// The version comes from an internal constructor so this can play several; against a build
+// without it, the public one is used and the version never changes, which is the bug.
+Plugin AtVersion(string folder, string version)
+{
+    var ctor = typeof(Plugin).GetConstructor(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null,
+        new[] { typeof(MediaBrowser.Common.Configuration.IApplicationPaths), typeof(MediaBrowser.Model.Serialization.IXmlSerializer), typeof(string) }, null);
+    return ctor != null
+        ? (Plugin)ctor.Invoke(new object[] { new StubPaths(folder), new RealXml(), version })
+        : new Plugin(new StubPaths(folder), new RealXml());
+}
+string[] Backups(string folder) => Directory.GetFiles(folder, "*.bak").Select(Path.GetFileName).OrderBy(n => n).ToArray();
+
+var vdir = NewDir();
+var v18 = AtVersion(vdir, "1.8.0");
+v18.Configuration.Mappings.Add(new ProfileMapping { ProfileUserId = HOUSE, MasterUserId = HOUSE, ProfileName = "Bard" });
+v18.Configuration.Mappings.Add(new ProfileMapping { ProfileUserId = KID, MasterUserId = HOUSE, ProfileName = "kids" });
+v18.Configuration.MaxProfilesPerUser = 9;   // a setting the older version won't have
+v18.SaveConfiguration();
+var vpath = v18.ConfigurationFilePath;
+var as18 = File.ReadAllText(vpath);
+Ok("a first start has nothing to copy", Backups(vdir).Length == 0, string.Join(",", Backups(vdir)));
+
+var again18 = AtVersion(vdir, "1.8.0");
+Ok("the same version starting again copies nothing", Backups(vdir).Length == 0, string.Join(",", Backups(vdir)));
+
+// Rolled back to 1.7.9, which saves a smaller file.
+var v17 = AtVersion(vdir, "1.7.9");
+var bak18 = Backups(vdir).Where(n => n.Contains("1.8.0")).ToArray();
+Ok("rolling back copies the file the newer version wrote, named for it", bak18.Length == 1, string.Join(",", Backups(vdir)));
+Ok("as it was, before anything could save", bak18.Length == 1 && File.ReadAllText(Path.Combine(vdir, bak18[0])) == as18);
+v17.Configuration.Mappings.Clear();
+v17.Configuration.MaxProfilesPerUser = 5;
+v17.SaveConfiguration();
+Ok("the older version's save does lose them from the live file", !File.ReadAllText(vpath).Contains(KID.ToString()));
+Ok("the copy still has the households and the setting",
+   bak18.Length == 1 && File.ReadAllText(Path.Combine(vdir, bak18[0])).Contains(KID.ToString())
+   && new RealXml().DeserializeFromFile(typeof(PluginConfiguration), Path.Combine(vdir, bak18[0])) is PluginConfiguration old && old.MaxProfilesPerUser == 9);
+
+// Upgraded again: the copy of the 1.7.9 file is added, the 1.8.0 one stays.
+AtVersion(vdir, "1.8.0");
+Ok("upgrading again keeps the first copy and adds the other",
+   Backups(vdir).Any(n => n.Contains("1.8.0")) && Backups(vdir).Any(n => n.Contains("1.7.9")), string.Join(",", Backups(vdir)));
+
+// Bounded.
+foreach (var ver in new[] { "1.9.0", "1.9.1", "1.9.2", "1.9.3", "1.9.4" }) AtVersion(vdir, ver);
+Ok("only the newest few copies are kept", Backups(vdir).Length is > 0 and <= 3, Backups(vdir).Length + ": " + string.Join(",", Backups(vdir)));
+Ok("and the newest is the one just made", Backups(vdir).Any(n => n.Contains("1.9.3")), string.Join(",", Backups(vdir)));
+
+// A file from a build that never wrote the version down.
+var legacy = NewDir();
+var seed = AtVersion(legacy, "1.0.0");
+seed.Configuration.Mappings.Add(new ProfileMapping { ProfileUserId = HOUSE, MasterUserId = HOUSE, ProfileName = "Bard" });
+seed.SaveConfiguration();
+File.Delete(seed.ConfigurationFilePath + ".version");
+AtVersion(legacy, "2.0.0");
+Ok("a file from before the version was recorded is copied too", Backups(legacy).Length == 1, string.Join(",", Backups(legacy)));
+
+foreach (var d in new[] { dir, fresh, cleared, nothing, vdir, legacy }) { try { Directory.Delete(d, true); } catch { } }
 
 Console.WriteLine();
 Console.WriteLine($"{passed} passed, {failed} failed");
