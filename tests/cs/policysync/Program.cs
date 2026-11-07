@@ -367,6 +367,101 @@ Console.WriteLine("── Schedules, limits and permissions ──────�
     Ok("narrowing the main account's hours narrows the profile's",
        w?.AccessSchedules?.Length == 1 && w.AccessSchedules[0].StartHour == 9 && w.AccessSchedules[0].EndHour == 17);
 
+    // ── Hours changed in Dashboard -> Users (R-1345) ────────────────────────
+    // Every sign-in used to replace the profile's hours with its main account's, so a
+    // narrower schedule an administrator set on the profile was lost. Bonfire now records
+    // what it last wrote, the way it does for libraries.
+    Console.WriteLine("  -- hours changed in Dashboard -> Users (R-1345) --");
+    var schedLast = mapType.GetProperty("LastAppliedSchedules");
+    var schedOwn = mapType.GetProperty("OwnSchedules");
+    object SRow(Guid id) => mappings.Cast<object>().First(m => (Guid)mapType.GetProperty("ProfileUserId").GetValue(m) == id);
+    string Hours(Guid id) => string.Join(",", (world.Policies[id].AccessSchedules ?? Array.Empty<AccessSchedule>())
+        .Select(s => (int)s.DayOfWeek + ":" + s.StartHour + "-" + s.EndHour).OrderBy(x => x));
+    void AdminHours(Guid id, params (int start, int end)[] windows)
+    {
+        var pol = World.Copy(world.Policies[id]);
+        pol.AccessSchedules = windows.Select(x => Sched(id, x.start, x.end)).ToArray();
+        world.Policies[id] = pol;
+    }
+    void MasterHours(Guid profile, params (int start, int end)[] windows)
+    {
+        var pol = World.Copy(world.Policies[world.Masters[profile]]);
+        pol.AccessSchedules = windows.Select(x => Sched(world.Masters[profile], x.start, x.end)).ToArray();
+        world.Policies[world.Masters[profile]] = pol;
+    }
+
+    Ok("the mapping records the hours Bonfire last applied, and the profile's own", schedLast != null && schedOwn != null);
+    var hp = Household(Policy(u => { u.EnableAllFolders = true; u.AccessSchedules = new[] { Sched(mid, 8, 20) }; }),
+                       Policy(u => u.EnableAllFolders = true), all: true);
+    Apply(hp);
+    Ok("the first sign-in records what it applied (" + string.Join(",", schedLast?.GetValue(SRow(hp)) as List<string> ?? new()) + ")",
+       schedLast != null && ((schedLast.GetValue(SRow(hp)) as List<string>)?.Count ?? 0) == 1);
+
+    AdminHours(hp, (10, 18));
+    Apply(hp);
+    Ok("a narrower schedule an administrator set holds (" + Hours(hp) + ")", Hours(hp) == "7:10-18");
+    Apply(hp);
+    Ok("and holds at the sign-in after (" + Hours(hp) + ")", Hours(hp) == "7:10-18");
+
+    MasterHours(hp, (9, 17));
+    Apply(hp);
+    Ok("while the main account tightening still reaches it: never wider than the main account's (" + Hours(hp) + ")", Hours(hp) == "7:10-17");
+
+    AdminHours(hp, (6, 22));
+    Apply(hp);
+    Ok("an administrator can't widen it past the main account's (" + Hours(hp) + ")", Hours(hp) == "7:9-17");
+
+    // A reset: Jellyfin's default is no schedule at all.
+    var rp = Household(Policy(u => { u.EnableAllFolders = true; u.AccessSchedules = new[] { Sched(mid, 8, 20) }; }),
+                       Policy(u => u.EnableAllFolders = true), all: true);
+    Apply(rp);
+    AdminHours(rp);
+    Apply(rp);
+    Ok("a reset account is repaired to the main account's hours (" + Hours(rp) + ")", Hours(rp) == "7:8-20");
+    AdminHours(rp, (10, 18)); Apply(rp);
+    AdminHours(rp);
+    Apply(rp);
+    Ok("and a profile with hours of its own keeps them through a reset (" + Hours(rp) + ")", Hours(rp) == "7:10-18");
+
+    // A main account that has no hours: the administrator's are the only ones.
+    var np = Household(Policy(u => u.EnableAllFolders = true), Policy(u => u.EnableAllFolders = true), all: true);
+    Apply(np);
+    AdminHours(np, (15, 19));
+    Apply(np);
+    Ok("with a main account that has none, the administrator's hold (" + Hours(np) + ")", Hours(np) == "7:15-19");
+
+    // An old configuration: no record. Today's rule once, then recorded.
+    var op = Household(Policy(u => { u.EnableAllFolders = true; u.AccessSchedules = new[] { Sched(mid, 8, 20) }; }),
+                       Policy(u => { u.EnableAllFolders = true; u.AccessSchedules = new[] { Sched(Guid.Empty, 10, 18) }; }), all: true);
+    schedLast?.SetValue(SRow(op), null);
+    Apply(op);
+    Ok("an old configuration with no record keeps today's behaviour once (" + Hours(op) + ")", Hours(op) == "7:8-20");
+    Ok("and is recorded", schedLast != null && (schedLast.GetValue(SRow(op)) as List<string>)?.Count == 1);
+    AdminHours(op, (10, 18));
+    Apply(op);
+    Ok("after which an administrator's schedule holds there too (" + Hours(op) + ")", Hours(op) == "7:10-18");
+
+    var sx = new System.Xml.Serialization.XmlSerializer(cfgType);
+    var scfg = Activator.CreateInstance(cfgType);
+    var srow = Activator.CreateInstance(mapType);
+    mapType.GetProperty("ProfileUserId").SetValue(srow, Guid.NewGuid());
+    schedLast?.SetValue(srow, new List<string> { "7:8-20" });
+    schedOwn?.SetValue(srow, new List<string> { "7:10-18" });
+    ((IList)cfgType.GetProperty("Mappings").GetValue(scfg)).Add(srow);
+    var ssw = new StringWriter();
+    sx.Serialize(ssw, scfg);
+    var sback = ((IList)cfgType.GetProperty("Mappings").GetValue(sx.Deserialize(new StringReader(ssw.ToString()))))[0];
+    Ok("both survive a save and a load", schedLast != null && (schedLast.GetValue(sback) as List<string>)?.SequenceEqual(new[] { "7:8-20" }) == true
+       && (schedOwn.GetValue(sback) as List<string>)?.SequenceEqual(new[] { "7:10-18" }) == true);
+    var sold = System.Text.RegularExpressions.Regex.Replace(ssw.ToString(), @"<(LastAppliedSchedules|OwnSchedules)>.*?</\1>", "",
+        System.Text.RegularExpressions.RegexOptions.Singleline);
+    object soldBack = null;
+    try { soldBack = sx.Deserialize(new StringReader(sold)); } catch (Exception ex) { Console.WriteLine("    " + ex.Message); }
+    var soldRow = soldBack == null ? null : ((IList)cfgType.GetProperty("Mappings").GetValue(soldBack))[0];
+    Ok("a configuration saved before they existed loads", soldRow != null && !sold.Contains("Schedules>"));
+    Ok("and arrives with no record (XmlSerializer gives an empty list, which must read as none)",
+       soldRow != null && ((schedLast?.GetValue(soldRow) as List<string>)?.Count ?? 0) == 0);
+
     p = Household(Policy(u => { u.EnableAllFolders = true; u.RemoteClientBitrateLimit = 8_000_000; u.MaxActiveSessions = 3; }),
                   Policy(u => { u.EnableAllFolders = true; u.RemoteClientBitrateLimit = 0; u.MaxActiveSessions = 1; }), all: true);
     Apply(p);

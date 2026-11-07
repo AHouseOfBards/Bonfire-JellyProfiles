@@ -964,6 +964,25 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public List<Guid>? LastAppliedFolders { get; set; }
 
+        /// <summary>
+        /// The access schedule Bonfire last wrote to the profile's account, one entry per row
+        /// as "day:start-end" (R-1345). The same job as <see cref="LastAppliedFolders"/>: an
+        /// account that still matches it has not been touched, one that differs was changed
+        /// in Dashboard -> Users. Null on a configuration from before this existed; the first
+        /// sign-in then behaves as it always did (the main account's schedule) and records it.
+        /// An empty list is a real record: the main account had no schedule.
+        /// </summary>
+        public List<string>? LastAppliedSchedules { get; set; }
+
+        /// <summary>
+        /// The schedule an administrator set on the profile's account, adopted at a sign-in
+        /// (R-1345). It is kept here because Bonfire writes the account's schedule from the
+        /// main account's at every sign-in; without this copy the next sign-in would see its
+        /// own write and fall back to the main account's. Empty or null: the profile has none
+        /// of its own and follows the main account. Never wider than the main account's.
+        /// </summary>
+        public List<string>? OwnSchedules { get; set; }
+
         /// <summary>A copy for <see cref="PluginConfiguration.SnapshotForReading"/>.</summary>
         public ProfileMapping CopyForReading()
         {
@@ -973,6 +992,8 @@ namespace Jellyfin.Profiles.Configuration
             copy.AllowedDeviceIds = AllowedDeviceIds?.ToList() ?? new List<string>();
             copy.EnabledFolders = EnabledFolders?.ToList();
             copy.LastAppliedFolders = LastAppliedFolders?.ToList();
+            copy.LastAppliedSchedules = LastAppliedSchedules?.ToList();
+            copy.OwnSchedules = OwnSchedules?.ToList();
             copy.BlockedTags = BlockedTags?.ToList();
             copy.AllowedTags = AllowedTags?.ToList();
             copy.LibraryArtwork = LibraryArtwork?.ToList() ?? new List<LibraryArtwork>();

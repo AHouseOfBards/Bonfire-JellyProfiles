@@ -89,6 +89,8 @@ namespace Jellyfin.Profiles.Auth
             var childBlockedFolders = targetPolicy.BlockedMediaFolders;
             var childEnableAllFolders = targetPolicy.EnableAllFolders;
             var childEnabledFolders = targetPolicy.EnabledFolders;
+            var accountSchedules = (targetPolicy.AccessSchedules ?? Array.Empty<Jellyfin.Database.Implementations.Entities.AccessSchedule>())
+                .Select(ScheduleReconciler.Of).ToList();
             var accountLimits = LimitsOf(targetPolicy);
 
             ProfilesBaseController.CopyUserPolicy(masterPolicy, targetPolicy, targetUser.Id);
@@ -125,6 +127,19 @@ namespace Jellyfin.Profiles.Auth
                 ProfilesBaseController.ResolveTagPolicy(masterPolicy, mapping.BlockedTags, mapping.AllowedTags);
             targetPolicy.BlockedTags = reapplyBlockedTags;
             targetPolicy.AllowedTags = reapplyAllowedTags;
+
+            // CopyUserPolicy just replaced the profile's access schedule with the main account's,
+            // which lost a narrower one an administrator set in Dashboard -> Users (R-1345).
+            // Same fix as the libraries' (R-1042): what Bonfire last wrote is on the mapping, an
+            // account that differs from it was changed by somebody and is adopted, never wider
+            // than the main account's. See ScheduleReconciler.
+            var schedules = ScheduleReconciler.Resolve(
+                (masterPolicy.AccessSchedules ?? Array.Empty<Jellyfin.Database.Implementations.Entities.AccessSchedule>())
+                    .Select(ScheduleReconciler.Of),
+                accountSchedules, mapping.LastAppliedSchedules, mapping.OwnSchedules);
+            targetPolicy.AccessSchedules = schedules.Applied
+                .Select(w => new Jellyfin.Database.Implementations.Entities.AccessSchedule(w.Day, w.Start, w.End, targetUser.Id))
+                .ToArray();
 
             var masterAccessible = ProfilesBaseController.MasterAccessibleFolders(libraryManager, masterPolicy);
 
@@ -287,6 +302,24 @@ namespace Jellyfin.Profiles.Auth
                         || !live.LastAppliedFolders.ToHashSet().SetEquals(authorityFolders))
                     {
                         live.LastAppliedFolders = authorityFolders.ToList();
+                        changed = true;
+                    }
+
+                    // What was just written, so the next sign-in can tell an administrator's
+                    // change from this write (R-1345). Own is what the profile keeps of its
+                    // own; null while it has none, so a configuration stays as it was.
+                    if (live.LastAppliedSchedules == null
+                        || !live.LastAppliedSchedules.ToHashSet().SetEquals(schedules.Record))
+                    {
+                        live.LastAppliedSchedules = schedules.Record.ToList();
+                        changed = true;
+                    }
+
+                    var ownNow = schedules.Own.Count > 0 ? schedules.Own.ToList() : null;
+                    if ((live.OwnSchedules?.Count ?? 0) != (ownNow?.Count ?? 0)
+                        || (ownNow != null && !ownNow.ToHashSet().SetEquals(live.OwnSchedules!)))
+                    {
+                        live.OwnSchedules = ownNow;
                         changed = true;
                     }
 
