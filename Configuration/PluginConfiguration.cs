@@ -970,7 +970,8 @@ namespace Jellyfin.Profiles.Configuration
         /// account that still matches it has not been touched, one that differs was changed
         /// in Dashboard -> Users. Null on a configuration from before this existed; the first
         /// sign-in then behaves as it always did (the main account's schedule) and records it.
-        /// An empty list is a real record: the main account had no schedule.
+        /// XmlSerializer loads an absent element as an empty list, so empty also means no
+        /// record; "the main account had no schedule" is stored as ScheduleReconciler.NoneMarker.
         /// </summary>
         public List<string>? LastAppliedSchedules { get; set; }
 
