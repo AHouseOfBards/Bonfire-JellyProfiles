@@ -447,6 +447,12 @@ unrecognised device gets Jellyfin's answer unchanged. Device limits apply.
 Android TV and Jellyfin for Android send a device id derived from the signed-in user. Both
 forms are recognised.
 
+With `enableClientPinLogin` on, a request with no token from a Roku a household uses also
+signs out that Roku's saved sign-ins for the household's profiles that have a PIN. The Roku
+app then asks for the PIN instead of reusing them. This happens whether or not
+`enableClientProfileList` is on. A profile whose owner skips its PIN on the home network
+keeps its saved sign-in when the request is local.
+
 ### `GET /Users/Me` and `POST /Users/AuthenticateByName`
 
 A profile's `Name` is reported as the name its household gave it, `kids` rather than
