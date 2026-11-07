@@ -7023,10 +7023,13 @@
                         return;
                     }
 
+                    // What is typed in the box comes first. "Clear PIN" empties the field
+                    // but leaves it on screen, and the clear used to be checked first: a
+                    // parent who cleared and then typed a new PIN saved an unprotected
+                    // profile and was told it had worked (R-1214). Clear means "no PIN"
+                    // only while the box is still empty.
                     let pin = null;
-                    if (isPinCleared) {
-                        pin = ''; // Tells backend to clear the PIN
-                    } else if (pinVal) {
+                    if (pinVal) {
                         if (!/^\d+$/.test(pinVal)) {
                             showPinError(t('profileForm.pinMustBeDigits'));
                             return;
@@ -7036,6 +7039,8 @@
                             return;
                         }
                         pin = pinVal;
+                    } else if (isPinCleared) {
+                        pin = ''; // Tells backend to clear the PIN
                     }
 
                     const updateUrl = apiClient.getUrl('plugins/profiles/update');
