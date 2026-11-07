@@ -401,6 +401,35 @@ Ok("a display name and the right PIN resolve to the real account",
 Ok("and the wrong PIN is still refused",
    TryName("kids", "4822") == "!AuthenticationException");
 
+// A main account turned off in Dashboard -> Users shuts its profiles too (R-1135). Jellyfin
+// checks the account being signed into, which is the profile's and was never turned off.
+var offMaster = MakeUser(MASTER, "bard");
+Jellyfin.Data.UserEntityExtensions.SetPermission(offMaster, Jellyfin.Database.Implementations.Enums.PermissionKind.IsDisabled, true);
+UserManagerStub.Add(MASTER, offMaster);
+Ok("with the main account turned off, the profile's PIN no longer opens it",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
+Ok("nor by its display name", TryName("kids", "4821") == "!AuthenticationException");
+UserManagerStub.Add(MASTER, MakeUser(MASTER, "bard"));
+Ok("turned back on, it opens again", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+
+// /switch asks the same question through ProfilesBaseController.MainAccountDisabled.
+{
+    var mapT = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);
+    var baseT = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController", true);
+    var check = baseT.GetMethod("MainAccountDisabled", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+    var row = Activator.CreateInstance(mapT);
+    mapT.GetProperty("MasterUserId").SetValue(row, MASTER);
+    mapT.GetProperty("ProfileUserId").SetValue(row, KID);
+    var mgr = UserManagerStub.Create();
+    bool Off() => (bool)check.Invoke(null, new object[] { mgr, row });
+    Ok("/switch: a profile of a household that is on is not refused", !Off());
+    UserManagerStub.Add(MASTER, offMaster);
+    Ok("/switch: a profile whose main account is turned off is refused", Off());
+    mapT.GetProperty("ProfileUserId").SetValue(row, MASTER);
+    Ok("/switch: the main account's own row is judged by its own flag, not this", !Off());
+    UserManagerStub.Add(MASTER, MakeUser(MASTER, "bard"));
+}
+
 // The full system username keeps working — Jellyfin resolves it itself and never reaches
 // this path, but a client that remembers the old name must not break.
 Ok("the system username still opens the profile",
@@ -1393,6 +1422,19 @@ public class UserManagerStub : DispatchProxy
 
     protected override object? Invoke(MethodInfo targetMethod, object?[]? args)
     {
+        if (targetMethod.Name == "GetUserDto")
+        {
+            // Only what ProfilesBaseController.MainAccountDisabled reads.
+            return new MediaBrowser.Model.Dto.UserDto
+            {
+                Policy = new MediaBrowser.Model.Users.UserPolicy
+                {
+                    IsDisabled = Jellyfin.Data.UserEntityExtensions.HasPermission(
+                        (User)args![0]!, Jellyfin.Database.Implementations.Enums.PermissionKind.IsDisabled),
+                },
+            };
+        }
+
         if (targetMethod.Name != "GetUserById")
         {
             throw new NotSupportedException(

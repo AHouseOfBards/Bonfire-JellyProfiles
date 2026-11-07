@@ -805,6 +805,16 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest("This profile's account is turned off on the server.");
             }
 
+            // Nor does turning off the main account: a profile's own account is never the one
+            // that was turned off, so its profiles stayed enterable (R-1135).
+            if (MainAccountDisabled(_userManager, mapping))
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: refused a switch into {ProfileId}, whose main account is disabled.",
+                    request.ProfileId);
+                return BadRequest("This profile's main account is turned off on the server.");
+            }
+
             // Inherit/synchronize streaming policies and configurations from master user dynamically during switch
             var targetMasterUserId = mapping != null ? mapping.MasterUserId : request.ProfileId;
             var masterUser = _userManager.GetUserById(targetMasterUserId);

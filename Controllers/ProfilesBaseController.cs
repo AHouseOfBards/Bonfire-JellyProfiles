@@ -94,6 +94,22 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
+        /// True when <paramref name="mapping"/> is a sub-profile whose main account is turned
+        /// off in Dashboard -> Users.
+        /// </summary>
+        internal static bool MainAccountDisabled(IUserManager users, ProfileMapping? mapping)
+        {
+            // A master's own row, or none, is the account itself: its own IsDisabled is the
+            // check, and the callers make it. Turning a main account off never touched its
+            // profiles' accounts, which were checked alone, so they stayed enterable by PIN
+            // and by the switcher (R-1135). A master that can't be found is not "disabled":
+            // this only ever removes access, it does not invent a refusal.
+            if (mapping == null || mapping.MasterUserId == mapping.ProfileUserId) return false;
+            var master = users.GetUserById(mapping.MasterUserId);
+            return master != null && users.GetUserDto(master, string.Empty).Policy?.IsDisabled == true;
+        }
+
+        /// <summary>
         /// Should a switch to <paramref name="targetUserId"/> rewrite that account's policy
         /// from its master's? True only for a genuine sub-profile.
         /// </summary>
