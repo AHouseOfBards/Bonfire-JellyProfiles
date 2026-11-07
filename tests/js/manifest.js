@@ -151,6 +151,17 @@ ok('the release workflow rejects a checksum that already belongs to another vers
 ok('and says so as an error rather than a warning',
    /same checksum as/.test(wf) && /::error::/.test(wf));
 
+console.log('\n── Withdrawn versions stay withdrawn ───────────────────────────');
+
+// 1.6.1.2 and 1.6.1.3 blanked every sub-profile's authentication provider id
+// (ProfilesBootstrapTask, gone at 1.6.1.4), which took down user lookup for a whole
+// 40-user server and needed manual SQL to undo. Jellyfin's plugin page offers every listed
+// version as a rollback, so a version that can do that must not be listed (R-1317).
+const WITHDRAWN = ['1.6.1.2', '1.6.1.3'];
+WITHDRAWN.forEach(function (bad) {
+    ok(bad + ' is not offered', !versions.some(function (v) { return v.version === bad; }));
+});
+
 console.log('');
 if (fails.length) {
     fails.forEach(function (f) { console.log('   - ' + f); });

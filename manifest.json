@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.7.2.1",
+        "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- Picking a profile after restarting the app failed at the session limit and looped back to the picker. (#41)\n- A refused switch now says why: too many sessions, or not allowed on this device.\n- Typing a long PIN used up its tries before it was finished.\n- A PIN typed after \"Clear PIN\" was dropped.\n- A rejected profile picture deleted the one the profile had.\n- Bonfire did nothing on servers with a Base URL, or behind an HTTPS proxy with \"Require HTTPS\" on.\n- A library removed from a profile in Dashboard -> Users came back at its next sign-in.\n- Turning off a main account in Jellyfin left its profiles open.\n- Restoring a backup dropped email, maintenance and several other settings.\n- A TV signed out in Jellyfin kept its profile picker.\n- Downloads ignored viewing limits.\n\n**Changed**\n\n- PIN tries are shared across an account: 5 per 15 minutes and 20 a day. An administrator can lower the daily number.\n- On other apps, a PIN only works on a device your household has signed in on, and a profile with no PIN only opens from your home network. An administrator can allow it from anywhere.\n- Making an account into a profile now asks whether deleting the profile later keeps the account.\n- A profile can't be named after a real account.\n- Versions 1.6.1.2 and 1.6.1.3 are no longer offered: they could break sign-in for the whole server.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.2.1/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-11-07T00:00:00Z"
+      },
+      {
         "version": "1.7.1.2",
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Added**\n\n- Moonfin: sign in with the main account and pick a profile on the home screen. Turn it on under TVs & Apps.\n- For app developers: `GET /plugins/profiles/info`, and an error code on every error.\n\n**Changed**\n\n- A signed-in user refused an action now gets 403, not 401.\n\n**Fixed**\n\n- A Roku opened a profile without asking for its PIN. (#40)",
         "targetAbi": "10.11.0.0",
@@ -183,22 +191,6 @@
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.1.4/Jellyfin.Profiles.zip",
         "checksum": "410eddb31f2f5704cd12a0fe55347090",
         "timestamp": "2026-09-10T03:38:46Z"
-      },
-      {
-        "version": "1.6.1.3",
-        "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- The Android TV app crashed after signing in when \"Show profiles on an app's sign-in screen\" was turned on.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.1.3/Jellyfin.Profiles.zip",
-        "checksum": "9607dbed91ed9b77969511debafc67b4",
-        "timestamp": "2026-09-09T19:51:46Z"
-      },
-      {
-        "version": "1.6.1.2",
-        "changelog": "**Beta release** - please report issues on GitHub.\n\n**Added**\n\n- Televisions and other apps can now offer your profiles on their own sign-in screen, and open one with its PIN. Two new settings under Dashboard -> Bonfire, both off until you turn them on.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.1.2/Jellyfin.Profiles.zip",
-        "checksum": "46b8c0598fa1a987d8176e491a52121c",
-        "timestamp": "2026-09-09T19:35:17Z"
       },
       {
         "version": "1.6.1.1",
