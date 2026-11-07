@@ -4943,6 +4943,93 @@
             }
         },
 
+        /// How long the PIN box waits after the last digit before checking what was typed.
+        PIN_PAUSE_MS: 1500,
+
+        /// Checks a PIN box by itself once the typing stops, so a right PIN opens without
+        /// Enter. Shared by the profile PIN and the main PIN.
+        ///
+        /// Both boxes used to POST verify-pin on every keystroke from the fourth digit on.
+        /// The server counts every one of those as a guess — it has to, or a "silent" check
+        /// would be a free way to try PINs — so an eight-digit PIN typed correctly spent four
+        /// wrong prefixes first, and one typo on top of that reached the lockout: a "PIN is
+        /// locked" activity line and a PinLocked email for somebody who knew their PIN, and
+        /// a fifth of the account's twenty guesses a day gone. Now it is one check per pause
+        /// (or at once when the box is full), never the same value twice, and none at all
+        /// after a 429.
+        ///
+        /// opts: send(pin) → fetch promise; busy() → true while a switch is underway;
+        /// onRight(pin); onLocked(serverText).
+        /// Returns { input, cancel, hold, takeRefusal(pin) }. takeRefusal hands back the server's
+        /// answer if this exact value was just refused, so Enter can show it rather than
+        /// spend another guess on the same digits; it is used once, so retyping asks again.
+        _pinAutoCheck: function (pinInput, opts) {
+            const refused = new Map();
+            let timer = null;
+            let stopped = false;
+            let pending = null;
+
+            const check = () => {
+                timer = null;
+                const pin = pinInput.value;
+                if (stopped || pin.length < 4 || opts.busy() || pin === pending || refused.has(pin)) return;
+                pending = pin;
+                opts.send(pin)
+                    .then(res => {
+                        if (pending === pin) pending = null;
+                        if (res.status === 401) { this.handleSessionExpired(); return null; }
+                        if (res.ok) {
+                            // Typed on past it while the answer was coming: the box no longer
+                            // holds a right PIN, and Enter will send what it does hold.
+                            if (!stopped && pinInput.value === pin) opts.onRight(pin);
+                            return null;
+                        }
+                        return res.text().then(text => {
+                            const body = (text || '').trim();
+                            if (res.status === 429) {
+                                // Locked. Every further check would be refused and counted
+                                // nowhere useful; say so and stop.
+                                stopped = true;
+                                if (timer) { clearTimeout(timer); timer = null; }
+                                opts.onLocked(body);
+                                return;
+                            }
+                            refused.set(pin, body);
+                        });
+                    })
+                    .catch(() => {
+                        // Network trouble: nothing learned. Enter still works.
+                        if (pending === pin) pending = null;
+                    });
+            };
+
+            const full = pinInput.maxLength > 0 ? pinInput.maxLength : 8;
+            return {
+                input: () => {
+                    if (timer) { clearTimeout(timer); timer = null; }
+                    if (stopped) return;
+                    const n = pinInput.value.length;
+                    if (n < 4) return;
+                    // Nothing more can be typed, so there is nothing to wait for.
+                    if (n >= full) check();
+                    else timer = setTimeout(check, this.PIN_PAUSE_MS);
+                },
+                cancel: () => {
+                    if (timer) { clearTimeout(timer); timer = null; }
+                    stopped = true;
+                },
+                takeRefusal: (pin) => {
+                    if (!refused.has(pin)) return undefined;
+                    const body = refused.get(pin);
+                    refused.delete(pin);
+                    return body;
+                },
+                // Enter is the person saying they are done: the pending pause has no more
+                // to tell us.
+                hold: () => { if (timer) { clearTimeout(timer); timer = null; } }
+            };
+        },
+
         promptPinEntry: function (profileId) {
             this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
@@ -4962,9 +5049,7 @@
             const errorMsg = document.getElementById('pin-error-msg');
             pinInput.focus();
 
-            // Track in-flight silent verify so we can cancel it if the user keeps typing,
-            // and prevent a second switch from firing if one is already in progress.
-            let verifyController = null;
+            // Prevents a second switch from firing if one is already in progress.
             let switchInProgress = false;
 
             const showPinError = (msg) => {
@@ -4985,54 +5070,45 @@
                 errorMsg.textContent = '';
             };
 
+            // Checked once the typing pauses — see _pinAutoCheck for why not per keystroke.
+            // A wrong answer shows nothing yet: the person may still be typing.
+            const auto = this._pinAutoCheck(pinInput, {
+                send: (pin) => {
+                    const masterState = this.readMasterState();
+                    if (!masterState) return Promise.reject(new Error('no master'));
+                    return fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
+                        method: 'POST',
+                        headers: this.jsonHeaders(masterState.token),
+                        body: JSON.stringify({ profileId: profileId, pin: pin })
+                    });
+                },
+                busy: () => switchInProgress || this._switchLock,
+                onRight: (pin) => {
+                    if (switchInProgress || this._switchLock) return;
+                    switchInProgress = true;
+                    this.executeProfileSwitch(profileId, pin, () => {
+                        // Verify said OK but switch failed (edge case) — reset silently
+                        switchInProgress = false;
+                    });
+                },
+                onLocked: (msg) => showPinError(msg || t('pin.incorrectPin'))
+            });
+
             pinInput.addEventListener('input', () => {
                 clearError();
-                const currentValue = pinInput.value;
-
-                // Need at least 4 digits, and don't fire another switch if one is underway
-                if (currentValue.length < 4 || switchInProgress || this._switchLock) return;
-
-                // Cancel any previous in-flight verify — only the latest keystroke matters
-                if (verifyController) verifyController.abort();
-                verifyController = typeof AbortController !== 'undefined' ? new AbortController() : null;
-
-                const masterState = this.readMasterState();
-                if (!masterState) return;
-
-                // Silent verify — no error shown on failure, user just keeps typing
-                fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
-                    method: 'POST',
-                    headers: this.jsonHeaders(masterState.token),
-                    body: JSON.stringify({ profileId: profileId, pin: currentValue }),
-                    signal: verifyController ? verifyController.signal : undefined
-                })
-                .then(res => {
-                    if (res.status === 401) {
-                        this.handleSessionExpired();
-                        return;
-                    }
-                    // Only proceed if PIN matched and nothing else already triggered a switch
-                    if (res.ok && !switchInProgress && !this._switchLock) {
-                        switchInProgress = true;
-                        this.executeProfileSwitch(profileId, currentValue, () => {
-                            // Verify said OK but switch failed (edge case) — reset silently
-                            switchInProgress = false;
-                        });
-                    }
-                })
-                .catch(err => {
-                    // AbortError = user typed another digit, a new verify is already in flight
-                    // Other errors (network) = ignore silently, user can still hit Enter
-                });
+                auto.input();
             });
 
             // Manual submit — only place where we show an error on wrong PIN
             const submitPin = () => {
                 if (switchInProgress || this._switchLock) return;
-                if (verifyController) verifyController.abort();
-                verifyController = null;
+                auto.hold();
                 const pin = pinInput.value;
                 if (!pin) return;
+                // Just checked and refused: the same digits again would only spend another
+                // of the account's guesses to hear the same answer.
+                const refusal = auto.takeRefusal(pin);
+                if (refusal !== undefined) { showPinError(refusal || t('pin.incorrectPin')); return; }
                 switchInProgress = true;
                 this.executeProfileSwitch(profileId, pin, (msg) => {
                     switchInProgress = false;
@@ -5046,7 +5122,7 @@
             });
 
             document.getElementById('pin-cancel-btn').addEventListener('click', () => {
-                if (verifyController) verifyController.abort();
+                auto.cancel();
                 this.isManageMode = false;
                 this.showProfileOverlay(this.currentProfiles);
             });
@@ -5074,7 +5150,6 @@
             const errorMsg = document.getElementById('master-pin-error-msg');
             pinInput.focus();
 
-            let verifyController = null;
             let verified = false; // prevent callback firing more than once
 
             const showPinError = (msg) => {
@@ -5097,47 +5172,42 @@
             // Manual submit — only place where we show an error on wrong master PIN
             let verifyInProgress = false;
 
+            // Checked once the typing pauses, not per keystroke — see _pinAutoCheck. Every
+            // prefix of the main PIN was a counted guess at the account's own PIN.
+            const auto = this._pinAutoCheck(pinInput, {
+                send: (pin) => {
+                    const masterState = this.readMasterState();
+                    if (!masterState) return Promise.reject(new Error('no master'));
+                    return fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
+                        method: 'POST',
+                        headers: this.jsonHeaders(masterState.token),
+                        body: JSON.stringify({ profileId: masterProfile.profileUserId, pin: pin })
+                    });
+                },
+                busy: () => verified || verifyInProgress,
+                onRight: (pin) => {
+                    if (verified || verifyInProgress) return;
+                    verified = true;
+                    this.masterPin = pin;
+                    callback();
+                },
+                onLocked: (msg) => showPinError(msg || t('pin.incorrectMasterPin'))
+            });
+
             pinInput.addEventListener('input', () => {
                 clearError();
-                const currentValue = pinInput.value;
-                if (currentValue.length < 4 || verified || verifyInProgress) return;
-
-                // Cancel previous in-flight verify — only the latest matters
-                if (verifyController) verifyController.abort();
-                verifyController = typeof AbortController !== 'undefined' ? new AbortController() : null;
-
-                const masterState = this.readMasterState();
-                if (!masterState) return;
-
-                // Silent verify — no error on failure, user keeps typing
-                fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
-                    method: 'POST',
-                    headers: this.jsonHeaders(masterState.token),
-                    body: JSON.stringify({ profileId: masterProfile.profileUserId, pin: currentValue }),
-                    signal: verifyController ? verifyController.signal : undefined
-                })
-                .then(res => {
-                    if (res.status === 401) {
-                        this.handleSessionExpired();
-                        return;
-                    }
-                    if (res.ok && !verified && !verifyInProgress) {
-                        verified = true;
-                        this.masterPin = currentValue;
-                        callback();
-                    }
-                })
-                .catch(() => {
-                    // AbortError or network error — ignore silently
-                });
+                auto.input();
             });
 
             const submitPin = () => {
                 if (verifyInProgress || verified) return;
-                if (verifyController) verifyController.abort();
-                verifyController = null;
+                auto.hold();
                 const pin = pinInput.value;
                 if (!pin) return;
+                // Just checked and refused: asking again spends another guess for the
+                // same answer.
+                const refusal = auto.takeRefusal(pin);
+                if (refusal !== undefined) { showPinError(refusal || t('pin.incorrectMasterPin')); return; }
                 const masterState = this.readMasterState();
                 if (!masterState) return;
 
@@ -5176,7 +5246,7 @@
             });
 
             document.getElementById('master-pin-cancel-btn').addEventListener('click', () => {
-                if (verifyController) verifyController.abort();
+                auto.cancel();
                 this.showProfileOverlay(this.currentProfiles);
             });
         },
