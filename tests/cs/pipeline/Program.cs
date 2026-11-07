@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Devices;
 using System.Collections.Generic;
@@ -45,6 +46,7 @@ var userManager = DispatchProxy.Create<IUserManager, ThrowingProxy>();
 var deviceManager = DispatchProxy.Create<IDeviceManager, ThrowingProxy>();
 var sessionManager = DispatchProxy.Create<MediaBrowser.Controller.Session.ISessionManager, ThrowingProxy>();
 var networkManager = DispatchProxy.Create<MediaBrowser.Common.Net.INetworkManager, ThrowingProxy>();
+var appHost = DispatchProxy.Create<MediaBrowser.Controller.IServerApplicationHost, AppHostProxy>();
 ((ThrowingProxy)(object)serverConfig).AnswerTo = "GetConfiguration";
 ((ThrowingProxy)(object)serverConfig).Answer = networkConfig;
 
@@ -93,7 +95,20 @@ async Task<Result> Run(string path, RequestDelegate downstream, Action<HttpConte
     // The user-list injection takes these; the index path this file exercises never
     // touches them, and both proxies throw on any call — so if that ever stops being true,
     // these tests say so loudly instead of quietly exercising a different path.
-    await middleware.Invoke(context, serverConfig, userManager, deviceManager, sessionManager, networkManager);
+    //
+    // Arguments are matched to Invoke's parameters by type, so the harness builds against
+    // an older middleware (which does not take IServerApplicationHost) as well as this one.
+    var invokeArgs = typeof(ProfilesIndexMiddleware).GetMethod("Invoke").GetParameters()
+        .Select(p => p.ParameterType == typeof(HttpContext) ? (object)context
+            : p.ParameterType == typeof(IServerConfigurationManager) ? serverConfig
+            : p.ParameterType == typeof(IUserManager) ? userManager
+            : p.ParameterType == typeof(IDeviceManager) ? deviceManager
+            : p.ParameterType == typeof(MediaBrowser.Controller.Session.ISessionManager) ? sessionManager
+            : p.ParameterType == typeof(MediaBrowser.Common.Net.INetworkManager) ? networkManager
+            : p.ParameterType == typeof(MediaBrowser.Controller.IServerApplicationHost) ? appHost
+            : throw new InvalidOperationException("Invoke takes " + p.ParameterType.Name))
+        .ToArray();
+    await (Task)typeof(ProfilesIndexMiddleware).GetMethod("Invoke").Invoke(middleware, invokeArgs);
 
     return new Result
     {
@@ -447,6 +462,33 @@ static string ScriptVersionNow() =>
             | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
         .GetValue(null);
 
+Console.WriteLine();
+Console.WriteLine("── HTTPS required (R-1094) ─────────────────────────────────────");
+
+// Jellyfin redirects to HTTPS only when RequireHttps is set AND it is itself listening with
+// HTTPS (Startup.cs: config.RequireHttps && ListenWithHttps). This middleware runs before
+// forwarded headers are applied, so behind a TLS-terminating proxy IsHttps is false on
+// every request; stepping aside on RequireHttps alone meant nothing was ever injected.
+networkConfig.BaseUrl = "";
+networkConfig.RequireHttps = true;
+
+AppHostProxy.ListenWithHttps = false;
+var proxied = await Run("/web/index.html", WriteBody(PlainIndex));
+Check("behind a proxy (RequireHttps, Jellyfin not listening on HTTPS) the page is injected",
+    proxied.Body.Contains("/plugins/profiles/profiles.js"));
+
+AppHostProxy.ListenWithHttps = true;
+var wouldRedirect = await Run("/web/index.html", WriteBody(PlainIndex));
+Check("when Jellyfin will redirect the plain request, we step aside",
+    !wouldRedirect.Body.Contains("/plugins/profiles/profiles.js") && wouldRedirect.Seen.Called);
+
+var secure = await Run("/web/index.html", WriteBody(PlainIndex), c => c.Request.Scheme = "https");
+Check("an HTTPS request is injected whatever the setting",
+    secure.Body.Contains("/plugins/profiles/profiles.js"));
+
+AppHostProxy.ListenWithHttps = false;
+networkConfig.RequireHttps = false;
+
 try { Directory.Delete(tempDir, true); } catch { /* best effort */ }
 
 Console.WriteLine();
@@ -486,6 +528,27 @@ sealed class Result
 // has no interest in any of them. A proxy answers the one call the middleware actually
 // makes and throws on everything else. The middleware no longer takes IApplicationPaths
 // at all, which is the strongest possible form of "it does not read index.html off disk".
+// IServerApplicationHost, answering only ListenWithHttps: true when Jellyfin has a
+// certificate and HTTPS enabled, which is the only time its HTTPS redirect is in the pipeline.
+public class AppHostProxy : DispatchProxy
+{
+    public static bool ListenWithHttps;
+
+    protected override object Invoke(MethodInfo targetMethod, object[] args)
+    {
+        if (targetMethod.Name == "get_ListenWithHttps") return ListenWithHttps;
+        throw new NotImplementedException(targetMethod.Name + " should not be reached");
+    }
+}
+
+// A response whose headers have gone out, as when something downstream calls StartAsync or
+// flushes. DefaultHttpContext never reports HasStarted on its own.
+public class StartableResponse : Microsoft.AspNetCore.Http.Features.HttpResponseFeature
+{
+    public bool Started;
+    public override bool HasStarted => Started;
+}
+
 public class ThrowingProxy : DispatchProxy
 {
     public object Answer;

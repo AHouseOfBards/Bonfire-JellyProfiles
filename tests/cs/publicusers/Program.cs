@@ -1223,7 +1223,7 @@ Console.WriteLine("── Why a profile goes missing from one television ──�
             var task = (System.Threading.Tasks.Task)mw.GetMethod("Invoke").Invoke(instance, new object[]
             {
                 ctx, null, UserManagerStub.Create(profileId, dto), DeviceManagerStub.Create("mw-tv", null, DateTime.UtcNow),
-                null, null
+                null, null, null
             });
             await task;
             return (Encoding.UTF8.GetString(sink.ToArray()), (string)logger.GetType().GetProperty("All").GetValue(logger));
