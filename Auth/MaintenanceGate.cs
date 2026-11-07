@@ -388,6 +388,14 @@ namespace Jellyfin.Profiles.Auth
             return null;
         }
 
+        /// <summary>The message with "Try again later." after it, however the message ends.</summary>
+        internal static string RefusalBody(MaintenanceMode m)
+        {
+            var text = m.ShownMessage();
+            var last = text[text.Length - 1];
+            return text + (last == '.' || last == '!' || last == '?' ? " " : ". ") + "Try again later.";
+        }
+
         /// <summary>503, the message as plain text, the code, and when to try again.</summary>
         internal static async Task WriteRefusalAsync(HttpContext context, MaintenanceMode m)
         {
@@ -403,7 +411,8 @@ namespace Jellyfin.Profiles.Auth
                 : 300;
             response.Headers[HeaderNames.RetryAfter] = Math.Max(60, seconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-            await response.WriteAsync(m.ShownMessage(), context.RequestAborted).ConfigureAwait(false);
+            // The administrator's words, then what to do: an app with no notice shows only this.
+            await response.WriteAsync(RefusalBody(m), context.RequestAborted).ConfigureAwait(false);
         }
 
         // ── Turning it on ───────────────────────────────────────────────────────────

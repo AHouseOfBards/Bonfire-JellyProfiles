@@ -648,6 +648,9 @@ var http = Through("/Items/" + item + "/PlaybackInfo", "tok-kid", "dev-kid").Get
 Ok("over HTTP it is a 403", (bool)http.Items["handled"] && http.Response.StatusCode == 403, http.Response.StatusCode.ToString());
 Ok("with the code in X-Bonfire-Error", http.Response.Headers["X-Bonfire-Error"].ToString() == "daily_limit_reached");
 Ok("and when to try again: tomorrow at 15:00, when its hours open", http.Response.Headers["Retry-After"].ToString() == ((long)(Utc(2026, 11, 6, 15) - clockNow).TotalSeconds).ToString(), http.Response.Headers["Retry-After"].ToString());
+async Task<string> BodyOf(HttpContext c) { c.Response.Body.Position = 0; return await new StreamReader(c.Response.Body).ReadToEndAsync(); }
+var limitBody = BodyOf(http).GetAwaiter().GetResult();
+Ok("the refusal body names the limit and says what to do (apps with no toast show only this)", limitBody == "Ask a parent for more time, or try again tomorrow. The daily viewing limit is reached.", limitBody);
 Ok("the app that asked is told why, in the language the rules were saved in", stub.Messages.Count == 1 && stub.Messages[0].session == "kid-tv"
    && !stub.Messages[0].text.Contains("That's all for today"), string.Join(" | ", stub.Messages.Select(m => m.session + ": " + m.text)));
 Through("/Items/" + item + "/PlaybackInfo", "tok-kid", "dev-kid").GetAwaiter().GetResult();

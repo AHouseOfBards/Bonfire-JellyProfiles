@@ -226,7 +226,7 @@ Close(true, "Upgrading. Back at 3.", until: DateTime.UtcNow.AddMinutes(90));
 var browse = Send("/Users/" + N(MEMBER) + "/Items", MEMBER_TOKEN);
 Ok("browsing is refused before Jellyfin sees it", Refused(browse), Show(browse));
 Ok("with the administrator's message as plain text",
-   browse.body == "Upgrading. Back at 3." && browse.response.ContentType.StartsWith("text/plain"), browse.body);
+   browse.body == "Upgrading. Back at 3. Try again later." && browse.response.ContentType.StartsWith("text/plain"), browse.body);
 var retry = int.TryParse(browse.response.Headers["Retry-After"].ToString(), out var secs) ? secs : -1;
 Ok("and Retry-After counts down to the time given", retry > 5300 && retry <= 5400, retry.ToString());
 Ok("and is not cached", browse.response.Headers["Cache-Control"].ToString() == "no-store");
@@ -290,7 +290,7 @@ Console.WriteLine("── Asked to stop playback ──────────�
 Close(true, "", stop: true);
 var seg = Send("/videos/" + N(FILM) + "/hls1/main/4.mp4", MEMBER_TOKEN);
 Ok("video segments are refused too", Refused(seg), Show(seg));
-Ok("an empty message gives the default", seg.body == "The server is closed for maintenance.", seg.body);
+Ok("an empty message gives the default", seg.body == "The server is closed for maintenance. Try again later.", seg.body);
 Ok("with no end time, Retry-After is five minutes", seg.response.Headers["Retry-After"].ToString() == "300");
 Ok("an administrator still streams", Through(Send("/videos/" + N(OTHER) + "/hls1/main/4.mp4", ADMIN_TOKEN)));
 

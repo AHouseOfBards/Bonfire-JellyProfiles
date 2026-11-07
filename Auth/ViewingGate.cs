@@ -223,7 +223,13 @@ namespace Jellyfin.Profiles.Auth
                 var seconds = (long)Math.Ceiling((state.NextStartUtc.Value - ViewingTracker.Now()).TotalSeconds);
                 if (seconds > 0) response.Headers[HeaderNames.RetryAfter] = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
-            var text = code == LimitReached ? "Daily limit reached." : "Outside viewing hours.";
+            // Swiftfin ignores DisplayMessage and Roku shows none, so on those apps this body is
+            // the only explanation a child gets, if the app shows the error text at all. Fix
+            // first, then the reason. English only: the language the rules were saved in is not
+            // known here, and an app that shows this text is not one Bonfire can localise.
+            var text = code == LimitReached
+                ? "Ask a parent for more time, or try again tomorrow. The daily viewing limit is reached."
+                : "Ask a parent, or try again when viewing hours open. It is outside viewing hours.";
             await response.WriteAsync(text, context.RequestAborted).ConfigureAwait(false);
         }
 

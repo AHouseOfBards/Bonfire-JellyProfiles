@@ -901,7 +901,7 @@ namespace Jellyfin.Profiles.Controllers
             if (closed != null && !Auth.MaintenanceGate.IsAdmin(_userManager, request.ProfileId))
             {
                 Response.Headers[ErrorCodes.Header] = Auth.MaintenanceGate.ErrorCode;
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, closed.ShownMessage());
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, Auth.MaintenanceGate.RefusalBody(closed));
             }
 
             // Inherit/synchronize streaming policies and configurations from master user dynamically during switch

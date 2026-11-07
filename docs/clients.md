@@ -77,6 +77,14 @@ with the main account. The home screen shows a **Profiles** library:
 
 Profiles can't sign in directly on a ticked app.
 
+## What only the web app shows
+
+Viewing-limit warnings, **Ask for more time**, maintenance notices, announcements,
+first-time setup, PIN reset and themes reach only the web app and the apps that wrap it
+(the **Full support** list above). Swiftfin and Roku don't show server messages, so
+there playback stops with no warning. The refusal text is sent anyway, and an app that
+shows errors will display it.
+
 ## Not supported
 
 | App | Why |
