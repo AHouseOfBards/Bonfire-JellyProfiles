@@ -29,7 +29,9 @@ These hold in every app and can't be turned off from a browser.
   are for children, give the main account a PIN.
 - **Device limits.** A device is identified by the ID its app sends, and an app can send
   any ID. A device limit stops normal use on other devices, not someone who copies the
-  allowed device's ID. The same goes for PIN-less profiles on other apps' sign-in screens.
+  allowed device's ID. The same goes for PIN-less profiles on other apps' sign-in screens,
+  and for PINs typed in other apps, which only work on a device your household has signed
+  in on with a password.
 - **"Your home network".** This is whatever Jellyfin counts as local. Behind a reverse
   proxy that isn't listed under **Dashboard → Networking → Known Proxies**, every visitor
   looks local.

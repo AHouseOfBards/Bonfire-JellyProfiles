@@ -434,7 +434,7 @@ the web client. All three are off by default.
 
 | Setting | What changes |
 | --- | --- |
-| `enableClientPinLogin` | Profiles, and main accounts with a PIN, can be signed in to with the PIN where an app asks for a password. |
+| `enableClientPinLogin` | Profiles, and main accounts with a PIN, can be signed in to with the PIN where an app asks for a password. Only on a device the household has signed in on with a password; elsewhere a main account needs its password. |
 | `enableClientProfileList` | `GET /Users/Public` includes the household of the device asking, and profiles show under their own name. |
 | `skipQuickConnectOnKnownDevices` | `POST /QuickConnect/Initiate` is refused on a TV a household has used, so the app shows its password box. |
 
