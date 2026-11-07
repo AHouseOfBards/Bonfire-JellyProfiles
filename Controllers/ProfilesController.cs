@@ -378,6 +378,14 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest(allowedTagsError);
             }
 
+            // A picture that would be refused is refused now, before the account exists,
+            // rather than after it: it used to be dropped silently and the profile made
+            // without one (R-1108).
+            var pictureError = !string.IsNullOrEmpty(request.AvatarLibraryId)
+                ? CheckLibraryAvatar(request.AvatarLibraryId)
+                : CheckProfileImage(Guid.Empty, request.ProfileImage, null);
+            if (pictureError != null) return BadRequest(pictureError);
+
             // Standardize username to avoid global collisions
             string systemUsername = $"{masterUser.Username}_{profileName.Replace(" ", "")}";
 
@@ -498,8 +506,8 @@ namespace Jellyfin.Profiles.Controllers
                     BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork ?? false,
                     AllowedDeviceIds = request.AllowedDeviceIds ?? new List<string>(),
                     ProfileImage = !string.IsNullOrEmpty(request.AvatarLibraryId)
-                        ? CopyLibraryAvatarToProfile(targetUser.Id, request.AvatarLibraryId)
-                        : SaveProfileImage(targetUser.Id, request.ProfileImage, request.ProfileImageThumb)
+                        ? CopyLibraryAvatarToProfile(targetUser.Id, request.AvatarLibraryId).Url
+                        : SaveProfileImage(targetUser.Id, request.ProfileImage, request.ProfileImageThumb).Url
                 });
 
                 Plugin.Instance?.SaveConfiguration();
@@ -1681,6 +1689,28 @@ namespace Jellyfin.Profiles.Controllers
                 ? NormalizeTags(request.AllowedTags)
                 : existingMapping?.AllowedTags;
 
+            // The picture first, before anything else is written. A refused one answers 400
+            // with the reason and leaves the profile exactly as it was: the picture it has,
+            // its name and everything else in this request. A rejected picture used to be
+            // stored as "none", so a 3 MB upload deleted the existing one and answered 200
+            // (R-1108).
+            string? newImageUrl = null;
+            var imageChanged = false;
+            if (!string.IsNullOrEmpty(request.AvatarLibraryId))
+            {
+                var copied = CopyLibraryAvatarToProfile(request.ProfileId, request.AvatarLibraryId);
+                if (copied.Error != null) return BadRequest(copied.Error);
+                newImageUrl = copied.Url;
+                imageChanged = true;
+            }
+            else if (request.ProfileImage != null)
+            {
+                var saved = SaveProfileImage(request.ProfileId, request.ProfileImage, request.ProfileImageThumb, existingMapping?.ProfileImage);
+                if (saved.Error != null) return BadRequest(saved.Error);
+                newImageUrl = saved.Url;
+                imageChanged = true;
+            }
+
             // Renaming logic
             if (request.ProfileId != masterUserId)
             {
@@ -1802,13 +1832,9 @@ namespace Jellyfin.Profiles.Controllers
                         mappingEntry.Theme = ThemeToStore(request.Theme);
                     }
 
-                    if (!string.IsNullOrEmpty(request.AvatarLibraryId))
+                    if (imageChanged)
                     {
-                        mappingEntry.ProfileImage = CopyLibraryAvatarToProfile(request.ProfileId, request.AvatarLibraryId);
-                    }
-                    else if (request.ProfileImage != null)
-                    {
-                        mappingEntry.ProfileImage = SaveProfileImage(request.ProfileId, request.ProfileImage, request.ProfileImageThumb);
+                        mappingEntry.ProfileImage = newImageUrl;
                     }
 
                     // Handle PIN updates
