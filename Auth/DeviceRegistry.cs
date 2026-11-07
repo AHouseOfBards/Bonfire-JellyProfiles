@@ -321,6 +321,42 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
+        /// Whether <paramref name="other"/> is an id the device that sent
+        /// <paramref name="sent"/> has used, under any account Bonfire knows (issue #41).
+        ///
+        /// <para><see cref="IsSameDevice"/> relates a bare id to its derivations. This also
+        /// relates two derivations of one bare id to each other: Jellyfin for Android sends
+        /// <c>base + mainId</c> from the picker and <c>base + profileId</c> once the page has
+        /// reloaded into the profile, and neither is derived from the other. So the bare id is
+        /// recovered first, by stripping a known account id from the end (Android appends,
+        /// which is reversible), and every derivation is then compared against that. A SHA-1
+        /// id (Android TV) cannot be stripped, but it still matches its own bare id here.</para>
+        /// </summary>
+        public static bool IsSamePhysicalDevice(string? sent, string? other, PluginConfiguration? config)
+        {
+            var x = sent?.Trim();
+            var y = other?.Trim();
+            if (string.IsNullOrEmpty(x) || string.IsNullOrEmpty(y)) return false;
+            if (string.Equals(x, y, StringComparison.OrdinalIgnoreCase)) return true;
+            if (config == null) return false;
+
+            var members = HouseholdMembers(config).ToList();
+            var names = HouseholdNames(config).ToList();
+            var bares = new List<string> { x };
+            foreach (var userId in members)
+            {
+                var suffix = userId.ToString();
+                if (x.Length - suffix.Length >= MinimumBareDeviceIdLength
+                    && x.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    bares.Add(x.Substring(0, x.Length - suffix.Length));
+                }
+            }
+
+            return bares.Any(b => IsSameDevice(b, y, members, config.KnownDevices, names));
+        }
+
+        /// <summary>
         /// True when <paramref name="derived"/> is what <paramref name="bare"/> becomes once
         /// the account <paramref name="userSuffix"/> signs in: Jellyfin for Android appends
         /// the id, Jellyfin Android TV hashes <c>bare + "+" + id</c>.
