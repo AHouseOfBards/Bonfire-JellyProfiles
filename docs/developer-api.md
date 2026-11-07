@@ -419,8 +419,10 @@ signing in on another app, Bonfire writes its policy from the main account's:
 - **Never more than the main account:** management permissions. A profile is never an
   administrator.
 
-A library granted to a profile in Dashboard → Users is kept. A library removed there comes
-back, because the profile's own list wins; edit the profile instead.
+A library granted to or removed from a profile in Dashboard → Users is kept: Bonfire
+records the list it last wrote (`LastAppliedFolders`), and a list that differs from it was
+changed by someone. A reset to "all libraries" is still repaired. A profile set to every
+library always follows its main account.
 
 If none of a profile's allowed tags is still allowed for its main account, it's given a
 placeholder tag that no item carries, so it sees nothing until it's edited.

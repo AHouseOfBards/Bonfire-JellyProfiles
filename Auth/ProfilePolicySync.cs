@@ -137,6 +137,7 @@ namespace Jellyfin.Profiles.Auth
             List<Guid> authorityFolders;
             List<Guid>? migratedFolders = null;
             List<Guid>? grantedFolders = null;
+            List<Guid>? removedFolders = null;
             if (mapping.AllLibraries)
             {
                 authorityFolders = masterAccessible.ToList();
@@ -144,33 +145,50 @@ namespace Jellyfin.Profiles.Auth
             else if (mapping.EnabledFolders != null)
             {
                 // Issue #30: a library granted in Dashboard → Users is not a stale value.
-                // Applying the stored list unconditionally silently reverted it. See
-                // LibraryAccessReconciler for why the account's list cannot simply win,
-                // and why additions are adopted while removals are not.
-                var reconciled = LibraryAccessReconciler.Reconcile(
-                    mapping.EnabledFolders, childEnabledFolders, childEnableAllFolders);
+                // Applying the stored list unconditionally silently reverted it.
+                //
+                // R-1042: nor is one removed there. Without a record of what Bonfire last
+                // wrote, a removal looks exactly like a reset, so only grants were adopted
+                // and a library an administrator took away came back at the next sign-in.
+                // With the record (LastAppliedFolders) both directions are adopted; a
+                // configuration from before it gets the old rule once and is then recorded.
+                // See LibraryAccessReconciler.
+                //
+                // Empty counts as no record. Jellyfin's XmlSerializer loads an absent list
+                // element as an empty list, not null, so that is what an old configuration
+                // arrives as. Nothing is lost: against an empty record every folder on the
+                // account reads as granted and none as removed, which is the old rule exactly.
+                var reconciled = mapping.LastAppliedFolders == null || mapping.LastAppliedFolders.Count == 0
+                    ? LibraryAccessReconciler.Reconcile(
+                        mapping.EnabledFolders, childEnabledFolders, childEnableAllFolders)
+                    : LibraryAccessReconciler.ReconcileWithLastApplied(
+                        mapping.EnabledFolders, childEnabledFolders, childEnableAllFolders, mapping.LastAppliedFolders);
 
                 authorityFolders = reconciled.Authority;
 
                 if (reconciled.StoredListChanged)
                 {
                     grantedFolders = reconciled.Granted;
+                    removedFolders = reconciled.Removed;
 
                     // Said out loud because the absence of any trail is most of what made
                     // this expensive to find: nothing errored, and Jellyfin does not log
                     // policy writes at all.
                     logger.LogInformation(
-                        "ProfilesPlugin: profile {ProfileId} was granted {Count} library/libraries "
-                        + "outside the plugin since it was last entered; adopted, so entering the "
-                        + "profile no longer reverts them.",
+                        "ProfilesPlugin: profile {ProfileId} was granted {Granted} and lost {Removed} "
+                        + "library/libraries outside the plugin since it was last entered; adopted, "
+                        + "so entering the profile no longer reverts them.",
                         targetUser.Id,
-                        reconciled.Granted.Count);
+                        reconciled.Granted.Count,
+                        reconciled.Removed.Count);
                 }
                 else if (reconciled.Missing.Count > 0)
                 {
                     // The other direction, which is the one that reads as "my save did
-                    // not take". Not adopted — this is also the shape a reset takes — but
-                    // it must not be silent.
+                    // not take". Only reached without a record of what Bonfire last wrote
+                    // (an older configuration, once): then a removal and a reset look the
+                    // same, so it is not adopted, but it must not be silent. With a record
+                    // the removal is adopted above.
                     logger.LogInformation(
                         "ProfilesPlugin: profile {ProfileId} is missing {Count} library/libraries "
                         + "that the profile itself is set to have, so the profile's own list was "
@@ -249,6 +267,27 @@ namespace Jellyfin.Profiles.Auth
                             live.EnabledFolders = merged;
                             changed = true;
                         }
+                    }
+
+                    if (removedFolders != null && removedFolders.Count > 0 && live.EnabledFolders != null)
+                    {
+                        var kept = live.EnabledFolders.Where(id => !removedFolders.Contains(id)).ToList();
+                        if (kept.Count != live.EnabledFolders.Count)
+                        {
+                            live.EnabledFolders = kept;
+                            changed = true;
+                        }
+                    }
+
+                    // What was just written, so the next sign-in can tell an administrator's
+                    // change from this write (R-1042). Recorded on every path, the "every
+                    // library" one included, so a profile later given a fixed list starts
+                    // with a record.
+                    if (live.LastAppliedFolders == null
+                        || !live.LastAppliedFolders.ToHashSet().SetEquals(authorityFolders))
+                    {
+                        live.LastAppliedFolders = authorityFolders.ToList();
+                        changed = true;
                     }
 
                     if (!InheritedLimits.Same(live.OwnLimits, limits.Own)
