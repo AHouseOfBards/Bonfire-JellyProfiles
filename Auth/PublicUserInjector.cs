@@ -328,7 +328,7 @@ namespace Jellyfin.Profiles.Auth
                         continue;
                     }
 
-                    var node = JsonNode.Parse(JsonSerializer.Serialize(dto, serializerOptions));
+                    var node = Reduced(JsonNode.Parse(JsonSerializer.Serialize(dto, serializerOptions)));
                     if (node == null) continue;
 
                     // Show the name the household typed, not the system username.
@@ -380,6 +380,44 @@ namespace Jellyfin.Profiles.Auth
                 added, array.Count, failed);
 
             return Encoding.UTF8.GetBytes(array.ToJsonString());
+        }
+
+        /// <summary>
+        /// What a sign-in screen draws a tile from, and nothing else. This endpoint is
+        /// anonymous, and the full UserDto carries the account's Policy (administrator,
+        /// folders, tags, schedules), its Configuration and when it last signed in: for each
+        /// profile, to anyone who can reach the server (R-1043).
+        ///
+        /// <para>Checked against the clients, not remembered. jellyfin-androidtv's
+        /// <c>UserDto.toPublicUser</c> (util/sdk/ModelExtensions.kt) reads id, name, serverId
+        /// and primaryImage's tag and nothing else; the Kotlin SDK's <c>UserDto</c> makes
+        /// every other field optional, and Swiftfin decodes the same list through the Swift
+        /// SDK's <c>UserDto</c>, where every field is optional too (I could not locate
+        /// Swiftfin's own reads of it, so the password and auto-login flags are kept, which
+        /// is what a sign-in screen uses to decide on a password box).</para>
+        ///
+        /// <para>Policy is left out, not emptied. The Kotlin SDK's <c>UserPolicy</c> has about
+        /// thirty required fields (isAdministrator, isHidden, isDisabled, enableAllFolders,
+        /// syncPlayAccess ...): a minimal object that has some of them fails the whole
+        /// response, which empties the picker, the way 1.6.1.2's integer enums did. A missing
+        /// policy is the nullable case both SDKs accept.</para>
+        /// </summary>
+        private static readonly HashSet<string> TileFields = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Name", "Id", "ServerId", "HasPassword", "HasConfiguredPassword", "PrimaryImageTag", "EnableAutoLogin",
+        };
+
+        private static JsonNode? Reduced(JsonNode? full)
+        {
+            if (full is not JsonObject obj) return full;
+
+            var reduced = new JsonObject();
+            foreach (var pair in obj)
+            {
+                if (TileFields.Contains(pair.Key)) reduced[pair.Key] = pair.Value?.DeepClone();
+            }
+
+            return reduced;
         }
 
         /// <summary>
