@@ -908,6 +908,15 @@
                 return obj[name] !== undefined ? obj[name] : obj[upper];
             }
 
+            // One of the plugin's own addresses ('/plugins/profiles/image/...', as the server
+            // stores and returns them) made loadable under a Base URL. A root-relative path
+            // resolves against the origin, outside Jellyfin, so every picture came up missing.
+            // ApiClient.getUrl knows the Base URL. Anything else (a remote picture) is left alone.
+            function pluginAsset(value) {
+                const v = String(value || '');
+                return v.indexOf('/plugins/profiles/') === 0 ? ApiClient.getUrl(v.slice(1)) : v;
+            }
+
             // The one authorization header this page builds for itself. Every other call
             // here goes through ApiClient.ajax, which builds its own; this exists for the
             // single request that wants a Blob back.
@@ -1908,7 +1917,7 @@
                             // If the file has gone missing the tile shows a marker rather
                             // than a broken-image icon, and the count above says why.
                             '<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0.35;font-size:0.75rem;">missing</span>' +
-                            '<img src="' + escapeHtml(thumb) + '" alt="" onerror="this.remove()" ' +
+                            '<img src="' + escapeHtml(pluginAsset(thumb)) + '" alt="" onerror="this.remove()" ' +
                             'style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;" />' +
                             '</div>' +
                             '<div style="font-size:0.8rem; margin-top:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(name) + '</div>' +
@@ -2168,7 +2177,7 @@
                         };
                         probe.onload = function () { done(true); };
                         probe.onerror = function () { done(false); };
-                        probe.src = field(p, 'profileImage') + (String(field(p, 'profileImage')).indexOf('?') >= 0 ? '&' : '?') + 'size=thumb';
+                        probe.src = pluginAsset(field(p, 'profileImage')) + (String(field(p, 'profileImage')).indexOf('?') >= 0 ? '&' : '?') + 'size=thumb';
                     });
                 }).catch(function () { /* the mappings list has its own error path */ });
             }
