@@ -74,23 +74,137 @@ namespace Jellyfin.Profiles
             lock (ProfilesBaseController.ConfigLock)
             {
                 current = Configuration;
-                if (!ReferenceEquals(current, incoming))
-                {
-                    foreach (var property in typeof(PluginConfiguration).GetProperties(
-                                 System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
-                    {
-                        if (property.CanRead && property.CanWrite && property.GetIndexParameters().Length == 0)
-                        {
-                            property.SetValue(current, property.GetValue(incoming));
-                        }
-                    }
-                }
-
+                if (!ReferenceEquals(current, incoming)) CopyInto(incoming, current);
                 SaveConfiguration();
             }
 
             ConfigurationChanged?.Invoke(this, current);
         }
+
+        private static void CopyInto(PluginConfiguration from, PluginConfiguration to)
+        {
+            foreach (var property in typeof(PluginConfiguration).GetProperties(
+                         System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+            {
+                if (property.CanRead && property.CanWrite && property.GetIndexParameters().Length == 0)
+                {
+                    property.SetValue(to, property.GetValue(from));
+                }
+            }
+        }
+
+        // ── The last good copy (R-1127) ─────────────────────────────────────────────
+        //
+        // When PluginConfiguration.xml won't read, Jellyfin's BasePlugin.LoadConfiguration
+        // creates a default configuration and SAVES it over the file:
+        //
+        //     catch
+        //     {
+        //         var config = Activator.CreateInstance<TConfigurationType>();
+        //         SaveConfiguration(config);
+        //         return config;
+        //     }
+        //
+        // Every household, PIN, link, theme and email setting went with it, and the plugin
+        // kept no copy. A crash in the middle of a write is enough, and so is a Jellyfin
+        // version that doesn't know an enum value the file holds.
+        //
+        // That save comes through the virtual SaveConfiguration below, with the very object
+        // LoadConfiguration then returns. So it is caught there: the unreadable file is kept
+        // beside the original, the last copy that did save is read, and its values are copied
+        // onto that object before anything is written. Every other save refreshes the copy.
+
+        /// <summary>Where the last configuration that saved cleanly is kept.</summary>
+        internal string LastGoodPath => ConfigurationFilePath + ".lastgood";
+
+        /// <inheritdoc />
+        public override void SaveConfiguration(PluginConfiguration config)
+        {
+            // One save and its copy at a time, so the copy is never taken of a half-written file.
+            lock (SaveAndCopyLock)
+            {
+                if (config != null && LooksEmpty(config) && TryRestoreOver(config))
+                {
+                    base.SaveConfiguration(config);
+                    return;
+                }
+
+                base.SaveConfiguration(config!);
+
+                try
+                {
+                    System.IO.File.Copy(ConfigurationFilePath, LastGoodPath, overwrite: true);
+                }
+                catch (Exception)
+                {
+                    // The save itself happened. A missing copy only matters on the day the file
+                    // breaks, and the next save tries again.
+                }
+            }
+        }
+
+        private static readonly object SaveAndCopyLock = new();
+
+        /// <summary>
+        /// A configuration with no households, devices or Bonfires: what Jellyfin's
+        /// fallback creates. Checked first so an ordinary save never reads the file back.
+        /// </summary>
+        private static bool LooksEmpty(PluginConfiguration c)
+            => (c.Mappings?.Count ?? 0) == 0
+               && (c.KnownDevices?.Count ?? 0) == 0
+               && (c.BonfireGroups?.Count ?? 0) == 0;
+
+        /// <summary>
+        /// When the file on disk is there but won't read, and a last good copy does: keeps
+        /// the unreadable file, copies the good values onto <paramref name="config"/> and
+        /// returns true. A missing file is a new install, and a file that reads is a
+        /// household that really did delete everything; both are left alone.
+        /// </summary>
+        private bool TryRestoreOver(PluginConfiguration config)
+        {
+            try
+            {
+                var path = ConfigurationFilePath;
+                if (!System.IO.File.Exists(path)) return false;
+
+                try
+                {
+                    XmlSerializer.DeserializeFromFile(typeof(PluginConfiguration), path);
+                    return false;
+                }
+                catch (Exception)
+                {
+                    // Unreadable: the case this exists for.
+                }
+
+                // Kept whether or not there is anything to restore: with no last good copy
+                // (a file broken before this release), it is all that is left to repair by hand.
+                var kept = path + ".unreadable-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture);
+                System.IO.File.Copy(path, kept, overwrite: true);
+                RestoredFrom = kept;
+                if (!System.IO.File.Exists(LastGoodPath)) return false;
+
+                var good = (PluginConfiguration)XmlSerializer.DeserializeFromFile(typeof(PluginConfiguration), LastGoodPath);
+                CopyInto(good, config);
+                Restored = true;
+                return true;
+            }
+            catch (Exception)
+            {
+                // The last good copy won't read either, or the disk refused. Nothing better to
+                // offer than Jellyfin's defaults, but the unreadable file is already kept.
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Set when this start found the configuration unreadable: where the file was kept.
+        /// <see cref="Restored"/> says whether the last good copy replaced it. Both logged by
+        /// the bootstrap task, which has a logger.
+        /// </summary>
+        internal static string? RestoredFrom { get; private set; }
+
+        internal static bool Restored { get; private set; }
 
         public IEnumerable<PluginPageInfo> GetPages()
         {

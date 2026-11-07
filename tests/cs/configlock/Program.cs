@@ -220,6 +220,8 @@ var allowed = new Dictionary<string, string>(StringComparer.Ordinal)
     ["JsCacheLock"]  = "static readonly; guards the one-time profiles.js cache",
     ["PatchLock"]    = "static readonly in ProfilesBootstrapTask; guards index.html patching",
     ["_cleanupLock"] = "static readonly in RateLimiter; guards the sweep",
+    ["SaveAndCopyLock"]
+                     = "static readonly in Plugin; one configuration save and its .lastgood copy at a time",
     ["list"]         = "a List<DateTime> held in a ConcurrentDictionary in RateLimiter — the "
                      + "reference is stable for the key's lifetime and is never replaced",
 };
