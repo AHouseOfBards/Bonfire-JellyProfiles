@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.7.2.0",
+        "changelog": "**Fixed**\n\n- Picking a profile after restarting the app failed at the session limit and looped back to the picker. (#41)\n- A Roku opened a profile without asking for its PIN. (#40)\n- Bonfire did nothing on servers with a Base URL, or behind an HTTPS proxy with \"Require HTTPS\" on.\n- A configuration file that couldn't be read wiped every household.\n- Typing a long PIN used up its tries before it was finished.\n- A PIN typed after \"Clear PIN\" was dropped.\n- A rejected profile picture deleted the one the profile had.\n- A library removed from a profile in Dashboard → Users came back at its next sign-in.\n- Security and privacy fixes. Updating is recommended.\n\n**Changed**\n\n- On other apps, PIN sign-in is limited to devices your household uses.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.2/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-11-07T00:00:00Z"
+      },
+      {
         "version": "1.7.1.0",
         "changelog": "**Added**\n\n- Catalan and Spanish.\n\n**Changed**\n\n- Bonfire now uses the language set in Jellyfin (Settings → Display), not the browser's.",
         "targetAbi": "10.11.0.0",
