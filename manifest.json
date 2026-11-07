@@ -13,7 +13,7 @@
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- Picking a profile after restarting the app failed at the session limit and looped back to the picker. (#41)\n- A refused switch now says why: too many sessions, or not allowed on this device.\n- Typing a long PIN used up its tries before it was finished.\n- A PIN typed after \"Clear PIN\" was dropped.\n- A rejected profile picture deleted the one the profile had.\n- Bonfire did nothing on servers with a Base URL, or behind an HTTPS proxy with \"Require HTTPS\" on.\n- A library removed from a profile in Dashboard -> Users came back at its next sign-in.\n- Turning off a main account in Jellyfin left its profiles open.\n- Restoring a backup dropped email, maintenance and several other settings.\n- A TV signed out in Jellyfin kept its profile picker.\n- Downloads ignored viewing limits.\n\n**Changed**\n\n- PIN tries are shared across an account: 5 per 15 minutes and 20 a day. An administrator can lower the daily number.\n- On other apps, a PIN only works on a device your household has signed in on, and a profile with no PIN only opens from your home network. An administrator can allow it from anywhere.\n- Making an account into a profile now asks whether deleting the profile later keeps the account.\n- A profile can't be named after a real account.\n- Versions 1.6.1.2 and 1.6.1.3 are no longer offered: they could break sign-in for the whole server.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.2.1/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "89fb156921d66c2edcf69a7a235817fa",
         "timestamp": "2026-11-07T00:00:00Z"
       },
       {
