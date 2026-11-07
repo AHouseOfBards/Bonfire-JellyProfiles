@@ -489,6 +489,48 @@ Check("an HTTPS request is injected whatever the setting",
 AppHostProxy.ListenWithHttps = false;
 networkConfig.RequireHttps = false;
 
+Console.WriteLine();
+Console.WriteLine("── Jellyfin's body when the response has already started (R-1095) ──");
+
+// A downstream that has sent its headers. The body it wrote went into our buffer, so
+// returning without writing it back gave the client a 200 with nothing in it.
+RequestDelegate Started(string content, string type) => async ctx =>
+{
+    var bytes = Encoding.UTF8.GetBytes(content);
+    ctx.Response.StatusCode = 200;
+    ctx.Response.ContentType = type;
+    await ctx.Response.Body.WriteAsync(bytes);
+    ((StartableResponse)ctx.Features.Get<IHttpResponseFeature>()).Started = true;
+};
+
+async Task<string> RunPrivate(string method, string path, string verb, RequestDelegate downstream)
+{
+    var context = new DefaultHttpContext();
+    context.Request.Method = verb;
+    context.Request.Path = path;
+    context.Features.Set<IHttpResponseFeature>(new StartableResponse());
+    var body = new MemoryStream();
+    context.Features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(body));
+    var mw = new ProfilesIndexMiddleware(downstream, NullLogger<ProfilesIndexMiddleware>.Instance);
+    var m = typeof(ProfilesIndexMiddleware).GetMethod(method, System.Reflection.BindingFlags.Instance
+        | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+    if (m == null) throw new InvalidOperationException(method + " is gone");
+    await (Task)m.Invoke(mw, method == "Invoke"
+        ? new object[] { context, serverConfig, userManager, deviceManager, sessionManager, networkManager }
+        : new object[] { context });
+    return Encoding.UTF8.GetString(body.ToArray());
+}
+
+var started = await Run("/web/index.html", Started(PlainIndex, "text/html"),
+    c => c.Features.Set<IHttpResponseFeature>(new StartableResponse()));
+Check("the index: Jellyfin's document reaches the client", started.Body == PlainIndex);
+
+const string UserJson = "{\"Name\":\"Mum\",\"Id\":\"11111111111111111111111111111111\"}";
+Check("/Users/Me: Jellyfin's body reaches the client",
+    await RunPrivate("RewriteOwnNameAsync", "/Users/Me", "GET", Started(UserJson, "application/json")) == UserJson);
+Check("AuthenticateByName: Jellyfin's body reaches the client",
+    await RunPrivate("RewriteOwnNameAsync", "/Users/AuthenticateByName", "POST", Started(UserJson, "application/json")) == UserJson);
+
 try { Directory.Delete(tempDir, true); } catch { /* best effort */ }
 
 Console.WriteLine();

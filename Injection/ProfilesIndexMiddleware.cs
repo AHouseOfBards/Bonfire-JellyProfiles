@@ -299,7 +299,8 @@ namespace Jellyfin.Profiles
 
             if (context.Response.HasStarted)
             {
-                // Something wrote past the capture. Nothing safe left to do.
+                await DeliverStartedAsync(context, produced, "index.html", "the script could not be added")
+                    .ConfigureAwait(false);
                 return;
             }
 
@@ -442,28 +443,10 @@ namespace Jellyfin.Profiles
 
             if (context.Response.HasStarted)
             {
-                // Something sent the headers while the capture was in place, so the body went
-                // into our buffer and not to the client. Returning here left the television
-                // with a 200 and an empty list. The household cannot be added any more - the
-                // headers, Content-Length included, are gone - but Jellyfin's own answer can
-                // still be delivered, and the log says why the profiles are missing.
-                _logger.LogWarning(
-                    "ProfilesPlugin: the user list response had already started when it came back to us, "
-                    + "so no profiles could be added to it (status {Status}, {Bytes} byte(s) passed on).",
-                    context.Response.StatusCode, produced.Length);
-
-                if (produced.Length > 0)
-                {
-                    try
-                    {
-                        await context.Response.Body.WriteAsync(produced, context.RequestAborted).ConfigureAwait(false);
-                    }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
-                    {
-                        _logger.LogWarning(ex, "ProfilesPlugin: could not pass the started user list response on.");
-                    }
-                }
-
+                // Returning here left the television with a 200 and an empty list. See
+                // DeliverStartedAsync.
+                await DeliverStartedAsync(context, produced, "user list", "no profiles could be added to it")
+                    .ConfigureAwait(false);
                 return;
             }
 
@@ -679,7 +662,12 @@ namespace Jellyfin.Profiles
                 produced = captured.ToArray();
             }
 
-            if (context.Response.HasStarted) return;
+            if (context.Response.HasStarted)
+            {
+                await DeliverStartedAsync(context, produced, "own user record", "the profile could not be renamed in it")
+                    .ConfigureAwait(false);
+                return;
+            }
 
             byte[]? rewritten = null;
             if (context.Response.StatusCode == StatusCodes.Status200OK
@@ -758,6 +746,36 @@ namespace Jellyfin.Profiles
             var contentType = response.ContentType;
             return !string.IsNullOrEmpty(contentType)
                    && contentType.StartsWith("text/html", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// The response had already started when it came back to us. Something downstream
+        /// sent the headers while the capture was in place, so the body went into our buffer
+        /// and not to the client; returning then gave the client a 200 with nothing in it.
+        /// Whatever we meant to change cannot be changed any more - the headers, Content-Length
+        /// included, are gone - but Jellyfin's own answer can still be delivered, and the log
+        /// says why it was not edited. Every capture path ends here when that happens.
+        /// </summary>
+        private async Task DeliverStartedAsync(HttpContext context, byte[] produced, string what, string consequence)
+        {
+            _logger.LogWarning(
+                "ProfilesPlugin: the {What} response had already started when it came back to us, "
+                + "so {Consequence} (status {Status}, {Bytes} byte(s) passed on).",
+                what, consequence, context.Response.StatusCode, produced.Length);
+
+            if (produced.Length == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                await context.Response.Body.WriteAsync(produced, context.RequestAborted).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "ProfilesPlugin: could not pass the started {What} response on.", what);
+            }
         }
 
         /// <summary>Writes back exactly what the pipeline produced, untouched.</summary>
