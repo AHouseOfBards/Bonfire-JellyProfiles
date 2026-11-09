@@ -47,6 +47,28 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         private static readonly SemaphoreSlim Gate = new(1, 1);
 
+        /// <summary>
+        /// Takes the same gate for somebody else who writes a profile's account and mapping,
+        /// the profile editor. Without it a save could land between a sync's read of the
+        /// profile and its write, and be overwritten with what the sync had read (R-1046).
+        /// Dispose to let go. Never taken while already held: nothing the editor calls runs a sync.
+        /// </summary>
+        internal static async Task<IDisposable> HoldAsync()
+        {
+            await Gate.WaitAsync().ConfigureAwait(false);
+            return new Hold();
+        }
+
+        private sealed class Hold : IDisposable
+        {
+            private int _released;
+
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _released, 1) == 0) Gate.Release();
+            }
+        }
+
         /// <summary>Applies the master's policy to <paramref name="profileUserId"/>. False when it is not a sub-profile.</summary>
         public static async Task<bool> ApplyAsync(
             IUserManager userManager, ILibraryManager libraryManager, ILogger logger, Guid profileUserId)

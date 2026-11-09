@@ -200,6 +200,27 @@ r = Call("UpdateProfile", $"{{\"profileId\":\"{KID}\",\"profileName\":\"Kid\",\"
 Ok("a score sets it", r.status == 200 && Kid().MaxParentalRating == 14, r.status + " " + P(Kid()));
 Ok("and is the profile's own", RatingOf("OwnRating") == 14 && RatingOf("LastAppliedRating") == 14);
 
+// R-1046: the editor and the policy sync both read a profile, then write its account and its
+// mapping. The sync serialises its own runs with a gate; the editor took none, so a save could
+// land between the sync's read and its write and be written over with what the sync had read.
+// The editor now waits for the gate. Held here, a save must not get through until it is let go.
+{
+    var gateField = asm.GetType("Jellyfin.Profiles.Auth.ProfilePolicySync", true)
+        .GetField("Gate", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+    var gate = (System.Threading.SemaphoreSlim)gateField?.GetValue(null);
+    Ok("the policy sync's gate can be reached", gate != null);
+    if (gate != null)
+    {
+        gate.Wait();
+        var held = Task.Run(() => Call("UpdateProfile", $"{{\"profileId\":\"{KID}\",\"profileName\":\"Kid\",\"masterPin\":\"{PIN}\"}}"));
+        var doneWhileHeld = held.Wait(500);
+        gate.Release();
+        held.Wait(10000);
+        Ok("a profile save waits while the policy sync is running", !doneWhileHeld);
+        Ok("and goes through once it is done", held.IsCompletedSuccessfully && held.Result.status == 200, held.IsCompletedSuccessfully ? held.Result.status + " " + held.Result.message : "not finished");
+    }
+}
+
 r = Call("UpdateProfile", $"{{\"profileId\":\"{KID}\",\"profileName\":\"Kid\",\"masterPin\":\"{PIN}\",\"allLibraries\":true}}");
 Ok("allLibraries true gives every library", r.status == 200 && Folders(Kid()) == "all", r.status + " " + r.message + " " + P(Kid()));
 Ok("and is recorded as every library", Row(kidRow, "AllLibraries") is true);

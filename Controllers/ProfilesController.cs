@@ -2039,7 +2039,12 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
-            // Update policy for sub-profiles
+            // Update policy for sub-profiles. The policy sync (every sign-in) reads the profile
+            // and writes its account and mapping back; the gate keeps this save from landing
+            // between its read and its write and being undone by it (R-1046). Held to the end.
+            using var syncGate = request.ProfileId != masterUserId
+                ? await Auth.ProfilePolicySync.HoldAsync().ConfigureAwait(false)
+                : null;
             List<Guid>? validatedFolders = null;
             // What the editor changed about the rating and what it wrote, for the mapping
             // (R-1045): the profile's own rating when the form set one, and the value written
