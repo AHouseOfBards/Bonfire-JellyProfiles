@@ -313,6 +313,7 @@
   "switcher.reloadFailedTitle": "Casi listo",
   "switcher.reloadFailedBody": "Cierra y vuelve a abrir la aplicación para terminar de cambiar de perfil.",
   "switcher.unreachable": "No se puede conectar con el servidor. Inténtalo de nuevo.",
+  "switcher.listFailed": "Ahora mismo no se pueden cargar los perfiles.",
   "switcher.failedTitle": "No se pudo cambiar",
   "switcher.failedBody": "No funcionó. Inténtalo de nuevo.",
   "switcher.notSavedTitle": "Cambio no guardado",

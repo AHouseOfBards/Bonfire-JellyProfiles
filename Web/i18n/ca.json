@@ -389,6 +389,7 @@
   "switcher.reloadFailedTitle": "Gairebé fet",
   "switcher.reloadFailedBody": "Tanca i torna a obrir l'aplicació per acabar el canvi de perfil.",
   "switcher.unreachable": "No es pot arribar al servidor. Torna-ho a provar.",
+  "switcher.listFailed": "Ara mateix no es poden carregar els perfils.",
   "switcher.failedTitle": "No s’ha pogut canviar",
   "switcher.failedBody": "No ha funcionat. Torna-ho a provar.",
   "switcher.notSavedTitle": "Canvi no desat",

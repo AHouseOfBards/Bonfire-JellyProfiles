@@ -389,6 +389,7 @@
   "switcher.reloadFailedTitle": "Presque terminé",
   "switcher.reloadFailedBody": "Fermez puis rouvrez l’application pour terminer le changement de profil.",
   "switcher.unreachable": "Serveur injoignable. Réessayez.",
+  "switcher.listFailed": "Impossible de charger les profils pour le moment.",
   "switcher.failedTitle": "Changement impossible",
   "switcher.failedBody": "Cela n’a pas fonctionné. Réessayez.",
   "switcher.notSavedTitle": "Changement non enregistré",

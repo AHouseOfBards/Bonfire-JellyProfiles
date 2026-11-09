@@ -1139,6 +1139,7 @@
         'switcher.reloadFailedTitle': 'Almost there',
         'switcher.reloadFailedBody': 'Close and reopen the app to finish switching profiles.',
         'switcher.unreachable': "Can't reach the server. Try again.",
+        'switcher.listFailed': "Can't load profiles right now.",
         'switcher.failedTitle': "Couldn't switch",
         'switcher.failedBody': 'That did not work. Try again.',
         'switcher.notSavedTitle': 'Switch not saved',
@@ -4829,6 +4830,11 @@
             })
             .catch(err => {
                 console.error("Failed to load sub-profiles:", err);
+                // Said out loud, once, for a few seconds. The comment below is right that
+                // the home screen is the honest state, but nothing told the person why the
+                // picker they expected is not there. Not for an expired session: that has
+                // its own screen, and a notice over it would be wrong.
+                if (!(err && err.message === 'Unauthorized')) this._showListNotice();
                 // No gate is coming from this attempt. The poll will try again after
                 // POLL_RETRY_MS and the home screen shows in between — which is the honest
                 // state of things. _requestList has already set the pause for a failed
@@ -4843,7 +4849,33 @@
             });
         },
 
+        /// A short note that the profile list did not load. Not a dialog: the gate asks
+        /// again by itself, and a dialog every POLL_RETRY_MS would be worse than the
+        /// silence. role=status so a screen reader says it without taking focus.
+        _showListNotice: function () {
+            this._hideListNotice();
+            const note = document.createElement('div');
+            note.id = 'jpf-list-notice';
+            note.setAttribute('role', 'status');
+            note.setAttribute('aria-live', 'polite');
+            note.textContent = t('switcher.listFailed');
+            note.style.cssText = 'position:fixed;left:50%;top:24px;transform:translateX(-50%);'
+                + 'max-width:90%;padding:12px 20px;border-radius:var(--jpf-r-md);'
+                + 'background:var(--jpf-panel);color:var(--jpf-text-1);border:1px solid var(--jpf-border-1);'
+                + 'font-size:1rem;text-align:center;z-index:' + DIALOG_Z + ';';
+            document.body.appendChild(note);
+            this._listNoticeTimer = setTimeout(() => this._hideListNotice(), 8000);
+        },
+
+        _hideListNotice: function () {
+            if (this._listNoticeTimer) { clearTimeout(this._listNoticeTimer); this._listNoticeTimer = null; }
+            const old = document.getElementById('jpf-list-notice');
+            if (old && old.parentNode) old.parentNode.removeChild(old);
+        },
+
         showProfileOverlay: function (profiles) {
+            // A list that arrived late makes the note wrong.
+            this._hideListNotice();
             // Always stop the inactivity timer when showing the profile selector
             this.stopInactivityTimer();
 

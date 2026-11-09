@@ -321,6 +321,7 @@
   "switcher.reloadFailedTitle": "Neredeyse tamam",
   "switcher.reloadFailedBody": "Profil değişikliğini tamamlamak için uygulamayı kapatıp yeniden açın.",
   "switcher.unreachable": "Sunucuya ulaşılamıyor. Tekrar deneyin.",
+  "switcher.listFailed": "Profiller şu anda yüklenemiyor.",
   "switcher.failedTitle": "Geçiş yapılamadı",
   "switcher.failedBody": "Olmadı. Tekrar deneyin.",
   "switcher.notSavedTitle": "Profil değişikliği kaydedilmedi",

@@ -193,6 +193,53 @@ function tagOf(id) {
             !/<div class="profile-lock-indicator">/.test(html) && !/<div class="profile-bonfire-indicator" title/.test(html));
     }
 
+    // 14. A profile list that did not load says so, instead of leaving home with no
+    // explanation, and takes the note down when it is stale.
+    {
+        const env14 = D.loadPlugin(SRC);
+        const P14 = env14.PP;
+        const sb = env14.sandbox;
+        const timers = [];
+        sb.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+        sb.clearTimeout = id => { if (timers[id - 1]) timers[id - 1].dead = true; };
+        const page = [];
+        sb.document.createElement = () => D.makeNode({});
+        sb.document.body.appendChild = n => { page.push(n); };
+        const noteNode = () => page.filter(n => n.id === 'jpf-list-notice' && !n.removed)[0];
+        sb.document.getElementById = id => (id === 'jpf-list-notice' ? noteNode() || null : null);
+        P14.navIsCurrent = () => true;
+        P14.handleSessionExpired = () => { P14._expired = true; };
+        P14.invalidateProfileCache();
+        page.push = function (n) { n.parentNode = { removeChild: c => { c.removed = true; } }; return Array.prototype.push.call(this, n); };
+
+        sb.fetch = () => Promise.reject(new TypeError('Failed to fetch'));
+        P14.fetchAndRenderProfiles(sb.ApiClient, 'main', 'tok', true);
+        await env14.settle();
+        const note = noteNode();
+        ok('an unreachable server leaves a note', !!note, String(page.length));
+        ok('the note is a status line, in plain words',
+            !!note && note.attrs.role === 'status' && note.textContent === "Can't load profiles right now.",
+            note && note.textContent);
+        ok('and it goes by itself', timers.some(t => t.ms === 8000 && !t.dead));
+        timers.filter(t => t.ms === 8000 && !t.dead).forEach(t => t.fn());
+        ok('after a few seconds it is gone', !noteNode());
+
+        // An expired session has its own screen; no note over it.
+        page.length = 0;
+        sb.fetch = () => Promise.resolve({ ok: false, status: 401, text: () => Promise.resolve('') });
+        P14.fetchAndRenderProfiles(sb.ApiClient, 'main', 'tok', true);
+        await env14.settle();
+        ok('an expired session is not announced as an unreachable server', !noteNode() && P14._expired === true);
+
+        // A list that arrives later makes the note wrong.
+        sb.fetch = () => Promise.reject(new TypeError('Failed to fetch'));
+        P14.fetchAndRenderProfiles(sb.ApiClient, 'main', 'tok', true);
+        await env14.settle();
+        ok('another failure brings it back', !!noteNode());
+        try { P14.showProfileOverlay([]); } catch (e) { /* the drawing is not under test */ }
+        ok('a gate drawn afterwards takes it down', !noteNode());
+    }
+
     // 7. The colour swatches are a radio group, named by position, with a state.
     {
         const P4 = D.loadPlugin(SRC).PP;

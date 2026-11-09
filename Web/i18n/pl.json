@@ -389,6 +389,7 @@
   "switcher.reloadFailedTitle": "Prawie gotowe",
   "switcher.reloadFailedBody": "Zamknij i otwórz aplikację ponownie, aby dokończyć zmianę profilu.",
   "switcher.unreachable": "Brak połączenia z serwerem. Spróbuj ponownie.",
+  "switcher.listFailed": "Nie można teraz wczytać profili.",
   "switcher.failedTitle": "Nie udało się przełączyć",
   "switcher.failedBody": "To nie zadziałało. Spróbuj ponownie.",
   "switcher.notSavedTitle": "Nie zapisano zmiany",
