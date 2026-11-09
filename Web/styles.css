@@ -1442,6 +1442,14 @@ body.profiles-no-scroll [id*="spinner"] {
         width: 100%;
         text-align: center;
     }
+    /* Half the row was too narrow for "Delete Profile" in most themes, so it broke onto
+       two lines and stood taller than Cancel. It takes the room its words need; Cancel
+       has the rest. */
+    #edit-delete-btn {
+        flex: 1 0 auto;
+        width: auto;
+        white-space: nowrap;
+    }
 }
 .form-group,
 .bonfire-form-group {
