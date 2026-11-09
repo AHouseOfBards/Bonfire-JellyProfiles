@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Profiles.Configuration;
+using ProfilesBaseController = Jellyfin.Profiles.Controllers.ProfilesBaseController;
 using MediaBrowser.Controller.Authentication;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
@@ -547,7 +548,7 @@ namespace Jellyfin.Profiles.Auth
                 var old = snapshot.PinHash;
                 if (!PinHasher.IsLegacy(old)) return;
                 var upgraded = PinHasher.Hash(pin);
-                lock (Controllers.ProfilesBaseController.ConfigLock)
+                lock (ProfilesBaseController.ConfigLock)
                 {
                     var live = Plugin.Instance?.Configuration?.Mappings
                         .FirstOrDefault(m => m.ProfileUserId == snapshot.ProfileUserId);
