@@ -1960,6 +1960,19 @@ namespace Jellyfin.Profiles.Controllers
                 ? NormalizeTags(request.AllowedTags)
                 : existingMapping?.AllowedTags;
 
+            // A name another account already has is refused before anything is written. It
+            // was found after the picture was saved, so a refused rename still changed the
+            // picture (ST-11).
+            if (request.ProfileId != masterUserId)
+            {
+                var wantedUsername = $"{masterUser.Username}_{request.ProfileName.Trim().Replace(" ", "")}";
+                if (!string.Equals(targetUser.Username, wantedUsername, StringComparison.OrdinalIgnoreCase)
+                    && GetAllUsers().Any(u => string.Equals(u.Username, wantedUsername, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return BadRequest("A profile with this name already exists.");
+                }
+            }
+
             // The picture first, before anything else is written. A refused one answers 400
             // with the reason and leaves the profile exactly as it was: the picture it has,
             // its name and everything else in this request. A rejected picture used to be

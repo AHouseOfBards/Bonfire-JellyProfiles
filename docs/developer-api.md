@@ -41,7 +41,7 @@ because other people build against it too.
 
 ## All routes
 
-All 103 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 104 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -52,6 +52,7 @@ All 103 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `GET /plugins/profiles/ratings` | user | The rating limits a profile can be given. |
 | `POST /plugins/profiles/create` | user | Create a profile. |
 | `POST /plugins/profiles/update` | user | Change a profile. |
+| `POST /plugins/profiles/me` | user | A profile changes its own name and picture. |
 | `POST /plugins/profiles/delete` | user | Delete a profile and its account. |
 | `POST /plugins/profiles/switch` | user | Switch to a profile and get its token. |
 | `POST /plugins/profiles/verify-pin` | user | Check a PIN without switching. |
@@ -675,6 +676,20 @@ Values worth knowing:
   while the rating stays the same.
 
 Returns `200`. Errors as for `/create`.
+
+### `POST /plugins/profiles/me`
+
+**Authorisation:** signed-in user, and only a profile: a main account gets `401`.
+
+A profile changes its own name and picture without the main PIN. It takes `profileName`,
+`avatarColor`, `transparentAvatar`, `profileImage`, `profileImageThumb` and `avatarLibraryId`,
+which mean what they do in `/update`. Every field left out or `null` stays as it is.
+
+There is no `profileId`: the caller is the profile. Nothing else can be sent. Rating, PIN,
+libraries, tags, limits, devices and theme are not read from this body, and a field that
+names one is ignored. A refused change, such as a name that is taken, changes nothing.
+
+Returns `200`. Errors as for `/update`.
 
 ### `POST /plugins/profiles/delete`
 
