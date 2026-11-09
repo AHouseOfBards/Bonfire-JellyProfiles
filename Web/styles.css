@@ -1027,6 +1027,16 @@ body.profiles-no-scroll [id*="spinner"] {
     transition: border-color 0.25s, box-shadow 0.25s;
     position: relative !important;
 }
+/* The Emergency disable code field: it had no style of its own and drew as a plain white
+   box on the dark dialog. */
+#profiles-panic-input {
+    background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border);
+    border-radius: var(--jpf-input-r); color: var(--jpf-text-1);
+}
+#profiles-panic-input:focus {
+    border-color: var(--jpf-accent); outline: none;
+    box-shadow: 0 0 10px var(--jpf-accent-a40);
+}
 #bonfire-join-input:focus {
     border-color: var(--jpf-accent); outline: none;
     box-shadow: 0 0 10px var(--jpf-accent-a40);

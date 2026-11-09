@@ -4371,7 +4371,7 @@
 
             dialog.innerHTML = `
                 <div style="background:var(--jpf-panel); border:1px solid var(--jpf-border-1); border-radius: var(--jpf-r-md);
-                            padding:24px; max-width:460px; width:90%; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+                            padding:24px; box-sizing:border-box; max-width:460px; width:calc(100% - 32px); box-shadow:0 10px 30px rgba(0,0,0,0.5);">
                     <h2 style="margin:0 0 12px 0; color:var(--jpf-text-1); font-size:1.2rem; font-weight:700;">${t('panic.emergencyDisable')}</h2>
                     <p style="color:var(--jpf-text-2); font-size:0.9rem; line-height:1.5; margin:0 0 16px 0;">
                         ${t('panic.dialogBody')}
