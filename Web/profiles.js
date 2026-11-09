@@ -3067,6 +3067,13 @@
                 if (isTv !== root.classList.contains('jpf-tv')) {
                     root.classList.toggle('jpf-tv', isTv);
                 }
+                // The flat look follows the layout: a television that cannot afford the
+                // blur and the moving decoration. A phone or a desktop that cannot blur is
+                // left alone, and so is a television that can.
+                const flat = isTv && !this._canBlur();
+                if (flat !== root.classList.contains('jpf-flat')) {
+                    root.classList.toggle('jpf-flat', flat);
+                }
             };
             this._applyTvClass = apply;
 
@@ -3079,6 +3086,24 @@
                 attributes: true,
                 attributeFilter: ['class'],
             });
+        },
+
+        /// Can this browser afford the full look? Asked by capability, not by user agent:
+        /// backdrop-filter is Chromium 76, and a television browser without it (webOS 4.5
+        /// is 53, webOS 5 is 68) is the class whose compositor chokes on a blurred shadow
+        /// behind every tile. No CSS.supports at all is answered "no": better flat than
+        /// slow. Worked out once; a browser does not gain a feature while a page is open.
+        _canBlur: function () {
+            if (this._blurCapable === undefined) {
+                let can = false;
+                try {
+                    can = typeof CSS !== 'undefined' && typeof CSS.supports === 'function'
+                        && (CSS.supports('backdrop-filter', 'blur(1px)')
+                            || CSS.supports('-webkit-backdrop-filter', 'blur(1px)'));
+                } catch (e) { can = false; }
+                this._blurCapable = !!can;
+            }
+            return this._blurCapable;
         },
 
         /// This device's layout answer: 'tv', 'standard', or null for Automatic. Anything

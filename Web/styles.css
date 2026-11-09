@@ -2520,6 +2520,112 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-fade { transition: opacity 0.15s ease-out; }
 html.jpf-fading { transition: opacity 0.18s ease; }
 #profiles-gate-overlay.jpf-bg-fade { transition: background 0.2s ease; }
+/* ── The flat look ────────────────────────────────────────────────
+   On a television that cannot afford it (jpf-flat: a television browser with no
+   backdrop-filter, so Chromium 75 and older; see _canBlur) the blur and the moving
+   decoration are swapped for flat equivalents. Every feature is still there: the same
+   tiles, the same focus cue, the same screens. What goes is the blurred shadow behind
+   each of them, which the software compositor repaints on every focus move, and the
+   crown that bobs forever.
+
+   Each rule is the selector of the one it replaces with .jpf-flat in front, so it is the
+   same element in the same state, one class heavier, and later in the sheet. They are
+   written in the order of the originals, because a state that comes later in the original
+   (current, then hover, then focus) has to come later here too. tests/js/flatlook.js
+   finds every blur and loop in this sheet by parsing, and fails on any that has no rule
+   here, any that is outranked, and any rule here that answers to nothing.
+
+   What the shadow said is said another way. A focused tile keeps its scale and its ring
+   border; a cut-out picture keeps the four sharp strokes that outline it and loses only
+   the soft pass (filter: blur is the expensive part, a hard-edged offset is not);
+   focus on a control keeps its border and, on a television, the 4px outline above.
+   Frost is not here: it is inside @supports (backdrop-filter), which these browsers do
+   not satisfy, and a theme's drifting pattern is held off every television already. */
+.jpf-flat .jpf-theme-preview-tile,
+.jpf-flat .profiles-home-section,
+.jpf-flat .profile-avatar,
+.jpf-flat .profile-lock-indicator,
+.jpf-flat .profile-bonfire-indicator,
+.jpf-flat .profile-card:hover .profile-avatar,
+.jpf-flat .profile-card:focus .profile-avatar,
+.jpf-flat #bonfire-join-input:focus,
+.jpf-flat .bonfire-kick-btn:focus,
+.jpf-flat .bonfire-kick-btn:hover,
+.jpf-flat #profiles-floating-bubble.profiles-floating-fallback,
+.jpf-flat #profiles-floating-bubble.profiles-floating-fallback:hover,
+.jpf-flat #profiles-floating-bubble.profiles-floating-fallback:focus,
+.jpf-flat #profile-pin-input:focus,
+.jpf-flat #master-pin-input:focus,
+.jpf-flat #main-pin-new:focus,
+.jpf-flat #pin-reset-new:focus,
+.jpf-flat #pin-reset-code:focus,
+.jpf-flat .btn-primary:hover,
+.jpf-flat .btn-primary:focus,
+.jpf-flat .btn-secondary:hover,
+.jpf-flat .btn-secondary:focus,
+.jpf-flat .create-profile-container,
+.jpf-flat .form-group input:focus,
+.jpf-flat .form-group select:focus,
+.jpf-flat .bonfire-form-group input[type="email"]:focus,
+.jpf-flat .library-check-label:focus input,
+.jpf-flat .library-check-label:hover input,
+.jpf-flat .devices-dropdown-list {
+    box-shadow: none;
+}
+/* Alone, as every :focus-within is: Chromium 53 cannot parse it and drops the whole list. */
+.jpf-flat .profile-card:focus-within .profile-avatar {
+    box-shadow: none;
+}
+/* The one original that says !important, so this has to. */
+.jpf-flat .devices-dropdown-trigger:focus {
+    box-shadow: none !important;
+}
+/* The preview swatch's shadow goes, and the theme's focus frame on its first tile, which
+   is a hard ring and not a shadow, is put back: the rule above would otherwise tie with
+   .jpf-theme-preview-tile:first-child on specificity and win on order. */
+.jpf-flat .jpf-theme-preview-tile:first-child {
+    box-shadow: 0 0 0 var(--jpf-ring-w) var(--jpf-ring);
+}
+.jpf-flat .profiles-title,
+.jpf-flat .profiles-home-icon,
+.jpf-flat .profiles-home-icon.bonfire-icon-color {
+    text-shadow: none;
+}
+.jpf-flat .profile-crown,
+.jpf-flat .anim-fade-in {
+    animation: none;
+}
+.jpf-flat .profile-avatar.is-transparent img,
+.jpf-flat .profile-avatar-overlay-svg {
+    filter: none;
+}
+.jpf-flat .profile-card.is-current .profile-avatar.is-transparent img {
+    filter:
+        drop-shadow(3px 0 0 var(--jpf-accent))
+        drop-shadow(-3px 0 0 var(--jpf-accent))
+        drop-shadow(0 3px 0 var(--jpf-accent))
+        drop-shadow(0 -3px 0 var(--jpf-accent));
+}
+.jpf-flat .profile-card:hover .profile-avatar.is-transparent img,
+.jpf-flat .profile-card:focus .profile-avatar.is-transparent img {
+    filter:
+        drop-shadow(3px 0 0 var(--jpf-ring))
+        drop-shadow(-3px 0 0 var(--jpf-ring))
+        drop-shadow(0 3px 0 var(--jpf-ring))
+        drop-shadow(0 -3px 0 var(--jpf-ring));
+}
+.jpf-flat .profile-card:focus-within .profile-avatar.is-transparent img {
+    filter:
+        drop-shadow(3px 0 0 var(--jpf-ring))
+        drop-shadow(-3px 0 0 var(--jpf-ring))
+        drop-shadow(0 3px 0 var(--jpf-ring))
+        drop-shadow(0 -3px 0 var(--jpf-ring));
+}
+/* Nothing eases between states on these either; the focus scale itself stays. */
+.jpf-flat .profile-card .profile-avatar,
+.jpf-flat .profiles-btn {
+    transition: none;
+}
 
 /* Reduced motion (2.0). Short fades and a gentle focus scale are the default; a person who
 asked for less gets none of them. Focus stays findable by its ring and border. The

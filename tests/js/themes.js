@@ -861,7 +861,10 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
         const rivals = [];
         CSS.replace(/([^{}]*\.create-profile-container[^{}]*)\{([^}]*)\}/g, (m, sel, decl, idx) => {
             if (/jpf-theme-page|::|is-two-col|>/.test(sel)) return m;
-            if (!/background|border|box-shadow|backdrop-filter|padding/.test(decl)) return m;
+            // A rival is a rule that draws something. "box-shadow: none" draws nothing, and
+            // the flat look's .jpf-flat rule is exactly that: it ties this page's own
+            // "box-shadow: none" and cannot give the container a sheet.
+            if (!/background|border|backdrop-filter|padding|box-shadow:(?!\s*none)/.test(decl)) return m;
             sel.split(',').map(s => s.trim()).filter(s => /\.create-profile-container$/.test(s)).forEach(s => {
                 const spec = [(s.match(/#/g) || []).length,
                               (s.match(/\.|\[|:(?!:)/g) || []).length];
