@@ -1073,6 +1073,8 @@
   "account.layoutHint": "Tylko to urządzenie. Większy, dla telewizora.",
   "account.emailOff": "E-mail nie jest skonfigurowany. Poproś administratora serwera o włączenie go w panelu Bonfire.",
   "gate.manageHint": "Dotknij profilu, aby go edytować. Etykiety pokazują jego stan.",
+  "gate.ownProfile": "Nazwa i zdjęcie",
+  "ownProfile.title": "Twoja nazwa i zdjęcie",
   "onboarding.switcherLater": "Możesz to zmienić później w Ustawieniach.",
   "admin.tab.look": "Wygląd",
   "admin.tab.setup": "Konfiguracja",

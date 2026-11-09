@@ -1085,6 +1085,8 @@
   "account.layoutHint": "Yalnızca bu cihaz. TV için daha büyük.",
   "account.emailOff": "E-posta kurulu değil. Sunucu yöneticisinden Bonfire panelinde açmasını isteyin.",
   "gate.manageHint": "Düzenlemek için bir profile dokunun. Etiketler durumunu gösterir.",
+  "gate.ownProfile": "Ad ve resim",
+  "ownProfile.title": "Adınız ve resminiz",
   "onboarding.switcherLater": "Bunu daha sonra Ayarlar'dan değiştirebilirsiniz.",
   "admin.tab.look": "Görünüm",
   "admin.tab.setup": "Kurulum",

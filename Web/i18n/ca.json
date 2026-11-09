@@ -1073,6 +1073,8 @@
   "account.layoutHint": "Només aquest dispositiu. Més gran, per a una TV.",
   "account.emailOff": "El correu no està configurat. Demana a l'administrador del servidor que l'activi al tauler de Bonfire.",
   "gate.manageHint": "Toca un perfil per editar-lo. Les etiquetes en mostren l'estat.",
+  "gate.ownProfile": "Nom i foto",
+  "ownProfile.title": "El teu nom i la teva foto",
   "onboarding.switcherLater": "Ho pots canviar més tard a Configuració.",
   "admin.tab.look": "Aspecte",
   "admin.tab.setup": "Configuració",

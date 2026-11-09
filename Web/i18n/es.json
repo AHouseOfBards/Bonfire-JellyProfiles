@@ -1073,6 +1073,8 @@
   "account.layoutHint": "Solo este dispositivo. Más grande, para una TV.",
   "account.emailOff": "El correo no está configurado. Pide al administrador del servidor que lo active en el panel de Bonfire.",
   "gate.manageHint": "Toca un perfil para editarlo. Las etiquetas muestran su estado.",
+  "gate.ownProfile": "Nombre y foto",
+  "ownProfile.title": "Tu nombre y tu foto",
   "onboarding.switcherLater": "Puedes cambiarlo más tarde en Configuración.",
   "admin.tab.look": "Aspecto",
   "admin.tab.setup": "Configuración",

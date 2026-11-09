@@ -807,6 +807,8 @@
         'gate.pinProtected': 'PIN Protected',
         'gate.noPin': 'No PIN',
         'gate.manageHint': 'Tap a profile to edit it. The labels show its status.',
+        'gate.ownProfile': 'Name and picture',
+        'ownProfile.title': 'Your name and picture',
         'gate.addProfile': 'Add Profile',
         'gate.yourBonfire': 'Your household',
         'gate.guest': 'Guest',
@@ -6094,6 +6096,9 @@
                         ${this.isManageMode && hasLocalMaster
                             ? `<button id="profiles-settings-btn" class="profiles-btn btn-secondary">${t('common.settings')}</button>`
                             : ''}
+                        ${this.ownProfileOf(profiles)
+                            ? `<button id="profiles-self-btn" class="profiles-btn btn-secondary">${t('gate.ownProfile')}</button>`
+                            : ''}
                         ${this._resumeState && !this.isManageMode
                             ? `<button id="profiles-resume-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>`
                             : ''}
@@ -6489,6 +6494,16 @@
                         return;
                     }
                     this.withMainPin(profiles, () => this.showSettingsMenu());
+                });
+            }
+
+            // A profile's own name and picture, for the person using it (P2-713).
+            const selfBtn = overlay.querySelector('#profiles-self-btn');
+            if (selfBtn) {
+                selfBtn.addEventListener('click', () => {
+                    if (this._switchLock) return;
+                    const own = this.ownProfileOf(profiles);
+                    if (own) this.showOwnProfileForm(own);
                 });
             }
 
@@ -8222,6 +8237,152 @@
                 clear: clearPicture,
                 setError: showError
             };
+        },
+
+        /// The profile the person at this screen is using, when it is one of the household's
+        /// sub-profiles and the picker was opened from inside it (P2-713). Null for the main
+        /// account, a linked account, a startup gate with nobody in yet, and Manage Profiles:
+        /// the main account has /update and its PIN for all of those.
+        ///
+        /// _resumeState carries the profile that was in use when the picker was opened, which
+        /// is the one /me would change; the list alone cannot say who is signed in.
+        ownProfileOf: function (profiles) {
+            const prior = this._resumeState;
+            if (this.isManageMode || !prior || prior.closeOnly || !prior.token || !prior.userId) return null;
+            const id = this.normalizeGuid(prior.userId);
+            return (profiles || []).find(p => this.normalizeGuid(p.profileUserId) === id
+                && !p.isMaster && !p.isLinked && !p.isBonfire) || null;
+        },
+
+        /// A profile's own name and picture, changed without the main PIN (P2-713). Saves
+        /// through POST /me, which takes the caller to be the profile and has no field for
+        /// anything else about it.
+        ///
+        /// The picture is the same picker as the main account's forms, so a server limited
+        /// to its avatar library gets the library and no upload button, and a choice from
+        /// it is sent as an id the server copies from — the route checks the same rule, so
+        /// this is presentation and that is the rule.
+        showOwnProfileForm: function (profile) {
+            const content = document.querySelector('.profiles-modal-content');
+            const prior = this._resumeState;
+            if (!content || !profile || !prior || prior.closeOnly) return;
+            const ticket = this.beginNavigation();
+            const token = prior.token;
+
+            const backToGrid = () => {
+                const overlay = document.getElementById('profiles-gate-overlay');
+                if (overlay) this.renderOverlayContent(overlay, this.currentProfiles);
+            };
+
+            this.fetchAvatarLibrary(ApiClient, token).then(library => {
+                if (!this.navIsCurrent(ticket)) return;
+                this.clearManagedDocumentListeners();
+
+                content.innerHTML = `
+                    <h1 class="profiles-title">${t('ownProfile.title')}</h1>
+                    <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
+                        <div class="form-col">
+                            <div class="form-group">
+                                <label for="self-name-input">${t('profileForm.profileName')}</label>
+                                <input type="text" id="self-name-input" maxlength="32" value="${escapeHtml(profile.profileName)}" required />
+                            </div>
+                            ${this.renderAvatarPicker('self', library, profile.profileImage, profile.avatarColor, { enabled: !!profile.transparentAvatar })}
+                            <div class="form-group avatar-color-group" id="self-color-group">
+                                <label>${t('profileForm.avatarColor')}</label>
+                                ${this.renderColorPicker(profile.avatarColor)}
+                                <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
+                            </div>
+                            <div id="self-error" class="form-error" role="alert" style="display:none;"></div>
+                        </div>
+                        <div class="bonfire-dialog-actions jpf-actions">
+                            <button id="self-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
+                            <button id="self-submit-btn" class="profiles-btn btn-primary">${t('common.save')}</button>
+                        </div>
+                    </div>
+                `;
+
+                const dots = content.querySelectorAll('.color-dot');
+                let selectedColor = profile.avatarColor || DEFAULT_AVATAR_COLOR;
+                dots.forEach(dot => {
+                    const color = dot.getAttribute('data-color');
+                    dot.addEventListener('click', () => {
+                        dots.forEach(d => d.classList.remove('active'));
+                        dot.classList.add('active');
+                        this._syncColorRadios(dots);
+                        selectedColor = color;
+                        const preview = document.getElementById('self-image-upload-preview');
+                        if (preview && !preview.querySelector('img')) paintAvatar(preview, selectedColor);
+                    });
+                    dot.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dot.click(); }
+                    });
+                });
+
+                const picker = this.initAvatarPicker(
+                    content, 'self', library, profile.profileImage,
+                    (src) => {
+                        const preview = document.getElementById('self-image-upload-preview');
+                        if (preview && !src) preview.innerHTML = escapeHtml(profile.avatarInitial);
+                    },
+                    { enabled: !!profile.transparentAvatar });
+
+                const errorEl = content.querySelector('#self-error');
+                const showError = (message) => {
+                    errorEl.textContent = message;
+                    errorEl.style.display = message ? 'block' : 'none';
+                };
+
+                content.querySelector('#self-cancel-btn').addEventListener('click', backToGrid);
+
+                let busy = false;
+                content.querySelector('#self-submit-btn').addEventListener('click', () => {
+                    if (busy) return;
+                    const name = (content.querySelector('#self-name-input').value || '').trim();
+                    if (!name) { showError(t('profileForm.nameRequired')); return; }
+
+                    // Only what changed: the route leaves what is absent as it is.
+                    const picked = picker.get();
+                    const body = { avatarColor: selectedColor, transparentAvatar: picked.transparent };
+                    if (name !== profile.profileName) body.profileName = name;
+                    if (picked.libraryId) {
+                        body.avatarLibraryId = picked.libraryId;
+                    } else if (picked.image !== (profile.profileImage || null)) {
+                        // '' removes the picture; the picker holds '' for that.
+                        body.profileImage = picked.image || '';
+                        if (picked.thumb) body.profileImageThumb = picked.thumb;
+                    }
+
+                    busy = true;
+                    showError('');
+                    fetch(ApiClient.getUrl('plugins/profiles/me'), {
+                        method: 'POST',
+                        headers: this.jsonHeaders(token),
+                        body: JSON.stringify(body)
+                    })
+                    .then(res => {
+                        if (res.status === 401) { this.handleSessionExpired(); throw new Error(t('errors.couldNotSaveThat')); }
+                        if (!res.ok) return res.text().then(text => { throw new Error(text || t('errors.couldNotSaveThat')); });
+                    })
+                    .then(() => {
+                        // The header marker is rebuilt from the fresh list, which is read
+                        // below; the one remembered for the profile being resumed is stale.
+                        if (this._resumeState) this._resumeState.info = null;
+                        const known = this.readMasterState();
+                        this.fetchAndRenderProfiles(ApiClient, known ? known.masterUserId : ApiClient.getCurrentUserId(),
+                            token, /* forceRefresh */ true);
+                    })
+                    .catch(err => {
+                        busy = false;
+                        showError(err.message || t('errors.couldNotSaveThat'));
+                    });
+                });
+
+                this.initTVCheckboxes(content);
+                setTimeout(() => {
+                    const first = content.querySelector('#self-name-input');
+                    if (first) first.focus();
+                }, 100);
+            });
         },
 
         showAddProfileModal: function () {
