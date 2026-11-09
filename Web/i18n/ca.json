@@ -364,6 +364,7 @@
   "bonfire.hideOthers": "Amaga'm els perfils dels altres",
   "bonfire.hideOthersHint": "Només veus els seus comptes principals.",
   "bonfire.lanSwitchLabel": "Deixa que els membres del Bonfire obrin el meu compte en aquesta xarxa",
+  "bonfire.moreSummary": "Canviar de compte en aquesta xarxa",
   "bonfire.lanSwitchHint": "No cal PIN a la teva xarxa domèstica, ni per al teu compte ni per als teus perfils. Fora de casa, sí que cal{extra}.",
   "bonfire.lanSwitchHintExtra": ", i el que no tingui PIN no es pot obrir en remot de cap manera",
   "bonfire.settingsSaved": "Desat.",

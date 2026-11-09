@@ -364,6 +364,7 @@
   "bonfire.hideOthers": "Masquer pour moi les profils des autres",
   "bonfire.hideOthersHint": "Vous ne voyez que leurs comptes principaux.",
   "bonfire.lanSwitchLabel": "Laisser les membres du Bonfire ouvrir mon compte sur ce réseau",
+  "bonfire.moreSummary": "Changer de compte sur ce réseau",
   "bonfire.lanSwitchHint": "Aucun code PIN requis sur votre réseau domestique, ni pour votre compte ni pour vos profils. Hors de chez vous, il reste requis{extra}.",
   "bonfire.lanSwitchHintExtra": ", et ce qui n'a pas de code PIN ne peut pas du tout être ouvert à distance",
   "bonfire.settingsSaved": "Enregistré.",

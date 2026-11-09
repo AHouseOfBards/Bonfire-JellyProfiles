@@ -191,6 +191,18 @@ ok('announced to a screen reader without moving focus',
    /id="bonfire-settings-status"[^>]*aria-live/.test(env.rendered()));
 ok('and it starts hidden', /id="bonfire-settings-status"[\s\S]{0,200}display:\s*none/.test(env.rendered()));
 
+{
+    // The LAN switch is under a closed More fold; the two hide boxes are not.
+    const html = env.rendered();
+    const foldAt = html.indexOf('<details');
+    const foldEnd = html.indexOf('</details>', foldAt);
+    const at = html.indexOf('id="bonfire-lan-bypass-checkbox"');
+    ok('the network switch is under a closed More fold',
+       foldAt !== -1 && at > foldAt && at < foldEnd && !/^<details[^>]*\sopen/.test(html.slice(foldAt, html.indexOf('>', foldAt) + 1)));
+    ok('and the two hide boxes are not',
+       html.indexOf('id="bonfire-hide-mine-checkbox"') < foldAt && html.indexOf('id="bonfire-hide-others-checkbox"') < foldAt);
+}
+
 console.log('\n── A successful save is confirmed ──────────────────────────────');
 
 const good = build('ok');

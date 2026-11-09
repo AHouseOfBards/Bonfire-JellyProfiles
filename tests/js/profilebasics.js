@@ -149,7 +149,7 @@ const has = (part, id) => part.indexOf('id="' + id + '"') !== -1;
     for (const id of ['edit-name-input', 'edit-pin-input', 'edit-rating-select']) {
         ok('Basics has ' + id, has(h.basics, id) && !has(h.more, id));
     }
-    for (const id of ['edit-lockout-select', 'edit-local-bypass-checkbox', 'edit-theme-select']) {
+    for (const id of ['edit-lockout-select', 'edit-local-bypass-checkbox', 'edit-theme-select', 'edit-libart-toggle', 'edit-libart-hint']) {
         ok('More has ' + id, has(h.more, id) && !has(h.basics, id));
     }
     ok('Basics has the allowed devices, More does not (P2-605)',

@@ -1224,6 +1224,7 @@
         'bonfire.hideMineHint': 'Others see only my main account.',
         'bonfire.hideOthers': "Hide other people's profiles from me",
         'bonfire.hideOthersHint': 'You see only their main accounts.',
+        'bonfire.moreSummary': 'Switching on this network',
         'bonfire.lanSwitchLabel': 'Let Bonfire members open my account on this network',
         'bonfire.lanSwitchHint': 'No PIN needed on your home network, for your account or your profiles. Away from home it still is{extra}.',
         'bonfire.lanSwitchHintExtra': ', and anything without a PIN cannot be opened remotely at all',
@@ -8703,6 +8704,15 @@
                                 `;
                             }).join('')}
                         </div>
+                    </div>
+                    ${this.renderDeviceDropdown('edit', devices, profile)}
+                `;
+
+                // The artwork switch lives under More. The per-library controls it reveals
+                // stay on the library rows; initLibraryArtworkEditor finds both by class
+                // inside the form, so the two need not sit together.
+                const artworkSwitch = `
+                    <div class="form-group">
                         <label class="library-check-label libart-toggle">
                             <input type="checkbox" id="edit-libart-toggle" />
                             <span>${t('profileForm.artworkToggleLabel')}</span>
@@ -8710,9 +8720,7 @@
                         <div class="form-hint libart-explainer" id="edit-libart-hint" style="display: none;">
                             ${t('profileForm.artworkExplainer')}
                         </div>
-                    </div>
-                    ${this.renderDeviceDropdown('edit', devices, profile)}
-                `;
+                    </div>`;
 
                 // ── More: tags on top of the libraries ──────────────────────────
                 // Devices sit above with what the profile can watch (P2-605).
@@ -8737,7 +8745,8 @@
                         </div>
                         ${this.renderMoreSettings('edit', [
                             this.renderSection('timer', t('profileForm.sectionLockingTitle'), t('profileForm.sectionLockingSubtitle'), lockingBody),
-                            this.renderThemeSection('edit', profile.theme)
+                            this.renderThemeSection('edit', profile.theme),
+                            artworkSwitch
                         ], [
                             this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), restrictionsBody)
                         ])}` : ''}
@@ -10593,7 +10602,7 @@
                         <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.75 !important; font-size: 0.8rem !important; position: relative !important; display: block !important;">${t('bonfire.hideOthersHint')}</div>
                     </div>` : ''}
 
-                    ${lanBypassSectionHtml}
+                    ${lanBypassSectionHtml ? this.renderFold('bonfire-more', t('bonfire.moreSummary'), lanBypassSectionHtml, true) : ''}
 
                     <!-- Saving these is a fetch that can fail. Without somewhere to say so,
                          a failure left the box sitting in its new position with the server

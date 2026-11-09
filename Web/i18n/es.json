@@ -388,6 +388,7 @@
   "bonfire.hideOthers": "Ocultarme los perfiles de los demás",
   "bonfire.hideOthersHint": "Solo ves sus cuentas principales.",
   "bonfire.lanSwitchLabel": "Dejar que los miembros del Bonfire abran mi cuenta en esta red",
+  "bonfire.moreSummary": "Cambiar de cuenta en esta red",
   "bonfire.lanSwitchHint": "No hace falta PIN en tu red doméstica, ni para tu cuenta ni para tus perfiles. Fuera de casa sí{extra}.",
   "bonfire.lanSwitchHintExtra": ", y lo que no tenga PIN no se puede abrir a distancia de ningún modo",
   "bonfire.settingsSaved": "Guardado.",

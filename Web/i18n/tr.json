@@ -397,6 +397,7 @@
   "bonfire.hideOthers": "Başkalarının profillerini benden gizle",
   "bonfire.hideOthersHint": "Yalnızca ana hesaplarını görürsünüz.",
   "bonfire.lanSwitchLabel": "Bonfire üyelerinin bu ağda hesabımı açmasına izin ver",
+  "bonfire.moreSummary": "Bu ağda geçiş",
   "bonfire.lanSwitchHint": "Ev ağınızda hesabınız veya profilleriniz için PIN gerekmez. Ev dışındayken PIN gerekliliği devam eder{extra}.",
   "bonfire.lanSwitchHintExtra": " ve PIN'i olmayan hiçbir profil uzaktan açılamaz",
   "bonfire.settingsSaved": "Kaydedildi.",
