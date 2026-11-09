@@ -598,7 +598,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-maintenance.is-blocking .profiles-maintenance-title { font-size: 2rem; margin-bottom: 1rem; }
 .profiles-maintenance-text { white-space: pre-wrap; word-wrap: break-word; margin-top: 0.3rem; }
 .profiles-maintenance-text:empty { display: none; }
-.profiles-maintenance-when { opacity: 0.75; margin-top: 0.3rem; }
+.profiles-maintenance-when { margin-top: 0.3rem; }
 .profiles-maintenance .profiles-btn { margin-top: 1.5rem; }
 .profiles-home-section {
     width: 100%;

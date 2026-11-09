@@ -106,7 +106,7 @@ function load(opts) {
     return { P: sandbox.__PROFILES, body, calls, sandbox, timers, counts: () => ({ loggedOut, reloaded }) };
 }
 const json = b => Promise.resolve({ ok: true, json: () => Promise.resolve(b) });
-const closed = { name: 'Bonfire', maintenance: { message: 'Upgrading. ' + EVIL, untilUtc: '2026-11-05T03:00:00Z' } };
+const closed = { name: 'Bonfire', maintenance: { message: 'Upgrading. ' + EVIL, untilUtc: '2099-11-05T03:00:00Z' } };
 const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r)); };
 const notice = env => env.sandbox.document.getElementById('profiles-maintenance');
 
@@ -129,6 +129,17 @@ const notice = env => env.sandbox.document.getElementById('profiles-maintenance'
     ok('and never as markup', !markup);
     ok('and when it is expected back', n && /^Back by /.test(byClass(n, 'profiles-maintenance-when')[0].textContent));
     ok('no Sign out button, since nobody is signed in', n && !n.querySelector('button'));
+
+    // A time that has gone by is not "back by" anything (P2-209). The fixture above is a
+    // fixed date, which was the future when written and is not now, so it is built here.
+    const lapsed = { name: 'Bonfire', maintenance: { message: 'Still working.', untilUtc: '2020-01-01T03:00:00Z' } };
+    const late = load({ serve: () => json(lapsed), user: null });
+    late.P.checkMaintenance();
+    await settle();
+    const ln = notice(late);
+    ok('a notice whose time has passed is still shown', !!ln && byClass(ln, 'profiles-maintenance-text')[0].textContent === 'Still working.');
+    ok('but with no "Back by" in the past', !!ln && byClass(ln, 'profiles-maintenance-when').length === 0,
+       ln && byClass(ln, 'profiles-maintenance-when').map(e => e.textContent).join('|'));
 
     env.P.checkMaintenance();
     await settle();

@@ -5972,7 +5972,8 @@
             let back = '';
             if (until) {
                 const d = new Date(until);
-                if (!isNaN(d.getTime())) back = t('maintenance.backBy', { time: d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) });
+                // Only a time still to come: "Back by" an hour ago says the server is late.
+                if (!isNaN(d.getTime()) && d.getTime() > Date.now()) back = t('maintenance.backBy', { time: d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) });
             }
 
             const box = document.createElement('div');
