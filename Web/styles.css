@@ -2405,6 +2405,31 @@ body.profiles-no-scroll [id*="spinner"] {
     font-size: 1.5rem;
     padding: 16px 36px;
 }
+/* The widths are pixels, sized for a monitor at sixty centimetres: a form was 960px of a
+   1920px screen and Settings 560px, a narrow column in the middle of a lot of black. In rem
+   they follow jellyfin-web's root (20px at 720p, 27px at 1080p). Set on body as well,
+   because the base rule above sets them there and a variable set on body beats one
+   inherited from html. The PIN width stays as it is: those keys are sized for a short
+   row and .pin-actions scales it itself. */
+.jpf-tv, .jpf-tv body {
+    --jpf-w-form: 36rem;
+    --jpf-w-wide: 56rem;
+}
+/* The picture buttons wrapped to three lines at 1.5rem and the Save bar was 16% of a 720p
+   screen. They are still large, and the bar still thick enough to hit with a remote. */
+.jpf-tv .image-upload-btn {
+    font-size: 1.25rem;
+    padding: 10px 24px;
+    white-space: nowrap;
+}
+.jpf-tv .profile-dialog-actions .profiles-btn {
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+.jpf-tv .create-profile-container > .profile-dialog-actions {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
 /* The PIN screens' button row is capped at --jpf-w-narrow (420px), sized for 1rem
    buttons. A television's are 1.5rem with 36px of padding, two of them plus the gap
    come to more than 420px at 1080p, and the row wrapped: Cancel over Submit, hard
