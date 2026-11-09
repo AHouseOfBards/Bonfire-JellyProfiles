@@ -255,6 +255,19 @@ function tagOf(id) {
         });
     }
 
+    // 15. Reduced motion stops the always-on and the hover motion, not only the drift.
+    {
+        const css = require('fs').readFileSync(process.argv[3] || require('path').join(L.ROOT, 'Web', 'styles.css'), 'utf8');
+        const blocks = [];
+        css.replace(/@media \(prefers-reduced-motion: reduce\)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g, (m, b) => { blocks.push(b); return m; });
+        const all = blocks.join('\n');
+        ok('the crown stops bobbing', /\.profile-crown[^{]*\{[^}]*animation:\s*none/.test(all));
+        ok('the picker does not zoom in', /\.anim-fade-in[^{]*\{[^}]*animation:\s*none/.test(all));
+        ok('tiles do not scale under the pointer or focus',
+            /\.profile-card:focus \.profile-avatar[^{]*\{[^}]*transform:\s*none/.test(all));
+        ok('swatches and buttons do not scale', /\.color-dot:focus[^{]*\{[^}]*transform:\s*none/.test(all));
+    }
+
     // 10. The letter on an avatar is readable on every palette colour (3:1 at least, it is
     // large text; most are well past it).
     {

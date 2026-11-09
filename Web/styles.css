@@ -2446,3 +2446,17 @@ body.profiles-no-scroll [id*="spinner"] {
 #profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-footer {
     margin-top: calc(var(--jpf-tile) / 6);
 }
+
+/* Reduced motion (2.0). Short fades and a gentle focus scale are the default; a person who
+asked for less gets none of them. Focus stays findable by its ring and border. The
+spinner is kept on purpose: it is the only sign that a tap registered. Last in the
+sheet, and !important on transform because the hover and focus scale come from theme
+blocks written after this sheet. */
+@media (prefers-reduced-motion: reduce) {
+    .profile-crown, .anim-fade-in { animation: none; }
+    .profile-card .profile-avatar, .color-dot, .avatar-library-item, .profiles-btn,
+    #profiles-gate-overlay, .alert-dialog-content { transition: none !important; }
+    .profile-card:hover .profile-avatar, .profile-card:focus .profile-avatar,
+    .color-dot:hover, .color-dot:focus, .avatar-library-item:hover, .avatar-library-item:focus,
+    .profiles-btn:hover, .profiles-btn:focus { transform: none !important; }
+}

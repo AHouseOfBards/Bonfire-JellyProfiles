@@ -86,7 +86,7 @@ const RULES = (function () {
 function winning(selector, prop) {
     let v = null;
     RULES.forEach(r => {
-        if (r.at && /prefers-color-scheme|max-width|min-width/.test(r.at)) return;
+        if (r.at && /prefers-color-scheme|prefers-reduced-motion|max-width|min-width/.test(r.at)) return;
         if (r.selectors.indexOf(selector) !== -1 && r.decls[prop] !== undefined) v = r.decls[prop];
     });
     return v;
