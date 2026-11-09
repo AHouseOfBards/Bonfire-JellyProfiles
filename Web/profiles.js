@@ -5382,11 +5382,29 @@
         /// needs Chrome 105; the TVs this has to work on are Chrome 68 (webOS 5) and
         /// Chrome 76 (Tizen 6.0), so it would throw on exactly the devices the focus trap
         /// exists for — and a remote is the one input with no way to escape a broken trap.
+        ///
+        /// A radio in a group is one Tab stop (_roveRadios), so the others carry
+        /// tabindex="-1" and the selector above would skip them: a remote, which has only
+        /// the arrows, could never reach the second choice. They are listed here and left
+        /// out of Tab alone, in _stepOverlayFocus.
         _overlayFocusables: function (root) {
             return Array.prototype.filter.call(
-                root.querySelectorAll('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])'),
+                root.querySelectorAll('button, input, select, textarea, a[href], [role="radio"], [tabindex]:not([tabindex="-1"])'),
                 el => !el.disabled && el.offsetParent !== null
             );
+        },
+
+        /// One Tab stop for a group of radio cards, as a radio group is: the one that has
+        /// focus (or starts checked). The others are reached with the arrows, which the
+        /// trap turns into spatial moves, so a remote loses nothing. Passing a card on the
+        /// way through must not leave it behind as a second stop, so the stop follows focus.
+        _roveRadios: function (cards) {
+            const list = Array.prototype.slice.call(cards || []);
+            list.forEach(card => {
+                card.addEventListener('focus', () => {
+                    list.forEach(c => c.setAttribute('tabindex', c === card ? '0' : '-1'));
+                });
+            });
         },
 
         /// True for a control that binds the arrow keys to something other than moving
@@ -5418,7 +5436,9 @@
         /// Moves focus one step through the surface in document order, wrapping at both
         /// ends. This is what Tab means; geometry is for the direction keys.
         _stepOverlayFocus: function (root, delta) {
-            const items = this._overlayFocusables(root);
+            // Tab visits a radio group once: a radio left out of the tab order stays out.
+            const items = this._overlayFocusables(root).filter(el =>
+                !(el.getAttribute && el.getAttribute('role') === 'radio' && el.getAttribute('tabindex') === '-1'));
             if (!items.length) return;
             const at = items.indexOf(document.activeElement);
             const next = at < 0
@@ -9779,7 +9799,7 @@
             const prefs = this.getSwitcherPrefs() || { askOnStartup: true, location: 'button' };
             let location = prefs.location === 'menu' ? 'menu' : 'button';
             const option = (value, icon, title, body) => `
-                <div class="switcher-location-option jpf-choice focusable" data-location="${value}" tabindex="0" role="radio"
+                <div class="switcher-location-option jpf-choice focusable" data-location="${value}" tabindex="${location === value ? 0 : -1}" role="radio"
                      aria-checked="${location === value}">
                     <span class="material-icons jpf-choice-icon">${icon}</span>
                     <div style="flex: 1 1 auto; min-width: 0;">
@@ -9814,6 +9834,7 @@
                     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); }
                 });
             });
+            this._roveRadios(cards);
             this.initTVCheckboxes(content);
 
             content.querySelector('#onboarding-next').addEventListener('click', () => {
@@ -10189,7 +10210,7 @@
             // combination people asked for in issue #14 — ask on startup, but switch from
             // Jellyfin's menu — is unreachable when it is a single choice.
             const locationOption = (value, icon, title, body) => `
-                <div class="switcher-location-option jpf-choice focusable" data-location="${value}" tabindex="0" role="radio"
+                <div class="switcher-location-option jpf-choice focusable" data-location="${value}" tabindex="${prefs.location === value ? 0 : -1}" role="radio"
                      aria-checked="${prefs.location === value}">
                     <span class="material-icons jpf-choice-icon">${icon}</span>
                     <div style="flex: 1 1 auto; min-width: 0;">
@@ -10277,6 +10298,7 @@
                 });
             }
 
+            this._roveRadios(content.querySelectorAll('.switcher-location-option'));
             content.querySelectorAll('.switcher-location-option').forEach(el => {
                 const choose = () => {
                     const location = el.getAttribute('data-location');

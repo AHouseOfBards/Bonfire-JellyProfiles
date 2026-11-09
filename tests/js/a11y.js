@@ -240,6 +240,62 @@ function tagOf(id) {
         ok('a gate drawn afterwards takes it down', !noteNode());
     }
 
+    // 20. A group of radio cards is one Tab stop, and the remote can still reach every card.
+    {
+        const env20 = D.loadPlugin(SRC);
+        const P20 = env20.PP;
+        P20.beginNavigation = () => 1;
+        P20.navIsCurrent = () => true;
+        P20.readMasterState = () => ({ masterUserId: 'main', token: 'tok' });
+        P20.getSwitcherPrefs = () => ({ askOnStartup: true, location: 'menu' });
+        P20.showSwitcherModeModal();
+        const cards = env20.content.querySelectorAll('.switcher-location-option');
+        ok('the choice cards are drawn', cards.length === 2, cards.length + ' drawn');
+        const stops = () => cards.filter(c => c.attrs.tabindex === '0').map(c => c.attrs['data-location']);
+        ok('only the chosen card is a Tab stop', stops().join() === 'menu', stops().join());
+        cards[0].fire('focus');
+        ok('the stop follows focus, so a card passed on the way is not left behind',
+            stops().join() === 'button', stops().join());
+
+        // The real _overlayFocusables, against fixtures, with the selector read the way a
+        // browser reads it: each comma part is a tag, [attr], [attr="v"] and :not([attr="v"]).
+        const matches = (node, selector) => selector.split(',').some(part => {
+            const p = part.trim();
+            const tag = /^[a-z]+/.exec(p);
+            if (tag && tag[0] !== node.tag) return false;
+            let rest = tag ? p.slice(tag[0].length) : p;
+            const re = /^(:not\()?\[([a-z-]+)(?:="([^"]*)")?\]\)?/;
+            let m;
+            while (rest && (m = re.exec(rest))) {
+                const has = Object.prototype.hasOwnProperty.call(node.attrs, m[2]);
+                const eq = m[3] === undefined ? has : (has && node.attrs[m[2]] === m[3]);
+                if (m[1] ? eq : !eq) return false;
+                rest = rest.slice(m[0].length);
+            }
+            return rest === '';
+        });
+        const fx = (tag, attrs) => ({
+            tag, attrs, offsetParent: {}, disabled: false,
+            getAttribute: k => (k in attrs ? attrs[k] : null),
+            focus() { fx.focused = this; }
+        });
+        const a = fx('div', { role: 'radio', tabindex: '-1' });
+        const b = fx('div', { role: 'radio', tabindex: '0' });
+        const c = fx('div', { role: 'radio', tabindex: '-1' });
+        const go = fx('button', {});
+        const all = [a, b, c, go];
+        const root = { querySelectorAll: sel => all.filter(n => matches(n, sel)) };
+        const reach = P20._overlayFocusables(root);
+        ok('the remote can reach a card that is not the Tab stop',
+            reach.indexOf(a) >= 0 && reach.indexOf(c) >= 0 && reach.length === 4, reach.length + ' reachable');
+        env20.sandbox.document.activeElement = b;
+        P20._stepOverlayFocus(root, 1);
+        ok('Tab from the chosen card goes past the others, to the next control', fx.focused === go);
+        env20.sandbox.document.activeElement = go;
+        P20._stepOverlayFocus(root, 1);
+        ok('and wraps to the stop, not to a card that is out of the tab order', fx.focused === b);
+    }
+
     // 7. The colour swatches are a radio group, named by position, with a state.
     {
         const P4 = D.loadPlugin(SRC).PP;
