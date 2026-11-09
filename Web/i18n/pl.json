@@ -683,12 +683,12 @@
   "admin.ann.cancelEdit": "Anuluj edycję",
   "admin.ann.posted": "Opublikowane",
   "admin.mnt.title": "Konserwacja",
-  "admin.mnt.lede": "Zamknij serwer dla wszystkich poza administratorami, na czas aktualizacji i przenosin. Zostaje zamknięty, dopóki go nie otworzysz.",
+  "admin.mnt.lede": "Zamknij serwer dla wszystkich poza administratorami, na czas aktualizacji i przenosin. Zostaje zamknięty, dopóki go nie otworzysz, chyba że ustawisz, by otworzył się sam.",
   "admin.mnt.message": "Treść",
   "admin.mnt.placeholder": "Serwer jest zamknięty z powodu konserwacji.",
   "admin.mnt.messageHint": "Pokazywane wszystkim, którzy nie mogą wejść.",
   "admin.mnt.until": "Powrót około",
-  "admin.mnt.untilHint": "Opcjonalne. Tylko informacja; serwer nie otworzy się sam.",
+  "admin.mnt.untilHint": "Opcjonalne. Widzą to wszyscy, którzy nie mogą wejść.",
   "admin.mnt.stop": "Zatrzymaj to, co jest oglądane",
   "admin.mnt.stopHint": "W przeciwnym razie to, co już jest odtwarzane, się dokończy. Nic nowego nie może się zacząć.",
   "admin.mnt.close": "Zamknij serwer",
@@ -1048,5 +1048,10 @@
   "admin.onboarding.askTitle": "Pokazać pierwszą konfigurację?",
   "admin.onboarding.askBody": "Nowe konta zobaczą kilka ekranów do ustawienia PIN-u i utworzenia profilu. Możesz to zmienić w Konfiguracji.",
   "admin.onboarding.askYes": "Włącz",
-  "admin.onboarding.askNo": "Nie, dziękuję"
+  "admin.onboarding.askNo": "Nie, dziękuję",
+  "admin.mnt.reopen": "Otwórz ponownie automatycznie o tej godzinie",
+  "admin.mnt.reopenHint": "Wymaga godziny powyżej. Wyłączone: serwer zostaje zamknięty, dopóki go nie otworzysz.",
+  "admin.mnt.reopensAt": "Otworzy się sam: {when}.",
+  "admin.mnt.confirmAuto": "Otworzy się sam: {when}.",
+  "admin.mnt.reopenNeedsTime": "Najpierw ustaw godzinę ponownego otwarcia."
 }

@@ -5,9 +5,11 @@ namespace Jellyfin.Profiles.Configuration
     /// <summary>
     /// Closed for maintenance: only administrators can use the server.
     ///
-    /// <para><b>It does not end by itself.</b> <see cref="UntilUtc"/> is what the household is
-    /// told, and the Retry-After an app is sent. An upgrade that overruns should not reopen
-    /// the server half-finished because a clock said so.</para>
+    /// <para><b>It does not end by itself</b>, unless the administrator asked it to.
+    /// <see cref="UntilUtc"/> is what the household is told, and the Retry-After an app is
+    /// sent. An upgrade that overruns should not reopen the server half-finished because a
+    /// clock said so, so reopening at that time is a choice made each time it is closed
+    /// (<see cref="ReopenAutomatically"/>), off unless ticked.</para>
     /// </summary>
     public class MaintenanceMode
     {
@@ -16,8 +18,21 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>Shown to everyone who is turned away. Plain text. Empty means the default.</summary>
         public string Message { get; set; } = string.Empty;
 
-        /// <summary>When the administrator expects to be done. Shown, never acted on.</summary>
+        /// <summary>When the administrator expects to be done. Shown, and acted on only
+        /// when <see cref="ReopenAutomatically"/> is set.</summary>
         public DateTime? UntilUtc { get; set; }
+
+        /// <summary>
+        /// Open again at <see cref="UntilUtc"/>, by itself. The server does it: the gate stops
+        /// refusing at that moment and settles the saved state on the next request, so it
+        /// does not depend on the administrator's page, a browser or a timer that a restart
+        /// would lose. Meaningless without an end time.
+        /// </summary>
+        public bool ReopenAutomatically { get; set; }
+
+        /// <summary>True when it was asked to reopen by itself and that time has come.</summary>
+        public bool HasLapsed(DateTime nowUtc)
+            => Enabled && ReopenAutomatically && UntilUtc.HasValue && UntilUtc.Value <= nowUtc;
 
         /// <summary>
         /// Stop what is playing and refuse video and audio too. Off by default: a film

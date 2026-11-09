@@ -1261,7 +1261,7 @@
                 <div class="sectionTitleContainer jpf-section" id="jpfMaintenance">
                     <h2 class="sectionTitle" data-i18n="admin.mnt.title">Maintenance</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.mnt.lede">Close the server to everyone but administrators, for upgrades and moves. It stays closed until you reopen it.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.mnt.lede">Close the server to everyone but administrators, for upgrades and moves. It stays closed until you reopen it, unless you set it to reopen itself.</div>
                 <div id="mntStatus" class="jpf-note">…</div>
                 <div class="inputContainer">
                     <label class="textareaLabel" for="mntMessage" data-i18n="admin.mnt.message">Message</label>
@@ -1271,7 +1271,14 @@
                 <div class="inputContainer jpf-form-narrow">
                     <label class="inputLabel" for="mntUntil" data-i18n="admin.mnt.until">Back by</label>
                     <input is="emby-input" type="datetime-local" id="mntUntil" />
-                    <div class="fieldDescription" data-i18n="admin.mnt.untilHint">Optional. Shown only; it doesn't reopen by itself.</div>
+                    <div class="fieldDescription" data-i18n="admin.mnt.untilHint">Optional. Shown to everyone who can't get in.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="mntReopen" />
+                        <span data-i18n="admin.mnt.reopen">Reopen automatically at this time</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.mnt.reopenHint">Needs a time above. Off, it stays closed until you reopen it.</div>
                 </div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
@@ -1647,6 +1654,9 @@
                 'admin.mnt.closed': 'Closed.',
                 'admin.mnt.closedSince': 'Closed since {when}.',
                 'admin.mnt.backBy': 'Back by {when}.',
+                'admin.mnt.reopensAt': 'Reopens by itself at {when}.',
+                'admin.mnt.confirmAuto': 'It reopens by itself at {when}.',
+                'admin.mnt.reopenNeedsTime': 'Set a time to reopen at first.',
                 'admin.mnt.adminsOnly': 'Only administrators can use the server.',
                 'admin.mnt.isOpen': 'Open.',
                 'admin.mnt.saveChanges': 'Save changes',
@@ -4975,8 +4985,9 @@
                 if (on) {
                     const started = field(state, 'startedUtc');
                     const until = field(state, 'untilUtc');
+                    const auto = !!field(state, 'reopenAutomatically');
                     status.textContent = (started ? t('admin.mnt.closedSince', { when: formatWhen(started) }) : t('admin.mnt.closed')) +
-                        (until ? ' ' + t('admin.mnt.backBy', { when: formatWhen(until) }) : '') +
+                        (until ? ' ' + t(auto ? 'admin.mnt.reopensAt' : 'admin.mnt.backBy', { when: formatWhen(until) }) : '') +
                         ' ' + t('admin.mnt.adminsOnly');
                 } else {
                     status.textContent = t('admin.mnt.isOpen');
@@ -4984,6 +4995,7 @@
                 page.querySelector('#mntMessage').value = field(state, 'message') || '';
                 page.querySelector('#mntUntil').value = isoToLocalInput(field(state, 'untilUtc'));
                 page.querySelector('#mntStop').checked = !!field(state, 'stopPlayback');
+                page.querySelector('#mntReopen').checked = !!field(state, 'reopenAutomatically');
                 page._mntStopWas = on && !!field(state, 'stopPlayback');
                 page.querySelector('#mntClose').textContent = on ? t('admin.mnt.saveChanges') : t('admin.mnt.closeButton');
                 page.querySelector('#mntOpen').classList.toggle('jpf-hidden', !on);
@@ -5010,8 +5022,15 @@
                     enabled: enabled,
                     message: (page.querySelector('#mntMessage').value || '').trim(),
                     untilUtc: enabled ? localInputToIso(page.querySelector('#mntUntil').value) : null,
+                    reopenAutomatically: enabled && page.querySelector('#mntReopen').checked,
                     stopPlayback: enabled && page.querySelector('#mntStop').checked
                 };
+                // The server refuses this too; saying so here saves a closed-server confirmation
+                // for a request that cannot work.
+                if (body.reopenAutomatically && !body.untilUtc) {
+                    showMaintenanceResult(page, t('admin.mnt.reopenNeedsTime'), false);
+                    return;
+                }
                 ApiClient.ajax({
                     type: 'POST',
                     url: ApiClient.getUrl('plugins/profiles/admin/maintenance'),
@@ -5040,7 +5059,9 @@
                 close.dataset.bound = '1';
                 close.addEventListener('click', function () {
                     const stops = !!page.querySelector('#mntStop').checked;
-                    const question = stops ? t('admin.mnt.confirmStop') : t('admin.mnt.confirm');
+                    let question = stops ? t('admin.mnt.confirmStop') : t('admin.mnt.confirm');
+                    const reopenAt = page.querySelector('#mntReopen').checked ? page.querySelector('#mntUntil').value : '';
+                    if (reopenAt) question += ' ' + t('admin.mnt.confirmAuto', { when: formatWhen(localInputToIso(reopenAt)) });
                     if (!page.querySelector('#mntOpen').classList.contains('jpf-hidden')) {
                         // Already closed: editing the message or time needs no question, but
                         // newly ticking "Stop what people are watching" cuts off playback.

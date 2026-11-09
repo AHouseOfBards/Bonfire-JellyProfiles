@@ -511,6 +511,45 @@ Close(false);
 info = JsonNode.Parse(Info());
 Ok("and null once open", info is JsonObject o && o.ContainsKey("Maintenance") && o["Maintenance"] == null, info?.ToJsonString());
 
+Console.WriteLine();
+Console.WriteLine("── Reopening by itself ─────────────────────────────────────────");
+
+// The administrator's page is never open in any of this: nothing here calls a route. The
+// clock alone has to do it.
+var reopenProp = modeType.GetProperty("ReopenAutomatically");
+Ok("a closure can ask to reopen at its end time", reopenProp != null);
+if (reopenProp != null)
+{
+    bool SavedOpen() => !(bool)modeType.GetProperty("Enabled").GetValue(cfgType.GetProperty("Maintenance").GetValue(config));
+    void CloseUntil(DateTime until, bool reopen)
+    {
+        Close(true, "Upgrading.", until: until);
+        var m = cfgType.GetProperty("Maintenance").GetValue(config);
+        reopenProp.SetValue(m, reopen);
+    }
+    var memberRequest = "/Users/" + N(MEMBER) + "/Items";
+
+    CloseUntil(DateTime.UtcNow.AddHours(1), true);
+    Ok("before its time it is closed as usual", Refused(Send(memberRequest, MEMBER_TOKEN)));
+
+    CloseUntil(DateTime.UtcNow.AddSeconds(-1), true);
+    var lapsedInfo = JsonNode.Parse(Info());
+    Ok("at its time /info stops saying it is closed, before anything has saved that",
+       lapsedInfo is JsonObject lo && lo["Maintenance"] == null && !SavedOpen(), lapsedInfo?.ToJsonString());
+    var after = Send(memberRequest, MEMBER_TOKEN);
+    Ok("and a household member gets through, with nobody having touched the settings", Through(after), Show(after));
+    Ok("their sign-in too", Through(Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Guest\",\"Pw\":\"x\"}")));
+    Ok("and the first request writes it down as open", SavedOpen());
+    Ok("the administrator is as welcome as ever", Through(Send(memberRequest.Replace(N(MEMBER), N(ADMIN)), ADMIN_TOKEN)));
+
+    // The other half: a time that is only shown is still only shown.
+    CloseUntil(DateTime.UtcNow.AddSeconds(-1), false);
+    var shown = Send(memberRequest, MEMBER_TOKEN);
+    Ok("without the tick a time that has passed changes nothing", Refused(shown), Show(shown));
+    Ok("and nothing is written down", !SavedOpen());
+    Close(false);
+}
+
 try { Directory.Delete(tempDir, true); } catch { }
 return Finish();
 

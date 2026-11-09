@@ -18,9 +18,9 @@ const L = require('./_lib');
 
 let pass = 0;
 const fails = [];
-function ok(name, cond) {
+function ok(name, cond, detail) {
     if (cond) { pass++; console.log('  PASS  ' + name); }
-    else { fails.push(name); console.log('  FAIL  ' + name); }
+    else { fails.push(name); console.log('  FAIL  ' + name + (detail ? ' — ' + detail : '')); }
 }
 
 const html = L.readDashboard();
@@ -37,13 +37,17 @@ function run(opts) {
             classList: { contains: function () { return !opts.closed; } },
             addEventListener: function () {}
         },
-        '#mntStop': { checked: !!opts.stop }
+        '#mntStop': { checked: !!opts.stop },
+        '#mntReopen': { checked: !!opts.reopen },
+        '#mntUntil': { value: opts.until || '' }
     };
     const page = { _mntStopWas: !!opts.stopWas, querySelector: function (s) { return els[s]; } };
     const askFirst = function (message) { asked.push(message); return { then: function (f) { f(); } }; };
     const saveMaintenance = function (p, enabled) { saved.push(enabled); };
-    new Function('askFirst', 'saveMaintenance', 'page',
-        source + '; bindMaintenance(page);')(askFirst, saveMaintenance, page);
+    const formatWhen = function (iso) { return 'WHEN(' + iso + ')'; };
+    const localInputToIso = function (v) { return v ? v + 'Z' : null; };
+    new Function('askFirst', 'saveMaintenance', 'formatWhen', 'localInputToIso', 'page',
+        source + '; bindMaintenance(page);')(askFirst, saveMaintenance, formatWhen, localInputToIso, page);
     handlers.close();
     return { asked: asked, saved: saved };
 }
@@ -65,6 +69,14 @@ ok('editing a closed server that already stops playback does not ask again', edi
 
 const editPlain = run({ closed: true, stop: false });
 ok('editing the message of a closed server does not ask', editPlain.asked.length === 0 && editPlain.saved.length === 1);
+
+// An automatic reopen is part of what the administrator is agreeing to.
+const closeAuto = run({ reopen: true, until: '2026-11-12T03:00' });
+ok('closing to reopen by itself says when, in the question',
+   closeAuto.asked.length === 1 && /WHEN\(2026-11-12T03:00Z\)/.test(closeAuto.asked[0]) && /by itself/i.test(closeAuto.asked[0]), closeAuto.asked[0]);
+ok('and a plain close does not', !/by itself/i.test(closePlain.asked[0] || ''));
+const tickNoTime = run({ reopen: true, until: '' });
+ok('a tick with no time says nothing about reopening in the question', !/by itself/i.test(tickNoTime.asked[0] || ''));
 
 const imp = /'admin\.backup\.confirm':\s*'([^']|\\')*'/.exec(script);
 ok('the import confirmation tells the administrator to export first', !!imp && /export first/i.test(imp[0]));

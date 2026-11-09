@@ -66,12 +66,66 @@ namespace Jellyfin.Profiles.Auth
         private static readonly ConcurrentDictionary<string, (Guid UserId, DateTime Until)> Tokens = new(StringComparer.Ordinal);
         private static readonly ConcurrentDictionary<Guid, (bool Admin, DateTime Until)> Admins = new();
 
-        /// <summary>The maintenance settings while it is on, otherwise null.</summary>
+        /// <summary>
+        /// The maintenance settings while it is on, otherwise null. A closure that was set to
+        /// reopen by itself is not on once its time has come, whether or not anything has yet
+        /// written that down (<see cref="ReopenIfLapsed"/>): every reader gets the same answer
+        /// at the same moment.
+        /// </summary>
         public static MaintenanceMode? Active()
         {
             if (Plugin.IsPanicDisabled) return null;
             var m = Plugin.Instance?.Configuration?.Maintenance;
-            return m != null && m.Enabled ? m : null;
+            return m != null && m.Enabled && !m.HasLapsed(DateTime.UtcNow) ? m : null;
+        }
+
+        /// <summary>
+        /// Writes down a reopening that has already happened: when a closure's automatic time
+        /// has come, saves it as open and says so in the log and the activity feed. Called from
+        /// the request gate and the maintenance routes, so the saved state catches up on the
+        /// first request after the time, from nothing but the clock. Does nothing, and costs a
+        /// field read, the rest of the time. True when it reopened.
+        /// </summary>
+        public static bool ReopenIfLapsed(ILogger logger, IServiceProvider? services = null)
+        {
+            var seen = Plugin.Instance?.Configuration?.Maintenance;
+            if (seen == null || !seen.HasLapsed(DateTime.UtcNow)) return false;
+
+            lock (Controllers.ProfilesBaseController.ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                var m = config?.Maintenance;
+                if (config == null || m == null || !m.HasLapsed(DateTime.UtcNow)) return false;
+
+                // Replaced, never edited in place: the gate reads it without the lock.
+                config.Maintenance = new MaintenanceMode { Enabled = false, Message = m.Message };
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            Forget();
+            logger.LogWarning("ProfilesPlugin: the server reopened after maintenance, at the time the administrator set.");
+            try
+            {
+                var activity = services?.GetService(typeof(MediaBrowser.Model.Activity.IActivityManager))
+                    as MediaBrowser.Model.Activity.IActivityManager;
+                if (activity != null)
+                {
+                    var entry = new Jellyfin.Database.Implementations.Entities.ActivityLog(
+                        "The server reopened after maintenance", "BonfireMaintenanceOff", Guid.Empty)
+                    {
+                        LogSeverity = LogLevel.Information,
+                    };
+                    _ = activity.CreateAsync(entry).ContinueWith(
+                        t => logger.LogDebug(t.Exception, "ProfilesPlugin: Could not write to the activity log."),
+                        TaskContinuationOptions.OnlyOnFaulted);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "ProfilesPlugin: Could not write to the activity log.");
+            }
+
+            return true;
         }
 
         /// <summary>Drops what is remembered about tokens and accounts. Called when it is turned on or off.</summary>
@@ -261,7 +315,16 @@ namespace Jellyfin.Profiles.Auth
             HttpContext context, IUserManager? users, IDeviceManager? devices, ISessionManager? sessions, ILogger logger)
         {
             var m = Active();
-            if (m == null || users == null) return false;
+            if (m == null)
+            {
+                // Off, or just reopened by the clock: either way nothing is turned away. This
+                // is where the saved state catches up, since it is the one place every request
+                // passes through.
+                ReopenIfLapsed(logger, context.RequestServices);
+                return false;
+            }
+
+            if (users == null) return false;
 
             var request = context.Request;
             var path = request.Path.Value ?? string.Empty;

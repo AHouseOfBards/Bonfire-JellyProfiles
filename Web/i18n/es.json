@@ -683,12 +683,12 @@
   "admin.ann.cancelEdit": "Cancelar edición",
   "admin.ann.posted": "Publicados",
   "admin.mnt.title": "Mantenimiento",
-  "admin.mnt.lede": "Cierra el servidor a todos salvo a los administradores, para actualizaciones y traslados. Sigue cerrado hasta que lo reabras.",
+  "admin.mnt.lede": "Cierra el servidor a todos salvo a los administradores, para actualizaciones y traslados. Sigue cerrado hasta que lo reabras, salvo que lo programes para que se reabra solo.",
   "admin.mnt.message": "Mensaje",
   "admin.mnt.placeholder": "El servidor está cerrado por mantenimiento.",
   "admin.mnt.messageHint": "Se muestra a todos los que no pueden entrar.",
   "admin.mnt.until": "De vuelta hacia",
-  "admin.mnt.untilHint": "Opcional. Solo se muestra; no se reabre solo.",
+  "admin.mnt.untilHint": "Opcional. Se muestra a todos los que no pueden entrar.",
   "admin.mnt.stop": "Detener lo que se está viendo",
   "admin.mnt.stopHint": "Si no, lo que ya se esté reproduciendo termina. No puede empezar nada nuevo.",
   "admin.mnt.close": "Cerrar el servidor",
@@ -1048,5 +1048,10 @@
   "admin.onboarding.askTitle": "¿Mostrar la configuración inicial?",
   "admin.onboarding.askBody": "Las cuentas nuevas ven unas pantallas para poner un PIN y crear un perfil. Puedes cambiarlo en Configuración.",
   "admin.onboarding.askYes": "Activarlo",
-  "admin.onboarding.askNo": "No, gracias"
+  "admin.onboarding.askNo": "No, gracias",
+  "admin.mnt.reopen": "Reabrir automáticamente a esta hora",
+  "admin.mnt.reopenHint": "Necesita una hora arriba. Desactivado, sigue cerrado hasta que lo reabras.",
+  "admin.mnt.reopensAt": "Se reabre solo el {when}.",
+  "admin.mnt.confirmAuto": "Se reabre solo el {when}.",
+  "admin.mnt.reopenNeedsTime": "Indica primero una hora de reapertura."
 }

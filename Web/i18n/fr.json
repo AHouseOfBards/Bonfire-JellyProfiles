@@ -683,12 +683,12 @@
   "admin.ann.cancelEdit": "Annuler la modification",
   "admin.ann.posted": "Publiées",
   "admin.mnt.title": "Maintenance",
-  "admin.mnt.lede": "Fermez le serveur à tous sauf aux administrateurs, pour une mise à niveau ou un déménagement. Il reste fermé jusqu'à ce que vous le rouvriez.",
+  "admin.mnt.lede": "Fermez le serveur à tous sauf aux administrateurs, pour une mise à niveau ou un déménagement. Il reste fermé jusqu'à ce que vous le rouvriez, sauf si vous le programmez pour qu'il se rouvre tout seul.",
   "admin.mnt.message": "Message",
   "admin.mnt.placeholder": "Le serveur est fermé pour maintenance.",
   "admin.mnt.messageHint": "Affiché à tous ceux qui ne peuvent pas entrer.",
   "admin.mnt.until": "De retour vers",
-  "admin.mnt.untilHint": "Facultatif. Affiché seulement : il ne rouvre pas tout seul.",
+  "admin.mnt.untilHint": "Facultatif. Affiché à tous ceux qui ne peuvent pas entrer.",
   "admin.mnt.stop": "Arrêter ce que les gens regardent",
   "admin.mnt.stopHint": "Sinon, ce qui est en cours de lecture se termine. Rien de nouveau ne peut démarrer.",
   "admin.mnt.close": "Fermer le serveur",
@@ -1048,5 +1048,10 @@
   "admin.onboarding.askTitle": "Afficher la première configuration ?",
   "admin.onboarding.askBody": "Les nouveaux comptes voient quelques écrans pour définir un code et créer un profil. Modifiable dans Configuration.",
   "admin.onboarding.askYes": "L'activer",
-  "admin.onboarding.askNo": "Non merci"
+  "admin.onboarding.askNo": "Non merci",
+  "admin.mnt.reopen": "Rouvrir automatiquement à cette heure",
+  "admin.mnt.reopenHint": "Il faut une heure ci-dessus. Désactivé, il reste fermé jusqu'à ce que vous le rouvriez.",
+  "admin.mnt.reopensAt": "Se rouvre tout seul le {when}.",
+  "admin.mnt.confirmAuto": "Il se rouvre tout seul le {when}.",
+  "admin.mnt.reopenNeedsTime": "Indiquez d'abord l'heure de réouverture."
 }

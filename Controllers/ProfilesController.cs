@@ -4599,6 +4599,8 @@ namespace Jellyfin.Profiles.Controllers
             var adminError = RequireAdministrator("manage maintenance mode");
             if (adminError != null) return adminError;
 
+            // A closure whose time has come is open, and is saved as open before it is described.
+            Auth.MaintenanceGate.ReopenIfLapsed(_logger, HttpContext?.RequestServices);
             return Ok(DescribeMaintenance(Plugin.Instance?.Configuration?.Maintenance ?? new MaintenanceMode()));
         }
 
@@ -4633,6 +4635,17 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest("The time maintenance ends must be in the future.");
             }
 
+            // Nothing to reopen at. Refused rather than ignored: a tick that did nothing would
+            // leave a server closed that its administrator believed would reopen.
+            if (request.Enabled && request.ReopenAutomatically && !until.HasValue)
+            {
+                return BadRequest("The time maintenance ends must be set for it to reopen by itself.");
+            }
+
+            // So that "was it already closed" below is about the server, not about a saved flag
+            // the clock has already cleared.
+            Auth.MaintenanceGate.ReopenIfLapsed(_logger, HttpContext?.RequestServices);
+
             MaintenanceMode next;
             bool opening;
             lock (ConfigLock)
@@ -4647,6 +4660,7 @@ namespace Jellyfin.Profiles.Controllers
                     Enabled = request.Enabled,
                     Message = message,
                     UntilUtc = request.Enabled ? until : null,
+                    ReopenAutomatically = request.Enabled && request.ReopenAutomatically && until.HasValue,
                     StopPlayback = request.Enabled && request.StopPlayback,
                     StartedUtc = request.Enabled ? (was.Enabled ? was.StartedUtc : now) : null,
                 };
@@ -4682,6 +4696,7 @@ namespace Jellyfin.Profiles.Controllers
                 described.UntilUtc,
                 described.StartedUtc,
                 described.StopPlayback,
+                described.ReopenAutomatically,
                 Told = told,
                 Stopped = stopped,
             });
@@ -4692,10 +4707,11 @@ namespace Jellyfin.Profiles.Controllers
             m.Message ?? string.Empty,
             m.UntilUtc,
             m.StartedUtc,
-            m.StopPlayback);
+            m.StopPlayback,
+            m.ReopenAutomatically);
 
         private sealed record MaintenanceDescription(
-            bool Enabled, string Message, DateTime? UntilUtc, DateTime? StartedUtc, bool StopPlayback);
+            bool Enabled, string Message, DateTime? UntilUtc, DateTime? StartedUtc, bool StopPlayback, bool ReopenAutomatically);
 
         private static object DescribeAnnouncement(Announcement a) => new
         {

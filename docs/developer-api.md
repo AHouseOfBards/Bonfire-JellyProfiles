@@ -320,7 +320,7 @@ Invalid PIN code.
 | `announcement_limit` | 50 announcements are stored. Delete one first. |
 | `announcement_not_found` | No announcement has that id. |
 | `maintenance` | Closed for maintenance. Sent with `503` and `Retry-After`, on any route. |
-| `maintenance_invalid` | The maintenance message is too long, or its end time has passed. |
+| `maintenance_invalid` | The maintenance message is too long, its end time has passed, or it is to reopen by itself with no end time. |
 | `outside_viewing_hours` | The profile can't watch at this time. Sent with `403` and `Retry-After`. See [Viewing hours](#viewing-hours). |
 | `daily_limit_reached` | The profile has used today's time. Sent with `403` and `Retry-After`. |
 | `not_limited` | The profile has no viewing hours or limit. |
@@ -2027,8 +2027,14 @@ answer:
 - signing out, Quick Connect, the live connection and the web client's files;
 - `GET /System/Info/Public`, `GET /Users/Public` and Bonfire's anonymous routes.
 
-Administrators are never refused. It doesn't end by itself: `untilUtc` is shown, never
-acted on. The emergency disable turns it off until Jellyfin restarts.
+Administrators are never refused. It doesn't end by itself unless it was asked to:
+`untilUtc` is shown, and acted on only when `reopenAutomatically` is set. The emergency
+disable turns it off until Jellyfin restarts.
+
+With `reopenAutomatically`, the server reopens at `untilUtc` on its own clock, whether or not
+anyone has a dashboard open: from that moment nothing is refused and `GET /info` stops
+reporting it, and the saved state is written as open on the next request of any kind. The
+activity feed gets `BonfireMaintenanceOff` then.
 
 An app should read `maintenance` from `GET /info` before sign-in and show the message.
 
@@ -2036,7 +2042,7 @@ An app should read `maintenance` from `GET /info` before sign-in and show the me
 
 **Authorisation:** administrator.
 
-`{ "enabled": true, "message": "…", "untilUtc": null, "startedUtc": "…", "stopPlayback": false }`
+`{ "enabled": true, "message": "…", "untilUtc": null, "startedUtc": "…", "stopPlayback": false, "reopenAutomatically": false }`
 
 ### `POST /plugins/profiles/admin/maintenance`
 
@@ -2047,12 +2053,14 @@ An app should read `maintenance` from `GET /info` before sign-in and show the me
   "enabled": true,
   "message": "Upgrading to 12.0. Back by 3.",
   "untilUtc": "2026-11-05T03:00:00Z",
+  "reopenAutomatically": true,
   "stopPlayback": false
 }
 ```
 
 `message` is up to 280 characters; blank shows "The server is closed for maintenance."
-`untilUtc` must be in the future. `stopPlayback: true` stops what household members are
+`untilUtc` must be in the future. `reopenAutomatically` (default false) reopens the server at
+`untilUtc`, and `400` without one. `stopPlayback: true` stops what household members are
 playing and refuses video and audio too.
 
 Closing sends the message to every open app of a household member. Returns the saved

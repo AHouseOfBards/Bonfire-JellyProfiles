@@ -44,8 +44,12 @@ namespace Jellyfin.Profiles.Models
         /// <summary>Shown to everyone turned away. Blank for the default.</summary>
         public string? Message { get; set; }
 
-        /// <summary>When it is expected to end. Shown only; it never ends by itself.</summary>
+        /// <summary>When it is expected to end. Shown; it ends by itself only if
+        /// <see cref="ReopenAutomatically"/> is set.</summary>
         public DateTime? UntilUtc { get; set; }
+
+        /// <summary>Open again at <see cref="UntilUtc"/>, with nobody there. Needs an end time.</summary>
+        public bool ReopenAutomatically { get; set; }
 
         /// <summary>Stop what is playing now, and refuse video and audio while closed.</summary>
         public bool StopPlayback { get; set; }

@@ -683,12 +683,12 @@
   "admin.ann.cancelEdit": "Cancel·la l'edició",
   "admin.ann.posted": "Publicats",
   "admin.mnt.title": "Manteniment",
-  "admin.mnt.lede": "Tanca el servidor a tothom excepte als administradors, per a actualitzacions i trasllats. Es queda tancat fins que el tornis a obrir.",
+  "admin.mnt.lede": "Tanca el servidor a tothom excepte als administradors, per a actualitzacions i trasllats. Es queda tancat fins que el tornis a obrir, tret que el programis perquè s'obri sol.",
   "admin.mnt.message": "Missatge",
   "admin.mnt.placeholder": "El servidor està tancat per manteniment.",
   "admin.mnt.messageHint": "Es mostra a tothom qui no pot entrar.",
   "admin.mnt.until": "De tornada cap a",
-  "admin.mnt.untilHint": "Opcional. Només es mostra; no es torna a obrir sol.",
+  "admin.mnt.untilHint": "Opcional. Es mostra a tothom qui no pot entrar.",
   "admin.mnt.stop": "Atura el que la gent està mirant",
   "admin.mnt.stopHint": "Si no, el que ja s'està reproduint acaba. No pot començar res de nou.",
   "admin.mnt.close": "Tanca el servidor",
@@ -1048,5 +1048,10 @@
   "admin.onboarding.askTitle": "Vols mostrar la configuració inicial?",
   "admin.onboarding.askBody": "Els comptes nous veuen unes quantes pantalles per definir un PIN i crear un perfil. Ho pots canviar a Configuració.",
   "admin.onboarding.askYes": "Activa-ho",
-  "admin.onboarding.askNo": "No, gràcies"
+  "admin.onboarding.askNo": "No, gràcies",
+  "admin.mnt.reopen": "Torna a obrir automàticament a aquesta hora",
+  "admin.mnt.reopenHint": "Cal una hora a dalt. Desactivat, es queda tancat fins que el tornis a obrir.",
+  "admin.mnt.reopensAt": "Es torna a obrir sol el {when}.",
+  "admin.mnt.confirmAuto": "Es torna a obrir sol el {when}.",
+  "admin.mnt.reopenNeedsTime": "Posa primer una hora de reobertura."
 }

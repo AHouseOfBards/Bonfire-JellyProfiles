@@ -282,8 +282,20 @@ Console.WriteLine("── SetMaintenance ─────────────
     Ok("an administrator closes it (" + Say(close) + ")", close.status == 200 && On());
     Ok("with the message trimmed and a start time", (string)Prop(Cfg("Maintenance"), "Message") == "Back at two"
        && Prop(Cfg("Maintenance"), "StartedUtc") != null);
+    Ok("without the tick it is not set to reopen by itself", Prop(Cfg("Maintenance"), "ReopenAutomatically") is bool off && !off);
     var open = Call("SetMaintenance", ADMIN, new { Enabled = false });
     Ok("and reopens it", open.status == 200 && !On() && Prop(Cfg("Maintenance"), "UntilUtc") == null);
+
+    // Reopening by itself needs a time to reopen at. Refused, not ignored: a tick that did
+    // nothing would leave a server closed that its administrator thought would reopen.
+    var noTime = Call("SetMaintenance", ADMIN, new { Enabled = true, Message = "x", ReopenAutomatically = true });
+    Ok("reopening by itself with no time is refused (" + Say(noTime) + ")", noTime.status == 400 && !On());
+    var timed = Call("SetMaintenance", ADMIN, new { Enabled = true, Message = "x", ReopenAutomatically = true, UntilUtc = (DateTime?)DateTime.UtcNow.AddHours(2) });
+    Ok("with a time it is kept (" + Say(timed) + ")", timed.status == 200 && On()
+       && Prop(Cfg("Maintenance"), "ReopenAutomatically") is bool on && on);
+    Ok("and the route says so", Prop(timed.value, "ReopenAutomatically") is bool echoed && echoed);
+    var reopened = Call("SetMaintenance", ADMIN, new { Enabled = false, ReopenAutomatically = true });
+    Ok("reopening by hand clears it", reopened.status == 200 && !On() && Prop(Cfg("Maintenance"), "ReopenAutomatically") is bool cleared && !cleared);
 }
 
 // ── SignOutSession ───────────────────────────────────────────────────────────

@@ -694,12 +694,12 @@
   "admin.ann.cancelEdit": "Düzenlemeyi iptal et",
   "admin.ann.posted": "Yayınlananlar",
   "admin.mnt.title": "Bakım",
-  "admin.mnt.lede": "Güncelleme ve taşıma için sunucuyu yöneticiler dışında herkese kapatın. Siz yeniden açana kadar kapalı kalır.",
+  "admin.mnt.lede": "Güncelleme ve taşıma için sunucuyu yöneticiler dışında herkese kapatın. Kendiliğinden açılacak şekilde ayarlamadıysanız, siz yeniden açana kadar kapalı kalır.",
   "admin.mnt.message": "Mesaj",
   "admin.mnt.placeholder": "Sunucu bakım nedeniyle kapalı.",
   "admin.mnt.messageHint": "Giremeyen herkese gösterilir.",
   "admin.mnt.until": "Dönüş zamanı",
-  "admin.mnt.untilHint": "İsteğe bağlı. Yalnızca gösterilir; kendiliğinden yeniden açılmaz.",
+  "admin.mnt.untilHint": "İsteğe bağlı. Giremeyen herkese gösterilir.",
   "admin.mnt.stop": "İzlenenleri durdur",
   "admin.mnt.stopHint": "Aksi halde oynatılmakta olan şey biter. Yeni bir şey başlayamaz.",
   "admin.mnt.close": "Sunucuyu kapat",
@@ -1060,5 +1060,10 @@
   "admin.onboarding.askTitle": "İlk kurulum gösterilsin mi?",
   "admin.onboarding.askBody": "Yeni hesaplar, PIN belirlemek ve profil oluşturmak için birkaç ekran görür. Bunu Kurulum'dan değiştirebilirsiniz.",
   "admin.onboarding.askYes": "Aç",
-  "admin.onboarding.askNo": "Hayır, teşekkürler"
+  "admin.onboarding.askNo": "Hayır, teşekkürler",
+  "admin.mnt.reopen": "Bu saatte otomatik olarak yeniden aç",
+  "admin.mnt.reopenHint": "Yukarıda bir saat gerekir. Kapalıyken, siz açana kadar kapalı kalır.",
+  "admin.mnt.reopensAt": "{when} tarihinde kendiliğinden açılır.",
+  "admin.mnt.confirmAuto": "{when} tarihinde kendiliğinden açılır.",
+  "admin.mnt.reopenNeedsTime": "Önce yeniden açılacağı saati ayarlayın."
 }
