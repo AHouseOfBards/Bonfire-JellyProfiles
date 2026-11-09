@@ -1416,6 +1416,29 @@ Console.WriteLine("── Why a profile goes missing from one television ──�
         Ok("the sign-in listener reads the configuration under the lock, not around it",
            !finishedWhileLocked, "it walked Mappings while a save could be rewriting them");
         Ok("and finishes as soon as the lock is free", run.Wait(5000));
+
+        // A session with no account is not a sign-in. Jellyfin may raise SessionStarted for a
+        // request that has no user yet, and treating it as one noted the television's name as
+        // shared, which switches the Quick Connect skip off for that model.
+        var thePlugin = asm.GetType("Jellyfin.Profiles.Plugin", true)
+            .GetProperty("Instance", BindingFlags.Public | BindingFlags.Static).GetValue(null);
+        var theConfig = thePlugin.GetType().GetProperty("Configuration").GetValue(thePlugin);
+        var liveCfg = (System.Collections.IList)theConfig.GetType().GetProperty("QuickConnectSharedDeviceNames").GetValue(theConfig);
+        void Start(Guid user, string deviceName)
+        {
+            var s = (MediaBrowser.Controller.Session.SessionInfo)
+                System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(sessionType);
+            sessionType.GetProperty("DeviceId").SetValue(s, "listener-tv2");
+            sessionType.GetProperty("DeviceName").SetValue(s, deviceName);
+            sessionType.GetProperty("Client").SetValue(s, "Android TV");
+            sessionType.GetProperty("UserId").SetValue(s, user);
+            handler.Invoke(listener, new object[] { null, new MediaBrowser.Controller.Session.SessionEventArgs { SessionInfo = s } });
+        }
+        Start(Guid.NewGuid(), "Spare Room TV");
+        Ok("a sign-in by an account outside every household notes the television's name (the control)",
+           liveCfg.Contains("Spare Room TV"));
+        Start(Guid.Empty, "Attic TV");
+        Ok("a session with no account notes nothing", !liveCfg.Contains("Attic TV"));
     }
 }
 

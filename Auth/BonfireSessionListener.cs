@@ -20,7 +20,8 @@ namespace Jellyfin.Profiles.Auth
     /// client reaches, because every client authenticates.</para>
     ///
     /// <para><b>Why <see cref="ISessionManager.SessionStarted"/>.</b> It is the narrowest
-    /// event that means "somebody signed in here": one per sign-in. <c>SessionActivity</c>
+    /// event that means "somebody signed in here": one per new session, whether or not an
+    /// account is on it yet (a session with none is ignored). <c>SessionActivity</c>
     /// is raised far more often (up to once every ten seconds per session), so the work is
     /// never done from there unless the account on the session has changed; see below. The
     /// trade-off is that a household already signed in when the plugin
@@ -170,6 +171,11 @@ namespace Jellyfin.Profiles.Auth
             // to brick a launcher row.
             try
             {
+                // A session with no account is not a sign-in. Falling on, it would be taken
+                // for an account outside every household and note the device's name as
+                // shared, which turns the Quick Connect skip off for that model.
+                if (session.UserId == Guid.Empty) return;
+
                 SyncProfilePolicy(session.UserId);
 
                 if (string.IsNullOrWhiteSpace(session.DeviceId)) return;
