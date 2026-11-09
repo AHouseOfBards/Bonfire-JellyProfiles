@@ -31,7 +31,8 @@ function makeStorage() {
 const noopEl = {
     style: { removeProperty() {}, setProperty() {}, getPropertyValue: () => '' },
     classList: { add() {}, remove() {}, contains: () => false },
-    appendChild() {}, addEventListener() {}, removeEventListener() {}, remove() {}
+    appendChild() {}, addEventListener() {}, removeEventListener() {}, remove() {},
+    setAttribute() {}, removeAttribute() {}, getAttribute: () => null
 };
 
 // Every request the code makes, in order, so we can count what a second open costs.

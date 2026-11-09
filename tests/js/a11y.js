@@ -199,6 +199,29 @@ function tagOf(id) {
         ok('and each is still a tab stop, for the remote', dots.every(d => /tabindex="0"/.test(d)));
     }
 
+    // 10. The letter on an avatar is readable on every palette colour (3:1 at least, it is
+    // large text; most are well past it).
+    {
+        const P6 = D.loadPlugin(SRC).PP;
+        const hexes = (SRC.match(/AVATAR_PALETTE\s*=\s*\[([^\]]*)\]/) || ['', ''])[1].match(/#[0-9A-Fa-f]{6}/g) || [];
+        ok('the avatar palette was found (' + hexes.length + ' colours)', hexes.length >= 18);
+        const lin = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+        const lum = h => 0.2126 * lin(parseInt(h.slice(1, 3), 16)) + 0.7152 * lin(parseInt(h.slice(3, 5), 16)) + 0.0722 * lin(parseInt(h.slice(5, 7), 16));
+        const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+        const gate = D.makeContent();
+        P6.currentProfiles = [];
+        hexes.forEach(h => {
+            gate.innerHTML = '';
+            const prof = { profileUserId: 'a', profileName: 'A', isMaster: false, isBonfire: false, requiresPin: false, avatarColor: h, avatarInitial: 'Z' };
+            P6.beginNavigation = () => 1; P6.navIsCurrent = () => true;
+            P6.isManageMode = false;
+            try { P6.renderOverlayContent(gate, [prof]); } catch (e) { /* drawn or not, read below */ }
+            const m = /class="profile-avatar[^"]*"\s+style="[^"]*?;\s*color:\s*(#[0-9a-fA-F]{6})/.exec(gate.innerHTML);
+            const r = m ? ratio(m[1], h) : 0;
+            ok(h + ': the initial is ' + (m ? m[1] : 'not set') + ', ' + r.toFixed(2) + ':1 (3 needed)', r >= 3);
+        });
+    }
+
     // 16. A label over a custom widget is tied to it. A bare <label> names nothing.
     {
         const bare = [];

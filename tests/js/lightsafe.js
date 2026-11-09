@@ -57,7 +57,9 @@ const ALLOWED = {
             "the tick on a profile's own colour",
         'style="font-size: 1.15rem; color: #fff;">${p.isLinked': "the link badge on a profile's own colour",
         'class="bonfire-kick-btn"': 'white on the red fill of a remove button',
-        'font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow': "a member's initial on their own colour"
+        // The initial's own colour is computed now (onAvatarColor); what is left white here
+        // is the hairline ring round the header avatar.
+        'border: 1.5px solid rgba(255,255,255,0.25)': "a hairline ring on a member's own colour"
     }
 };
 

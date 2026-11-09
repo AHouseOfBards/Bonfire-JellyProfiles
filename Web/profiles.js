@@ -243,6 +243,30 @@
         return HEX_COLOR_RE.test(color || '') ? color : DEFAULT_AVATAR_COLOR;
     }
 
+    /// The letter on an avatar: white or near-black, whichever reads better on the
+    /// profile's colour. White was always used, and on half the palette (yellow, lime, the
+    /// default blue) it is under 3:1, which matters because with no picture the initial
+    /// is the whole face of the profile.
+    function onAvatarColor(color) {
+        const h = safeColor(color).replace('#', '');
+        const full = h.length === 3 ? h.replace(/(.)/g, '$1$1') : h.slice(0, 6);
+        const lin = i => {
+            const x = parseInt(full.slice(i, i + 2), 16) / 255;
+            return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+        };
+        const L = 0.2126 * lin(0) + 0.7152 * lin(2) + 0.0722 * lin(4);
+        const dark = '#111111';
+        const darkL = 0.0056;
+        return 1.05 / (L + 0.05) >= (L + 0.05) / (darkL + 0.05) ? '#ffffff' : dark;
+    }
+
+    /// An avatar preview's colours, set together: the background and the letter on it.
+    function paintAvatar(el, color) {
+        if (!el) return;
+        el.style.backgroundColor = color;
+        el.style.color = color === 'transparent' ? '' : onAvatarColor(color);
+    }
+
     /// Our image endpoints are stored root-relative, which only resolves when the page was
     /// served by the Jellyfin server. Inside a packaged client — Samsung Tizen bundles the
     /// web client into the app — the origin is the app itself and those requests 404.
@@ -5813,7 +5837,7 @@
                             p.profileImage && p.transparentAvatar ? ' is-transparent' : ''
                         }" style="background-color: ${
                             p.profileImage && p.transparentAvatar ? 'transparent' : safeColor(p.avatarColor)
-                        }; overflow: ${
+                        }; color: ${onAvatarColor(p.avatarColor)}; overflow: ${
                             p.profileImage && p.transparentAvatar ? 'visible' : 'hidden'
                         }; display: flex; align-items: center; justify-content: center; position: relative;">
                             ${avatarInner(p.profileImage, p.avatarInitial, /* useThumb */ true)}
@@ -7829,7 +7853,7 @@
                                 currentImage && currentTransparent ? ' is-transparent' : ''
                             }" style="background-color: ${
                                 currentImage && currentTransparent ? 'transparent' : safeColor(currentColor)
-                            };">${preview}</div>
+                            }; color: ${onAvatarColor(currentColor)};">${preview}</div>
                             <div class="image-upload-actions">
                                 <button type="button" id="${prefix}-change-picture" class="profiles-btn btn-secondary image-upload-btn picture-change-btn"
                                         aria-expanded="${sourcesOpen}" aria-controls="${prefix}-picture-sources">
@@ -7910,7 +7934,7 @@
                 syncColorGroup();
                 if (!previewEl) return;
                 previewEl.classList.toggle('is-transparent', state.transparent);
-                previewEl.style.backgroundColor = state.transparent ? 'transparent' : currentColor();
+                paintAvatar(previewEl, state.transparent ? 'transparent' : currentColor());
             };
 
             const setPreview = (src) => {
@@ -8198,7 +8222,7 @@
                         selectedColor = dot.getAttribute('data-color');
                         const createPreview = document.getElementById('create-image-upload-preview');
                         if (createPreview && !createPreview.querySelector('img')) {
-                            createPreview.style.backgroundColor = selectedColor;
+                            paintAvatar(createPreview, selectedColor);
                         }
                     });
                 });
@@ -8618,7 +8642,7 @@
                         selectedColor = color;
                         const editPreview = document.getElementById('edit-image-upload-preview');
                         if (editPreview && !editPreview.querySelector('img')) {
-                            editPreview.style.backgroundColor = selectedColor;
+                            paintAvatar(editPreview, selectedColor);
                         }
                     });
                 });
@@ -11544,7 +11568,7 @@
             b.innerHTML = `
                 <div class="profiles-header-avatar" style="background-color: ${
                     activeInfo.profileImage && activeInfo.transparent ? 'transparent' : safeColor(activeInfo.color)
-                }; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
+                }; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: ${onAvatarColor(activeInfo.color)}; border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
                     ${avatarInner(activeInfo.profileImage, activeInfo.initial, /* useThumb */ true)}
                 </div>
             `;
@@ -11570,7 +11594,7 @@
             b.innerHTML = `
                 <div class="profiles-header-avatar" style="background-color: ${
                     activeInfo.profileImage && activeInfo.transparent ? 'transparent' : safeColor(activeInfo.color)
-                }; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
+                }; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: ${onAvatarColor(activeInfo.color)}; border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
                     ${avatarInner(activeInfo.profileImage, activeInfo.initial, /* useThumb */ true)}
                 </div>
             `;
