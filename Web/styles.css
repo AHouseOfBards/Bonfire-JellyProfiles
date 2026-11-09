@@ -1276,6 +1276,12 @@ body.profiles-no-scroll [id*="spinner"] {
     gap: var(--jpf-gap); flex-wrap: wrap;
 }
 
+/* The confirm and alert boxes. Their width was written inline, where no rule here
+   could widen it, so on a 1080p television they were a small card on a big screen. */
+.confirm-dialog-content, .alert-dialog-content {
+    max-width: 420px; width: 90%;
+}
+
 /* Profile Creation Form styles */
 /* A column of sections. Below the breakpoint the two of these simply
    stack, so the phone order is unchanged: Profile, Security,
@@ -2381,6 +2387,9 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .jpf-no-flex-gap.jpf-tv .profiles-grid > * {
     margin: 0 2rem 4rem;
+}
+.jpf-tv .confirm-dialog-content, .jpf-tv .alert-dialog-content {
+    max-width: 760px;
 }
 .jpf-tv .profiles-title {
     font-size: 4rem;

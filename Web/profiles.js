@@ -1678,8 +1678,6 @@
                     border: 1px solid var(--jpf-border-1);
                     border-radius: var(--jpf-r-md);
                     padding: 24px;
-                    max-width: 420px;
-                    width: 90%;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                     text-align: center;
                 ">
@@ -1760,8 +1758,6 @@
                     border: 1px solid var(--jpf-border-1);
                     border-radius: var(--jpf-r-md);
                     padding: 24px;
-                    max-width: 420px;
-                    width: 90%;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                     text-align: center;
                 ">
@@ -1834,8 +1830,6 @@
                     border: 1px solid var(--jpf-border-1);
                     border-radius: var(--jpf-r-md);
                     padding: 24px;
-                    max-width: 460px;
-                    width: 90%;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                     text-align: center;
                 ">
