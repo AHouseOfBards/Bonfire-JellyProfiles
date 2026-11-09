@@ -559,6 +559,17 @@ if (resolve != null)
             { devicesList, household, new HashSet<string>(StringComparer.OrdinalIgnoreCase) })).Count;
         Ok("and it is on both households' device lists", Listed(MASTER) == 1 && Listed(NEIGHBOUR) == 1);
         Ok("but on nobody else's", Listed(Guid.NewGuid()) == 0);
+
+        // An id typed into a whitelist does not hand over another household's record.
+        var outsider = Guid.NewGuid();
+        var typedId = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "tv-shared" };
+        var seenByOutsider = scope == null ? null : (System.Collections.IList)scope.Invoke(null, new object[]
+            { devicesList, outsider, typedId });
+        var leaked = false;
+        if (seenByOutsider != null)
+            foreach (var r in seenByOutsider)
+                if ((string)knownType.GetProperty("DeviceName").GetValue(r) == "Lounge") leaked = true;
+        Ok("a whitelisted id does not reveal a device another household owns", seenByOutsider != null && !leaked);
         devicesList.Clear();
     }
 

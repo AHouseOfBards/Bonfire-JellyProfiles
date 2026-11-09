@@ -1844,8 +1844,13 @@ namespace Jellyfin.Profiles.Controllers
             ISet<string> whitelistedDeviceIds)
         {
             var devices = knownDevices
+                // A whitelist is whatever the client posted, so it vouches only for a record
+                // nobody else owns: an id typed in must not return another household's
+                // device name and last-seen time.
                 .Where(d => d.OwnedBy(masterUserId)
-                            || whitelistedDeviceIds.Contains(d.DeviceId))
+                            || (whitelistedDeviceIds.Contains(d.DeviceId)
+                                && d.MasterUserId == Guid.Empty
+                                && !(d.Owners?.Count > 0)))
                 .GroupBy(d => d.DeviceId, StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.OrderByDescending(d => d.LastSeen).First())
                 .OrderByDescending(d => d.LastSeen)
