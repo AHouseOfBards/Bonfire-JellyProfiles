@@ -1767,6 +1767,12 @@ body.profiles-no-scroll [id*="spinner"] {
         align-items: start;
     }
 }
+/* A fold on a one-column screen (Your account) stays one column at any width. The class is
+   on the <details>, so this outranks the two-column rule above it. */
+.jpf-more.jpf-more-single > .jpf-more-body {
+    display: flex;
+    flex-direction: column;
+}
 @media (prefers-reduced-motion: reduce) {
     .jpf-more-caret { transition: none; }
 }

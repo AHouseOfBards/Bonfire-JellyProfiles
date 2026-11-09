@@ -858,8 +858,8 @@
         'profileForm.sectionProfileSubtitle': 'Name, colour, and picture',
         'profileForm.sectionSecurityTitle': 'Security',
         'profileForm.sectionSecuritySubtitle': 'PIN protection and automatic locking',
-        'profileForm.sectionRestrictionsTitle': 'Content & Device Restrictions',
-        'profileForm.sectionRestrictionsSubtitle': 'Limits applied on top of the libraries above',
+        'profileForm.sectionRestrictionsTitle': 'Tags',
+        'profileForm.sectionRestrictionsSubtitle': 'Block or allow by tag',
         'profileForm.deleteProfile': 'Delete Profile',
         'profileForm.nameRequired': 'Profile name is required.',
         'profileForm.pinMustBeDigits': 'A PIN can only contain digits.',
@@ -989,12 +989,12 @@
         'account.devicesHint': 'Each profile chooses which of these it can be opened on.',
         'profileForm.sectionPinSubtitle': 'A PIN to open this profile',
         'profileForm.sectionWatchTitle': 'What they can watch',
-        'profileForm.sectionWatchSubtitle': 'Rating limit and libraries',
+        'profileForm.sectionWatchSubtitle': 'Rating limit, libraries and devices',
         'profileForm.sectionLockingTitle': 'Locking',
         'profileForm.sectionLockingSubtitle': 'When the PIN is asked again',
         'profileForm.themeSubtitle': "How Bonfire's screens look for this profile",
-        'profileForm.moreTitle': 'More settings',
-        'profileForm.moreSummary': 'Locking, devices, tags and theme',
+        'profileForm.moreTitle': 'More',
+        'profileForm.moreSummary': 'Auto-lock, tags and theme',
         'profileForm.kidsPreset': 'Kids profile',
         'profileForm.kidsPresetHint': 'Sets the rating to age 10. You can change it.',
         'profileForm.mainSecurityMoved': 'Your PIN and sign-in settings are in Settings → Your account.',
@@ -2137,24 +2137,39 @@
         /// overlay's own focus walk finds it the way it finds every other control. Two
         /// columns of sections, like the Basics above it; empty strings are dropped, so a
         /// server that does not offer themes leaves no gap.
-        renderMoreSettings: function (prefix, left, right) {
+        renderMoreSettings: function (prefix, left, right, summary) {
             const col = (parts) => parts.filter(Boolean).join('');
+            return this.renderFold(prefix + '-more', summary || t('profileForm.moreSummary'), `
+                        <div class="form-col">${col(left)}</div>
+                        <div class="form-col">${col(right)}</div>`);
+        },
+
+        /// The one fold every household screen uses, labelled "More": a closed <details>
+        /// with a line saying what is inside. Account and both profile forms draw it, so
+        /// rare options look the same wherever they are (P2-601's pattern, for these
+        /// screens). Anything that reports an error about a field inside it must call
+        /// revealFold, so the message is never behind a closed fold.
+        renderFold: function (id, summary, bodyHtml, single) {
             return `
-                <details class="jpf-more" id="${prefix}-more">
+                <details class="jpf-more${single ? ' jpf-more-single' : ''}" id="${id}">
                     <summary class="jpf-more-summary" tabindex="0">
                         <span class="material-icons jpf-more-icon" aria-hidden="true">tune</span>
                         <span class="jpf-more-label">
                             <span class="jpf-more-title">${t('profileForm.moreTitle')}</span>
-                            <span class="jpf-more-hint">${t('profileForm.moreSummary')}</span>
+                            <span class="jpf-more-hint">${escapeHtml(summary)}</span>
                         </span>
                         <span class="material-icons jpf-more-caret" aria-hidden="true">expand_more</span>
                     </summary>
-                    <div class="jpf-more-body">
-                        <div class="form-col">${col(left)}</div>
-                        <div class="form-col">${col(right)}</div>
-                    </div>
+                    <div class="jpf-more-body">${bodyHtml}</div>
                 </details>
             `;
+        },
+
+        /// Opens the More fold that holds `el`, if it is in one.
+        revealFold: function (el) {
+            for (let n = el; n && n.nodeType === 1; n = n.parentNode) {
+                if (n.tagName === 'DETAILS') n.open = true;
+            }
         },
 
         /// Viewing hours and daily limits on a profile's edit form (1.7.2), with "more time
@@ -2164,9 +2179,13 @@
         ///
         /// The form shows one stretch per day. The server takes any number; a profile given
         /// more through the API shows the first of each day here, and saving replaces them.
-        initViewingEditor: function (slot, profile) {
+        ///
+        /// `creating` is the Add form: there is no profile yet, so nothing is fetched and no
+        /// "more time now" is offered, and `save(id)` takes the id /create answered with. A
+        /// child is set up in one pass, not made first and edited after (P2-103).
+        initViewingEditor: function (slot, profile, creating) {
             const editor = { save: () => Promise.resolve() };
-            if (!slot || !profile || profile.isMaster) return editor;
+            if (!slot || (!creating && (!profile || profile.isMaster))) return editor;
             const ORDER = [1, 2, 3, 4, 5, 6, 0];
             const LIMITS = [15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360];
             const locale = activeLocale || [];
@@ -2241,7 +2260,7 @@
                 slot.innerHTML = this.renderSection('schedule', t('viewing.title'), t('viewing.subtitle'), `
                     ${v ? `<div class="form-hint jpf-viewing-now">${escapeHtml([now, used].filter(Boolean).join(' · '))}</div>` : ''}
                     ${v && v.askedUtc ? `<div class="form-hint jpf-viewing-asked">${t('viewing.askedHint', { name: escapeHtml(profile.profileName) })}</div>` : ''}
-                    ${v ? `
+                    ${v && !creating ? `
                     <div class="form-group">
                         <label>${t('viewing.moreTime')}</label>
                         <div class="jpf-inline-row">
@@ -2251,28 +2270,42 @@
                         <div class="form-hint" id="viewing-grant-status" role="status" aria-live="polite"></div>
                     </div>` : ''}
                     <div class="form-group">
+                        <label for="viewing-daily">${t('viewing.daily')}</label>
+                        <select id="viewing-daily">${limitOptions(f(rules, 'dailyMinutes') || 0, false)}</select>
+                    </div>
+                    <div class="form-group" id="viewing-weekend-group">
+                        <label for="viewing-weekend">${t('viewing.weekend')}</label>
+                        <select id="viewing-weekend">${limitOptions(weekend === null || weekend === undefined ? '' : weekend, true)}</select>
+                        <div class="form-hint">${t('viewing.hint')}</div>
+                    </div>
+                    <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                             <input type="checkbox" id="viewing-hours" ${f(rules, 'hoursEnabled') ? 'checked' : ''} style="accent-color: var(--jpf-accent);" />
                             <span>${t('viewing.hoursEnabled')}</span>
                         </label>
                         <div class="jpf-viewing-days" id="viewing-days">${rows}</div>
                     </div>
-                    <div class="form-group">
-                        <label for="viewing-daily">${t('viewing.daily')}</label>
-                        <select id="viewing-daily">${limitOptions(f(rules, 'dailyMinutes') || 0, false)}</select>
-                    </div>
-                    <div class="form-group">
-                        <label for="viewing-weekend">${t('viewing.weekend')}</label>
-                        <select id="viewing-weekend">${limitOptions(weekend === null || weekend === undefined ? '' : weekend, true)}</select>
-                        <div class="form-hint">${t('viewing.hint')}</div>
-                    </div>
                 `);
 
+                // The seven rows are only there once "hours" is ticked, and the weekend
+                // limit only once there is a daily one for it to differ from (P2-602).
                 const days = slot.querySelector('#viewing-days');
                 const hours = slot.querySelector('#viewing-hours');
-                const syncDays = () => { days.classList.toggle('is-inert', !hours.checked); };
+                const daily = slot.querySelector('#viewing-daily');
+                const weekendSel = slot.querySelector('#viewing-weekend');
+                const weekendGroup = slot.querySelector('#viewing-weekend-group');
+                const syncDays = () => { days.style.display = hours.checked ? '' : 'none'; };
+                const syncWeekend = () => {
+                    const none = daily.value === '0' && weekendSel.value === '';
+                    weekendGroup.style.display = none ? 'none' : '';
+                };
                 hours.addEventListener('change', syncDays);
+                daily.addEventListener('change', () => {
+                    if (daily.value === '0') weekendSel.value = '';
+                    syncWeekend();
+                });
                 syncDays();
+                syncWeekend();
                 this.initTVCheckboxes(slot);
 
                 const status = slot.querySelector('#viewing-grant-status');
@@ -2293,15 +2326,23 @@
                 });
             };
 
-            this._limitsCall(profile.profileUserId, '', null)
-                .then(state => { loaded = state; draw(state); baseline = JSON.stringify(read()); })
-                .catch(() => { slot.innerHTML = ''; });
+            if (creating) {
+                loaded = {};
+                draw({});
+                baseline = JSON.stringify(read());
+            } else {
+                this._limitsCall(profile.profileUserId, '', null)
+                    .then(state => { loaded = state; draw(state); baseline = JSON.stringify(read()); })
+                    .catch(() => { slot.innerHTML = ''; });
+            }
 
-            editor.save = () => {
+            editor.save = (newId) => {
                 if (!loaded || !document.body.contains(slot) || !slot.querySelector('#viewing-hours')) return Promise.resolve();
                 const now = read();
                 if (JSON.stringify(now) === baseline) return Promise.resolve();
-                return this._limitsCall(profile.profileUserId, '', Object.assign({ masterPin: this.masterPin, language: activeLocale || '' }, now));
+                const id = creating ? newId : profile.profileUserId;
+                if (!id) return Promise.resolve();
+                return this._limitsCall(id, '', Object.assign({ masterPin: this.masterPin, language: activeLocale || '' }, now));
             };
             return editor;
         },
@@ -2318,7 +2359,8 @@
             });
             q('#viewing-daily').value = String(state.dailyMinutes);
             q('#viewing-weekend').value = state.weekendMinutes === null ? '' : String(state.weekendMinutes);
-            q('#viewing-days').classList.toggle('is-inert', !state.hoursEnabled);
+            q('#viewing-days').style.display = state.hoursEnabled ? '' : 'none';
+            q('#viewing-weekend-group').style.display = (state.dailyMinutes === 0 && state.weekendMinutes === null) ? 'none' : '';
         },
 
         /// The theme picker as a section of its own, or '' when profiles may not choose.
@@ -7914,11 +7956,13 @@
                         </div>
                         <div class="form-hint">${t('profileForm.librariesInheritHint')}</div>
                     </div>
+                    ${this.renderDeviceDropdown('create', devices, null)}
                 `;
 
-                // ── More: limits on top of the libraries ────────────────────────
+                // ── More: tags on top of the libraries ──────────────────────────
+                // Devices are above, with what the profile can watch: keeping a child to
+                // one television is the common parental task, not a rare one (P2-605).
                 const createRestrictions = `
-                    ${this.renderDeviceDropdown('create', devices, null)}
                     ${this.renderTagSection('create', libraryTags, null)}
                 `;
 
@@ -7931,6 +7975,7 @@
                         </div>
                         <div class="form-col">
                             ${this.renderSection('video_library', t('profileForm.sectionWatchTitle'), t('profileForm.sectionWatchSubtitle'), createLibraries)}
+                            <div id="create-viewing-slot"></div>
                         </div>
                         ${this.renderMoreSettings('create', [
                             this.renderSection('timer', t('profileForm.sectionLockingTitle'), t('profileForm.sectionLockingSubtitle'), createLocking),
@@ -8127,6 +8172,14 @@
                         if (!res.ok) return res.text().then(text => { throw new Error(text); });
                         return res.json();
                     })
+                    .then(created => {
+                        // The profile exists now, so its viewing rules can be saved against
+                        // its id. A failure here must not look like a failed create.
+                        const id = created && (created.profileUserId || created.ProfileUserId);
+                        return viewingEditor.save(id).catch(err => {
+                            this.showAlert(t('errors.error'), t('errors.savingProfile', { message: escapeHtml(err.message) }));
+                        });
+                    })
                     .then(() => {
                         const refresh = () => this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
                         // The first profile is when a main PIN starts to matter: from now on
@@ -8146,6 +8199,7 @@
                 document.getElementById('create-cancel-btn').addEventListener('click', () => {
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
                 });
+                const viewingEditor = this.initViewingEditor(content.querySelector('#create-viewing-slot'), null, true);
                 this.bindThemePicker('create');
                 this.initTVCheckboxes(content);
                 this.initTagEditors(content);
@@ -8299,11 +8353,12 @@
                             ${t('profileForm.artworkExplainer')}
                         </div>
                     </div>
+                    ${this.renderDeviceDropdown('edit', devices, profile)}
                 `;
 
-                // ── More: limits on top of the libraries ────────────────────────
+                // ── More: tags on top of the libraries ──────────────────────────
+                // Devices sit above with what the profile can watch (P2-605).
                 const restrictionsBody = `
-                    ${this.renderDeviceDropdown('edit', devices, profile)}
                     ${this.renderTagSection('edit', libraryTags, profile)}
                 `;
 

@@ -284,8 +284,9 @@ check('it is collapsed by default', /\.picture-sources \{[^}]*display: none/.tes
 check('and opens on a class', /\.picture-sources\.is-open \{[^}]*display: flex/.test(CSS), true);
 check('one button controls it', /id="\$\{prefix\}-change-picture"/.test(SRC), true);
 check('the button announces its state', /aria-expanded="\$\{sourcesOpen\}"/.test(SRC), true);
-check('it opens when there is no picture yet',
-    SRC.includes('const sourcesOpen = !currentImage;'), true);
+// Was "opens when there is no picture yet"; closed always since P2-104.
+check('it starts closed, with or without a picture',
+    SRC.includes('const sourcesOpen = false;'), true);
 
 // Every id the picker binds to must still exist — they only moved inside the panel.
 for (const id of ['image-upload-preview', 'image-error', 'profile-image-file',

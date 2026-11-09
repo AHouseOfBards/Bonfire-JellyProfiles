@@ -149,7 +149,7 @@ has(js, 'const anyArt = rows.some(', 'a profile that already uses artwork opens 
 has(js, 'showArtwork(false);', 'and it is off otherwise');
 has(js, 'Tick nothing and this profile sees every library your account does.',
     'the list says what an empty list means');
-has(js, 'A library tile takes its picture from whatever is inside the library',
+has(js, 'Tiles show what is inside a library.',
     'and the artwork explainer is separate from it');
 has(js, 'class="libart-head"', 'the artwork column is labelled');
 

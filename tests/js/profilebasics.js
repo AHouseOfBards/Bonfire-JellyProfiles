@@ -87,10 +87,13 @@ const has = (part, id) => part.indexOf('id="' + id + '"') !== -1;
         ok('Basics has ' + id, has(h.basics, id) && !has(h.more, id));
     }
     ok('Basics has the libraries', /class="library-checkbox"/.test(h.basics));
-    for (const id of ['create-lockout-select', 'create-local-bypass-checkbox',
-                      'create-devices-dropdown-trigger', 'create-theme-select']) {
+    for (const id of ['create-lockout-select', 'create-local-bypass-checkbox', 'create-theme-select']) {
         ok('More has ' + id, has(h.more, id) && !has(h.basics, id));
     }
+    // Moved out of More by the owner's decision (P2-605): keeping a child to one device is
+    // the common parental task.
+    ok('Basics has the allowed devices, More does not',
+        has(h.basics, 'create-devices-dropdown-trigger') && !has(h.more, 'create-devices-dropdown-trigger'));
     ok('More has the tags', /create-blocked-tags/.test(h.more) && !/create-blocked-tags/.test(h.basics));
     ok('No background is part of the picture picker, before the colours',
         h.basics.indexOf('id="create-transparent-row"') > h.basics.indexOf('id="create-image-upload-preview"')
@@ -146,9 +149,11 @@ const has = (part, id) => part.indexOf('id="' + id + '"') !== -1;
     for (const id of ['edit-name-input', 'edit-pin-input', 'edit-rating-select']) {
         ok('Basics has ' + id, has(h.basics, id) && !has(h.more, id));
     }
-    for (const id of ['edit-lockout-select', 'edit-local-bypass-checkbox', 'devices-dropdown-trigger', 'edit-theme-select']) {
+    for (const id of ['edit-lockout-select', 'edit-local-bypass-checkbox', 'edit-theme-select']) {
         ok('More has ' + id, has(h.more, id) && !has(h.basics, id));
     }
+    ok('Basics has the allowed devices, More does not (P2-605)',
+        has(h.basics, 'devices-dropdown-trigger') && !has(h.more, 'devices-dropdown-trigger'));
     ok('the stored rating is selected', (content.querySelector('#edit-rating-select') || {}).value === '14');
 
     posts.length = 0;
