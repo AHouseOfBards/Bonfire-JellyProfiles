@@ -931,7 +931,7 @@
         'settings.switcherTitle': 'Switcher',
         'settings.switcherStyleBody': 'Where you reach this screen from, and whether it opens on startup.',
         'settings.sharingTitle': 'Sharing',
-        'settings.yourBonfireBody': 'Share your profiles with another home, or join theirs.',
+        'settings.yourBonfireBody': 'Share your profiles with another Bonfire, or join one.',
         'settings.lookTitle': 'Look',
         'settings.themeTitle': 'Theme',
         'settings.themeBody': "How Bonfire's screens look for each profile.",
@@ -1033,7 +1033,7 @@
         'switcher.manageTitle': 'Manage Profiles',
         'switcher.manageNeedsMaster': 'Open {name} first, then choose Manage Profiles.',
 
-        'bonfire.yourBonfireTitle': 'Your Bonfire',
+        'bonfire.yourBonfireTitle': 'Sharing',
         'links.title': 'Other accounts on this screen',
         'links.subtitle': 'Their tile opens their own account',
         'links.none': 'None yet.',
@@ -1056,50 +1056,50 @@
         'links.leaveTitle': "Leave {name}'s screen?",
         'links.leaveBody': 'Your tile leaves their screen.',
         'links.manageBody': "{name}'s own account, added to this screen.",
-        'bonfire.hostedTitle': 'Your Hosted Bonfire',
+        'bonfire.hostedTitle': 'Your Bonfire',
         'bonfire.shareCode': 'Share this code to invite someone to your Bonfire:',
         'bonfire.members': 'Members ({count})',
-        'bonfire.kick': 'Kick',
+        'bonfire.kick': 'Remove',
         'bonfire.noMembersYet': 'No members joined yet.',
-        'bonfire.deleteGroup': 'Delete Group',
+        'bonfire.deleteGroup': 'Delete Bonfire',
         'bonfire.hostTitle': 'Host a Bonfire',
-        'bonfire.hostBody': 'Host your own group to share your sub-profiles with friends.',
-        'bonfire.generateJoinCode': 'Generate Join Code',
+        'bonfire.hostBody': 'Start a Bonfire and invite others to see your profiles.',
+        'bonfire.generateJoinCode': 'Get an invite code',
         'bonfire.generating': 'Generating…',
         'bonfire.joinedTitle': 'Joined Bonfire',
-        'bonfire.joinedOwnedBy': 'You have joined a bonfire group owned by:',
-        'bonfire.accessEachOther': "You can access each other's profiles from the switcher grid.",
-        'bonfire.leaveGroup': 'Leave Group',
+        'bonfire.joinedOwnedBy': 'You have joined a Bonfire owned by:',
+        'bonfire.accessEachOther': "You can open each other's profiles from the picker.",
+        'bonfire.leaveGroup': 'Leave Bonfire',
         'bonfire.joinTitle': 'Join a Bonfire',
-        'bonfire.joinBody': "Enter a friend's Bonfire Code to join their group:",
+        'bonfire.joinBody': 'Enter an invite code to join a Bonfire:',
         'bonfire.joinCodePlaceholder': 'e.g. B7F8XA',
         'bonfire.joining': 'Joining…',
         'bonfire.pleaseEnterCode': 'Please enter a 6-character code.',
         'bonfire.tooManyJoinAttempts': 'Too many failed attempts. Try again in 15 minutes.',
-        'bonfire.failedToJoin': 'Failed to join group.',
+        'bonfire.failedToJoin': 'Could not join the Bonfire.',
         'bonfire.leaveCurrentTitle': 'Leave your current Bonfire?',
         'bonfire.leaveCurrentBody': 'Joining this Bonfire removes you from your current one.',
-        'bonfire.kickConfirmTitle': 'Kick Member',
+        'bonfire.kickConfirmTitle': 'Remove member',
         'bonfire.kickConfirmBody': 'Remove this user from your Bonfire? Your code changes so they can’t rejoin with it.',
         'bonfire.newCode': 'New code',
         'bonfire.newCodeConfirmTitle': 'Replace Code',
         'bonfire.newCodeConfirmBody': 'The old code stops working. Members already in your Bonfire stay in.',
         'bonfire.failedNewCode': 'Could not replace the code.',
-        'bonfire.failedKick': 'Failed to kick member.',
-        'bonfire.deleteGroupConfirmTitle': 'Delete Group',
-        'bonfire.deleteGroupConfirmBody': 'Delete your Bonfire? Members are disconnected and drop out of your switcher.',
-        'bonfire.failedDeleteGroup': 'Failed to delete group.',
-        'bonfire.leaveGroupConfirmTitle': 'Leave Group',
-        'bonfire.leaveGroupConfirmBody': 'Leave this Bonfire? You will stop sharing switchers.',
-        'bonfire.failedLeaveGroup': 'Failed to leave group.',
+        'bonfire.failedKick': 'Could not remove the member.',
+        'bonfire.deleteGroupConfirmTitle': 'Delete Bonfire',
+        'bonfire.deleteGroupConfirmBody': 'Delete your Bonfire? Members drop out of your picker.',
+        'bonfire.failedDeleteGroup': 'Could not delete the Bonfire.',
+        'bonfire.leaveGroupConfirmTitle': 'Leave Bonfire',
+        'bonfire.leaveGroupConfirmBody': 'Leave this Bonfire? You will stop sharing profiles.',
+        'bonfire.failedLeaveGroup': 'Could not leave the Bonfire.',
         'bonfire.failedGenerateCode': 'Failed to generate code: {message}',
         'bonfire.failedLoadStatus': 'Failed to load Bonfire status: {message}',
         'bonfire.unknownUser': 'Unknown User',
-        'bonfire.hideMine': 'Hide my sub-profiles from others',
-        'bonfire.hideMineHint': 'Connected homes see only your master profile.',
-        'bonfire.hideOthers': "Hide other people's sub-profiles from me",
-        'bonfire.hideOthersHint': 'You see only the master profiles of connected homes.',
-        'bonfire.lanSwitchLabel': 'Let my Bonfire switch into my account on this network',
+        'bonfire.hideMine': 'Hide my profiles from others',
+        'bonfire.hideMineHint': 'Others see only my main account.',
+        'bonfire.hideOthers': "Hide other people's profiles from me",
+        'bonfire.hideOthersHint': 'You see only their main accounts.',
+        'bonfire.lanSwitchLabel': 'Let Bonfire members open my account on this network',
         'bonfire.lanSwitchHint': 'No PIN needed on your home network, for your account or your profiles. Away from home it still is{extra}.',
         'bonfire.lanSwitchHintExtra': ', and anything without a PIN cannot be opened remotely at all',
         'bonfire.settingsSaved': 'Saved.',
@@ -8681,7 +8681,9 @@
 
             // Auto-focus first focusable element for TV D-pad navigation
             setTimeout(() => {
-                const first = content.querySelector('input, button');
+                // Never a Remove button: focus fills a button, and the first thing on the
+                // screen read as a filled primary action (P2-102).
+                const first = content.querySelector('input, button:not(.links-remove):not(.links-leave)');
                 if (first) first.focus();
             }, 250);
         },
@@ -8718,7 +8720,7 @@
                             <span>${escapeHtml(x.name)}</span>
                             ${cls === 'links-remove' ? `<span class="form-hint">${x.hasPin ? t('links.withPin') : t('links.noPin')}</span>` : ''}
                         </span>
-                        <button type="button" class="profiles-btn btn-secondary ${cls}" data-id="${escapeHtml(x.id)}" data-name="${escapeHtml(x.name)}" aria-label="${escapeHtml(aria)}">${label}</button>
+                        <button type="button" class="profiles-btn btn-danger-quiet ${cls}" data-id="${escapeHtml(x.id)}" data-name="${escapeHtml(x.name)}" aria-label="${escapeHtml(aria)}">${label}</button>
                     </div>`;
                 slot.innerHTML = this.renderSection('group_add', t('links.title'), t('links.subtitle'), `
                     ${added.length
@@ -10065,14 +10067,14 @@
                         <input type="checkbox" id="bonfire-lan-bypass-checkbox" ${lanBypass ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-warn) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                         <span>${t('bonfire.lanSwitchLabel')}</span>
                     </label>
-                    <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">
+                    <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.75 !important; font-size: 0.8rem !important; position: relative !important; display: block !important;">
                         ${t('bonfire.lanSwitchHint', { extra: hasPinSet ? '' : t('bonfire.lanSwitchHintExtra') })}
                     </div>
                     ${isAdmin ? `
                     <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid var(--jpf-warn); border-radius: var(--jpf-r-sm); font-size: 0.75rem; line-height: 1.5; color: var(--jpf-text-1);">
                         <strong style="color: var(--jpf-warn);">${t('bonfire.adminAccountWarning')}</strong> ${t('bonfire.adminAccountWarningBody')}
                     </div>` : ''}
-                    <div style="margin-left: 1.6rem; margin-top: 8px; font-size: 0.72rem; line-height: 1.5; opacity: 0.45;">
+                    <div style="margin-left: 1.6rem; margin-top: 8px; font-size: 0.78rem; line-height: 1.5; opacity: 0.7;">
                         ${t('bonfire.proxyHint')}
                     </div>
                 </div>
@@ -10080,12 +10082,12 @@
 
             const settingsSectionHtml = `
                 <div class="bonfire-form-group" style="margin-top: 5px; display: flex; flex-direction: column; gap: var(--jpf-gap);">
-                    <div class="bonfire-form-group" style="gap: 4px;">
+                    ${(isOwner || isMember) ? `<div class="bonfire-form-group" style="gap: 4px;">
                         <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
                             <input type="checkbox" id="bonfire-hide-mine-checkbox" ${hideMine ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                             <span>${t('bonfire.hideMine')}</span>
                         </label>
-                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">${t('bonfire.hideMineHint')}</div>
+                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.75 !important; font-size: 0.8rem !important; position: relative !important; display: block !important;">${t('bonfire.hideMineHint')}</div>
                     </div>
 
                     <div class="bonfire-form-group" style="gap: 4px;">
@@ -10093,8 +10095,8 @@
                             <input type="checkbox" id="bonfire-hide-others-checkbox" ${hideOthers ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                             <span>${t('bonfire.hideOthers')}</span>
                         </label>
-                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">${t('bonfire.hideOthersHint')}</div>
-                    </div>
+                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.75 !important; font-size: 0.8rem !important; position: relative !important; display: block !important;">${t('bonfire.hideOthersHint')}</div>
+                    </div>` : ''}
 
                     ${lanBypassSectionHtml}
 

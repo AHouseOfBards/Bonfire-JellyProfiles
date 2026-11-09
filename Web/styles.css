@@ -1666,7 +1666,7 @@ body.profiles-no-scroll [id*="spinner"] {
     font-weight: 600;
 }
 .jpf-onboarding-check input { margin: 0 0.5rem 0 0 !important; width: 18px; height: 18px; accent-color: var(--jpf-accent); }
-.jpf-onboarding .form-hint { margin: 4px 0 1.5rem 1.6rem; opacity: 0.55; font-size: 0.8rem; }
+.jpf-onboarding .form-hint { margin: 4px 0 1.5rem 1.6rem; opacity: 0.8; font-size: 0.85rem; }
 .jpf-onboarding-label { font-weight: 600; margin-bottom: 10px; }
 .jpf-onboarding-choices > * + * { margin-top: var(--jpf-gap); }
 .jpf-onboarding-actions { margin-top: 2rem !important; }
