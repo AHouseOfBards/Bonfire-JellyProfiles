@@ -118,6 +118,12 @@ console.log('\n── The Themes section is on the page ────────
     ok('the font picker takes WOFF2 only', /id="fontFile"[^>]*accept="\.woff2,font\/woff2"/.test(markup)
        || /accept="\.woff2,font\/woff2"[^>]*id="fontFile"/.test(markup));
     ok('the rights box is a checkbox', /type="checkbox" id="fontRights"/.test(markup));
+    // Simple sets four colours and derives the rest; say so, inside Simple and not Advanced.
+    const hint = /id="teFollowHint"[^>]*data-i18n="admin\.themes\.followHint"[^>]*>([^<]*)</.exec(markup);
+    ok('Simple says related colours follow the ones picked, in under ten words',
+       hint && hint[1].trim().split(/\s+/).length < 10
+       && markup.indexOf('id="teFollowHint"') > markup.indexOf('id="teSimple"')
+       && markup.indexOf('id="teFollowHint"') < markup.indexOf('id="teAdvanced"'));
     ok('Simple and Advanced are both there', /data-view="simple"/.test(markup) && /data-view="advanced"/.test(markup));
     ok('its loader starts with the page and its handlers are bound with the rest',
        /loadThemes\(page\);/.test(script) && /bindThemes\(page\);/.test(script));

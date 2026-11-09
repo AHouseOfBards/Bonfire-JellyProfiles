@@ -511,6 +511,7 @@
   "admin.themes.buttonRounded": "Zaokrąglony",
   "admin.themes.buttonSquare": "Kwadratowy",
   "admin.themes.pattern": "Wzór",
+  "admin.themes.followHint": "Powiązane kolory podążają za wybranymi.",
   "admin.themes.advancedHint": "Każda wartość pliku motywu. Listy wpisuje się jako JSON.",
   "admin.themes.problems": "Problemy",
   "admin.themes.save": "Zapisz motyw",

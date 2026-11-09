@@ -511,6 +511,7 @@
   "admin.themes.buttonRounded": "Arrondi",
   "admin.themes.buttonSquare": "Carré",
   "admin.themes.pattern": "Motif",
+  "admin.themes.followHint": "Les couleurs associées suivent celles que vous choisissez.",
   "admin.themes.advancedHint": "Toutes les valeurs du fichier de thème. Les listes s'écrivent en JSON.",
   "admin.themes.problems": "Problèmes",
   "admin.themes.save": "Enregistrer le thème",

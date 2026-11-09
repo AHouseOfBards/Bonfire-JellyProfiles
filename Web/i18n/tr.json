@@ -522,6 +522,7 @@
   "admin.themes.buttonRounded": "Yuvarlak köşeli",
   "admin.themes.buttonSquare": "Köşeli",
   "admin.themes.pattern": "Desen",
+  "admin.themes.followHint": "İlgili renkler seçtiklerinizi izler.",
   "admin.themes.advancedHint": "Tema dosyasındaki her değer. Listeler JSON olarak yazılır.",
   "admin.themes.problems": "Sorunlar",
   "admin.themes.save": "Temayı kaydet",

@@ -511,6 +511,7 @@
   "admin.themes.buttonRounded": "Arrodonit",
   "admin.themes.buttonSquare": "Quadrat",
   "admin.themes.pattern": "Motiu",
+  "admin.themes.followHint": "Els colors relacionats segueixen els que triïs.",
   "admin.themes.advancedHint": "Tots els valors del fitxer del tema. Les llistes s'escriuen en JSON.",
   "admin.themes.problems": "Problemes",
   "admin.themes.save": "Desa el tema",

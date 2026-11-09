@@ -511,6 +511,7 @@
   "admin.themes.buttonRounded": "Redondeado",
   "admin.themes.buttonSquare": "Cuadrado",
   "admin.themes.pattern": "Motivo",
+  "admin.themes.followHint": "Los colores relacionados siguen a los que elijas.",
   "admin.themes.advancedHint": "Todos los valores del archivo del tema. Las listas se escriben en JSON.",
   "admin.themes.problems": "Problemas",
   "admin.themes.save": "Guardar tema",
