@@ -148,6 +148,7 @@ var wanted = new Dictionary<string, string>
     ["PIN reset by email isn't available"] = "pin_reset_unavailable",
     ["The email couldn't be sent"] = "email_send_failed",
     ["Port 465 isn't supported"] = "email_settings_invalid",
+    ["This is the only device allowed for"] = "device_in_use",
     ["A viewing window isn't valid"] = "limits_invalid",
     ["A daily limit is between"] = "limits_invalid",
     ["More time is between"] = "limits_invalid",

@@ -1766,6 +1766,35 @@
                 'admin.logo.err.image': 'Use a PNG, JPEG or WebP image up to 1 MB, 16 to 4096 pixels a side.',
                 'admin.logo.err.upload': 'Couldn\'t upload the logo.',
                 'admin.logo.err.save': 'Couldn\'t save the logo.',
+                'admin.err.adminOnly': 'Only an administrator can do that.',
+                'admin.err.forbidden': 'You can\'t do that here.',
+                'admin.err.serverError': 'The server had a problem. Try again.',
+                'admin.err.unavailable': 'The server isn\'t ready. Try again in a moment.',
+                'admin.err.notFound': 'That is gone. Reload the page.',
+                'admin.err.rateLimited': 'Too many tries. Wait a moment and try again.',
+                'admin.err.signedOut': 'Your session ended. Reload the page and sign in again.',
+                'admin.err.announcement': 'Check the announcement. It needs a message, and it must end after it starts.',
+                'admin.err.announcementLimit': 'Delete an announcement first.',
+                'admin.err.announcementGone': 'That announcement is gone. Reload the page.',
+                'admin.err.maintenance': 'Check the message and the end time. The end time must be in the future.',
+                'admin.err.emailSettings': 'Check the server, port and From address, then try again.',
+                'admin.err.emailInvalid': 'Enter a valid email address.',
+                'admin.err.emailUnavailable': 'Set up email and send a test first.',
+                'admin.err.emailFailed': 'The email couldn\'t be sent. Check the settings and try again.',
+                'admin.err.nameInvalid': 'Use letters, numbers and spaces, and keep the name short.',
+                'admin.err.nameTaken': 'That name is taken. Choose another.',
+                'admin.err.passwordRequired': 'Enter a password for the new account.',
+                'admin.err.mainProtected': 'That can\'t be done to a main account.',
+                'admin.err.userGone': 'That account is gone. Reload the page.',
+                'admin.err.profileGone': 'That profile is gone. Reload the page.',
+                'admin.err.notConvertible': 'That account can\'t be made a profile. It may be an administrator, have profiles of its own, or be in a Bonfire.',
+                'admin.err.notLinkable': 'That account can\'t be added. Choose a different main account.',
+                'admin.err.alreadyLinked': 'That account is already added.',
+                'admin.err.linkLimit': 'That screen shows as many accounts as allowed. Remove one first.',
+                'admin.err.adminPin': 'Set a PIN for the administrator account first.',
+                'admin.err.linkGone': 'That account is no longer added. Reload the page.',
+                'admin.err.imageInvalid': 'That image can\'t be used. Choose a different one.',
+                'admin.err.imageGone': 'That avatar is gone. Reload the page.',
                 'admin.themes.p.contrast': 'Contrast {ratio}:1 on {on}. Needs {min}:1.',
                 'admin.themes.p.contrastShort': 'Not enough contrast.',
                 'admin.themes.p.between': 'Must be from {min} to {max}.',
@@ -3258,7 +3287,7 @@
                             headers: { 'Authorization': authorizationHeader() }
                         })
                         .then(function (res) {
-                            if (!res.ok) return res.text().then(function (text) { throw new Error(text || t('admin.avatars.unreadable')); });
+                            if (!res.ok) throw new Error(refusalMessage(res) || t('admin.avatars.unreadable'));
                             return res.blob();
                         })
                         // A Blob is what the upload path already expects, so the file goes
@@ -3363,12 +3392,59 @@
                 return ends ? t('admin.ann.until', { when: formatWhen(ends) }) : t('admin.ann.untilDeleted');
             }
 
-            // The server's refusal is written for this page; show it rather than a guess.
+            // The sentence for each code a Bonfire route sends in X-Bonfire-Error
+            // (Controllers/ErrorCodes.cs), in the page's language. A code not here, or a server
+            // too old to send one, shows the fallback of whatever was being done: the response
+            // body is English and is never shown. The codes the household screens meet
+            // are in profiles.js's ERROR_KEYS.
+            //
+            // The theme, font and logo codes are here too. image_invalid is the avatar's; the
+            // logo's own is passed by readThemeError.
+            ///
+            /// The map is inside refusalMessage, not beside it: the harnesses lift these
+            /// functions by name, and a const would be left behind.
+            ///
+            /// The code a refused response carries, or ''. `err` is the Response the page's
+            /// calls reject with; anything else has none.
+            function refusalCode(err) {
+                try { return (err && err.headers && typeof err.headers.get === 'function' && err.headers.get('X-Bonfire-Error')) || ''; }
+                catch (e) { return ''; }
+            }
+
+            /// The sentence for a refused response, or '' when its code has none.
+            function refusalMessage(err, vars, overrides) {
+                const ERROR_KEYS = {
+                admin_only: 'admin.err.adminOnly', forbidden: 'admin.err.forbidden',
+                server_error: 'admin.err.serverError', unavailable: 'admin.err.unavailable',
+                not_found: 'admin.err.notFound', rate_limited: 'admin.err.rateLimited',
+                unauthenticated: 'admin.err.signedOut',
+                announcement_invalid: 'admin.err.announcement', announcement_limit: 'admin.err.announcementLimit',
+                announcement_not_found: 'admin.err.announcementGone',
+                maintenance_invalid: 'admin.err.maintenance',
+                email_settings_invalid: 'admin.err.emailSettings', email_invalid: 'admin.err.emailInvalid',
+                email_unavailable: 'admin.err.emailUnavailable', email_send_failed: 'admin.err.emailFailed',
+                name_invalid: 'admin.err.nameInvalid', name_taken: 'admin.err.nameTaken',
+                password_required: 'admin.err.passwordRequired', main_account_protected: 'admin.err.mainProtected',
+                user_not_found: 'admin.err.userGone', profile_not_found: 'admin.err.profileGone',
+                not_convertible: 'admin.err.notConvertible',
+                not_linkable: 'admin.err.notLinkable', already_linked: 'admin.err.alreadyLinked',
+                link_limit: 'admin.err.linkLimit', admin_pin_required: 'admin.err.adminPin',
+                link_not_found: 'admin.err.linkGone',
+                image_invalid: 'admin.err.imageInvalid', image_not_found: 'admin.err.imageGone',
+                theme_invalid: 'admin.themes.err.invalid', theme_limit: 'admin.themes.err.limit',
+                theme_in_use: 'admin.themes.err.inUse', theme_not_found: 'admin.themes.err.notFound',
+                font_invalid: 'admin.themes.err.fontInvalid', font_rights: 'admin.themes.err.fontRights',
+                font_taken: 'admin.themes.err.fontTaken', font_limit: 'admin.themes.err.fontLimit',
+                font_in_use: 'admin.themes.err.fontInUse', font_not_found: 'admin.themes.err.fontNotFound',
+                logo_invalid: 'admin.logo.err.invalid'
+                };
+                const code = refusalCode(err);
+                if (overrides && Object.prototype.hasOwnProperty.call(overrides, code)) return t(overrides[code], vars);
+                return Object.prototype.hasOwnProperty.call(ERROR_KEYS, code) ? t(ERROR_KEYS[code], vars) : '';
+            }
+
             function errorText(err, fallback) {
-                if (err && typeof err.text === 'function') {
-                    return err.text().then(function (t) { return t || fallback; }, function () { return fallback; });
-                }
-                return Promise.resolve(fallback);
+                return Promise.resolve(refusalMessage(err) || fallback);
             }
 
             function resetAnnouncementForm(page) {
@@ -4036,36 +4112,23 @@
                 }).join('') + '</ul>';
             }
 
-            /// The message for a refused request, and the problems when it carried them. A
-            /// translated page says it in its own words, by X-Bonfire-Error; in English the
-            /// server's sentence is used, which was written for this page and is more exact.
+            /// The message for a refused request, and the problems when it carried them. The
+            /// message is said by X-Bonfire-Error, in the page's language, in English too: the
+            /// server's sentence is never shown. The body is read for the list of problems only,
+            /// and each of those is worded here from its own code (themeProblemText).
             function readThemeError(err, fallbackKey, data) {
-                const keys = {
-                    theme_invalid: 'admin.themes.err.invalid', theme_limit: 'admin.themes.err.limit',
-                    theme_in_use: 'admin.themes.err.inUse', theme_not_found: 'admin.themes.err.notFound',
-                    font_invalid: 'admin.themes.err.fontInvalid', font_rights: 'admin.themes.err.fontRights',
-                    font_taken: 'admin.themes.err.fontTaken', font_limit: 'admin.themes.err.fontLimit',
-                    font_in_use: 'admin.themes.err.fontInUse', font_not_found: 'admin.themes.err.fontNotFound',
-                    logo_invalid: 'admin.logo.err.invalid', image_invalid: 'admin.logo.err.image'
-                };
-                const code = err && err.headers && typeof err.headers.get === 'function' ? (err.headers.get('X-Bonfire-Error') || '') : '';
-                const key = Object.prototype.hasOwnProperty.call(keys, code) ? keys[code] : '';
+                const code = refusalCode(err);
                 const vars = { max: code === 'font_limit' ? (data && data.maxCustomFonts) || 20 : (data && data.maxCustomThemes) || 40 };
+                const message = refusalMessage(err, vars, { image_invalid: 'admin.logo.err.image' });
                 const body = err && typeof err.text === 'function'
                     ? err.text().then(function (s) { return s || ''; }, function () { return ''; })
                     : Promise.resolve('');
                 return body.then(function (text) {
-                    let message = text, problems = null;
+                    let problems = null;
                     try {
                         const parsed = JSON.parse(text);
-                        if (parsed && typeof parsed === 'object') {
-                            message = typeof parsed.message === 'string' ? parsed.message : '';
-                            problems = Array.isArray(parsed.problems) ? parsed.problems : null;
-                        } else if (typeof parsed === 'string') {
-                            message = parsed;
-                        }
-                    } catch (e) { /* plain text */ }
-                    if (key && (adminStrings || !message)) message = t(key, vars);
+                        if (parsed && typeof parsed === 'object') problems = Array.isArray(parsed.problems) ? parsed.problems : null;
+                    } catch (e) { /* plain text: no list */ }
                     return { code: code, message: message || t(fallbackKey), problems: problems };
                 });
             }

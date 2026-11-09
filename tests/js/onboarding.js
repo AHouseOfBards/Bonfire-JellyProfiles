@@ -45,7 +45,7 @@ env.setRespond((url, body) => {
     if (url === 'plugins/profiles/preferences') return { status: 200, body: body };
     if (url === 'plugins/profiles/onboarding') return { status: 200, body: onboarding };
     if (url === 'plugins/profiles/theme') return { status: 200, body: { theme: body.theme || 'bonfire', stored: body.theme } };
-    if (url === 'plugins/profiles/create' && body.profileName === 'Taken') return { status: 400, body: 'That name is taken.' };
+    if (url === 'plugins/profiles/create' && body.profileName === 'Taken') return { status: 400, body: 'A user with this name already exists.', headers: { 'X-Bonfire-Error': 'name_taken' } };
     return { status: 200, body: {} };
 });
 
@@ -123,8 +123,9 @@ const html = () => content.innerHTML;
     id('#onboarding-profile-name').value = 'Taken';
     id('#onboarding-next').click();
     await settle();
-    ok("the server's refusal is shown on the same step",
-       !!id('#onboarding-profile-name') && id('#onboarding-error').textContent === 'That name is taken.');
+    // Replaced behaviour: a refusal used to be shown in the server's English words; it is said by its X-Bonfire-Error code now.
+    ok('the refusal is shown on the same step, by its code',
+       !!id('#onboarding-profile-name') && id('#onboarding-error').textContent === 'That name is taken. Choose another.');
     id('#onboarding-profile-name').value = 'Kids';
     id('#onboarding-next').click();
     await settle();

@@ -87,11 +87,12 @@ function tagOf(id) {
         ok('"Failed to fetch" is not shown to anyone', msg === UNREACHABLE, String(msg));
 
         // The server's own words still go through.
-        sb.fetch = () => Promise.resolve({ ok: false, status: 403, text: () => Promise.resolve('Too many attempts') });
+        sb.fetch = () => Promise.resolve({ ok: false, status: 403, headers: { get: h => (h === 'X-Bonfire-Error' ? 'forbidden' : null) }, text: () => Promise.resolve('Too many attempts') });
         msg = null;
         PP.executeProfileSwitch('kid', '1234', m => { msg = m; });
         await settle();
-        ok('a refusal from the server is shown as written', msg === 'Too many attempts', String(msg));
+        // Replaced behaviour: a refusal used to be shown in the server's English words; it is said by its X-Bonfire-Error code now.
+        ok('a refusal from the server is said by its code', msg === "You can't do that here.", String(msg));
 
         // A tap on a profile with no PIN has no screen to report on.
         PP._redrawn = false;
@@ -99,7 +100,7 @@ function tagOf(id) {
         PP.executeProfileSwitch('kid', null);
         await settle();
         ok('a refused tap puts the picker back', PP._redrawn === true);
-        ok('and tells the person why', alerted !== null && /Too many attempts/.test(alerted.body), JSON.stringify(alerted));
+        ok('and tells the person why', alerted !== null && /do that here/.test(alerted.body), JSON.stringify(alerted));
         sb.fetch = () => Promise.reject(new TypeError('Load failed'));
         alerted = null;
         PP.executeProfileSwitch('kid', null);

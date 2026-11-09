@@ -37,7 +37,7 @@ const server = {
     refuse: {}     // url → [status, text] for the next call
 };
 env.setRespond((url, body) => {
-    if (server.refuse[url]) { const r = server.refuse[url]; delete server.refuse[url]; return { status: r[0], body: r[1] }; }
+    if (server.refuse[url]) { const r = server.refuse[url]; delete server.refuse[url]; return { status: r[0], body: r[1], headers: r[2] ? { 'X-Bonfire-Error': r[2] } : undefined }; }
     if (url === 'plugins/profiles/me') return { status: 200, body: server.me };
     if (url === 'plugins/profiles/account/email' && !body) return { status: 200, body: server.email };
     if (url === 'plugins/profiles/account/email') {
@@ -122,12 +122,13 @@ const last = url => sent(url).pop();
     ok('a short code is refused without a request', posts.length === before
        && q('#account-email-status').textContent === 'Enter the 6-digit code.');
 
-    server.refuse['plugins/profiles/account/email/confirm'] = [400, "That code isn't right."];
+    server.refuse['plugins/profiles/account/email/confirm'] = [400, "That code isn't right.", 'code_wrong'];
     q('#account-email-code').value = '000000';
     q('#account-email-confirm').click();
     await settle();
-    ok("the server's refusal is shown, still on the code", !!q('#account-email-code')
-       && q('#account-email-status').textContent === "That code isn't right.");
+    // Replaced behaviour: a refusal used to be shown in the server's English words; it is said by its X-Bonfire-Error code now.
+    ok("the refusal is shown by its code, still on the code", !!q('#account-email-code')
+       && q('#account-email-status').textContent === "That code isn't right. Check it and try again.");
 
     q('#account-email-code').value = '123 456';
     q('#account-email-confirm').click();
@@ -157,12 +158,12 @@ const last = url => sent(url).pop();
     await settle();
     p = last('plugins/profiles/account/email/notifications');
     ok('turning a notice off saves only that one', p && p.body.notifyLockout === false && !('notifyNewDevice' in p.body));
-    server.refuse['plugins/profiles/account/email/notifications'] = [400, 'No.'];
+    server.refuse['plugins/profiles/account/email/notifications'] = [400, 'No.', 'forbidden'];
     const dev = q('#account-email-device');
     dev.checked = false;
     dev.fire('change');
     await settle();
-    ok('a refused change puts the box back', dev.checked === true && q('#account-email-status').textContent === 'No.');
+    ok('a refused change puts the box back', dev.checked === true && q('#account-email-status').textContent === "You can't do that here.");
 
     // An address that is markup must come out as text.
     server.email.address = 'a<img src=x>@example.com';
@@ -186,12 +187,12 @@ const last = url => sent(url).pop();
     ok('Remove posts and goes back to an empty field', !!last('plugins/profiles/account/email/remove')
        && !!q('#account-email-input') && q('#account-email-status').textContent === 'Email removed.');
 
-    server.refuse['plugins/profiles/account/email'] = [429, 'Too many codes sent.'];
+    server.refuse['plugins/profiles/account/email'] = [429, 'Too many codes sent.', 'rate_limited'];
     q('#account-email-input').value = 'parent@example.com';
     q('#account-email-send').click();
     await settle();
     ok('a refused send says why and keeps the field', !!q('#account-email-input')
-       && q('#account-email-status').textContent === 'Too many codes sent.');
+       && q('#account-email-status').textContent === 'Too many tries. Wait a moment and try again.');
 
     // The real page draws the slot and binds it.
     const page = D.makeContent();
@@ -237,11 +238,11 @@ const last = url => sent(url).pop();
     await settle();
     ok('so is a short PIN', sent('plugins/profiles/account/pin-reset').length === before);
 
-    server.refuse['plugins/profiles/account/pin-reset'] = [400, "That code isn't right."];
+    server.refuse['plugins/profiles/account/pin-reset'] = [400, "That code isn't right.", 'code_wrong'];
     id('#pin-reset-new').value = '2468';
     id('#pin-reset-save').click();
     await settle();
-    ok("the server's refusal is shown and nothing carries on", id('#pin-reset-error').textContent === "That code isn't right."
+    ok("the server's refusal is shown and nothing carries on", id('#pin-reset-error').textContent === "That code isn't right. Check it and try again."
        && carriedOn === 0 && PP.masterPin === '1234');
 
     const sends = sent('plugins/profiles/account/pin-reset/send').length;
@@ -303,12 +304,12 @@ const last = url => sent(url).pop();
     ok('a malformed address is refused without a request', posts.length === before
        && id('#onboarding-error').textContent === 'Enter an email address.');
 
-    server.refuse['plugins/profiles/account/email'] = [400, "Email isn't set up on this server."];
+    server.refuse['plugins/profiles/account/email'] = [400, "Email isn't set up on this server.", 'email_unavailable'];
     id('#onboarding-email').value = 'parent@example.com';
     id('#onboarding-next').click();
     await settle();
     ok('a refusal stays on the step, says why, and keeps the address', !!id('#onboarding-email')
-       && id('#onboarding-error').textContent === "Email isn't set up on this server."
+       && id('#onboarding-error').textContent === 'Email isn\'t set up on this server. Ask an administrator.'
        && id('#onboarding-email').value === 'parent@example.com');
 
     id('#onboarding-next').click();

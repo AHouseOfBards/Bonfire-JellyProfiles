@@ -312,6 +312,7 @@ Invalid PIN code.
 | `profile_disabled` | The profile's account is turned off in Jellyfin. |
 | `too_many_sessions` | Jellyfin's session limit for the account was reached. |
 | `sign_in_failed` | Jellyfin refused to create the session. See the server log. |
+| `device_in_use` | Forgetting the device would leave a profile with no device limit. The body names the profiles. |
 | `profile_limit` | The account has as many profiles as it's allowed. |
 | `name_taken` | The household already has a profile with that name. |
 | `name_invalid` | The name is empty, too long or uses characters that aren't allowed. |

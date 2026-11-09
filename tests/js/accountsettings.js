@@ -139,13 +139,14 @@ function freshAccount() {
         ok('and the page remembers it', PP.currentProfiles[0].askPinToOpen === false);
 
         posts.length = 0;
-        respond = () => ({ status: 400, body: 'Invalid Master PIN.' });
+        respond = () => ({ status: 400, body: 'Invalid Master PIN.', headers: { 'X-Bonfire-Error': 'pin_wrong' } });
         const lan = content.querySelector('#account-lan-bypass');
         lan.checked = true;
         lan.fire('change');
         await settle();
         ok('a refusal puts the box back', lan.checked === false);
-        ok('and says why', content.querySelector('#account-status').textContent === 'Invalid Master PIN.',
+        // Replaced behaviour: a refusal used to be shown in the server's English words; it is said by its X-Bonfire-Error code now.
+        ok('and says why, by its code', content.querySelector('#account-status').textContent === "That PIN isn't right. Try again.",
             content.querySelector('#account-status').textContent);
 
         posts.length = 0;

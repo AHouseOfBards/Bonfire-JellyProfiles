@@ -1275,6 +1275,103 @@
         'profilePage.title': 'Bonfire Profiles',
         'profilePage.body': 'Currently watching as <strong>{name}</strong>. Switch to another profile in your household without signing out.',
         'profilePage.thisAccount': 'this account',
+
+        // What a refused request says, by the code the server sends in X-Bonfire-Error
+        // (see ERROR_KEYS). The server's own sentence is English and is never shown.
+        'refused.notMain': 'Only the main account can do that.',
+        'refused.adminOnly': 'Ask an administrator to do that.',
+        'refused.notYours': "That profile isn't yours to change.",
+        'refused.themesLocked': "This server doesn't let profiles choose a theme.",
+        'refused.mainPinRequired': 'Set a PIN for the main account first.',
+        'refused.adminPin': 'Set a PIN for the administrator account first.',
+        'refused.pinMissing': "Enter the main account's PIN.",
+        'refused.pinWrong': "That PIN isn't right. Try again.",
+        'refused.pinFormat': 'Use a PIN of 4 to 8 digits.',
+        'refused.pinForBonfire': 'Set a PIN for this profile first. A shared Bonfire needs one.',
+        'refused.codeWrong': "That code isn't right. Check it and try again.",
+        'refused.deviceNotAllowed': "This profile can't be opened on this device. Use another device.",
+        'refused.disabled': 'This account is turned off. Ask an administrator to turn it on.',
+        'refused.tooManySessions': 'This profile is open on too many screens. Close one and try again.',
+        'refused.signInFailed': "Couldn't sign in to that profile. Try again.",
+        'refused.profileLimit': 'The profile limit is reached. Delete a profile first.',
+        'refused.nameTaken': 'That name is taken. Choose another.',
+        'refused.nameInvalid': 'Use letters, numbers and spaces, and keep the name short.',
+        'refused.mainProtected': "That can't be done to a main account.",
+        'refused.bonfireNotOwner': "You don't have a Bonfire group yet. Create a code first.",
+        'refused.bonfireNotMember': "You aren't in a Bonfire group. Join one with a code.",
+        'refused.bonfireOwn': "That's your own group's code. Enter another one.",
+        'refused.bonfireMember': 'That person is no longer in your group. Reload and try again.',
+        'refused.passwordRequired': 'Enter a password for the new account.',
+        'refused.profileGone': 'That profile is gone. Reload and try again.',
+        'refused.accountGone': 'That account is gone. Reload and try again.',
+        'refused.libraryGone': 'That library is gone. Reload and try again.',
+        'refused.avatarGone': 'That avatar is gone. Choose another.',
+        'refused.imageInvalid': "That image can't be used. Choose a different one.",
+        'refused.notConfigured': "Bonfire isn't set up yet. Ask an administrator.",
+        'refused.emailUnavailable': "Email isn't set up on this server. Ask an administrator.",
+        'refused.resetUnavailable': "PIN reset by email isn't available. Ask an administrator.",
+        'refused.emailInvalid': 'Enter a valid email address.',
+        'refused.emailMissing': 'Add an email address first.',
+        'refused.codeExpired': 'That code has expired. Send a new one.',
+        'refused.codeMissing': 'Send a code first.',
+        'refused.emailFailed': "The email couldn't be sent. Try again.",
+        'refused.notLimited': 'This profile has no viewing limits to change.',
+        'refused.limitsForProfiles': 'Limits are for profiles, not main accounts.',
+        'refused.limitsInvalid': 'Check the viewing hours and limits, then try again.',
+        'refused.timeZone': 'Choose a time zone from the list.',
+        'refused.credentials': "That username or password isn't right. Try again.",
+        'refused.signsInElsewhere': 'That account signs in another way. Ask an administrator to add it.',
+        'refused.notLinkable': "That account can't be added. Choose a different main account.",
+        'refused.alreadyLinked': 'That account is already added.',
+        'refused.linkLimit': "You've added as many accounts as allowed. Remove one first.",
+        'refused.linkGone': 'That account is no longer added. Reload and try again.',
+        'refused.notConvertible': "That account can't be made a profile. It may be an administrator, have profiles of its own, or be in a Bonfire.",
+        'refused.deviceInUse': 'That device is the only one allowed for some profiles. Allow another device for them first.',
+        'refused.rateLimited': 'Too many tries. Wait a moment and try again.',
+        'refused.forbidden': "You can't do that here.",
+        'refused.serverError': 'The server had a problem. Try again.',
+        'refused.unavailable': "The server isn't ready. Try again in a moment.",
+        'refused.notFound': 'That is gone. Reload and try again.',
+        'refused.signedOut': 'Your session ended. Sign in again.',
+    };
+
+    /// The sentence for each code a Bonfire route can send in X-Bonfire-Error
+    /// (Controllers/ErrorCodes.cs). A code missing here, or a server too old to send one,
+    /// shows the fallback of whatever was being done instead; the server's English body
+    /// is never shown. Codes only the administrator's page can meet (announcements,
+    /// maintenance, themes, fonts, the logo, email settings) are in its own map.
+    /// invalid_request is left out on purpose: it is the code of every refusal nothing
+    /// else matched, and "Could not save that." names the action where this could not.
+    const ERROR_KEYS = {
+        not_main_account: 'refused.notMain', admin_only: 'refused.adminOnly',
+        not_your_profile: 'refused.notYours', themes_locked: 'refused.themesLocked',
+        main_pin_required: 'refused.mainPinRequired', admin_pin_required: 'refused.adminPin',
+        pin_missing: 'refused.pinMissing', pin_wrong: 'refused.pinWrong', pin_format: 'refused.pinFormat',
+        pin_needed_for_bonfire: 'refused.pinForBonfire',
+        bonfire_code_wrong: 'refused.codeWrong', code_wrong: 'refused.codeWrong',
+        device_not_allowed: 'refused.deviceNotAllowed', profile_disabled: 'refused.disabled',
+        too_many_sessions: 'refused.tooManySessions', sign_in_failed: 'refused.signInFailed',
+        profile_limit: 'refused.profileLimit', name_taken: 'refused.nameTaken', name_invalid: 'refused.nameInvalid',
+        main_account_protected: 'refused.mainProtected',
+        bonfire_not_owner: 'refused.bonfireNotOwner', bonfire_not_member: 'refused.bonfireNotMember',
+        bonfire_own_group: 'refused.bonfireOwn', bonfire_member_not_found: 'refused.bonfireMember',
+        password_required: 'refused.passwordRequired',
+        profile_not_found: 'refused.profileGone', user_not_found: 'refused.accountGone',
+        library_not_found: 'refused.libraryGone', image_not_found: 'refused.avatarGone',
+        image_invalid: 'refused.imageInvalid', not_configured: 'refused.notConfigured',
+        email_unavailable: 'refused.emailUnavailable', pin_reset_unavailable: 'refused.resetUnavailable',
+        email_invalid: 'refused.emailInvalid', email_missing: 'refused.emailMissing',
+        code_expired: 'refused.codeExpired', code_missing: 'refused.codeMissing',
+        email_send_failed: 'refused.emailFailed',
+        not_limited: 'refused.notLimited', limits_for_profiles: 'refused.limitsForProfiles',
+        limits_invalid: 'refused.limitsInvalid', time_zone_invalid: 'refused.timeZone',
+        credentials_wrong: 'refused.credentials', admin_must_add: 'refused.signsInElsewhere',
+        not_linkable: 'refused.notLinkable', already_linked: 'refused.alreadyLinked',
+        link_limit: 'refused.linkLimit', link_not_found: 'refused.linkGone',
+        not_convertible: 'refused.notConvertible', device_in_use: 'refused.deviceInUse',
+        rate_limited: 'refused.rateLimited', forbidden: 'refused.forbidden',
+        server_error: 'refused.serverError', unavailable: 'refused.unavailable',
+        not_found: 'refused.notFound', unauthenticated: 'refused.signedOut'
     };
 
     /// The active language's strings. Starts out equal to EN_STRINGS — every lookup
@@ -1298,6 +1395,27 @@
             });
         }
         return str;
+    }
+
+    /// What to tell the person about a refused response, in their language, from the
+    /// code the server sent in X-Bonfire-Error. '' when there is no code, the server is
+    /// too old to send one, or the code has no sentence in ERROR_KEYS: the caller then
+    /// shows its own fallback. The response body is never read for display, because it
+    /// is English written for a developer.
+    function refusalText(res) {
+        let code = '';
+        try { code = (res && res.headers && res.headers.get('X-Bonfire-Error')) || ''; } catch (e) { code = ''; }
+        return Object.prototype.hasOwnProperty.call(ERROR_KEYS, code) ? t(ERROR_KEYS[code]) : '';
+    }
+
+    /// An Error to throw for a refused response: the sentence for its code, or `fallback`.
+    /// serverText is set only when the code had a sentence, so _failText can tell a
+    /// refusal that was understood from a browser error.
+    function refusalError(res, fallback) {
+        const text = refusalText(res);
+        const err = new Error(text || fallback);
+        err.serverText = text;
+        return err;
     }
 
     /// The language Jellyfin is showing this user, as a tag ('fr', 'pt-br'), or '' if
@@ -2197,7 +2315,7 @@
             }).then(res => {
                 if (res.status === 401) { this.handleSessionExpired(); throw new Error(t('errors.couldNotSaveThat')); }
                 if (res.status === 429 && path === 'ask') throw new Error(t('viewing.alreadyAsked'));
-                if (!res.ok) return res.text().then(text => { throw new Error(text || t('errors.couldNotSaveThat')); });
+                if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
                 return res.json();
             });
         },
@@ -5225,7 +5343,7 @@
                                 masterPin: this.masterPin
                             })
                         }).then(res => {
-                            if (!res.ok) return res.text().then(body => { throw new Error(body || t('errors.couldNotSaveArtwork')); });
+                            if (!res.ok) throw refusalError(res, t('errors.couldNotSaveArtwork'));
                             entry.dirty = false;
                         });
                     }), Promise.resolve());
@@ -6659,18 +6777,16 @@
                             if (!stopped && pinInput.value === pin) opts.onRight(pin);
                             return null;
                         }
-                        return res.text().then(text => {
-                            const body = (text || '').trim();
-                            if (res.status === 429) {
-                                // Locked. Every further check would be refused and counted
-                                // nowhere useful; say so and stop.
-                                stopped = true;
-                                if (timer) { clearTimeout(timer); timer = null; }
-                                opts.onLocked(this._lockedText(res));
-                                return;
-                            }
-                            refused.set(pin, body);
-                        });
+                        if (res.status === 429) {
+                            // Locked. Every further check would be refused and counted
+                            // nowhere useful; say so and stop.
+                            stopped = true;
+                            if (timer) { clearTimeout(timer); timer = null; }
+                            opts.onLocked(this._lockedText(res));
+                            return null;
+                        }
+                        refused.set(pin, refusalText(res));
+                        return null;
                     })
                     .catch(() => {
                         // Network trouble: nothing learned. Enter still works.
@@ -6894,7 +7010,7 @@
                 })
                 .then(res => {
                     if (res.status === 401) { this.handleSessionExpired(); return null; }
-                    if (!res.ok) return res.text().then(text => { fail(text || t('errors.error')); return null; });
+                    if (!res.ok) { fail(refusalText(res) || t('errors.error')); return null; }
                     (profiles || []).concat(this.currentProfiles || []).forEach(p => {
                         if (p.isMaster && !p.isBonfire) p.hasPin = true;
                     });
@@ -7016,11 +7132,7 @@
                         throw new Error('Session expired');
                     }
                     if (!res.ok) {
-                        return res.text().then(text => {
-                            const refusal = new Error(text || t('pin.incorrectMasterPin'));
-                            refusal.serverText = text;
-                            throw refusal;
-                        });
+                        throw refusalError(res, t('pin.incorrectMasterPin'));
                     }
                     this.masterPin = pin;
                     verified = true;
@@ -7068,7 +7180,7 @@
                 };
             return fetch(ApiClient.getUrl('plugins/profiles/' + path), init).then(res => {
                 if (res.status === 401) { this.handleSessionExpired(); throw new Error(t('errors.error')); }
-                if (!res.ok) return res.text().then(text => { throw new Error(text || t('errors.error')); });
+                if (!res.ok) throw refusalError(res, t('errors.error'));
                 return res.text().then(text => {
                     try { return text ? JSON.parse(text) : {}; } catch (e) { return {}; }
                 });
@@ -7399,8 +7511,9 @@
                             this.handleSessionExpired();
                             throw new Error('Session expired');
                         }
-                        // A 429's sentence is English; the wait is built here, in the viewer's language.
-                        const shown = res.status === 429 ? this._lockedText(res) : body;
+                        // A 429's sentence is English; the wait is built here, in the viewer's
+                        // language. Any other refusal is said by its code; the body is not shown.
+                        const shown = res.status === 429 ? this._lockedText(res) : refusalText(res);
                         const refusal = new Error(shown || t('pin.incorrectPin'));
                         refusal.serverText = shown;
                         throw refusal;
@@ -8402,7 +8515,7 @@
                     })
                     .then(res => {
                         if (res.status === 401) { this.handleSessionExpired(); throw new Error(t('errors.couldNotSaveThat')); }
-                        if (!res.ok) return res.text().then(text => { throw new Error(text || t('errors.couldNotSaveThat')); });
+                        if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
                     })
                     .then(() => {
                         // The header marker is rebuilt from the fresh list, which is read
@@ -8731,7 +8844,7 @@
                         })
                     })
                     .then(res => {
-                        if (!res.ok) return res.text().then(text => { throw new Error(text); });
+                        if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
                         return res.json();
                     })
                     .then(created => {
@@ -9230,7 +9343,7 @@
                         })
                     })
                     .then(res => {
-                        if (!res.ok) return res.text().then(text => { throw new Error(text); });
+                        if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
                         // Artwork is stored per library, so it is saved after the profile
                         // itself rather than folded into that one request.
                         // The account on screen changed its own theme: put it on now rather
@@ -9617,7 +9730,7 @@
                 })
                 .then(res => {
                     if (res.status === 401) { this.handleSessionExpired(); return false; }
-                    if (!res.ok) return res.text().then(text => { say(text || t('errors.couldNotSaveThat'), true); return false; });
+                    if (!res.ok) { say(refusalText(res) || t('errors.couldNotSaveThat'), true); return false; }
                     return res.json().then(saved => {
                         const pick = (k) => (saved[k] !== undefined ? saved[k] : saved[k.charAt(0).toUpperCase() + k.slice(1)]);
                         if (pick('hasPin') !== undefined) main.hasPin = pick('hasPin') === true;
@@ -9765,9 +9878,8 @@
                     // opened on, and the server says which profiles: forgetting it would
                     // empty their list, and an empty list means "any device". That reason
                     // is shown, not a generic failure.
-                    return res.text().then(text => {
-                        this.showAlert(t('errors.error'), escapeHtml(text && text.trim()) || t(failKey));
-                    });
+                    this.showAlert(t('errors.error'), escapeHtml(refusalText(res)) || t(failKey));
+                    return null;
                 })
                 .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
             };
@@ -10090,7 +10202,7 @@
                         headers: this.jsonHeaders(masterState ? masterState.token : ApiClient.accessToken()),
                         body: JSON.stringify({ profileName: name, avatarColor: this.nextAvatarColor(), masterPin: this.masterPin })
                     })
-                    .then(res => res.ok ? null : res.text().then(text => { throw new Error(text); }))
+                    .then(res => { if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); })
                     .then(() => { this.invalidateProfileCache(); next(); })
                     .catch(err => {
                         busy = false;
@@ -10161,7 +10273,7 @@
                         headers: this.manageHeaders(masterState ? masterState.token : ApiClient.accessToken()),
                         body: JSON.stringify({ askOnStartup: ask, switcherLocation: location })
                     })
-                    .then(res => res.ok ? res.json() : res.text().then(text => { throw new Error(text); }))
+                    .then(res => { if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); return res.json(); })
                     .then(saved => {
                         const savedAsk = (saved.askOnStartup !== undefined ? saved.askOnStartup : saved.AskOnStartup) === true;
                         const savedLoc = (saved.switcherLocation || saved.SwitcherLocation) === 'menu' ? 'menu' : 'button';
@@ -10226,7 +10338,7 @@
                             masterPin: this.masterPin
                         })
                     })
-                    .then(res => res.ok ? res.json() : res.text().then(text => { throw new Error(text); }))
+                    .then(res => { if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); return res.json(); })
                     .then(saved => {
                         main.theme = (saved.stored !== undefined ? saved.stored : saved.Stored) || null;
                         if (this.normalizeGuid(main.profileUserId) === this.normalizeGuid(ApiClient.getCurrentUserId())) {
@@ -10444,7 +10556,7 @@
                         headers: this.jsonHeaders(masterState.token),
                         body: JSON.stringify({ profileId: person.profileUserId, theme: value, masterPin: this.masterPin })
                     })
-                    .then(res => res.ok ? res.json() : res.text().then(text => { throw new Error(text || t('errors.couldNotSaveThat')); }))
+                    .then(res => { if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); return res.json(); })
                     .then(saved => {
                         const shownNow = normalizeTheme(saved.theme || saved.Theme);
                         const keep = saved.stored !== undefined ? saved.stored : saved.Stored;
@@ -10938,7 +11050,7 @@
                     })
                     .then(res => {
                         if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
-                        else return res.text().then(text => { throw new Error(text); });
+                        else throw refusalError(res, t('errors.couldNotSaveThat'));
                     })
                     .catch(err => {
                         generateBtn.disabled = false;
@@ -10991,7 +11103,7 @@
                             joinBtn.textContent = t('common.join');
                             return;
                         }
-                        if (!res.ok) return res.text().then(text => { throw new Error(text); });
+                        if (!res.ok) throw refusalError(res, t('bonfire.failedToJoin'));
                         this.loadBonfireStatus(content, apiClient, masterToken);
                     })
                     .catch(err => {

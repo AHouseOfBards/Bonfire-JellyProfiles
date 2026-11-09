@@ -159,7 +159,7 @@ ok('the name box is focused on a TV only',
     ok('a library choice goes as an id for the server to copy, never as image data', lib.avatarLibraryId === 'a1' && lib.profileImage === undefined, JSON.stringify(lib));
 
     // A refusal is shown and the screen stays.
-    env.setRespond((url) => /profiles\/me$/.test(url) ? { status: 400, body: 'A profile with this name already exists.' }
+    env.setRespond((url) => /profiles\/me$/.test(url) ? { status: 400, body: 'A profile with this name already exists.', headers: { 'X-Bonfire-Error': 'name_taken' } }
         : { status: 200, body: /list$/.test(url) ? [] : { allowCustomUploads: true, avatars: [] } });
     PP.initAvatarPicker = realPicker;
     PP._resumeState = { token: 'kid-token', userId: 'kid-id' };
@@ -169,7 +169,8 @@ ok('the name box is focused on a TV only',
     content.querySelector('#self-submit-btn').click();
     await settle();
     const err = content.querySelector('#self-error');
-    ok('a refusal is shown in the screen, in the server\'s words', /already exists/.test(err.textContent) && err.style.display === 'block', err.textContent);
+    // Replaced behaviour: a refusal used to be shown in the server's English words; it is said by its X-Bonfire-Error code now.
+    ok('a refusal is shown in the screen, by its code', err.textContent === 'That name is taken. Choose another.' && err.style.display === 'block', err.textContent);
 
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);

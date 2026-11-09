@@ -39,7 +39,7 @@ const server = {
     refuse: {}
 };
 env.setRespond((url, body) => {
-    if (server.refuse[url]) { const r = server.refuse[url]; delete server.refuse[url]; return { status: r[0], body: r[1] }; }
+    if (server.refuse[url]) { const r = server.refuse[url]; delete server.refuse[url]; return { status: r[0], body: r[1], headers: r[2] ? { 'X-Bonfire-Error': r[2] } : undefined }; }
     if (url === 'plugins/profiles/accounts/links') return { status: 200, body: server.links };
     if (url === 'plugins/profiles/accounts/links/add') {
         return { status: 200, body: Object.assign({}, server.links, { added: server.links.added.concat([{ userId: 'new', name: body.username, hasPin: false }]) }) };
@@ -178,12 +178,13 @@ const last = url => sent(url).pop();
     ok('and redraws from the reply', slot.querySelectorAll('.links-remove').length === 3
        && slot.querySelector('#links-status').textContent === 'grandpa added.');
 
-    server.refuse['plugins/profiles/accounts/links/add'] = [400, "That username or password isn't right."];
+    server.refuse['plugins/profiles/accounts/links/add'] = [400, "That username or password isn't right.", 'credentials_wrong'];
     slot.querySelector('#links-username').value = 'grandpa';
     slot.querySelector('#links-password').value = 'wrong';
     slot.querySelector('#links-add').click();
     await settle();
-    ok("a refusal shows the server's words", slot.querySelector('#links-status').textContent === "That username or password isn't right.");
+    // Replaced behaviour: a refusal used to be shown in the server's English words; it is said by its X-Bonfire-Error code now.
+    ok('a refusal is shown by its code', slot.querySelector('#links-status').textContent === "That username or password isn't right. Try again.");
     ok('and clears the password', slot.querySelector('#links-password').value === '');
 
     slot = D.makeContent();

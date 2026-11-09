@@ -54,6 +54,7 @@ const consts = ['LOGO_TYPES', 'LOGO_MAX_TEXT', 'LOGO_MAX_ALT'].map(n => {
     return m ? m[0] : '';
 }).join('\n');
 const source = L.dashboardI18n(script) + '\n' + consts + '\n'
+    + L.extractFunction(script, 'refusalCode') + '\n' + L.extractFunction(script, 'refusalMessage') + '\n'
     + L.extractFunction(script, 'readThemeError') + '\n'
     + names.map(n => L.extractFunction(script, n)).join('\n') + '\n';
 
@@ -136,8 +137,9 @@ const settle = () => new Promise(r => setImmediate(r)).then(() => new Promise(r 
     w.replyWith(() => Promise.reject(refusal(400, 'logo_invalid', 'Logo text is one line of up to 40 characters.')));
     w.api.saveLogoText(w.page);
     await settle();
-    ok("the server's refusal is shown, not swallowed",
-        w.state.statuses.length === 1 && w.state.statuses[0].good === false && w.state.statuses[0].msg === 'Logo text is one line of up to 40 characters.', JSON.stringify(w.state.statuses));
+    // Replaced behaviour: English used to show the server's sentence; it is the code's sentence now.
+    ok("the refusal is shown by its code, not swallowed",
+        w.state.statuses.length === 1 && w.state.statuses[0].good === false && w.state.statuses[0].msg === 'Use one line of text, within the limit.', JSON.stringify(w.state.statuses));
     ok('and nothing is reloaded as if it had saved', w.state.reloads === 0);
     w.api.setAdminStrings({ 'admin.logo.err.invalid': 'Utilisez une seule ligne.' });
     w.api.saveLogoText(w.page);
@@ -167,8 +169,8 @@ const settle = () => new Promise(r => setImmediate(r)).then(() => new Promise(r 
     w.fetchWith(() => Promise.resolve(refusal(400, 'image_invalid', 'That image could not be read as a PNG, JPEG or WebP.')));
     w.api.uploadLogoImage(w.page, png);
     await settle();
-    ok("the server's refusal of the picture is shown", w.state.statuses.length === 1 && w.state.statuses[0].good === false
-        && w.state.statuses[0].msg === 'That image could not be read as a PNG, JPEG or WebP.', JSON.stringify(w.state.statuses));
+    ok("the refusal of the picture is shown by its code", w.state.statuses.length === 1 && w.state.statuses[0].good === false
+        && w.state.statuses[0].msg === 'Use a PNG, JPEG or WebP image up to 1 MB, 16 to 4096 pixels a side.', JSON.stringify(w.state.statuses));
     w = world({});
     w.fetchWith(() => Promise.reject(new Error('offline')));
     w.api.uploadLogoImage(w.page, png);

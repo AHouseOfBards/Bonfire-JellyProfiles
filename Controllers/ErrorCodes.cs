@@ -57,6 +57,9 @@ namespace Jellyfin.Profiles.Controllers
             ("account is turned off", "profile_disabled"),
             ("too many active sessions", "too_many_sessions"),
             ("Couldn't sign in to that profile", "sign_in_failed"),
+            // Forgetting a device that is the only one a profile may be opened on. The
+            // sentence names the profiles; the code cannot, so a client says it in general.
+            ("This is the only device allowed for", "device_in_use"),
 
             // Creating and editing.
             ("Maximum profile limit", "profile_limit"),

@@ -289,7 +289,7 @@ console.log('\n── Problems are said in the page\'s language ─────�
         ok('an unknown code shows the server\'s detail', fns.themeProblemText({ code: 'zzz', detail: 'As sent.' }) === 'As sent.');
     }
 
-    const errs = lift(['readThemeError']);
+    const errs = lift(['refusalCode', 'refusalMessage', 'readThemeError']);
     ok('readThemeError can be run', !!errs);
     if (errs) {
         const response = (code, body) => ({
@@ -312,11 +312,12 @@ console.log('\n── Problems are said in the page\'s language ─────�
             ok('with the number filled in', limit.message.indexOf('20') !== -1 && limit.message.indexOf('{max}') === -1, limit.message);
             errs.setStrings(null);
             const en = await errs.readThemeError(response('font_taken', 'Bonfire already has a font called Shop.'), 'admin.themes.saveFailed', {});
-            ok('in English the server\'s own sentence is used', en.message === 'Bonfire already has a font called Shop.');
+            // Replaced behaviour: English used to show the server's sentence. It is the code's sentence now, in every language.
+            ok('in English the code\'s sentence is used, not the server\'s', en.message === 'There\'s already a font with that name.', en.message);
             const invalid = await errs.readThemeError(response('theme_invalid',
                 JSON.stringify({ message: 'That theme isn\'t valid.', problems: [{ path: 'colors.text1', code: 'contrast', detail: 'd' }] })),
                 'admin.themes.saveFailed', {});
-            ok('a refused save hands back its problems', invalid.problems && invalid.problems.length === 1 && invalid.message === 'That theme isn\'t valid.');
+            ok('a refused save hands back its problems', invalid.problems && invalid.problems.length === 1 && invalid.message === 'That theme has problems. Fix them and save again.', invalid.message);
             const offline = await errs.readThemeError(new TypeError('Failed to fetch'), 'admin.themes.saveFailed', {});
             ok('no answer at all still says something', offline.message === 'Couldn\'t save.', offline.message);
             part5();
@@ -573,7 +574,7 @@ function part7() {
             return Promise.resolve({ ok: true, json: () => Promise.resolve({ family: 'Shop Sign' }) });
         };
         // loadThemes and authorizationHeader are the page's own, run elsewhere; stood in for.
-        const fns = lift(['showThemeStatus', 'showOutcome', 'paintOutcome', 'openAdvancedFor', 'readThemeError', 'refreshClientThemes', 'uploadThemeFont'], {
+        const fns = lift(['showThemeStatus', 'showOutcome', 'paintOutcome', 'openAdvancedFor', 'refusalCode', 'refusalMessage', 'readThemeError', 'refreshClientThemes', 'uploadThemeFont'], {
             fetch: fetchStub, window: {},
             loadThemes: () => {}, authorizationHeader: () => 'MediaBrowser Token="tok"',
             ApiClient: { getUrl: (u, q) => '/' + u + (q ? '?' + Object.keys(q).map(k => k + '=' + encodeURIComponent(q[k])).join('&') : '') }
