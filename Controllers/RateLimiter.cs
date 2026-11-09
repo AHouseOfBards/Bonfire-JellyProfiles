@@ -29,27 +29,22 @@ namespace Jellyfin.Profiles.Controllers
         internal static readonly RateLimiter Panic = new(maxAttempts: 5, windowMinutes: 60);
 
         /// <summary>
-        /// Per profile, across every address: the web switcher's PIN check. <see cref="Pin"/>
-        /// is keyed on address and profile together, which a caller with more than one
-        /// address (any IPv6 host has billions) simply walks around.
+        /// Per account, across every address and every door: the quarter-hour half of
+        /// <see cref="PinBudget"/>. Keyed on the account, not the address, because a caller
+        /// with more than one address (any IPv6 host has billions) walks around an address
+        /// key. Another app's sign-in is reachable by anyone who can POST
+        /// /Users/AuthenticateByName, and Jellyfin's own lockout does not cover it:
+        /// <c>LoginAttemptsBeforeLockout</c> is null on every account Bonfire creates, which
+        /// Jellyfin reads as "never lock".
         /// </summary>
-        internal static readonly RateLimiter PinPerProfile = new(maxAttempts: 10, windowMinutes: 15);
+        internal static readonly RateLimiter AccountPin = new(maxAttempts: 5, windowMinutes: 15);
 
         /// <summary>
-        /// Per account, for a PIN typed into another app's sign-in screen. That path is
-        /// reachable by anyone who can POST /Users/AuthenticateByName, and Jellyfin's own
-        /// lockout does not cover it: <c>LoginAttemptsBeforeLockout</c> is null on every
-        /// account Bonfire creates, which Jellyfin reads as "never lock". Keyed on the
-        /// account, not the address, for the same reason as <see cref="PinPerProfile"/>.
+        /// The same accounts, over a day: the other half of <see cref="PinBudget"/>. Five
+        /// every fifteen minutes is still 480 a day, which gets through a four-digit PIN in
+        /// about three weeks; twenty a day makes it most of a year.
         /// </summary>
-        internal static readonly RateLimiter ClientPin = new(maxAttempts: 5, windowMinutes: 15);
-
-        /// <summary>
-        /// The same accounts, over a day. Five every fifteen minutes is still 480 a day,
-        /// which gets through a four-digit PIN in about three weeks; twenty a day makes it
-        /// most of a year.
-        /// </summary>
-        internal static readonly RateLimiter ClientPinDaily = new(maxAttempts: 20, windowMinutes: 24 * 60);
+        internal static readonly RateLimiter AccountPinDaily = new(maxAttempts: PinBudget.DailyLimit, windowMinutes: 24 * 60);
 
         // ── State ──────────────────────────────────────────────────────────────────
         private readonly int _maxAttempts;
