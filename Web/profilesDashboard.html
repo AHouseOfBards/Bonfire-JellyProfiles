@@ -492,6 +492,8 @@
         gap: 14px;
         margin-bottom: 3em;
     }
+    /* The "no avatars yet" line is the grid's only child: across every column, not one. */
+    #profilesConfigurationPage .jpf-avatar-grid > .fieldDescription { grid-column: 1 / -1; }
     /* The two coloured badges on the version chip: one for a build that will not
        run, one for a build that is merely out of date. */
     #profilesConfigurationPage .jpf-badge-bad { background: #d23f3f; color: #fff; }
