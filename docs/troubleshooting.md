@@ -85,6 +85,11 @@ changes, Bonfire first copies `PluginConfiguration.xml` to
 The last three are kept. To get a newer version's settings back, stop Jellyfin, copy that
 file over `PluginConfiguration.xml`, and start the newer version.
 
+## Quick Connect still shows on my Android TV
+
+If anyone outside a household has signed in on a TV with the same name, Bonfire stops hiding
+Quick Connect on every TV with that name, because two sets of the same model look the same.
+
 ## Where do I get avatars?
 
 Bonfire includes thirty starter avatars from Microsoft's Fluent Emoji. You can turn them
