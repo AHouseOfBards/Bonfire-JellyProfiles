@@ -1026,6 +1026,7 @@
         'accountEmail.notifyNewDevice': 'Email me when a new device signs in',
         'accountEmail.notifyTimeAsked': 'Email me when a profile asks for more time',
         'accountEmail.notifyLimitReached': 'Email me when a profile reaches its daily limit',
+        'accountEmail.moreSummary': 'Which emails you get',
         'accountEmail.invalid': 'Enter an email address.',
         'accountEmail.codeInvalid': 'Enter the 6-digit code.',
         'pinReset.forgot': 'Forgot PIN?',
@@ -7150,10 +7151,11 @@
                             </div>
                             ${field('pinResetEnabled') === true ? `<div class="form-hint">${t('accountEmail.resetHint')}</div>` : ''}
                         </div>
-                        ${box('account-email-lockout', field('notifyLockout') !== false, t('accountEmail.notifyLockout'))}
-                        ${box('account-email-device', field('notifyNewDevice') !== false, t('accountEmail.notifyNewDevice'))}
-                        ${box('account-email-asked', field('notifyTimeAsked') !== false, t('accountEmail.notifyTimeAsked'))}
-                        ${box('account-email-limit', field('notifyLimitReached') === true, t('accountEmail.notifyLimitReached'))}`;
+                        ${this.renderFold('account-email-more', t('accountEmail.moreSummary'), `
+                            ${box('account-email-lockout', field('notifyLockout') !== false, t('accountEmail.notifyLockout'))}
+                            ${box('account-email-device', field('notifyNewDevice') !== false, t('accountEmail.notifyNewDevice'))}
+                            ${box('account-email-asked', field('notifyTimeAsked') !== false, t('accountEmail.notifyTimeAsked'))}
+                            ${box('account-email-limit', field('notifyLimitReached') === true, t('accountEmail.notifyLimitReached'))}`, true)}`;
                 } else {
                     body = `
                         <div class="form-group">

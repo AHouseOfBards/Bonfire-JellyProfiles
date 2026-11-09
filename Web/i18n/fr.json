@@ -216,6 +216,7 @@
   "accountEmail.notifyNewDevice": "M'avertir par e-mail quand un nouvel appareil se connecte",
   "accountEmail.notifyTimeAsked": "M'avertir par e-mail quand un profil demande plus de temps",
   "accountEmail.notifyLimitReached": "M'avertir par e-mail quand un profil atteint sa limite du jour",
+  "accountEmail.moreSummary": "Quels e-mails vous recevez",
   "account.zoneTitle": "Fuseau horaire",
   "account.zoneSubtitle": "Pour les heures de visionnage",
   "account.zone": "Fuseau horaire",

@@ -216,6 +216,7 @@
   "accountEmail.notifyNewDevice": "Envia'm un correu quan entri un dispositiu nou",
   "accountEmail.notifyTimeAsked": "Envia'm un correu quan un perfil demani més temps",
   "accountEmail.notifyLimitReached": "Envia'm un correu quan un perfil arribi al límit diari",
+  "accountEmail.moreSummary": "Quins correus rebs",
   "account.zoneTitle": "Zona horària",
   "account.zoneSubtitle": "Per a les hores de visualització",
   "account.zone": "Zona horària",

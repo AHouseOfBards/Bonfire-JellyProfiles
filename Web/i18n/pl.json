@@ -216,6 +216,7 @@
   "accountEmail.notifyNewDevice": "Wyślij e-mail, gdy zaloguje się nowe urządzenie",
   "accountEmail.notifyTimeAsked": "Wyślij e-mail, gdy profil poprosi o więcej czasu",
   "accountEmail.notifyLimitReached": "Wyślij e-mail, gdy profil wykorzysta dzienny limit",
+  "accountEmail.moreSummary": "Które e-maile dostajesz",
   "account.zoneTitle": "Strefa czasowa",
   "account.zoneSubtitle": "Dla godzin oglądania",
   "account.zone": "Strefa czasowa",

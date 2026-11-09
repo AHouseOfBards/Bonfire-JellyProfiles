@@ -230,6 +230,7 @@
   "accountEmail.notifyNewDevice": "Avisarme por correo cuando entre un dispositivo nuevo",
   "accountEmail.notifyTimeAsked": "Avisarme por correo cuando un perfil pida más tiempo",
   "accountEmail.notifyLimitReached": "Avisarme por correo cuando un perfil llegue a su límite diario",
+  "accountEmail.moreSummary": "Qué correos recibes",
   "account.zoneTitle": "Zona horaria",
   "account.zoneSubtitle": "Para las horas de visualización",
   "account.zone": "Zona horaria",

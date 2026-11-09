@@ -237,6 +237,7 @@
   "accountEmail.notifyNewDevice": "Yeni bir cihaz giriş yaptığında bana e-posta gönder",
   "accountEmail.notifyTimeAsked": "Bir profil daha fazla süre istediğinde bana e-posta gönder",
   "accountEmail.notifyLimitReached": "Bir profil günlük sınırına ulaştığında bana e-posta gönder",
+  "accountEmail.moreSummary": "Hangi e-postaları alırsınız",
   "account.zoneTitle": "Saat dilimi",
   "account.zoneSubtitle": "İzleme saatleri için",
   "account.zone": "Saat dilimi",

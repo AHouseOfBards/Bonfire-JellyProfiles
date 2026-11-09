@@ -139,6 +139,17 @@ const last = url => sent(url).pop();
     ok('and says it was saved', q('#account-email-status').textContent === 'Email saved.');
     ok('the reset hint shows while the server allows reset', slot.innerHTML.indexOf('If you forget your PIN') !== -1);
     ok('both notices are on', q('#account-email-lockout').checked && q('#account-email-device').checked);
+    // The four notice boxes sit under a closed "More" fold; the address row does not.
+    const inClosedFold = (id) => {
+        const html = slot.innerHTML;
+        const at = html.indexOf('id="' + id + '"');
+        const open = html.lastIndexOf('<details', at);
+        if (at < 0 || open < 0 || html.lastIndexOf('</details>', at) > open) return false;
+        return !/^<details[^>]*\sopen[\s>]/.test(html.slice(open, html.indexOf('>', open) + 1));
+    };
+    ok('the four notice boxes are under a closed More fold',
+        ['account-email-lockout', 'account-email-device', 'account-email-asked', 'account-email-limit'].every(inClosedFold));
+    ok('and the address row is not', !inClosedFold('account-email-change'));
 
     const box = q('#account-email-lockout');
     box.checked = false;
