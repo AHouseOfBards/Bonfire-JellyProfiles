@@ -150,7 +150,8 @@ var next = new RequestDelegate(async c =>
         seenBody = await r.ReadToEndAsync();
 
     var body = "{}";
-    if (seenPath.EndsWith("/QuickConnect/Initiate", StringComparison.OrdinalIgnoreCase))
+    // ASP.NET routes the trailing-slash form to the same action.
+    if (seenPath.TrimEnd('/').EndsWith("/QuickConnect/Initiate", StringComparison.OrdinalIgnoreCase))
     {
         // What Jellyfin's QuickConnectManager answers: the code to show, and the device that asked.
         string Header(string key) => System.Text.RegularExpressions.Regex.Match(seenAuth, key + "=\"([^\"]*)\"").Groups[1].Value;
@@ -591,6 +592,19 @@ var huge = Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Bard
 Ok("a sign-in body too large to read is refused rather than passed", Refused(huge), Show(huge));
 Ok("a body that is not JSON is still left to Jellyfin", Through(Send("/Users/AuthenticateByName", null, "POST", "Username=Guest")));
 Close(true);
+
+Console.WriteLine();
+Console.WriteLine("── Quick Connect with a trailing slash ─────────────────────────");
+
+Close(false);
+var qcList = new List<string> { "dev-good" };
+mapType.GetProperty("AllowedDeviceIds").SetValue(map, qcList);
+Set("ProxyClients", new List<string> { "moonfin" });
+qcCode = "121212";
+Send("/QuickConnect/Initiate/", null, "POST", "", deviceId: "dev-good");
+var slashAuth = Send("/QuickConnect/Authorize?code=121212", KID_TOKEN, "POST", "");
+Ok("the code asked for on a trailing-slash Initiate is remembered, so its device can be judged", Through(slashAuth), Show(slashAuth));
+qcList.Clear();
 
 try { Directory.Delete(tempDir, true); } catch { }
 return Finish();

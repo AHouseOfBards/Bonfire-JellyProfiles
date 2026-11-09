@@ -866,7 +866,8 @@ namespace Jellyfin.Profiles
             var path = context.Request.Path.Value;
             if (string.IsNullOrEmpty(path)) return false;
 
-            return path.EndsWith("/QuickConnect/Initiate", StringComparison.OrdinalIgnoreCase);
+            // ASP.NET routes "/QuickConnect/Initiate/" to the same action, so it is matched too.
+            return path.TrimEnd('/').EndsWith("/QuickConnect/Initiate", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void Fail(string reason) => LastError = reason;
