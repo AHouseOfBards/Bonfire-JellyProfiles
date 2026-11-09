@@ -110,6 +110,9 @@ async function run(fieldValues) {
     });
 
     const page = {
+        // Set by loadConfiguration once the settings have been read; adminload.js covers the
+        // refusal. This harness is about what a save sends.
+        _configLoaded: true,
         querySelector: function (sel) {
             const el = elements[sel.replace('#', '')];
             if (!el) throw new Error('the page has no ' + sel);

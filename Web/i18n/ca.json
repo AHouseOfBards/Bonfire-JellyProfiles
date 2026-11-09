@@ -1037,5 +1037,8 @@
   "notice.doneToday": "Això és tot per avui. Demana més temps a un pare o una mare.",
   "notice.notNow": "Ara no pots mirar. Demana més temps a un pare o una mare.",
   "notice.asked.header": "Més temps?",
-  "notice.asked": "{name} ha demanat més temps. Per respondre, obre Bonfire, tria Gestiona els perfils i després {name}."
+  "notice.asked": "{name} ha demanat més temps. Per respondre, obre Bonfire, tria Gestiona els perfils i després {name}.",
+  "admin.loadFailed": "No s'ha pogut carregar la configuració. No es pot desar res fins que es carregui.",
+  "admin.loadRetry": "Torna-ho a provar",
+  "admin.saveBlocked": "La configuració no s'ha carregat, així que no s'ha desat res. Prem Torna-ho a provar."
 }

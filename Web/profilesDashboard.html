@@ -565,6 +565,14 @@
                 <div class="jpf-hidden jpf-status" id="restartVersions"></div>
                 <div class="jpf-note-detail" data-i18n="admin.banner.restartDocker"><strong>On Docker, restart the container.</strong> Jellyfin's own Restart button doesn't restart the process on most images.</div>
             </div>
+            <!-- Shown when the settings could not be read. Save is refused while it is up,
+                 because the form is showing defaults and a save would write them. -->
+            <div class="jpf-hidden jpf-note jpf-note-error jpf-note-tight" id="configLoadError" role="alert">
+                <strong><span data-i18n="admin.loadFailed">Couldn't load the settings. Nothing can be saved until they load.</span></strong>
+                <div class="jpf-actions jpf-mt-3">
+                    <button type="button" is="emby-button" class="raised" id="configLoadRetry" data-i18n="admin.loadRetry">Try again</button>
+                </div>
+            </div>
             <div class="jpf-hidden jpf-note jpf-note-error" id="injectionWarningContainer">
                 <strong class="jpf-note-title" style="color:#ff8787;"><span aria-hidden="true">⚠️ </span><span data-i18n="admin.banner.failTitle">The client script isn't loading</span></strong>
                 <!-- Written by renderInjectionStatus, which knows whether the file is involved. -->
@@ -1423,7 +1431,8 @@
                 'admin.gs.apps': 'Let profiles work in the TV and phone apps.',
                 'admin.saveFailed': 'Couldn\'t save it.',
                 'admin.saveSettingsFailed': 'Couldn\'t save the settings.',
-                'admin.readFailed': 'Couldn\'t read the current status.',
+                'admin.saveBlocked': 'The settings did not load, so nothing was saved. Press Try again.',
+                'admin.readFailed':'Couldn\'t read the current status.',
                 'admin.version.preTitle': 'Pre-release build. Please report problems on GitHub.',
 
                 'admin.script.helpMiddleware': 'The default. index.html is left alone, and any tags Bonfire added before are removed. Nothing to redo after a Jellyfin update.',
@@ -1919,7 +1928,16 @@
                 show(start);
             }
 
+            // The form is only a copy of the settings once a read has worked. Until then it
+            // shows defaults, and Save posts every setting on the page, so a save from that
+            // state would overwrite the real ones. saveConfiguration checks the flag.
+            function showConfigLoadError(page, on) {
+                const box = page.querySelector('#configLoadError');
+                if (box) box.classList.toggle('jpf-hidden', !on);
+            }
+
             function loadConfiguration(page) {
+                page._configLoaded = false;
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
@@ -1964,6 +1982,10 @@
                     page.querySelector('#indexInjectionMode').value =
                         (mode === 'both' || mode === 'file') ? mode : 'middleware';
                     updateInjectionModeHelp(page);
+                    // Every settings field is filled in. Set here, not at the end: a loader
+                    // below failing must not lock Save, and one above must.
+                    page._configLoaded = true;
+                    showConfigLoadError(page, false);
                     loadMappings(page);
                     loadAuditLogs(page);
                     loadAvatarLibrary(page);
@@ -1978,6 +2000,7 @@
                 }).catch(function (err) {
                     console.error("Failed to load plugin configuration:", err);
                     Dashboard.hideLoadingMsg();
+                    if (!page._configLoaded) showConfigLoadError(page, true);
                 });
             }
 
@@ -5527,6 +5550,12 @@
             // POST admin/settings takes the six fields and mutates them in place, so there is
             // nothing else in the request to lose.
             function saveConfiguration(page) {
+                // The form is showing defaults, not the settings, until a read has worked.
+                if (!page._configLoaded) {
+                    showConfigLoadError(page, true);
+                    Dashboard.alert({ message: t('admin.saveBlocked'), title: t('admin.error') });
+                    return;
+                }
                 // parseInt('-4', 10) is -4, which is truthy, so `|| 5` never caught a negative
                 // — it only caught the empty box. The server rejects out-of-range values too;
                 // clamping here means the common case gets a saved setting rather than an error.
@@ -5612,6 +5641,12 @@
                 if (modeSelect && !modeSelect.dataset.bound) {
                     modeSelect.dataset.bound = '1';
                     modeSelect.addEventListener('change', function () { updateInjectionModeHelp(page); });
+                }
+
+                const retryBtn = page.querySelector('#configLoadRetry');
+                if (retryBtn && !retryBtn.dataset.bound) {
+                    retryBtn.dataset.bound = '1';
+                    retryBtn.addEventListener('click', function () { loadConfiguration(page); });
                 }
 
                 // The method is under Troubleshoot → Advanced, with a Save of its own.

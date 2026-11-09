@@ -1049,5 +1049,8 @@
   "notice.doneToday": "Bugünlük bu kadar. Bir ebeveynden daha fazla süre iste.",
   "notice.notNow": "Şu anda izleyemezsin. Bir ebeveynden daha fazla süre iste.",
   "notice.asked.header": "Daha fazla süre?",
-  "notice.asked": "{name} daha fazla süre istedi. Yanıtlamak için Bonfire'ı açın, Profilleri yönet'i ve ardından {name} profilini seçin."
+  "notice.asked": "{name} daha fazla süre istedi. Yanıtlamak için Bonfire'ı açın, Profilleri yönet'i ve ardından {name} profilini seçin.",
+  "admin.loadFailed": "Ayarlar yüklenemedi. Yüklenene kadar hiçbir şey kaydedilemez.",
+  "admin.loadRetry": "Tekrar dene",
+  "admin.saveBlocked": "Ayarlar yüklenmediği için hiçbir şey kaydedilmedi. Tekrar dene'ye basın."
 }

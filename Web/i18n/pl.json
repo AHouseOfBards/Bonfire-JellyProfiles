@@ -1037,5 +1037,8 @@
   "notice.doneToday": "To wszystko na dziś. Poproś rodzica o więcej czasu.",
   "notice.notNow": "Teraz nie możesz oglądać. Poproś rodzica o więcej czasu.",
   "notice.asked.header": "Więcej czasu?",
-  "notice.asked": "{name} prosi o więcej czasu. Aby odpowiedzieć, otwórz Bonfire, wybierz Zarządzaj profilami, a potem {name}."
+  "notice.asked": "{name} prosi o więcej czasu. Aby odpowiedzieć, otwórz Bonfire, wybierz Zarządzaj profilami, a potem {name}.",
+  "admin.loadFailed": "Nie udało się wczytać ustawień. Nic nie można zapisać, dopóki się nie wczytają.",
+  "admin.loadRetry": "Spróbuj ponownie",
+  "admin.saveBlocked": "Ustawienia się nie wczytały, więc nic nie zapisano. Naciśnij Spróbuj ponownie."
 }

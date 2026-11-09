@@ -1037,5 +1037,8 @@
   "notice.doneToday": "C'est tout pour aujourd'hui. Demande plus de temps à un parent.",
   "notice.notNow": "Tu ne peux pas regarder pour le moment. Demande plus de temps à un parent.",
   "notice.asked.header": "Plus de temps ?",
-  "notice.asked": "{name} a demandé plus de temps. Pour répondre, ouvrez Bonfire, choisissez Gérer les profils, puis {name}."
+  "notice.asked": "{name} a demandé plus de temps. Pour répondre, ouvrez Bonfire, choisissez Gérer les profils, puis {name}.",
+  "admin.loadFailed": "Impossible de charger les paramètres. Rien ne peut être enregistré tant qu'ils ne sont pas chargés.",
+  "admin.loadRetry": "Réessayer",
+  "admin.saveBlocked": "Les paramètres ne sont pas chargés, donc rien n'a été enregistré. Appuyez sur Réessayer."
 }

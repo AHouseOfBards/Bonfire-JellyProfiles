@@ -1037,5 +1037,8 @@
   "notice.doneToday": "Eso es todo por hoy. Pide más tiempo a un padre o una madre.",
   "notice.notNow": "Ahora no puedes ver. Pide más tiempo a un padre o una madre.",
   "notice.asked.header": "¿Más tiempo?",
-  "notice.asked": "{name} pidió más tiempo. Para responder, abre Bonfire, elige Administrar perfiles y luego {name}."
+  "notice.asked": "{name} pidió más tiempo. Para responder, abre Bonfire, elige Administrar perfiles y luego {name}.",
+  "admin.loadFailed": "No se ha podido cargar la configuración. No se puede guardar nada hasta que cargue.",
+  "admin.loadRetry": "Intentarlo de nuevo",
+  "admin.saveBlocked": "La configuración no se ha cargado, así que no se ha guardado nada. Pulsa Intentarlo de nuevo."
 }
