@@ -83,6 +83,20 @@ const MEASURE = `(function () {
     var sb = sum.getBoundingClientRect(), fb = f.getBoundingClientRect();
     out.more = { open: more.open, top: sb.top, bottom: sb.bottom, winTop: fb.top, winBottom: bar ? bar.getBoundingClientRect().top : fb.bottom };
   }
+  // The lock badge against the first letter of its own tile (P2-514): the badge was 32px on a
+  // tile the gate had fitted down to 88px, and covered the S.
+  out.locks = qa('.profile-lock-indicator').map(function (lk) {
+    var card = lk.closest('.profile-card'), av = card && card.querySelector('.profile-avatar');
+    var lb = lk.getBoundingClientRect(), tb = lk.parentElement.getBoundingClientRect();
+    var glyph = null;
+    if (av) {
+      for (var n = av.firstChild; n && !glyph; n = n.nextSibling) {
+        if (n.nodeType === 3 && n.textContent.trim()) { var rg = document.createRange(); rg.selectNodeContents(n); var gb = rg.getBoundingClientRect(); glyph = { l: gb.left, r: gb.right, t: gb.top, b: gb.bottom }; }
+      }
+    }
+    var hit = glyph && lb.left < glyph.r && lb.right > glyph.l && lb.top < glyph.b && lb.bottom > glyph.t;
+    return { badge: lb.width, tile: tb.width, hit: !!hit };
+  });
   var dlg = document.querySelector('.confirm-dialog-content, .alert-dialog-content');
   out.dialog = box(dlg);
   return out;
@@ -129,6 +143,12 @@ async function main() {
         const d = await look('dialog', ph);
         ok(ph + ': the confirm dialog keeps a gutter (' + Math.round(d.dialog.l) + '..' + Math.round(d.dialog.r) + ' of ' + d.vw + ')',
             d.dialog.l >= 12 && d.dialog.r <= d.vw - 12);
+        for (const [scene, size] of [['manage', ph], ['picker', ph], ['manage', 'tv-1280x720'], ['picker', 'tv-1280x720'], ['manage', 'tv-1920x1080']]) {
+            const m = await look(scene, size);
+            ok(size + ' ' + scene + ': there is a lock badge to measure', m.locks.length > 0);
+            ok(size + ' ' + scene + ': no lock badge covers its tile\'s letter, and none is over 35% of the tile',
+                m.locks.every(k => !k.hit && k.badge <= k.tile * 0.35), JSON.stringify(m.locks));
+        }
         // P2-513: the edit-more shot was the edit shot, because the section opened below the
         // fold of a form that was left scrolled to the top.
         for (const scene of ['edit-more', 'add-more']) {

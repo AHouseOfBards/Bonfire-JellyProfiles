@@ -2537,6 +2537,19 @@ body.profiles-no-scroll [id*="spinner"] {
 #profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid .profile-avatar {
     font-size: calc(var(--jpf-tile) / 2.6);
 }
+/* The lock badge is a fixed 32px (52px on a television), which on a tile fitted down to 88px
+   sat over the first letter (P2-514). It follows the tile like the letter does: about a
+   quarter of it, tucked into the corner, so the centred letter stays clear. */
+#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profile-lock-indicator {
+    width: calc(var(--jpf-tile) * 0.25);
+    height: calc(var(--jpf-tile) * 0.25);
+    right: calc(var(--jpf-tile) * 0.03);
+    bottom: calc(var(--jpf-tile) * 0.03);
+}
+#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profile-lock-indicator svg {
+    width: calc(var(--jpf-tile) * 0.11);
+    height: calc(var(--jpf-tile) * 0.11);
+}
 #profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid {
     gap: calc(var(--jpf-tile) / 5);
 }
