@@ -151,6 +151,19 @@ async function main() {
         // 44px target (buttons and fields 41px, checkboxes 18px, colour dots 36px).
         const ph = 'phone-360x640';
         console.log('\n── ' + ph + ' ──');
+        // P2-503: the pinned Save bar. With bottom: 0 it stopped at the form's padding edge
+        // and left a strip of form showing under it. The side edges are held too: the bar
+        // bleeds through the form's padding on purpose, and without that bleed it stops
+        // short of both sides. Each edge is named on its own, at each size; 2px allows
+        // the form's border.
+        for (const size of [ph, 'tv-1280x720', 'tv-1920x1080']) {
+            const e = await look('edit', size);
+            const got = e.bar && e.form ? 'bar ' + Math.round(e.bar.l) + '..' + Math.round(e.bar.r) + ' bottom ' + Math.round(e.bar.b)
+                + ', form ' + Math.round(e.form.l) + '..' + Math.round(e.form.r) + ' bottom ' + Math.round(e.form.b) : 'not found';
+            ok(size + ': the Save bar starts at the form\'s left edge', !!e.bar && Math.abs(e.bar.l - e.form.l) <= 2, got);
+            ok(size + ': the Save bar ends at the form\'s right edge', !!e.bar && Math.abs(e.bar.r - e.form.r) <= 2, got);
+            ok(size + ': nothing of the form shows under the Save bar', !!e.bar && Math.abs(e.bar.b - e.form.b) <= 2, got);
+        }
         const d = await look('dialog', ph);
         ok(ph + ': the confirm dialog keeps a gutter (' + Math.round(d.dialog.l) + '..' + Math.round(d.dialog.r) + ' of ' + d.vw + ')',
             d.dialog.l >= 12 && d.dialog.r <= d.vw - 12);
