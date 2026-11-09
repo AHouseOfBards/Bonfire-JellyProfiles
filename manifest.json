@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.7.4.0",
+        "changelog": "**Fixed**\n\n- A second household's PIN was refused on a device two households share.\n- Security and privacy fixes. Updating is recommended.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.4/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-11-09T00:00:00Z"
+      },
+      {
         "version": "1.7.3.0",
         "changelog": "**Fixed**\n\n- Wholphin and Android TV couldn't load the profile list. (#43)\n- OK did nothing on Reset PIN, signing a device out, or importing a backup. (#44)\n- Changing the main PIN in Manage Profiles made later saves fail as an incorrect PIN. (#44)",
         "targetAbi": "10.11.0.0",
