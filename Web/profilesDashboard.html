@@ -1694,12 +1694,18 @@
                 'admin.themes.pattern.blossoms': 'Blossoms',
                 'admin.themes.pattern.stars': 'Stars',
                 'admin.themes.group.file': 'Scheme',
-                'admin.themes.group.colors': 'Colours',
+                'admin.themes.group.accent': 'Accent',
+                'admin.themes.group.text': 'Text',
+                'admin.themes.group.surfaces': 'Panels and borders',
+                'admin.themes.group.status': 'Warnings',
                 'admin.themes.group.background': 'Background',
                 'admin.themes.group.shape': 'Shape',
                 'admin.themes.group.type': 'Type',
                 'admin.themes.group.depth': 'Depth and focus',
-                'admin.themes.group.parts': 'Parts',
+                'admin.themes.group.buttons': 'Buttons',
+                'admin.themes.group.addtile': 'Add-profile tile',
+                'admin.themes.group.cards': 'Cards and sheets',
+                'admin.themes.group.inputs': 'Text boxes',
                 'admin.themes.group.layout': 'Layout',
                 'admin.themes.group.decorations': 'Decorations',
                 'admin.themes.previewText': 'Secondary text',
@@ -3549,11 +3555,17 @@
                 const border = function (path) {
                     return [num(path + '.width', 0, 8, 1), pick(path + '.style', ['solid', 'dashed', 'dotted']), colour(path + '.color')];
                 };
+                const colours = function (keys) {
+                    return keys.map(function (k) { return colour('colors.' + k); });
+                };
+                // Sections, in the order an administrator reaches for them. Every field is
+                // under the heading that says what it is for; none is a catch-all.
                 return [
                     ['admin.themes.group.file', [pick('scheme', ['dark', 'light'])]],
-                    ['admin.themes.group.colors', ['accent', 'accentFocus', 'onAccent', 'text1', 'text2', 'text3', 'surface1', 'surface2', 'surface3',
-                        'border1', 'border2', 'border3', 'panel', 'ring', 'name', 'nameFocus', 'shadow', 'danger', 'warning']
-                        .map(function (k) { return colour('colors.' + k); })],
+                    ['admin.themes.group.accent', colours(['accent', 'accentFocus', 'onAccent', 'ring'])],
+                    ['admin.themes.group.text', colours(['text1', 'text2', 'text3', 'name', 'nameFocus'])],
+                    ['admin.themes.group.surfaces', colours(['panel', 'surface1', 'surface2', 'surface3', 'border1', 'border2', 'border3', 'shadow'])],
+                    ['admin.themes.group.status', colours(['danger', 'warning'])],
                     ['admin.themes.group.background', [colour('background.fill'), ['background.layers', 'json']]],
                     ['admin.themes.group.shape', [
                         num('shape.radius.small', 0, 64, 1), num('shape.radius.medium', 0, 64, 1), num('shape.radius.large', 0, 64, 1),
@@ -3569,14 +3581,15 @@
                         num('type.button.weight', 100, 900, 100)]],
                     ['admin.themes.group.depth', [['depth.avatar', 'json'], ['depth.title', 'json'], ['depth.sheet', 'json'],
                         num('focus.scale', 1, 1.25, 0.01), ['focus.glow', 'json']]],
-                    ['admin.themes.group.parts', [colour('parts.button2.fill'), colour('parts.button2.text')]
+                    ['admin.themes.group.buttons', [colour('parts.button2.fill'), colour('parts.button2.text')]
                         .concat(border('parts.button2.border'),
                             [colour('parts.button2.focus.fill'), colour('parts.button2.focus.text')],
-                            border('parts.button2.focus.border'), [['parts.button2.focus.glow', 'json'],
-                            colour('parts.addTile.fill')], border('parts.addTile.border'),
-                            [colour('parts.addTile.text'), colour('parts.addTile.focusFill'),
-                                colour('parts.card.fill'), colour('parts.card.line'), colour('parts.sheet.fill')],
-                            border('parts.sheet.border'), [colour('parts.input.fill'), colour('parts.input.line')])],
+                            border('parts.button2.focus.border'), [['parts.button2.focus.glow', 'json']])],
+                    ['admin.themes.group.addtile', [colour('parts.addTile.fill')]
+                        .concat(border('parts.addTile.border'), [colour('parts.addTile.text'), colour('parts.addTile.focusFill')])],
+                    ['admin.themes.group.cards', [colour('parts.card.fill'), colour('parts.card.line'), colour('parts.sheet.fill')]
+                        .concat(border('parts.sheet.border'))],
+                    ['admin.themes.group.inputs', [colour('parts.input.fill'), colour('parts.input.line')]],
                     ['admin.themes.group.layout', [pick('layout.households', ['panels', 'open'])]],
                     ['admin.themes.group.decorations', [['decorations', 'json']]]
                 ];

@@ -405,6 +405,26 @@ function part5() {
     const typos = paths.filter(p => !Array.from(leaves).some(l => fns.themePathOwns(p, l)));
     ok('and has no field no theme has', typos.length === 0, typos.join(', '));
     ok('each group heading is a string key', fields.every(g => /^admin\.themes\.group\.[a-z]+$/.test(g[0])));
+
+    // Grouped under headings that say what the field is for. The fields did not change: this
+    // list is what Advanced had before they were regrouped, by path and kind, and the page
+    // must still have exactly these, each once.
+    const BEFORE = ["background.fill color","background.layers json","colors.accent color","colors.accentFocus color","colors.border1 color","colors.border2 color","colors.border3 color","colors.danger color","colors.name color","colors.nameFocus color","colors.onAccent color","colors.panel color","colors.ring color","colors.shadow color","colors.surface1 color","colors.surface2 color","colors.surface3 color","colors.text1 color","colors.text2 color","colors.text3 color","colors.warning color","decorations json","depth.avatar json","depth.sheet json","depth.title json","focus.glow json","focus.scale number","layout.households choice","parts.addTile.border.color color","parts.addTile.border.style choice","parts.addTile.border.width number","parts.addTile.fill color","parts.addTile.focusFill color","parts.addTile.text color","parts.button2.border.color color","parts.button2.border.style choice","parts.button2.border.width number","parts.button2.fill color","parts.button2.focus.border.color color","parts.button2.focus.border.style choice","parts.button2.focus.border.width number","parts.button2.focus.fill color","parts.button2.focus.glow json","parts.button2.focus.text color","parts.button2.text color","parts.card.fill color","parts.card.line color","parts.input.fill color","parts.input.line color","parts.sheet.border.color color","parts.sheet.border.style choice","parts.sheet.border.width number","parts.sheet.fill color","scheme choice","shape.avatar.kind choice","shape.avatar.radius number","shape.button.kind choice","shape.button.radius number","shape.input.radius number","shape.radius.large number","shape.radius.medium number","shape.radius.small number","shape.ringWidth number","type.button.case choice","type.button.spacing number","type.button.weight number","type.font.fallback choice","type.font.family font","type.name.opacity number","type.name.scale number","type.name.weight number","type.title.scale number","type.title.spacing number","type.title.weight number"];
+    const NOW = [];
+    fields.forEach(g => g[1].forEach(f => NOW.push(f[0] + ' ' + f[1])));
+    ok('no field was added or removed by grouping: the same ' + BEFORE.length + ', each once',
+        JSON.stringify(NOW.slice().sort()) === JSON.stringify(BEFORE), 'now ' + NOW.length + ', before ' + BEFORE.length);
+    const keys = fields.map(g => g[0].replace('admin.themes.group.', ''));
+    ok('the headings name the section: accent, text, surfaces, buttons, cards, inputs',
+        ['accent', 'text', 'surfaces', 'buttons', 'cards', 'inputs', 'background'].every(k => keys.indexOf(k) !== -1), keys.join());
+    ok('no heading is a catch-all: none holds more than 12 fields', fields.every(g => g[1].length <= 12),
+        fields.filter(g => g[1].length > 12).map(g => g[0] + ' ' + g[1].length).join());
+    ok('and the old catch-alls "colors" and "parts" are gone', keys.indexOf('colors') === -1 && keys.indexOf('parts') === -1);
+    const where = p => keys[fields.findIndex(g => g[1].some(f => f[0] === p))];
+    ok('each field is under the section its name says',
+        where('colors.accent') === 'accent' && where('colors.text2') === 'text' && where('colors.panel') === 'surfaces'
+        && where('parts.button2.focus.fill') === 'buttons' && where('parts.card.fill') === 'cards' && where('parts.input.line') === 'inputs'
+        && where('parts.addTile.fill') === 'addtile' && where('colors.danger') === 'status');
     ok('a problem inside a list belongs to the list', fns.themePathOwns('background.layers', 'background.layers[0].stops[1].color')
        && !fns.themePathOwns('background.fill', 'background.fillx'));
 
