@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.7.3.1",
+        "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- Wholphin and Android TV couldn't load the profile list. (#43)\n- OK did nothing on settings-page confirmations such as Reset PIN and closing for maintenance. (#44)\n- A narrower schedule set on a profile in Dashboard → Users was replaced at its next sign-in.\n\n**Changed**\n\n- On Swiftfin, Roku and other apps, the refusal when viewing time runs out or the server is closed now says what to do.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.3.1/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-11-08T00:00:00Z"
+      },
+      {
         "version": "1.7.2.1",
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- Picking a profile after restarting the app failed at the session limit and looped back to the picker. (#41)\n- A refused switch now says why: too many sessions, or not allowed on this device.\n- Typing a long PIN used up its tries before it was finished.\n- A PIN typed after \"Clear PIN\" was dropped.\n- A rejected profile picture deleted the one the profile had.\n- Bonfire did nothing on servers with a Base URL, or behind an HTTPS proxy with \"Require HTTPS\" on.\n- A library removed from a profile in Dashboard -> Users came back at its next sign-in.\n- Restoring a backup dropped email, maintenance and several other settings.\n- Security and privacy fixes. Updating is recommended.\n\n**Changed**\n\n- PIN tries now have a daily limit per account. An administrator can lower it.\n- On other apps, PIN sign-in is limited to devices your household uses, and profiles with no PIN to your home network. An administrator can allow it from anywhere.\n- Making an account into a profile now asks whether deleting the profile later keeps the account.\n- A profile can't be named after a real account.\n- Versions 1.6.1.2 and 1.6.1.3 are no longer offered: they could break sign-in for the whole server.",
         "targetAbi": "10.11.0.0",
