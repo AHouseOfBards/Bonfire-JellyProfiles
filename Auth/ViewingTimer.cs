@@ -51,6 +51,7 @@ namespace Jellyfin.Profiles.Auth
         {
             _sessions = sessions;
             _logger = logger;
+            ViewingTracker.Log = logger;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)

@@ -27,6 +27,9 @@ namespace Jellyfin.Profiles.Auth
     {
         internal static readonly object UsageLock = new();
 
+        /// <summary>Held for the whole of a save, so the file is written by one at a time. See <see cref="Save"/>.</summary>
+        private static readonly object SaveLock = new();
+
         /// <summary>For the harness: the clock everything here reads.</summary>
         internal static Func<DateTime> Now = () => DateTime.UtcNow;
 
@@ -59,6 +62,12 @@ namespace Jellyfin.Profiles.Auth
             internal bool StopSent;
             internal DateTime? LastRefusalMessageUtc;
         }
+
+        /// <summary>For the harness: runs between a save's snapshot and its write.</summary>
+        internal static Action? BeforeWrite = null;
+
+        /// <summary>Set by <see cref="ViewingTimer"/> when it is built; for what is found when the file is read.</summary>
+        internal static ILogger? Log = null;
 
         private static readonly Dictionary<Guid, Entry> Entries = new();
         private static Dictionary<Guid, Limited> _index = new();
@@ -264,35 +273,49 @@ namespace Jellyfin.Profiles.Auth
             }
             catch (Exception ex) when (ex is IOException || ex is JsonException || ex is UnauthorizedAccessException)
             {
-                // A broken file is today's minutes lost, not a server that won't start.
+                // A broken file is today's minutes lost, not a server that won't start. But said:
+                // with no line in the log a day of counted time just vanished.
+                Log?.LogWarning(ex, "ProfilesPlugin: {File} could not be read and was dropped; today's viewing time starts again from nothing.", path);
             }
         }
 
         /// <summary>Writes what changed since the last save. Never throws.</summary>
         internal static void Save(ILogger? logger)
         {
-            string? json = null;
             var path = FilePath();
-            lock (UsageLock)
-            {
-                if (!_dirty || path == null) return;
-                var shape = new FileShape();
-                foreach (var pair in Entries) shape.Profiles[pair.Key.ToString("N")] = pair.Value;
-                json = JsonSerializer.Serialize(shape);
-                _dirty = false;
-            }
+            if (path == null) return;
 
-            try
+            // One save at a time, snapshot and write together. The snapshot used to be taken
+            // under UsageLock and written outside it, to a temp file every writer shared: two
+            // saves overlapping either collided on the temp file or left the older snapshot in
+            // the file, whichever write landed last (R-1022). The order is always SaveLock then
+            // UsageLock, never the reverse, and the gate only ever takes UsageLock, so a slow
+            // disk holds up the next save and nothing else.
+            lock (SaveLock)
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                var temp = path + ".tmp";
-                File.WriteAllText(temp, json);
-                File.Move(temp, path, true);
-            }
-            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
-            {
-                logger?.LogWarning("ProfilesPlugin: couldn't save viewing time: {Reason}", ex.Message);
-                lock (UsageLock) _dirty = true;
+                string json;
+                lock (UsageLock)
+                {
+                    if (!_dirty) return;
+                    var shape = new FileShape();
+                    foreach (var pair in Entries) shape.Profiles[pair.Key.ToString("N")] = pair.Value;
+                    json = JsonSerializer.Serialize(shape);
+                    _dirty = false;
+                }
+
+                try
+                {
+                    BeforeWrite?.Invoke();
+                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                    var temp = path + ".tmp";
+                    File.WriteAllText(temp, json);
+                    File.Move(temp, path, true);
+                }
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                {
+                    logger?.LogWarning("ProfilesPlugin: couldn't save viewing time: {Reason}", ex.Message);
+                    lock (UsageLock) _dirty = true;
+                }
             }
         }
 

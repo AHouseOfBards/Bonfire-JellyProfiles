@@ -882,6 +882,52 @@ Ok("usage is written to the plugin's folder", file != null && File.Exists(file),
 Static(tracker, "Reset");
 Ok("and read back after a restart", Used(KID2) == 5, Used(KID2).ToString());
 
+// Two saves overlapping used to leave the older one in the file: each took its snapshot under
+// the lock and wrote outside it, so whichever write landed last won, whichever snapshot was
+// newer (R-1022). Here the first save is held between its snapshot and its write while a
+// newer state is saved; the file must end up holding the newer one.
+{
+    File.Delete(file);
+    Static(tracker, "Reset");
+    Static(tracker, "AddSeconds", KID2, ViewingDay(clockNow), 100.0);
+    var hook = tracker.GetField("BeforeWrite", Any);
+    var entered = new System.Threading.ManualResetEventSlim(false);
+    var release = new System.Threading.ManualResetEventSlim(false);
+    var armed = 1;
+    hook?.SetValue(null, (Action)(() =>
+    {
+        if (System.Threading.Interlocked.Exchange(ref armed, 0) == 1) { entered.Set(); release.Wait(5000); }
+    }));
+    Ok("a save can be held between its snapshot and its write, to test", hook != null);
+    var first = Task.Run(() => Static(tracker, "Save", new object[] { null }));
+    entered.Wait(5000);
+    Static(tracker, "AddSeconds", KID2, ViewingDay(clockNow), 50.0);
+    var second = Task.Run(() => Static(tracker, "Save", new object[] { null }));
+    second.Wait(500);   // with the fix it is waiting for the first; without, it is done
+    release.Set();
+    Task.WaitAll(first, second);
+    hook?.SetValue(null, null);
+    Static(tracker, "Reset");
+    var secsBack = (double)Get(Static(tracker, "EntryFor", KID2), "Seconds");
+    Ok("the file holds the newer state, not the older one written last (" + secsBack + " s)", secsBack == 150, secsBack.ToString());
+    Static(tracker, "Forget", KID2);
+    Static(tracker, "Save", new object[] { null });
+}
+
+// A file that can't be read is dropped, and said so: it was today's minutes lost with no trace.
+{
+    var capture = new CaptureLogger();
+    tracker.GetField("Log", Any)?.SetValue(null, capture);
+    File.WriteAllText(file, "{ this is not json");
+    Static(tracker, "Reset");
+    Static(tracker, "State", KID2, clockNow);
+    Ok("a usage file that can't be read is dropped with a warning in the log",
+       capture.Lines.Count(l => l.StartsWith("Warning") && l.Contains("viewing_usage.json")) == 1, string.Join(" | ", capture.Lines));
+    tracker.GetField("Log", Any)?.SetValue(null, null);
+    File.Delete(file);
+    Static(tracker, "Reset");
+}
+
 var xs = new XmlSerializer(cfgType);
 string xml;
 using (var w = new StringWriter()) { xs.Serialize(w, config); xml = w.ToString(); }
@@ -1066,6 +1112,15 @@ public class WorldProxy : DispatchProxy
         }
         throw new NotSupportedException("IUserManager." + m.Name + " is not modelled");
     }
+}
+
+sealed class CaptureLogger : Microsoft.Extensions.Logging.ILogger
+{
+    public System.Collections.Generic.List<string> Lines = new();
+    public IDisposable BeginScope<TState>(TState state) => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel level) => true;
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel level, Microsoft.Extensions.Logging.EventId id, TState state, Exception ex, Func<TState, Exception, string> format)
+        => Lines.Add(level + ": " + format(state, ex));
 }
 
 sealed class StubPaths : MediaBrowser.Common.Configuration.IApplicationPaths
