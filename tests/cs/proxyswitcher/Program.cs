@@ -557,6 +557,25 @@ Child();
     Set("ProxyClients", new List<string> { "moonfin" });
 }
 
+// A TV asks for several things at once. One that arrives while the profile's sign-out is
+// still in flight, with the app unticked, must not find the TV already let go.
+Child();
+{
+    (int status, string body, bool reachedJellyfin) during = default;
+    var kidsToken = "tok-" + N(KIDS);
+    Set("ProxyClients", new List<string>());
+    SessionManagerStub.DuringLogout = t =>
+    {
+        if (t != kidsToken) return;
+        SessionManagerStub.DuringLogout = null;
+        during = Get("/UserViews");
+    };
+    Get("/UserViews");
+    SessionManagerStub.DuringLogout = null;
+    Ok("a request during the sign-out is not passed on as the main account", !during.reachedJellyfin && during.status == 401, during.status + " " + seenAuth);
+    Set("ProxyClients", new List<string> { "moonfin" });
+}
+
 // The picker itself, an adult, an app on the main account: not a child's.
 ProxyReset();
 Set("ProxyClients", new List<string> { "moonfin" });
@@ -818,6 +837,8 @@ public class SessionManagerStub : DispatchProxy
 {
     /// <summary>Tokens Jellyfin cannot sign out right now.</summary>
     public static HashSet<string> FailLogout = new();
+    /// <summary>Runs inside Logout, so a test can send a request while one is in flight.</summary>
+    public static Action<string> DuringLogout;
     public List<Guid> Minted = new();
     public List<AuthenticationRequest> Requests = new();
     public List<string> LoggedOut = new();
@@ -851,6 +872,7 @@ public class SessionManagerStub : DispatchProxy
 
         if (m.Name == "Logout" && args.Length == 1 && args[0] is string token)
         {
+            DuringLogout?.Invoke(token);
             if (FailLogout.Contains(token)) return Task.FromException(new InvalidOperationException("Jellyfin unreachable"));
             LoggedOut.Add(token);
             return Task.CompletedTask;

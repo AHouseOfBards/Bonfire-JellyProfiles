@@ -189,8 +189,11 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         private static async Task<bool> SignOutChildAsync(HttpContext context, ProxySession session, Services services, ILogger logger)
         {
-            await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
+            // Marked first and kept through the wait below: an app sends several requests at
+            // once, and one arriving while the profile's sign-out was in flight found no mark
+            // and went through as the main account.
             ChildTokens[session.MasterToken] = session;
+            await LeaveAsync(session, services, logger, signOutMaster: false, keepMark: true).ConfigureAwait(false);
 
             var signedOut = false;
             try
@@ -1097,15 +1100,16 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>Back to the picker: the profile's session ends and the live connection is closed.</summary>
-        private static async Task LeaveAsync(ProxySession session, Services services, ILogger logger, bool signOutMaster)
+        private static async Task LeaveAsync(ProxySession session, Services services, ILogger logger, bool signOutMaster, bool keepMark = false)
         {
             var was = session.Acting;
             session.Acting = null;
             CloseSockets(session);
 
             // Back on the picker, which refuses what it does not draw, so no longer a child's
-            // to guard. SignOutChildAsync puts the mark back when it needs it kept.
-            ChildTokens.TryRemove(session.MasterToken, out _);
+            // to guard. Not when SignOutChildAsync is ending it: that clears the mark itself,
+            // once Jellyfin has confirmed the sign-out.
+            if (!keepMark) ChildTokens.TryRemove(session.MasterToken, out _);
             if (was != null) ChildTokens.TryRemove(was.Token, out _);
 
             if (was == null || was.Token == session.MasterToken || services.Sessions == null) return;
