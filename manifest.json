@@ -13,7 +13,7 @@
         "changelog": "**Fixed**\n\n- Wholphin and Android TV couldn't load the profile list. (#43)\n- OK did nothing on Reset PIN, signing a device out, or importing a backup. (#44)\n- Changing the main PIN in Manage Profiles made later saves fail as an incorrect PIN. (#44)",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.3/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "133ab0572ca4392903ede648ebeed7b4",
         "timestamp": "2026-11-08T00:00:00Z"
       },
       {
