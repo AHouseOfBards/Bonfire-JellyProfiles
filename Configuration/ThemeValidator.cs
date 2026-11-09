@@ -48,9 +48,10 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>The decorations schema 1 knows. docs/themes.md, "Decorations".</summary>
         public static readonly string[] Decorations = { "pattern", "rings", "frost" };
 
-        private static readonly Regex IdRegex = new("^[a-z0-9-]{1,40}$", RegexOptions.CultureInvariant);
-        private static readonly Regex HexRegex = new("^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$", RegexOptions.CultureInvariant);
-        private static readonly Regex KeyRegex = new(@"^theme\.[a-z0-9-]{1,40}$", RegexOptions.CultureInvariant);
+        // \z, not $: in .NET `$` also matches before a final newline, so "dark\n" would pass.
+        private static readonly Regex IdRegex = new(@"^[a-z0-9-]{1,40}\z", RegexOptions.CultureInvariant);
+        private static readonly Regex HexRegex = new(@"^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?\z", RegexOptions.CultureInvariant);
+        private static readonly Regex KeyRegex = new(@"^theme\.[a-z0-9-]{1,40}\z", RegexOptions.CultureInvariant);
 
         private static readonly string[] ColorFields =
         {

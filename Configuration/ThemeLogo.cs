@@ -39,7 +39,7 @@ namespace Jellyfin.Profiles.Configuration
         public const int MaxAlt = 100;
 
         private static readonly System.Text.RegularExpressions.Regex FileName =
-            new("^[0-9a-f]{32}\\.(png|jpg|webp)$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+            new(@"^[0-9a-f]{32}\.(png|jpg|webp)\z", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
         /// <summary>Where the logo is kept: the plugin's data folder, <c>logo/</c>.</summary>
         public static string Folder => Path.Combine(

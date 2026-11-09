@@ -241,7 +241,7 @@ namespace Jellyfin.Profiles.Configuration
         public static readonly string[] CustomFontFallbacks = { "sans-serif", "serif" };
 
         private static readonly System.Text.RegularExpressions.Regex CustomFontName =
-            new("^[0-9a-f]{32}\\.woff2$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+            new(@"^[0-9a-f]{32}\.woff2\z", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
         /// <summary>Where uploaded fonts are kept: the plugin's data folder, <c>fonts/</c>.</summary>
         public static string CustomFontFolder => Path.Combine(
