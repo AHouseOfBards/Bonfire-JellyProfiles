@@ -140,7 +140,7 @@ const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(
     ok('and says what it needs', !w.els.pinResetNeedsEmail.classList.contains('jpf-hidden')
        && w.els.pinResetNeedsEmail.textContent !== '');
     ok('no addresses: says so', w.els.emailAccounts.children.length === 1
-       && w.els.emailAccounts.children[0].textContent === 'No main account has added one yet.');
+       && w.els.emailAccounts.children[0].textContent === 'No email addresses yet. Each main account adds its own in Bonfire settings.');
 
     const brokenButOn = Object.assign({}, untested, { pinResetByEmail: true });
     w = makeWorld(brokenButOn);

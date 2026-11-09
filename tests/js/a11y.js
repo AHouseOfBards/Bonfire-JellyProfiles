@@ -86,8 +86,9 @@ function tagOf(id) {
         await settle();
         ok('"Failed to fetch" is not shown to anyone', msg === UNREACHABLE, String(msg));
 
-        // The server's own words still go through.
-        sb.fetch = () => Promise.resolve({ ok: false, status: 403, headers: { get: h => (h === 'X-Bonfire-Error' ? 'forbidden' : null) }, text: () => Promise.resolve('Too many attempts') });
+        // A refusal is said by its code. The body is English the person must never see,
+        // so it is one this test would recognise if it leaked.
+        sb.fetch = () => Promise.resolve({ ok: false, status: 403, headers: { get: h => (h === 'X-Bonfire-Error' ? 'forbidden' : null) }, text: () => Promise.resolve('Forbidden. SERVER ENGLISH') });
         msg = null;
         PP.executeProfileSwitch('kid', '1234', m => { msg = m; });
         await settle();
