@@ -124,7 +124,9 @@ const last = url => sent(url).pop();
     ok('choosing it says so, instead of opening', dialog && opened === 0 && dialog.message === "Kid has used today's time. You can still browse.",
        dialog && dialog.message);
     const labels = dialog ? dialog.actions.map(a => a.label) : [];
-    ok('ask, give time, browse, cancel', labels.join('|') === 'Ask for more time|Give more time|Browse|Cancel', labels.join('|'));
+    // Four labels a child can tell apart: "Give more time" sat beside "Ask for more time" and
+    // read as the same thing, and "Browse" beside "Cancel" did not say what it did (P2-208).
+    ok('ask, give time, browse, cancel', labels.join('|') === 'Ask for more time|Parent: add time|Browse without playing|Cancel', labels.join('|'));
 
     dialog.actions[2].run();
     ok('browse opens it anyway', opened === 1);
