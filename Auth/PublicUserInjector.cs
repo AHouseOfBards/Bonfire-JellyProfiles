@@ -390,11 +390,20 @@ namespace Jellyfin.Profiles.Auth
         ///
         /// <para>Checked against the clients, not remembered. jellyfin-androidtv's
         /// <c>UserDto.toPublicUser</c> (util/sdk/ModelExtensions.kt) reads id, name, serverId
-        /// and primaryImage's tag and nothing else; the Kotlin SDK's <c>UserDto</c> makes
-        /// every other field optional, and Swiftfin decodes the same list through the Swift
-        /// SDK's <c>UserDto</c>, where every field is optional too (I could not locate
-        /// Swiftfin's own reads of it, so the password and auto-login flags are kept, which
-        /// is what a sign-in screen uses to decide on a password box).</para>
+        /// and primaryImage's tag and nothing else, but reading is not the bar: the whole list
+        /// has to parse first. Swiftfin decodes it through the Swift SDK's <c>UserDto</c>, where
+        /// every field is optional (I could not locate Swiftfin's own reads of it, so the
+        /// password and auto-login flags are kept, which is what a sign-in screen uses to
+        /// decide on a password box).</para>
+        ///
+        /// <para><b>Check the SDK version the apps ship, not master (#43).</b> On
+        /// jellyfin-sdk-kotlin master every flag is optional, and that is what this list was
+        /// first checked against. Wholphin and the Android TV 0.19 release use 1.7.1, where
+        /// <c>id</c>, <c>hasPassword</c>, <c>hasConfiguredPassword</c> and
+        /// <c>hasConfiguredEasyPassword</c> have no default. Leaving out the last one, a dead
+        /// flag nothing draws, failed the entire response with "Field
+        /// 'HasConfiguredEasyPassword' is required", so those apps had no sign-in screen at
+        /// all in 1.7.2.</para>
         ///
         /// <para>Policy is left out, not emptied. The Kotlin SDK's <c>UserPolicy</c> has about
         /// thirty required fields (isAdministrator, isHidden, isDisabled, enableAllFolders,
@@ -404,7 +413,8 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         private static readonly HashSet<string> TileFields = new(StringComparer.OrdinalIgnoreCase)
         {
-            "Name", "Id", "ServerId", "HasPassword", "HasConfiguredPassword", "PrimaryImageTag", "EnableAutoLogin",
+            "Name", "Id", "ServerId", "HasPassword", "HasConfiguredPassword", "HasConfiguredEasyPassword",
+            "PrimaryImageTag", "EnableAutoLogin",
         };
 
         private static JsonNode? Reduced(JsonNode? full)

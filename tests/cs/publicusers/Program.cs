@@ -136,7 +136,17 @@ Ok("nor when it last signed in or was active", !json.Contains("LastLoginDate", S
 {
     var entry = (JsonNode.Parse(json) as JsonArray)?[0] as JsonObject;
     var keys = entry == null ? "" : string.Join(",", entry.Select(p => p.Key).OrderBy(k => k));
-    Ok("it carries exactly what a tile is drawn from", keys == "EnableAutoLogin,HasConfiguredPassword,HasPassword,Id,Name,PrimaryImageTag,ServerId", keys);
+    Ok("it carries exactly what a tile is drawn from", keys == "EnableAutoLogin,HasConfiguredEasyPassword,HasConfiguredPassword,HasPassword,Id,Name,PrimaryImageTag,ServerId", keys);
+
+    // Issue #43. Wholphin and the current Android TV release parse this list with
+    // jellyfin-sdk-kotlin 1.7.1, whose UserDto has no default for these four. One entry
+    // without one fails the whole list, so the app shows an error instead of a picker.
+    // Named one at a time: "what a tile is drawn from" was the coarser question.
+    foreach (var required in new[] { "Id", "HasPassword", "HasConfiguredPassword", "HasConfiguredEasyPassword" })
+    {
+        Ok("the Kotlin SDK's required field " + required + " is there", entry != null && entry.ContainsKey(required), keys);
+    }
+
     Ok("with the values Jellyfin gave", entry != null && (string)entry["PrimaryImageTag"] == "tag1" && (bool)entry["HasPassword"]
        && (bool)entry["HasConfiguredPassword"] && (string)entry["ServerId"] == "abc123");
 }
