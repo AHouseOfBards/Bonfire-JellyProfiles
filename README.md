@@ -60,7 +60,7 @@ the others are not yet.
 **Profile picker (beta):** Moonfin shows a Profiles folder on its home screen
 ([how it works](docs/clients.md#profile-picker-beta)). It's off by default and may change when native support arrives.
 
-Details for every app are in [Apps](docs/clients.md).
+Details for every app, and what each can do, are in [Apps](docs/clients.md#what-each-app-can-do).
 
 ## Documentation
 

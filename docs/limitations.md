@@ -12,6 +12,22 @@ Create and edit profiles from the switcher, not the admin dashboard.
 **Dashboard → Plugins → Bonfire** holds the server-wide settings, the avatar library,
 PIN resets, TV and app sign-in, and the emergency disable code.
 
+## What other apps can't do
+
+Each "no" in the [app table](clients.md#what-each-app-can-do), and why.
+
+- **Announcements, themes, logo, first-time setup, linked accounts, auto-lock.** These are
+  screens in the web client. An app that doesn't load it has nowhere to show them.
+- **Ask for more time.** It needs a button on a screen Bonfire draws. A parent can still
+  give time from Manage Profiles in any browser.
+- **PIN reset by email.** It needs a form. Native sign-in screens and the Moonfin keypad
+  have none, so an administrator resets the PIN instead.
+- **Time-up warning.** The server sends it as a message. Swiftfin and Findroid ignore
+  messages, and no handler was found in Roku or Plezy. Playback is still stopped.
+- **Maintenance notice.** Same reason. Those apps show an error with the text instead.
+- **Switching from the home screen.** An app with no switcher signs in again on its own
+  screen. Moonfin has a **Switch profile** folder instead.
+
 ## Emergency disable code
 
 Turns Bonfire off until Jellyfin restarts. It's for when Bonfire has made the web

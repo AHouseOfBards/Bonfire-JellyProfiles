@@ -32,6 +32,9 @@ These hold in every app and can't be turned off from a browser.
 - **A main account with no PIN.** Any of its profiles can switch into it. If the profiles
   are for children, give the main account a PIN. The same goes for one with *Ask for the
   PIN to open this account* turned off: the PIN then guards changes, not the account.
+- **The main account on other apps.** On a device your household has signed in on, its PIN
+  works instead of its password, and a saved sign-in opens it with neither. Profiles on
+  that device can reach it. Set the app to ask every time.
 - **Device limits.** A device is identified by the ID its app sends, and an app can send
   any ID. A device limit stops normal use on other devices, not someone who copies the
   allowed device's ID. The same goes for PIN-less profiles on other apps' sign-in screens,

@@ -4,6 +4,48 @@ Bonfire works in three ways, depending on the app. Apps that load the web client
 server get the full switcher. Apps with their own sign-in screen can list your profiles
 there instead. Moonfin gets a profile picker (beta) on its home screen.
 
+## What each app can do
+
+Apps are checked at the version in brackets. **Partial** is explained under the table.
+
+| App | Switch profiles | PIN | Main PIN | Kid restrictions | Viewing limits and time-up warning | Ask for more time | Announcements | Maintenance message | First-time setup | PIN reset by email | Linked accounts | Themes | Logo | Auto-lock |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Web, Android, iOS, Media Player, webOS, Tizen | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |
+| Android TV (0.19.10) | partial | partial | partial | yes | partial | no | no | partial | no | no | no | no | no | no |
+| Roku (3.2.4) | partial | partial | partial | yes | partial | no | no | partial | no | no | no | no | no | no |
+| Swiftfin (1.6.1) | partial | partial | partial | yes | partial | no | no | partial | no | no | no | no | no | no |
+| Findroid (1.2.0) | partial | partial | partial | yes | partial | no | no | partial | no | no | no | no | no | no |
+| Wholphin (1.1.1) | partial | partial | partial | yes | partial | no | no | partial | no | no | no | no | no | no |
+| Streamyfin, Plezy, Tsukimi (name and PIN) | partial | partial | partial | yes | partial | no | no | partial | no | no | no | no | no | no |
+| Moonfin picker (beta) | yes | yes | partial | yes | partial | no | no | partial | no | no | no | no | no | no |
+
+The native sign-in list is the row for each app that uses it: Android TV, Roku, Swiftfin, Findroid and Wholphin.
+
+**Partial**, on apps with their own sign-in:
+
+- **Switch profiles:** you pick a profile on the app's sign-in screen, not from the home screen.
+- **PIN:** typed where the app asks for a password, and only on a device your household has signed in on.
+- **Main PIN:** on a known device it works instead of the account's password. A saved sign-in never asks for it.
+- **Viewing limits:** the server always enforces them. The warning shows only in an app that shows server messages.
+- **Maintenance message:** shown as a message in an app that shows them, otherwise as the app's error text.
+
+On Moonfin, **Main PIN** is partial because the main account's owner can turn off the keypad on its folder.
+
+Which apps show server messages:
+
+| App | Shows them |
+| --- | --- |
+| Android TV | Yes, as a toast. |
+| Wholphin | Yes, as a toast. |
+| Streamyfin | Yes, as an alert. |
+| Moonfin | Yes. |
+| Swiftfin | No. |
+| Findroid | No. |
+| Roku, Plezy | No handler found. |
+| Tsukimi | Not checked. |
+
+*Jellyfin for iOS* is the Jellyfin app that wraps the web client. *Swiftfin* is a separate app.
+
 ## Full support
 
 The switcher, profile management, avatars, library artwork and shared Bonfires.
@@ -47,6 +89,15 @@ without its PIN unless the app is set to ask:
 **Type the PIN where the app asks for a password.** A main account with no PIN still uses
 its real password. A profile with no PIN opens with the box left empty.
 
+**The main account is the weak point.** On a known device its PIN works instead of its
+password, and a saved sign-in opens it with neither. Anyone who can pick it on the sign-in
+screen gets it, so set the app to ask every time.
+
+**Forgotten PIN.** Reset by email works only in the web app. Otherwise an administrator
+clears it under **Dashboard → Bonfire → Households**.
+
+The list appears on every app that asks the server for its user list, not only the apps named here.
+
 **Signed in before installing Bonfire?** Sign out and back in once so the server
 recognises the device. Approving a Quick Connect code counts.
 
@@ -54,6 +105,7 @@ These still apply: PINs, device limits, library access, parental ratings and tag
 The profile shows under its own name.
 
 Not available: creating or editing profiles, library artwork, and the switcher itself.
+See the table above for the rest.
 
 ## Apps with no user list
 
@@ -85,6 +137,9 @@ first-time setup, PIN reset and themes reach only the web app and the apps that 
 (the **Full support** list above). Swiftfin and Roku don't show server messages, so
 there playback stops with no warning. The refusal text is sent anyway, and an app that
 shows errors will display it.
+
+During maintenance an app that shows no server messages gets a plain "Try again later"
+error carrying the administrator's text, not a notice.
 
 ## Not supported
 
