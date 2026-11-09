@@ -278,6 +278,9 @@
     // clicking Save with an invalid PIN fired a validation alert nobody could see.
     const OVERLAY_Z = 99999;
     const DIALOG_Z = OVERLAY_Z + 10;
+    // How long a request the person is waiting on may take before they are given their
+    // controls back. See _fetchTimed.
+    const REQUEST_TIMEOUT_MS = 20000;
 
     // ── Internationalisation ────────────────────────────────────────────────────
     // English lives inline, as the single dependency-free fallback every client can
@@ -1039,6 +1042,9 @@
         'switcher.switchProfile': 'Switch Profile',
         'switcher.reloadFailedTitle': 'Almost there',
         'switcher.reloadFailedBody': 'Close and reopen the app to finish switching profiles.',
+        'switcher.unreachable': "Can't reach the server. Try again.",
+        'switcher.failedTitle': "Couldn't switch",
+        'switcher.failedBody': 'That did not work. Try again.',
         'switcher.notSavedTitle': 'Switch not saved',
         'switcher.notSavedBody': 'This device would not store the change, so you are still signed in as before.',
         'switcher.manageTitle': 'Manage Profiles',
@@ -6434,7 +6440,7 @@
                 send: (pin) => {
                     const masterState = this.readMasterState();
                     if (!masterState) return Promise.reject(new Error('no master'));
-                    return fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
+                    return this._fetchTimed(ApiClient.getUrl('plugins/profiles/verify-pin'), {
                         method: 'POST',
                         headers: this.jsonHeaders(masterState.token),
                         body: JSON.stringify({ profileId: profileId, pin: pin })
@@ -6643,7 +6649,7 @@
                 send: (pin) => {
                     const masterState = this.readMasterState();
                     if (!masterState) return Promise.reject(new Error('no master'));
-                    return fetch(ApiClient.getUrl('plugins/profiles/account/verify-pin'), {
+                    return this._fetchTimed(ApiClient.getUrl('plugins/profiles/account/verify-pin'), {
                         method: 'POST',
                         headers: this.jsonHeaders(masterState.token),
                         body: JSON.stringify({ pin: pin })
@@ -6677,7 +6683,7 @@
                 if (!masterState) return;
 
                 verifyInProgress = true;
-                fetch(ApiClient.getUrl('plugins/profiles/account/verify-pin'), {
+                this._fetchTimed(ApiClient.getUrl('plugins/profiles/account/verify-pin'), {
                     method: 'POST',
                     headers: this.jsonHeaders(masterState.token),
                     body: JSON.stringify({ pin: pin })
@@ -6690,7 +6696,9 @@
                     }
                     if (!res.ok) {
                         return res.text().then(text => {
-                            throw new Error(text || t('pin.incorrectMasterPin'));
+                            const refusal = new Error(text || t('pin.incorrectMasterPin'));
+                            refusal.serverText = text;
+                            throw refusal;
                         });
                     }
                     this.masterPin = pin;
@@ -6700,7 +6708,7 @@
                 .catch(err => {
                     verifyInProgress = false;
                     if (err.message !== 'Session expired') {
-                        showPinError(err.message || t('pin.incorrectMasterPin'));
+                        showPinError(this._failText(err, err.message || t('pin.incorrectMasterPin')));
                     }
                 });
             };
@@ -6997,6 +7005,42 @@
             });
         },
 
+        /// fetch() that gives up. A request the person is waiting on locks the picker until
+        /// it settles, and a server that accepts the connection and never answers (a
+        /// restart, a proxy dropping the reply) means only a page reload gets them out.
+        ///
+        /// A timer raced against the request, not an AbortController: webOS 4.5 is
+        /// Chromium 53 and has none. The request itself is not cancelled; it is simply
+        /// no longer listened to, so a reply that turns up late changes nothing.
+        /// Rejects with isTimeout set.
+        _fetchTimed: function (url, init, ms) {
+            return new Promise((resolve, reject) => {
+                const timer = setTimeout(() => {
+                    const e = new Error('timeout');
+                    e.isTimeout = true;
+                    reject(e);
+                }, ms || REQUEST_TIMEOUT_MS);
+                fetch(url, init).then(
+                    res => { clearTimeout(timer); resolve(res); },
+                    err => { clearTimeout(timer); reject(err); }
+                );
+            });
+        },
+
+        /// What to tell the person about a failed request. The server's own words go
+        /// through as they are; anything the browser raised ("Failed to fetch", "Load
+        /// failed", a JSON parse error) is not for them and not translated, so it is
+        /// replaced. Otherwise "wrong PIN" and "server unreachable" read the same.
+        _failText: function (err, fallback) {
+            if (err && err.serverText) return err.serverText;
+            // By name, not instanceof: an error raised in another frame is not an instance
+            // of this one's TypeError.
+            if (err && (err.isTimeout || err.name === 'TypeError' || err.name === 'SyntaxError')) {
+                return t('switcher.unreachable');
+            }
+            return fallback;
+        },
+
         executeProfileSwitch: function (profileId, pin, onError) {
             if (this._switchLock) return;
 
@@ -7008,7 +7052,7 @@
             this.setSwitchBusy(profileId, true);
             const url = apiClient.getUrl('plugins/profiles/switch');
 
-            fetch(url, {
+            this._fetchTimed(url, {
                 method: 'POST',
                 headers: this.jsonHeaders(masterState.token),
                 body: JSON.stringify({ profileId: profileId, pin: pin })
@@ -7025,7 +7069,9 @@
                             this.handleSessionExpired();
                             throw new Error('Session expired');
                         }
-                        throw new Error(body || t('pin.incorrectPin'));
+                        const refusal = new Error(body || t('pin.incorrectPin'));
+                        refusal.serverText = body;
+                        throw refusal;
                     });
                 }
                 return res.json();
@@ -7110,11 +7156,15 @@
                 if (err.message === 'Session expired') return;
                 if (typeof onError === 'function') {
                     // Caller has closed-over references to the DOM — no re-query needed
-                    onError(err.message || t('pin.incorrectPin'));
+                    onError(this._failText(err, err.message || t('pin.incorrectPin')));
                 } else {
-                    // Fallback: no PIN screen is currently shown (e.g. direct card tap without PIN prompt)
+                    // No PIN screen is shown (a direct tap on a profile with no PIN): put
+                    // the picker back and say why, or the tile just stops responding and
+                    // the person has nothing to retry on but another tap.
                     this.isManageMode = false;
                     this.interceptHomeAndShowProfiles();
+                    this.showAlert(t('switcher.failedTitle'),
+                        escapeHtml(this._failText(err, t('switcher.failedBody'))));
                 }
             });
         },
