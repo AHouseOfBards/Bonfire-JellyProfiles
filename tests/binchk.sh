@@ -4,19 +4,21 @@
 # 10.11.x and against 12.0 (C-1008).
 #
 #   tests/binchk.sh                      # the versions below
-#   tests/binchk.sh 10.11.11 12.0.0      # others
+#   tests/binchk.sh 10.11.11 12.4.0      # others
 #   PLUGIN=path/to/Jellyfin.Profiles.dll tests/binchk.sh
 #
 # Not part of tests/run.sh, deliberately: it has to restore the Jellyfin packages for each
 # version, which needs the network the first time (they are cached after). CI runs it as a
 # separate step. Bump the first default when a newer 10.11 patch appears; it is the one
-# that is allowed to go stale, 12.0 is the line that will be dropped on.
+# that is allowed to go stale, 12.0 is the line that will be dropped on. The last is the newest
+# 12.x release (read from NuGet, Jellyfin.Controller): bump it with the first, so a 12.x change
+# that drops a member is seen here and not by a user.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 VERSIONS=("$@")
-[ ${#VERSIONS[@]} -eq 0 ] && VERSIONS=(10.11.11 12.0.0)
+[ ${#VERSIONS[@]} -eq 0 ] && VERSIONS=(10.11.11 12.0.0 12.4.0)
 PLUGIN="${PLUGIN:-bin/Release/net9.0/Jellyfin.Profiles.dll}"
 
 if [ -z "${SKIP_BUILD:-}" ] && [ -z "${PLUGIN_GIVEN:-}" ]; then
