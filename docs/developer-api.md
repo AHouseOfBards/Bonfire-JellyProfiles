@@ -1817,6 +1817,10 @@ carry an approve link, because mail scanners open links and would approve it for
 
 `0` minutes is no limit.
 
+The server sends its time warning as a Jellyfin message, which some apps don't show. To
+show your own, poll this route once a minute during playback and warn when `minutesLeft`
+is 5 or less. The server stops playback either way.
+
 ### `POST /plugins/profiles/limits/{profileId}`
 
 **Authorisation:** signed-in user. The profile's main account with its PIN, or an

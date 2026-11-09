@@ -27,6 +27,8 @@ Each "no" in the [app table](clients.md#what-each-app-can-do), and why.
 - **Maintenance notice.** Same reason. Those apps show an error with the text instead.
 - **Switching from the home screen.** An app with no switcher signs in again on its own
   screen. Moonfin has a **Switch profile** folder instead.
+- **Moonfin picker (beta).** It has no ask-for-more-time tile, announcements, logo or
+  linked accounts. It only draws profile tiles in a folder.
 
 ## Emergency disable code
 
