@@ -1041,7 +1041,7 @@
   "admin.loadFailed": "Nie udało się wczytać ustawień. Nic nie można zapisać, dopóki się nie wczytają.",
   "admin.loadRetry": "Spróbuj ponownie",
   "admin.saveBlocked": "Ustawienia się nie wczytały, więc nic nie zapisano. Naciśnij Spróbuj ponownie.",
-  "admin.mnt.confirmStop": "Wszyscy poza administratorami zostają zablokowani, a to, co oglądają, zostaje zatrzymane, dopóki nie otworzysz ponownie."
+  "admin.mnt.confirmStop": "Wszyscy poza administratorami zostają zablokowani, a to, co oglądają, zostaje zatrzymane, dopóki nie otworzysz ponownie.",
   "account.pinLabel": "Główny kod PIN",
   "account.devicesCount": "Znane urządzenia: {count}",
   "account.devicesCountSubtitle": "Które ekrany używają tego konta",

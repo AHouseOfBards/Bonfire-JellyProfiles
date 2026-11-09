@@ -1053,7 +1053,7 @@
   "admin.loadFailed": "Ayarlar yüklenemedi. Yüklenene kadar hiçbir şey kaydedilemez.",
   "admin.loadRetry": "Tekrar dene",
   "admin.saveBlocked": "Ayarlar yüklenmediği için hiçbir şey kaydedilmedi. Tekrar dene'ye basın.",
-  "admin.mnt.confirmStop": "Yöneticiler dışında herkes kilitlenir ve izledikleri durur; yeniden açana kadar."
+  "admin.mnt.confirmStop": "Yöneticiler dışında herkes kilitlenir ve izledikleri durur; yeniden açana kadar.",
   "account.pinLabel": "Ana PIN",
   "account.devicesCount": "Bilinen cihazlar: {count}",
   "account.devicesCountSubtitle": "Bu hesabı kullanan ekranlar",

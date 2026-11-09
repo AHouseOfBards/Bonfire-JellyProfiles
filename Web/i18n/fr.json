@@ -1041,7 +1041,7 @@
   "admin.loadFailed": "Impossible de charger les paramètres. Rien ne peut être enregistré tant qu'ils ne sont pas chargés.",
   "admin.loadRetry": "Réessayer",
   "admin.saveBlocked": "Les paramètres ne sont pas chargés, donc rien n'a été enregistré. Appuyez sur Réessayer.",
-  "admin.mnt.confirmStop": "Tout le monde sauf les administrateurs est bloqué et ce qu'ils regardent s'arrête, jusqu'à ce que vous rouvriez."
+  "admin.mnt.confirmStop": "Tout le monde sauf les administrateurs est bloqué et ce qu'ils regardent s'arrête, jusqu'à ce que vous rouvriez.",
   "account.pinLabel": "Code PIN principal",
   "account.devicesCount": "Appareils connus : {count}",
   "account.devicesCountSubtitle": "Quels écrans utilisent ce compte",

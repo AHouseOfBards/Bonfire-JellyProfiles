@@ -1041,7 +1041,7 @@
   "admin.loadFailed": "No se ha podido cargar la configuración. No se puede guardar nada hasta que cargue.",
   "admin.loadRetry": "Intentarlo de nuevo",
   "admin.saveBlocked": "La configuración no se ha cargado, así que no se ha guardado nada. Pulsa Intentarlo de nuevo.",
-  "admin.mnt.confirmStop": "Todos excepto los administradores quedan bloqueados y lo que están viendo se detiene, hasta que lo reabras."
+  "admin.mnt.confirmStop": "Todos excepto los administradores quedan bloqueados y lo que están viendo se detiene, hasta que lo reabras.",
   "account.pinLabel": "PIN principal",
   "account.devicesCount": "Dispositivos conocidos: {count}",
   "account.devicesCountSubtitle": "Qué pantallas usan esta cuenta",

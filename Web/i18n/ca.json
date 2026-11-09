@@ -1041,7 +1041,7 @@
   "admin.loadFailed": "No s'ha pogut carregar la configuració. No es pot desar res fins que es carregui.",
   "admin.loadRetry": "Torna-ho a provar",
   "admin.saveBlocked": "La configuració no s'ha carregat, així que no s'ha desat res. Prem Torna-ho a provar.",
-  "admin.mnt.confirmStop": "Tothom excepte els administradors queda bloquejat i el que miren s'atura, fins que ho reobris."
+  "admin.mnt.confirmStop": "Tothom excepte els administradors queda bloquejat i el que miren s'atura, fins que ho reobris.",
   "account.pinLabel": "PIN principal",
   "account.devicesCount": "Dispositius coneguts: {count}",
   "account.devicesCountSubtitle": "Quines pantalles fan servir aquest compte",
