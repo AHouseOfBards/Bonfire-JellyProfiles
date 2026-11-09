@@ -734,27 +734,27 @@
                         <input is="emby-input" type="number" id="pinGuessesPerDay" min="1" max="20" />
                         <div class="fieldDescription" data-i18n="admin.households.pinPerDayHint">Wrong tries per account, all apps together. 1 to 20.</div>
                     </div>
+
+                    <div class="sectionTitleContainer jpf-section" id="jpfEmergency">
+                        <h2 class="sectionTitle" data-i18n="admin.panic.title">Emergency disable code</h2>
+                    </div>
+                    <div class="jpf-note jpf-note-soft">
+                        <strong class="jpf-label-block" data-i18n="admin.panic.warnTitle">Read this before turning it on</strong>
+                        <span data-i18n="admin.panic.warnBody">Entering the code turns Bonfire off until Jellyfin restarts. Anyone with it can skip the profile screen on a device that's already signed in, which on a TV left on a main account means that account's library. Other profiles still need their PIN, and parental controls still apply. No password is asked for, so make it long.</span>
+                    </div>
+                    <div id="panicStatusLine" class="fieldDescription jpf-lede">…</div>
+                    <div class="inputContainer jpf-form-narrow">
+                        <label class="inputLabel" for="panicCodeInput" data-i18n="admin.panic.label">Code</label>
+                        <input is="emby-input" type="text" id="panicCodeInput" autocomplete="off" placeholder="At least 10 characters" data-i18n-placeholder="admin.panic.placeholder" />
+                        <div class="fieldDescription" data-i18n="admin.panic.hint">Save it blank to turn it off. It can't be shown again, so write it down somewhere off this server.</div>
+                    </div>
+                    <div class="jpf-block-end">
+                        <button is="emby-button" type="button" id="savePanicCode" class="raised button-submit jpf-narrow" data-i18n="admin.panic.save">Save code</button>
+                        <div class="jpf-hidden jpf-status" id="panicCodeResult"></div>
+                    </div>
                 </details>
                 <div class="buttonContainer jpf-block-end">
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
-                </div>
-
-                <div class="sectionTitleContainer jpf-section" id="jpfEmergency">
-                    <h2 class="sectionTitle" data-i18n="admin.panic.title">Emergency disable code</h2>
-                </div>
-                <div class="jpf-note jpf-note-soft">
-                    <strong class="jpf-label-block" data-i18n="admin.panic.warnTitle">Read this before turning it on</strong>
-                    <span data-i18n="admin.panic.warnBody">Entering the code turns Bonfire off until Jellyfin restarts. Anyone with it can skip the profile screen on a device that's already signed in, which on a TV left on a main account means that account's library. Other profiles still need their PIN, and parental controls still apply. No password is asked for, so make it long.</span>
-                </div>
-                <div id="panicStatusLine" class="fieldDescription jpf-lede">…</div>
-                <div class="inputContainer jpf-form-narrow">
-                    <label class="inputLabel" for="panicCodeInput" data-i18n="admin.panic.label">Code</label>
-                    <input is="emby-input" type="text" id="panicCodeInput" autocomplete="off" placeholder="At least 10 characters" data-i18n-placeholder="admin.panic.placeholder" />
-                    <div class="fieldDescription" data-i18n="admin.panic.hint">Save it blank to turn it off. It can't be shown again, so write it down somewhere off this server.</div>
-                </div>
-                <div class="jpf-block-end">
-                    <button is="emby-button" type="button" id="savePanicCode" class="raised button-submit jpf-narrow" data-i18n="admin.panic.save">Save code</button>
-                    <div class="jpf-hidden jpf-status" id="panicCodeResult"></div>
                 </div>
 
                 <div class="sectionTitleContainer jpf-section">
@@ -5137,6 +5137,7 @@
                     result.textContent = msg;
                     paintOutcome(result, ok);
                     result.style.display = 'block';
+                    if (!ok) openAdvancedFor(result);
                 };
 
                 if (code && code.length < 10) {
