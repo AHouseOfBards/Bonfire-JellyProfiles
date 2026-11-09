@@ -8,6 +8,36 @@
     // something that is not coming.
     try { window.__jpLoaded = 1; } catch (e) { /* no window: reading the file, not running it */ }
 
+    /// Makes a drawn dialog a dialog to a screen reader, and returns focus where it came
+    /// from when it closes. Called with the markup in place and before the dialog is
+    /// added to the page, because that is the last moment document.activeElement is still
+    /// what opened it: every dialog focuses one of its own controls once it is shown.
+    ///
+    /// Closing is `dialog.remove()` at every site, so that is what is wrapped, rather
+    /// than eight close handlers each remembering to give focus back. Without it focus
+    /// fell to the page, and the next remote key landed on the first control of a form
+    /// taller than a television, losing the place in it.
+    function markDialog(dialog) {
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        const heading = dialog.querySelector('h1, h2, h3');
+        if (heading) {
+            if (!heading.id) heading.id = (dialog.id || 'jpf-dialog') + '-title';
+            dialog.setAttribute('aria-labelledby', heading.id);
+        }
+        const opener = document.activeElement;
+        const remove = dialog.remove;
+        dialog.remove = function () {
+            remove.call(dialog);
+            // Not isConnected (Chromium 54): the opener may be gone, redrawn under the
+            // dialog while it was up.
+            if (opener && opener !== document.body && document.body.contains(opener)
+                && typeof opener.focus === 'function') {
+                opener.focus();
+            }
+        };
+    }
+
     function escapeHtml(str) {
         if (!str) return '';
         return String(str)
@@ -1469,6 +1499,7 @@
                 </div>
             `;
 
+            markDialog(dialog);
             document.body.appendChild(dialog);
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 dialog.style.opacity = '1';
@@ -1547,6 +1578,7 @@
                 </div>
             `;
 
+            markDialog(dialog);
             document.body.appendChild(dialog);
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 dialog.style.opacity = '1';
@@ -1612,6 +1644,7 @@
                 </div>
             `;
 
+            markDialog(dialog);
             document.body.appendChild(dialog);
             
             requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -1693,6 +1726,7 @@
                 </div>
             `;
 
+            markDialog(dialog);
             document.body.appendChild(dialog);
             
             requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -1766,6 +1800,7 @@
                     </div>
                 </div>
             `;
+            markDialog(dialog);
             document.body.appendChild(dialog);
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 dialog.style.opacity = '1';
@@ -4094,6 +4129,7 @@
                 </div>
             `;
 
+            markDialog(dialog);
             document.body.appendChild(dialog);
 
             const input = dialog.querySelector('#profiles-panic-input');
@@ -4801,6 +4837,10 @@
             if (!overlay) {
                 overlay = document.createElement('div');
                 overlay.id = 'profiles-gate-overlay';
+                // The page behind is not for the person to read while this is up.
+                overlay.setAttribute('role', 'dialog');
+                overlay.setAttribute('aria-modal', 'true');
+                overlay.setAttribute('aria-label', 'Bonfire');
                 // Start at opacity 0 so the browser creates the compositing layer
                 // silently.  We fade it in via rAF once it exists in the DOM.
                 overlay.style.opacity = '0';
@@ -5049,6 +5089,7 @@
                     '<button id="profiles-libart-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">' + t('common.cancel') + '</button>' +
                     '<button id="profiles-libart-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">' + t('avatar.usePicture') + '</button>' +
                     '</div></div>';
+                markDialog(dialog);
                 document.body.appendChild(dialog);
 
                 const host = dialog.querySelector("#profiles-libart-host");
@@ -7466,6 +7507,7 @@
                     </div>
                 </div>
             `;
+            markDialog(dialog);
             document.body.appendChild(dialog);
 
             const view = dialog.querySelector('#profiles-crop-view');

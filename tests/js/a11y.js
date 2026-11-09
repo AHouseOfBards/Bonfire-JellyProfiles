@@ -108,6 +108,50 @@ function tagOf(id) {
             alerted !== null && alerted.body.replace('&#039;', "'") === UNREACHABLE, JSON.stringify(alerted));
     }
 
+    // 5. A dialog says it is one, is named by its heading, and gives focus back.
+    {
+        const env2 = D.loadPlugin(SRC);
+        const PP = env2.PP;
+        const sb = env2.sandbox;
+        const D2 = D;
+        const made = [];
+        const heading = { id: '' };
+        sb.document.createElement = () => {
+            const n = D2.makeContent();
+            n.remove = () => { n.removed = true; };
+            n.select = () => {};
+            const own = n.querySelector;
+            n.querySelector = sel => {
+                if (/^h1, h2, h3$/.test(sel)) return heading;
+                const r = own(sel);
+                if (r && !r.select) r.select = () => {};
+                return r;
+            };
+            made.push(n);
+            return n;
+        };
+        const opener = { focused: 0, focus() { this.focused++; } };
+        sb.document.activeElement = opener;
+        sb.document.body.contains = () => true;
+        sb.setTimeout = fn => { fn(); return 0; };
+        const drawers = [
+            ['an alert', () => PP.showAlert('Title', 'Body')],
+            ['a confirm', () => PP.showConfirmDialog('Title', 'Body', () => {})],
+            ['a prompt', () => PP.showPromptDialog('Title', 'Label', '', () => {})]
+        ];
+        for (const dr of drawers) {
+            made.length = 0; opener.focused = 0; heading.id = '';
+            dr[1]();
+            const d = made[0];
+            ok(dr[0] + ': is a dialog', !!d && d.attrs.role === 'dialog', d && JSON.stringify(d.attrs));
+            ok(dr[0] + ': is modal', !!d && d.attrs['aria-modal'] === 'true');
+            ok(dr[0] + ': is named by its heading', !!d && !!heading.id && d.attrs['aria-labelledby'] === heading.id,
+                d && JSON.stringify(d.attrs));
+            if (d) d.remove();
+            ok(dr[0] + ': closing hands focus back to what opened it', opener.focused === 1, 'focused ' + opener.focused);
+        }
+    }
+
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);
 })();
