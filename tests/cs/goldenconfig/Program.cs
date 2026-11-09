@@ -279,6 +279,23 @@ if (files.Count > 0)
         baselineLeaves = Leaves(Write(Read(baseline)));
     }
 
+    // OnboardingSettings.Steps, StepsChosen and WelcomeText: the "show this step" choice and
+    // the administrator's own welcome. Cut: every step is always offered and the welcome is
+    // Bonfire's. The 1.7.1 golden file predates first-time setup, so there is no element to
+    // list in droppedOnPurpose; the section is added here as a 1.9 beta wrote it, with the
+    // choice made. It must load, lose exactly these three and keep the rest.
+    {
+        string WithChoice(bool choice) =>
+            baseline.Replace("</PluginConfiguration>", "<Onboarding><Enabled>true</Enabled>"
+                + (choice ? "<StepsChosen>true</StepsChosen><Steps><string>welcome</string><string>mainPin</string><string>theme</string></Steps>"
+                           + "<WelcomeText>Welcome home.</WelcomeText>" : "")
+                + "<Generation>4</Generation></Onboarding></PluginConfiguration>");
+        baselineLeaves = Leaves(Write(Read(WithChoice(false))));
+        CutCase("first-time setup steps and welcome", WithChoice(true),
+            "<StepsChosen>true</StepsChosen>", "<Steps>", "<WelcomeText>Welcome home.</WelcomeText>");
+        baselineLeaves = Leaves(Write(Read(baseline)));
+    }
+
     // ProfileMapping.SwitcherMode. The golden file has gate on both mappings, beside an
     // explicit AskOnStartup and SwitcherLocation. Whatever the old field said, an explicit
     // choice stands, so every other value is the same.

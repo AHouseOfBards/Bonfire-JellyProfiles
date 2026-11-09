@@ -36,15 +36,13 @@ function run(state) {
         '#enableClientPinLogin': { checked: state.pin, disabled: false },
         '#enableClientProfileList': { checked: state.list, disabled: false },
         '#clientPinLoginFromAnywhere': { checked: true, disabled: false },
-        '#allowProfileThemes': { checked: state.themes },
-        '.jpf-ob-row[data-step="theme"]': {
-            classList: { toggle: function (c, on) { off[c] = !!on; } }
-        }
+        '#allowProfileThemes': { checked: state.themes }
     };
-    const showBox = { checked: true, disabled: false };
-    const page = { querySelector: function (s) { return els[s] || showBox; } };
+    // Any other selector the function asked for is a control it should not be touching now:
+    // the first-time setup step rows are gone, so there is nothing for it to find.
+    const page = { querySelector: function (s) { if (!els[s]) throw new Error('looked for ' + s); return els[s]; } };
     new Function('page', source + '; syncDependentToggles(page);')(page);
-    return { els: els, off: off, showBox: showBox };
+    return { els: els };
 }
 
 const none = run({ pin: false, list: false, themes: true });
@@ -53,10 +51,8 @@ ok('and keeps its stored value', none.els['#clientPinLoginFromAnywhere'].checked
 ok('PIN login alone enables it', run({ pin: true, list: false, themes: true }).els['#clientPinLoginFromAnywhere'].disabled === false);
 ok('the profile list alone enables it', run({ pin: false, list: true, themes: true }).els['#clientPinLoginFromAnywhere'].disabled === false);
 
-const noThemes = run({ pin: true, list: true, themes: false });
-ok('the theme step row is marked unavailable when profile themes are off', noThemes.off['jpf-ob-off'] === true);
-ok('and its boxes are not disabled, so Save still sends the step', noThemes.showBox.disabled === false);
-ok('the row is live when profile themes are on', run({ pin: true, list: true, themes: true }).off['jpf-ob-off'] === false);
+// The theme step's "Show" row, and the dimming that followed profile themes, went with the
+// step boxes: nothing is chosen per step any more.
 
 console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
 process.exit(fails.length ? 1 : 0);

@@ -59,22 +59,20 @@ function el(attrs) {
     return node;
 }
 
-const STEPS = ['welcome', 'mainPin', 'firstProfile', 'switcher', 'theme'];
 function makePage() {
     const ids = {
-        onboardingEnabled: el(), onboardingWelcome: el(),
+        onboardingEnabled: el(),
         gettingStartedBlock: el(), gettingStarted: el(), onboardingAsk: el()
     };
-    const shows = STEPS.map(s => el({ 'data-step': s }));
-    // No "can't skip" boxes: a page that still looked for them would throw here.
+    // No step boxes and no welcome box: every step is always offered and the welcome is
+    // Bonfire's own. A page that still looked for them would throw here.
     return {
-        ids, shows,
+        ids,
         querySelector(sel) {
             if (sel.charAt(0) === '#') return ids[sel.slice(1)] || null;
             throw new Error('no ' + sel);
         },
         querySelectorAll(sel) {
-            if (sel === '.jpfObShow') return shows;
             throw new Error('no ' + sel);
         }
     };
@@ -97,22 +95,23 @@ const api = new Function('document', 'goTo', 'ApiClient', 'Dashboard',
 
 console.log('\n── First-time setup, as loaded ─────────────────────────────────');
 
-let page = makePage();
-api.loadOnboarding(page, {});
-ok('a configuration that never chose shows every step', page.shows.every(b => b.checked));
-ok('and is off', !page.ids.onboardingEnabled.checked);
+function loads(config) {
+    const p = makePage();
+    let threw = null;
+    try { api.loadOnboarding(p, config); } catch (e) { threw = e; }
+    return { p, threw };
+}
+let r = loads({});
+ok('loading looks for no step boxes and no welcome box', r.threw === null, r.threw && r.threw.message);
+ok('and is off', !r.p.ids.onboardingEnabled.checked);
 
-page = makePage();
-// A stored RequiredSteps from an older version rides along and is ignored.
-api.loadOnboarding(page, { Enabled: true, StepsChosen: true, Steps: ['welcome', 'theme'],
-                           RequiredSteps: ['welcome', 'mainPin'], WelcomeText: 'Hello' });
-ok('a chosen set shows only those steps',
-   page.shows.map(b => b.checked).join() === 'true,false,false,false,true');
-ok('on, with its welcome', page.ids.onboardingEnabled.checked && page.ids.onboardingWelcome.value === 'Hello');
-
-page = makePage();
-api.loadOnboarding(page, { StepsChosen: true, Steps: [] });
-ok('an empty choice shows nothing (not "everything")', page.shows.every(b => !b.checked));
+// An older configuration may still hold a step choice and a welcome (the choice was cut:
+// every step is always offered). They ride along in the loaded object and are ignored.
+r = loads({ Enabled: true, StepsChosen: true, Steps: ['welcome', 'theme'],
+            RequiredSteps: ['welcome', 'mainPin'], WelcomeText: 'Hello' });
+ok('an old step choice and welcome load without complaint', r.threw === null, r.threw && r.threw.message);
+ok('and the switch still reads on', r.p.ids.onboardingEnabled.checked);
+let page = r.p;
 
 console.log('\n── Getting started ─────────────────────────────────────────────');
 
@@ -192,7 +191,7 @@ api.renderGettingStarted(page);
 ok('not when it is already on', !askShown(page));
 page = fresh({ StepsChosen: true });
 api.renderGettingStarted(page);
-ok('not when the administrator has already chosen steps', !askShown(page));
+ok('an old step choice no longer counts as having decided', askShown(page));
 page = fresh(); page._mappings = { subProfiles: [{}] };
 api.renderGettingStarted(page);
 ok('not on an install that already has profiles', !askShown(page));
@@ -221,6 +220,10 @@ function finish() {
 console.log('\n── Wiring ──────────────────────────────────────────────────────');
 ok('the Status tab carries the list', /id="gettingStartedBlock"/.test(html) && /id="gettingStarted"/.test(html));
 ok('Setup carries the first-time setup section', /id="jpfOnboarding"/.test(html));
+ok('which has the switch and "show again", and no step boxes or welcome box',
+   /id="onboardingEnabled"/.test(html) && /id="onboardingShowAgain"/.test(html)
+   && !/jpfObShow|id="onboardingSteps"|id="onboardingWelcome"|data-step="/.test(html.replace(/<option[^>]*>/g, '')));
+ok('and the script no longer reads or sends them', !/jpfObShow|onboardingWelcome|onboardingSteps|onboardingTicked/.test(script));
 ok('the Status tab carries the question, with both answers', /id="onboardingAsk"/.test(html)
    && /id="onboardingAskYes"/.test(html) && /id="onboardingAskNo"/.test(html));
 ok('saving, loading and the two status loads all redraw it',

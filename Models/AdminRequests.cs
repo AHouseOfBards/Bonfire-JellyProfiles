@@ -80,12 +80,6 @@ namespace Jellyfin.Profiles.Models
         /// setup. Null leaves it alone.</summary>
         public bool? OnboardingAsked { get; set; }
 
-        /// <summary>Step ids to offer (<c>OnboardingSteps</c>). Unknown ids are refused.</summary>
-        public System.Collections.Generic.List<string>? OnboardingSteps { get; set; }
-
-        /// <summary>Plain text for the first screen. Empty for none.</summary>
-        public string? OnboardingWelcomeText { get; set; }
-
         /// <summary>Main accounts may reset a forgotten PIN by email. Refused while email
         /// isn't working.</summary>
         public bool? EnablePinResetByEmail { get; set; }

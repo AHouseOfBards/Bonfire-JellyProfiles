@@ -54,7 +54,6 @@ const KEYS = {
     'admin.security.pinResetByEmailHint': 'account',
     'admin.switcher.lede': 'account',
     'admin.onboarding.enableHint': 'account',
-    'admin.onboarding.stepMainPin': 'pin',
     'admin.onboarding.askBody': 'account',
     'admin.status.openPinsOne': 'account',
     'admin.status.openPinsMany': 'account',

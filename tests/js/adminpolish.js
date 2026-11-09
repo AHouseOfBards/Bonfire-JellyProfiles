@@ -103,9 +103,6 @@ if (has('bindUnsaved') && has('setUnsaved') && has('isSavedField')) {
     edit('', ['jpfProxyClient']);
     ok('the app boxes count, which have a class and no id', shown() === 2);
     api.setUnsaved(page, false);
-    edit('', ['jpfObShow']);
-    ok('and so do the first-time setup boxes', shown() === 2);
-    api.setUnsaved(page, false);
     page._configLoaded = false;
     edit('requireMainPin');
     ok('before a read has worked nothing counts: the form is showing defaults', shown() === 0);

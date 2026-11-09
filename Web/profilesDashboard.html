@@ -249,7 +249,6 @@
         padding: 0.55em 0; border-bottom: 1px solid rgba(128, 128, 128, 0.2);
     }
     #profilesConfigurationPage .jpf-ob-name { flex: 1 1 12em; font-weight: 600; }
-    #profilesConfigurationPage .jpf-ob-row.jpf-ob-off { opacity: 0.55; }
     #profilesConfigurationPage .jpf-ob-note { display: block; font-weight: 400; margin: 0.2em 0 0; }
     #profilesConfigurationPage .jpf-ob-box { display: inline-flex; align-items: center; margin-left: 1.5em; cursor: pointer; }
     #profilesConfigurationPage .jpf-ob-box input { margin: 0 0.4em 0 0; }
@@ -1059,36 +1058,6 @@
                         <span data-i18n="admin.onboarding.enable">Show first-time setup</span>
                     </label>
                     <div class="fieldDescription" data-i18n="admin.onboarding.enableHint">Main accounts that already exist won't see it.</div>
-                </div>
-                <!-- One row per step: whether it is shown. A plain checkbox in a label rather
-                     than emby-checkbox, which draws one per row. -->
-                <div class="jpf-ob-steps" id="onboardingSteps">
-                    <div class="jpf-ob-row" data-step="welcome">
-                        <span class="jpf-ob-name" data-i18n="admin.onboarding.stepWelcome">Welcome</span>
-                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="welcome" /><span data-i18n="admin.onboarding.show">Show</span></label>
-                    </div>
-                    <div class="jpf-ob-row" data-step="mainPin">
-                        <span class="jpf-ob-name" data-i18n="admin.onboarding.stepMainPin">Main PIN</span>
-                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="mainPin" /><span data-i18n="admin.onboarding.show">Show</span></label>
-                    </div>
-                    <div class="jpf-ob-row" data-step="firstProfile">
-                        <span class="jpf-ob-name" data-i18n="admin.onboarding.stepFirstProfile">First profile</span>
-                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="firstProfile" /><span data-i18n="admin.onboarding.show">Show</span></label>
-                    </div>
-                    <div class="jpf-ob-row" data-step="switcher">
-                        <span class="jpf-ob-name" data-i18n="admin.onboarding.stepSwitcher">How to switch</span>
-                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="switcher" /><span data-i18n="admin.onboarding.show">Show</span></label>
-                    </div>
-                    <div class="jpf-ob-row" data-step="theme">
-                        <span class="jpf-ob-name"><span data-i18n="admin.onboarding.stepTheme">Theme</span>
-                            <span class="fieldDescription jpf-ob-note" data-i18n="admin.onboarding.themeNeeds">Only while profiles can choose a theme.</span></span>
-                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="theme" /><span data-i18n="admin.onboarding.show">Show</span></label>
-                    </div>
-                </div>
-                <div class="inputContainer">
-                    <label class="textareaLabel" for="onboardingWelcome" data-i18n="admin.onboarding.welcome">Welcome message</label>
-                    <textarea is="emby-textarea" id="onboardingWelcome" rows="3" maxlength="500" class="jpf-ann-text"></textarea>
-                    <div class="fieldDescription" data-i18n="admin.onboarding.welcomeHint">Plain text. Empty uses Bonfire's own.</div>
                 </div>
                 <div class="buttonContainer jpf-row">
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
@@ -5276,7 +5245,7 @@
                 const r = page._mappings;
                 if (!c || !r) return false;
                 const ob = c.Onboarding || {};
-                if (field(ob, 'asked') || field(ob, 'enabled') || field(ob, 'stepsChosen')) return false;
+                if (field(ob, 'asked') || field(ob, 'enabled')) return false;
                 return (field(r, 'subProfiles') || []).length === 0;
             }
 
@@ -5473,36 +5442,21 @@
 
             // ── First-time setup ──────────────────────────────────────────────────
             //
-            // Until the administrator has picked, every step is offered (StepsChosen is
-            // false and Steps empty), so every Show box starts ticked.
+            // Only the switch. Every step is always offered and each can be skipped; the
+            // welcome is Bonfire's own. A configuration that still carries a step choice or a
+            // welcome text from an older version is read past, and the next save drops them.
             function loadOnboarding(page, ob) {
                 page.querySelector('#onboardingEnabled').checked = !!field(ob, 'enabled');
-                const chosen = !!field(ob, 'stepsChosen');
-                const steps = (field(ob, 'steps') || []).map(String);
-                page.querySelectorAll('.jpfObShow').forEach(function (box) {
-                    box.checked = !chosen || steps.indexOf(box.getAttribute('data-step')) !== -1;
-                });
-                page.querySelector('#onboardingWelcome').value = field(ob, 'welcomeText') || '';
             }
 
             // Settings that do nothing while another is off are shown as unavailable rather
             // than left to look live (P2-606, P2-609). Disabled boxes are still read by Save,
-            // so the stored choice survives a visit with the dependency off; the theme step's
-            // own boxes are not disabled for the same reason (a disabled step is not sent).
+            // so the stored choice survives a visit with the dependency off.
             function syncDependentToggles(page) {
                 const pin = page.querySelector('#enableClientPinLogin');
                 const list = page.querySelector('#enableClientProfileList');
                 const anywhere = page.querySelector('#clientPinLoginFromAnywhere');
                 if (pin && list && anywhere) anywhere.disabled = !pin.checked && !list.checked;
-                const themes = page.querySelector('#allowProfileThemes');
-                const row = page.querySelector('.jpf-ob-row[data-step="theme"]');
-                if (themes && row) row.classList.toggle('jpf-ob-off', !themes.checked);
-            }
-
-            function onboardingTicked(page, cls) {
-                return Array.prototype.filter.call(page.querySelectorAll(cls), function (box) {
-                    return box.checked && !box.disabled;
-                }).map(function (box) { return box.getAttribute('data-step'); });
             }
 
             function bindOnboarding(page) {
@@ -5538,8 +5492,8 @@
                 'disallowCustomAvatars', 'enableStarterAvatars', 'defaultAskOnStartup', 'defaultSwitcherLocation',
                 'defaultTheme', 'allowProfileThemes', 'richThemeMotion', 'defaultTimeZone', 'enableClientPinLogin',
                 'enableClientProfileList', 'clientPinLoginFromAnywhere', 'skipQuickConnectOnKnownDevices',
-                'profileImageQuality', 'onboardingEnabled', 'onboardingWelcome'];
-            const SAVED_FIELD_CLASSES = ['jpfProxyClient', 'jpfObShow'];
+                'profileImageQuality', 'onboardingEnabled'];
+            const SAVED_FIELD_CLASSES = ['jpfProxyClient'];
 
             function isSavedField(el) {
                 if (!el) return false;
@@ -5621,9 +5575,7 @@
                         return box.checked;
                     }).map(function (box) { return box.getAttribute('data-proxy-client'); }),
                     profileImageQuality: normalizeImageQuality(page.querySelector('#profileImageQuality').value),
-                    onboardingEnabled: page.querySelector('#onboardingEnabled').checked,
-                    onboardingSteps: onboardingTicked(page, '.jpfObShow'),
-                    onboardingWelcomeText: page.querySelector('#onboardingWelcome').value.trim()
+                    onboardingEnabled: page.querySelector('#onboardingEnabled').checked
                 };
 
                 Dashboard.showLoadingMsg();

@@ -1309,7 +1309,6 @@ turned on count as having seen it.
 {
   "pending": true,
   "generation": 1,
-  "welcomeText": "Welcome to the Smith family server.",
   "steps": [
     { "id": "welcome", "done": false },
     { "id": "mainPin", "done": false },
@@ -1324,7 +1323,6 @@ turned on count as having seen it.
 | --- | --- |
 | `pending` | Show it now. `false` for a profile, when it's off, or once seen. |
 | `generation` | Changes when the administrator shows it again. |
-| `welcomeText` | Plain text from the administrator. Empty when not pending. |
 | `steps` | In order. Empty when not pending. A step whose feature is off isn't listed: `theme` needs profiles to be allowed a theme. |
 | `steps[].done` | Already true: a PIN is set (`mainPin`) or a profile exists (`firstProfile`). |
 
@@ -2182,8 +2180,6 @@ anything added since you read it.
 | `profileImageQuality` | string | `standard` (512 px, 2 MB), `high` (1024 px, 4 MB), `maximum` (2048 px, 8 MB) or `ultra` (4096 px, 16 MB). The dashboard calls them Low, Medium, High and Maximum; the stored ids are unchanged. |
 | `onboardingEnabled` | boolean | [First-time setup](#first-time-setup) on or off. The first time it goes on, existing accounts count as having seen it. |
 | `onboardingAsked` | boolean | The dashboard's new-install question about first-time setup has been answered, yes or no. Changes nothing else. |
-| `onboardingSteps` | string[] | Steps to offer: `welcome`, `mainPin`, `resetEmail`, `firstProfile`, `switcher`, `theme`. |
-| `onboardingWelcomeText` | string | Plain text for the first screen, up to 500 characters. |
 | `enablePinResetByEmail` | boolean | Main accounts may [reset a forgotten PIN by email](#email). `400` turning it on while email isn't working; one already on stays on. |
 | `defaultTimeZone` | string | The time zone for [viewing hours](#viewing-hours) in households that haven't chosen one. An IANA id, or `""` for the server's own. |
 

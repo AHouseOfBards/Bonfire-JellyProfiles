@@ -160,7 +160,7 @@ var byHand = new Dictionary<string, object>
     ["Email"] = Item("EmailSettings", ("Host", "smtp.example.com"), ("Port", 2525), ("Username", "mailer"), ("Password", "app-password"),
         ("FromAddress", "bonfire@example.com"), ("Security", "none")),
     ["Maintenance"] = Item("MaintenanceMode", ("Enabled", true), ("Message", "Back at nine."), ("StopPlayback", true)),
-    ["Onboarding"] = Item("OnboardingSettings", ("Enabled", true), ("WelcomeText", "Welcome home."), ("Generation", 4)),
+    ["Onboarding"] = Item("OnboardingSettings", ("Enabled", true), ("Asked", true), ("Generation", 4)),
     ["DefaultTheme"] = "harbor",
     ["DefaultSwitcherLocation"] = "menu",
     ["ProfileImageQuality"] = "high",

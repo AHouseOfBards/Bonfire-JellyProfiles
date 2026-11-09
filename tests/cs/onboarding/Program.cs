@@ -26,9 +26,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 //  - Main accounts only. A profile is never pending, and its "done" records nothing.
 //  - Once per account, not per device: done is stored on the server.
 //  - "Show again to everyone" un-sees it for every main account at once.
-//  - Steps are known ids only (400 otherwise, and nothing changes), each once, in order.
-//    A step whose feature is off is not offered: theme needs profile themes.
-//  - Nothing left to offer is nothing pending.
+//  - Every step is always offered, in order; none can be switched off and the welcome is
+//    Bonfire's own. A step whose feature is off is not offered: theme needs profile
+//    themes. An old dashboard's step list and welcome are ignored.
 //  - The setting survives Jellyfin's XmlSerializer without its lists doubling.
 //  - The admin routes are admin only.
 //
@@ -98,7 +98,7 @@ void Map(Guid profile, Guid master, string pin = null)
 var world = new World();
 var users = World.Create(world);
 
-(int status, object value) Call(string method, Guid caller, Dictionary<string, object> body = null)
+(int status, object value) Call(string method, Guid caller, Dictionary<string, object> body = null, string json = null)
 {
     var route = ctrlType.GetMethod(method);
     if (route == null) return (-404, "no route " + method);
@@ -120,6 +120,11 @@ var users = World.Create(world);
     var invokeArgs = route.GetParameters().Select(p =>
     {
         if (p.ParameterType.IsValueType) return Activator.CreateInstance(p.ParameterType);
+        // A raw JSON body binds the way the framework binds it: a property the type no
+        // longer has is ignored, which is what an old dashboard's request now meets.
+        if (json != null)
+            return System.Text.Json.JsonSerializer.Deserialize(json, p.ParameterType,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         var req = Activator.CreateInstance(p.ParameterType);
         foreach (var kv in body ?? new Dictionary<string, object>())
         {
@@ -212,12 +217,11 @@ if (askedProp != null)
 {
     Ok("not asked until answered", !(bool)Ob("Asked"));
     var enabledBefore = (bool)Ob("Enabled");
-    var stepsBefore = (bool)Ob("StepsChosen");
     var answerNo = Admin(new() { ["OnboardingAsked"] = (bool?)true });
     Ok("answering says so and changes nothing else",
-       answerNo.status == 200 && (bool)Ob("Asked") && (bool)Ob("Enabled") == enabledBefore && (bool)Ob("StepsChosen") == stepsBefore,
+       answerNo.status == 200 && (bool)Ob("Asked") && (bool)Ob("Enabled") == enabledBefore,
        answerNo.status + " " + answerNo.value);
-    var leaveAlone = Admin(new() { ["OnboardingWelcomeText"] = (string)Ob("WelcomeText") });
+    var leaveAlone = Admin(new());
     Ok("a save that doesn't mention it leaves it alone", leaveAlone.status == 200 && (bool)Ob("Asked"));
     var notAdminAsk = Admin(new() { ["OnboardingAsked"] = (bool?)false }, OLD);
     Ok("only an administrator can answer", notAdminAsk.status == 401 && (bool)Ob("Asked"), notAdminAsk.status + " " + notAdminAsk.value);
@@ -233,39 +237,32 @@ if (askedProp != null)
 Console.WriteLine();
 Console.WriteLine("── Choosing steps ──────────────────────────────────────────────");
 
-var bad = Admin(new() { ["OnboardingSteps"] = new List<string> { "welcome", "email" }, ["OnboardingWelcomeText"] = "hi" });
-Ok("an unknown step is refused", bad.status == 400, bad.status + " " + bad.value);
-Ok("and nothing else in the request is applied", (string)Ob("WelcomeText") == "" && !(bool)Ob("StepsChosen"));
+// The administrator could once pick which steps to show (five "show this step" boxes) and
+// write the welcome. Both are cut: every step is always offered, each can be skipped, and
+// the welcome is Bonfire's own. The boxes had no entry for resetEmail, so saving the tab
+// dropped the email step for good; with no list there is nothing to drop it from.
+var reqType = asm.GetType("Jellyfin.Profiles.Models.AdminSettingsRequest", true);
+Ok("there is no step list on the request", reqType.GetProperty("OnboardingSteps") == null);
+Ok("and no welcome text", reqType.GetProperty("OnboardingWelcomeText") == null);
+Ok("nor a required-steps field (cut earlier)", reqType.GetProperty("OnboardingRequiredSteps") == null);
+Ok("none stored: no steps, no chosen flag, no welcome, no length limit",
+   obType.GetProperty("Steps") == null && obType.GetProperty("StepsChosen") == null
+   && obType.GetProperty("WelcomeText") == null && obType.GetField("MaxWelcomeLength") == null
+   && obType.GetProperty("RequiredSteps") == null);
+Ok("the client is sent no welcome text", asm.GetType("Jellyfin.Profiles.Models.OnboardingResponse", true).GetProperty("WelcomeText") == null);
+Ok("and no 'required' flag on a step", asm.GetType("Jellyfin.Profiles.Models.OnboardingStepInfo", true).GetProperty("Required") == null);
 
-// "Can't skip" was cut: no request field, no stored list, no flag on a step. Every step
-// can be skipped.
-Ok("there is no required-steps field on the request", asm.GetType("Jellyfin.Profiles.Models.AdminSettingsRequest", true).GetProperty("OnboardingRequiredSteps") == null);
-Ok("none stored", obType.GetProperty("RequiredSteps") == null);
-Ok("and none on the step the client is sent", asm.GetType("Jellyfin.Profiles.Models.OnboardingStepInfo", true).GetProperty("Required") == null);
-
-var longText = Admin(new() { ["OnboardingWelcomeText"] = new string('a', 501) });
-Ok("a welcome over 500 characters is refused", longText.status == 400, longText.status + " " + longText.value);
-var fits = Admin(new() { ["OnboardingWelcomeText"] = new string('a', 500) });
-Ok("and one of 500 is taken, as documented", fits.status == 200 && ((string)Ob("WelcomeText")).Length == 500, fits.status + " " + fits.value);
-
-var pick = Admin(new()
-{
-    ["OnboardingSteps"] = new List<string> { "theme", "welcome", "welcome", "MAINPIN" },
-    ["OnboardingWelcomeText"] = "  Welcome home.  ",
-});
-var stored = ((IEnumerable<string>)Ob("Steps")).ToList();
-Ok("steps are stored once each, in order, spelled as the API spells them",
-   pick.status == 200 && stored.SequenceEqual(new[] { "welcome", "mainPin", "theme" }), string.Join(",", stored));
-var newSteps = Steps(NEW);
-Ok("only the chosen steps are offered", newSteps.Select(s => s.id).SequenceEqual(stored));
-var got = Call("GetOnboarding", NEW);
-Ok("the welcome comes back trimmed", (string)Get(got.value, "WelcomeText") == "Welcome home.");
-Ok("and is not sent to anyone not pending", (string)Get(Call("GetOnboarding", OLD).value, "WelcomeText") == ""
-   && !((IEnumerable)Get(Call("GetOnboarding", OLD).value, "Steps")).Cast<object>().Any());
-
-var none = Admin(new() { ["OnboardingSteps"] = new List<string>() });
-Ok("with no steps left there is nothing pending", none.status == 200 && !Pending(NEW));
-Admin(new() { ["OnboardingSteps"] = new List<string> { "welcome", "mainPin", "firstProfile" } });
+List<string> OfferedNow() => ((IEnumerable<string>)obType.GetMethod("OfferedSteps").Invoke(Onboarding(), null)).ToList();
+// Exactly what the 1.7 dashboard's Save sent: the ticked steps, which never included
+// resetEmail, and a welcome. A client that still sends it is ignored.
+var oldSave = Call("UpdateAdminSettings", ADMIN, null,
+    "{\"onboardingSteps\":[\"welcome\",\"mainPin\",\"firstProfile\",\"switcher\",\"theme\"],\"onboardingWelcomeText\":\"  Welcome home.  \"}");
+Ok("an old dashboard's save is accepted", oldSave.status == 200, oldSave.status + " " + oldSave.value);
+Ok("and every step is still offered, the email step included",
+   OfferedNow().SequenceEqual(new[] { "welcome", "mainPin", "resetEmail", "firstProfile", "switcher", "theme" }), string.Join(",", OfferedNow()));
+var badStep = Call("UpdateAdminSettings", ADMIN, null, "{\"onboardingSteps\":[\"welcome\",\"nonsense\"]}");
+Ok("a step list is not read at all, so even a bad one changes nothing", badStep.status == 200 && OfferedNow().Count == 6, badStep.status + " " + badStep.value);
+Ok("the steps the client is sent are the offered ones, in order", Steps(NEW).Select(s => s.id).SequenceEqual(new[] { "welcome", "mainPin", "firstProfile", "switcher", "theme" }));
 
 // ── What is already done ─────────────────────────────────────────────────────
 Console.WriteLine();
@@ -332,9 +329,7 @@ object RoundTrip(object c)
 }
 var back = RoundTrip(config);
 var backOb = cfgType.GetProperty("Onboarding").GetValue(back);
-Ok("steps survive a save without doubling",
-   ((IEnumerable<string>)obType.GetProperty("Steps").GetValue(backOb)).SequenceEqual((IEnumerable<string>)Ob("Steps")));
-Ok("so does who has seen it",
+Ok("who has seen it",
    ((IEnumerable)obType.GetProperty("Seen").GetValue(backOb)).Cast<object>().Count() == ((IEnumerable)Ob("Seen")).Cast<object>().Count());
 Ok("and the generation and the one-time excuse",
    (int)obType.GetProperty("Generation").GetValue(backOb) == (int)Ob("Generation")
@@ -342,17 +337,13 @@ Ok("and the generation and the one-time excuse",
 
 // The first draft used a null list for "the default steps". The serializer creates every
 // list it reads, so after one save it was an empty list: enabled, and offering nothing.
+// There is no list now; this keeps it that way.
 List<string> Offered(object cfg) => ((IEnumerable<string>)obType.GetMethod("OfferedSteps")
     .Invoke(cfgType.GetProperty("Onboarding").GetValue(cfg), null)).ToList();
 var fresh = Activator.CreateInstance(cfgType);
 Ok("the default offers every step after two saves",
    string.Join(",", Offered(RoundTrip(RoundTrip(fresh)))) == "welcome,mainPin,resetEmail,firstProfile,switcher,theme",
    string.Join(",", Offered(RoundTrip(RoundTrip(fresh)))));
-var picked = Activator.CreateInstance(cfgType);
-var pickedOb = cfgType.GetProperty("Onboarding").GetValue(picked);
-obType.GetProperty("Steps").SetValue(pickedOb, new List<string>());
-obType.GetProperty("StepsChosen")?.SetValue(pickedOb, true);
-Ok("and an administrator's empty choice still offers none", Offered(RoundTrip(RoundTrip(picked))).Count == 0);
 
 var snap = cfgType.GetMethod("SnapshotForReading").Invoke(config, null);
 var snapSeen = (IList)obType.GetProperty("Seen").GetValue(cfgType.GetProperty("Onboarding").GetValue(snap));

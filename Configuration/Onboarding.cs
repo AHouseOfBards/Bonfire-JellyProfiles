@@ -14,12 +14,13 @@ namespace Jellyfin.Profiles.Configuration
     /// turned it on are counted as having seen it; "show again to everyone" bumps
     /// <see cref="Generation"/>, which un-sees it for every account at once.</para>
     ///
-    /// <para><b>Lists start empty.</b> Jellyfin reads this through XmlSerializer, which adds
-    /// to a list that a constructor has already filled instead of replacing it, so a default
-    /// of five steps would come back as ten after the first save. Nor can null stand for
-    /// "the default": the serializer creates every list it reads, element or not, so a null
-    /// came back from the first save as an empty list and the setup offered nothing. Whether
-    /// the administrator has chosen is therefore its own flag, <see cref="StepsChosen"/>.</para>
+    /// <para><b>Every step is always offered.</b> There used to be a list of the steps to
+    /// show, a flag for whether the administrator had picked, and the administrator's own
+    /// welcome text. All three were cut: the Show boxes had no entry for the email step, so
+    /// saving the tab dropped it for good, and nobody needed to hide a step that each person
+    /// can skip. A configuration that still has the elements loads (XmlSerializer ignores
+    /// what the class no longer has) and the next save leaves them out; see the "first-time
+    /// setup steps and welcome" case in tests/cs/goldenconfig.</para>
     /// </summary>
     public class OnboardingSettings
     {
@@ -30,20 +31,10 @@ namespace Jellyfin.Profiles.Configuration
         /// until it is set, and only while nothing has been configured yet.</summary>
         public bool Asked { get; set; }
 
-        /// <summary>The steps offered, as <see cref="OnboardingSteps"/> ids. Read only once
-        /// <see cref="StepsChosen"/> is set; until then every step is offered.</summary>
-        public List<string> Steps { get; set; } = new();
-
-        /// <summary>The administrator has picked the steps. An empty pick offers none.</summary>
-        public bool StepsChosen { get; set; }
-
         // There used to be a RequiredSteps list here, "can't skip" per step. It was only ever
         // a client screen with no Skip on it, and nothing on the server held anyone to it
         // (a main PIN is what RequireMainPin is for). Every step can be skipped now. A file
         // or backup that still has the element loads; the next save leaves it out.
-
-        /// <summary>The administrator's own words on the first screen. Plain text.</summary>
-        public string WelcomeText { get; set; } = string.Empty;
 
         /// <summary>Bumped by "show again to everyone". An account has seen the current
         /// setup when it has a record at this generation or later.</summary>
@@ -57,21 +48,17 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>Who has seen which generation. One row per main account.</summary>
         public List<OnboardingRecord> Seen { get; set; } = new();
 
-        /// <summary>Longest welcome accepted. Longer than an announcement's 280: it is read
-        /// once, on a screen of its own, and may say where things are.</summary>
-        public const int MaxWelcomeLength = 500;
-
         /// <summary>A copy for <see cref="PluginConfiguration.SnapshotForReading"/>.</summary>
         public OnboardingSettings CopyForReading()
         {
             var copy = (OnboardingSettings)MemberwiseClone();
-            copy.Steps = Steps?.ToList() ?? new List<string>();
             copy.Seen = Seen?.Select(r => new OnboardingRecord { UserId = r.UserId, Generation = r.Generation }).ToList()
                         ?? new List<OnboardingRecord>();
             return copy;
         }
 
-        public List<string> OfferedSteps() => StepsChosen ? OnboardingSteps.Normalize(Steps) : OnboardingSteps.All.ToList();
+        /// <summary>Every step, in the order they are shown.</summary>
+        public List<string> OfferedSteps() => OnboardingSteps.All.ToList();
 
         public bool HasSeen(Guid userId) => Seen.Any(r => r.UserId == userId && r.Generation >= Generation);
 
@@ -103,14 +90,5 @@ namespace Jellyfin.Profiles.Configuration
         public const string Theme = "theme";
 
         public static readonly string[] All = { Welcome, MainPin, ResetEmail, FirstProfile, Switcher, Theme };
-
-        public static bool IsKnown(string? id) => id != null && All.Any(s => string.Equals(s, id, StringComparison.OrdinalIgnoreCase));
-
-        /// <summary>Known ids only, each once, in the canonical order, spelled canonically.</summary>
-        public static List<string> Normalize(IEnumerable<string>? ids)
-        {
-            var wanted = (ids ?? Enumerable.Empty<string>()).Where(IsKnown).ToList();
-            return All.Where(s => wanted.Any(w => string.Equals(w, s, StringComparison.OrdinalIgnoreCase))).ToList();
-        }
     }
 }

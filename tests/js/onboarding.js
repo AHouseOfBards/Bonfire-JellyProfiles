@@ -90,8 +90,10 @@ const html = () => content.innerHTML;
     ok('it opens the overlay and replaces the grid before it is seen',
        calls.grids === 1 && !id('#the-grid') && html().indexOf('onboarding.welcomeTitle') === -1
        && html().indexOf('Welcome to Bonfire') !== -1);
-    ok("the administrator's welcome is escaped", html().indexOf('&lt;b&gt;all&lt;/b&gt;') !== -1 && html().indexOf('<b>all</b>') === -1);
-    ok('and keeps its line breaks', /all&lt;\/b&gt;<br>Popcorn/.test(html()));
+    // The administrator's own welcome text was cut: the screen is always Bonfire's. A server
+    // that still sends one (above) is ignored, not drawn.
+    ok("a welcome text from the server is not drawn", html().indexOf('Popcorn') === -1 && html().indexOf('all</b>') === -1
+       && html().indexOf('&lt;b&gt;all') === -1);
     ok('the welcome has no Skip', !id('#onboarding-skip') && !!id('#onboarding-next'));
 
     // A grid that arrives late must not paint over the step.

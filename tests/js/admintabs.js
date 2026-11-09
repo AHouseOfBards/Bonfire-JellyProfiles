@@ -51,7 +51,7 @@ ok('no setting was dropped: every control id the page saves is still in exactly 
    ['maxProfiles', 'pinGuessesPerDay', 'requireMainPin', 'enablePinResetByEmail', 'disallowCustomAvatars', 'enableStarterAvatars',
     'defaultAskOnStartup', 'defaultSwitcherLocation', 'defaultTheme', 'allowProfileThemes', 'richThemeMotion', 'defaultTimeZone',
     'enableClientPinLogin', 'enableClientProfileList', 'clientPinLoginFromAnywhere', 'skipQuickConnectOnKnownDevices',
-    'profileImageQuality', 'onboardingEnabled', 'onboardingWelcome', 'fontUpload', 'themeImport', 'themeNew'].every(id =>
+    'profileImageQuality', 'onboardingEnabled', 'fontUpload', 'themeImport', 'themeNew'].every(id =>
         Object.keys(panels).filter(n => has(n, id)).length === 1));
 
 console.log('\n── Advanced ────────────────────────────────────────────────────');

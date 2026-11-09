@@ -3093,7 +3093,6 @@ namespace Jellyfin.Profiles.Controllers
             {
                 Pending = pending,
                 Generation = config.Onboarding?.Generation ?? 1,
-                WelcomeText = pending ? (config.Onboarding?.WelcomeText ?? string.Empty).Trim() : string.Empty,
                 Steps = pending ? OnboardingStepsFor(userId.Value, config) : new List<OnboardingStepInfo>()
             });
         }
@@ -5195,12 +5194,6 @@ namespace Jellyfin.Profiles.Controllers
                                 + $"'{ImageQualities.High}', '{ImageQualities.Maximum}' or '{ImageQualities.Ultra}'.");
             }
 
-            var unknownStep = (request.OnboardingSteps ?? new List<string>())
-                .FirstOrDefault(s => !OnboardingSteps.IsKnown(s));
-            if (unknownStep != null)
-            {
-                return BadRequest("First-time setup steps must be from: " + string.Join(", ", OnboardingSteps.All) + ".");
-            }
             // The dependency rule: nothing that needs email can be turned on until it works.
             // Turned ON, not kept on: the dashboard sends every field on every save, so
             // refusing a switch that is already on would fail every unrelated save from the
@@ -5211,11 +5204,6 @@ namespace Jellyfin.Profiles.Controllers
                 var current = ReadConfigSnapshot();
                 if (current == null || (!current.EnablePinResetByEmail && !Features.Available(Features.Email, current)))
                     return BadRequest("Set up email and send a test first.");
-            }
-
-            if (request.OnboardingWelcomeText != null && request.OnboardingWelcomeText.Trim().Length > OnboardingSettings.MaxWelcomeLength)
-            {
-                return BadRequest($"The welcome can be at most {OnboardingSettings.MaxWelcomeLength} characters.");
             }
 
             // The first time setup is turned on, every account that already exists is
@@ -5295,13 +5283,6 @@ namespace Jellyfin.Profiles.Controllers
 
                 config.Onboarding ??= new OnboardingSettings();
                 var onboarding = config.Onboarding;
-                if (request.OnboardingSteps != null)
-                {
-                    onboarding.Steps = OnboardingSteps.Normalize(request.OnboardingSteps);
-                    onboarding.StepsChosen = true;
-                }
-                if (request.OnboardingWelcomeText != null)
-                    onboarding.WelcomeText = request.OnboardingWelcomeText.Trim();
                 if (request.OnboardingAsked.HasValue)
                     onboarding.Asked = request.OnboardingAsked.Value;
                 if (request.OnboardingEnabled.HasValue)

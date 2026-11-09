@@ -36,7 +36,6 @@ const stubbed = {};
 const source = L.dashboardI18n(script)
     + L.extractFunction(script, 'normalizeImageQuality') + '\n'
     + L.extractFunction(script, 'normalizeTheme') + '\n'
-    + L.extractFunction(script, 'onboardingTicked') + '\n'
     // Loading clears the "unsaved changes" note; it is not what this harness is about.
     + (script.indexOf('function setUnsaved') !== -1 ? L.extractFunction(script, 'setUnsaved') + '\n' : '')
     + (script.indexOf('function showConfigLoadError') !== -1 ? L.extractFunction(script, 'showConfigLoadError') + '\n' : '')

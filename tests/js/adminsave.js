@@ -34,7 +34,6 @@ const script = L.dashboardScript(L.readDashboard());
 const source = L.dashboardI18n(script)
     + L.extractFunction(script, 'normalizeImageQuality') + '\n'
     + L.extractFunction(script, 'normalizeTheme') + '\n'
-    + L.extractFunction(script, 'onboardingTicked') + '\n'
     // Save clears the "unsaved changes" note; it is not what this harness is about.
     + (script.indexOf('function setUnsaved') !== -1 ? L.extractFunction(script, 'setUnsaved') + '\n' : '')
     + L.extractFunction(script, 'saveConfiguration');
@@ -78,20 +77,13 @@ async function run(fieldValues) {
         clientPinLoginFromAnywhere: false,
         skipQuickConnectOnKnownDevices: false,
         profileImageQuality: 'standard',
-        onboardingEnabled: false,
-        onboardingWelcome: '  Welcome home.  '
+        onboardingEnabled: false
     }, fieldValues || {});
 
     // The profile picker's apps: one checkbox each, found by class. Ticked ones listed here.
     const proxyTicked = (fieldValues && fieldValues.proxyTicked) || [];
     delete fields.proxyTicked;
 
-    // First-time setup: a Show box per step.
-    const steps = ['welcome', 'mainPin', 'firstProfile', 'switcher', 'theme'];
-    const shown = (fieldValues && fieldValues.obShown) || steps;
-    delete fields.obShown;
-    const box = (step, on, off) => ({ checked: on, disabled: !!off, getAttribute: function () { return step; } });
-    const obShow = steps.map(st => box(st, shown.indexOf(st) !== -1));
     const proxyBoxes = ['moonfin'].map(function (key) {
         return { checked: proxyTicked.indexOf(key) !== -1, getAttribute: function () { return key; } };
     });
@@ -116,7 +108,6 @@ async function run(fieldValues) {
             return el;
         },
         querySelectorAll: function (sel) {
-            if (sel === '.jpfObShow') return obShow;
             if (sel === '.jpf-unsaved') return [];   // the note beside each Save; none in this stub
             if (sel !== '.jpfProxyClient') throw new Error('the page has no ' + sel);
             return proxyBoxes;
@@ -222,9 +213,7 @@ const expected = [
     'skipQuickConnectOnKnownDevices',
     'proxyClients',
     'profileImageQuality',
-    'onboardingEnabled',
-    'onboardingSteps',
-    'onboardingWelcomeText'
+    'onboardingEnabled'
 ];
 
 if (body) {
@@ -271,12 +260,13 @@ ok('and the avatar grid is redrawn, since the switch changes what it shows',
 
 console.log('\n── First-time setup ────────────────────────────────────────────');
 
-ok('every shown step is sent, in page order',
-   JSON.stringify(body && body.onboardingSteps) === '["welcome","mainPin","firstProfile","switcher","theme"]');
-ok('the welcome is sent trimmed', body && body.onboardingWelcomeText === 'Welcome home.');
+// Saving this tab used to send a step list built from the Show boxes. resetEmail had no
+// box, so every save dropped the email step; the list is gone, and with it the bug. Every
+// step is always offered, so a save has no list to send and no welcome text.
+ok('no step list is sent', body && !('onboardingSteps' in body));
+ok('and no welcome text', body && !('onboardingWelcomeText' in body));
 ok('the switch is sent as it stands', body && body.onboardingEnabled === false);
-const ob = sent(await run({ onboardingEnabled: true, obShown: ['welcome', 'mainPin'] }));
-ok('only ticked steps are sent', JSON.stringify(ob.onboardingSteps) === '["welcome","mainPin"]');
+const ob = sent(await run({ onboardingEnabled: true }));
 ok('on is sent as on', ob.onboardingEnabled === true);
 ok('the Status checklist is told what was saved', base.calls.noted && base.calls.noted.requireMainPin === false);
 

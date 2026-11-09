@@ -143,9 +143,6 @@ namespace Jellyfin.Profiles.Models
         /// <summary>Send this back with /onboarding/done.</summary>
         public int Generation { get; set; }
 
-        /// <summary>The administrator's welcome, plain text. Empty for none.</summary>
-        public string WelcomeText { get; set; } = string.Empty;
-
         /// <summary>In order. Only steps the server can offer right now.</summary>
         public System.Collections.Generic.List<OnboardingStepInfo> Steps { get; set; } = new();
     }

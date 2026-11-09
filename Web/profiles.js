@@ -9679,7 +9679,6 @@
 
                 this._onboarding = {
                     steps: steps,
-                    welcome: String(data.welcomeText || data.WelcomeText || ''),
                     index: 0,
                     waiting: true
                 };
@@ -9770,14 +9769,11 @@
             el.hidden = false;
         },
 
-        /// The administrator's welcome, as plain text: escaped, line breaks kept.
+        /// Bonfire's own welcome. The administrator's text was cut, so a server that still
+        /// sends one is ignored.
         _onboardingWelcome: function (next) {
-            const own = this._onboarding.welcome.trim();
-            const body = own
-                ? escapeHtml(own).replace(/\r?\n/g, '<br>')
-                : t('onboarding.welcomeBody');
             const content = this._onboardingFrame(t('onboarding.welcomeTitle'),
-                `<p class="jpf-onboarding-text">${body}</p>`, t('onboarding.start'), null);
+                `<p class="jpf-onboarding-text">${t('onboarding.welcomeBody')}</p>`, t('onboarding.start'), null);
             if (!content) return;
             const go = content.querySelector('#onboarding-next');
             go.addEventListener('click', next);
