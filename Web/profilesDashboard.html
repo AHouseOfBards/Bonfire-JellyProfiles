@@ -250,6 +250,13 @@
         display: flex; align-items: center; flex-wrap: wrap;
         padding: 0.55em 0; border-bottom: 1px solid rgba(128, 128, 128, 0.2);
     }
+    /* The theme cards beside each built-in and under the default select: the editor's card,
+       smaller. Its own look is the theme's tokens; these rules only size and place it. */
+    #profilesConfigurationPage .jpf-ob-row .jpf-theme-preview { flex: 0 0 9em; width: 9em; margin: 0.2em 1em 0.2em 0; }
+    #profilesConfigurationPage .jpf-theme-slot { margin-top: 0.75em; width: 11em; max-width: 100%; }
+    /* The line of sample text is left off the small ones: twelve cards in a list are long enough. */
+    #profilesConfigurationPage .jpf-ob-row .jpf-te-preview-text,
+    #profilesConfigurationPage .jpf-theme-slot .jpf-te-preview-text { display: none; }
     #profilesConfigurationPage .jpf-ob-name { flex: 1 1 12em; font-weight: 600; }
     #profilesConfigurationPage .jpf-ob-note { display: block; font-weight: 400; margin: 0.2em 0 0; }
     #profilesConfigurationPage .jpf-ob-box { display: inline-flex; align-items: center; margin-left: 1.5em; cursor: pointer; }
@@ -810,6 +817,8 @@
                         <option value="jellyfin-light" data-i18n="admin.theme.jellyfin-light">Jellyfin Light (matches Jellyfin's light theme)</option>
                         <option value="high-contrast" data-i18n="admin.theme.high-contrast">High contrast (black, white and yellow, larger text)</option>
                     </select>
+                    <!-- A card of the selected theme, drawn by renderThemes once the themes are known. -->
+                    <div id="defaultThemePreview" class="jpf-theme-slot"></div>
                 </div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
@@ -1981,6 +1990,7 @@
                     // section has drawn the list, and Save must not read that gap as Bonfire.
                     page._wantedDefaultTheme = normalizeTheme(config.DefaultTheme, page._themeOffered);
                     page.querySelector('#defaultTheme').value = page._wantedDefaultTheme;
+                    if (page._themes) renderDefaultThemePreview(page);
                     page.querySelector('#allowProfileThemes').checked = config.AllowProfileThemes !== false;
                     page.querySelector('#richThemeMotion').checked = !!config.RichThemeMotion;
                     loadTimeZones(page, config.DefaultTimeZone || '');
@@ -3809,14 +3819,85 @@
                 return built.concat(custom);
             }
 
+            /// A theme's name without the words after it: "Crimson (velvet theatre)" is
+            /// "Crimson", which is what fits on a card.
+            function themeShortName(name) {
+                return String(name || '').replace(/\s*\(.*$/, '');
+            }
+
+            /// The preview card as markup, the editor's card: one source, so the editor, the
+            /// built-in list and the default select cannot show three different cards. It
+            /// wears `previewId` (a data-jpf-theme the page has written a sheet for) and
+            /// says only words the page already has keys for.
+            function themePreviewCardHtml(previewId, name) {
+                return '<div class="jpf-theme-preview" data-jpf-theme="' + escapeHtml(previewId) + '" aria-hidden="true">' +
+                    '<span class="jpf-theme-preview-name">' + escapeHtml(name || '') + '</span>' +
+                    '<span class="jpf-theme-preview-tiles"><span class="jpf-theme-preview-tile"></span>' +
+                    '<span class="jpf-theme-preview-tile"></span><span class="jpf-theme-preview-tile"></span></span>' +
+                    '<span class="jpf-te-preview-text">' + escapeHtml(t('admin.themes.previewText')) + '</span>' +
+                    '<span class="jpf-te-preview-actions"><span class="jpf-te-preview-primary">' + escapeHtml(t('admin.themes.previewPrimary')) +
+                    '</span><span class="jpf-theme-preview-button">' + escapeHtml(t('admin.themes.previewSecondary')) + '</span></span>' +
+                    '</div>';
+            }
+
+            function themeListId(id) {
+                return 'jpf--list-' + id;
+            }
+
+            /// A sheet for every theme the lists show, each written by the client's own
+            /// generator under an id of its own (a card must not depend on the theme being
+            /// the one the page wears, and a hidden built-in's sheet is not served at all).
+            /// Returns { themeId: the id its card wears } for the ones that could be drawn.
+            function writeThemeListCss(page) {
+                const api = window.BonfireThemePreview;
+                const ids = {};
+                let css = '';
+                if (api && typeof api.css === 'function') {
+                    themeBases(page).forEach(function (b) {
+                        const id = b.key.slice(2);
+                        if (!/^[a-z0-9-]{1,40}$/.test(id)) return;
+                        let one = '';
+                        try { one = api.css(Object.assign({}, b.theme, { id: themeListId(id) })) || ''; } catch (e) { one = ''; }
+                        if (!one) return;
+                        css += one;
+                        ids[id] = themeListId(id);
+                    });
+                }
+                let style = document.getElementById('jpfThemeListCss');
+                if (!style) {
+                    style = document.createElement('style');
+                    style.id = 'jpfThemeListCss';
+                    document.head.appendChild(style);
+                }
+                style.textContent = css;
+                return ids;
+            }
+
+            /// The card under the default select: the selected theme's, redrawn when the
+            /// selection moves.
+            function renderDefaultThemePreview(page) {
+                const slot = page.querySelector('#defaultThemePreview');
+                const select = page.querySelector('#defaultTheme');
+                if (!slot || !select) return;
+                const ids = page._themeListIds || {};
+                const id = select.value;
+                const data = page._themes && page._themes.data;
+                slot.innerHTML = data && Object.prototype.hasOwnProperty.call(ids, id)
+                    ? themePreviewCardHtml(ids[id], themeShortName(themeDisplayName(data, id))) : '';
+            }
+
             /// The built-in list: each theme with a Hide box. Bonfire and the default can't be
             /// hidden, so theirs are off and say why.
-            function builtInThemeRowsHtml(data) {
+            function builtInThemeRowsHtml(data, previews) {
                 const def = data['default'];
                 return ((data && data.builtIn) || []).map(function (b) {
                     const locked = b.id === 'bonfire' || b.id === def;
                     const note = b.id === def ? t('admin.themes.isDefault') : b.id === 'bonfire' ? t('admin.themes.alwaysOn') : '';
-                    return '<div class="jpf-ob-row">' +
+                    // A card of the theme, when its sheet could be drawn: previews maps an id
+                    // to the id its card wears.
+                    const card = previews && Object.prototype.hasOwnProperty.call(previews, b.id)
+                        ? themePreviewCardHtml(previews[b.id], themeShortName(themeDisplayName(data, b.id))) : '';
+                    return '<div class="jpf-ob-row">' + card +
                            '<span class="jpf-ob-name">' + escapeHtml(themeDisplayName(data, b.id)) +
                            (note ? ' <span class="fieldDescription jpf-ob-note">' + escapeHtml(note) + '</span>' : '') + '</span>' +
                            '<label class="jpf-ob-box"><input type="checkbox" class="jpfThemeHide" data-theme="' + escapeHtml(b.id) + '"' +
@@ -4026,7 +4107,8 @@
                 const select = page.querySelector('#defaultTheme');
                 if (select && !page._themeStaticOptions) page._themeStaticOptions = Array.prototype.slice.call(select.options);
                 data.builtInNames = builtInThemeNames(page._themeStaticOptions);
-                page.querySelector('#themesBuiltIn').innerHTML = builtInThemeRowsHtml(data);
+                page._themeListIds = writeThemeListCss(page);
+                page.querySelector('#themesBuiltIn').innerHTML = builtInThemeRowsHtml(data, page._themeListIds);
                 page.querySelector('#themesCustom').innerHTML = customThemeRowsHtml(data);
                 page.querySelector('#themesFonts').innerHTML = fontRowsHtml(data);
                 renderLogo(page);
@@ -4038,6 +4120,7 @@
                 }
                 style.textContent = themeFontFaceCss(data);
                 renderDefaultThemeOptions(page);
+                renderDefaultThemePreview(page);
             }
 
             /// The default-theme select, from what the server offers. The built-in options
@@ -4162,15 +4245,7 @@
                     .concat(patterns.map(function (n) { return [n, patternName(n)]; })));
 
                 buildThemeAdvanced(page);
-                page.querySelector('#tePreview').innerHTML =
-                    '<div class="jpf-theme-preview" data-jpf-theme="' + THEME_PREVIEW_ID + '" aria-hidden="true">' +
-                    '<span class="jpf-theme-preview-name"></span>' +
-                    '<span class="jpf-theme-preview-tiles"><span class="jpf-theme-preview-tile"></span>' +
-                    '<span class="jpf-theme-preview-tile"></span><span class="jpf-theme-preview-tile"></span></span>' +
-                    '<span class="jpf-te-preview-text">' + escapeHtml(t('admin.themes.previewText')) + '</span>' +
-                    '<span class="jpf-te-preview-actions"><span class="jpf-te-preview-primary">' + escapeHtml(t('admin.themes.previewPrimary')) +
-                    '</span><span class="jpf-theme-preview-button">' + escapeHtml(t('admin.themes.previewSecondary')) + '</span></span>' +
-                    '</div>';
+                page.querySelector('#tePreview').innerHTML = themePreviewCardHtml(THEME_PREVIEW_ID, '');
                 showThemeStatus(page, '#teResult', '', false);
                 setThemeEditorView(page, 'simple');
                 editor.classList.remove('jpf-hidden');
@@ -4797,6 +4872,7 @@
                 bindLogo(page);
                 const ready = function () { return !!(page._themes && page._themes.data); };
 
+                page.querySelector('#defaultTheme').addEventListener('change', function () { renderDefaultThemePreview(page); });
                 page.querySelector('#themesBuiltIn').addEventListener('change', function (e) {
                     if (e.target.classList.contains('jpfThemeHide') && ready()) saveHiddenThemes(page);
                 });
