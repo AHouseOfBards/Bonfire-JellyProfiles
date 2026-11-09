@@ -60,7 +60,7 @@ PP.handleSessionExpired = () => {};
     const fresh = PP.renderAvatarPicker('create', lib, null, '#e07a5f', { enabled: false });
     ok('a new profile\'s picture chooser starts closed',
         /aria-expanded="false"/.test(fresh) && !/class="picture-sources is-open"/.test(fresh));
-    const expl = (EN.match(/'profileForm\.artworkExplainer': (["'])([\s\S]*?)\1,\n/) || [])[2] || '';
+    const expl = (EN.match(/'profileForm\.artworkExplainer': (["'])([\s\S]*?)\1,\r?\n/) || [])[2] || '';
     ok('the artwork explainer is one short line, not a paragraph', expl.length > 0 && expl.length < 130, String(expl.length));
 
     // ── P2-103, P2-105, P2-602, P2-605: the child form ──────────────────────────────

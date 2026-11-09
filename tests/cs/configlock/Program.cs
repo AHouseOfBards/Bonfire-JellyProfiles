@@ -235,7 +235,10 @@ var sources = Directory
     .Where(p => !p.Contains(Path.DirectorySeparatorChar + "tests" + Path.DirectorySeparatorChar)
              && !p.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)
              && !p.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar)
-             && !p.Contains(Path.DirectorySeparatorChar + "scratch" + Path.DirectorySeparatorChar))
+             && !p.Contains(Path.DirectorySeparatorChar + "scratch" + Path.DirectorySeparatorChar)
+             // Other checkouts of the repo nested under this one, half-edited. Relative to
+             // the root, so a run from inside such a checkout still reads its own source.
+             && !Path.GetRelativePath(RepoRoot(), p).StartsWith(".claude" + Path.DirectorySeparatorChar))
     .OrderBy(p => p, StringComparer.Ordinal)
     .ToArray();
 
