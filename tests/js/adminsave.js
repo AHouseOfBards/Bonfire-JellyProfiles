@@ -68,6 +68,7 @@ async function run(fieldValues) {
         defaultSwitcherLocation: 'button',
         defaultTheme: 'bonfire',
         allowProfileThemes: true,
+        richThemeMotion: false,
         defaultTimeZone: '',
         // Both default off. A missing id throws in the stub below, so adding a control to
         // the form without adding it here is a failure rather than a silent omission —
@@ -213,6 +214,7 @@ const expected = [
     'defaultSwitcherLocation',
     'defaultTheme',
     'allowProfileThemes',
+    'richThemeMotion',
     'defaultTimeZone',
     'enableClientPinLogin',
     'enableClientProfileList',

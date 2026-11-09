@@ -69,8 +69,14 @@
         font-weight: 600;
         border-bottom-color: var(--jpf-accent);
     }
+    /* The household chevron's turn: here and not in its style attribute, which a media
+       query cannot override. */
+    #profilesConfigurationPage .toggle-chevron {
+        transition: transform 0.15s ease;
+    }
     @media (prefers-reduced-motion: reduce) {
-        #profilesConfigurationPage .jpf-tab {
+        #profilesConfigurationPage .jpf-tab,
+        #profilesConfigurationPage .toggle-chevron {
             transition: none;
         }
     }
@@ -908,6 +914,13 @@
 
                 <details class="jpf-advanced jpf-section">
                     <summary data-i18n="admin.advanced.title">Advanced</summary>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="richThemeMotion" />
+                        <span data-i18n="admin.theme.richMotion">Richer theme animation</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.theme.richMotionHint">Never on TVs or with reduced motion.</div>
+                </div>
                 <!-- The administrator's own themes, hidden built-ins and uploaded fonts
                      (1.7.2). Everything here saves at once through admin/themes/*; only
                      the default above waits for Save. -->
@@ -1983,6 +1996,7 @@
                     page._wantedDefaultTheme = normalizeTheme(config.DefaultTheme, page._themeOffered);
                     page.querySelector('#defaultTheme').value = page._wantedDefaultTheme;
                     page.querySelector('#allowProfileThemes').checked = config.AllowProfileThemes !== false;
+                    page.querySelector('#richThemeMotion').checked = !!config.RichThemeMotion;
                     loadTimeZones(page, config.DefaultTimeZone || '');
                     loadOnboarding(page, config.Onboarding || {});
                     // Absent before 1.6.1.2, and both default to off: neither may switch
@@ -2543,7 +2557,7 @@
                                 ? '<button type="button" class="sub-profile-toggle" data-master="' + normId(pId) + '" aria-expanded="false" ' +
                                   'style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#fff; ' +
                                   'border-radius:6px; padding:4px 10px; font-size:0.8rem; font-weight:600; cursor:pointer;">' +
-                                  '<span class="material-icons toggle-chevron" style="font-size:1.1rem; transition:transform 0.15s ease;">expand_more</span>' +
+                                  '<span class="material-icons toggle-chevron" style="font-size:1.1rem;">expand_more</span>' +
                                   '<span>' + countLabel + '</span>' +
                                   '</button>'
                                 : '<span style="font-size:0.8rem; opacity:0.4;">' + escapeHtml(t('admin.households.noSubs')) + '</span>';
@@ -5468,6 +5482,7 @@
                 c.RequireMainPin = sent.requireMainPin;
                 c.EnablePinResetByEmail = sent.enablePinResetByEmail;
                 c.EnableStarterAvatars = sent.enableStarterAvatars;
+                c.RichThemeMotion = sent.richThemeMotion;
                 c.EnableClientPinLogin = sent.enableClientPinLogin;
                 c.EnableClientProfileList = sent.enableClientProfileList;
                 c.ClientPinLoginFromAnywhere = sent.clientPinLoginFromAnywhere;
@@ -5538,7 +5553,8 @@
                             + ', PIN-less sign-in from anywhere: ' + on(c.ClientPinLoginFromAnywhere),
                         'Profile picker apps: ' + ((c.ProxyClients || []).join(', ') || 'none'),
                         'Ask on startup: ' + on(c.DefaultAskOnStartup !== false) + ', switch from: ' + (c.DefaultSwitcherLocation || 'button'),
-                        'Theme: ' + (c.DefaultTheme || 'bonfire') + ', profiles choose: ' + on(c.AllowProfileThemes !== false),
+                        'Theme: ' + (c.DefaultTheme || 'bonfire') + ', profiles choose: ' + on(c.AllowProfileThemes !== false)
+                            + ', richer motion: ' + on(c.RichThemeMotion),
                         'Maintenance: ' + ((page._status && (page._status.maintenance || []).length) ? 'closed' : 'open'),
                         'Emergency code: ' + (c.PanicCodeHash ? 'set' : 'not set'),
                     ];
@@ -5635,7 +5651,7 @@
             // buttons of their own and are not counted: only what Save sends is.
             const SAVED_FIELD_IDS = ['maxProfiles', 'pinGuessesPerDay', 'requireMainPin', 'enablePinResetByEmail',
                 'disallowCustomAvatars', 'enableStarterAvatars', 'defaultAskOnStartup', 'defaultSwitcherLocation',
-                'defaultTheme', 'allowProfileThemes', 'defaultTimeZone', 'enableClientPinLogin',
+                'defaultTheme', 'allowProfileThemes', 'richThemeMotion', 'defaultTimeZone', 'enableClientPinLogin',
                 'enableClientProfileList', 'clientPinLoginFromAnywhere', 'skipQuickConnectOnKnownDevices',
                 'profileImageQuality', 'onboardingEnabled', 'onboardingWelcome'];
             const SAVED_FIELD_CLASSES = ['jpfProxyClient', 'jpfObShow'];
@@ -5710,6 +5726,7 @@
                     defaultSwitcherLocation: page.querySelector('#defaultSwitcherLocation').value === 'menu' ? 'menu' : 'button',
                     defaultTheme: normalizeTheme(page.querySelector('#defaultTheme').value || page._wantedDefaultTheme, page._themeOffered),
                     allowProfileThemes: page.querySelector('#allowProfileThemes').checked,
+                    richThemeMotion: page.querySelector('#richThemeMotion').checked,
                     defaultTimeZone: page.querySelector('#defaultTimeZone').value,
                     enableClientPinLogin: page.querySelector('#enableClientPinLogin').checked,
                     enableClientProfileList: page.querySelector('#enableClientProfileList').checked,

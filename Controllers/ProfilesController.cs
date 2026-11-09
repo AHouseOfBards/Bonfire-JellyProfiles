@@ -3027,6 +3027,7 @@ namespace Jellyfin.Profiles.Controllers
                 Theme = Themes.Resolve(currentMapping, config),
                 DefaultTheme = Themes.Normalize(config.DefaultTheme, config),
                 AllowProfileThemes = config.AllowProfileThemes,
+                RichThemeMotion = config.RichThemeMotion,
                 // Read on every page load already, so the web client learns here whether to
                 // fetch /onboarding at all rather than asking on every load.
                 OnboardingPending = OnboardingPendingFor(currentUserId, config)
@@ -5273,6 +5274,8 @@ namespace Jellyfin.Profiles.Controllers
                     Auth.ViewingTracker.Invalidate();
                 if (request.AllowProfileThemes.HasValue)
                     config.AllowProfileThemes = request.AllowProfileThemes.Value;
+                if (request.RichThemeMotion.HasValue)
+                    config.RichThemeMotion = request.RichThemeMotion.Value;
 
                 // Two switches rather than one, because they carry different risks: the
                 // first changes how a profile authenticates, the second edits the endpoint

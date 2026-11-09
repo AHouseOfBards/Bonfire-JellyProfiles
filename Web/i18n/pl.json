@@ -484,6 +484,8 @@
   "admin.theme.high-contrast": "Wysoki kontrast (czerń, biel i żółć, większy tekst)",
   "admin.theme.allowProfiles": "Pozwól profilom wybierać własny motyw",
   "admin.theme.allowProfilesHint": "Gdy wyłączone, wszyscy widzą motyw domyślny. Dokonane już wybory zostają.",
+  "admin.theme.richMotion": "Bogatsza animacja motywów",
+  "admin.theme.richMotionHint": "Nigdy na telewizorach ani przy ograniczonym ruchu.",
   "admin.themes.title": "Motywy",
   "admin.themes.lede": "Ukryj wbudowane motywy, stwórz własne i dodaj czcionki. Zmiany tutaj zapisują się od razu.",
   "admin.themes.builtIn": "Motywy wbudowane",

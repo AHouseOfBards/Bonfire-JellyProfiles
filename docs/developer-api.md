@@ -1263,6 +1263,7 @@ main account can change them.
   "theme": "crimson",
   "defaultTheme": "bonfire",
   "allowProfileThemes": true,
+  "richThemeMotion": false,
   "onboardingPending": false
 }
 ```
@@ -1277,6 +1278,7 @@ main account can change them.
 | `theme` | The [theme](#themes) to show **this** account, from its own choice or the server default. Unlike the fields above, it isn't the main account's. |
 | `defaultTheme` | The server default. |
 | `allowProfileThemes` | Profiles may choose their own theme. When `false`, `theme` is always the default. |
+| `richThemeMotion` | Themes with a special animation may use it. Never on a television or when the device asks for less motion. |
 | `onboardingPending` | This account should be shown [first-time setup](#first-time-setup). Always `false` for a profile. |
 
 An account that hasn't chosen gets the server's defaults. Unknown stored values come back
@@ -2172,6 +2174,7 @@ anything added since you read it.
 | `defaultSwitcherLocation` | string | `button` or `menu`. |
 | `defaultTheme` | string | A [theme](#themes) id. |
 | `allowProfileThemes` | boolean | Let profiles choose their own theme. Turning it off keeps their choices for later. |
+| `richThemeMotion` | boolean | Let themes with a special animation use it. Default off. |
 | `enableClientPinLogin` | boolean | See [Sign-in from other apps](#sign-in-from-other-apps). |
 | `enableClientProfileList` | boolean | Same. |
 | `clientPinLoginFromAnywhere` | boolean | Same. |

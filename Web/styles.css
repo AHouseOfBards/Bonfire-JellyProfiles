@@ -2447,6 +2447,14 @@ body.profiles-no-scroll [id*="spinner"] {
     margin-top: calc(var(--jpf-tile) / 6);
 }
 
+/* The fades the script used to write inline (a style attribute cannot be overridden by a
+   media query, so the reduced-motion block below could not reach them). Dialogs fade in
+   and out on opacity; the page fades in after a switch; the gate calms towards the next
+   page's colour. Each is skipped below for anyone who asked for less motion. */
+.jpf-fade { transition: opacity 0.15s ease-out; }
+html.jpf-fading { transition: opacity 0.18s ease; }
+#profiles-gate-overlay.jpf-bg-fade { transition: background 0.2s ease; }
+
 /* Reduced motion (2.0). Short fades and a gentle focus scale are the default; a person who
 asked for less gets none of them. Focus stays findable by its ring and border. The
 spinner is kept on purpose: it is the only sign that a tap registered. Last in the
@@ -2455,7 +2463,7 @@ blocks written after this sheet. */
 @media (prefers-reduced-motion: reduce) {
     .profile-crown, .anim-fade-in { animation: none; }
     .profile-card .profile-avatar, .color-dot, .avatar-library-item, .profiles-btn,
-    #profiles-gate-overlay, .alert-dialog-content { transition: none !important; }
+    #profiles-gate-overlay, .alert-dialog-content, .jpf-fade, html.jpf-fading { transition: none !important; }
     .profile-card:hover .profile-avatar, .profile-card:focus .profile-avatar,
     .color-dot:hover, .color-dot:focus, .avatar-library-item:hover, .avatar-library-item:focus,
     .profiles-btn:hover, .profiles-btn:focus { transform: none !important; }

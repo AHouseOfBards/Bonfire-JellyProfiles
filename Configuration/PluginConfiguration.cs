@@ -268,6 +268,15 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public bool AllowProfileThemes { get; set; } = true;
 
+        /// <summary>
+        /// Lets a theme with a special animation (today, Snowfall's drifting pattern) use it.
+        /// Off by default: motion is short and calm unless an administrator asks for more.
+        /// A setting and not a limit because every value is safe: it only decides whether a
+        /// slow background moves. It can never switch motion on against someone's
+        /// prefers-reduced-motion or on a television, which the stylesheet decides first.
+        /// </summary>
+        public bool RichThemeMotion { get; set; }
+
         // There used to be an IndexInjectionMode here, with "file" and "both" modes that
         // rewrote index.html on disk. Only the middleware remains, so the field is gone.
         // A configuration saved with it still loads: XmlSerializer skips an element it has no

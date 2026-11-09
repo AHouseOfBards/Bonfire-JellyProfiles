@@ -925,8 +925,9 @@ console.log('\n── The seasonal themes carry their season, Starlight its star
     const prev = RULES.filter(r => !r.at && r.selectors.indexOf('.jpf-theme-preview::before') !== -1)[0];
     ok('a preview wears its season too', !!prev && /var\(--jpf-deco\)/.test(prev.decls['background-image'] || ''));
 
-    // The snow moves. Only where that is cheap and wanted.
-    const anim = /@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\[data-jpf-theme="snowfall"\]:not\(\.jpf-tv\) #profiles-gate-overlay::before\s*\{([^}]*)\}/.exec(CSS);
+    // The snow moves. Only where that is cheap and wanted: not for reduced motion, not on a
+    // TV, and (2.0) only when the administrator has turned richer theme motion on.
+    const anim = /@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\[data-jpf-theme="snowfall"\]\.jpf-rich-motion:not\(\.jpf-tv\) #profiles-gate-overlay::before\s*\{([^}]*)\}/.exec(CSS);
     // The keyframes are named for the tile they travel, since any theme's pattern may drift.
     ok('the snow falls only for people who have not asked for less motion, and not on a TV',
        !!anim && /animation:\s*jpf-drift-240 /.test(anim[1]));

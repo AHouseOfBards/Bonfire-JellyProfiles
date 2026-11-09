@@ -103,6 +103,7 @@ Console.WriteLine("── Upgrading changes nobody's screen ──────�
 var fresh = new PluginConfiguration();
 Ok("a new server defaults to Bonfire", fresh.DefaultTheme == Themes.Bonfire);
 Ok("and lets profiles choose", fresh.AllowProfileThemes);
+Ok("with richer theme motion off: motion is calm until an administrator asks", !fresh.RichThemeMotion);
 
 // A configuration from before themes: no DefaultTheme, no AllowProfileThemes, and a
 // mapping with no Theme. Written by serialising a current one and deleting the elements,
@@ -113,7 +114,7 @@ before.Mappings.Add(new ProfileMapping { ProfileUserId = Guid.NewGuid(), MasterU
 string xml;
 using (var w = new StringWriter()) { serializer.Serialize(w, before); xml = w.ToString(); }
 var old = System.Xml.Linq.XDocument.Parse(xml);
-old.Descendants().Where(e => e.Name.LocalName is "DefaultTheme" or "AllowProfileThemes" or "Theme"
+old.Descendants().Where(e => e.Name.LocalName is "DefaultTheme" or "AllowProfileThemes" or "Theme" or "RichThemeMotion"
        // 1.7.2's lists did not exist then either.
        or "CustomThemes" or "HiddenThemes" or "CustomFonts").ToList()
    .ForEach(e => e.Remove());
@@ -124,14 +125,16 @@ PluginConfiguration loaded;
 using (var r = new StringReader(old.ToString())) loaded = (PluginConfiguration)serializer.Deserialize(r);
 Ok("it loads with the default Bonfire", loaded.DefaultTheme == Themes.Bonfire);
 Ok("with choosing on", loaded.AllowProfileThemes);
+Ok("and richer theme motion off", !loaded.RichThemeMotion);
 Ok("and its profile following the default", loaded.Mappings.Count == 1 && loaded.Mappings[0].Theme == null);
 
 // And a choice survives the round trip, including through the copy every read takes.
-var chosen = new PluginConfiguration { DefaultTheme = Themes.Harbor, AllowProfileThemes = false };
+var chosen = new PluginConfiguration { DefaultTheme = Themes.Harbor, AllowProfileThemes = false, RichThemeMotion = true };
 chosen.Mappings.Add(new ProfileMapping { ProfileUserId = Guid.NewGuid(), Theme = Themes.Glass });
 using (var w = new StringWriter()) { serializer.Serialize(w, chosen); xml = w.ToString(); }
 using (var r = new StringReader(xml)) loaded = (PluginConfiguration)serializer.Deserialize(r);
 Ok("the default and the switch are saved", loaded.DefaultTheme == Themes.Harbor && !loaded.AllowProfileThemes);
+Ok("and so is richer theme motion", loaded.RichThemeMotion);
 Ok("and so is a profile's choice", loaded.Mappings[0].Theme == Themes.Glass);
 Ok("which the locked read copy keeps", loaded.Mappings[0].CopyForReading().Theme == Themes.Glass);
 

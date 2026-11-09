@@ -484,6 +484,8 @@
   "admin.theme.high-contrast": "Contraste élevé (noir, blanc et jaune, texte plus grand)",
   "admin.theme.allowProfiles": "Laisser les profils choisir leur thème",
   "admin.theme.allowProfilesHint": "Désactivé, tout le monde voit le thème par défaut. Les choix déjà faits sont conservés.",
+  "admin.theme.richMotion": "Animations de thème plus riches",
+  "admin.theme.richMotionHint": "Jamais sur téléviseur ni avec le mouvement réduit.",
   "admin.themes.title": "Thèmes",
   "admin.themes.lede": "Masquez des thèmes intégrés, créez les vôtres et ajoutez des polices. Les changements ici sont enregistrés aussitôt.",
   "admin.themes.builtIn": "Thèmes intégrés",

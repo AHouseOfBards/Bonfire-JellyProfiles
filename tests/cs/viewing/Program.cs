@@ -448,6 +448,20 @@ Ok("an empty zone follows the administrator's default", (string)Get(r.value, "Ti
 r = Call("UpdateAdminSettings", ADMIN, B(("DefaultTimeZone", "Nowhere/Special")));
 Ok("the administrator's default must be a real zone too", r.status == 400 && (string)cfgType.GetProperty("DefaultTimeZone").GetValue(config) == "Europe/London", r.status + " " + r.value);
 
+// Richer theme motion (2.0): off by default, an administrator's to turn on, and a save that
+// does not mention it leaves it alone. Here because this is the harness that already drives
+// UpdateAdminSettings as an administrator and as someone who is not.
+var motion = cfgType.GetProperty("RichThemeMotion");
+Ok("richer theme motion exists and starts off", motion != null && !(bool)motion.GetValue(Activator.CreateInstance(cfgType)));
+r = Call("UpdateAdminSettings", MAIN, B(("RichThemeMotion", true)));
+Ok("someone who is not an administrator cannot turn it on", r.status == 401 && !(bool)motion.GetValue(config), r.status + " " + r.value);
+r = Call("UpdateAdminSettings", ADMIN, B(("RichThemeMotion", true)));
+Ok("an administrator can", r.status == 200 && (bool)motion.GetValue(config), r.status + " " + r.value);
+r = Call("UpdateAdminSettings", ADMIN, B(("DefaultTimeZone", "Europe/London")));
+Ok("a save that does not mention it leaves it on", r.status == 200 && (bool)motion.GetValue(config), r.status + " " + r.value);
+r = Call("UpdateAdminSettings", ADMIN, B(("RichThemeMotion", false)));
+Ok("and it can be turned off again", r.status == 200 && !(bool)motion.GetValue(config), r.status + " " + r.value);
+
 // ── More time ────────────────────────────────────────────────────────────────
 Section("More time");
 

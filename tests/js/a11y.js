@@ -376,6 +376,66 @@ function tagOf(id) {
         ok('tiles do not scale under the pointer or focus',
             /\.profile-card:focus \.profile-avatar[^{]*\{[^}]*transform:\s*none/.test(all));
         ok('swatches and buttons do not scale', /\.color-dot:focus[^{]*\{[^}]*transform:\s*none/.test(all));
+
+        // The fades written from script. An inline style cannot be overridden by a media
+        // query, so each is a class the stylesheet owns, and the reduced block names it.
+        ok('no dialog writes its own fade inline', !/transition:\s*opacity\s*0\.15s/.test(SRC));
+        ok('the page fade is not an inline transition', !/\.style\.transition\s*=/.test(SRC));
+        const fades = [
+            ['.jpf-fade', /jpf-trap-surface',\s*'jpf-fade'/g, 5, 'each of the five dialogs'],
+            ['html.jpf-fading', /classList\.add\('jpf-fading'\)/g, 1, 'the page fade'],
+            // The gate is one element, and the reduced block already names it by id with
+            // !important, which beats the class rule's plain declaration.
+            ['#profiles-gate-overlay.jpf-bg-fade', /classList\.add\('jpf-bg-fade'\)/g, 1, 'the gate colour fade', '#profiles-gate-overlay']
+        ];
+        const reducedAll = blocks.join('\n');
+        fades.forEach(f => {
+            const used = (SRC.match(f[1]) || []).length;
+            ok(f[3] + ' takes the class ' + f[0].replace(/^.*\./, ''), used === f[2], used + ' uses');
+            const esc = f[0].replace(/[.#]/g, '\\$&');
+            ok(f[0] + ' has a transition by default', new RegExp(esc + '\\s*\\{[^}]*transition:\\s*(?!none)').test(css.replace(/@media[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/g, '')));
+            // Pairwise: the reduced block lists this selector in a rule that turns transitions off.
+            const rule = /([^{}]+)\{([^}]*)\}/g;
+            let m, stopped = false;
+            while ((m = rule.exec(reducedAll))) {
+                const listed = m[1].split(',').map(s => s.trim());
+                if ((listed.indexOf(f[0]) !== -1 || (f[4] && listed.indexOf(f[4]) !== -1))
+                    && /transition:\s*none\s*!important/.test(m[2])) stopped = true;
+            }
+            ok(f[0] + ' is stopped under reduced motion', stopped);
+        });
+    }
+
+    // 15b. The drift is the third condition, never a way past the other two.
+    {
+        const themesCss = L.themesCss(SRC);
+        const rule = /([^{}]+)\{[^{}]*animation:\s*jpf-drift[^{}]*\}/g;
+        let m, n = 0;
+        const bad = [];
+        while ((m = rule.exec(themesCss))) {
+            n++;
+            const sel = m[1].trim();
+            if (!/\.jpf-rich-motion/.test(sel) || !/:not\(\.jpf-tv\)/.test(sel)) bad.push(sel);
+        }
+        ok('some theme drifts, so this is looking at something', n > 0, n + ' rules');
+        ok('every drifting rule needs the setting and is off on a television', bad.length === 0, bad.join(' | '));
+        // And it sits inside the no-preference media query, one theme at a time.
+        const outside = themesCss.split('@media (prefers-reduced-motion: no-preference)').length - 1;
+        ok('each drift rule is inside prefers-reduced-motion: no-preference', outside >= n, outside + ' queries for ' + n + ' rules');
+
+        // The client turns the class on and off from what the server says, in either casing.
+        const e15 = D.loadPlugin(SRC);
+        const calls = [];
+        e15.sandbox.document.documentElement.classList.toggle = (c, on) => { calls.push([c, on]); return on; };
+        const send = prefs => {
+            calls.length = 0;
+            try { e15.PP._setThemeSettings(prefs); } catch (e) { /* what the page does with the theme is not under test */ }
+            return calls.filter(c => c[0] === 'jpf-rich-motion').map(c => String(c[1])).join();
+        };
+        ok('richThemeMotion on adds the class', send({ theme: 'snowfall', richThemeMotion: true }) === 'true');
+        ok('PascalCase is read too', send({ Theme: 'snowfall', RichThemeMotion: true }) === 'true');
+        ok('off, or absent, takes it away', send({ theme: 'snowfall', richThemeMotion: false }) === 'false'
+            && send({ theme: 'snowfall' }) === 'false');
     }
 
     // 19. Each dashboard panel is named by its tab, and each tab points at its panel.

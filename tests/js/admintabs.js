@@ -49,7 +49,7 @@ ok('Messages keeps Announcements and Maintenance, and no longer holds Email',
 ok('Skip Quick Connect stays in Apps', has('apps', 'skipQuickConnectOnKnownDevices'));
 ok('no setting was dropped: every control id the page saves is still in exactly one panel',
    ['maxProfiles', 'pinGuessesPerDay', 'requireMainPin', 'enablePinResetByEmail', 'disallowCustomAvatars', 'enableStarterAvatars',
-    'defaultAskOnStartup', 'defaultSwitcherLocation', 'defaultTheme', 'allowProfileThemes', 'defaultTimeZone',
+    'defaultAskOnStartup', 'defaultSwitcherLocation', 'defaultTheme', 'allowProfileThemes', 'richThemeMotion', 'defaultTimeZone',
     'enableClientPinLogin', 'enableClientProfileList', 'clientPinLoginFromAnywhere', 'skipQuickConnectOnKnownDevices',
     'profileImageQuality', 'onboardingEnabled', 'onboardingWelcome', 'fontUpload', 'themeImport', 'themeNew'].every(id =>
         Object.keys(panels).filter(n => has(n, id)).length === 1));
@@ -71,6 +71,7 @@ const inFold = (tab, id) => advanced(tab).indexOf('id="' + id + '"') !== -1;
 ok('PIN tries a day is in Security\'s Advanced', inFold('security', 'pinGuessesPerDay'));
 ok('the theme editor and fonts are in Look\'s Advanced',
    inFold('look', 'themeEditor') && inFold('look', 'themesFonts') && inFold('look', 'fontUpload'));
+ok('richer theme motion is in Look\'s Advanced, not in the open', inFold('look', 'richThemeMotion'));
 ok('theme import and new theme are still on the page', has('look', 'themeImport') && has('look', 'themeNew'));
 ok('announcement dates are in Messages\' Advanced, and the message is not',
    inFold('messages', 'annStarts') && inFold('messages', 'annEnds') && !inFold('messages', 'annMessage'));

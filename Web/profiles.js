@@ -687,11 +687,16 @@
         // than the screen, so the compositor moves it and nothing is repainted; one tile a
         // loop, so it joins up. Not on a television, whose browser is the slowest thing it
         // runs on, and not for anyone who has asked their system for less motion.
+        //
+        // And only when the administrator has asked for it (Advanced, Look: richer theme
+        // motion), which the client records as .jpf-rich-motion on <html>. Off by default.
+        // The setting is the third condition, never a way around the other two: the media
+        // query and :not(.jpf-tv) are still what decide first.
         if (patternImage && pattern.drift === 'down') {
             const seconds = num(pattern.seconds, 32);
             const anim = 'jpf-drift-' + patternSize;
             css += '@media (prefers-reduced-motion: no-preference) {\n'
-                + '    ' + sel + ':not(.jpf-tv) #profiles-gate-overlay::before {\n'
+                + '    ' + sel + '.jpf-rich-motion:not(.jpf-tv) #profiles-gate-overlay::before {\n'
                 + '        top: -' + patternSize + 'px;\n        will-change: transform;\n'
                 + '        -webkit-animation: ' + anim + ' ' + seconds + 's linear infinite;\n'
                 + '        animation: ' + anim + ' ' + seconds + 's linear infinite;\n    }\n}\n'
@@ -1490,7 +1495,7 @@
         showPromptDialog: function (title, label, initialValue, onSubmit) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-prompt-dialog';
-            dialog.classList.add('jpf-trap-surface');
+            dialog.classList.add('jpf-trap-surface', 'jpf-fade');
             dialog.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -1504,7 +1509,6 @@
                 justify-content: center;
                 z-index: ${DIALOG_Z};
                 opacity: 0;
-                transition: opacity 0.15s ease-out;
             `;
 
             dialog.innerHTML = `
@@ -1567,7 +1571,7 @@
         showSelectDialog: function (title, message, options, onSubmit) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-select-dialog';
-            dialog.classList.add('jpf-trap-surface');
+            dialog.classList.add('jpf-trap-surface', 'jpf-fade');
             dialog.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -1581,7 +1585,6 @@
                 justify-content: center;
                 z-index: ${DIALOG_Z};
                 opacity: 0;
-                transition: opacity 0.15s ease-out;
             `;
 
             const choices = options.map(o =>
@@ -1638,7 +1641,7 @@
         showConfirmDialog: function (title, message, onConfirm, onCancel) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-confirm-dialog';
-            dialog.classList.add('jpf-trap-surface');
+            dialog.classList.add('jpf-trap-surface', 'jpf-fade');
             dialog.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -1652,7 +1655,6 @@
                 justify-content: center;
                 z-index: ${DIALOG_Z};
                 opacity: 0;
-                transition: opacity 0.15s ease-out;
             `;
 
             dialog.innerHTML = `
@@ -1721,7 +1723,7 @@
         showAlert: function (title, message, onClose) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-alert-dialog';
-            dialog.classList.add('jpf-trap-surface');
+            dialog.classList.add('jpf-trap-surface', 'jpf-fade');
             dialog.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -1735,7 +1737,6 @@
                 justify-content: center;
                 z-index: ${DIALOG_Z};
                 opacity: 0;
-                transition: opacity 0.15s ease-out;
             `;
 
             dialog.innerHTML = `
@@ -1797,7 +1798,7 @@
             actions.forEach((a, i) => { if (cancelAt < 0 && !(a && typeof a.run === 'function')) cancelAt = i; });
             const dialog = document.createElement('div');
             dialog.id = 'profiles-actions-dialog';
-            dialog.classList.add('jpf-trap-surface');
+            dialog.classList.add('jpf-trap-surface', 'jpf-fade');
             dialog.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -1811,7 +1812,6 @@
                 justify-content: center;
                 z-index: ${DIALOG_Z};
                 opacity: 0;
-                transition: opacity 0.15s ease-out;
             `;
             dialog.innerHTML = `
                 <div class="confirm-dialog-content" style="
@@ -3815,11 +3815,13 @@
                 window.__jpReveal = null;
             }
 
-            document.documentElement.style.transition = 'opacity 0.18s ease';
+            // The fade is a class and not an inline transition, so the stylesheet's
+            // reduced-motion rule can skip it (an inline style could not be overridden).
+            document.documentElement.classList.add('jpf-fading');
             document.documentElement.style.opacity = '1';
             setTimeout(() => {
                 document.documentElement.style.removeProperty('opacity');
-                document.documentElement.style.removeProperty('transition');
+                document.documentElement.classList.remove('jpf-fading');
                 document.documentElement.style.removeProperty('background');
                 document.documentElement.style.removeProperty('color-scheme');
                 this._pageRevealed = false;
@@ -4392,6 +4394,9 @@
                 allow: read('allowProfileThemes') !== false
             };
             this._themeSettings = settings;
+            // Whether themes with a special animation may use it. Two arguments: the
+            // class is added or removed, whatever it was.
+            try { document.documentElement.classList.toggle('jpf-rich-motion', read('richThemeMotion') === true); } catch (e) { /* no document */ }
             this.applyTheme(settings.theme);
             this.injectFonts();
 
@@ -7325,7 +7330,7 @@
                 this._holdCoverForSwitch();
                 const overlay = document.getElementById('profiles-gate-overlay');
                 if (overlay) {
-                    overlay.style.transition = 'background 0.2s ease';
+                    overlay.classList.add('jpf-bg-fade');
                     overlay.style.background = leavingBg;
                 } else {
                     // Menu-mode switch with no gate on screen: nothing is covering the app,
