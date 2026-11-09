@@ -75,6 +75,14 @@ const MEASURE = `(function () {
       out.small.push(Math.round(b.width) + 'x' + Math.round(b.height) + ' ' + e.tagName.toLowerCase() + (e.id ? '#' + e.id : typeof e.className === 'string' && e.className ? '.' + e.className.split(' ')[0] : ''));
     }
   });
+  // Where the opened More section's heading ended up, against the form's visible window
+  // (its top, and the top of the sticky Save bar): P2-513, a shot of it must show it.
+  var more = q('details.jpf-more');
+  if (more) {
+    var sum = more.querySelector('summary'), f = q('.create-profile-container'), bar = q('.create-profile-container > .profile-dialog-actions');
+    var sb = sum.getBoundingClientRect(), fb = f.getBoundingClientRect();
+    out.more = { open: more.open, top: sb.top, bottom: sb.bottom, winTop: fb.top, winBottom: bar ? bar.getBoundingClientRect().top : fb.bottom };
+  }
   var dlg = document.querySelector('.confirm-dialog-content, .alert-dialog-content');
   out.dialog = box(dlg);
   return out;
@@ -121,6 +129,13 @@ async function main() {
         const d = await look('dialog', ph);
         ok(ph + ': the confirm dialog keeps a gutter (' + Math.round(d.dialog.l) + '..' + Math.round(d.dialog.r) + ' of ' + d.vw + ')',
             d.dialog.l >= 12 && d.dialog.r <= d.vw - 12);
+        // P2-513: the edit-more shot was the edit shot, because the section opened below the
+        // fold of a form that was left scrolled to the top.
+        for (const scene of ['edit-more', 'add-more']) {
+            const m = await look(scene, ph);
+            ok(ph + ' ' + scene + ': the opened section is in view', !!m.more && m.more.open && m.more.top >= m.more.winTop - 1 && m.more.bottom <= m.more.winBottom + 1,
+                m.more ? JSON.stringify(m.more) : 'no More section');
+        }
         for (const scene of ['add', 'edit-more', 'sharing', 'settings', 'manage', 'dialog']) {
             const m = await look(scene, ph);
             ok(ph + ' ' + scene + ': every control is at least 44px each way (' + m.small.length + ' are not)', m.small.length === 0,

@@ -254,16 +254,31 @@
             });
         };
     }
+    // Opens the More section and scrolls the form to it. Opening it alone left the form at
+    // the top, where the shot was the same as the form's own (P2-513).
+    function openMore() {
+        var d = document.querySelector('details.jpf-more');
+        if (!d) return;
+        d.open = true;
+        var form = d.closest('.create-profile-container');
+        // After the form's own first focus, which scrolls it back to the name field.
+        return new Promise(function (resolve) {
+            setTimeout(function () {
+                if (form) form.scrollTop += d.getBoundingClientRect().top - form.getBoundingClientRect().top - 8;
+                resolve();
+            }, 400);
+        });
+    }
     var REVIEW = {
         'add': function (P) { return manage(P).then(function () { P.showAddProfileModal(); return when('#create-name-input'); }); },
         'add-more': function (P) {
             return manage(P).then(function () { P.showAddProfileModal(); return when('details.jpf-more'); })
-                .then(function () { var d = document.querySelector('details.jpf-more'); if (d) d.open = true; });
+                .then(openMore);
         },
         'edit': function (P) { return manage(P).then(function () { P.showEditProfileModal(PROFILES[2]); return when('#edit-name-input'); }); },
         'edit-more': function (P) {
             return manage(P).then(function () { P.showEditProfileModal(PROFILES[2]); return when('details.jpf-more'); })
-                .then(function () { var d = document.querySelector('details.jpf-more'); if (d) d.open = true; });
+                .then(openMore);
         },
         'account': function (P) { return manage(P).then(function () { P.showAccountSettings(); return when('#account-email-input, .create-profile-container'); }); },
         'switcher': function (P) { return manage(P).then(function () { P.showSwitcherModeModal(); return when('.create-profile-container'); }); },
