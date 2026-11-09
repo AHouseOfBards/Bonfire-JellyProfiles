@@ -54,6 +54,15 @@ PP.handleSessionExpired = () => {};
         !/'(bonfire|settings)\.[A-Za-z]+': "?'?[^\n]*\b(group|friend|sub-profile)/i.test(
             EN.split('\n').filter(l => /'(bonfire\.|settings\.yourBonfireBody)/.test(l) && !/bonfire\.(deleteGroup|leaveGroup)\w*'|bonfire\.failed/.test(l)).join('\n')));
 
+    // ── P2-104, P2-113: the picture chooser and the artwork note ────────────────────
+    console.log('\n── Form clutter ────────────────────────────────────────────────');
+    const lib = { avatars: [{ id: 'a', url: '/a.png', thumbUrl: '/a.png', displayName: 'A' }], allowCustomUploads: true };
+    const fresh = PP.renderAvatarPicker('create', lib, null, '#e07a5f', { enabled: false });
+    ok('a new profile\'s picture chooser starts closed',
+        /aria-expanded="false"/.test(fresh) && !/class="picture-sources is-open"/.test(fresh));
+    const expl = (EN.match(/'profileForm\.artworkExplainer': (["'])([\s\S]*?)\1,\n/) || [])[2] || '';
+    ok('the artwork explainer is one short line, not a paragraph', expl.length > 0 && expl.length < 130, String(expl.length));
+
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);
 })();

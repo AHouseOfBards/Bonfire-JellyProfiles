@@ -117,7 +117,7 @@
   "profileForm.artworkHidden": "Oculta",
   "profileForm.artworkChoose": "Elegir",
   "profileForm.artworkToggleLabel": "Elegir la imagen de cada biblioteca",
-  "profileForm.artworkExplainer": "La miniatura de una biblioteca usa una imagen de su contenido, que puede ser algo que este perfil no tiene permiso para abrir. <strong>Imagen</strong> pone en su lugar una imagen que tú eliges, y <strong>Oculta</strong> deja solo el icono y el nombre.",
+  "profileForm.artworkExplainer": "Las miniaturas muestran el contenido de la biblioteca. <strong>Imagen</strong> u <strong>Oculta</strong> lo oculta a este perfil.",
   "profileForm.allowedDevices": "Dispositivos permitidos",
   "profileForm.allDevicesAllowed": "Todos los dispositivos permitidos",
   "profileForm.oneDeviceAllowed": "1 dispositivo permitido",

@@ -115,7 +115,7 @@
   "profileForm.artworkHidden": "Ukryta",
   "profileForm.artworkChoose": "Wybierz",
   "profileForm.artworkToggleLabel": "Wybierz grafikę dla każdej biblioteki",
-  "profileForm.artworkExplainer": "Miniaturka biblioteki używa obrazu z jej zawartości — który może być czymś, czego ten profil nie ma prawa oglądać. Opcja <strong>Obraz</strong> umieszcza na miniaturce wybrany przez Ciebie obraz, a <strong>Ukryta</strong> pozostawia tylko ikonę i nazwę.",
+  "profileForm.artworkExplainer": "Kafelki pokazują zawartość biblioteki. <strong>Obraz</strong> lub <strong>Ukryta</strong> ukrywa ją przed tym profilem.",
   "profileForm.allowedDevices": "Dozwolone urządzenia",
   "profileForm.allDevicesAllowed": "Wszystkie urządzenia są dozwolone",
   "profileForm.oneDeviceAllowed": "Dozwolone urządzenia: 1",

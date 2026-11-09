@@ -115,7 +115,7 @@
   "profileForm.artworkHidden": "Amagada",
   "profileForm.artworkChoose": "Tria",
   "profileForm.artworkToggleLabel": "Tria la imatge de cada biblioteca",
-  "profileForm.artworkExplainer": "La miniatura d'una biblioteca usa una imatge extreta del seu contingut, que pot ser alguna cosa que aquest perfil no té permís per veure. <strong>Imatge</strong> hi posa en lloc seu una imatge de la teva elecció, i <strong>Amagada</strong> deixa només la icona i el nom.",
+  "profileForm.artworkExplainer": "Les miniatures mostren el contingut de la biblioteca. <strong>Imatge</strong> o <strong>Amagada</strong> ho amaga d'aquest perfil.",
   "profileForm.allowedDevices": "Dispositius permesos",
   "profileForm.allDevicesAllowed": "Tots els dispositius permesos",
   "profileForm.oneDeviceAllowed": "1 dispositiu permès",

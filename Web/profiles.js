@@ -808,7 +808,7 @@
         'profileForm.artworkHidden': 'Hidden',
         'profileForm.artworkChoose': 'Choose',
         'profileForm.artworkToggleLabel': 'Choose the artwork on each library tile',
-        'profileForm.artworkExplainer': 'A library tile takes its picture from whatever is inside the library — which can be something this profile is not allowed to open. <strong>Picture</strong> puts an image you choose on the tile instead, and <strong>Hidden</strong> leaves just the icon and the name.',
+        'profileForm.artworkExplainer': 'Tiles show what is inside a library. <strong>Picture</strong> or <strong>Hidden</strong> keeps that from this profile.',
         'profileForm.allowedDevices': 'Allowed Devices',
         'profileForm.allDevicesAllowed': 'All Devices Allowed',
         'profileForm.oneDeviceAllowed': '1 Device Allowed',
@@ -7574,10 +7574,11 @@
             // broke the day the far end went away — with no sign here that it had. Every
             // other path ends in a file this server owns.
 
-            // Open when there is no picture yet, because on a new profile choosing one IS
-            // the task. On a profile that already has one, the whole apparatus was sitting
-            // open for nothing.
-            const sourcesOpen = !currentImage;
+            // Closed, always (P2-104). It was open on a new profile because choosing a
+            // picture is the task there, but on a phone that put the whole library grid
+            // between the name and the rating, the Create button a screen further down. The
+            // colour swatches are the default; the button is one tap.
+            const sourcesOpen = false;
 
             // Remove is rendered here rather than by the edit form, so the two actions are
             // the same size and sit together. It was a third-height button hanging under

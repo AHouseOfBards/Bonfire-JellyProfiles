@@ -122,7 +122,7 @@
   "profileForm.artworkHidden": "Gizli",
   "profileForm.artworkChoose": "Seç",
   "profileForm.artworkToggleLabel": "Her kütüphane kutucuğunda kullanılacak görseli seçin",
-  "profileForm.artworkExplainer": "Kütüphane kutucuğunda, kütüphanedeki içeriklerden bir görsel kullanılır; bu içerik profilin erişemediği bir şey olabilir. <strong>Fotoğraf</strong> seçtiğiniz görseli kutucuğa yerleştirir, <strong>Gizli</strong> ise yalnızca simgeyi ve adı gösterir.",
+  "profileForm.artworkExplainer": "Kutucuklar kitaplığın içeriğini gösterir. <strong>Fotoğraf</strong> veya <strong>Gizli</strong> bunu bu profilden saklar.",
   "profileForm.allowedDevices": "İzin verilen cihazlar",
   "profileForm.allDevicesAllowed": "Tüm cihazlara izin verildi",
   "profileForm.oneDeviceAllowed": "1 cihaza izin verildi",

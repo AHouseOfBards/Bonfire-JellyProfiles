@@ -115,7 +115,7 @@
   "profileForm.artworkHidden": "Masqué",
   "profileForm.artworkChoose": "Choisir",
   "profileForm.artworkToggleLabel": "Choisir le visuel de chaque bibliothèque",
-  "profileForm.artworkExplainer": "La vignette d'une bibliothèque reprend une image tirée de son contenu — qui peut être quelque chose que ce profil n'est pas autorisé à voir. <strong>Image</strong> place à la place une image de votre choix sur la vignette, et <strong>Masqué</strong> ne laisse que l'icône et le nom.",
+  "profileForm.artworkExplainer": "Les vignettes montrent le contenu de la bibliothèque. <strong>Image</strong> ou <strong>Masqué</strong> le cache à ce profil.",
   "profileForm.allowedDevices": "Appareils autorisés",
   "profileForm.allDevicesAllowed": "Tous les appareils autorisés",
   "profileForm.oneDeviceAllowed": "1 appareil autorisé",
