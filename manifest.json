@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.7.5.0",
+        "changelog": "**Fixed**\n\n- If the settings page failed to load, Save could overwrite your settings with the defaults. Save now waits until they load, and the page offers Try again.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.5/Jellyfin.Profiles.zip",
+        "checksum": "0",
+        "timestamp": "2026-11-09T00:00:00Z"
+      },
+      {
         "version": "1.7.4.0",
         "changelog": "**Fixed**\n\n- A second household's PIN was refused on a device two households share.\n- Security and privacy fixes. Updating is recommended.",
         "targetAbi": "10.11.0.0",
