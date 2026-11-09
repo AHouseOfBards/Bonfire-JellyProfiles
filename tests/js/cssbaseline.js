@@ -467,6 +467,57 @@ ok('every position: sticky has a fallback that can be named and holds', stickies
 ok('no comment claims sticky holds on both television baselines',
     !/sticky[\s\S]{0,200}holds\s+on\s+both\s+television/i.test(css));
 
+/* ── 4. Inline flex gap in the markup (R-1227) ───────────────────────────────
+ *
+ * Section 2 reads the stylesheet. A flex container whose gap is written in a style
+ * attribute is invisible to it, and the class-based .jpf-no-flex-gap fallbacks cannot
+ * reach a style attribute unless the element also carries a class one of them names.
+ * On Chromium 53 (webOS 4.5) such a container's children touch. Enumerated per
+ * element, so the failure names the site.
+ */
+console.log();
+console.log('── inline flex gap in profiles.js markup ──────────────────────');
+function inlineGapProblems(src, sheetSelectors) {
+    const out = [];
+    const re = /style="([^"]*)"/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+        const st = m[1];
+        if (!/display\s*:\s*(inline-)?flex/.test(st)) continue;
+        if (!/(^|[;\s])(row-|column-)?gap\s*:/.test(st)) continue;
+        const open = src.lastIndexOf('<', m.index);
+        const close = src.indexOf('>', m.index);
+        const tagText = src.slice(open, close === -1 ? m.index + st.length : close);
+        const cm = /class="([^"]*)"/.exec(tagText);
+        const classes = cm ? cm[1].split(/\s+/).filter(c => c && c.indexOf('${') === -1) : [];
+        const covered = classes.some(c => [...sheetSelectors].some(s =>
+            s.indexOf('.jpf-no-flex-gap') !== -1
+            && new RegExp('\\.' + c.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '(?![\\w-])\\s*>').test(s)));
+        if (!covered) out.push({
+            line: src.slice(0, m.index).split('\n').length,
+            tag: tagText.replace(/\s+/g, ' ').slice(0, 70),
+        });
+    }
+    return out;
+}
+{
+    const sel = new Set(['.jpf-no-flex-gap .row > * + *']);
+    ok('detector: inline flex gap with no class is flagged',
+        inlineGapProblems('<div style="display:flex; gap: 4px;">', sel).length === 1);
+    ok('detector: inline flex gap whose class has no fallback is flagged',
+        inlineGapProblems('<div class="other" style="display:flex; gap: 4px;">', sel).length === 1);
+    ok('detector: inline flex gap on a class with a fallback passes',
+        inlineGapProblems('<div class="x row" style="display:flex; gap: 4px;">', sel).length === 0);
+    ok('detector: a fallback that is only a substring of the class does not count',
+        inlineGapProblems('<div class="rowing" style="display:flex; gap: 4px;">', sel).length === 1);
+    ok('detector: inline flex without a gap is left alone',
+        inlineGapProblems('<div style="display:flex; align-items:center;">', sel).length === 0);
+}
+const inlineGaps = inlineGapProblems(SRC_JS, selectors);
+inlineGaps.forEach(g => ok('inline flex gap at L' + g.line + ' has a .jpf-no-flex-gap fallback', false,
+    g.tag + '  — give it a class with a margin fallback'));
+ok('every inline flex gap in the markup has a fallback (' + inlineGaps.length + ' without)', inlineGaps.length === 0);
+
 console.log();
 console.log('  baseline Chromium ' + BASELINE + ': ' + pass + ' passed, ' + fails.length + ' failed');
 if (fails.length) {

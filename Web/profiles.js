@@ -2925,7 +2925,7 @@
                         || (!!dev.DeviceId && allowedIds.indexOf(String(dev.DeviceId).toLowerCase()) !== -1);
                     return `
                         <div class="device-dropdown-item" data-device-id="${escapeHtml(deviceId)}">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
+                            <label class="jpf-row-gap-sm" style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
                                 <input type="checkbox" class="${boxClass}" value="${escapeHtml(deviceId)}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
                                 <span style="display: flex; flex-direction: column; min-width: 0;">
                                     <span class="device-row-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
@@ -4379,7 +4379,7 @@
                     <input type="password" id="profiles-panic-input" autocomplete="off" placeholder="${t('panic.emergencyCodePlaceholder')}"
                            style="width:100%; box-sizing:border-box; padding:10px; font-size:1rem; margin-bottom:8px;" />
                     <div id="profiles-panic-error" style="display:none; color:var(--jpf-danger); font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
-                    <div style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:12px;">
+                    <div class="jpf-row-gap" style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:12px;">
                         <button id="profiles-panic-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
                         <button id="profiles-panic-submit" class="profiles-btn btn-danger" style="padding:10px 20px; font-weight:600;">${t('panic.disable')}</button>
                     </div>
@@ -5377,7 +5377,7 @@
                     '<div id="profiles-libart-host"></div>' +
                     '<div id="profiles-libart-error" style="display:none; color:var(--jpf-danger); font-size:0.85rem;' +
                     ' font-weight:600; margin-top:8px;"></div>' +
-                    '<div style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:16px;">' +
+                    '<div class="jpf-row-gap" style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:16px;">' +
                     '<button id="profiles-libart-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">' + t('common.cancel') + '</button>' +
                     '<button id="profiles-libart-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">' + t('avatar.usePicture') + '</button>' +
                     '</div></div>';
@@ -7886,7 +7886,7 @@
                     </div>
                     <input type="range" id="profiles-crop-zoom" min="1" max="4" step="0.01" value="1"
                            style="width:100%; margin:16px 0 4px 0;" aria-label="${t('avatar.zoom')}" />
-                    <div style="display:flex; gap: var(--jpf-gap); justify-content:center; margin-top:12px;">
+                    <div class="jpf-row-gap" style="display:flex; gap: var(--jpf-gap); justify-content:center; margin-top:12px;">
                         <button id="profiles-crop-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
                         <button id="profiles-crop-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">${t('avatar.usePicture')}</button>
                     </div>
@@ -9427,7 +9427,7 @@
                 <h1 class="profiles-title">${t('bonfire.yourBonfireTitle')}</h1>
                 <div class="create-profile-container" style="max-width: 500px; width: 100%;">
                     <div id="account-links-slot"></div>
-                    <div id="bonfire-container" style="width: 100%; min-height: 100px; display: flex; flex-direction: column; gap: 1.5rem;">
+                    <div id="bonfire-container" class="jpf-col-gap-15" style="width: 100%; min-height: 100px; display: flex; flex-direction: column; gap: 1.5rem;">
                         <div style="display: flex; justify-content: center; padding: 20px;">
                             <div class="profiles-loading-spinner" style="border: 3px solid var(--jpf-border-1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: jpfSpin 1s linear infinite;"></div>
                         </div>
@@ -10431,7 +10431,7 @@
             content.innerHTML = `
                 <h1 class="profiles-title">${t('settings.title')}</h1>
                 <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
-                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
+                    <div class="jpf-col-gap" style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
                         ${entry('settings-profiles', 'people', t('settings.profilesTitle'),
                             t('settings.profilesBody'))}
                         ${entry('settings-account', 'manage_accounts', t('settings.accountTitle'),
@@ -10686,7 +10686,7 @@
                     </div>
 
                     <div style="text-align: left; font-size: 0.95rem; font-weight: 600; margin-bottom: 10px;">${t('switcher.whereToSwitchFrom')}</div>
-                    <div role="radiogroup" style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
+                    <div role="radiogroup" class="jpf-col-gap" style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
                         ${locationOption('button', 'account_circle', t('switcher.bonfireButtonTitle'),
                             t('switcher.bonfireButtonBody'))}
                         ${locationOption('menu', 'switch_account', t('switcher.menuTitle'),
@@ -10837,7 +10837,7 @@
             let hostSectionHtml = '';
             if (isOwner) {
                 hostSectionHtml = `
-                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
+                    <div class="jpf-col-gap-lg" style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.hostedTitle')}</label>
                             <span style="font-size: 0.88rem; opacity: 0.75; display: block;">${t('bonfire.shareCode')}</span>
@@ -10847,7 +10847,7 @@
 
                         <div class="bonfire-form-group">
                             <label style="font-size: 1rem; font-weight: 600; color: var(--jpf-text-1); display: block; margin-bottom: 8px;">${t('bonfire.members', { count: ownedMembers.length })}</label>
-                            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border); border-radius: var(--jpf-input-r); padding: 8px;">
+                            <div class="jpf-col-gap-sm" style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border); border-radius: var(--jpf-input-r); padding: 8px;">
                                 ${ownedMembers.length > 0 ? ownedMembers.map(m => {
                                     const mUserId = m.userId || m.UserId;
                                     const mUsername = escapeHtml(m.username || m.Username) || t('bonfire.unknownUser');
@@ -10878,7 +10878,7 @@
             let guestSectionHtml = '';
             if (isMember) {
                 guestSectionHtml = `
-                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
+                    <div class="jpf-col-gap-lg" style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.joinedTitle')}</label>
                             <span style="font-size: 0.88rem; opacity: 0.75;">${t('bonfire.joinedOwnedBy')}</span>
@@ -10896,8 +10896,8 @@
                         <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.joinTitle')}</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">${t('bonfire.joinBody')}</span>
                         <div class="bonfire-join-row" style="display: flex !important; gap: var(--jpf-gap) !important; align-items: center !important; width: 100% !important; box-sizing: border-box !important; margin: 12px 0 !important;">
-                            <input type="text" id="bonfire-join-input" placeholder="${t('bonfire.joinCodePlaceholder')}" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; margin: 0 !important; padding: 10px !important;" />
-                            <button type="button" id="bonfire-join-btn" class="profiles-btn btn-primary" style="flex: 0 0 auto !important; padding: 0 24px !important; height: 44px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; font-weight: 600 !important; margin: 0 !important; box-sizing: border-box !important;">${t('common.join')}</button>
+                            <input type="text" id="bonfire-join-input" placeholder="${t('bonfire.joinCodePlaceholder')}" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; padding: 10px !important;" />
+                            <button type="button" id="bonfire-join-btn" class="profiles-btn btn-primary" style="flex: 0 0 auto !important; padding: 0 24px !important; height: 44px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; font-weight: 600 !important; box-sizing: border-box !important;">${t('common.join')}</button>
                         </div>
                         <div id="bonfire-join-error" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 8px; text-align: center;"></div>
                     </div>
@@ -10963,7 +10963,7 @@
             `;
 
             container.innerHTML = `
-                <div style="display: flex; flex-direction: column; gap: 1.5rem; width: 100%;">
+                <div class="jpf-col-gap-15" style="display: flex; flex-direction: column; gap: 1.5rem; width: 100%;">
                     ${hostSectionHtml}
                     ${guestSectionHtml}
                     ${settingsSectionHtml}
@@ -11507,7 +11507,7 @@
             // what the page around it does — see .jpf-userprofile-section.
             section.className = 'verticalSection jpf-userprofile-section';
             section.innerHTML = `
-                <h2 class="sectionTitle" style="display:flex; align-items:center; gap:0.4em;">
+                <h2 class="sectionTitle jpf-row-gap-em" style="display:flex; align-items:center; gap:0.4em;">
                     <span class="material-icons local_fire_department" aria-hidden="true" style="color:var(--jpf-warn);"></span>
                     ${t('profilePage.title')}
                 </h2>

@@ -2305,6 +2305,28 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .jpf-no-flex-gap .tag-chip-list > * { margin: 0 3px 6px; }
 
+/* Containers whose gap is written inline in the script's markup (R-1227). A style
+   attribute is out of reach of the rules above, so each carries one of these classes
+   as well; the inline gap stays for browsers that have it. */
+.jpf-no-flex-gap .jpf-row-gap > * + * { margin-left: var(--jpf-gap); }
+.jpf-no-flex-gap .jpf-row-gap-sm > * + * { margin-left: 8px; }
+.jpf-no-flex-gap .jpf-row-gap-em > * + * { margin-left: 0.4em; }
+.jpf-no-flex-gap .jpf-col-gap > * + * { margin-top: var(--jpf-gap); }
+.jpf-no-flex-gap .jpf-col-gap-sm > * + * { margin-top: 8px; }
+.jpf-no-flex-gap .jpf-col-gap-lg > * + * { margin-top: var(--jpf-gap-lg); }
+.jpf-no-flex-gap .jpf-col-gap-15 > * + * { margin-top: 1.5rem; }
+.jpf-no-flex-gap .profile-image-upload-container > * + * { margin-top: var(--jpf-gap); }
+/* A wrapping, left-aligned row: a margin after every child, as .jpf-inline-row does. */
+.jpf-no-flex-gap .pin-edit-group > * { margin: 0 var(--jpf-gap) var(--jpf-gap) 0; }
+/* The join row's children carried margin: 0 !important inline, which a stylesheet cannot
+   override. It lives here now so the fallback below can outrank it. */
+.bonfire-join-row > input,
+.bonfire-join-row > button { margin: 0 !important; }
+.jpf-no-flex-gap .bonfire-join-row > * + * { margin-left: var(--jpf-gap) !important; }
+@media (max-width: 480px) {
+    .jpf-no-flex-gap .bonfire-join-row > * + * { margin-left: 0 !important; margin-top: var(--jpf-gap) !important; }
+}
+
 /* The two gap values that change inside a media query need their
    fallbacks changed with them, and .profile-dialog-actions also turns
    into a column there — so its margin has to move axis, not just size.
