@@ -612,7 +612,9 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-maintenance-text { white-space: pre-wrap; word-wrap: break-word; margin-top: 0.3rem; }
 .profiles-maintenance-text:empty { display: none; }
 .profiles-maintenance-when { margin-top: 0.3rem; }
-.profiles-maintenance .profiles-btn { margin-top: 1.5rem; }
+/* Check again and Sign out sit side by side on a wide screen and touched: the margin was
+   top only. A side margin rather than flex gap, which Chromium 53 does not have. */
+.profiles-maintenance .profiles-btn { margin: 1.5rem 0.4rem 0; }
 .profiles-home-section {
     width: 100%;
     margin-bottom: 2.5rem;
