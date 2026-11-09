@@ -102,12 +102,22 @@ function freshAccount() {
         ok('ask-for-the-PIN, ticked as stored', content.querySelector('#account-ask-pin').checked === true);
         ok('home network, unticked as stored', content.querySelector('#account-lan-bypass').checked === false);
         ok('auto-lock, on the stored five minutes', content.querySelector('#account-lockout-select').value === '5');
+        // Changed with P2-603: the account page shows a count and a button, and the list
+        // with its tools is the Manage devices screen. These two used to read the list off
+        // the account page itself.
+        ok('a device count and a Manage devices button, not the list',
+            /id="account-manage-devices"/.test(html) && /id="account-device-count"/.test(html)
+            && content.querySelectorAll('.device-dropdown-item').length === 0);
+        PP.showAccountDevices();
+        await settle();
         ok('every device, each with rename, merge and forget',
             content.querySelectorAll('.device-dropdown-item').length === 2
             && content.querySelectorAll('.device-rename-btn').length === 2
             && content.querySelectorAll('.device-merge-btn').length === 2
             && content.querySelectorAll('.device-delete-btn').length === 2);
-        ok('and Tidy up duplicates', /id="devices-tidy-btn"/.test(html));
+        ok('and Tidy up duplicates', /id="devices-tidy-btn"/.test(content.innerHTML));
+        PP.showAccountSettings();
+        await settle();
         ok('a remote\'s Back key leaves it',
             /#account-back-btn/.test((/_dismissSurface: function[\s\S]*?\n        \},/.exec(SRC) || [''])[0])
             && /id="account-back-btn"/.test(html));
@@ -178,10 +188,10 @@ function freshAccount() {
         console.log('\n── Your account: the device tools ──────────────────────────────');
 
         freshAccount();
-        PP.showAccountSettings();
+        PP.showAccountDevices();
         await settle();
         let redraws = 0;
-        PP.showAccountSettings = () => { redraws++; };
+        PP.showAccountDevices = () => { redraws++; };
         respond = () => ({ status: 200, body: {} });
         const dev = (path) => posts.filter(p => p.url === 'plugins/profiles/devices/' + path);
 
@@ -220,6 +230,9 @@ function freshAccount() {
             posts.filter(p => /devices\//.test(p.url)).every(p => p.init.headers && p.init.headers['X-Bonfire-Master-Pin'] === '2468'));
 
         PP.showAccountSettings = realAccount;
+        // The device list is its own screen now, so go back to the account page first.
+        content.querySelector('#account-back-btn').click();
+        await settle();
         const before = calls.settings;
         content.querySelector('#account-back-btn').click();
         ok('Done goes back to Settings', calls.settings === before + 1);

@@ -88,7 +88,7 @@
   "profileForm.pinIsSetHint": "🔒 <strong>Un code PIN est défini.</strong> Laissez vide pour le conserver, saisissez-en un nouveau pour le remplacer, ou utilisez « Effacer le code PIN ».",
   "profileForm.pinAdminWarning": "Ce compte administre le serveur. Son code PIN permet de se connecter sur les téléviseurs et les autres applications : gardez-le long et confidentiel.",
   "profileForm.noPinSetHint": "Aucun code PIN défini. Ce profil peut être ouvert par quiconque a accès au sélecteur.",
-  "profileForm.bypassPinLan": "Ignorer le code PIN sur le réseau local (LAN)",
+  "profileForm.bypassPinLan": "Ne pas demander le PIN sur mon réseau domestique",
   "profileForm.bypassPinHint": "Aucun code PIN demandé sur votre réseau domestique.",
   "profileForm.askPinToOpen": "Demander le code PIN pour ouvrir ce compte",
   "profileForm.askPinToOpenHint": "Désactivé, il s'ouvre sans code. Le code protège toujours les paramètres.",
@@ -1042,4 +1042,10 @@
   "admin.loadRetry": "Réessayer",
   "admin.saveBlocked": "Les paramètres ne sont pas chargés, donc rien n'a été enregistré. Appuyez sur Réessayer.",
   "admin.mnt.confirmStop": "Tout le monde sauf les administrateurs est bloqué et ce qu'ils regardent s'arrête, jusqu'à ce que vous rouvriez."
+  "account.pinLabel": "Code PIN principal",
+  "account.devicesCount": "Appareils connus : {count}",
+  "account.devicesCountSubtitle": "Quels écrans utilisent ce compte",
+  "account.manageDevices": "Gérer les appareils",
+  "account.moreSummary": "Demander le PIN, réseau local et verrouillage auto",
+  "account.emailOff": "L'e-mail n'est pas configuré. Demandez à l'administrateur du serveur de l'activer dans le tableau de bord Bonfire."
 }

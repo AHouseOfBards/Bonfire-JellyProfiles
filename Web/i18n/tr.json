@@ -95,7 +95,7 @@
   "profileForm.pinIsSetHint": "🔒 <strong>Bir PIN ayarlanmış.</strong> PIN'i korumak için boş bırakın, değiştirmek için yeni bir PIN girin veya PIN'i Temizle'yi kullanın.",
   "profileForm.pinAdminWarning": "Bu hesap sunucuyu yönetiyor. PIN'i televizyonlarda ve diğer uygulamalarda oturum açmak için kullanılabilir; uzun ve gizli tutun.",
   "profileForm.noPinSetHint": "PIN ayarlanmamış. Bu profile, profil seçiciye erişebilen herkes girebilir.",
-  "profileForm.bypassPinLan": "Yerel ağda (LAN) PIN'i atla",
+  "profileForm.bypassPinLan": "Ev ağımda PIN'i atla",
   "profileForm.bypassPinHint": "Ev ağınızda PIN sorulmaz.",
   "profileForm.askPinToOpen": "Bu hesabı açarken PIN sor",
   "profileForm.askPinToOpenHint": "Kapalıyken PIN olmadan açılır. PIN ayarları korumaya devam eder.",
@@ -1054,4 +1054,10 @@
   "admin.loadRetry": "Tekrar dene",
   "admin.saveBlocked": "Ayarlar yüklenmediği için hiçbir şey kaydedilmedi. Tekrar dene'ye basın.",
   "admin.mnt.confirmStop": "Yöneticiler dışında herkes kilitlenir ve izledikleri durur; yeniden açana kadar."
+  "account.pinLabel": "Ana PIN",
+  "account.devicesCount": "Bilinen cihazlar: {count}",
+  "account.devicesCountSubtitle": "Bu hesabı kullanan ekranlar",
+  "account.manageDevices": "Cihazları yönet",
+  "account.moreSummary": "PIN sorma, ev ağı ve otomatik kilit",
+  "account.emailOff": "E-posta kurulu değil. Sunucu yöneticisinden Bonfire panelinde açmasını isteyin."
 }

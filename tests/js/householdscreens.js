@@ -106,6 +106,34 @@ PP.handleSessionExpired = () => {};
     ok('a limit set on Add is saved against the new profile\'s id',
         !!limitsPost && limitsPost.body.dailyMinutes === 60, JSON.stringify(posts.map(p => p.url)));
 
+    // ── P2-107, P2-603, P2-607: Your account ────────────────────────────────────────
+    console.log('\n── Your account ────────────────────────────────────────────────');
+    PP.masterPin = '2468';
+    PP.currentProfiles = [{ profileUserId: 'main', profileName: 'Bard', isMaster: true, isBonfire: false, hasPin: true,
+        askPinToOpen: true, bypassPinOnLocalNetwork: false, lockoutMinutes: 5 }];
+    PP.fetchSharedFormData = () => Promise.resolve({ devices: [{ deviceId: 'a', deviceName: 'TV' }, { deviceId: 'b', deviceName: 'Phone' }] });
+    PP.showAccountSettings();
+    await settle();
+    const acct = content.innerHTML;
+    const fAt = acct.indexOf('<details class="jpf-more');
+    const fEnd = acct.indexOf('</details>', fAt);
+    const inFold = fAt === -1 ? '' : acct.slice(fAt, fEnd);
+    const outFold = fAt === -1 ? acct : acct.slice(0, fAt) + acct.slice(fEnd);
+    ok('the PIN is the main PIN, and shows', /for="account-pin-input">Main PIN</.test(acct) && /id="account-pin-input"/.test(outFold));
+    ok('ask-PIN, home network and auto-lock are in one fold, closed',
+        fAt !== -1 && !/\bopen\b/.test(acct.slice(fAt, acct.indexOf('>', fAt)))
+        && ['account-ask-pin', 'account-lan-bypass', 'account-lockout-select'].every(id => inFold.indexOf('id="' + id + '"') !== -1)
+        && ['account-ask-pin', 'account-lan-bypass', 'account-lockout-select'].every(id => outFold.indexOf('id="' + id + '"') === -1));
+    ok('devices are a count and a Manage devices button',
+        /Known devices: 2/.test(acct) && /id="account-manage-devices"/.test(acct) && !/device-rename-btn/.test(acct));
+    ok('the home-network option does not say LAN', !/\bLAN\b/.test((EN.match(/'profileForm\.bypassPinLan': [^\n]*/) || [''])[0]));
+    const innerNode = { nodeType: 1, tagName: 'SELECT', parentNode: null };
+    const fold = { nodeType: 1, tagName: 'DETAILS', open: false, parentNode: null };
+    innerNode.parentNode = fold;
+    PP.revealFold(innerNode);
+    ok('revealFold opens the fold a field is in', fold.open === true);
+    ok('Email off says so rather than vanishing', /Email is not set up/.test(EN));
+
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);
 })();

@@ -90,7 +90,7 @@
   "profileForm.pinIsSetHint": "🔒 <strong>Hay un PIN definido.</strong> Déjalo vacío para conservarlo, escribe uno nuevo para cambiarlo o usa «Borrar PIN».",
   "profileForm.pinAdminWarning": "Esta cuenta administra el servidor. Su PIN permite iniciar sesión en televisores y otras aplicaciones, así que hazlo largo y no lo compartas.",
   "profileForm.noPinSetHint": "No hay PIN. Cualquiera que llegue al selector puede abrir este perfil.",
-  "profileForm.bypassPinLan": "No pedir PIN en la red local (LAN)",
+  "profileForm.bypassPinLan": "No pedir PIN en mi red de casa",
   "profileForm.bypassPinHint": "No se pide PIN en tu red doméstica.",
   "profileForm.askPinToOpen": "Pedir el PIN para abrir esta cuenta",
   "profileForm.askPinToOpenHint": "Desactivado, se abre sin PIN. El PIN sigue protegiendo la configuración.",
@@ -1042,4 +1042,10 @@
   "admin.loadRetry": "Intentarlo de nuevo",
   "admin.saveBlocked": "La configuración no se ha cargado, así que no se ha guardado nada. Pulsa Intentarlo de nuevo.",
   "admin.mnt.confirmStop": "Todos excepto los administradores quedan bloqueados y lo que están viendo se detiene, hasta que lo reabras."
+  "account.pinLabel": "PIN principal",
+  "account.devicesCount": "Dispositivos conocidos: {count}",
+  "account.devicesCountSubtitle": "Qué pantallas usan esta cuenta",
+  "account.manageDevices": "Administrar dispositivos",
+  "account.moreSummary": "Pedir PIN, red de casa y bloqueo automático",
+  "account.emailOff": "El correo no está configurado. Pide al administrador del servidor que lo active en el panel de Bonfire."
 }

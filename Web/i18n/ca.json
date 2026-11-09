@@ -88,7 +88,7 @@
   "profileForm.pinIsSetHint": "🔒 <strong>Hi ha un PIN definit.</strong> Deixa-ho buit per mantenir-lo, escriu-ne un de nou per substituir-lo, o usa «Esborra el PIN».",
   "profileForm.pinAdminWarning": "Aquest compte administra el servidor. El seu PIN permet iniciar sessió als televisors i a altres aplicacions: fes-lo llarg i mantén-lo en secret.",
   "profileForm.noPinSetHint": "No hi ha cap PIN definit. Qualsevol persona amb accés al selector pot obrir aquest perfil.",
-  "profileForm.bypassPinLan": "Ometre el PIN a la xarxa local (LAN)",
+  "profileForm.bypassPinLan": "Omet el PIN a la meva xarxa de casa",
   "profileForm.bypassPinHint": "No es demana cap PIN a la teva xarxa domèstica.",
   "profileForm.askPinToOpen": "Demana el PIN per obrir aquest compte",
   "profileForm.askPinToOpenHint": "Desactivat, s'obre sense PIN. El PIN continua protegint la configuració.",
@@ -1042,4 +1042,10 @@
   "admin.loadRetry": "Torna-ho a provar",
   "admin.saveBlocked": "La configuració no s'ha carregat, així que no s'ha desat res. Prem Torna-ho a provar.",
   "admin.mnt.confirmStop": "Tothom excepte els administradors queda bloquejat i el que miren s'atura, fins que ho reobris."
+  "account.pinLabel": "PIN principal",
+  "account.devicesCount": "Dispositius coneguts: {count}",
+  "account.devicesCountSubtitle": "Quines pantalles fan servir aquest compte",
+  "account.manageDevices": "Gestiona els dispositius",
+  "account.moreSummary": "Demanar PIN, xarxa de casa i bloqueig automàtic",
+  "account.emailOff": "El correu no està configurat. Demana a l'administrador del servidor que l'activi al tauler de Bonfire."
 }

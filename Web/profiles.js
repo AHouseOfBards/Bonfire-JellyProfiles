@@ -722,9 +722,9 @@
         'maintenance.stillClosed': 'Still closed.',
 
         'pin.enterProfilePin': 'Enter Profile PIN',
-        'pin.enterMasterPin': 'Enter Master PIN',
+        'pin.enterMasterPin': 'Enter main PIN',
         'pin.incorrectPin': 'Incorrect PIN. Please try again.',
-        'pin.incorrectMasterPin': 'Incorrect Master PIN. Please try again.',
+        'pin.incorrectMasterPin': 'Incorrect main PIN. Please try again.',
 
         'avatar.positionYourPicture': 'Position your picture',
         'avatar.dragOrArrows': 'Drag or arrows to move, slider to zoom. Press OK when it looks right.',
@@ -765,7 +765,7 @@
 
         'profileForm.profileName': 'Profile Name',
         'profileForm.namePlaceholder': 'e.g. Kids',
-        'profileForm.masterNameHint': 'The master profile takes its name from your Jellyfin account.',
+        'profileForm.masterNameHint': 'The main account takes its name from your Jellyfin account.',
         'profileForm.avatarColor': 'Avatar Color',
         'profileForm.colorHintNoPicture': 'Used as the avatar background when no picture is set.',
         'profileForm.colorHintHasPicture': 'Shows behind the picture, wherever it is transparent.',
@@ -781,7 +781,7 @@
         'profileForm.pinIsSetHint': '🔒 <strong>A PIN is set.</strong> Leave blank to keep it, type a new one to replace it, or use Clear PIN.',
         'profileForm.pinAdminWarning': 'This account administers the server. Its PIN can sign in on TVs and other apps, so keep it long and private.',
         'profileForm.noPinSetHint': 'No PIN set. This profile can be opened by anyone who can reach the switcher.',
-        'profileForm.bypassPinLan': 'Bypass PIN on local network (LAN)',
+        'profileForm.bypassPinLan': 'Skip the PIN on my home network',
         'profileForm.bypassPinHint': 'No PIN prompt on your home network.',
         'profileForm.askPinToOpen': 'Ask for the PIN to open this account',
         'profileForm.askPinToOpenHint': 'Off, it opens without one. The PIN still protects settings.',
@@ -938,11 +938,17 @@
         'account.signInTitle': 'Sign-in',
         'account.signInSubtitle': 'How your account opens',
         'account.savePin': 'Save PIN',
+        'account.pinLabel': 'Main PIN',
         'account.pinSetHint': 'A PIN is set. Type a new one to change it.',
         'account.pinSaved': 'PIN saved.',
         'account.pinCleared': 'PIN removed.',
         'account.saved': 'Saved.',
         'account.devicesTitle': 'Devices',
+        'account.devicesCount': 'Known devices: {count}',
+        'account.devicesCountSubtitle': 'Which screens use this account',
+        'account.manageDevices': 'Manage devices',
+        'account.moreSummary': 'Ask for PIN, home network and auto-lock',
+        'account.emailOff': 'Email is not set up. Ask your server admin to turn it on in the Bonfire dashboard.',
         'account.devicesSubtitle': 'Rename, merge or forget them',
         'account.zoneTitle': 'Time zone',
         'account.zoneSubtitle': 'For viewing hours',
@@ -6822,7 +6828,13 @@
 
             const draw = () => {
                 if (!document.body.contains(slot)) return;
-                if (field('available') !== true) { slot.innerHTML = ''; return; }
+                // Email off on this server: say so and where to turn it on, instead of an
+                // account page with no hint that a forgotten PIN could ever be reset (P2-607).
+                if (field('available') !== true) {
+                    slot.innerHTML = this.renderSection('mail', t('accountEmail.title'), t('accountEmail.subtitle'),
+                        `<div class="form-hint" id="account-email-off">${t('account.emailOff')}</div>`);
+                    return;
+                }
                 const address = field('address') || '';
                 const pending = field('pendingAddress') || '';
                 const box = (id, on, label) => `
@@ -8896,7 +8908,7 @@
 
             const signIn = `
                 <div class="form-group">
-                    <label for="account-pin-input">${t('profileForm.pin')}</label>
+                    <label for="account-pin-input">${t('account.pinLabel')}</label>
                     <div class="pin-edit-group" style="display:flex; gap: var(--jpf-gap); flex-wrap: wrap;">
                         <input type="text" id="account-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${main.hasPin ? t('profileForm.pinPlaceholderNew') : t('profileForm.pinPlaceholderNone')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 140px;" />
                         <button type="button" id="account-pin-save" class="profiles-btn btn-primary" style="padding:10px 15px;">${t('account.savePin')}</button>
@@ -8905,6 +8917,11 @@
                     <div class="form-hint">${main.hasPin ? t('account.pinSetHint') : t('mainPin.setBody')}</div>
                     ${main.isAdministrator ? `<div class="form-hint" style="color: var(--jpf-danger); font-weight: 600;">${t('profileForm.pinAdminWarning')}</div>` : ''}
                 </div>
+            `;
+
+            // Rare, and each says what it changes in a line: closed under the one fold
+            // every household screen uses (P2-603).
+            const rare = `
                 ${check('account-ask-pin', main.askPinToOpen, t('profileForm.askPinToOpen'), t('profileForm.askPinToOpenHint'))}
                 ${check('account-lan-bypass', main.bypassPinOnLocalNetwork, t('profileForm.bypassPinLan'), t('profileForm.bypassPinHint'))}
                 <div class="form-group">
@@ -8914,6 +8931,47 @@
                 </div>
             `;
 
+            // A count and a button: the list, with rename, merge and forget on each row,
+            // is a screen of its own (P2-603).
+            const deviceBody = devices === null
+                ? `<div class="form-hint">${t('profileForm.devicesUnavailable')}</div>`
+                : `<div class="form-hint" id="account-device-count">${t('account.devicesCount', { count: devices.length })}</div>
+                   <button type="button" id="account-manage-devices" class="profiles-btn btn-secondary">${t('account.manageDevices')}</button>`;
+
+            content.innerHTML = `
+                <h1 class="profiles-title">${t('settings.accountTitle')}</h1>
+                <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
+                    ${this.renderSection('lock', t('account.signInTitle'), t('account.signInSubtitle'), signIn)}
+                    <div id="account-email-slot"></div>
+                    <div id="account-zone-slot"></div>
+                    ${this.renderSection('devices', t('account.devicesTitle'), t('account.devicesCountSubtitle'), deviceBody)}
+                    ${this.renderFold('account-more', t('account.moreSummary'), `<div class="form-col">${rare}</div>`, true)}
+                    <div id="account-status" class="form-hint" role="status" aria-live="polite"></div>
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1.5rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
+                        <button id="account-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
+                    </div>
+                </div>
+            `;
+            this._bindAccountScreen(content, main, devices, masterState);
+        },
+
+        /// Settings → Your account → Manage devices: every device the household has used,
+        /// with rename, merge and forget on each. A screen of its own so the account page
+        /// can show a count (P2-603).
+        showAccountDevices: function () {
+            const ticket = this.beginNavigation();
+            const masterState = this.readMasterState();
+            const content = document.querySelector('.profiles-modal-content');
+            if (!masterState || !content) return;
+            this.fetchSharedFormData(ApiClient, masterState)
+                .then(shared => shared.devices, () => null)
+                .then(devices => {
+                    if (!this.navIsCurrent(ticket)) return;
+                    this._renderAccountDevices(content, devices, masterState);
+                });
+        },
+
+        _renderAccountDevices: function (content, devices, masterState) {
             const deviceRow = (dev) => {
                 const id = dev.deviceId || dev.DeviceId || '';
                 const name = dev.deviceName || dev.DeviceName || t('profileForm.unknownDevice');
@@ -8943,19 +9001,23 @@
                        <button type="button" id="devices-tidy-btn" class="profiles-btn btn-secondary device-tidy-btn">${t('profileForm.tidyDevices')}</button>`;
 
             content.innerHTML = `
-                <h1 class="profiles-title">${t('settings.accountTitle')}</h1>
+                <h1 class="profiles-title">${t('account.devicesTitle')}</h1>
                 <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
-                    ${this.renderSection('lock', t('account.signInTitle'), t('account.signInSubtitle'), signIn)}
-                    <div id="account-email-slot"></div>
-                    <div id="account-zone-slot"></div>
                     ${this.renderSection('devices', t('account.devicesTitle'), t('account.devicesSubtitle'), deviceBody)}
-                    <div id="account-status" class="form-hint" role="status" aria-live="polite"></div>
                     <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1.5rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
-                        <button id="account-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
+                        <button id="account-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.back')}</button>
                     </div>
                 </div>
             `;
+            this.bindDeviceTools(content, masterState, () => this.showAccountDevices());
+            content.querySelector('#account-back-btn').addEventListener('click', () => this.showAccountSettings());
+            this.initTVCheckboxes(content);
+        },
 
+        /// Everything on the account page that does something: each control saves alone
+        /// through /account, so there is no Save button to miss.
+        _bindAccountScreen: function (content, main, devices, masterState) {
+            const apiClient = ApiClient;
             const status = content.querySelector('#account-status');
             const say = (text, bad) => {
                 status.textContent = text || '';
@@ -9023,7 +9085,7 @@
                     body[field] = box.checked;
                     saveAccount(body).then(ok => {
                         if (ok) say(t('account.saved'));
-                        else box.checked = !box.checked;
+                        else { box.checked = !box.checked; this.revealFold(box); }
                     });
                 });
             };
@@ -9035,11 +9097,12 @@
                 const before = main.lockoutMinutes;
                 saveAccount({ lockoutMinutes: parseInt(lockSel.value, 10) }).then(ok => {
                     if (ok) say(t('account.saved'));
-                    else lockSel.value = String(before);
+                    else { lockSel.value = String(before); this.revealFold(lockSel); }
                 });
             });
 
-            this.bindDeviceTools(content, masterState, () => this.showAccountSettings());
+            const manage = content.querySelector('#account-manage-devices');
+            if (manage) manage.addEventListener('click', () => this.showAccountDevices());
             this._bindAccountEmail(content.querySelector('#account-email-slot'));
             this._bindAccountZone(content.querySelector('#account-zone-slot'), saveAccount, say);
 

@@ -86,7 +86,9 @@ const last = url => sent(url).pop();
     server.email.available = false;
     PP._bindAccountEmail(slot);
     await settle();
-    ok('without email on the server, no section is drawn', slot.innerHTML === '');
+    // Was "no section is drawn". P2-607: a hint that email is off and who can turn it on.
+    ok('without email on the server, the section says it is off and draws no controls',
+        /account-email-off/.test(slot.innerHTML) && !/<input|<button/.test(slot.innerHTML));
     const get = last('plugins/profiles/account/email');
     ok('the address is asked for with the main PIN', get && !get.body && get.init.headers['X-Bonfire-Master-Pin'] === '1234');
 
