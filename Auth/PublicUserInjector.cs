@@ -328,6 +328,16 @@ namespace Jellyfin.Profiles.Auth
                         continue;
                     }
 
+                    // A turned-off account cannot sign in, so a tile for it is a door that
+                    // never opens. The provider refuses it too; this keeps it off the screen.
+                    if (dto?.Policy?.IsDisabled == true)
+                    {
+                        logger.LogInformation(
+                            "ProfilesPlugin: profile {ProfileId} is turned off in Jellyfin, so it was left out of the sign-in list.",
+                            userId);
+                        continue;
+                    }
+
                     var node = Reduced(JsonNode.Parse(JsonSerializer.Serialize(dto, serializerOptions)));
                     if (node == null) continue;
 

@@ -1229,6 +1229,23 @@ Console.WriteLine("── Why a profile goes missing from one television ──�
            log.All.Contains(ghost.ToString(), StringComparison.Ordinal), log.All);
     }
 
+    // ── 2b. a turned-off account gets no tile ───────────────────────────────────────
+    {
+        var offDto = new UserDto
+        {
+            Name = "Bardkids", Id = profileId, ServerId = "abc123", HasPassword = true,
+            Policy = new UserPolicy { IsDisabled = true }
+        };
+        var offBytes = (byte[])inject.Invoke(null, new object[]
+        {
+            Encoding.UTF8.GetBytes("[]"), "application/json; profile=\"PascalCase\"",
+            (IReadOnlyList<Guid>)new List<Guid> { profileId }, UserManagerStub.Create(profileId, offDto),
+            "127.0.0.1", NullLogger.Instance, null
+        });
+        Ok("a profile whose account is turned off is not offered on the sign-in screen",
+           offBytes == null || !Encoding.UTF8.GetString(offBytes).Contains("Bardkids"));
+    }
+
     // ── 3. the device filter drops a profile and says nothing ───────────────────────
     var xMaster = Guid.NewGuid();
     var xKidAny = Guid.NewGuid();
