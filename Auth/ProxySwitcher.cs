@@ -505,6 +505,7 @@ namespace Jellyfin.Profiles.Auth
             }
 
             // Acting as a profile: the request goes to Jellyfin as that profile.
+            if (acting.ProfileId != session.MasterId) await PickerDiag.BeforeSwapAsync(context, session.MasterId, acting.ProfileId, logger).ConfigureAwait(false); // TEMPORARY (R-1032/R-1033): remove before 2.0
             Swap(context, session, acting);
 
             switch (route.Kind)
@@ -524,7 +525,8 @@ namespace Jellyfin.Profiles.Auth
                     return true;
 
                 default:
-                    await forward().ConfigureAwait(false);
+                    if (acting.ProfileId != session.MasterId && PickerDiag.Kind(request.Path.Value ?? string.Empty) == "playlist") await PickerDiag.ForwardAndPeekAsync(context, forward, logger).ConfigureAwait(false); // TEMPORARY (R-1032/R-1033): remove before 2.0
+                    else await forward().ConfigureAwait(false); // TEMPORARY (R-1032/R-1033): remove before 2.0
                     await DropIfRevokedAsync(context, session, acting, services, logger).ConfigureAwait(false);
                     return true;
             }
