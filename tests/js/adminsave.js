@@ -47,7 +47,6 @@ const serverConfig = {
     DisallowCustomAvatarUploads: false,
     DefaultAskOnStartup: true,
     DefaultSwitcherLocation: 'button',
-    IndexInjectionMode: 'middleware',
     Mappings: [{ ProfileUserId: 'created-while-the-page-was-open' }],
     KnownDevices: [{ DeviceId: 'living-room-tv' }],
     BonfireGroups: [{ OwnerUserId: 'someone' }],
@@ -70,7 +69,6 @@ async function run(fieldValues) {
         defaultTheme: 'bonfire',
         allowProfileThemes: true,
         defaultTimeZone: '',
-        indexInjectionMode: 'middleware',
         // Both default off. A missing id throws in the stub below, so adding a control to
         // the form without adding it here is a failure rather than a silent omission —
         // which is the whole reason this list is written out by hand.
@@ -221,7 +219,6 @@ const expected = [
     'defaultTheme',
     'allowProfileThemes',
     'defaultTimeZone',
-    'indexInjectionMode',
     'enableClientPinLogin',
     'enableClientProfileList',
     'clientPinLoginFromAnywhere',
@@ -326,8 +323,7 @@ const flipped = await run({
     disallowCustomAvatars: true,
     defaultAskOnStartup: false,
     defaultSwitcherLocation: 'menu',
-    defaultTimeZone: 'Europe/London',
-    indexInjectionMode: 'both'
+    defaultTimeZone: 'Europe/London'
 });
 const flippedBody = sent(flipped);
 ok('requireMainPin follows the checkbox', flippedBody.requireMainPin === true && sent(await run({})).requireMainPin === false);
@@ -335,7 +331,6 @@ ok('enablePinResetByEmail follows the checkbox', flippedBody.enablePinResetByEma
 ok('disallowCustomAvatarUploads follows the checkbox', flippedBody.disallowCustomAvatarUploads === true);
 ok('defaultAskOnStartup follows the checkbox', flippedBody.defaultAskOnStartup === false);
 ok('defaultSwitcherLocation follows the select', flippedBody.defaultSwitcherLocation === 'menu');
-ok('indexInjectionMode follows the select', flippedBody.indexInjectionMode === 'both');
 ok('defaultTimeZone follows the select, empty for the server\'s own', flippedBody.defaultTimeZone === 'Europe/London' && sent(await run({})).defaultTimeZone === '');
 
 // The picture quality select: its three values go through, anything else is sent as

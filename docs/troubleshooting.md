@@ -16,12 +16,12 @@ failed, while the switcher keeps working. A restart fixes that too.
 
 ### No script tag in `index.html` is normal
 
-Bonfire does not edit `index.html` by default, and hasn't since 1.4.1. It adds its
-script as the page is served, so nothing is written to disk and nothing needs redoing
-after a Jellyfin update.
+Bonfire does not edit `index.html`. It adds its script as the page is served, so nothing
+is written to disk and nothing needs redoing after a Jellyfin update. Tags an older
+version wrote into the file are removed once the first page has been served.
 
 To check it's working, open **Dashboard → Plugins → Bonfire → Troubleshoot → Advanced → Client script**.
-It shows which method is in use and how many pages it has served.
+It shows how many pages it has served.
 
 ### It works in a browser but not in an app
 
@@ -30,22 +30,6 @@ ship their own copy never see it. See [Apps](clients.md) for which apps
 work and how.
 
 Parental controls still apply in every app, because the server enforces them.
-
-## Writing to `index.html` (legacy modes)
-
-Under **Troubleshoot → Advanced → Client script** you can choose how the script is added:
-
-| Method | What it does |
-| --- | --- |
-| **Serve it live, never touch index.html** | The default. Removes any tags an older version wrote. |
-| **Patch index.html, fall back to serving it live** *(legacy)* | For setups that need the tag in the file, such as a proxy that caches the page. |
-| **Patch index.html only** *(legacy)* | How every release up to 1.4 worked. |
-
-Both legacy modes need Jellyfin to be able to write to its own web files, which it often
-can't on Docker, Linux packages or protected Windows folders. If the write fails, the
-settings page shows the command to fix it for your system.
-
-If you haven't chosen a legacy mode, you don't need to grant that access.
 
 ## Samsung Tizen
 

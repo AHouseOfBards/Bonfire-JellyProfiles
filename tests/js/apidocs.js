@@ -335,7 +335,7 @@ ok('the README does not present the default limit as a cap',
 // that does not carry it has been deleted, whatever the commit says.
 for (const [file, needle, what] of [
     ['docs/beta-channel.md', 'Beta builds are unfinished', 'the beta risk warning'],
-    ['docs/troubleshooting.md', 'does not edit `index.html` by default', 'the injection headline'],
+    ['docs/troubleshooting.md', 'Bonfire does not edit `index.html`.', 'the injection headline'],
 ]) {
     const p = path.join(L.ROOT, file);
     ok(file + ' exists', fs.existsSync(p));

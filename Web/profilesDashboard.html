@@ -1384,20 +1384,8 @@
                     <div class="sectionTitleContainer jpf-section" id="jpfClientScript">
                         <h2 class="sectionTitle" data-i18n="admin.script.title">Client script</h2>
                     </div>
-                    <div class="fieldDescription jpf-lede" data-i18n="admin.script.lede">How Bonfire's script reaches the web client. Leave this alone unless something is broken.</div>
-                    <div class="selectContainer">
-                        <label class="selectLabel" for="indexInjectionMode" data-i18n="admin.script.method">Method</label>
-                        <select is="emby-select" id="indexInjectionMode">
-                            <option value="middleware" data-i18n="admin.script.middleware">Serve it live, never touch index.html</option>
-                            <option value="both" data-i18n="admin.script.both">Patch index.html, fall back to serving it live (legacy)</option>
-                            <option value="file" data-i18n="admin.script.file">Patch index.html only (legacy)</option>
-                        </select>
-                        <div class="fieldDescription" id="indexInjectionModeHelp"></div>
-                        <div class="fieldDescription jpf-mt-1" id="middlewareStatusLine"></div>
-                    </div>
-                    <div class="buttonContainer jpf-block-end">
-                        <button is="emby-button" type="button" id="saveInjectionMode" class="raised jpf-narrow" data-i18n="admin.script.save">Save method</button>
-                    </div>
+                    <div class="fieldDescription jpf-lede" data-i18n="admin.script.lede">Whether Bonfire's script is reaching the web client.</div>
+                    <div class="fieldDescription jpf-block-end" id="middlewareStatusLine"></div>
 
                     <div class="sectionTitleContainer jpf-section">
                         <h2 class="sectionTitle" data-i18n="admin.backup.title">Backup</h2>
@@ -1473,10 +1461,7 @@
                 'admin.readFailed': 'Couldn\'t read the current status.',
                 'admin.version.preTitle': 'Pre-release build. Please report problems on GitHub.',
 
-                'admin.script.helpMiddleware': 'The default. index.html is left alone, and any tags Bonfire added before are removed. Nothing to redo after a Jellyfin update.',
-                'admin.script.helpBoth': 'Legacy. Also patches index.html, and serves the script live if that write fails. Mainly for a proxy that caches index.html.',
-                'admin.script.helpFile': 'Legacy. How every release up to 1.4.0 worked. Needs write access to index.html and has to be redone after each Jellyfin update.',
-                'admin.script.notAttached': 'Live injection couldn\'t attach to Jellyfin. Only patching index.html will work here.',
+                'admin.script.notAttached': 'Live injection couldn\'t attach to Jellyfin. Restart Jellyfin.',
                 'admin.script.notYet': 'Live injection is loaded, but no page has reached it yet. Reload this page to check.',
                 'admin.script.servedOne': 'Live injection is working: 1 page served.',
                 'admin.script.servedMany': 'Live injection is working: {count} pages served.',
@@ -1484,7 +1469,6 @@
                 'admin.script.lastProblem': 'Last problem: {error}',
 
                 'admin.banner.restartVersions': 'Running {running}. Version {newest} is installed and starts when the server process restarts.',
-                'admin.banner.failFile': 'Bonfire couldn\'t add its script to Jellyfin\'s index.html, so the profile screen and switcher won\'t load.',
                 'admin.banner.failLive': 'Bonfire is set to serve the client script live, and it isn\'t reaching the page. index.html is not involved, so there is nothing to change on disk.',
                 'admin.banner.accountUnknown': 'unknown',
                 'admin.banner.rechecking': 'Re-checking…',
@@ -2019,14 +2003,6 @@
                     page.querySelectorAll('.jpfProxyClient').forEach(function (box) {
                         box.checked = proxied.indexOf(box.getAttribute('data-proxy-client')) !== -1;
                     });
-                    // Absent before 1.4.1 — "both" is the shipped default and the safe one.
-                    // Matches IndexInjectionModes.Normalize on the server: anything
-                    // unrecognised, including a configuration written before 1.4.1, is
-                    // middleware now.
-                    const mode = String(config.IndexInjectionMode || 'middleware').toLowerCase();
-                    page.querySelector('#indexInjectionMode').value =
-                        (mode === 'both' || mode === 'file') ? mode : 'middleware';
-                    updateInjectionModeHelp(page);
                     // Every settings field is filled in. Set here, not at the end: a loader
                     // below failing must not lock Save, and one above must.
                     page._configLoaded = true;
@@ -2099,19 +2075,6 @@
                 return String(guid).toLowerCase().replace(/[^a-z0-9]/g, '');
             }
 
-            function updateInjectionModeHelp(page) {
-                const select = page.querySelector('#indexInjectionMode');
-                const help = page.querySelector('#indexInjectionModeHelp');
-                if (!select || !help) return;
-                // Looked up when shown, not held in a constant, so it is in the page's language.
-                const text = {
-                    middleware: t('admin.script.helpMiddleware'),
-                    both: t('admin.script.helpBoth'),
-                    file: t('admin.script.helpFile')
-                };
-                help.textContent = text[select.value] || '';
-            }
-
             // Says whether the pipeline hook is actually there. Worth showing plainly: it is new
             // in 1.4.1, and "it did not attach" and "it attached and had nothing to do" look
             // identical from the outside.
@@ -2161,8 +2124,6 @@
                 const reason = field(result, 'failureReason');
 
                 const mech = field(result, 'mechanism');
-                const mode = mech ? field(mech, 'mode') : null;
-
                 // Installed or updated on a running server. Not a failure and not something
                 // a command can fix, so it gets its own banner and suppresses the other two
                 // (issue #25).
@@ -2239,8 +2200,6 @@
                     setStatus(page, 'beta', [{ level: 'info', text: t('admin.status.beta'), tab: 'troubleshoot', fix: t('admin.status.report') }]);
                 }
 
-                const patchesFile = (mode === 'file' || mode === 'both');
-
                 const failReasonEl = page.querySelector('#injectionFailureReason');
                 if (failReasonEl) {
                     failReasonEl.textContent = reason || '';
@@ -2304,7 +2263,7 @@
                 // people whose only problem was a pending restart (issue #25). Runs last so
                 // it wins over the command-filling block above, which shows the account row
                 // whenever an account was detected.
-                const hideFileFix = failed && !patchesFile;
+                const hideFileFix = failed;
                 page.querySelectorAll('.injectionFileFix').forEach(function (el) {
                     el.style.display = hideFileFix ? 'none' : '';
                 });
@@ -2313,7 +2272,7 @@
 
                 const headlineEl = page.querySelector('#injectionFailureHeadline');
                 if (headlineEl) {
-                    headlineEl.textContent = patchesFile ? t('admin.banner.failFile') : t('admin.banner.failLive');
+                    headlineEl.textContent = t('admin.banner.failLive');
                 }
             }
 
@@ -5558,8 +5517,7 @@
                         '',
                         'Client script: ' + (field(r, 'injectionSucceeded') === false ? 'FAILED' : 'ok')
                             + (field(r, 'isVersionStale') ? ', tag out of date' : ''),
-                        'Method: ' + (field(m, 'mode') || '?')
-                            + ', live injection ' + (field(m, 'middlewareRegistered') ? 'attached' : 'not attached')
+                        'Live injection ' + (field(m, 'middlewareRegistered') ? 'attached' : 'not attached')
                             + ', pages served ' + (field(m, 'middlewareServed') || 0),
                         'Restart pending: ' + (field(m, 'restartRequired') ? 'yes' : 'no'),
                         'Failure reason: ' + (field(r, 'failureReason') ? 'see dashboard' : 'none'),
@@ -5689,7 +5647,7 @@
             // buttons of their own and are not counted: only what Save sends is.
             const SAVED_FIELD_IDS = ['maxProfiles', 'pinGuessesPerDay', 'requireMainPin', 'enablePinResetByEmail',
                 'disallowCustomAvatars', 'enableStarterAvatars', 'defaultAskOnStartup', 'defaultSwitcherLocation',
-                'defaultTheme', 'allowProfileThemes', 'defaultTimeZone', 'indexInjectionMode', 'enableClientPinLogin',
+                'defaultTheme', 'allowProfileThemes', 'defaultTimeZone', 'enableClientPinLogin',
                 'enableClientProfileList', 'clientPinLoginFromAnywhere', 'skipQuickConnectOnKnownDevices',
                 'profileImageQuality', 'onboardingEnabled', 'onboardingWelcome'];
             const SAVED_FIELD_CLASSES = ['jpfProxyClient', 'jpfObShow', 'jpfObRequired'];
@@ -5765,7 +5723,6 @@
                     defaultTheme: normalizeTheme(page.querySelector('#defaultTheme').value || page._wantedDefaultTheme, page._themeOffered),
                     allowProfileThemes: page.querySelector('#allowProfileThemes').checked,
                     defaultTimeZone: page.querySelector('#defaultTimeZone').value,
-                    indexInjectionMode: page.querySelector('#indexInjectionMode').value,
                     enableClientPinLogin: page.querySelector('#enableClientPinLogin').checked,
                     enableClientProfileList: page.querySelector('#enableClientProfileList').checked,
                     clientPinLoginFromAnywhere: page.querySelector('#clientPinLoginFromAnywhere').checked,
@@ -5821,15 +5778,6 @@
 
             function showPage(page) {
                 loadConfiguration(page);
-                // pageshow fires more than once for the same element, so this needs the same
-                // guard every other handler on this page has. Without it the help text was
-                // recomputed once per past visit.
-                const modeSelect = page.querySelector('#indexInjectionMode');
-                if (modeSelect && !modeSelect.dataset.bound) {
-                    modeSelect.dataset.bound = '1';
-                    modeSelect.addEventListener('change', function () { updateInjectionModeHelp(page); });
-                }
-
                 ['#enableClientPinLogin', '#enableClientProfileList', '#allowProfileThemes'].forEach(function (sel) {
                     const box = page.querySelector(sel);
                     if (box && !box.dataset.depBound) {
@@ -5846,13 +5794,6 @@
                 if (retryBtn && !retryBtn.dataset.bound) {
                     retryBtn.dataset.bound = '1';
                     retryBtn.addEventListener('click', function () { loadConfiguration(page); });
-                }
-
-                // The method is under Troubleshoot → Advanced, with a Save of its own.
-                const saveModeBtn = page.querySelector('#saveInjectionMode');
-                if (saveModeBtn && !saveModeBtn.dataset.bound) {
-                    saveModeBtn.dataset.bound = '1';
-                    saveModeBtn.addEventListener('click', function () { saveConfiguration(page); });
                 }
 
                 // One Save per tab, all sending the same settings: saveConfiguration reads

@@ -164,7 +164,6 @@ var byHand = new Dictionary<string, object>
     ["DefaultTheme"] = "harbor",
     ["DefaultSwitcherLocation"] = "menu",
     ["ProfileImageQuality"] = "high",
-    ["IndexInjectionMode"] = "file",
     ["DefaultTimeZone"] = "UTC",
     ["PanicCodeHash"] = "panic-hash",
     ["LogoText"] = "Hearth",
@@ -237,6 +236,33 @@ var partial = JsonSerializer.SerializeToElement(new { configuration = new { Mapp
 importRoute.Invoke(NewController(), new object[] { partial });
 Ok("a file without a setting leaves the current one", Json(cfgType.GetProperty("Email").GetValue(live)) == snapshot["Email"]
    && Json(cfgType.GetProperty("Maintenance").GetValue(live)) == snapshot["Maintenance"]);
+
+// A backup written by a version that still had a setting that has since been cut. The old
+// field rides along in the file; the import must take everything else and not refuse it.
+// Each cut adds its field to this one list.
+Console.WriteLine();
+Console.WriteLine("── A backup from a version that had settings since cut ──────────");
+{
+    var oldFields = new Dictionary<string, object>
+    {
+        ["IndexInjectionMode"] = "file",
+    };
+    var fileConfig = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(body.GetProperty("configuration").GetRawText());
+    var older = new Dictionary<string, object>();
+    foreach (var kv in fileConfig) older[kv.Key] = kv.Value;
+    foreach (var kv in oldFields) older[kv.Key] = kv.Value;
+    var olderBody = JsonSerializer.SerializeToElement(new { exportedUtc = "2026-01-01T00:00:00Z", pluginVersion = "1.7.4.0", configuration = older });
+
+    Overwrite(live, Defaults());
+    var olderResult = importRoute.Invoke(NewController(), new object[] { olderBody });
+    var olderStatus = olderResult is ObjectResult oo ? (oo.StatusCode ?? 200) : olderResult is StatusCodeResult ss ? ss.StatusCode : -1;
+    Ok("the import is accepted", olderStatus == 200, olderStatus.ToString());
+    var olderAfter = Settable().ToDictionary(p => p.Name, p => Json(p.GetValue(live)));
+    var olderLost = Settable().Where(p => !notChanged.ContainsKey(p.Name) && !notRestored.ContainsKey(p.Name) && olderAfter[p.Name] != snapshot[p.Name]).Select(p => p.Name).ToList();
+    Ok("and every other setting comes back", olderLost.Count == 0, string.Join(", ", olderLost));
+    foreach (var name in oldFields.Keys)
+        Ok(name + " is not a setting any more", cfgType.GetProperty(name) == null);
+}
 
 try { Directory.Delete(tempDir, true); } catch { }
 return Finish();

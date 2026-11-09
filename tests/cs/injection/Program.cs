@@ -22,7 +22,6 @@ static string RepoPath(params string[] parts)
 
 // Exercises the 1.4.1 injection path against the compiled plugin:
 //   - WebInjection.Inject / Remove / IsFullyInjected  — the shared HTML surgery
-//   - IndexInjectionModes                             — which mechanism is live
 //   - ProfilesIndexMiddleware.IsIndexPath             — what the middleware answers
 //
 // The point of most of these is the double-injection hazard: the on-disk patcher and the
@@ -37,7 +36,7 @@ var tfm = new System.IO.DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
     System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)).Name;
 var asm = Assembly.LoadFrom(RepoPath("bin", "Release", tfm, "Jellyfin.Profiles.dll"));
 var wi = asm.GetType("Jellyfin.Profiles.WebInjection", true);
-var modes = asm.GetType("Jellyfin.Profiles.Configuration.IndexInjectionModes", true);
+var modes = asm.GetType("Jellyfin.Profiles.Configuration.IndexInjectionModes", false);
 var mw = asm.GetType("Jellyfin.Profiles.ProfilesIndexMiddleware", true);
 
 const BindingFlags Flags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
@@ -46,9 +45,6 @@ var injectM = wi.GetMethod("Inject", Flags) ?? throw new Exception("Inject not f
 var removeM = wi.GetMethod("Remove", Flags) ?? throw new Exception("Remove not found");
 var fullyM = wi.GetMethod("IsFullyInjected", Flags) ?? throw new Exception("IsFullyInjected not found");
 var isPathM = mw.GetMethod("IsIndexPath", Flags) ?? throw new Exception("IsIndexPath not found");
-var normM = modes.GetMethod("Normalize", Flags);
-var patchesM = modes.GetMethod("PatchesFile", Flags);
-var usesM = modes.GetMethod("UsesMiddleware", Flags);
 
 string ScriptVersion = (string)wi.GetProperty("ScriptVersion", Flags).GetValue(null);
 
@@ -237,33 +233,14 @@ Console.WriteLine("── IsFullyInjected is strict about the version ───�
 }
 
 Console.WriteLine();
-Console.WriteLine("── Which mechanism is live ──────────────────────────────────");
+Console.WriteLine("── Only the middleware remains ──────────────────────────────");
 {
-    string Norm(string v) => (string)normM.Invoke(null, new object[] { v });
-    bool Patches(string v) => (bool)patchesM.Invoke(null, new object[] { v });
-    bool Uses(string v) => (bool)usesM.Invoke(null, new object[] { v });
-
-    // The default moved from "both" to "middleware" once the pipeline hook was
-    // confirmed working on hardware. Not writing to index.html is the behaviour
-    // worth defaulting to — that write is the whole reason #17, #11 and #3 exist.
-    Check("null defaults to middleware", Norm(null), "middleware");
-    Check("empty defaults to middleware", Norm(""), "middleware");
-    Check("nonsense defaults to middleware", Norm("harmony"), "middleware");
-    Check("case and padding tolerated", Norm("  MiddleWare "), "middleware");
-    Check("file survives", Norm("file"), "file");
-    Check("both is still selectable", Norm("both"), "both");
-
-    // A configuration written before 1.4.1 has no value at all. It now stops
-    // patching the file and is served from the pipeline instead.
-    Check("upgrade from an older build stops patching", Patches(null), false);
-    Check("both patches", Patches("both"), true);
-    Check("file patches", Patches("file"), true);
-    Check("middleware does NOT patch", Patches("middleware"), false);
-
-    Check("both uses middleware", Uses("both"), true);
-    Check("middleware uses middleware", Uses("middleware"), true);
-    Check("file does NOT use middleware", Uses("file"), false);
-    Check("upgrade from 1.4.0 gets the fallback", Uses(null), true);
+    // The "file" and "both" modes are gone, and with them the choice: nothing in the plugin
+    // can ask for index.html to be written. A server saved in either mode is served by the
+    // middleware like every other, and its old tags are taken out once a page has been served.
+    // (That the configuration has no such property is checked by goldenconfig and
+    // configimport, which load PluginConfiguration; this one has no Jellyfin references.)
+    Check("there is no mode class to choose from", modes == null, true);
 }
 
 Console.WriteLine();

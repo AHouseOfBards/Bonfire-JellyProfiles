@@ -143,7 +143,7 @@ All 104 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `POST /plugins/profiles/admin/sessions/sign-out` | admin | Sign one device out. |
 | `GET /plugins/profiles/admin/config/export` | admin | Export the configuration. |
 | `POST /plugins/profiles/admin/config/import` | admin | Import a configuration. |
-| `POST /plugins/profiles/admin/retry-injection` | admin | Retry writing the script tag. |
+| `POST /plugins/profiles/admin/retry-injection` | admin | Check the script is reaching browsers again. |
 | `POST /plugins/profiles/admin/set-profile-limit` | admin | One account's profile limit. |
 | `POST /plugins/profiles/admin/standalone` | admin | Make a profile its own account. |
 | `POST /plugins/profiles/admin/make-profile` | admin | Make an account a profile of another. |
@@ -843,16 +843,11 @@ app with its own Bonfire switcher should not be listed.
 
 ## Client script
 
-The browser has to load `profiles.js` for any of the switcher to appear. How it's added is
-set under **Troubleshoot → Advanced → Client script** and reported as `mechanism.mode`:
+The browser has to load `profiles.js` for any of the switcher to appear. Bonfire adds the
+tags as `index.html` is served and never writes the file. Tags an older version wrote to
+disk are removed after the first page is served.
 
-| `mode` | How |
-| --- | --- |
-| `middleware` | The default. Tags are added to `index.html` as it's served. The file on disk is untouched. |
-| `both` | Legacy. `index.html` is edited on disk, with the middleware as a fallback. |
-| `file` | Legacy. `index.html` is edited on disk only. |
-
-An `index.html` with no Bonfire tags is normal under `middleware`. Read `mechanism` from
+An `index.html` with no Bonfire tags is normal. Read `mechanism` from
 `GET /admin/mappings` instead. Samsung Tizen packages need the loader described in
 [troubleshooting](troubleshooting.md#samsung-tizen).
 
@@ -2178,7 +2173,6 @@ anything added since you read it.
 | `defaultSwitcherLocation` | string | `button` or `menu`. |
 | `defaultTheme` | string | A [theme](#themes) id. |
 | `allowProfileThemes` | boolean | Let profiles choose their own theme. Turning it off keeps their choices for later. |
-| `indexInjectionMode` | string | `middleware`, `both` or `file`. |
 | `enableClientPinLogin` | boolean | See [Sign-in from other apps](#sign-in-from-other-apps). |
 | `enableClientProfileList` | boolean | Same. |
 | `clientPinLoginFromAnywhere` | boolean | Same. |
@@ -2211,7 +2205,7 @@ Every account and profile, and whether the client script is reaching browsers.
   "serviceAccount": "NT AUTHORITY\\NETWORK SERVICE",
   "isWindows": true,
   "pluginVersion": "1.6.6",
-  "mechanism": { "mode": "middleware", "restartRequired": false, "middlewareActive": true }
+  "mechanism": { "restartRequired": false, "middlewareActive": true }
 }
 ```
 
@@ -2221,7 +2215,7 @@ Every account and profile, and whether the client script is reaching browsers.
 | `isAdministrator`, `inBonfire` | On each main account. Neither can be made a profile. |
 | `added` | On each main account: `[{ "userId", "name" }]`, the other accounts on its switcher. |
 | `injectionSucceeded` | The script is reaching browsers. |
-| `isVersionStale` | The script tag on disk is an older version. The switcher still works. Always false under `middleware`. |
+| `isVersionStale` | Always false. Kept so existing clients keep working. |
 | `failureReason` | What's wrong, or null. |
 | `serviceAccount`, `isWindows` | The account Jellyfin runs as, for writing a permissions command. |
 | `pluginVersion` | Includes `-beta` on beta builds. |
@@ -2230,7 +2224,6 @@ Every account and profile, and whether the client script is reaching browsers.
 
 | Field | Description |
 | --- | --- |
-| `mode` | `middleware`, `both` or `file`. |
 | `restartRequired` | This version was installed after Jellyfin started. It isn't fully active until a restart. Don't show it as a failure. |
 | `runningVersion` | The version running now. |
 | `newestInstalledVersion` | The newest version on disk, or null. |
@@ -2337,9 +2330,8 @@ The body is the `configuration` object from an export.
 
 **Authorisation:** administrator.
 
-Tries writing the script tag into `index.html` again, for after fixing file permissions.
-Only does anything in the `both` and `file` modes. Returns the same status fields as
-`GET /admin/mappings`.
+Checks again whether the script is reaching browsers, and removes any tags an older
+version left in `index.html`. Returns the same status fields as `GET /admin/mappings`.
 
 ### `POST /plugins/profiles/admin/set-profile-limit`
 

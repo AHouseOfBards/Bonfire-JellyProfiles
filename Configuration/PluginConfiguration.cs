@@ -268,19 +268,12 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public bool AllowProfileThemes { get; set; } = true;
 
-        /// <summary>
-        /// How the client script gets into Jellyfin’s index.html. One of the
-        /// <see cref="IndexInjectionModes"/> values.
-        /// <para>
-        /// Every release up to 1.4.0 rewrote index.html on disk, which is the single cause
-        /// behind issues #17, #11 and #3: it needs write permission to a directory the
-        /// package manager owns, it has to be reapplied after every Jellyfin update, and when
-        /// the file being served is not the file being patched there is no way to tell from
-        /// the outside. From 1.4.1 the plugin can instead inject on the fly, serving
-        /// index.html from the request pipeline and leaving the file alone.
-        /// </para>
-        /// </summary>
-        public string IndexInjectionMode { get; set; } = IndexInjectionModes.Middleware;
+        // There used to be an IndexInjectionMode here, with "file" and "both" modes that
+        // rewrote index.html on disk. Only the middleware remains, so the field is gone.
+        // A configuration saved with it still loads: XmlSerializer skips an element it has no
+        // property for, and the next save leaves it out. A server that was in one of those
+        // modes has its index.html cleaned by ProfilesBootstrapTask once the middleware has
+        // served a page.
 
         /// <summary>
         /// PBKDF2 hash of the emergency disable code, or null when the feature is off (the
@@ -420,51 +413,6 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>Maps arbitrary input to a known mode, falling back to <see cref="Gate"/>.</summary>
         public static string Normalize(string? mode) =>
             string.Equals(mode, Native, System.StringComparison.OrdinalIgnoreCase) ? Native : Gate;
-    }
-
-    /// <summary>
-    /// Where the client script tag comes from. See
-    /// <see cref="PluginConfiguration.IndexInjectionMode"/>.
-    /// </summary>
-    public static class IndexInjectionModes
-    {
-        /// <summary>Patch index.html on disk only — the behaviour of 1.4.0 and earlier.</summary>
-        public const string File = "file";
-
-        /// <summary>
-        /// Inject on the fly only, never writing to index.html. What the middleware is for;
-        /// this is the setting that actually tests it.
-        /// </summary>
-        public const string Middleware = "middleware";
-
-        /// <summary>
-        /// Both. Was the default while the middleware was new; kept as a belt-and-braces
-        /// option. The file gets patched as it always did, and the middleware finds the tags
-        /// already present and steps aside.
-        /// </summary>
-        public const string Both = "both";
-
-        /// <summary>
-        /// Falls back to <see cref="Middleware"/> for anything unrecognised, including the
-        /// empty value on a configuration written before 1.4.1.
-        /// <para>
-        /// This was <see cref="Both"/> through the 1.4.x betas, so that upgrading changed
-        /// nothing until someone opted in. Now that the middleware is confirmed working on
-        /// real hardware, not writing to index.html is the behaviour worth defaulting to:
-        /// it is the whole reason issues #17, #11 and #3 exist.
-        /// </para>
-        /// </summary>
-        public static string Normalize(string? value)
-        {
-            var v = (value ?? string.Empty).Trim().ToLowerInvariant();
-            return v == File || v == Both ? v : Middleware;
-        }
-
-        /// <summary>True when this mode should rewrite index.html on disk.</summary>
-        public static bool PatchesFile(string? value) => Normalize(value) != Middleware;
-
-        /// <summary>True when this mode should inject from the request pipeline.</summary>
-        public static bool UsesMiddleware(string? value) => Normalize(value) != File;
     }
 
     /// <summary>

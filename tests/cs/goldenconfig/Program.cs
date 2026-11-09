@@ -64,6 +64,7 @@ var serializer = new XmlSerializer(cfgType);
 var droppedOnPurpose = new Dictionary<string, string>
 {
     ["PluginConfiguration/RequireMasterPinForCreation"] = "removed in 1.7.2: creating a profile asks for the main PIN like every other change",
+    ["PluginConfiguration/IndexInjectionMode"] = "removed in 2.0: only the middleware remains",
 };
 
 string Write(object cfg)
@@ -204,6 +205,45 @@ if (files.Count > 0)
         Ok("written back, the names it didn't know are still there", again.Contains("<SyncPlayAccess>FutureMode</SyncPlayAccess>") && again.Contains("<UnratedItem>Hologram</UnratedItem>"));
         Ok("and the known ones are written as they always were", again.Contains("<UnratedItem>Movie</UnratedItem>") && again.Contains("<UnratedItem>Trailer</UnratedItem>"));
     }
+}
+
+// Settings cut before 2.0. A file written by 1.6, 1.7 or a 1.9 beta still carries them, with
+// whatever value the household had chosen. Each must load, leave every other value exactly as
+// it was, and be gone from the next save. The golden file is the baseline; each case turns it
+// into the file an older version would have written and compares what comes out.
+Console.WriteLine();
+Console.WriteLine("── Settings cut before 2.0 ─────────────────────────────────────────");
+if (files.Count > 0)
+{
+    var baseline = File.ReadAllText(files[0]);
+    var baselineLeaves = Leaves(Write(Read(baseline)));
+
+    void CutCase(string name, string oldFile, params string[] mustBeGone)
+    {
+        Ok(name + ": the old file really carries it", mustBeGone.All(m => oldFile.Contains(m)), string.Join(",", mustBeGone));
+        object cfg = null;
+        string error = null;
+        try { cfg = Read(oldFile); }
+        catch (Exception e) { error = (e.InnerException ?? e).Message; }
+        Ok(name + ": it loads", cfg != null, error);
+        if (cfg == null) return;
+        var written = Write(cfg);
+        Ok(name + ": the next save leaves it out", mustBeGone.All(m => !written.Contains(m.Split('>')[0].TrimStart('<'))),
+           string.Join(",", mustBeGone.Where(m => written.Contains(m.Split('>')[0].TrimStart('<')))));
+        var now = Leaves(written);
+        var gone = mustBeGone.Select(m => m.Split('>')[0].TrimStart('<')).ToList();
+        bool IsCut(string key) => gone.Any(g => key.Substring(0, key.IndexOf('=')).EndsWith("/" + g));
+        var lostOthers = baselineLeaves.Where(kv => !IsCut(kv.Key) && (!now.TryGetValue(kv.Key, out var n) || n < kv.Value)).Select(kv => kv.Key).ToList();
+        Ok(name + ": every other value is kept", lostOthers.Count == 0, lostOthers.Count + " lost, first: " + string.Join(" | ", lostOthers.Take(3)));
+        var addedOthers = now.Where(kv => !baselineLeaves.ContainsKey(kv.Key)).Select(kv => kv.Key).ToList();
+        Ok(name + ": and nothing new appears", addedOthers.Count == 0, string.Join(" | ", addedOthers.Take(3)));
+        Ok(name + ": a second round trip writes the same file", Write(Read(written)) == written);
+    }
+
+    foreach (var mode in new[] { "file", "both", "middleware" })
+        CutCase("injection mode " + mode,
+            baseline.Replace("<IndexInjectionMode>middleware</IndexInjectionMode>", "<IndexInjectionMode>" + mode + "</IndexInjectionMode>"),
+            "<IndexInjectionMode>" + mode + "</IndexInjectionMode>");
 }
 
 Console.WriteLine();

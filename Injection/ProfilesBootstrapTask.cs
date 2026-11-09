@@ -19,17 +19,11 @@ namespace Jellyfin.Profiles
     /// <summary>
     /// Runs once every time the Jellyfin server starts via the IHostedService lifecycle.
     ///
-    /// Ensures that the Profiles client script tag is present in Jellyfin's index.html
-    /// so the profile gate and switch button load automatically for all users without
-    /// any manual post-installation steps.
-    ///
-    /// The patch is idempotent — if the tag is already present the file is left untouched.
-    /// Because Jellyfin replaces index.html when the web client is updated, running
-    /// this check on every startup keeps the injection self-healing.
-    ///
-    /// If the file cannot be written (admin-locked directory, insufficient permissions)
-    /// a clear, platform-specific warning is written to the Jellyfin log with
-    /// copy-pasteable fix commands for Docker, Linux, and Windows.
+    /// The client script is served by <see cref="ProfilesIndexMiddleware"/>, so index.html
+    /// is left as Jellyfin shipped it. What this does is remove the tags that releases up
+    /// to 1.4.x (and the "file" and "both" modes after them) wrote into it, once the
+    /// middleware has served a page, and report on the dashboard whether the middleware
+    /// is working.
     /// </summary>
     public class ProfilesBootstrapTask : IHostedService
     {
@@ -38,16 +32,6 @@ namespace Jellyfin.Profiles
         // These forwarders keep the rest of this file — and the dashboard status it feeds —
         // reading exactly as before.
         internal static string ScriptVersion => WebInjection.ScriptVersion;
-
-        private static string BodyScriptTag => WebInjection.BodyScriptTag;
-
-        /// <summary>Version recorded in index.html’s script tag, or null if absent/unparseable.</summary>
-        private static string? GetInjectedScriptVersion(string html)
-            => WebInjection.GetInjectedScriptVersion(html);
-
-        /// <summary>True when index.html’s script tag already points at this build.</summary>
-        private static bool IsScriptVersionCurrent(string html)
-            => WebInjection.IsScriptVersionCurrent(html);
 
         /// <summary>
         /// The OS account the Jellyfin process is running under.
@@ -80,47 +64,10 @@ namespace Jellyfin.Profiles
             }
         }
 
-        /// <summary>
-        /// Non-destructively probes whether Jellyfin can actually write index.html.
-        ///
-        /// Reporting "the version tag is old" is describing a symptom; the administrator needs
-        /// to know the cause, and the cause is almost always that the file is not writable by
-        /// the Jellyfin process. Opening for write and closing immediately answers that
-        /// definitively instead of inferring it from a failed patch.
-        /// </summary>
-        internal static bool CanWriteIndexHtml(string? path)
-        {
-            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return false;
-            try
-            {
-                using var fs = File.Open(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        // Shared with the middleware — see WebInjection for what these contain and why.
-        private const string BodyMarker = WebInjection.BodyMarker;
-        private const string HeadScript = WebInjection.HeadScript;
-        private const string HeadMarker = WebInjection.HeadMarker;
-
         // Exposed so the dashboard page JS can check whether setup is complete.
         internal static bool InjectionSucceeded { get; private set; }
         internal static bool IsVersionStale { get; private set; }
         internal static string? IndexPath { get; private set; }
-
-        /// <summary>
-        /// True once a write of the script tag has completed without throwing.
-        ///
-        /// Distinguishes the two ways the tag can be missing, which need opposite fixes:
-        /// the write never happened (permissions), or it happened and the tag is still gone
-        /// when the file is read back — which means the file being served is not the file
-        /// being patched. Issue #17 was reported as the first and behaves like the second.
-        /// </summary>
-        private static bool _tagWriteReportedSuccess;
 
         /// <summary>
         /// Other jellyfin-web index.html files found on this system, beyond the one being
@@ -141,16 +88,6 @@ namespace Jellyfin.Profiles
         // chmod/icacls command, reload the page, and still see the failure warning, because
         // nothing re-read index.html until the next full Jellyfin restart. The static
         // self-reference lets the admin endpoints re-evaluate (and retry) on demand.
-        /// <summary>
-        /// Which mechanism is supposed to be adding the script tags. Falls back to
-        /// <see cref="IndexInjectionModes.Middleware"/> when the plugin instance is not up
-        /// yet, because the fallback must never be a mode that writes to index.html: an
-        /// administrator who has said "do not touch my file" would otherwise have it
-        /// patched during any window where the configuration is unreadable.
-        /// </summary>
-        private static string CurrentInjectionMode =>
-            IndexInjectionModes.Normalize(Plugin.Instance?.Configuration?.IndexInjectionMode);
-
         /// <summary>
         /// True when this copy of the plugin was loaded after Jellyfin had already started,
         /// which is what happens when a plugin is installed or updated on a running server.
@@ -613,128 +550,31 @@ namespace Jellyfin.Profiles
             {
                 try
                 {
-                    // Middleware only: index.html is *supposed* to be clean, so reading it
-                    // says nothing about whether the switcher will load. What matters is
-                    // whether the pipeline hook is live.
-                    if (!IndexInjectionModes.PatchesFile(CurrentInjectionMode))
-                    {
-                        IndexPath = IndexPath ?? self.FindIndexHtml();
+                    // index.html is *supposed* to be clean, so reading it says nothing about
+                    // whether the switcher will load. What matters is whether the pipeline
+                    // hook is live.
+                    IndexPath = IndexPath ?? self.FindIndexHtml();
 
-                        // Not IsRegistered: PluginServiceRegistrator sets that unconditionally,
-                        // so it is true wherever the plugin runs at all and says nothing about
-                        // whether the hook reached the pipeline. Reporting it as success meant a
-                        // green "installed and up to date" banner on a server where no script was
-                        // reaching the page. The honest signal is a request actually handled —
-                        // and anyone reading this page has already loaded the web client, so one
-                        // has been.
-                        var seen = ProfilesIndexMiddleware.HasSeenIndexRequest;
-                        var lastError = ProfilesIndexMiddleware.LastError;
+                    // Not IsRegistered: PluginServiceRegistrator sets that unconditionally,
+                    // so it is true wherever the plugin runs at all and says nothing about
+                    // whether the hook reached the pipeline. Reporting it as success meant a
+                    // green "installed and up to date" banner on a server where no script was
+                    // reaching the page. The honest signal is a request actually handled —
+                    // and anyone reading this page has already loaded the web client, so one
+                    // has been.
+                    var seen = ProfilesIndexMiddleware.HasSeenIndexRequest;
+                    var lastError = ProfilesIndexMiddleware.LastError;
 
-                        InjectionSucceeded = seen && lastError == null;
-                        IsVersionStale = false;
-                        LastFailureReason = InjectionSucceeded
-                            ? null
-                            : seen
-                                ? "Bonfire is in the request pipeline but could not add its script "
-                                  + "to the last page it served: " + lastError
-                                : "Bonfire has not handled a request for Jellyfin's web page, so "
-                                  + "nothing is adding the client script. Switch back to patching "
-                                  + "index.html.";
-                        return;
-                    }
-
-                    var indexPath = IndexPath ?? self.FindIndexHtml();
-                    IndexPath = indexPath;
-
-                    if (indexPath == null || !File.Exists(indexPath))
-                    {
-                        InjectionSucceeded = false;
-                        IsVersionStale = false;
-                        LastFailureReason = "Jellyfin's index.html could not be located on this system.";
-                        return;
-                    }
-
-                    var html = File.ReadAllText(indexPath);
-                    var hasBody = html.Contains(BodyMarker, StringComparison.Ordinal);
-                    var hasHead = html.Contains(HeadMarker, StringComparison.Ordinal);
-                    var versionCurrent = IsScriptVersionCurrent(html);
-
-                    // In "both" mode the middleware picks up whatever the file patch could
-                    // not do, so an unpatched or stale index.html stops being a failure and
-                    // becomes the fallback working as designed. Gate that on having actually
-                    // seen a request, not merely on being registered — otherwise a filter
-                    // that never got installed would silently suppress the real warning.
-                    bool middlewareCovers = IndexInjectionModes.UsesMiddleware(CurrentInjectionMode)
-                        && ProfilesIndexMiddleware.HasSeenIndexRequest;
-
-                    InjectionSucceeded = hasBody || middlewareCovers;
-                    IsVersionStale = !middlewareCovers && hasBody && (!versionCurrent || !hasHead);
-
-                    if (middlewareCovers)
-                    {
-                        LastFailureReason = null;
-                        return;
-                    }
-
-                    if (!hasBody)
-                    {
-                        // Same symptom, three different fixes. Reporting only "the tag is not
-                        // present" sent issue #17 chasing file permissions that were already
-                        // correct.
-                        if (!CanWriteIndexHtml(indexPath))
-                        {
-                            LastFailureReason =
-                                $"Jellyfin cannot write {indexPath}. Grant write access with the "
-                                + "command below, then click Re-check.";
-                        }
-                        else if (_tagWriteReportedSuccess)
-                        {
-                            LastFailureReason =
-                                $"The tag was written to {indexPath} but is no longer there. "
-                                + "Jellyfin is serving a different copy of jellyfin-web — look for "
-                                + "a bind mount, a second install, or a proxy serving its own files."
-                                + (OtherIndexPaths.Count > 0
-                                    ? " Also found: " + string.Join(", ", OtherIndexPaths) + "."
-                                    : string.Empty);
-                        }
-                        else
-                        {
-                            LastFailureReason =
-                                $"{indexPath} is writable but has no plugin script tag yet. "
-                                + "Click Re-check to add it.";
-                        }
-                    }
-                    else if (!versionCurrent)
-                    {
-                        // Lead with the CAUSE, not the symptom. Saying only "the tag is old"
-                        // gave the administrator nothing to act on — and looked like a
-                        // contradiction next to a correct version badge, which reports the
-                        // plugin's version and says nothing about index.html's contents.
-                        var found = GetInjectedScriptVersion(html);
-                        var describeFound = found == null
-                            ? "no version marker at all (it predates the cache-buster)"
-                            : $"version {found}";
-
-                        LastFailureReason = CanWriteIndexHtml(indexPath)
-                            ? $"index.html's script tag carries {describeFound}, but this build is "
-                              + $"v{ScriptVersion}. The file is writable, so clicking Re-check "
-                              + "should update it."
-                            : $"Jellyfin cannot write {indexPath}, so its script tag still carries "
-                              + $"{describeFound} instead of v{ScriptVersion}. "
-                              + "This does not break anything: the switcher is running, and browsers "
-                              + "pick up new client code by themselves within about five minutes. "
-                              + "Granting write access below only makes updates instant.";
-                    }
-                    else if (!hasHead)
-                    {
-                        LastFailureReason =
-                            "The anti-flicker script is missing from <head>. The switcher works, "
-                            + "but you may see a brief flash of content when switching profiles.";
-                    }
-                    else
-                    {
-                        LastFailureReason = null;
-                    }
+                    InjectionSucceeded = seen && lastError == null;
+                    IsVersionStale = false;
+                    LastFailureReason = InjectionSucceeded
+                        ? null
+                        : seen
+                            ? "Bonfire is in the request pipeline but could not add its script "
+                              + "to the last page it served: " + lastError
+                            : "Bonfire has not handled a request for Jellyfin's web page, so "
+                              + "nothing is adding the client script. Restart Jellyfin; if that "
+                              + "does not help, a proxy may be serving its own copy of the page.";
                 }
                 catch (Exception ex)
                 {
@@ -821,196 +661,10 @@ namespace Jellyfin.Profiles
 
         private void TryPatchIndex()
         {
-            // Middleware only: index.html is not ours to write any more. Take the tags
-            // back out so the file returns to how Jellyfin shipped it, and let the
-            // request pipeline do the work from here.
-            if (!IndexInjectionModes.PatchesFile(CurrentInjectionMode))
-            {
-                TryUnpatchIndex();
-                return;
-            }
-
-            var indexPath = FindIndexHtml();
-            IndexPath = indexPath;
-
-            if (indexPath is null)
-            {
-                _logger.LogWarning(
-                    "ProfilesPlugin: Could not locate index.html in any known Jellyfin web path. " +
-                    "The Profiles client script will not load automatically. " +
-                    "Manually add the following line before </body> in your index.html: {Tag}",
-                    BodyScriptTag);
-                return;
-            }
-
-            try
-            {
-                // Create backup in the plugin data directory (always writable), NOT next to index.html.
-                // Storing the backup beside index.html requires directory write permission on the web
-                // root (e.g. /usr/share/jellyfin/web/) which the jellyfin service user typically does
-                // not have — even after a `chmod 666 index.html` on the file itself.
-                try
-                {
-                    var backupDir = Path.Combine(_appPaths.DataPath, "plugins", "ProfilesManagement");
-                    Directory.CreateDirectory(backupDir);
-                    var backupPath = Path.Combine(backupDir, "index.html.bonfire.bak");
-                    if (!File.Exists(backupPath))
-                    {
-                        File.Copy(indexPath, backupPath, false);
-                        _logger.LogInformation("ProfilesPlugin: Created backup of index.html at {Path}.", backupPath);
-                    }
-                }
-                catch (Exception backupEx)
-                {
-                    // A backup failure is non-fatal — log a warning and continue with the patch.
-                    _logger.LogWarning(backupEx, "ProfilesPlugin: Could not create backup of index.html. Proceeding with injection anyway.");
-                }
-
-                var html = File.ReadAllText(indexPath);
-
-                bool hasBody = html.Contains(BodyMarker, StringComparison.Ordinal);
-                bool hasHead = html.Contains(HeadMarker, StringComparison.Ordinal);
-
-                // Check that the script tag matches the *current* version, not just that
-                // some version is present. After a plugin update the old ?v=1.1.x tag
-                // stays in index.html and the browser keeps serving the cached old JS,
-                // so new features (like tag filtering) silently never appear.
-                bool bodyVersionCurrent = IsScriptVersionCurrent(html);
-
-                if (hasBody && bodyVersionCurrent && hasHead)
-                {
-                    _logger.LogDebug(
-                        "ProfilesPlugin: Scripts already correctly present in {Path} — no changes made.",
-                        indexPath);
-                    InjectionSucceeded = true;
-                    IsVersionStale = false;
-                    return;
-                }
-
-                // If body marker is present, the plugin script is injected and functional — the
-                // profile gate and switcher load fine. Mark as succeeded NOW so the failure banner
-                // never fires. Set IsVersionStale if the cache-buster version or head tag is missing.
-                if (hasBody)
-                {
-                    InjectionSucceeded = true;
-                    IsVersionStale = !bodyVersionCurrent || !hasHead;
-                }
-                else
-                {
-                    InjectionSucceeded = false;
-                    IsVersionStale = false;
-                }
-
-                // Both fragments in one pass, shared with ProfilesIndexMiddleware.
-                bool changed = WebInjection.Inject(html, out html);
-
-                // The body script is what makes the switcher work at all; the head script only
-                // prevents a flash of content. Track them separately so a missing <head> anchor
-                // downgrades to the "stale" banner rather than either claiming full success or
-                // firing the alarming "injection failed" one.
-                bool bodyPresent = html.Contains(BodyMarker, StringComparison.Ordinal);
-                bool headPresent = html.Contains(HeadMarker, StringComparison.Ordinal);
-
-                if (!bodyPresent)
-                {
-                    // Only clear InjectionSucceeded if there was genuinely nothing before.
-                    // (If an old working injection existed, InjectionSucceeded was already
-                    // set true above and should stay that way.)
-                    if (!InjectionSucceeded)
-                    {
-                        LastFailureReason =
-                            $"No </body> tag was found in {indexPath}, so the client script "
-                            + "could not be inserted.";
-                        _logger.LogWarning(
-                            "ProfilesPlugin: Could not find a </body> anchor in {Path}. " +
-                            "The client script was NOT injected. Add the following line before </body> manually: {Tag}",
-                            indexPath, BodyScriptTag);
-                    }
-                    return;
-                }
-
-                if (changed)
-                {
-                    // Throws on failure; the catch blocks below preserve any previously
-                    // working state rather than reporting a hard failure.
-                    WriteFileAtomic(indexPath, html);
-                    _tagWriteReportedSuccess = true;
-                    _logger.LogInformation(
-                        "ProfilesPlugin: Client scripts injected successfully into {Path}.",
-                        indexPath);
-                }
-
-                InjectionSucceeded = true;
-
-                // Re-derive from the document we just wrote instead of assuming success.
-                // Previously this cleared IsVersionStale unconditionally, which hid the case
-                // where the body tag was inserted but the <head> anchor was missing entirely.
-                IsVersionStale = !headPresent;
-                LastFailureReason = headPresent
-                    ? null
-                    : "The anti-flicker script could not be added because index.html has no "
-                      + "<head> tag. The switcher works, but you may see a brief flash of "
-                      + "content when switching profiles.";
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                // If an older version of the injection is already working in index.html,
-                // InjectionSucceeded was set true above. A write failure here only means
-                // we couldn't update the cache-buster version — not that the switcher is
-                // broken. Only log the full permission error when InjectionSucceeded is
-                // still false (i.e. there was no prior injection at all).
-                if (!InjectionSucceeded)
-                {
-                    LastFailureReason =
-                        $"Jellyfin does not have permission to write {indexPath}. "
-                        + "Run the command below for your platform, then click Re-check.";
-                    LogPermissionError(indexPath, ex);
-                }
-                else
-                {
-                    IsVersionStale = true;
-                    LastFailureReason =
-                        $"Jellyfin cannot write {indexPath}, so its script tag still requests an "
-                        + $"older client script than this build (v{ScriptVersion}). The switcher "
-                        + "still works and browsers pick up new code on their next revalidation "
-                        + "(within ~5 minutes) — granting write access just makes it immediate.";
-                    _logger.LogDebug(ex,
-                        "ProfilesPlugin: Could not update script version in {Path} (permission denied). " +
-                        "The existing injection is still functional; users may need a browser hard-refresh " +
-                        "to pick up the latest client script.", indexPath);
-                }
-            }
-            catch (IOException ex)
-            {
-                if (!InjectionSucceeded)
-                {
-                    LastFailureReason =
-                        $"Could not read or write {indexPath}: {ex.Message}";
-                    _logger.LogWarning(
-                        ex,
-                        "ProfilesPlugin: IO error reading/writing {Path}. " +
-                        "Manually add the following line before </body>: {Tag}",
-                        indexPath, BodyScriptTag);
-                }
-                else
-                {
-                    IsVersionStale = true;
-                    LastFailureReason =
-                        $"The script tag in {indexPath} is out of date and could not be updated: {ex.Message}";
-                    _logger.LogDebug(ex,
-                        "ProfilesPlugin: IO error updating script version in {Path}. " +
-                        "The existing injection is still functional.", indexPath);
-                }
-            }
-            catch (Exception ex)
-            {
-                if (!InjectionSucceeded)
-                {
-                    LastFailureReason = "Unexpected error while patching index.html: " + ex.Message;
-                }
-                _logger.LogError(ex,
-                    "ProfilesPlugin: Unexpected error while patching {Path}.", indexPath);
-            }
+            // The middleware is the only way the script is served. index.html is not ours to
+            // write: take the tags back out so the file returns to how Jellyfin shipped it. A
+            // server saved in the old "file" or "both" mode lands here after an upgrade.
+            TryUnpatchIndex();
         }
 
         /// <summary>
@@ -1286,47 +940,6 @@ namespace Jellyfin.Profiles
             }
 
             return found[0];
-        }
-
-        // ── Error reporting ──────────────────────────────────────────────────────
-
-        private void LogPermissionError(string indexPath, Exception ex)
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                _logger.LogWarning(
-                    ex,
-                    "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "WINDOWS FIX — Grant write access and restart Jellyfin (Run CMD as Administrator):\n" +
-                    "  icacls \"{IndexPath}\" /grant \"NT AUTHORITY\\NetworkService:(M)\"\n\n" +
-                    "Or add the following line before </body> manually (Notepad as Administrator):\n" +
-                    "  {Tag}",
-                    indexPath, indexPath, BodyScriptTag);
-            }
-            else if (IsRunningInDocker())
-            {
-                _logger.LogWarning(
-                    ex,
-                    "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "DOCKER FIX — Set ownership to the Jellyfin service user, then restart:\n" +
-                    "  docker exec -u root <container-name> chown jellyfin:jellyfin {IndexPath}\n" +
-                    "  docker exec -u root <container-name> chmod 664 {IndexPath}\n\n" +
-                    "After Jellyfin restarts and injects the script you can optionally restore\n" +
-                    "read-only permissions: docker exec -u root <container-name> chmod 644 {IndexPath2}",
-                    indexPath, indexPath, indexPath, indexPath);
-            }
-            else
-            {
-                _logger.LogWarning(
-                    ex,
-                    "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "LINUX FIX — Set ownership to the Jellyfin service user and grant write access, then restart Jellyfin:\n" +
-                    "  sudo chown jellyfin:jellyfin {IndexPath}\n" +
-                    "  sudo chmod 664 {IndexPath2}\n\n" +
-                    "After Jellyfin restarts and injects the script you can optionally restore\n" +
-                    "read-only permissions: sudo chmod 644 {IndexPath3}",
-                    indexPath, indexPath, indexPath, indexPath);
-            }
         }
 
         private static bool IsRunningInDocker() =>

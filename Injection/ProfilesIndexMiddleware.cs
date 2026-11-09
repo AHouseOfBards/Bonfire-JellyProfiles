@@ -303,21 +303,11 @@ namespace Jellyfin.Profiles
             // appended to the green banner until the server restarted.
             LastError = null;
 
-            var config = Plugin.Instance?.Configuration;
-            if (!IndexInjectionModes.UsesMiddleware(config?.IndexInjectionMode))
-            {
-                await _next(context).ConfigureAwait(false);
-                return;
-            }
-
             // Reaching here is the proof the bootstrap task cannot have at startup: the
             // hook is in the pipeline and handling requests. Only now is it safe to take
             // the tags out of index.html, which until this moment are what is making the
             // switcher work. One-shot and off-thread; see the method itself.
-            if (!IndexInjectionModes.PatchesFile(config?.IndexInjectionMode))
-            {
-                ProfilesBootstrapTask.CleanIndexOnceMiddlewareIsLive();
-            }
+            ProfilesBootstrapTask.CleanIndexOnceMiddlewareIsLive();
 
             var originalBody = context.Features.Get<IHttpResponseBodyFeature>();
             if (originalBody == null)
@@ -374,7 +364,7 @@ namespace Jellyfin.Profiles
             {
                 var document = Encoding.UTF8.GetString(produced);
 
-                // Already there — the file is patched on disk in "both" mode, or something
+                // Already there — the file still carries tags an older release wrote, or something
                 // else in the pipeline added the same tags. A second copy would give the
                 // browser two scripts and two gates.
                 if (WebInjection.IsFullyInjectedAt(document, baseUrl))

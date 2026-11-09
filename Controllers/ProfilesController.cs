@@ -1199,7 +1199,6 @@ namespace Jellyfin.Profiles.Controllers
 
             return new
             {
-                Mode = IndexInjectionModes.Normalize(Plugin.Instance?.Configuration?.IndexInjectionMode),
                 // Installed or updated on a running server, so this build's pipeline hook
                 // was never registered and cannot be until Jellyfin restarts (issue #25).
                 RestartRequired = ProfilesBootstrapTask.RestartRequired,
@@ -1758,8 +1757,6 @@ namespace Jellyfin.Profiles.Controllers
                     config.DefaultTimeZone = HouseholdTime.TryFind(incoming.DefaultTimeZone, out _) ? incoming.DefaultTimeZone.Trim() : string.Empty;
                 if (TryProperty(root, "AllowProfileThemes", out _))
                     config.AllowProfileThemes = incoming.AllowProfileThemes;
-                if (TryProperty(root, "IndexInjectionMode", out _))
-                    config.IndexInjectionMode = incoming.IndexInjectionMode;
                 if (TryProperty(root, "EnableClientPinLogin", out _))
                     config.EnableClientPinLogin = incoming.EnableClientPinLogin;
                 if (TryProperty(root, "EnableClientProfileList", out _))
@@ -1828,7 +1825,7 @@ namespace Jellyfin.Profiles.Controllers
             "LinkedAccounts", "UserProfileLimitOverrides", "AvatarLibrary", "DisallowCustomAvatarUploads",
             "ProfileImageQuality", "DefaultAskOnStartup", "DefaultSwitcherLocation", "CustomFonts", "CustomThemes",
             "HiddenThemes", "LogoImage", "LogoText", "LogoAlt", "DefaultTheme", "DefaultTimeZone", "AllowProfileThemes",
-            "IndexInjectionMode", "EnableClientPinLogin", "EnableClientProfileList", "ClientPinLoginFromAnywhere", "PanicCodeHash", "ProxyClients",
+            "EnableClientPinLogin", "EnableClientProfileList", "ClientPinLoginFromAnywhere", "PanicCodeHash", "ProxyClients",
             "Announcements", "AccountEmails",
         };
 
@@ -5193,15 +5190,6 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest("That time zone isn't known to this server.");
             }
 
-            if (request.IndexInjectionMode != null
-                && !string.Equals(request.IndexInjectionMode, IndexInjectionModes.File, StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(request.IndexInjectionMode, IndexInjectionModes.Middleware, StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(request.IndexInjectionMode, IndexInjectionModes.Both, StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest($"Injection method must be '{IndexInjectionModes.File}', "
-                                + $"'{IndexInjectionModes.Middleware}' or '{IndexInjectionModes.Both}'.");
-            }
-
             if (request.ProfileImageQuality != null && !ImageQualities.IsKnown(request.ProfileImageQuality))
             {
                 return BadRequest($"Picture quality must be '{ImageQualities.Standard}', "
@@ -5288,8 +5276,6 @@ namespace Jellyfin.Profiles.Controllers
                     Auth.ViewingTracker.Invalidate();
                 if (request.AllowProfileThemes.HasValue)
                     config.AllowProfileThemes = request.AllowProfileThemes.Value;
-                if (request.IndexInjectionMode != null)
-                    config.IndexInjectionMode = IndexInjectionModes.Normalize(request.IndexInjectionMode);
 
                 // Two switches rather than one, because they carry different risks: the
                 // first changes how a profile authenticates, the second edits the endpoint

@@ -55,7 +55,6 @@ namespace Jellyfin.Profiles.Models
         /// <summary>The time zone households read viewing hours in until they pick one. Empty is the server's own.</summary>
         public string? DefaultTimeZone { get; set; }
         public bool? AllowProfileThemes { get; set; }
-        public string? IndexInjectionMode { get; set; }
         public bool? EnableClientPinLogin { get; set; }
         public bool? EnableClientProfileList { get; set; }
 

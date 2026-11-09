@@ -643,17 +643,14 @@ ok('the mechanism payload carries it',
 ok('unpatching no longer reports success merely because the plugin loaded',
     boot.indexOf('InjectionSucceeded = ProfilesIndexMiddleware.IsRegistered;') === -1);
 
-ok('the stale comment claiming a Both fallback is gone',
-    !/Falls back to[\s\S]{0,40}IndexInjectionModes\.Both/.test(boot));
-
 ok('the dashboard has a restart banner', dash.indexOf('id="restartRequiredContainer"') !== -1);
 ok('it suppresses the failure banner rather than stacking with it',
     /const failed = !restartRequired && \(succeeded === false\);/.test(dash));
 ok('and the green "all good" banner too',
     /okContainer\.style\.display = \(!restartRequired && !failed && !stale\)/.test(dash));
-ok('the chown block is hidden when the mode does not touch the file',
-    /const hideFileFix = failed && !patchesFile;/.test(dash));
-ok('the failure headline changes with the mode',
+ok('the chown block is hidden: the file is never touched',
+    /const hideFileFix = failed;/.test(dash));
+ok('the failure headline says index.html is not involved',
     dash.indexOf('id="injectionFailureHeadline"') !== -1
     && dash.indexOf('index.html is not involved') !== -1);
 ok('the account row cannot be re-shown after being hidden',

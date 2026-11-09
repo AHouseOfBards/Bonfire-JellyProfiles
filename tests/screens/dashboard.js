@@ -35,7 +35,7 @@
         ProfileImageQuality: 'standard', DefaultAskOnStartup: true, EnableClientPinLogin: false,
         EnableClientProfileList: false, SkipQuickConnectOnKnownDevices: false, ClientPinLoginFromAnywhere: false, ProxyClients: [],
         QuickConnectSharedDeviceNames: [], EnablePinResetByEmail: false, DefaultSwitcherLocation: 'button',
-        DefaultTheme: 'bonfire', AllowProfileThemes: true, DefaultTimeZone: '', IndexInjectionMode: 'middleware',
+        DefaultTheme: 'bonfire', AllowProfileThemes: true, DefaultTimeZone: '',
         Onboarding: { Enabled: true, RequireMainPin: false, WelcomeText: '' },
         UserProfileLimitOverrides: [], CustomThemes: [], HiddenThemes: [], CustomFonts: []
     };

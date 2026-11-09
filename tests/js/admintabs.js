@@ -49,7 +49,7 @@ ok('Messages keeps Announcements and Maintenance, and no longer holds Email',
 ok('Skip Quick Connect stays in Apps', has('apps', 'skipQuickConnectOnKnownDevices'));
 ok('no setting was dropped: every control id the page saves is still in exactly one panel',
    ['maxProfiles', 'pinGuessesPerDay', 'requireMainPin', 'enablePinResetByEmail', 'disallowCustomAvatars', 'enableStarterAvatars',
-    'defaultAskOnStartup', 'defaultSwitcherLocation', 'defaultTheme', 'allowProfileThemes', 'defaultTimeZone', 'indexInjectionMode',
+    'defaultAskOnStartup', 'defaultSwitcherLocation', 'defaultTheme', 'allowProfileThemes', 'defaultTimeZone',
     'enableClientPinLogin', 'enableClientProfileList', 'clientPinLoginFromAnywhere', 'skipQuickConnectOnKnownDevices',
     'profileImageQuality', 'onboardingEnabled', 'onboardingWelcome', 'fontUpload', 'themeImport', 'themeNew'].every(id =>
         Object.keys(panels).filter(n => has(n, id)).length === 1));
