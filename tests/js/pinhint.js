@@ -43,8 +43,11 @@ function boxOf(id) {
         const box = boxOf(s[1]);
         ok(s[0] + ': the box is drawn', box !== '');
         ok(s[0] + ': no row of dots posing as a typed PIN', box.indexOf('••') === -1, box);
-        ok(s[0] + ': it says to use the number keys', /placeholder="Use the number keys"/.test(box), box);
-        ok(s[0] + ': and is labelled for a screen reader', /aria-label="Use the number keys"/.test(box), box);
+        // A placeholder was tried first: the box is 180px wide with 0.6rem letter-spacing, so
+        // on a television it read "Use the number" and sat at the bottom of the box.
+        ok(s[0] + ': no placeholder in a box too narrow for one', !/placeholder=/.test(box), box);
+        ok(s[0] + ': the hint is its own line', /class="jpf-pin-keys-hint">Use the number keys</.test(content.innerHTML));
+        ok(s[0] + ': the box is named after what it asks for', /aria-label="(?!Use the number)[^"]+"/.test(box), box);
     }
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);

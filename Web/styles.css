@@ -1175,6 +1175,10 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-pin-note {
     margin: 0; max-width: 26rem; text-align: center; font-size: 0.95rem; opacity: 0.8; line-height: 1.5;
 }
+/* A line of its own on a television, where a remote's number keys are not the obvious
+   way in. Not a placeholder: the box is too narrow to hold one. */
+.jpf-pin-keys-hint { display: none; }
+.jpf-tv .jpf-pin-keys-hint { display: block; text-align: center; font-size: 1.1rem; opacity: 0.8; }
 .profiles-pin-error {
     color: var(--jpf-danger); font-size: 0.9rem; font-weight: 600; text-align: center;
 }
