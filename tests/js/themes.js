@@ -930,9 +930,11 @@ console.log('\n── The seasonal themes carry their season, Starlight its star
 
     // The snow moves. Only where that is cheap and wanted: not for reduced motion, not on a
     // TV, and (2.0) only when the administrator has turned richer theme motion on.
-    const anim = /@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\[data-jpf-theme="snowfall"\]\.jpf-rich-motion:not\(\.jpf-tv\) #profiles-gate-overlay::before\s*\{([^}]*)\}/.exec(CSS);
+    // Since the 2.0 motion work a television that is not flat moves too, so the hold is
+    // :not(.jpf-flat) (the TV that cannot afford blur) and no longer :not(.jpf-tv).
+    const anim = /@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\[data-jpf-theme="snowfall"\]\.jpf-rich-motion:not\(\.jpf-flat\) #profiles-gate-overlay::before\s*\{([^}]*)\}/.exec(CSS);
     // The keyframes are named for the tile they travel, since any theme's pattern may drift.
-    ok('the snow falls only for people who have not asked for less motion, and not on a TV',
+    ok('the snow falls only for people who have not asked for less motion, and not on a flat TV',
        !!anim && /animation:\s*jpf-drift-240 /.test(anim[1]));
     ok('by transform, which the compositor moves without repainting',
        /@keyframes jpf-drift-240\s*\{\s*from\s*\{\s*transform:\s*translateY\(0\);\s*\}\s*to\s*\{\s*transform:\s*translateY\(240px\);/.test(CSS)
@@ -941,7 +943,34 @@ console.log('\n── The seasonal themes carry their season, Starlight its star
     const unguarded = /animation:\s*jpf-drift-/g;
     let m, count = 0;
     while ((m = unguarded.exec(CSS)) !== null) count++;
-    ok('nowhere else starts it', count === 2);
+    // Snowfall, Bloom and Harvest drift, each as a -webkit- and a plain declaration.
+    ok('three themes drift, and nowhere else starts it (' + count + ' declarations)', count === 6);
+    // The same hold, one theme at a time, so a theme that lost it is named. Pairwise: a count
+    // of guarded rules would let one unguarded theme hide behind another's two.
+    ['snowfall', 'bloom', 'harvest'].forEach(id => {
+        const r = new RegExp('@media \\(prefers-reduced-motion: no-preference\\)\\s*\\{\\s*\\[data-jpf-theme="' + id
+            + '"\\]\\.jpf-rich-motion:not\\(\\.jpf-flat\\) #profiles-gate-overlay::before\\s*\\{([^}]*animation:\\s*jpf-drift-[^}]*)\\}').exec(CSS);
+        ok(id + ' drifts, only with richer motion on, not under reduced motion, not on a flat TV', !!r);
+    });
+    // Starlight's stars twinkle: opacity only, behind the same three conditions, on the
+    // layer itself and on a second one so the stars do not all dim together.
+    ['before', 'after'].forEach(which => {
+        const r = new RegExp('@media \\(prefers-reduced-motion: no-preference\\)\\s*\\{[^@]*?\\[data-jpf-theme="starlight"\\]\\.jpf-rich-motion:not\\(\\.jpf-flat\\) #profiles-gate-overlay::' + which
+            + '\\s*\\{([^}]*animation:\\s*jpf-twinkle[^}]*)\\}').exec(CSS);
+        ok('starlight twinkles on ::' + which + ', behind the same three conditions', !!r);
+    });
+    ok('the twinkle is a change of opacity, which the compositor does without repainting',
+       (function () {
+           const blocks = [];
+           const re = /@keyframes jpf-twinkle(-b)?\s*\{([\s\S]*?)\n\}/g;
+           let k;
+           while ((k = re.exec(CSS)) !== null) blocks.push(k[2]);
+           return blocks.length >= 2 && blocks.every(function (s) {
+               return /opacity/.test(s) && !/(top|left|right|bottom|width|height|background|transform)\s*:/.test(s);
+           });
+       })());
+    ok('no theme holds its motion off with :not(.jpf-tv) any more',
+       !/jpf-rich-motion:not\(\.jpf-tv\)/.test(CSS));
 }
 
 // ── 12. Previews fit their cards on a phone ─────────────────────────────────────

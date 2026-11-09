@@ -329,9 +329,9 @@ ok('the generator writes some effects, so the next two checks have something to 
 ok('every backdrop-filter is behind @supports backdrop-filter, so a browser that cannot blur never gets one',
     blur.filter(c => /backdrop-filter/.test(c.why)).length === 0);
 const drift = themeCostly.filter(c => c.why === 'animation');
-ok('every animation a theme writes is held off a television (:not(.jpf-tv)) and off reduced motion',
-    drift.every(c => /:not\(\.jpf-tv\)/.test(c.sel) && c.context.some(x => /prefers-reduced-motion:\s*no-preference/.test(x))),
-    drift.filter(c => !/:not\(\.jpf-tv\)/.test(c.sel)).map(c => c.sel).join('\n          '));
+ok('every animation a theme writes is held off a flat television (:not(.jpf-flat)) and off reduced motion',
+    drift.every(c => /:not\(\.jpf-flat\)/.test(c.sel) && c.context.some(x => /prefers-reduced-motion:\s*no-preference/.test(x))),
+    drift.filter(c => !/:not\(\.jpf-flat\)/.test(c.sel)).map(c => c.sel).join('\n          '));
 const themeBlurShadow = themeCostly.filter(c => /blurred (box|text)-shadow/.test(c.why));
 ok('and no theme writes a blurred shadow itself, only variables the sheet\'s own rules read',
     themeBlurShadow.length === 0, themeBlurShadow.map(c => c.sel).join('\n          '));

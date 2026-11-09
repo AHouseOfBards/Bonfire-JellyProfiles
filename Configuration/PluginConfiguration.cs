@@ -271,11 +271,13 @@ namespace Jellyfin.Profiles.Configuration
         public bool AllowProfileThemes { get; set; } = true;
 
         /// <summary>
-        /// Lets a theme with a special animation (today, Snowfall's drifting pattern) use it.
+        /// Lets a theme with a special animation (today, the drifting patterns of Snowfall,
+        /// Bloom and Harvest and Starlight's twinkle) use it.
         /// Off by default: motion is short and calm unless an administrator asks for more.
         /// A setting and not a limit because every value is safe: it only decides whether a
         /// slow background moves. It can never switch motion on against someone's
-        /// prefers-reduced-motion or on a television, which the stylesheet decides first.
+        /// prefers-reduced-motion or on a television too slow to blur, which the stylesheet
+        /// decides first.
         /// </summary>
         public bool RichThemeMotion { get; set; }
 

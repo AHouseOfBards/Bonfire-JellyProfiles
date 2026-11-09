@@ -46,7 +46,7 @@ namespace Jellyfin.Profiles.Configuration
         public const string HighContrastId = Themes.HighContrast;
 
         /// <summary>The decorations schema 1 knows. docs/themes.md, "Decorations".</summary>
-        public static readonly string[] Decorations = { "pattern", "rings", "frost" };
+        public static readonly string[] Decorations = { "pattern", "rings", "frost", "twinkle" };
 
         // \z, not $: in .NET `$` also matches before a final newline, so "dark\n" would pass.
         private static readonly Regex IdRegex = new(@"^[a-z0-9-]{1,40}\z", RegexOptions.CultureInvariant);
@@ -652,6 +652,17 @@ namespace Jellyfin.Profiles.Configuration
                         case "frost":
                             Obj(d, at, true, "name", "blur");
                             Num(d, at, "blur", true, 0, 60);
+                            break;
+                        case "twinkle":
+                            Obj(d, at, true, "name", "seconds");
+                            Num(d, at, "seconds", true, 2, 120);
+                            // It fades the pattern layer, so without a pattern there is
+                            // nothing to twinkle and the value would be silently ignored.
+                            if (!list.Any(x => x is JsonObject p && p["name"] is JsonValue pn && pn.TryGetValue<string>(out var s) && s == "pattern"))
+                            {
+                                Add(at, "range", "Needs a pattern decoration to twinkle.");
+                            }
+
                             break;
                     }
                 }

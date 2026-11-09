@@ -217,13 +217,15 @@ don't know.
 | `pattern` | `image`, `size`, `drift` | A picture repeated behind the switcher, faint. `image` is a file from `GET /themes`. `size` is one picture's width and height in pixels. `drift` is `none`, or `down` with `seconds` for one picture's height. |
 | `rings` | `gradients`, `gap` | Each profile gets a gradient ring of its own: profile 1 takes the first, profile 2 the second, and so on, starting over at the end. Not the Add tile. `gap` is the colour of the thin space between the ring and the picture. |
 | `frost` | `blur` | Dialogs blur what's behind them by `blur` pixels, and the second kind of button by two thirds of that. |
+| `twinkle` | `seconds` | The pattern fades slowly down and back up, one cycle in `seconds` (2 to 120), with a second copy of it shifted so the stars don't all dim at once. Needs a `pattern`. |
 
 Every decoration also has to:
 
 - **Respect reduced motion.** When the device asks for less motion, anything moving
   stops where it is.
-- **Have a low-power version.** On a TV, `drift` doesn't move. When blur can't be
-  drawn, `frost` is just the fill colour. Every theme must still look right that way, so
+- **Have a low-power version.** `drift` and `twinkle` only move when the administrator
+  has turned on richer theme animation, and never on a TV too slow to blur. When blur
+  can't be drawn, `frost` is just the fill colour. Every theme must still look right that way, so
   the screenshots include it.
 
 Each decoration has a short video recorded from the web client. Build from the
@@ -231,7 +233,7 @@ description above and check against the video.
 
 | Decoration | Video | Shows |
 | --- | --- | --- |
-| `pattern` | [pattern.webm](themes/pattern.webm) | Snowfall, its pattern drifting down. |
+| `pattern` | [pattern.webm](themes/pattern.webm) | Snowfall, its pattern drifting down. Bloom and Harvest drift the same way, slower, and Starlight's stars twinkle (`twinkle`); there is no video of those yet. |
 | `rings` | [rings.webm](themes/rings.webm) | Nightfall on a TV, focus moving along the rings. |
 | `frost` | [frost.webm](themes/frost.webm) | Glass, the settings panel opening over the gate. |
 
@@ -275,7 +277,7 @@ screens against the web client's. The file is `<theme>/<screen>-<size>.webp`.
 - **Screens:** `picker`, `manage`, `pin`, `dialog`, `timeup`, `settings`, `themes`,
   `announcement`, and the logo as an image (`logo`) and as text (`logotext`).
 - **Sizes:** `phone` (390×844), `tablet` (820×1180), `tv` (1920×1080, as a TV: nothing
-  drifts). A theme with `frost` also has `tv-lowpower`, with no blur.
+  moves). A theme with `frost` also has `tv-lowpower`, with no blur.
 - Everyone in them is made up and the same in every picture.
 
 To take them again, run `node tests/screens/shoot.js`. To see which ones a change

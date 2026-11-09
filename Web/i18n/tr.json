@@ -490,7 +490,7 @@
   "admin.theme.allowProfiles": "Profiller kendi temalarını seçebilsin",
   "admin.theme.allowProfilesHint": "Kapalıyken herkes varsayılanı görür. Önceden yapılmış seçimler korunur.",
   "admin.theme.richMotion": "Daha zengin tema animasyonu",
-  "admin.theme.richMotionHint": "TV'lerde ve azaltılmış harekette asla.",
+  "admin.theme.richMotionHint": "Azaltılmış harekette ve düşük güçlü TV'lerde asla.",
   "admin.themes.title": "Temalar",
   "admin.themes.lede": "Yerleşik temaları gizleyin, kendi temanızı yapın ve yazı tipi ekleyin. Buradaki değişiklikler hemen kaydedilir.",
   "admin.themes.builtIn": "Yerleşik temalar",

@@ -479,7 +479,7 @@
   "admin.theme.allowProfiles": "Deixa que els perfils triïn el seu tema",
   "admin.theme.allowProfilesHint": "Desactivat, tothom veu el tema per defecte. Les tries ja fetes es conserven.",
   "admin.theme.richMotion": "Animació de temes més rica",
-  "admin.theme.richMotionHint": "Mai en televisors ni amb moviment reduït.",
+  "admin.theme.richMotionHint": "Mai amb moviment reduït ni en televisors de poca potència.",
   "admin.themes.title": "Temes",
   "admin.themes.lede": "Amaga temes integrats, crea els teus i afegeix tipus de lletra. Els canvis d'aquí es desen de seguida.",
   "admin.themes.builtIn": "Temes integrats",

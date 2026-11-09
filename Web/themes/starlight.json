@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "starlight",
-  "revision": 3,
+  "revision": 4,
   "scheme": "dark",
   "name": {
     "key": "theme.starlight"
@@ -167,6 +167,10 @@
       "image": "stars",
       "size": 360,
       "drift": "none"
+    },
+    {
+      "name": "twinkle",
+      "seconds": 9
     }
   ]
 }

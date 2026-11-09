@@ -685,24 +685,54 @@
 
         // A drifting pattern comes down, slowly: a transform on a layer one tile taller
         // than the screen, so the compositor moves it and nothing is repainted; one tile a
-        // loop, so it joins up. Not on a television, whose browser is the slowest thing it
-        // runs on, and not for anyone who has asked their system for less motion.
+        // loop, so it joins up. Not on a flat television (jpf-flat: a TV that cannot afford
+        // blur, which is the browser that cannot afford this either), and not for anyone who
+        // has asked their system for less motion. A television that can blur moves it like
+        // any other screen; it used to be held off every television by :not(.jpf-tv).
         //
         // And only when the administrator has asked for it (Advanced, Look: richer theme
         // motion), which the client records as .jpf-rich-motion on <html>. Off by default.
         // The setting is the third condition, never a way around the other two: the media
-        // query and :not(.jpf-tv) are still what decide first.
+        // query and :not(.jpf-flat) are still what decide first. Every moving decoration
+        // below writes the same three, and tests/js/a11y.js checks each rule for them.
         if (patternImage && pattern.drift === 'down') {
             const seconds = num(pattern.seconds, 32);
             const anim = 'jpf-drift-' + patternSize;
             css += '@media (prefers-reduced-motion: no-preference) {\n'
-                + '    ' + sel + '.jpf-rich-motion:not(.jpf-tv) #profiles-gate-overlay::before {\n'
+                + '    ' + sel + '.jpf-rich-motion:not(.jpf-flat) #profiles-gate-overlay::before {\n'
                 + '        top: -' + patternSize + 'px;\n        will-change: transform;\n'
                 + '        -webkit-animation: ' + anim + ' ' + seconds + 's linear infinite;\n'
                 + '        animation: ' + anim + ' ' + seconds + 's linear infinite;\n    }\n}\n'
                 + '@-webkit-keyframes ' + anim + ' {\n    from { -webkit-transform: translateY(0); transform: translateY(0); }\n'
                 + '    to { -webkit-transform: translateY(' + patternSize + 'px); transform: translateY(' + patternSize + 'px); }\n}\n'
                 + '@keyframes ' + anim + ' {\n    from { transform: translateY(0); }\n    to { transform: translateY(' + patternSize + 'px); }\n}\n';
+        }
+
+        // twinkle: a slow fade of the pattern between two layers, so the stars do not all
+        // dim together. The pattern's own layer eases down to 45% and back; a second copy
+        // of it, shifted by a third of a tile so its stars fall in other places, rises to
+        // 60% and back while the first is at its lowest. Opacity only, which the
+        // compositor does without repainting. The same three conditions as the drift.
+        // The second layer exists only inside them, so a screen that does not twinkle has
+        // no extra layer to paint.
+        const twinkle = deco('twinkle');
+        if (patternImage && twinkle) {
+            const period = num(twinkle.seconds, 8);
+            const over = sel + '.jpf-rich-motion:not(.jpf-flat) #profiles-gate-overlay';
+            const run = name => '        -webkit-animation: ' + name + ' ' + period + 's ease-in-out infinite;\n'
+                + '        animation: ' + name + ' ' + period + 's ease-in-out infinite;\n';
+            css += '@media (prefers-reduced-motion: no-preference) {\n'
+                + '    ' + over + '::before {\n        will-change: opacity;\n' + run('jpf-twinkle') + '    }\n'
+                + '    ' + over + '::after {\n        content: \'\';\n        position: fixed;\n'
+                + '        top: 0;\n        right: 0;\n        bottom: 0;\n        left: 0;\n'
+                + '        background-image: var(--jpf-deco);\n        background-size: var(--jpf-deco-size) var(--jpf-deco-size);\n'
+                + '        background-position: calc(var(--jpf-deco-size) / 2) calc(var(--jpf-deco-size) / 3);\n'
+                + '        pointer-events: none;\n        z-index: -1;\n        opacity: 0;\n        will-change: opacity;\n'
+                + run('jpf-twinkle-b') + '    }\n}\n'
+                + '@-webkit-keyframes jpf-twinkle {\n    0%, 100% { opacity: 1; }\n    50% { opacity: 0.45; }\n}\n'
+                + '@keyframes jpf-twinkle {\n    0%, 100% { opacity: 1; }\n    50% { opacity: 0.45; }\n}\n'
+                + '@-webkit-keyframes jpf-twinkle-b {\n    0%, 100% { opacity: 0; }\n    50% { opacity: 0.6; }\n}\n'
+                + '@keyframes jpf-twinkle-b {\n    0%, 100% { opacity: 0; }\n    50% { opacity: 0.6; }\n}\n';
         }
         return css;
     }

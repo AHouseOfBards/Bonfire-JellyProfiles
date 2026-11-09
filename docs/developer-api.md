@@ -1278,7 +1278,7 @@ main account can change them.
 | `theme` | The [theme](#themes) to show **this** account, from its own choice or the server default. Unlike the fields above, it isn't the main account's. |
 | `defaultTheme` | The server default. |
 | `allowProfileThemes` | Profiles may choose their own theme. When `false`, `theme` is always the default. |
-| `richThemeMotion` | Themes with a special animation may use it. Never on a television or when the device asks for less motion. |
+| `richThemeMotion` | Themes with a special animation may use it. Never on a television too slow to blur, or when the device asks for less motion. |
 | `onboardingPending` | This account should be shown [first-time setup](#first-time-setup). Always `false` for a profile. |
 
 An account that hasn't chosen gets the server's defaults. Unknown stored values come back

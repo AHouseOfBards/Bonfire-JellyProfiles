@@ -425,6 +425,20 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
         Caught("a pattern Bonfire does not hold", t => t["decorations"]![0]!["image"] = "skulls", "decorations[0].image", "pattern");
         Caught("a decoration schema 1 does not know",
                t => t["decorations"]!.AsArray().Add(new System.Text.Json.Nodes.JsonObject { ["name"] = "sparkle" }), "decorations[1].name", "range");
+        // twinkle: a slow fade of the pattern layer, so it needs a pattern and a period.
+        System.Text.Json.Nodes.JsonObject Twinkle(object seconds) => new System.Text.Json.Nodes.JsonObject
+            { ["name"] = "twinkle", ["seconds"] = System.Text.Json.Nodes.JsonValue.Create(seconds) };
+        var withTwinkle = Harvest();
+        withTwinkle["decorations"]!.AsArray().Add(Twinkle(8));
+        Ok("a twinkle with a pattern and a period is accepted", ThemeCatalog.Validate(withTwinkle).Count == 0,
+           string.Join("; ", ThemeCatalog.Validate(withTwinkle).Select(p => p.Path + " " + p.Code)));
+        Caught("a twinkle faster than 2 seconds", t => t["decorations"]!.AsArray().Add(Twinkle(1)), "decorations[1].seconds", "range");
+        Caught("a twinkle with no period",
+               t => t["decorations"]!.AsArray().Add(new System.Text.Json.Nodes.JsonObject { ["name"] = "twinkle" }), "decorations[1].seconds", "missing");
+        Caught("a twinkle with nothing to twinkle",
+               t => { t["decorations"]!.AsArray().Clear(); t["decorations"]!.AsArray().Add(Twinkle(8)); }, "decorations[0]", "range");
+        Caught("a twinkle with a value it does not have",
+               t => { var d = Twinkle(8); d["colour"] = "#ffffff"; t["decorations"]!.AsArray().Add(d); }, "decorations[1].colour", "unknown");
         Caught("an address in the name", t => t["name"] = new System.Text.Json.Nodes.JsonObject { ["text"] = "https://example.com" }, "name.text", "address");
         Caught("an address in a field nothing reads",
                t => t["colors"]!["glow"] = "url(//x)", "colors.glow", "address");

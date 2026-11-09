@@ -479,7 +479,7 @@
   "admin.theme.allowProfiles": "Dejar que los perfiles elijan su propio tema",
   "admin.theme.allowProfilesHint": "Desactivado, todos ven el predeterminado. Las elecciones ya hechas se conservan.",
   "admin.theme.richMotion": "Animación de temas más rica",
-  "admin.theme.richMotionHint": "Nunca en televisores ni con movimiento reducido.",
+  "admin.theme.richMotionHint": "Nunca con movimiento reducido ni en televisores de poca potencia.",
   "admin.themes.title": "Temas",
   "admin.themes.lede": "Oculta temas integrados, crea los tuyos y añade fuentes. Los cambios aquí se guardan al momento.",
   "admin.themes.builtIn": "Temas integrados",

@@ -409,19 +409,39 @@ function tagOf(id) {
     // 15b. The drift is the third condition, never a way past the other two.
     {
         const themesCss = L.themesCss(SRC);
-        const rule = /([^{}]+)\{[^{}]*animation:\s*jpf-drift[^{}]*\}/g;
+        const rule = /([^{}]+)\{[^{}]*animation:\s*jpf-(?:drift|twinkle)[^{}]*\}/g;
         let m, n = 0;
         const bad = [];
         while ((m = rule.exec(themesCss))) {
             n++;
             const sel = m[1].trim();
-            if (!/\.jpf-rich-motion/.test(sel) || !/:not\(\.jpf-tv\)/.test(sel)) bad.push(sel);
+            // A television that is not flat moves too; the one that cannot afford blur does not.
+            if (!/\.jpf-rich-motion/.test(sel) || !/:not\(\.jpf-flat\)/.test(sel) || /:not\(\.jpf-tv\)/.test(sel)) bad.push(sel);
         }
         ok('some theme drifts, so this is looking at something', n > 0, n + ' rules');
-        ok('every drifting rule needs the setting and is off on a television', bad.length === 0, bad.join(' | '));
+        ok('every moving rule needs the setting and is off on a flat television', bad.length === 0, bad.join(' | '));
+        ok('Snowfall, Bloom and Harvest drift and Starlight twinkles on two layers (' + n + ' rules)', n === 5, n + ' rules');
         // And it sits inside the no-preference media query, one theme at a time.
-        const outside = themesCss.split('@media (prefers-reduced-motion: no-preference)').length - 1;
-        ok('each drift rule is inside prefers-reduced-motion: no-preference', outside >= n, outside + ' queries for ' + n + ' rules');
+        // Each rule on its own: the nearest @media before it must be that query and still be
+        // open where the rule starts. A count of queries against a count of rules let one
+        // query stand in for two (a twinkle writes two layers in one query), and would let
+        // one unguarded rule hide behind another's query.
+        const notInside = [];
+        const again = /([^{}]+)\{[^{}]*animation:\s*jpf-(?:drift|twinkle)[^{}]*\}/g;
+        let r2;
+        while ((r2 = again.exec(themesCss))) {
+            const start = r2.index + r2[0].indexOf(r2[1]);
+            const at = themesCss.lastIndexOf('@media', start);
+            let ok2 = false;
+            if (at !== -1 && /^@media \(prefers-reduced-motion: no-preference\)\s*\{/.test(themesCss.slice(at))) {
+                const open = themesCss.indexOf('{', at);
+                let depth = 0;
+                for (const ch of themesCss.slice(open, start)) depth += ch === '{' ? 1 : ch === '}' ? -1 : 0;
+                ok2 = depth === 1;
+            }
+            if (!ok2) notInside.push(r2[1].trim());
+        }
+        ok('each moving rule is inside prefers-reduced-motion: no-preference', notInside.length === 0, notInside.join(' | '));
 
         // The client turns the class on and off from what the server says, in either casing.
         const e15 = D.loadPlugin(SRC);

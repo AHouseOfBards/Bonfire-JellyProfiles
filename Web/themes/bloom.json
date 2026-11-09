@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "bloom",
-  "revision": 3,
+  "revision": 4,
   "scheme": "dark",
   "name": {
     "key": "theme.bloom"
@@ -165,7 +165,8 @@
       "name": "pattern",
       "image": "blossoms",
       "size": 260,
-      "drift": "none"
+      "drift": "down",
+      "seconds": 70
     }
   ]
 }
