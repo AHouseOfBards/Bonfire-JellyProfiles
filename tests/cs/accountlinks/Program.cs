@@ -757,8 +757,15 @@ Ok("deleting it deletes the account", r.status == 200 && !world.Users.ContainsKe
 
 // A profile Bonfire made itself was never anyone's account: deleting it deletes it, as before.
 world.Log.Clear();
+// What a limited profile has watched is kept per profile and was never forgotten when the
+// profile went (R-1023): its row stayed in viewing_usage.json for good.
+var viewingTracker = asm.GetType("Jellyfin.Profiles.Auth.ViewingTracker", true);
+viewingTracker.GetMethod("AddSeconds", Any).Invoke(null, new object[] { KID, "2026-11-01", 60.0 });
+bool WatchTimeKept(Guid id) => ((System.Collections.IDictionary)viewingTracker.GetField("Entries", Any).GetValue(null)).Contains(id);
+Ok("(a profile about to be deleted has viewing time on record)", WatchTimeKept(KID));
 r = Call("DeleteProfile", HOME, B(("ProfileId", KID), ("MasterPin", "1234")));
 Ok("a profile Bonfire created is still deleted with its account", r.status == 200 && !world.Users.ContainsKey(KID), Text(r));
+Ok("and its viewing time is forgotten with it", !WatchTimeKept(KID));
 
 try { Directory.Delete(tempDir, true); } catch { }
 return Finish();

@@ -741,6 +741,10 @@ namespace Jellyfin.Profiles.Controllers
                     }
                 }
 
+                // What it had watched today, kept per profile, would stay in viewing_usage.json (R-1023).
+                // Outside ConfigLock: the tracker's own lock is never taken inside it.
+                Auth.ViewingTracker.Forget(request.ProfileId);
+
                 // The master's last profile may just have gone, and a master with no
                 // profiles is no longer one the PIN provider should hold.
                 ProfilesBootstrapTask.ReconcileAuthProvidersNow();
@@ -1358,6 +1362,7 @@ namespace Jellyfin.Profiles.Controllers
             // the set is small. Doing it inside would hold the lock across all of them.
             bool Exists(Guid id) => id != Guid.Empty && _userManager.GetUserById(id) != null;
 
+            var orphansRemoved = new List<Guid>();
             (int Mappings, int Groups, int Members) removed;
             lock (ConfigLock)
             {
@@ -1393,6 +1398,10 @@ namespace Jellyfin.Profiles.Controllers
                 }
 
                 var orphanIds = orphans.Select(o => o.profileUserId).ToHashSet();
+                orphansRemoved = config.Mappings
+                    .Where(m => orphanIds.Contains(m.ProfileUserId) && (!Exists(m.ProfileUserId) || !Exists(m.MasterUserId)))
+                    .Select(m => m.ProfileUserId)
+                    .ToList();
                 config.Mappings.RemoveAll(m => orphanIds.Contains(m.ProfileUserId)
                                                && (!Exists(m.ProfileUserId) || !Exists(m.MasterUserId)));
 
@@ -1416,6 +1425,8 @@ namespace Jellyfin.Profiles.Controllers
 
                 removed = (orphans.Count, deadGroups.Count, deadMembers.Count);
             }
+
+            foreach (var gone in orphansRemoved) Auth.ViewingTracker.Forget(gone);   // R-1023
 
             // A master whose profiles were all orphans is no longer one the PIN provider
             // should hold.

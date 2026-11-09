@@ -327,6 +327,12 @@ Console.WriteLine("── CleanupOrphans ─────────────
     var LEFT = Guid.NewGuid(); world.Add(LEFT, "Left_behind");
     Map(GONE, PARENT);
     Map(LEFT, GONE_MASTER);
+    // Viewing time kept for them, which went on sitting in viewing_usage.json (R-1023).
+    var viewingTracker = asm.GetType("Jellyfin.Profiles.Auth.ViewingTracker", true);
+    const BindingFlags AnyMember = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+    foreach (var id in new[] { GONE, LEFT, KID })
+        viewingTracker.GetMethod("AddSeconds", AnyMember).Invoke(null, new object[] { id, "2026-11-01", 60.0 });
+    bool WatchTimeKept(Guid id) => ((IDictionary)viewingTracker.GetField("Entries", AnyMember).GetValue(null)).Contains(id);
 
     var byParent = Call("CleanupOrphans", PARENT, raw: new object[] { true });
     Ok("a non-administrator can't clean up (" + Say(byParent) + ")", byParent.status == 401 && Mapped(GONE) && Mapped(LEFT));
@@ -340,6 +346,7 @@ Console.WriteLine("── CleanupOrphans ─────────────
     var applied = Call("CleanupOrphans", ADMIN, raw: new object[] { true });
     Ok("applying removes them (" + Say(applied) + ")", applied.status == 200 && !Mapped(GONE) && !Mapped(LEFT));
     Ok("and keeps every live profile", Mapped(KID) && Mapped(OPEN_KID) && Mapped(PARENT) && Mapped(ADMIN) && Mapped(STRANGER));
+    Ok("their viewing time is forgotten, and a live profile's is not", !WatchTimeKept(GONE) && !WatchTimeKept(LEFT) && WatchTimeKept(KID));
 }
 
 try { Directory.Delete(tempDir, true); } catch { }

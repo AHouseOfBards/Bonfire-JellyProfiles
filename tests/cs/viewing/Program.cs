@@ -914,13 +914,26 @@ Ok("and read back after a restart", Used(KID2) == 5, Used(KID2).ToString());
     Static(tracker, "Save", new object[] { null });
 }
 
+// Switching a profile's rules off forgets what it had watched: nothing reads it any more, and
+// it would sit in the file for good (R-1023).
+{
+    bool Kept(Guid id) => ((System.Collections.IDictionary)tracker.GetField("Entries", Any).GetValue(null)).Contains(id);
+    Call("SetViewingLimits", MAIN, B(("DailyMinutes", 10), ("MasterPin", "1234")), KID2);
+    Fresh();
+    Static(tracker, "AddSeconds", KID2, ViewingDay(clockNow), 90.0);
+    Ok("(a limited profile has time on record)", Kept(KID2));
+    Call("SetViewingLimits", MAIN, B(("HoursEnabled", false), ("Windows", WindowList()), ("DailyMinutes", 0), ("MasterPin", "1234")), KID2);
+    Ok("turning its rules off forgets it", !Kept(KID2));
+    Fresh();
+}
+
 // A file that can't be read is dropped, and said so: it was today's minutes lost with no trace.
 {
     var capture = new CaptureLogger();
     tracker.GetField("Log", Any)?.SetValue(null, capture);
     File.WriteAllText(file, "{ this is not json");
     Static(tracker, "Reset");
-    Static(tracker, "State", KID2, clockNow);
+    Static(tracker, "EntryFor", KID2);   // the first thing that reads the file
     Ok("a usage file that can't be read is dropped with a warning in the log",
        capture.Lines.Count(l => l.StartsWith("Warning") && l.Contains("viewing_usage.json")) == 1, string.Join(" | ", capture.Lines));
     tracker.GetField("Log", Any)?.SetValue(null, null);
