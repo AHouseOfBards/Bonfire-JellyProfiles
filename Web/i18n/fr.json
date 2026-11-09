@@ -645,6 +645,7 @@
   "admin.gs.open": "Configurer",
   "admin.gs.profiles": "Créez un premier profil. Chaque foyer le fait depuis l’écran d’accueil de Jellyfin.",
   "admin.gs.pins": "Exigez un code PIN principal sur chaque compte principal.",
+  "admin.gs.zone": "Choisissez un fuseau horaire par défaut. Ce serveur est en UTC.",
   "admin.avatars.title": "Bibliothèque d'avatars",
   "admin.avatars.lede": "Des images que chacun peut choisir pour un profil. Sur une TV, c'est le seul moyen d'en définir une.",
   "admin.avatars.starter": "Inclure les avatars de départ",

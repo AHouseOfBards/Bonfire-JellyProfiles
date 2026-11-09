@@ -645,6 +645,7 @@
   "admin.gs.open": "Ustaw",
   "admin.gs.profiles": "Utwórz pierwszy profil. Domownicy robią to na ekranie głównym Jellyfin.",
   "admin.gs.pins": "Wymagaj głównego PIN-u na każdym koncie głównym.",
+  "admin.gs.zone": "Wybierz domyślną strefę czasową. Ten serwer działa w UTC.",
   "admin.avatars.title": "Biblioteka awatarów",
   "admin.avatars.lede": "Obrazy, które każdy może wybrać dla profilu. Na telewizorze to jedyny sposób na ustawienie obrazu.",
   "admin.avatars.starter": "Dołącz awatary startowe",

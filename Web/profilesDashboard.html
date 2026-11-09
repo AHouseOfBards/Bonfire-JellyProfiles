@@ -1446,6 +1446,7 @@
                 'admin.gs.open': 'Set up',
                 'admin.gs.profiles': 'Make a first profile. Households do this from the Jellyfin home screen.',
                 'admin.gs.pins': 'Require a main PIN on every main account.',
+                'admin.gs.zone': 'Choose a default time zone. This server is on UTC.',
                 'admin.saveFailed': 'Couldn\'t save it.',
                 'admin.saveSettingsFailed': 'Couldn\'t save the settings.',
                 'admin.saveBlocked': 'The settings did not load, so nothing was saved. Press Try again.',
@@ -5347,10 +5348,22 @@
                 const c = page._config || {};
                 const r = page._mappings || null;
                 const subs = r ? (field(r, 'subProfiles') || []) : null;
-                return [
+                const items = [
                     { key: 'profiles', text: t('admin.gs.profiles'), done: subs === null ? null : subs.length > 0 },
                     { key: 'pins', text: t('admin.gs.pins'), done: !!c.RequireMainPin, tab: 'security', anchor: 'jpfPins' }
                 ];
+                // Only on a server whose own zone is UTC, which is what a container reports
+                // when nobody set one: viewing hours would then be read in UTC. Any other
+                // server's zone is a real answer, so it is never asked. The zone arrives with
+                // the zone list, so until then the item is not there rather than to do.
+                if (isUtcZone(page._serverZone)) {
+                    items.push({ key: 'zone', text: t('admin.gs.zone'), done: !!c.DefaultTimeZone, tab: 'setup', anchor: 'jpfViewing' });
+                }
+                return items;
+            }
+
+            function isUtcZone(zone) {
+                return /^(Etc\/)?(UTC|UCT|Universal|Zulu)$/i.test(zone || '');
             }
 
             // Whether to ask the administrator about first-time setup: once, on a new install.
@@ -5444,7 +5457,9 @@
                     select.value = saved;
                     const server = data.Server || data.server || '';
                     page.querySelector('#defaultTimeZoneHint').textContent = server ? t('admin.viewing.serverIs', { zone: server }) : '';
-                }, function () { /* the saved zone is still there */ });
+                    page._serverZone = server;
+                    renderGettingStarted(page);
+                },function () { /* the saved zone is still there */ });
             }
 
             function noteSavedSettings(page, sent) {
@@ -5456,6 +5471,7 @@
                 c.EnableClientProfileList = sent.enableClientProfileList;
                 c.ClientPinLoginFromAnywhere = sent.clientPinLoginFromAnywhere;
                 c.ProxyClients = sent.proxyClients;
+                c.DefaultTimeZone = sent.defaultTimeZone;
                 c.Onboarding = Object.assign({}, c.Onboarding || {}, { Enabled: sent.onboardingEnabled });
                 page.dataset.requireMainPin = sent.requireMainPin ? '1' : '';
                 renderGettingStarted(page);

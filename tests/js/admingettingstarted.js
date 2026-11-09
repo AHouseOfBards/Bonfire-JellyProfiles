@@ -30,6 +30,7 @@ if (!['loadOnboarding', 'renderGettingStarted', 'gettingStartedItems'].every(has
 const source = L.dashboardI18n(script)
     + L.extractFunction(script, 'field') + '\n'
     + L.extractFunction(script, 'loadOnboarding') + '\n'
+    + (has('isUtcZone') ? L.extractFunction(script, 'isUtcZone') + '\n' : '')
     + L.extractFunction(script, 'gettingStartedItems') + '\n'
     + L.extractFunction(script, 'renderGettingStarted') + '\n'
     // Only on a dashboard that asks; an older one fails the assertions below instead of here.
@@ -141,6 +142,27 @@ ok('no avatars item, which was done on every install', !row('avatars'));
 ok('no first-time setup item: it is asked once instead', !row('onboarding'));
 ok('no apps item: a choice, not a chore', !row('apps'));
 ok('exactly the profile and the PIN', rows().length === 2, rows().map(r => r.getAttribute('data-gs')).join());
+
+// The time zone item: only a server on UTC with no default chosen is asked.
+['Europe/London', 'America/New_York', '', undefined].forEach(function (zone) {
+    page._serverZone = zone;
+    api.renderGettingStarted(page);
+    ok('a server on ' + JSON.stringify(zone) + ' is not asked for a zone', !row('zone') && rows().length === 2);
+});
+['UTC', 'Etc/UTC'].forEach(function (zone) {
+    page._serverZone = zone;
+    page._config.DefaultTimeZone = '';
+    api.renderGettingStarted(page);
+    ok(zone + ' with no default: a to-do that opens the viewing hours',
+       row('zone') && row('zone').getAttribute('data-level') === 'info' && rows().length === 3);
+    row('zone') && row('zone').children[2] && row('zone').children[2].listeners.click();
+    ok('and goes to Setup at the zone', gone.pop() === 'setup#jpfViewing');
+    page._config.DefaultTimeZone = 'Europe/Paris';
+    api.renderGettingStarted(page);
+    ok(zone + ' with a default chosen: ticked', row('zone') && row('zone').getAttribute('data-level') === 'ok');
+});
+page._serverZone = undefined;
+page._config.DefaultTimeZone = '';
 
 page._config.RequireMainPin = true;
 page._mappings = { SubProfiles: [{}] };

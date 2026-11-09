@@ -656,6 +656,7 @@
   "admin.gs.open": "Ayarla",
   "admin.gs.profiles": "İlk profili oluşturun. Haneler bunu Jellyfin ana ekranından yapar.",
   "admin.gs.pins": "Her ana hesapta ana PIN zorunlu olsun.",
+  "admin.gs.zone": "Varsayılan bir saat dilimi seçin. Bu sunucu UTC'de.",
   "admin.avatars.title": "Avatar kitaplığı",
   "admin.avatars.lede": "Herkesin bir profil için seçebileceği resimler. Televizyonda resim ayarlamanın tek yolu budur.",
   "admin.avatars.starter": "Başlangıç avatarlarını dahil et",
