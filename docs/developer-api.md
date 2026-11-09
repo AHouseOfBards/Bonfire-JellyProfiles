@@ -670,8 +670,12 @@ device" with a `lastSeen` of `0001-01-01`.
 { "deviceId": "57bfa7e8d35f492b950bf93c9d747a11" }
 ```
 
-`400` if it's the only device a profile is allowed on, since removing it would allow every
-device. The message names those profiles.
+Forgets the device for your household and takes it off your profiles' device lists. Another
+household that uses the same device keeps it.
+
+`400` if your household has never used it. `400` if it's the only device one of your
+profiles is allowed on, since removing it would allow every device. The message names
+those profiles.
 
 ### `POST /plugins/profiles/devices/merge`
 

@@ -1244,6 +1244,10 @@ namespace Jellyfin.Profiles.Controllers
         /// </summary>
         internal static List<Guid> ProfilesLeftUnrestrictedBy(
             PluginConfiguration config, IEnumerable<string> removingIds)
+            => HouseholdProfilesLeftUnrestrictedBy(config, removingIds, null);
+
+        internal static List<Guid> HouseholdProfilesLeftUnrestrictedBy(
+            PluginConfiguration config, IEnumerable<string> removingIds, Guid? householdId)
         {
             var removing = removingIds
                 .Where(id => !string.IsNullOrWhiteSpace(id))
@@ -1256,6 +1260,8 @@ namespace Jellyfin.Profiles.Controllers
             foreach (var m in config.Mappings)
             {
                 if (m.AllowedDeviceIds == null) continue;
+                // Only that household's profiles, when one is named (R-1048).
+                if (householdId.HasValue && m.MasterUserId != householdId.Value) continue;
 
                 var current = m.AllowedDeviceIds
                     .Where(id => !string.IsNullOrWhiteSpace(id))

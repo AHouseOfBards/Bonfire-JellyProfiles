@@ -3242,17 +3242,32 @@ namespace Jellyfin.Profiles.Controllers
 
             lock (ConfigLock)
             {
-                // Forgetting a device also drops it from every whitelist that named it, and an
-                // empty whitelist means "any device". So forgetting the only device a profile
+                // This household's claim and this household's lists, nothing more (R-1048).
+                // It matched on the id alone across the server-wide list: any main account
+                // could forget another household's television, strip it from that household's
+                // device lists, and read that household's profile names off the refusal.
+                // Rename and merge always checked ownership; this did not.
+                var household = config.Mappings.Where(m => m.MasterUserId == masterId).ToList();
+                bool Matches(string? id) => string.Equals(id?.Trim(), request.DeviceId.Trim(), StringComparison.OrdinalIgnoreCase);
+                var records = config.KnownDevices.Where(d => Matches(d.DeviceId)).ToList();
+                var owned = records.Where(d => d.OwnedBy(masterId)).ToList();
+                // A device on one of its lists with no record left is still the household's
+                // to take off them: the device list shows it as "Previously allowed device".
+                var listed = household.Any(m => m.AllowedDeviceIds?.Any(Matches) == true);
+                if (owned.Count == 0 && !listed) return BadRequest("Unknown device.");
+
+                // Forgetting a device also drops it from every list that named it, and an
+                // empty list means "any device". So forgetting the only device a profile
                 // was restricted to would silently make that profile available everywhere —
                 // the exact widening RemoveStaleDevices is written to avoid, arrived at by a
                 // different route. Refuse and say which profiles are in the way; the
-                // administrator can loosen or re-point them deliberately.
-                var wouldUnrestrict = ProfilesLeftUnrestrictedBy(config, new[] { request.DeviceId });
+                // household can loosen or re-point them deliberately.
+                var wouldUnrestrict = HouseholdProfilesLeftUnrestrictedBy(config, new[] { request.DeviceId }, masterId);
                 if (wouldUnrestrict.Count > 0)
                 {
-                    var names = wouldUnrestrict
-                        .Select(id => _userManager.GetUserById(id)?.Username ?? id.ToString())
+                    var names = household
+                        .Where(m => wouldUnrestrict.Contains(m.ProfileUserId))
+                        .Select(m => m.ProfileName)
                         .ToList();
                     return BadRequest(
                         "This is the only device allowed for "
@@ -3260,15 +3275,21 @@ namespace Jellyfin.Profiles.Controllers
                         + ". Allow another device for those profiles first, or clear their device list.");
                 }
 
-                var toRemove = config.KnownDevices
-                    .Where(d => string.Equals(d.DeviceId, request.DeviceId, StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-                foreach (var d in toRemove)
-                    config.KnownDevices.Remove(d);
+                // Another household that uses it keeps it, and sees it shown as theirs.
+                foreach (var d in owned)
+                {
+                    var others = Auth.DeviceRegistry.AddOwners(d.Owners, d.MasterUserId).Where(o => o != masterId).ToList();
+                    if (others.Count == 0)
+                    {
+                        config.KnownDevices.Remove(d);
+                        continue;
+                    }
+                    d.Owners = others;
+                    if (d.MasterUserId == masterId) d.MasterUserId = others[others.Count - 1];
+                }
 
-                foreach (var mapping in config.Mappings)
-                    mapping.AllowedDeviceIds?.RemoveAll(id =>
-                        string.Equals(id, request.DeviceId, StringComparison.OrdinalIgnoreCase));
+                foreach (var mapping in household)
+                    mapping.AllowedDeviceIds?.RemoveAll(id => Matches(id));
 
                 Plugin.Instance?.SaveConfiguration();
             }
