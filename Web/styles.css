@@ -1222,6 +1222,15 @@ body.profiles-no-scroll [id*="spinner"] {
    digits need more room than a PIN's four. */
 #pin-reset-code {
     -webkit-text-security: none; width: 240px; font-size: 2rem; letter-spacing: 0.35rem;
+    height: 2.25rem;
+}
+/* As wide as the code above it; it was the 180px of a PIN box, 60px narrower. */
+#pin-reset-new { width: 240px; height: 2.8rem; }
+/* An empty field's placeholder sits on the baseline of the field's own text, so a 1rem
+   placeholder in 2.5rem digits rode low. While the placeholder shows, the field takes the
+   placeholder's size; the fixed height above keeps the box the size it was. */
+#pin-reset-code:placeholder-shown, #pin-reset-new:placeholder-shown {
+    font-size: 1rem; letter-spacing: normal;
 }
 #pin-reset-code::placeholder, #pin-reset-new::placeholder,
 #profile-pin-input::placeholder, #master-pin-input::placeholder, #main-pin-new::placeholder {
