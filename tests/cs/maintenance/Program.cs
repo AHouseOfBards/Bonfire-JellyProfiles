@@ -574,6 +574,24 @@ string Kind(string method, string path, string baseUrl)
 Ok("under a base URL the web client's files are still open", Kind("GET", "/jf/web/index.html", "/jf") == "Open", Kind("GET", "/jf/web/index.html", "/jf"));
 Ok("and a segment named web under it is not", Kind("GET", "/jf/Videos/" + N(OTHER) + "/hls1/web/3.ts", "/jf") != "Open", Kind("GET", "/jf/Videos/" + N(OTHER) + "/hls1/web/3.ts", "/jf"));
 
+Console.WriteLine();
+Console.WriteLine("── The sign-in check ───────────────────────────────────────────");
+
+Close(true);
+Ok("a sign-in under a base URL is still a sign-in", Kind("POST", "/jf/Users/AuthenticateByName", "/jf") == "SignIn", Kind("POST", "/jf/Users/AuthenticateByName", "/jf"));
+var guestBody = "{\"Username\":\"Guest\",\"Pw\":\"x\"}";
+Ok("a sign-in by name with a trailing slash is refused", Refused(Send("/Users/AuthenticateByName/", null, "POST", guestBody)));
+Ok("an administrator's is not", Through(Send("/Users/AuthenticateByName/", null, "POST", "{\"Username\":\"Bard\",\"Pw\":\"x\"}")));
+// Jellyfin binds the body with System.Text.Json, where a repeated key keeps the last value.
+var twice = Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Bard\",\"Pw\":\"x\",\"Username\":\"Guest\"}");
+Ok("a name given twice is the last one, as Jellyfin reads it", Refused(twice), Show(twice));
+var twiceAdmin = Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Guest\",\"Pw\":\"x\",\"Username\":\"Bard\"}");
+Ok("and an administrator named last is let through", Through(twiceAdmin), Show(twiceAdmin));
+var huge = Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Bard\",\"Pw\":\"" + new string('x', 70000) + "\"}");
+Ok("a sign-in body too large to read is refused rather than passed", Refused(huge), Show(huge));
+Ok("a body that is not JSON is still left to Jellyfin", Through(Send("/Users/AuthenticateByName", null, "POST", "Username=Guest")));
+Close(true);
+
 try { Directory.Delete(tempDir, true); } catch { }
 return Finish();
 

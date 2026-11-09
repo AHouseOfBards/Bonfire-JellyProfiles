@@ -233,7 +233,7 @@ namespace Jellyfin.Profiles.Auth
 
             if (HttpMethods.IsPost(method))
             {
-                if (path.EndsWith("/Users/AuthenticateByName", StringComparison.OrdinalIgnoreCase)) return PathKind.SignIn;
+                if (path.TrimEnd('/').EndsWith("/Users/AuthenticateByName", StringComparison.OrdinalIgnoreCase)) return PathKind.SignIn;
                 if (SignInId(path).HasValue) return PathKind.SignInById;
             }
 
@@ -248,6 +248,7 @@ namespace Jellyfin.Profiles.Auth
         /// <summary>The id in <c>/Users/{id}/Authenticate</c>, or null.</summary>
         internal static Guid? SignInId(string path)
         {
+            path = path.TrimEnd('/');
             const string tail = "/Authenticate";
             if (!path.EndsWith(tail, StringComparison.OrdinalIgnoreCase)) return null;
             var head = path[..^tail.Length];
@@ -375,7 +376,15 @@ namespace Jellyfin.Profiles.Auth
 
                     case PathKind.SignIn:
                     {
-                        var name = await ReadUsernameAsync(request).ConfigureAwait(false);
+                        var (name, tooLarge) = await ReadUsernameAsync(request).ConfigureAwait(false);
+                        if (tooLarge)
+                        {
+                            // No sign-in is this big. Passing it on unread would let the name hide in it.
+                            logger.LogInformation("ProfilesPlugin: a sign-in body too large to read was refused: closed for maintenance.");
+                            await WriteRefusalAsync(context, m).ConfigureAwait(false);
+                            return true;
+                        }
+
                         var user = string.IsNullOrEmpty(name) ? null : users.GetUserByName(name);
                         if (user == null)
                         {
@@ -451,32 +460,39 @@ namespace Jellyfin.Profiles.Auth
             return userId;
         }
 
-        /// <summary>The name in a sign-in body, leaving the body readable for Jellyfin.</summary>
-        private static async Task<string?> ReadUsernameAsync(HttpRequest request)
+        /// <summary>
+        /// The name in a sign-in body, leaving the body readable for Jellyfin. The last
+        /// <c>Username</c> wins, as it does when Jellyfin binds the body. TooLarge is true when
+        /// the body is more than a sign-in can be and was not read.
+        /// </summary>
+        private static async Task<(string? Name, bool TooLarge)> ReadUsernameAsync(HttpRequest request)
         {
-            if (request.ContentLength is long length && length > MaxSignInBody) return null;
+            if (request.ContentLength is long length && length > MaxSignInBody) return (null, true);
 
             request.EnableBuffering();
             string text;
+            int read;
             using (var reader = new StreamReader(request.Body, Encoding.UTF8, false, 4096, leaveOpen: true))
             {
                 var buffer = new char[MaxSignInBody];
-                var read = await reader.ReadBlockAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
+                read = await reader.ReadBlockAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
                 text = new string(buffer, 0, read);
             }
 
             request.Body.Position = 0;
+            if (read >= MaxSignInBody) return (null, true);
 
+            string? name = null;
             try
             {
                 using var doc = JsonDocument.Parse(text);
-                if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
+                if (doc.RootElement.ValueKind != JsonValueKind.Object) return (null, false);
                 foreach (var p in doc.RootElement.EnumerateObject())
                 {
                     if (string.Equals(p.Name, "Username", StringComparison.OrdinalIgnoreCase)
                         && p.Value.ValueKind == JsonValueKind.String)
                     {
-                        return p.Value.GetString();
+                        name = p.Value.GetString();
                     }
                 }
             }
@@ -485,7 +501,7 @@ namespace Jellyfin.Profiles.Auth
                 // Not JSON: Jellyfin will refuse it on its own.
             }
 
-            return null;
+            return (name, false);
         }
 
         /// <summary>The message with "Try again later." after it, however the message ends.</summary>
