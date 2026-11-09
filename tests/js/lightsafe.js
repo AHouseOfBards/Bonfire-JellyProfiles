@@ -53,7 +53,7 @@ const ALLOWED = {
     },
     js: {
         'class="profile-avatar-overlay-svg"': 'the edit pencil over a darkened picture',
-        'stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px; color: #fff;"':
+        'stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="color: #fff;"':
             "the tick on a profile's own colour",
         'style="font-size: 1.15rem; color: #fff;">${p.isLinked': "the link badge on a profile's own colour",
         'class="bonfire-kick-btn"': 'white on the red fill of a remove button',

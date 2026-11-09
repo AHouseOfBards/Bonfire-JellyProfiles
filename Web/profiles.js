@@ -5988,7 +5988,7 @@
             const renderCard = (p) => `
                 <div class="profile-card focusable ${this.isManageMode ? 'manage-mode' : ''}${
                     signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' is-current' : ''
-                }" data-id="${p.profileUserId}" data-pin="${p.requiresPin}" role="button" tabindex="0"${
+                }${this.viewingLine(p.viewing) && !p.viewing.allowed ? ' is-out' : ''}" data-id="${p.profileUserId}" data-pin="${p.requiresPin}" role="button" tabindex="0"${
                     signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' aria-current="true"' : ''
                 }>
                     <div class="profile-avatar-container">
@@ -6019,7 +6019,7 @@
                         </div>
                         ${p.requiresPin ? `
                         <div class="profile-lock-indicator" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px; color: #fff;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="color: #fff;">
                                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                             </svg>

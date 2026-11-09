@@ -1011,6 +1011,7 @@ body.profiles-no-scroll [id*="spinner"] {
     border: 1.5px solid var(--jpf-border-3);
     z-index: 10;
 }
+.profile-lock-indicator svg { width: 14px; height: 14px; }
 .profile-bonfire-indicator {
     position: absolute; top: 8px; left: 8px;
     background: linear-gradient(135deg, var(--jpf-warn) 0%, var(--jpf-flame-deep) 100%);
@@ -1765,7 +1766,13 @@ body.profiles-no-scroll [id*="spinner"] {
     opacity: 0.75;
     margin-top: 2px;
 }
-.profile-viewing.is-out { color: var(--jpf-warn); opacity: 1; }
+/* Not the warning colour: --jpf-warn is mustard on Jellyfin Light's grey, about 3:1, and
+   this is the line that says why a tile will not open. The name's own colour reads on every
+   theme (themes.js holds that), and the dimmed avatar below carries the "no". */
+.profile-viewing.is-out { color: var(--jpf-name-color); opacity: 1; font-weight: 700; }
+/* Not on the focused tile: opacity fades the ring with the picture, and the tile the remote
+   is on is the one that has to be found. */
+.profile-card.is-out:not(:focus) .profile-avatar { opacity: 0.55; }
 .jpf-viewing-days { margin-top: 0.5rem; transition: opacity 0.2s ease; }
 .jpf-viewing-days.is-inert { opacity: 0.45; }
 .jpf-viewing-day { display: flex; align-items: center; gap: var(--jpf-gap); flex-wrap: wrap; margin-bottom: 6px; }
@@ -2408,6 +2415,28 @@ body.profiles-no-scroll [id*="spinner"] {
     font-size: 1.75rem;
     font-size: calc(1.75rem * var(--jpf-name-scale));
     margin-top: 1.5rem;
+}
+/* The lines under a name were 0.7 and 0.75rem: 20px at 1080p and 15px at 720p, read from a
+   sofa. The lock badge was 32px on a 280px tile, a dot. And the focused tile drew the same
+   ring as the signed-in one, so the one the remote was on looked like the one already
+   signed in: focus doubles the ring (a border, so it needs no flat twin, and no outline,
+   which Chromium 53 would draw as a rectangle round a round avatar). */
+.jpf-tv .profile-viewing,
+.jpf-tv .profile-current-badge {
+    font-size: 1.1rem;
+}
+.jpf-tv .profile-lock-indicator {
+    width: 52px;
+    height: 52px;
+    bottom: 12px;
+    right: 12px;
+}
+.jpf-tv .profile-lock-indicator svg {
+    width: 24px;
+    height: 24px;
+}
+.jpf-tv .profile-card:focus .profile-avatar {
+    border-width: calc(var(--jpf-ring-w) * 2);
 }
 .jpf-tv .profiles-btn {
     font-size: 1.5rem;
