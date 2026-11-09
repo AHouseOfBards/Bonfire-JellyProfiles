@@ -108,14 +108,28 @@ const RIGHT = '24681357';
 
         // 3. A 429 stops the box from checking by itself.
         env = setup();
-        env.setRespond(() => ({ status: 429, body: 'Too many tries. Try again in 15 minutes.' }));
+        // The server's sentence is English. The client builds the wait from Retry-After
+        // through t(), so it is not the server's words that are shown.
+        env.setRespond(() => ({ status: 429, headers: { 'Retry-After': '90' }, body: 'Too many tries. Try again in 2 minutes.' }));
         box.open(env.PP);
         input = env.content.querySelector('#' + box.input);
         await type(env, input, '1234');
         await env.pause();
         const lockErr = env.content.querySelector(box.input === 'profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
-        ok('a 429 shows the server\'s answer', !!lockErr && /Too many tries/.test(lockErr.textContent),
+        ok('a 429 shows the wait built from Retry-After, not the server\'s sentence',
+           !!lockErr && lockErr.textContent === 'Too many failed PIN attempts. Try again in 2 minutes.',
            lockErr ? lockErr.textContent : '');
+        for (const [secs, want] of [['30', 'in 30 seconds.'], ['1', 'in a moment.'], ['60', 'in a minute.'], [null, 'in a moment.']]) {
+            const e2 = setup();
+            const h = secs === null ? {} : { 'Retry-After': secs };
+            e2.setRespond(() => ({ status: 429, headers: h, body: 'x' }));
+            box.open(e2.PP);
+            const i2 = e2.content.querySelector('#' + box.input);
+            await type(e2, i2, '1234');
+            await e2.pause();
+            const m2 = e2.content.querySelector(box.input === 'profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
+            ok('Retry-After ' + secs + ' reads "' + want + '"', !!m2 && m2.textContent.indexOf(want) > 0, m2 ? m2.textContent : '');
+        }
         await type(env, input, '5678');
         await env.pause();
         ok('and the box stops checking by itself (' + env.verifies(box.path).length + ' sent)',

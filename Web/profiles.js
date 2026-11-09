@@ -829,6 +829,10 @@
         'pin.enterMasterPin': 'Enter main PIN',
         'pin.incorrectPin': 'Incorrect PIN. Please try again.',
         'pin.incorrectMasterPin': 'Incorrect main PIN. Please try again.',
+        'pin.lockedMoment': 'Too many failed PIN attempts. Try again in a moment.',
+        'pin.lockedSeconds': 'Too many failed PIN attempts. Try again in {count} seconds.',
+        'pin.lockedMinute': 'Too many failed PIN attempts. Try again in a minute.',
+        'pin.lockedMinutes': 'Too many failed PIN attempts. Try again in {count} minutes.',
 
         'avatar.positionYourPicture': 'Position your picture',
         'avatar.dragOrArrows': 'Drag or arrows to move, slider to zoom. Press OK when it looks right.',
@@ -6572,6 +6576,18 @@
         /// Returns { input, cancel, hold, takeRefusal(pin) }. takeRefusal hands back the server's
         /// answer if this exact value was just refused, so Enter can show it rather than
         /// spend another guess on the same digits; it is used once, so retyping asks again.
+        /// The wait in a 429, in the viewer's language. The server sends the seconds in
+        /// Retry-After and an English sentence in the body; the sentence is not shown,
+        /// because it cannot be translated. Rounded as the server's DescribeWait does.
+        _lockedText: function (res) {
+            let seconds = 0;
+            try { seconds = Math.ceil(Number(res.headers.get('Retry-After'))) || 0; } catch (e) { seconds = 0; }
+            if (seconds <= 1) return t('pin.lockedMoment');
+            if (seconds < 60) return t('pin.lockedSeconds', { count: seconds });
+            const minutes = Math.ceil(seconds / 60);
+            return minutes === 1 ? t('pin.lockedMinute') : t('pin.lockedMinutes', { count: minutes });
+        },
+
         _pinAutoCheck: function (pinInput, opts) {
             const refused = new Map();
             let timer = null;
@@ -6600,7 +6616,7 @@
                                 // nowhere useful; say so and stop.
                                 stopped = true;
                                 if (timer) { clearTimeout(timer); timer = null; }
-                                opts.onLocked(body);
+                                opts.onLocked(this._lockedText(res));
                                 return;
                             }
                             refused.set(pin, body);
@@ -7333,8 +7349,10 @@
                             this.handleSessionExpired();
                             throw new Error('Session expired');
                         }
-                        const refusal = new Error(body || t('pin.incorrectPin'));
-                        refusal.serverText = body;
+                        // A 429's sentence is English; the wait is built here, in the viewer's language.
+                        const shown = res.status === 429 ? this._lockedText(res) : body;
+                        const refusal = new Error(shown || t('pin.incorrectPin'));
+                        refusal.serverText = shown;
                         throw refusal;
                     });
                 }

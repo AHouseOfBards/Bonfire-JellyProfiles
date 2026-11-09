@@ -142,6 +142,7 @@ function loadPlugin(src) {
             return Promise.resolve({
                 ok: r.status >= 200 && r.status < 300,
                 status: r.status,
+                headers: { get: name => (r.headers && r.headers[name]) || null },
                 json: () => Promise.resolve(r.body),
                 text: () => Promise.resolve(typeof r.body === 'string' ? r.body : JSON.stringify(r.body))
             });
