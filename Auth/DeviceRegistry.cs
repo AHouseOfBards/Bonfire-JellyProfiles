@@ -579,6 +579,15 @@ namespace Jellyfin.Profiles.Auth
             return Convert.ToHexString(hash).ToLowerInvariant();
         }
 
+        /// <summary>Longest device id recorded; a real client id is far shorter.</summary>
+        public const int MaxDeviceIdLength = 128;
+
+        /// <summary>Most device rows one household may own.</summary>
+        public const int MaxDevicesPerHousehold = 200;
+
+        /// <summary>Most device rows on the whole server.</summary>
+        public const int MaxKnownDevices = 2000;
+
         /// <summary>
         /// Notes that <paramref name="ownerId"/>'s household was seen on this device. Returns
         /// true when something changed that is worth writing to disk.
@@ -603,7 +612,7 @@ namespace Jellyfin.Profiles.Auth
             deviceId = deviceId?.Trim();
             deviceName = deviceName?.Trim();
             client = client?.Trim();
-            if (string.IsNullOrEmpty(deviceId)) return false;
+            if (string.IsNullOrEmpty(deviceId) || deviceId.Length > MaxDeviceIdLength) return false;
 
             // An id merged into another record updates that record (R-1049); it used to make
             // a fresh one, which no device list named.
@@ -671,6 +680,14 @@ namespace Jellyfin.Profiles.Auth
             }
             else
             {
+                // A new row is bounded, per household and overall, so a signed-in account
+                // cannot grow a file that is rewritten whole on every save.
+                if (config.KnownDevices.Count >= MaxKnownDevices
+                    || (ownerId != Guid.Empty && config.KnownDevices.Count(d => d.OwnedBy(ownerId)) >= MaxDevicesPerHousehold))
+                {
+                    return false;
+                }
+
                 // First time we've seen this device — persist it.
                 config.KnownDevices.Add(new KnownDevice
                 {

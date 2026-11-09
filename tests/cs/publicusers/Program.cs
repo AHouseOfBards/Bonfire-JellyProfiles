@@ -519,6 +519,21 @@ if (resolve != null)
            devicesList.Count == 1
            && (string)knownType.GetProperty("DeviceId").GetValue(devicesList[0]) == "tv-spaced");
 
+        // Bounded: an id no client would send, and rows past a household's or the server's cap.
+        devicesList.Clear();
+        record.Invoke(null, new object[] { config, new string('x', 129), "TV", "Android TV", MASTER, now, null });
+        Ok("an over-long device id is not recorded", devicesList.Count == 0);
+        for (var i = 0; i < 250; i++)
+            record.Invoke(null, new object[] { config, "cap-" + i, "TV", "Android TV", MASTER, now, null });
+        Ok("one household cannot own more than 200 device rows", devicesList.Count == 200);
+        record.Invoke(null, new object[] { config, "cap-0", "TV", "Android TV", MASTER, now, null });
+        Ok("a device already recorded is still updated at the cap", devicesList.Count == 200);
+        devicesList.Clear();
+        for (var i = 0; i < 2100; i++)
+            record.Invoke(null, new object[] { config, "all-" + i, "TV", "Android TV", Guid.NewGuid(), now, null });
+        Ok("the server keeps no more than 2000 device rows", devicesList.Count == 2000);
+        devicesList.Clear();
+
         // Nothing to key on is nothing to record.
         devicesList.Clear();
         record.Invoke(null, new object[] { config, null, "TV", "Android TV", MASTER, now, null });

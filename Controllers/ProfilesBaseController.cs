@@ -1121,6 +1121,10 @@ namespace Jellyfin.Profiles.Controllers
                 ? Guid.Empty
                 : Auth.DeviceRegistry.HouseholdOf(Plugin.Instance?.Configuration, callerId.Value);
 
+            // Households only, as the session listener does: any other signed-in account
+            // would otherwise be able to write rows into the device list.
+            if (callerId == null || !Auth.DeviceRegistry.IsHousehold(ReadConfigSnapshot(), callerId.Value)) return;
+
             Auth.DeviceRegistry.RecordAndSave(
                 deviceId,
                 GetAuthorizationParameter("Device"),
