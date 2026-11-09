@@ -6562,6 +6562,7 @@
 
             content.classList.remove('jpf-fitted');
             content.style.removeProperty('--jpf-tile');
+            content.style.removeProperty('--jpf-name-fit');
             if (fits()) return;
 
             const sample = grid.querySelector('.profile-avatar-container');
@@ -6570,8 +6571,26 @@
             if (!natural) return;
 
             const isTv = document.documentElement.classList.contains('jpf-tv');
+            // The smallest the name may get, as a share of its natural size: the size of the
+            // largest line under it. Measured, not written down: a theme scales its names
+            // (Glass and Harbor draw them smaller), and 1.1 / 1.75 left those names under
+            // their own "Signed in".
+            const px = (e) => (e ? parseFloat(getComputedStyle(e).fontSize) || 0 : 0);
+            const nameSize = px(grid.querySelector('.profile-name > span'));
+            let lineSize = 0;
+            grid.querySelectorAll('.profile-viewing, .profile-current-badge').forEach((e) => { lineSize = Math.max(lineSize, px(e)); });
+            const nameFloor = nameSize && lineSize ? Math.min(1, lineSize / nameSize) : 1.1 / 1.75;
             const floor = Math.min(natural, isTv ? 120 : 88);
-            const tryTile = (px) => { content.style.setProperty('--jpf-tile', px + 'px'); return fits(); };
+            // The name shrinks with the tile (the stylesheet uses it on a television only), but
+            // never below the lines under it (nameFloor): shrunk all the way with a 120px tile it
+            // was 20px on a 1080p set, smaller than "Time's up". What still does not fit is cut
+            // with an ellipsis, as Netflix and Plex do. Set on every try: a smaller name is also
+            // a shorter grid, which is part of what fits() measures.
+            const tryTile = (size) => {
+                content.style.setProperty('--jpf-tile', size + 'px');
+                content.style.setProperty('--jpf-name-fit', Math.max(size / natural, nameFloor).toFixed(3));
+                return fits();
+            };
 
             content.classList.add('jpf-fitted');
             let lo = floor;

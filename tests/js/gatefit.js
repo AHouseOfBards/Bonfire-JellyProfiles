@@ -97,6 +97,10 @@ function makeGate(opts) {
     const sample = { getBoundingClientRect: () => ({ width: tile(), height: tile() }) };
     const grid = {
         querySelector: s => (/profile-avatar-container/.test(s) ? sample : null),
+        // The routine reads the name's and the status lines' font sizes to set how far a
+        // name may shrink on a television. This model has neither, so the routine takes its
+        // written-down floor; the tile search below is what this harness is about.
+        querySelectorAll: () => [],
         closest: s => (s === '.profiles-modal-content' ? content : null)
     };
     overlay.querySelector = s => {
@@ -126,6 +130,7 @@ function load(tv) {
         sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
         navigator: { userAgent: '' }, location: { href: '', hash: '', pathname: '/' },
         fetch: () => new Promise(() => {}),
+        getComputedStyle: () => ({ fontSize: '' }),
         MutationObserver: function () { this.observe = () => {}; this.disconnect = () => {}; }
     };
     sandbox.window = sandbox;
@@ -264,8 +269,19 @@ const fitted = all.filter(r => /\.jpf-fitted/.test(r.selector) && !/^\s*--jpf-ti
 const fallback = all.find(r => /\.jpf-fitted$/.test(r.selector) && /--jpf-tile\s*:\s*\d+px/.test(r.body));
 ok('the tile size has a declared default, so no fitted rule can resolve to nothing', !!fallback);
 ok('the fitted rules are in the stylesheet', fitted.length >= 6);
-ok('and are sized by the tile property the routine sets',
-    fitted.length > 0 && fitted.every(r => /var\(--jpf-tile\)/.test(r.body)));
+// The routine sets two properties: --jpf-tile, and --jpf-name-fit for how far a name may
+// shrink on a television. A fitted rule that sizes anything must use one of them. The one
+// exemption is a rule that sizes nothing: the long-name ellipsis sets only the properties
+// listed here, and anything else in such a rule makes it a sizing rule again.
+const ROUTINE = /var\(--jpf-(tile|name-fit)\b/;
+const NOT_SIZING = ['white-space', 'overflow', 'text-overflow'];
+const sizesNothing = body => {
+    const props = body.split(';').map(d => d.split(':')[0].trim()).filter(Boolean);
+    return props.length > 0 && props.every(p => NOT_SIZING.indexOf(p) !== -1);
+};
+const unsized = fitted.filter(r => !ROUTINE.test(r.body) && !sizesNothing(r.body));
+ok('and are sized by the properties the routine sets' + (unsized.length ? ': ' + unsized.map(r => r.selector).join(' | ') : ''),
+    fitted.length > 0 && unsized.length === 0);
 
 let pairs = 0;
 const lost = [];

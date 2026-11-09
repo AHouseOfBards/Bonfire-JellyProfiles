@@ -5,6 +5,7 @@
  *   node tests/screens/shoot.js                        all of them
  *   node tests/screens/shoot.js --theme glass --scene picker,pin --device tv
  *   node tests/screens/shoot.js --out <dir>            somewhere else, for diff.js
+ *   node tests/screens/shoot.js --count 20 --out <dir> a household of 20 profiles
  *
  * They are the reference for anyone drawing these screens outside the web client, and
  * the thing diff.js compares against before a release. Not a gate: see fixture.js.
@@ -80,7 +81,7 @@ async function main() {
             for (const scene of scenes) {
                 for (const device of devices) {
                     const size = device === 'tv-lowpower' ? 'tv' : device;
-                    const url = 'http://127.0.0.1:' + s.port + '/?theme=' + theme.id + '&scene=' + scene + '&device=' + size;
+                    const url = 'http://127.0.0.1:' + s.port + '/?theme=' + theme.id + '&scene=' + scene + '&device=' + size + (a.count ? '&count=' + a.count : '');
                     const r = await c.open(url, size);
                     if (device === 'tv-lowpower') {
                         await c.evaluate('(function(){var s=document.createElement("style");s.textContent=' + JSON.stringify(NO_BLUR) + ';document.head.appendChild(s);return new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(r)})})})()');

@@ -25,12 +25,24 @@
         { id: '44444444444444444444444444444444', name: 'Zoë', colour: '#f2cc8f',
           viewing: { allowed: false, reason: 'limit' } }
     ];
+    // ?count=N: a household of N tiles, to see the grid at its limit: the main account
+    // and 20 profiles, so 21. The limit is set to what is drawn, so Manage is at it.
+    // Some names are long on purpose, since that is what a crowded grid has to wrap or cut.
+    var EXTRA = ['Jordan', 'Maximilian', 'Priya', 'Grandma Josephine', 'Theo', 'Kids room',
+        'Olu', 'Charlotte-Anne', 'Mateo', 'Guest', 'Wei', 'Bartholomew', 'Isla', 'Noor',
+        'Dad', 'Evangeline', 'Sebastian'];
+    var COLOURS = ['#e07a5f', '#3d8bfd', '#81b29a', '#f2cc8f', '#9b5de5', '#f15bb5', '#00bbf9', '#00f5d4'];
+    var COUNT = Math.min(parseInt(q.get('count'), 10) || 0, people.length + EXTRA.length);
+    for (var n = people.length; n < COUNT; n++) {
+        var hex = ('00000000' + (n + 1).toString(16)).slice(-8);
+        people.push({ id: 'aaaaaaaaaaaaaaaaaaaaaaaa' + hex, name: EXTRA[n - 4], colour: COLOURS[n % COLOURS.length], pin: n % 3 === 0 });
+    }
     var PROFILES = people.map(function (p) {
         return {
             profileUserId: p.id, profileName: p.name, masterUserId: MAIN,
             isMaster: !!p.master, isBonfire: false, isLinked: false,
             requiresPin: !!p.pin, avatarColor: p.colour, avatarInitial: p.name.charAt(0),
-            profileImage: null, transparentAvatar: false, maxSubProfiles: 5,
+            profileImage: null, transparentAvatar: false, maxSubProfiles: Math.max(5, COUNT - 1),
             viewing: p.viewing || null
         };
     });

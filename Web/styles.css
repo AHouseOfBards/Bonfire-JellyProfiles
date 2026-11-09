@@ -960,6 +960,13 @@ body.profiles-no-scroll [id*="spinner"] {
     position: relative;
     z-index: 1;
 }
+/* max-width above caps the name's box, not its lines: each is a span in a column flex box,
+   sized to its content, so a single long word ("Maximilian") was as wide as it was and ran
+   across the next tile while the box stayed inside the card. Capping each line is what lets
+   the break-word above apply. */
+.profile-name > * {
+    max-width: 100%;
+}
 .profiles-limit-notice {
     font-size: 0.85rem; color: var(--jpf-text-3);
     font-style: italic; align-self: center; padding: 1rem 0;
@@ -1747,8 +1754,8 @@ body.profiles-no-scroll [id*="spinner"] {
 
 /* ── Viewing hours (1.7.2) ──────────────────────────────────────────
    The tile's line ("45 min left") sits under the name like the
-   signed-in badge, quieter, and turns to the warning colour once the
-   profile is out of time. */
+   signed-in badge, quieter, and turns bold in the name's colour once the
+   profile is out of time (P2-205, below). */
 .profile-viewing {
     display: block;
     font-size: 0.75rem;
@@ -2574,6 +2581,21 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 #profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid {
     gap: calc(var(--jpf-tile) / 5);
+}
+/* On a television the tile could shrink to 120px while the name stayed at 1.75rem (47px at
+   1080p), so a 20-profile household had names wider than their tiles. The name shrinks
+   with the tile, down to the size of the lines under it (--jpf-name-fit, set beside
+   --jpf-tile), and a name still too long is cut to one line with an ellipsis: about eight
+   letters fit a 140px tile at that size. The ellipsis was chosen over smaller text and over
+   a word broken in two. The whole name stays in the markup, so a screen reader says all
+   of it. Not on a phone: there the grid scrolls before it shrinks far, and names wrap. */
+.jpf-tv #profiles-gate-overlay .profiles-modal-content.jpf-fitted .profile-name {
+    font-size: calc(1.75rem * var(--jpf-name-scale) * var(--jpf-name-fit, 1));
+}
+.jpf-tv #profiles-gate-overlay .profiles-modal-content.jpf-fitted .profile-name > span:first-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .jpf-no-flex-gap #profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid > * {
     margin: 0 calc(var(--jpf-tile) / 10) calc(var(--jpf-tile) / 5);
