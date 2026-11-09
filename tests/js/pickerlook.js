@@ -126,6 +126,14 @@ console.log('\n── Focus reads as focus, not as "signed in" ─────�
         !!focus && /calc\(var\(--jpf-ring-w\)\s*\*\s*([2-9])\)/.test(focus));
 }
 
+// ── 5. No crown ─────────────────────────────────────────────────────────────────
+console.log('\n── The main account has no crown ────────────────────────────────');
+{
+    const js = fs.readFileSync(process.argv[2] || L.profilesPath(), 'utf8');
+    ok('the script draws no crown', !/profile-crown/.test(js));
+    ok('the stylesheet has no crown rule or keyframes', !/profile-crown|crownFloat/.test(L.stylesOnly()));
+}
+
 // ── 4. The markup ───────────────────────────────────────────────────────────────
 console.log('\n── A profile out of time is dimmed ──────────────────────────────');
 {

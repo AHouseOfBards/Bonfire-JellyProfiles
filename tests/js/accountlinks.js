@@ -105,7 +105,7 @@ const last = url => sent(url).pop();
     ok('marked as an added account, not a Bonfire profile', cardOf('gran').indexOf('title="Added account"') !== -1
        && cardOf('gran').indexOf('title="Bonfire Profile"') === -1);
     ok('with the link mark, not the fire', /material-icons[^>]*>link</.test(cardOf('gran')));
-    ok("no crown: it isn't this screen's main account", cardOf('gran').indexOf('crown') === -1 || cardOf('main').indexOf('crown') !== -1 && cardOf('gran').indexOf('crown') === -1,
+    ok('no crown on any tile', cardOf('gran').indexOf('crown') === -1 && cardOf('main').indexOf('crown') === -1,
        cardOf('gran').slice(0, 400));
     ok("it sits with this household's tiles", sectionOf('gran') === sectionOf('kid') && sectionOf('gran') !== sectionOf('smithmain'),
        [sectionOf('main'), sectionOf('kid'), sectionOf('gran'), sectionOf('smithmain')].join(','));

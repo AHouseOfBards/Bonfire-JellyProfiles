@@ -371,7 +371,6 @@ function tagOf(id) {
         const blocks = [];
         css.replace(/@media \(prefers-reduced-motion: reduce\)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g, (m, b) => { blocks.push(b); return m; });
         const all = blocks.join('\n');
-        ok('the crown stops bobbing', /\.profile-crown[^{]*\{[^}]*animation:\s*none/.test(all));
         ok('the picker does not zoom in', /\.anim-fade-in[^{]*\{[^}]*animation:\s*none/.test(all));
         ok('tiles do not scale under the pointer or focus',
             /\.profile-card:focus \.profile-avatar[^{]*\{[^}]*transform:\s*none/.test(all));

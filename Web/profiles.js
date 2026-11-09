@@ -5992,14 +5992,6 @@
                     signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' aria-current="true"' : ''
                 }>
                     <div class="profile-avatar-container">
-                        ${p.isMaster && !p.isLinked ? `
-                        <div class="profile-crown">
-                            <svg viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px; color: var(--jpf-warn); filter: drop-shadow(0 2px 5px rgba(0,0,0,0.55));">
-                                <path d="M5 16h14a1 1 0 0 0 1-.76l2.89-10.12a.5.5 0 0 0-.74-.53l-5.6 3.73-4.11-6.17a.5.5 0 0 0-.88 0L7.45 8.32 1.85 4.59a.5.5 0 0 0-.74.53L4 15.24a1 1 0 0 0 1 .76z"/>
-                                <rect x="4" y="18" width="16" height="2" rx="1"/>
-                            </svg>
-                        </div>
-                        ` : ''}
                         <div class="profile-avatar${
                             p.profileImage && p.transparentAvatar ? ' is-transparent' : ''
                         }" style="background-color: ${

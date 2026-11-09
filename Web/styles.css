@@ -765,17 +765,6 @@ body.profiles-no-scroll [id*="spinner"] {
         transform: none;
     }
 }
-.profile-crown {
-    position: absolute; top: -20px; left: 50%;
-    transform: translateX(-50%); z-index: 15;
-    pointer-events: none;
-    animation: crownFloat 3s ease-in-out infinite;
-}
-@keyframes crownFloat {
-    0% { transform: translateX(-50%) translateY(0); }
-    50% { transform: translateX(-50%) translateY(-4px) rotate(2deg); }
-    100% { transform: translateX(-50%) translateY(0); }
-}
 .profile-avatar {
     position: relative;
     width: 100%; height: 100%; border-radius: var(--jpf-avatar-r);
@@ -2610,8 +2599,7 @@ html.jpf-fading { transition: opacity 0.18s ease; }
    backdrop-filter, so Chromium 75 and older; see _canBlur) the blur and the moving
    decoration are swapped for flat equivalents. Every feature is still there: the same
    tiles, the same focus cue, the same screens. What goes is the blurred shadow behind
-   each of them, which the software compositor repaints on every focus move, and the
-   crown that bobs forever.
+   each of them, which the software compositor repaints on every focus move.
 
    Each rule is the selector of the one it replaces with .jpf-flat in front, so it is the
    same element in the same state, one class heavier, and later in the sheet. They are
@@ -2676,7 +2664,6 @@ html.jpf-fading { transition: opacity 0.18s ease; }
 .jpf-flat .profiles-home-icon.bonfire-icon-color {
     text-shadow: none;
 }
-.jpf-flat .profile-crown,
 .jpf-flat .anim-fade-in {
     animation: none;
 }
@@ -2765,7 +2752,7 @@ spinner is kept on purpose: it is the only sign that a tap registered. Last in t
 sheet, and !important on transform because the hover and focus scale come from theme
 blocks written after this sheet. */
 @media (prefers-reduced-motion: reduce) {
-    .profile-crown, .anim-fade-in { animation: none; }
+    .anim-fade-in { animation: none; }
     .profile-card .profile-avatar, .color-dot, .avatar-library-item, .profiles-btn,
     #profiles-gate-overlay, .alert-dialog-content, .jpf-fade, html.jpf-fading { transition: none !important; }
     .profile-card:hover .profile-avatar, .profile-card:focus .profile-avatar,
