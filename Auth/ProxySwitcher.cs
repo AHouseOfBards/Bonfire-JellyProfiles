@@ -1038,9 +1038,15 @@ namespace Jellyfin.Profiles.Auth
             var mapping = config?.Mappings?.FirstOrDefault(m => m.ProfileUserId == profileId && m.MasterUserId == session.MasterId);
             if (mapping == null || services.Users == null || services.Sessions == null) return Say(session, "notice.picker.cantOpen");
 
-            if (MaintenanceGate.Active() != null && !MaintenanceGate.IsAdmin(services.Users, profileId))
+            var closed = MaintenanceGate.Active();
+            if (closed != null && !MaintenanceGate.IsAdmin(services.Users, profileId))
             {
-                return Say(session, "notice.picker.maintenance");
+                // The administrator's own words, as everywhere else the server turns someone
+                // away, or the default in the app's language when none were written. A tile's
+                // name, so it is text and nothing more.
+                return string.IsNullOrWhiteSpace(closed.Message)
+                    ? Say(session, "notice.picker.maintenance")
+                    : closed.ShownMessage();
             }
 
             var access = Controllers.ProfilesBaseController.EvaluateDeviceRestriction(

@@ -645,6 +645,34 @@ Ok("a profile whose main account is turned off is not opened", sessionLog.Minted
 Ok("and the keypad says why", Names(shut).Contains("turned off"), Names(shut));
 UserManagerStub.Disabled.Remove(MASTER);
 
+// Closed for maintenance. The picker refused a profile with "Closed for maintenance.", its
+// own two words, while every other way in says the administrator's message. Text only: the
+// profile still does not open, and nothing else about the keypad changes.
+var maintType = asm.GetType("Jellyfin.Profiles.Configuration.MaintenanceMode", true);
+object Closed(string message)
+{
+    var m = Activator.CreateInstance(maintType);
+    maintType.GetProperty("Enabled").SetValue(m, true);
+    maintType.GetProperty("Message").SetValue(m, message);
+    return m;
+}
+// Only an administrator's token gets as far as the picker while closed, so the main account is one.
+UserManagerStub.Admins.Add(MASTER);
+cfgType.GetProperty("Maintenance").SetValue(config, Closed("Back at nine, after the upgrade."));
+var mintedClosed = sessionLog.Minted.Count;
+var closedPad = Children(IdOf(Children(IdOf(after.body, "Profiles")), "Open"));
+Ok("closed for maintenance, the keypad says the administrator's message",
+   Names(closedPad) == "Back at nine, after the upgrade.", Names(closedPad));
+Ok("and the profile is still not opened", sessionLog.Minted.Count == mintedClosed);
+cfgType.GetProperty("Maintenance").SetValue(config, Closed(string.Empty));
+var closedDefault = Children(IdOf(Children(IdOf(after.body, "Profiles")), "Open"));
+Ok("with no message written, it is the default one, from the app's translations", Names(closedDefault) == "Closed for maintenance.", Names(closedDefault));
+cfgType.GetProperty("Maintenance").SetValue(config, Activator.CreateInstance(maintType));
+var reopenedPad = Children(IdOf(Children(IdOf(after.body, "Profiles")), "Open"));
+Ok("open again, the profile is not turned away", !Names(reopenedPad).Contains("maintenance") && sessionLog.Minted.Count == mintedClosed + 1, Names(reopenedPad));
+Children(IdOf(Get("/UserViews").body, "Switch profile"));
+UserManagerStub.Admins.Remove(MASTER);
+
 // Issue #41, picker side: Jellyfin counts the profile's earlier session on this device
 // against MaxActiveSessions before it replaces it, so the picker ends it first, as /switch does.
 Console.WriteLine();
@@ -954,6 +982,9 @@ public class UserManagerStub : DispatchProxy
     /// <summary>Accounts turned off in Dashboard -> Users.</summary>
     public static readonly HashSet<Guid> Disabled = new();
 
+    /// <summary>Administrators. Closed for maintenance, only they get past the gate in front of the picker.</summary>
+    public static readonly HashSet<Guid> Admins = new();
+
     public static IUserManager Create(Dictionary<Guid, string> names)
     {
         var proxy = Create<IUserManager, UserManagerStub>();
@@ -972,7 +1003,7 @@ public class UserManagerStub : DispatchProxy
             return u;
         }
 
-        if (m.Name == "GetUserDto") return new UserDto { Policy = new UserPolicy { IsDisabled = Disabled.Contains(((User)args[0]).Id) } };
+        if (m.Name == "GetUserDto") return new UserDto { Policy = new UserPolicy { IsDisabled = Disabled.Contains(((User)args[0]).Id), IsAdministrator = Admins.Contains(((User)args[0]).Id) } };
 
         throw new NotSupportedException("IUserManager." + m.Name + " is not modelled");
     }

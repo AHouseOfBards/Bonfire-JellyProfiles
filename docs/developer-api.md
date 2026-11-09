@@ -826,7 +826,9 @@ sends), signed in as a main account that has profiles:
   the main account.
 - **Opening a profile's folder** (`GET /Users/{id}/Items?ParentId=…`) signs into it. A
   profile with a PIN opens a keypad of folders first. The tries count against the same
-  limit as a PIN typed into a sign-in form.
+  limit as a PIN typed into a sign-in form. While the server is
+  [closed for maintenance](#maintenance), a profile that isn't an administrator's doesn't
+  open and the folder shows the administrator's message.
 - **After that**, every request on the main account's token reaches Jellyfin as the
   profile: its token, and its id in place of the main account's. `/UserViews` adds a
   `Switch profile` folder, which signs the profile out and shows the picker again.
