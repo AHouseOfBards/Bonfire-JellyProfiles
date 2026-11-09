@@ -8391,10 +8391,7 @@
                 });
 
                 this.initTVCheckboxes(content);
-                setTimeout(() => {
-                    const first = content.querySelector('#self-name-input');
-                    if (first) first.focus();
-                }, 100);
+                this._focusFirstOnTv(content, '#self-name-input');
             });
         },
 

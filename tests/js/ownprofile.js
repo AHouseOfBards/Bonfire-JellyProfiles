@@ -42,6 +42,12 @@ env.setRespond((url) => {
     return { status: 200, body: {} };
 });
 
+// Focusing a text box on a phone raises the keyboard before anyone asked for it.
+const formStart = SRC.indexOf('showOwnProfileForm: function');
+const formSource = SRC.slice(formStart, SRC.indexOf('showAddProfileModal: function', formStart));
+ok('the name box is focused on a TV only',
+    /_focusFirstOnTv\(content, '#self-name-input'\)/.test(formSource) && !/\.focus\(\)/.test(formSource));
+
 (async () => {
     console.log('\n-- Who is offered it ------------------------------------------');
     ok('the client has the screen', typeof PP.showOwnProfileForm === 'function' && typeof PP.ownProfileOf === 'function');
