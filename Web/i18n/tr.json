@@ -200,6 +200,8 @@
   "mainPin.setBody": "PIN olmadan bu ekrandaki herkes profillerinizi değiştirebilir.",
   "mainPin.requiredBody": "Sunucunuz, profilleri veya ayarları değiştirmeden önce bir PIN istiyor.",
   "mainPin.notNow": "Şimdi değil",
+  "mainPin.limitsBody": "İzleme sınırları için hesabınızda bir PIN gerekir.",
+  "mainPin.limitsOff": "Profil eklendi, ancak izleme sınırları kapalı. Bir PIN belirleyin, sonra sınırları ekleyin.",
   "mainPin.set": "PIN'i kaydet",
   "onboarding.welcomeTitle": "Bonfire’a hoş geldiniz",
   "onboarding.welcomeBody": "Evdeki herkesin kendi profili olabilir. Bir dakika sürer.",

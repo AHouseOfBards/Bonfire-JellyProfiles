@@ -179,6 +179,8 @@
   "mainPin.setBody": "Sense PIN, qualsevol persona davant aquesta pantalla pot canviar els teus perfils.",
   "mainPin.requiredBody": "El teu servidor en demana un abans de canviar perfils o configuració.",
   "mainPin.notNow": "Ara no",
+  "mainPin.limitsBody": "Els límits de visualització necessiten un PIN al vostre compte.",
+  "mainPin.limitsOff": "El perfil s'ha afegit, però els seus límits de visualització estan desactivats. Definiu un PIN i afegiu-los.",
   "mainPin.set": "Desa el PIN",
   "onboarding.welcomeTitle": "Benvingut a Bonfire",
   "onboarding.welcomeBody": "Cadascú a casa pot tenir el seu propi perfil. Només cal un minut.",

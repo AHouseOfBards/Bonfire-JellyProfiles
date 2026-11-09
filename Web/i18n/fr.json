@@ -179,6 +179,8 @@
   "mainPin.setBody": "Sans code, n'importe qui devant cet écran peut modifier vos profils.",
   "mainPin.requiredBody": "Votre serveur en exige un avant de modifier les profils ou les paramètres.",
   "mainPin.notNow": "Plus tard",
+  "mainPin.limitsBody": "Les limites de visionnage demandent un code sur votre compte.",
+  "mainPin.limitsOff": "Le profil est ajouté, mais ses limites de visionnage sont désactivées. Définissez un code, puis ajoutez-les.",
   "mainPin.set": "Enregistrer le code",
   "onboarding.welcomeTitle": "Bienvenue dans Bonfire",
   "onboarding.welcomeBody": "Chacun à la maison peut avoir son propre profil. Cela prend une minute.",

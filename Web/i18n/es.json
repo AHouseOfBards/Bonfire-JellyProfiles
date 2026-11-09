@@ -193,6 +193,8 @@
   "mainPin.setBody": "Sin PIN, cualquiera frente a esta pantalla puede cambiar tus perfiles.",
   "mainPin.requiredBody": "Tu servidor pide uno antes de cambiar perfiles o configuración.",
   "mainPin.notNow": "Ahora no",
+  "mainPin.limitsBody": "Los límites de visualización necesitan un PIN en tu cuenta.",
+  "mainPin.limitsOff": "El perfil se añadió, pero sus límites de visualización están desactivados. Define un PIN y añádelos.",
   "mainPin.set": "Guardar PIN",
   "onboarding.welcomeTitle": "Te damos la bienvenida a Bonfire",
   "onboarding.welcomeBody": "Cada persona de casa puede tener su propio perfil. Solo lleva un minuto.",

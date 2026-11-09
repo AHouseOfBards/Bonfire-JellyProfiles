@@ -179,6 +179,8 @@
   "mainPin.setBody": "Bez PIN-u każdy przy tym ekranie może zmienić Twoje profile.",
   "mainPin.requiredBody": "Twój serwer wymaga PIN-u przed zmianą profili lub ustawień.",
   "mainPin.notNow": "Nie teraz",
+  "mainPin.limitsBody": "Limity oglądania wymagają kodu PIN na Twoim koncie.",
+  "mainPin.limitsOff": "Profil został dodany, ale jego limity oglądania są wyłączone. Ustaw PIN, a potem dodaj limity.",
   "mainPin.set": "Zapisz PIN",
   "onboarding.welcomeTitle": "Witaj w Bonfire",
   "onboarding.welcomeBody": "Każdy domownik może mieć własny profil. To zajmie minutę.",

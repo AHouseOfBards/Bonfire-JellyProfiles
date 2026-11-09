@@ -887,6 +887,8 @@
         'mainPin.setBody': 'Without one, anyone at this screen can change your profiles.',
         'mainPin.requiredBody': 'Your server needs one before you can change profiles or settings.',
         'mainPin.notNow': 'Not now',
+        'mainPin.limitsBody': 'Viewing limits need a PIN on your account.',
+        'mainPin.limitsOff': 'The profile was added, but its viewing limits are off. Set a PIN, then add them.',
         'mainPin.set': 'Set PIN',
         'onboarding.welcomeTitle': 'Welcome to Bonfire',
         'onboarding.welcomeBody': 'Everyone at home can have their own profile. This takes a minute.',
@@ -2192,7 +2194,7 @@
         /// "more time now" is offered, and `save(id)` takes the id /create answered with. A
         /// child is set up in one pass, not made first and edited after (P2-103).
         initViewingEditor: function (slot, profile, creating) {
-            const editor = { save: () => Promise.resolve() };
+            const editor = { save: () => Promise.resolve(), pending: () => false };
             if (!slot || (!creating && (!profile || profile.isMaster))) return editor;
             const ORDER = [1, 2, 3, 4, 5, 6, 0];
             const LIMITS = [15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360];
@@ -2343,6 +2345,14 @@
                     .then(state => { loaded = state; draw(state); baseline = JSON.stringify(read()); })
                     .catch(() => { slot.innerHTML = ''; });
             }
+
+            // Whether saving would switch limits on: the server asks for a main PIN then.
+            editor.pending = () => {
+                if (!loaded || !document.body.contains(slot) || !slot.querySelector('#viewing-hours')) return false;
+                const now = read();
+                return JSON.stringify(now) !== baseline
+                    && (now.hoursEnabled || now.dailyMinutes > 0 || (now.weekendMinutes || 0) > 0);
+            };
 
             editor.save = (newId) => {
                 if (!loaded || !document.body.contains(slot) || !slot.querySelector('#viewing-hours')) return Promise.resolve();
@@ -6511,7 +6521,7 @@
         ///
         /// `setup` is first-time setup's: `{ onSkip }`, where a null onSkip is a step the
         /// administrator made required, so there is no button at all.
-        promptSetMainPin: function (profiles, required, done, setup) {
+        promptSetMainPin: function (profiles, required, done, setup, noteKey) {
             this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
             const masterState = this.readMasterState();
@@ -6521,7 +6531,7 @@
                 <h1 class="profiles-title">${t('mainPin.setTitle')}</h1>
                 <div class="pin-entry-container">
                     ${setup ? this._onboardingStepLine() : ''}
-                    <p class="profiles-pin-note">${required && !setup ? t('mainPin.requiredBody') : t('mainPin.setBody')}</p>
+                    <p class="profiles-pin-note">${noteKey ? t(noteKey) : required && !setup ? t('mainPin.requiredBody') : t('mainPin.setBody')}</p>
                     <input type="text" id="main-pin-new" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     <div id="main-pin-new-error" class="profiles-pin-error" role="alert" hidden></div>
                     <div class="pin-actions jpf-actions">
@@ -8189,22 +8199,32 @@
                         return res.json();
                     })
                     .then(created => {
+                        const refresh = () => this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
                         // The profile exists now, so its viewing rules can be saved against
                         // its id. A failure here must not look like a failed create.
                         const id = created && (created.profileUserId || created.ProfileUserId);
-                        return viewingEditor.save(id).catch(err => {
+                        const saveLimits = () => viewingEditor.save(id).catch(err => {
                             this.showAlert(t('errors.error'), t('errors.savingProfile', { message: escapeHtml(err.message) }));
                         });
-                    })
-                    .then(() => {
-                        const refresh = () => this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
                         // The first profile is when a main PIN starts to matter: from now on
                         // the main account is the way past that profile's restrictions.
                         const people = this.currentProfiles || [];
                         const main = people.find(x => x.isMaster && !x.isBonfire);
                         const first = !people.some(x => !x.isMaster && !x.isBonfire);
-                        if (main && !main.hasPin && first) this.promptSetMainPin(people, false, refresh);
-                        else refresh();
+                        const needsPin = !!main && !main.hasPin;
+                        if (needsPin && viewingEditor.pending()) {
+                            // The server will not switch limits on with no main PIN to switch
+                            // them off again, so the PIN comes first and the limits after it.
+                            // Saving them first lost them, with an error (P2-712).
+                            this.promptSetMainPin(people, false, () => {
+                                if (main.hasPin) saveLimits().then(refresh);
+                                else this.showAlert(t('errors.error'), t('mainPin.limitsOff'), refresh);
+                            }, null, 'mainPin.limitsBody');
+                        } else if (needsPin && first) {
+                            this.promptSetMainPin(people, false, refresh);
+                        } else {
+                            saveLimits().then(refresh);
+                        }
                     })
                     .catch(err => {
                         const el = document.getElementById('create-error-msg');
