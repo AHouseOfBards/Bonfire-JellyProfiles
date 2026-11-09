@@ -39,6 +39,7 @@ if (missing.length) {
 
 const source = L.dashboardI18n(script)
     + L.extractFunction(script, 'field') + '\n'
+    + L.extractFunction(script, 'askFirst') + '\n'
     + names.map(n => L.extractFunction(script, n)).join('\n');
 
 // ── A page made of one stub per id ───────────────────────────────────────────
@@ -87,7 +88,9 @@ function makeWorld(state, opts) {
             return Promise.resolve(state);
         }
     };
-    const Dashboard = { confirm: (msg, title) => { confirms.push(msg); return Promise.resolve(); } };
+    // Upstream's shape: a callback, and nothing returned. This stub used to return a promise,
+    // which no version of jellyfin-web does, and so passed a button whose OK did nothing (#44).
+    const Dashboard = { confirm: (msg, title, callback) => { confirms.push(msg); Promise.resolve().then(() => callback(true)); } };
     const document = { createElement: () => el() };
     const setStatus = (p, part, items) => { statuses[part] = items; };
     const errorText = (err, fallback) => err && err.text ? err.text() : Promise.resolve(fallback);

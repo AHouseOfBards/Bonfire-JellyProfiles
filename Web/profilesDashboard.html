@@ -1772,6 +1772,22 @@
                 return str;
             }
 
+            /// Asks, and resolves only on OK; Cancel leaves it pending, so what hangs off it
+            /// just never runs.
+            ///
+            /// Dashboard.confirm is confirm(message, title, callback) and returns nothing
+            /// (jellyfin-web, src/utils/dashboard.js, 10.11 and master alike). Every button here
+            /// used to chain .then on it: the dialog appeared, the chain threw behind it, and OK
+            /// did nothing. Reset PIN, closing for maintenance, signing a device out and
+            /// importing a backup all looked like they worked and didn't (#44).
+            function askFirst(message, title) {
+                return new Promise(function (resolve) {
+                    Dashboard.confirm(message, title, function (confirmed) {
+                        if (confirmed) resolve();
+                    });
+                });
+            }
+
             /// The language Jellyfin is showing this administrator, read the way
             /// jellyfinLanguage() in profiles.js reads it (see the comment there): the
             /// per-device setting, then <html lang>, then the device's own language.
@@ -2576,7 +2592,7 @@
                     page.querySelectorAll('.reset-pin-btn').forEach(function (btn) {
                         btn.addEventListener('click', function () {
                             const profileId = btn.getAttribute('data-id');
-                            Dashboard.confirm(t('admin.households.resetConfirm'), t('admin.households.resetPin')).then(function () {
+                            askFirst(t('admin.households.resetConfirm'), t('admin.households.resetPin')).then(function () {
                                 resetPin(page, profileId);
                             });
                         });
@@ -2804,7 +2820,7 @@
                             btn.addEventListener('click', function () {
                                 // Signing somebody out interrupts whatever they are watching,
                                 // and the administrator is often not in the same room.
-                                Dashboard.confirm(
+                                askFirst(
                                     t('admin.devices.signOutConfirm', { name: btn.getAttribute('data-name') }),
                                     t('admin.devices.signOut')
                                 ).then(function () {
@@ -2894,7 +2910,7 @@
                             return;
                         }
 
-                        Dashboard.confirm(
+                        askFirst(
                             t('admin.backup.confirm'),
                             t('admin.backup.confirmTitle')
                         ).then(function () {
@@ -3484,7 +3500,7 @@
                     del.className = 'raised';
                     del.textContent = t('admin.ann.delete');
                     del.addEventListener('click', function () {
-                        Dashboard.confirm(t('admin.ann.deleteConfirm'), t('admin.ann.deleteTitle')).then(function () {
+                        askFirst(t('admin.ann.deleteConfirm'), t('admin.ann.deleteTitle')).then(function () {
                             ApiClient.ajax({
                                 type: 'POST',
                                 url: ApiClient.getUrl('plugins/profiles/admin/announcements/delete'),
@@ -4559,7 +4575,7 @@
                         });
                     };
                     if (existing) {
-                        Dashboard.confirm(t('admin.themes.replaceConfirm', { name: themeDisplayName(data, id) }),
+                        askFirst(t('admin.themes.replaceConfirm', { name: themeDisplayName(data, id) }),
                             t('admin.themes.replaceTitle')).then(send);
                     } else {
                         send();
@@ -4584,7 +4600,7 @@
                 } else if (act === 'export') {
                     exportTheme(entry.theme);
                 } else if (act === 'delete') {
-                    Dashboard.confirm(t('admin.themes.deleteConfirm', { name: themeDisplayName(data, id) }), t('admin.themes.deleteTitle')).then(function () {
+                    askFirst(t('admin.themes.deleteConfirm', { name: themeDisplayName(data, id) }), t('admin.themes.deleteTitle')).then(function () {
                         ApiClient.ajax({
                             type: 'DELETE',
                             url: ApiClient.getUrl('plugins/profiles/admin/themes/custom/' + encodeURIComponent(id))
@@ -4681,7 +4697,7 @@
                 const data = page._themes.data;
                 const font = (data.fonts || []).filter(function (f) { return f.file === fileName; })[0];
                 if (!font) return;
-                Dashboard.confirm(t('admin.themes.fontDeleteConfirm', { name: font.family }), t('admin.themes.fontDeleteTitle')).then(function () {
+                askFirst(t('admin.themes.fontDeleteConfirm', { name: font.family }), t('admin.themes.fontDeleteTitle')).then(function () {
                     ApiClient.ajax({
                         type: 'DELETE',
                         url: ApiClient.getUrl('plugins/profiles/admin/themes/fonts/' + encodeURIComponent(fileName))
@@ -4787,7 +4803,7 @@
                     form.querySelector('.standalone-go').addEventListener('click', function () {
                         const password = form.querySelector('.standalone-password').value || '';
                         if (!password) { show(t('admin.standalone.needPassword'), false); return; }
-                        Dashboard.confirm(t('admin.standalone.confirm'), t('admin.households.makeAccount')).then(function () {
+                        askFirst(t('admin.standalone.confirm'), t('admin.households.makeAccount')).then(function () {
                             ApiClient.ajax({
                                 type: 'POST',
                                 url: ApiClient.getUrl('plugins/profiles/admin/standalone'),
@@ -4871,7 +4887,7 @@
                             const own = (page._mappings && (page._mappings.MasterUsers || page._mappings.masterUsers) || [])
                                 .filter(function (m) { return normId(field(m, 'profileUserId')) === normId(accountId); })[0];
                             const name = typed || (own ? field(own, 'profileName') : '') || '';
-                            Dashboard.confirm(t('admin.toProfile.confirm', { name: name, household: householdName }), t('admin.toProfile.button')).then(function () {
+                            askFirst(t('admin.toProfile.confirm', { name: name, household: householdName }), t('admin.toProfile.button')).then(function () {
                                 post('admin/make-profile', { userId: accountId, householdId: target, profileName: typed, deleteWithProfile: box.querySelector('.to-profile-later').value === 'delete' })
                                     .then(function () {
                                         const done = t('admin.toProfile.done', { name: name, household: householdName });
@@ -4965,7 +4981,7 @@
                         saveMaintenance(page, true);
                         return;
                     }
-                    Dashboard.confirm(t('admin.mnt.confirm'), t('admin.mnt.closeButton'))
+                    askFirst(t('admin.mnt.confirm'), t('admin.mnt.closeButton'))
                         .then(function () { saveMaintenance(page, true); });
                 });
                 page.querySelector('#mntOpen').addEventListener('click', function () { saveMaintenance(page, false); });
@@ -5030,7 +5046,7 @@
                     clear.className = 'raised';
                     clear.textContent = t('admin.email.clear');
                     clear.addEventListener('click', function () {
-                        Dashboard.confirm(t('admin.email.clearConfirm', { name: name }), t('admin.email.clearTitle')).then(function () {
+                        askFirst(t('admin.email.clearConfirm', { name: name }), t('admin.email.clearTitle')).then(function () {
                             ApiClient.ajax({
                                 type: 'POST',
                                 url: ApiClient.getUrl('plugins/profiles/admin/account-email/remove'),
@@ -5484,7 +5500,7 @@
                     box.addEventListener('change', function () { syncOnboardingRows(page); });
                 });
                 again.addEventListener('click', function () {
-                    Dashboard.confirm(t('admin.onboarding.showAgainConfirm'), t('admin.onboarding.showAgainTitle')).then(function () {
+                    askFirst(t('admin.onboarding.showAgainConfirm'), t('admin.onboarding.showAgainTitle')).then(function () {
                         ApiClient.ajax({
                             type: 'POST',
                             url: ApiClient.getUrl('plugins/profiles/admin/onboarding/show-again'),
