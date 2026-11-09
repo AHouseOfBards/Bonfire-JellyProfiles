@@ -362,7 +362,19 @@ console.log('── Save stays reachable without a scrollbar (P4-14) ───�
 
 const sticky = ruleAt('.create-profile-container > .profile-dialog-actions');
 ok('the dialog actions are sticky', !!sticky && /position:\s*sticky/.test(sticky.body));
-ok('pinned to the bottom', !!sticky && /bottom:\s*0/.test(sticky.body));
+// Pinned to the bottom of the *container*, which for sticky means its padding edge: an
+// offset of 0 left the container's own padding showing under the bar (P2-503). So the
+// offset has to be the padding, negated, not just any value.
+const stickyContainer = ruleAt('.create-profile-container');
+const containerPad = stickyContainer && /(^|[;\s])padding:\s*([\d.]+)rem/.exec(stickyContainer.body);
+const stickyBottom = sticky && /(^|[;\s])bottom:\s*(-?[\d.]+)rem/.exec(sticky.body);
+ok('pinned to the bottom, past the container\'s own padding',
+    !!containerPad && !!stickyBottom && parseFloat(stickyBottom[2]) === -parseFloat(containerPad[2]));
+// It bleeds out through the padding with negative side margins, so its width has to be
+// worked out from them: width: 100% plus padding made it 4rem wider than the column.
+// .profile-dialog-actions says width: 100%, and this rule is the more specific of the two.
+ok('and takes its width from the bleed (width: auto), not from the base rule\'s 100%',
+    !!sticky && /(^|[;\s])width:\s*auto/.test(sticky.body));
 // A translucent bar lets the form scroll through the buttons.
 // It reads --jpf-panel since themes arrived, so "opaque" is a question about every value
 // that token takes, one at a time: a single translucent theme is enough to bring the

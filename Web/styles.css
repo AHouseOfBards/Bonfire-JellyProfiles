@@ -1314,10 +1314,15 @@ body.profiles-no-scroll [id*="spinner"] {
    its own gate background. */
 .create-profile-container > .profile-dialog-actions {
     position: sticky;
-    bottom: 0;
+    /* Sticky stops at the container's padding edge, not the border edge, so bottom: 0
+       left the container's own 2rem of padding showing under the bar (P2-503). */
+    bottom: -2rem;
     z-index: 2;
     margin: 1rem -2rem -2rem;
     padding: 1rem 2rem;
+    /* Not 100%: with padding and the negative margins that made the bar 4rem wider
+       than the column. Auto stretches it to exactly the column plus the bleed. */
+    width: auto;
     background: var(--jpf-panel);
     border-top: 1px solid var(--jpf-border-1);
 }
