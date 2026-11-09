@@ -1,8 +1,8 @@
 # Apps
 
-Bonfire works in two ways, depending on the app. Apps that load the web client from your
+Bonfire works in three ways, depending on the app. Apps that load the web client from your
 server get the full switcher. Apps with their own sign-in screen can list your profiles
-there instead.
+there instead. Moonfin gets a profile picker on its home screen.
 
 ## Full support
 

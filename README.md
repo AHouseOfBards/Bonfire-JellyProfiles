@@ -57,6 +57,9 @@ list your profiles on their own sign-in screen. Turn it on under
 the profile's PIN where the app asks for a password. Android TV is confirmed on hardware;
 the others are not yet.
 
+**Profile picker (beta):** Moonfin shows a Profiles folder on its home screen
+([how it works](docs/clients.md#profile-picker-beta)).
+
 Details for every app are in [Apps](docs/clients.md).
 
 ## Documentation
