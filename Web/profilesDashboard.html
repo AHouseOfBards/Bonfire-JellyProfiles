@@ -244,6 +244,8 @@
     #profilesConfigurationPage .jpf-ann-text { width: 100%; resize: vertical; }
     #profilesConfigurationPage .jpf-gs-title { margin: 0 0 8px; font-size: 1.05em; font-weight: 600; }
     #profilesConfigurationPage .jpf-ob-steps { margin: 0.5em 0 1.5em; max-width: 40em; }
+    #profilesConfigurationPage .jpf-logo-current { margin: 0.5em 0 1em; }
+    #profilesConfigurationPage .jpf-logo-current img { display: block; max-width: 16em; max-height: 5em; }
     #profilesConfigurationPage .jpf-ob-row {
         display: flex; align-items: center; flex-wrap: wrap;
         padding: 0.55em 0; border-bottom: 1px solid rgba(128, 128, 128, 0.2);
@@ -889,6 +891,35 @@
                     <div class="fieldDescription" data-i18n="admin.avatars.serverFolderHint">A path on the server, not on this computer.</div>
                 </div>
                 <button is="emby-button" type="button" id="avatarScanBtn" class="raised jpf-narrow" data-i18n="admin.avatars.import">Copy from folder</button>
+
+                <!-- The server's logo: an image, or a line of text, at the top right of the
+                     switcher screens. Image changes save at once through admin/themes/logo/image;
+                     the text and alt text save with their own button (admin/themes/logo). -->
+                <div class="sectionTitleContainer jpf-section" id="jpfLogo">
+                    <h2 class="sectionTitle" data-i18n="admin.logo.title">Server logo</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.logo.lede">Shown at the top right of Bonfire's screens: the image, or the text if there's no image.</div>
+                <div class="jpf-logo-current jpf-hidden" id="logoCurrent">
+                    <img id="logoCurrentImage" alt="" />
+                </div>
+                <div class="jpf-actions">
+                    <button is="emby-button" type="button" class="raised" id="logoChoose" data-i18n="admin.logo.choose">Choose an image</button>
+                    <button is="emby-button" type="button" class="raised jpf-hidden" id="logoRemove" data-i18n="admin.logo.remove">Remove image</button>
+                    <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp" hidden />
+                </div>
+                <div class="fieldDescription" data-i18n="admin.logo.imageHint">PNG, JPEG or WebP, up to 1 MB.</div>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="logoText" data-i18n="admin.logo.text">Logo text</label>
+                    <input is="emby-input" type="text" id="logoText" maxlength="40" autocomplete="off" />
+                    <div class="fieldDescription" data-i18n="admin.logo.textHint">One line, up to 40 characters.</div>
+                </div>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="logoAlt" data-i18n="admin.logo.alt">Alt text</label>
+                    <input is="emby-input" type="text" id="logoAlt" maxlength="100" autocomplete="off" />
+                    <div class="fieldDescription" data-i18n="admin.logo.altHint">What a screen reader says. One line, up to 100 characters.</div>
+                </div>
+                <button is="emby-button" type="button" class="raised button-submit jpf-narrow" id="logoSave" data-i18n="admin.logo.save">Save text</button>
+                <div class="jpf-hidden jpf-status" id="logoResult"></div>
 
                 <!-- The administrator's own themes, hidden built-ins and uploaded fonts
                      (1.7.2). Everything here saves at once through admin/themes/*; only
@@ -1708,6 +1739,17 @@
                 'admin.themes.err.fontInUse': 'A theme uses that font. Change or delete the theme first.',
                 'admin.themes.err.fontNotFound': 'That font is gone. Reload the page.',
                 'admin.themes.err.fontFailed': 'Couldn\'t upload the font.',
+                'admin.logo.saved': 'Logo text saved.',
+                'admin.logo.imageSaved': 'Logo image saved.',
+                'admin.logo.removed': 'Logo image removed.',
+                'admin.logo.err.type': 'Choose a PNG, JPEG or WebP image.',
+                'admin.logo.err.size': 'That image is over {mb} MB.',
+                'admin.logo.err.text': 'Logo text is one line of up to {max} characters.',
+                'admin.logo.err.alt': 'Alt text is one line of up to {max} characters.',
+                'admin.logo.err.invalid': 'Use one line of text, within the limit.',
+                'admin.logo.err.image': 'Use a PNG, JPEG or WebP image up to 1 MB, 16 to 4096 pixels a side.',
+                'admin.logo.err.upload': 'Couldn\'t upload the logo.',
+                'admin.logo.err.save': 'Couldn\'t save the logo.',
                 'admin.themes.p.contrast': 'Contrast {ratio}:1 on {on}. Needs {min}:1.',
                 'admin.themes.p.contrastShort': 'Not enough contrast.',
                 'admin.themes.p.between': 'Must be from {min} to {max}.',
@@ -3908,7 +3950,8 @@
                     theme_in_use: 'admin.themes.err.inUse', theme_not_found: 'admin.themes.err.notFound',
                     font_invalid: 'admin.themes.err.fontInvalid', font_rights: 'admin.themes.err.fontRights',
                     font_taken: 'admin.themes.err.fontTaken', font_limit: 'admin.themes.err.fontLimit',
-                    font_in_use: 'admin.themes.err.fontInUse', font_not_found: 'admin.themes.err.fontNotFound'
+                    font_in_use: 'admin.themes.err.fontInUse', font_not_found: 'admin.themes.err.fontNotFound',
+                    logo_invalid: 'admin.logo.err.invalid', image_invalid: 'admin.logo.err.image'
                 };
                 const code = err && err.headers && typeof err.headers.get === 'function' ? (err.headers.get('X-Bonfire-Error') || '') : '';
                 const key = Object.prototype.hasOwnProperty.call(keys, code) ? keys[code] : '';
@@ -3972,6 +4015,7 @@
                 page.querySelector('#themesBuiltIn').innerHTML = builtInThemeRowsHtml(data);
                 page.querySelector('#themesCustom').innerHTML = customThemeRowsHtml(data);
                 page.querySelector('#themesFonts').innerHTML = fontRowsHtml(data);
+                renderLogo(page);
                 let style = document.getElementById('jpfThemeFontsCss');
                 if (!style) {
                     style = document.createElement('style');
@@ -4629,10 +4673,114 @@
                 });
             }
 
+            // ── Server logo ───────────────────────────────────────────────────────
+            //
+            // admin/themes/logo (text and alt text, replaced together) and
+            // admin/themes/logo/image (the file, POST and DELETE). Every refusal is shown
+            // under the controls, and openAdvancedFor opens the fold it sits in.
+
+            const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+            const LOGO_MAX_TEXT = 40;
+            const LOGO_MAX_ALT = 100;
+
+            /// Draws what the server holds: the current image and its Remove button, and the
+            /// two text fields. Called whenever the themes are (re)loaded.
+            function renderLogo(page) {
+                const data = page._themes && page._themes.data;
+                const logo = (data && data.logo) || {};
+                const image = logo.image || null;
+                const box = page.querySelector('#logoCurrent');
+                const img = page.querySelector('#logoCurrentImage');
+                if (img) {
+                    if (image) img.setAttribute('src', ApiClient.getUrl(String(image).replace(/^\//, '')));
+                    else img.removeAttribute('src');
+                }
+                if (box) box.classList.toggle('jpf-hidden', !image);
+                const remove = page.querySelector('#logoRemove');
+                if (remove) remove.classList.toggle('jpf-hidden', !image);
+                page.querySelector('#logoText').value = logo.text || '';
+                page.querySelector('#logoAlt').value = logo.alt || '';
+            }
+
+            function saveLogoText(page) {
+                const say = function (msg, good) { showThemeStatus(page, '#logoResult', msg, good); };
+                const text = page.querySelector('#logoText').value.trim();
+                const alt = page.querySelector('#logoAlt').value.trim();
+                if (text.length > LOGO_MAX_TEXT) { say(t('admin.logo.err.text', { max: LOGO_MAX_TEXT }), false); return; }
+                if (alt.length > LOGO_MAX_ALT) { say(t('admin.logo.err.alt', { max: LOGO_MAX_ALT }), false); return; }
+                ApiClient.ajax({
+                    type: 'PUT',
+                    url: ApiClient.getUrl('plugins/profiles/admin/themes/logo'),
+                    contentType: 'application/json',
+                    data: JSON.stringify({ text: text, alt: alt })
+                }).then(function () {
+                    say(t('admin.logo.saved'), true);
+                    loadThemes(page);
+                    refreshClientThemes();
+                }, function (err) {
+                    readThemeError(err, 'admin.logo.err.save', page._themes && page._themes.data).then(function (e) { say(e.message, false); });
+                });
+            }
+
+            function uploadLogoImage(page, file) {
+                const say = function (msg, good) { showThemeStatus(page, '#logoResult', msg, good); };
+                const data = (page._themes && page._themes.data) || {};
+                const max = data.maxLogoBytes || 1048576;
+                if (!file || LOGO_TYPES.indexOf(file.type) === -1) { say(t('admin.logo.err.type'), false); return; }
+                if (file.size > max) { say(t('admin.logo.err.size', { mb: Math.round(max / 1048576) }), false); return; }
+                // Hand-rolled, like the font upload: the body is the file itself.
+                fetch(ApiClient.getUrl('plugins/profiles/admin/themes/logo/image'), {
+                    method: 'POST',
+                    headers: { 'Authorization': authorizationHeader(), 'Content-Type': file.type },
+                    body: file
+                }).then(function (res) {
+                    if (!res.ok) return Promise.reject(res);
+                    return res.json();
+                }).then(function () {
+                    say(t('admin.logo.imageSaved'), true);
+                    loadThemes(page);
+                    refreshClientThemes();
+                }, function (err) {
+                    readThemeError(err, 'admin.logo.err.upload', data).then(function (e) { say(e.message, false); });
+                });
+            }
+
+            function removeLogoImage(page) {
+                const say = function (msg, good) { showThemeStatus(page, '#logoResult', msg, good); };
+                ApiClient.ajax({
+                    type: 'DELETE',
+                    url: ApiClient.getUrl('plugins/profiles/admin/themes/logo/image')
+                }).then(function () {
+                    say(t('admin.logo.removed'), true);
+                    loadThemes(page);
+                    refreshClientThemes();
+                }, function (err) {
+                    readThemeError(err, 'admin.logo.err.save', page._themes && page._themes.data).then(function (e) { say(e.message, false); });
+                });
+            }
+
+            function bindLogo(page) {
+                const choose = page.querySelector('#logoChoose');
+                if (!choose || choose.dataset.bound) return;
+                choose.dataset.bound = '1';
+                const file = page.querySelector('#logoFile');
+                choose.addEventListener('click', function () {
+                    file.value = '';
+                    file.click();
+                });
+                file.addEventListener('change', function () {
+                    const chosen = file.files && file.files[0];
+                    if (chosen) uploadLogoImage(page, chosen);
+                });
+                page.querySelector('#logoRemove').addEventListener('click', function () { removeLogoImage(page); });
+                page.querySelector('#logoSave').addEventListener('click', function () { saveLogoText(page); });
+            }
+
             function bindThemes(page) {
                 const editor = page.querySelector('#themeEditor');
                 if (!editor || editor.dataset.bound) return;
                 editor.dataset.bound = '1';
+                bindLogo(page);
                 const ready = function () { return !!(page._themes && page._themes.data); };
 
                 page.querySelector('#themesBuiltIn').addEventListener('change', function (e) {
