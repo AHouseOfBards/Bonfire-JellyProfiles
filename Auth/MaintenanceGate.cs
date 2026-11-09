@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Profiles.Configuration;
+using Jellyfin.Profiles.Controllers;
 using MediaBrowser.Controller.Devices;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
@@ -91,7 +92,7 @@ namespace Jellyfin.Profiles.Auth
             var seen = Plugin.Instance?.Configuration?.Maintenance;
             if (seen == null || !seen.HasLapsed(DateTime.UtcNow)) return false;
 
-            lock (Controllers.ProfilesBaseController.ConfigLock)
+            lock (ProfilesBaseController.ConfigLock)
             {
                 var config = Plugin.Instance?.Configuration;
                 var m = config?.Maintenance;
