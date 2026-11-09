@@ -682,7 +682,7 @@
                      was never a new install (renderGettingStarted decides). -->
                 <div class="jpf-hidden jpf-note jpf-mt-3" id="onboardingAsk">
                     <strong class="jpf-label-block" data-i18n="admin.onboarding.askTitle">Show first-time setup?</strong>
-                    <span data-i18n="admin.onboarding.askBody">New accounts get a few screens to set a PIN and make a profile. You can change this under Setup.</span>
+                    <span data-i18n="admin.onboarding.askBody">New main accounts get a few screens to set a main PIN and make a profile. You can change this under Setup.</span>
                     <div class="jpf-actions jpf-mt-2">
                         <button is="emby-button" type="button" class="raised button-submit" id="onboardingAskYes" data-i18n="admin.onboarding.askYes">Turn it on</button>
                         <button is="emby-button" type="button" class="raised" id="onboardingAskNo" data-i18n="admin.onboarding.askNo">No thanks</button>
@@ -710,9 +710,9 @@
                 </div>
 
                 <div class="inputContainer jpf-form-narrow">
-                    <label class="inputLabel" for="maxProfiles" data-i18n="admin.households.maxProfiles">Profiles per account</label>
+                    <label class="inputLabel" for="maxProfiles" data-i18n="admin.households.maxProfiles">Profiles per main account</label>
                     <input is="emby-input" type="number" id="maxProfiles" min="1" max="20" required />
-                    <div class="fieldDescription" data-i18n="admin.households.maxProfilesHint">1 to 20. An account's own limit, set above, wins.</div>
+                    <div class="fieldDescription" data-i18n="admin.households.maxProfilesHint">1 to 20. A main account's own limit, set above, wins.</div>
                 </div>
                 <div class="buttonContainer jpf-block-end">
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
@@ -721,7 +721,7 @@
                 <div class="sectionTitleContainer jpf-section" id="jpfOrphans">
                     <h2 class="sectionTitle" data-i18n="admin.orphans.title">Leftover records</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.orphans.lede">Left behind when a profile is deleted in Dashboard → Users instead of in Bonfire. They still count against the account's limit. Scanning changes nothing.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.orphans.lede">Left behind when a profile is deleted in Dashboard → Users instead of in Bonfire. They still count against the main account's limit. Scanning changes nothing.</div>
                 <button is="emby-button" type="button" id="scanOrphansBtn" class="raised">
                     <span data-i18n="admin.orphans.scan">Scan</span>
                 </button>
@@ -748,16 +748,16 @@
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
                         <input is="emby-checkbox" type="checkbox" id="requireMainPin" />
-                        <span data-i18n="admin.security.requireMainPin">Require a PIN on main accounts</span>
+                        <span data-i18n="admin.security.requireMainPin">Require a main PIN</span>
                     </label>
-                    <div class="fieldDescription" data-i18n="admin.security.requireMainPinHint">Profiles and settings can't be changed until the account sets one.</div>
+                    <div class="fieldDescription" data-i18n="admin.security.requireMainPinHint">Main accounts can't change profiles or settings until they set one.</div>
                 </div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
                         <input is="emby-checkbox" type="checkbox" id="enablePinResetByEmail" />
                         <span data-i18n="admin.security.pinResetByEmail">Let main accounts reset a forgotten PIN by email</span>
                     </label>
-                    <div class="fieldDescription" data-i18n="admin.security.pinResetByEmailHint">A code goes to the address the account confirmed.</div>
+                    <div class="fieldDescription" data-i18n="admin.security.pinResetByEmailHint">A code goes to the address the main account confirmed.</div>
                     <div class="fieldDescription jpf-hidden" id="pinResetNeedsEmail"></div>
                 </div>
                 <details class="jpf-advanced jpf-section">
@@ -801,7 +801,7 @@
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.switcher.title">Switcher</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.switcher.lede">What accounts get until they choose for themselves.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.switcher.lede">What main accounts get until they choose for themselves.</div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
                         <input is="emby-checkbox" type="checkbox" id="defaultAskOnStartup" />
@@ -1074,7 +1074,7 @@
                         <input is="emby-checkbox" type="checkbox" id="onboardingEnabled" />
                         <span data-i18n="admin.onboarding.enable">Show first-time setup</span>
                     </label>
-                    <div class="fieldDescription" data-i18n="admin.onboarding.enableHint">Accounts that already exist won't see it.</div>
+                    <div class="fieldDescription" data-i18n="admin.onboarding.enableHint">Main accounts that already exist won't see it.</div>
                 </div>
                 <!-- One row per step: shown, and whether it can be skipped. Plain checkboxes
                      in labels rather than emby-checkbox, which draws one per row. -->
@@ -1085,7 +1085,7 @@
                         <label class="jpf-ob-box"><input type="checkbox" class="jpfObRequired" data-step="welcome" /><span data-i18n="admin.onboarding.required">Can't skip</span></label>
                     </div>
                     <div class="jpf-ob-row" data-step="mainPin">
-                        <span class="jpf-ob-name" data-i18n="admin.onboarding.stepMainPin">Main account PIN</span>
+                        <span class="jpf-ob-name" data-i18n="admin.onboarding.stepMainPin">Main PIN</span>
                         <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="mainPin" /><span data-i18n="admin.onboarding.show">Show</span></label>
                         <label class="jpf-ob-box"><input type="checkbox" class="jpfObRequired" data-step="mainPin" /><span data-i18n="admin.onboarding.required">Can't skip</span></label>
                     </div>
@@ -1313,7 +1313,7 @@
                 <div class="fieldDescription jpf-lede" data-i18n="admin.audit.lede">The last 1,000 switches on this server. Profiles added, PIN lockouts and maintenance are in Dashboard → Activity.</div>
                 <div class="jpf-audit-controls">
                     <div class="jpf-audit-field jpf-audit-filter">
-                        <label for="auditFilter" data-i18n="admin.audit.filter">Account or profile</label>
+                        <label for="auditFilter" data-i18n="admin.audit.filter">Main account or profile</label>
                         <input is="emby-input" type="search" id="auditFilter" placeholder="Any name" data-i18n-placeholder="admin.audit.filterPlaceholder" />
                     </div>
                     <div class="jpf-audit-field">
@@ -1466,7 +1466,7 @@
                 'admin.gs.todo': 'To do',
                 'admin.gs.open': 'Set up',
                 'admin.gs.profiles': 'Make a first profile. Households do this from the Jellyfin home screen.',
-                'admin.gs.pins': 'Require a PIN on every main account.',
+                'admin.gs.pins': 'Require a main PIN on every main account.',
                 'admin.saveFailed': 'Couldn\'t save it.',
                 'admin.saveSettingsFailed': 'Couldn\'t save the settings.',
                 'admin.saveBlocked': 'The settings did not load, so nothing was saved. Press Try again.',
@@ -1505,8 +1505,8 @@
                 'admin.status.scriptStale': 'The script tag in index.html is out of date. Browsers catch up within minutes.',
                 'admin.status.scriptOk': 'The client script is installed and up to date.',
                 'admin.status.beta': 'This is a pre-release build. Please report anything that looks wrong.',
-                'admin.status.openPinsOne': '1 account has profiles but no PIN, so those profiles can switch into it.',
-                'admin.status.openPinsMany': '{count} accounts have profiles but no PIN, so those profiles can switch into them.',
+                'admin.status.openPinsOne': '1 main account has profiles but no main PIN, so those profiles can switch into it.',
+                'admin.status.openPinsMany': '{count} main accounts have profiles but no main PIN, so those profiles can switch into them.',
                 'admin.status.avatarsOne': '1 profile picture is missing from disk.',
                 'admin.status.avatarsMany': '{count} profile pictures are missing from disk.',
                 'admin.status.orphansOne': '1 leftover record points at a deleted account.',
