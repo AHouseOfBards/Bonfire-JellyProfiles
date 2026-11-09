@@ -6385,8 +6385,8 @@
                 <h1 class="profiles-title">${t('pin.enterProfilePin')}</h1>
                 <div class="pin-entry-container">
                     <div class="jpf-pin-keys-hint">${t('pin.numberKeys')}</div>
-                    <input type="text" id="profile-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" aria-label="${t('pin.enterProfilePin')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
-                    <div id="pin-error-msg" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
+                    <input type="text" id="profile-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" aria-label="${t('pin.enterProfilePin')}" aria-describedby="pin-error-msg" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
+                    <div id="pin-error-msg" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions jpf-actions">
                         <button id="pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.back')}</button>
                         <button id="pin-submit-btn" class="profiles-btn btn-primary">${t('common.unlock')}</button>
@@ -6410,6 +6410,7 @@
 
             const showPinError = (msg) => {
                 switchInProgress = false;
+                pinInput.setAttribute('aria-invalid', 'true');
                 pinInput.style.borderColor = 'var(--jpf-danger)';
                 pinInput.style.boxShadow = '0 0 15px rgba(255,107,107,0.5)';
                 errorMsg.textContent = msg || t('pin.incorrectPin');
@@ -6420,6 +6421,7 @@
             };
 
             const clearError = () => {
+                pinInput.removeAttribute('aria-invalid');
                 pinInput.style.borderColor = '';
                 pinInput.style.boxShadow = '';
                 errorMsg.style.display = 'none';
@@ -6596,8 +6598,8 @@
                 <h1 class="profiles-title">${t('pin.enterMasterPin')}</h1>
                 <div class="pin-entry-container">
                     <div class="jpf-pin-keys-hint">${t('pin.numberKeys')}</div>
-                    <input type="text" id="master-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" aria-label="${t('pin.enterMasterPin')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
-                    <div id="master-pin-error-msg" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
+                    <input type="text" id="master-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" aria-label="${t('pin.enterMasterPin')}" aria-describedby="master-pin-error-msg" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
+                    <div id="master-pin-error-msg" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions jpf-actions">
                         <button id="master-pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                         <button id="master-pin-submit-btn" class="profiles-btn btn-primary">${t('common.submit')}</button>
@@ -6615,6 +6617,7 @@
 
             const showPinError = (msg) => {
                 verified = false;
+                pinInput.setAttribute('aria-invalid', 'true');
                 pinInput.style.borderColor = 'var(--jpf-danger)';
                 pinInput.style.boxShadow = '0 0 15px rgba(255,107,107,0.5)';
                 errorMsg.textContent = msg || t('pin.incorrectPin');
@@ -6624,6 +6627,7 @@
             };
 
             const clearError = () => {
+                pinInput.removeAttribute('aria-invalid');
                 pinInput.style.borderColor = '';
                 pinInput.style.boxShadow = '';
                 errorMsg.style.display = 'none';
