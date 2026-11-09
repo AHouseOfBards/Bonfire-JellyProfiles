@@ -443,7 +443,9 @@ console.log('── The section on the Jellyfin profile page ──────�
     ok('and that class centres it the way .readOnlyContent centres itself',
         /\.jpf-userprofile-section\s*\{[^}]*margin:\s*2em\s+auto/.test(CSS));
     ok('and caps it at the 54em jellyfin-web caps the siblings at',
-        /min-width:\s*50em[^{]*\{\s*\.jpf-userprofile-section\s*\{[^}]*max-width:\s*54em/.test(CSS));
+        // The cap starts at the sheet's 900px tablet breakpoint rather than upstream's 50em;
+        // what this pins is the 54em, and that it is a min-width rule (tests/js/breakpoints.js).
+        /min-width:\s*900px[^{]*\{\s*\.jpf-userprofile-section\s*\{[^}]*max-width:\s*54em/.test(CSS));
     // Comments out first. Written as a plain indexOf over the whole sheet, this went red
     // on the comment that explains the 44em is gone — prose, not a declaration. That is
     // the same failure themetest.js had this week and the navMenu substring bug before

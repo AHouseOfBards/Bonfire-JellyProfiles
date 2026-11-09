@@ -1144,11 +1144,16 @@ body.profiles-no-scroll [id*="spinner"] {
    plus the inline margin:0 auto that userprofile.tsx gives .readOnlyContent. Matching
    both puts our section on the same axis and the same width cap as the block above it,
    at every viewport — including below 50em, where the siblings are unconstrained and
-   so is this. The 44em it used to carry was a number with nothing behind it. */
+   so is this. The 44em it used to carry was a number with nothing behind it.
+
+   The cap starts at 900px here, not jellyfin-web's 50em (800px): this sheet has one
+   breakpoint scale, 480 / 900 / 1280 (tests/js/breakpoints.js). Between 800 and 900 the
+   viewport is narrower than 54em minus the page padding in all but a sliver, so the
+   section and its siblings still share an axis and a width. */
 .jpf-userprofile-section {
     margin: 2em auto;
 }
-@media all and (min-width: 50em) {
+@media all and (min-width: 900px) {
     .jpf-userprofile-section {
         max-width: 54em;
     }
@@ -1364,7 +1369,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 
 /* Mobile Responsiveness Media Queries */
-@media (max-width: 600px) {
+@media (max-width: 480px) {
     #profiles-floating-bubble.profiles-floating-fallback {
         left: 12px;
         right: auto;
@@ -1372,8 +1377,9 @@ body.profiles-no-scroll [id*="spinner"] {
     }
 }
 /* Wrap Bonfire join row on very small phones so the button
-   doesn't overflow or clip its label on screens under 360px. */
-@media (max-width: 360px) {
+   doesn't overflow or clip its label. Was 360px; on the one phone breakpoint now,
+   which only wraps it a little earlier. */
+@media (max-width: 480px) {
     #bonfire-join-input,
     #bonfire-join-btn {
         flex: 1 1 100% !important;
@@ -1926,7 +1932,7 @@ body.profiles-no-scroll [id*="spinner"] {
 
 /* Phones: reclaim horizontal space and stop the section chrome from
    eating the width the form fields need. */
-@media (max-width: 600px) {
+@media (max-width: 480px) {
     .profile-section {
         padding: 0.85rem 0.8rem 0.9rem;
         margin-bottom: 1rem;
@@ -2280,7 +2286,7 @@ body.profiles-no-scroll [id*="spinner"] {
         margin-top: var(--jpf-gap);
     }
 }
-@media (max-width: 600px) {
+@media (max-width: 480px) {
     .jpf-no-flex-gap .profile-section-body > * + * { margin-top: 0.95rem; }
 }
 
