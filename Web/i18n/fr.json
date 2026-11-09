@@ -34,6 +34,7 @@
   "maintenance.checkAgain": "Vérifier à nouveau",
   "maintenance.stillClosed": "Toujours fermé.",
   "pin.enterProfilePin": "Entrez le code PIN du profil",
+  "pin.numberKeys": "Utilisez les touches numériques",
   "pin.enterMasterPin": "Entrez le code PIN principal",
   "pin.incorrectPin": "Code PIN incorrect. Veuillez réessayer.",
   "pin.incorrectMasterPin": "Code PIN principal incorrect. Veuillez réessayer.",

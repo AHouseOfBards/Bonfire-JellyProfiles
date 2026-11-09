@@ -1187,7 +1187,8 @@ body.profiles-no-scroll [id*="spinner"] {
 #pin-reset-code {
     -webkit-text-security: none; width: 240px; font-size: 2rem; letter-spacing: 0.35rem;
 }
-#pin-reset-code::placeholder, #pin-reset-new::placeholder {
+#pin-reset-code::placeholder, #pin-reset-new::placeholder,
+#profile-pin-input::placeholder, #master-pin-input::placeholder, #main-pin-new::placeholder {
     font-size: 1rem; letter-spacing: normal;
 }
 #create-pin-input, #edit-pin-input {

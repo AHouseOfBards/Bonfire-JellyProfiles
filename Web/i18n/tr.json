@@ -36,6 +36,7 @@
   "maintenance.stillClosed": "Hâlâ kapalı.",
 
   "pin.enterProfilePin": "Profil PIN'ini girin",
+  "pin.numberKeys": "Sayı tuşlarını kullanın",
   "pin.enterMasterPin": "Ana PIN'i girin",
   "pin.incorrectPin": "PIN yanlış. Lütfen tekrar deneyin.",
   "pin.incorrectMasterPin": "Ana PIN yanlış. Lütfen tekrar deneyin.",

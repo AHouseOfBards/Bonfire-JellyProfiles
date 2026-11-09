@@ -34,6 +34,7 @@
   "maintenance.checkAgain": "Torna a comprovar",
   "maintenance.stillClosed": "Encara tancat.",
   "pin.enterProfilePin": "Introdueix el PIN del perfil",
+  "pin.numberKeys": "Fes servir les tecles numèriques",
   "pin.enterMasterPin": "Introdueix el PIN principal",
   "pin.incorrectPin": "PIN incorrecte. Torna-ho a provar.",
   "pin.incorrectMasterPin": "PIN principal incorrecte. Torna-ho a provar.",
