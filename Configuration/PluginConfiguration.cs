@@ -802,6 +802,20 @@ namespace Jellyfin.Profiles.Configuration
         }
     }
 
+    /// <summary>
+    /// A maximum parental rating as Jellyfin keeps it: a score and an optional sub-score,
+    /// null for "no limit". Stored on a mapping twice, as the profile's own rating and as
+    /// the one Bonfire last wrote to its account. See <see cref="Auth.InheritedRating"/>.
+    /// </summary>
+    public class ProfileRating
+    {
+        public int? Score { get; set; }
+
+        public int? SubScore { get; set; }
+
+        public ProfileRating Copy() => (ProfileRating)MemberwiseClone();
+    }
+
     public class ProfileMapping
     {
         public Guid ProfileUserId { get; set; }
@@ -923,6 +937,22 @@ namespace Jellyfin.Profiles.Configuration
         public ProfileLimits? LastAppliedLimits { get; set; }
 
         /// <summary>
+        /// The parental rating that belongs to the profile itself — the one saved in its editor
+        /// or set on its account in Dashboard -> Users — as opposed to the main account's
+        /// rating Bonfire copied onto it (R-1045). A null score is "none of its own": it
+        /// follows the main account. Null until the profile is first opened on this version;
+        /// a configuration from before it loads with no record. See <see cref="Auth.InheritedRating"/>.
+        /// </summary>
+        public ProfileRating? OwnRating { get; set; }
+
+        /// <summary>
+        /// The rating Bonfire last wrote to the profile's account, so a rating on the account
+        /// that differs from it can be told from Bonfire's own earlier write. Null on a
+        /// configuration from before it existed. See <see cref="Auth.InheritedRating"/>.
+        /// </summary>
+        public ProfileRating? LastAppliedRating { get; set; }
+
+        /// <summary>
         /// The library list Bonfire last wrote to the profile's account, so a change made on
         /// the account in Dashboard -> Users can be told apart from Bonfire's own write and
         /// from a reset (R-1042). Null on a configuration from before this existed: the first
@@ -957,6 +987,8 @@ namespace Jellyfin.Profiles.Configuration
             var copy = (ProfileMapping)MemberwiseClone();
             copy.OwnLimits = OwnLimits?.Copy();
             copy.LastAppliedLimits = LastAppliedLimits?.Copy();
+            copy.OwnRating = OwnRating?.Copy();
+            copy.LastAppliedRating = LastAppliedRating?.Copy();
             copy.AllowedDeviceIds = AllowedDeviceIds?.ToList() ?? new List<string>();
             copy.EnabledFolders = EnabledFolders?.ToList();
             copy.LastAppliedFolders = LastAppliedFolders?.ToList();

@@ -175,6 +175,12 @@ var r = Call("UpdateProfile", $"{{\"profileId\":\"{KID}\",\"profileName\":\"Kid\
 Ok("setup: the form's full save sets a rating and one library", r.status == 200 && Kid().MaxParentalRating == 10 && Folders(Kid()) == "L1",
     r.status + " " + r.message + " " + P(Kid()));
 
+// R-1045: the rating a form saves is the profile's own, remembered beside what was written to
+// its account, so it survives the main account tightening and relaxing again.
+int? RatingOf(string prop) { var v = Row(kidRow, prop); return v == null ? (int?)null : (int?)v.GetType().GetProperty("Score").GetValue(v); }
+Ok("the rating saved is recorded as the profile's own", Row(kidRow, "OwnRating") != null && RatingOf("OwnRating") == 10, RatingOf("OwnRating")?.ToString());
+Ok("and as what was written to its account", Row(kidRow, "LastAppliedRating") != null && RatingOf("LastAppliedRating") == 10, RatingOf("LastAppliedRating")?.ToString());
+
 r = Call("UpdateProfile", $"{{\"profileId\":\"{KID}\",\"profileName\":\"Kid\",\"masterPin\":\"{PIN}\"}}");
 Ok("a rename alone succeeds", r.status == 200, r.status + " " + r.message);
 Ok("and keeps the profile's rating (it was removed)", Kid().MaxParentalRating == 10, P(Kid()));
@@ -188,9 +194,11 @@ Ok("explicit nulls keep both too", r.status == 200 && Kid().MaxParentalRating ==
 r = Call("UpdateProfile", $"{{\"profileId\":\"{KID}\",\"profileName\":\"Kid\",\"masterPin\":\"{PIN}\",\"maxParentalRating\":\"\"}}");
 Ok("maxParentalRating \"\" removes the rating", r.status == 200 && Kid().MaxParentalRating == null, r.status + " " + r.message + " " + P(Kid()));
 Ok("and leaves the libraries alone", Folders(Kid()) == "L1", P(Kid()));
+Ok("and the profile has no rating of its own, so it follows the main account", Row(kidRow, "OwnRating") != null && RatingOf("OwnRating") == null);
 
 r = Call("UpdateProfile", $"{{\"profileId\":\"{KID}\",\"profileName\":\"Kid\",\"masterPin\":\"{PIN}\",\"maxParentalRating\":\"14\"}}");
 Ok("a score sets it", r.status == 200 && Kid().MaxParentalRating == 14, r.status + " " + P(Kid()));
+Ok("and is the profile's own", RatingOf("OwnRating") == 14 && RatingOf("LastAppliedRating") == 14);
 
 r = Call("UpdateProfile", $"{{\"profileId\":\"{KID}\",\"profileName\":\"Kid\",\"masterPin\":\"{PIN}\",\"allLibraries\":true}}");
 Ok("allLibraries true gives every library", r.status == 200 && Folders(Kid()) == "all", r.status + " " + r.message + " " + P(Kid()));

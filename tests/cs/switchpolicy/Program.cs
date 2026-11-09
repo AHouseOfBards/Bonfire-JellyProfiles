@@ -454,9 +454,17 @@ if (clamp != null)
     Ok("a master without a limit leaves the profile alone", Clamp(15, 1, null, null) == (15, 1));
 }
 
+// The clamp moved from a call in ProfilePolicySync into InheritedRating.Resolve (R-1045), which
+// the sync calls with the profile's own rating, so the wiring that matters is now two links:
+// the sync resolves through it, and it clamps what it resolves. tests/cs/policysync runs the
+// whole path and is what shows the clamp holds.
+var ratingSrc = System.IO.File.ReadAllText(
+    System.IO.Path.Combine(root, "Auth", "InheritedRating.cs")).Replace("\r\n", "\n");
 Ok("the switch path clamps the restored rating",
-    System.Text.RegularExpressions.Regex.IsMatch(src,
-        @"ClampRating\(\s*childMaxParentalRating, childMaxParentalSubRating,"));
+    System.Text.RegularExpressions.Regex.IsMatch(syncSrc,
+        @"InheritedRating\.Resolve\(")
+    && System.Text.RegularExpressions.Regex.IsMatch(ratingSrc,
+        @"ClampRating\(\s*own\.Score, own\.SubScore, master\.Score, master\.SubScore\)"));
 Ok("and no longer restores it unchecked",
     !src.Contains("targetPolicy.MaxParentalRating = childMaxParentalRating;"));
 

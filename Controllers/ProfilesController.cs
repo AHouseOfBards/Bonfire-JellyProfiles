@@ -561,6 +561,17 @@ namespace Jellyfin.Profiles.Controllers
                     // What was just written to the account, when it was a list. Without it the
                     // next sign-in would read this write as an administrator's change (R-1042).
                     LastAppliedFolders = request.EnabledFolders != null ? validatedFolders.ToList() : null,
+                    // The rating asked for is the profile's own; none asked for follows the main
+                    // account. What went to the account is recorded beside it (R-1045).
+                    OwnRating = new ProfileRating
+                    {
+                        Score = int.TryParse(request.MaxParentalRating, out var ownScore) ? ownScore : null,
+                    },
+                    LastAppliedRating = new ProfileRating
+                    {
+                        Score = targetPolicy.MaxParentalRating,
+                        SubScore = targetPolicy.MaxParentalSubRating,
+                    },
                     BlockedTags = profileBlockedTags,
                     AllowedTags = profileAllowedTags,
                     BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork ?? false,
@@ -2019,6 +2030,11 @@ namespace Jellyfin.Profiles.Controllers
 
             // Update policy for sub-profiles
             List<Guid>? validatedFolders = null;
+            // What the editor changed about the rating and what it wrote, for the mapping
+            // (R-1045): the profile's own rating when the form set one, and the value written
+            // to the account, which the next sign-in compares against. See InheritedRating.
+            ProfileRating? ratingChosen = null;
+            ProfileRating? ratingWritten = null;
             if (request.ProfileId != masterUserId)
             {
                 var targetUserDto = _userManager.GetUserDto(targetUser, string.Empty);
@@ -2038,11 +2054,15 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     targetPolicy.MaxParentalRating = requestedRating;
                     targetPolicy.MaxParentalSubRating = null;
+                    // Only a rating that differs from the account's is a choice: the form shows
+                    // the account's value, so one saved unchanged would pin an inherited one.
+                    ratingChosen = new ProfileRating { Score = requestedRating };
                 }
 
                 (targetPolicy.MaxParentalRating, targetPolicy.MaxParentalSubRating) = ClampRating(
                     targetPolicy.MaxParentalRating, targetPolicy.MaxParentalSubRating,
                     masterPolicy.MaxParentalRating, masterPolicy.MaxParentalSubRating);
+                ratingWritten = new ProfileRating { Score = targetPolicy.MaxParentalRating, SubScore = targetPolicy.MaxParentalSubRating };
 
                 // Tag-based filtering (clamped so it can never exceed the master's)
                 var (resolvedBlockedTags, resolvedAllowedTags) =
@@ -2149,6 +2169,22 @@ namespace Jellyfin.Profiles.Controllers
                     if (request.LockoutMinutes.HasValue)
                     {
                         mappingEntry.LockoutMinutes = ClampLockoutMinutes(request.LockoutMinutes.Value);
+                    }
+
+                    // The rating, as Bonfire's own write and the profile's own choice. A profile with
+                    // no record is left without one unless the form chose a rating: a record
+                    // made here would read "own: none" for a narrower rating it cannot tell apart.
+                    if (ratingWritten != null)
+                    {
+                        if (ratingChosen != null)
+                        {
+                            mappingEntry.OwnRating = ratingChosen;
+                            mappingEntry.LastAppliedRating = ratingWritten;
+                        }
+                        else if (mappingEntry.LastAppliedRating != null)
+                        {
+                            mappingEntry.LastAppliedRating = ratingWritten;
+                        }
                     }
 
                     // Update stored library list (plugin's ground truth)

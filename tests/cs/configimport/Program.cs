@@ -142,13 +142,34 @@ IEnumerable<PropertyInfo> Settable() => cfgType.GetProperties(BindingFlags.Publi
 var options = new JsonSerializerOptions();
 string Json(object v) => JsonSerializer.Serialize(v, options);
 
+object RatedKid()
+{
+    var kid = Item("ProfileMapping", ("ProfileUserId", KID), ("MasterUserId", MASTER), ("ProfileName", "Kid"));
+    var mapType = T("ProfileMapping");
+    var ratingType = asm.GetType("Jellyfin.Profiles.Configuration.ProfileRating");
+    var own = mapType.GetProperty("OwnRating");
+    var last = mapType.GetProperty("LastAppliedRating");
+    Ok("a mapping carries the rating it keeps of its own and the one last written", ratingType != null && own != null && last != null);
+    if (ratingType == null || own == null || last == null) return kid;
+    var a = Activator.CreateInstance(ratingType);
+    ratingType.GetProperty("Score").SetValue(a, (int?)10);
+    var b = Activator.CreateInstance(ratingType);
+    ratingType.GetProperty("Score").SetValue(b, (int?)7);
+    ratingType.GetProperty("SubScore").SetValue(b, (int?)1);
+    own.SetValue(kid, a);
+    last.SetValue(kid, b);
+    return kid;
+}
+
 // Every setting at its default, then every one moved off it.
 object Defaults() => Activator.CreateInstance(cfgType);
 var byHand = new Dictionary<string, object>
 {
     ["Mappings"] = ListOf(T("ProfileMapping"),
         Item("ProfileMapping", ("ProfileUserId", MASTER), ("MasterUserId", MASTER), ("ProfileName", "Bard")),
-        Item("ProfileMapping", ("ProfileUserId", KID), ("MasterUserId", MASTER), ("ProfileName", "Kid"))),
+        // The rating a profile keeps of its own and the one last written to its account
+        // (R-1045): a backup that drops them sends every profile back to "no record".
+        RatedKid()),
     ["KnownDevices"] = ListOf(T("KnownDevice"), Item("KnownDevice", ("DeviceId", "tv-1"), ("DeviceName", "Shield"))),
     ["BonfireGroups"] = ListOf(T("BonfireGroup"), Item("BonfireGroup", ("GroupId", "g1"), ("BonfireCode", "ABC123"), ("OwnerUserId", MASTER))),
     ["LinkedAccounts"] = ListOf(T("LinkedAccount"), Item("LinkedAccount", ("HouseholdId", MASTER), ("UserId", OTHER))),

@@ -345,6 +345,69 @@ Console.WriteLine("── Rating ───────────────�
        world.Written(p)?.MaxParentalSubRating == 1);
 }
 
+// A main account set to PG for an evening used to leave every profile at PG for good: the
+// profile's own rating was whatever was on its account, and that is mostly what Bonfire wrote
+// there last time (R-1045). Same fix as the five limits (InheritedLimits): remember what
+// Bonfire last wrote, and read a different value on the account as somebody's own choice.
+Console.WriteLine();
+Console.WriteLine("── Rating, after the main account relaxes (R-1045) ─────────────");
+{
+    var ownProp = mapType.GetProperty("OwnRating");
+    var lastProp = mapType.GetProperty("LastAppliedRating");
+    Ok("the mapping records the rating Bonfire last wrote and the profile's own", ownProp != null && lastProp != null);
+    object RowOf(Guid id) => mappings.Cast<object>().First(m => (Guid)mapType.GetProperty("ProfileUserId").GetValue(m) == id);
+    int? Score(object rating) => rating == null ? null : (int?)rating.GetType().GetProperty("Score").GetValue(rating);
+    void MasterSets(Guid profile, int? rating) =>
+        world.Policies[world.Masters[profile]] = Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = rating; });
+    void AdminSets(Guid profile, int? rating)
+    {
+        var pol = World.Copy(world.Policies[profile]);
+        pol.MaxParentalRating = rating;
+        world.Policies[profile] = pol;
+    }
+    int? Now(Guid profile) => world.Policies[profile].MaxParentalRating;
+
+    // No rating of its own: it follows the main account both ways.
+    var p = Household(Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = 17; }),
+                      Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = null; }), all: true);
+    Apply(p);
+    MasterSets(p, 7); Apply(p);
+    Ok("the profile follows the main account down (" + Now(p) + ")", Now(p) == 7);
+    MasterSets(p, 17); Apply(p);
+    Ok("and back up when it relaxes (" + Now(p) + ")", Now(p) == 17);
+    MasterSets(p, null); Apply(p);
+    Ok("and to no limit when the main account has none (" + Now(p) + ")", Now(p) == null);
+
+    // A rating of its own: kept through the evening, never above the main account's.
+    p = Household(Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = 17; }),
+                  Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = 10; }), all: true);
+    Apply(p);
+    MasterSets(p, 7); Apply(p);
+    Ok("a profile's own rating yields to a stricter main account (" + Now(p) + ")", Now(p) == 7);
+    MasterSets(p, 17); Apply(p);
+    Ok("and returns to its own, not the main account's, once that relaxes (" + Now(p) + ")", Now(p) == 10);
+    Ok("the record holds its own rating (" + Score(ownProp?.GetValue(RowOf(p))) + ")", Score(ownProp?.GetValue(RowOf(p))) == 10);
+
+    // A rating an administrator sets in Dashboard -> Users is the profile's own from then on.
+    AdminSets(p, 13); Apply(p);
+    Ok("a rating set on the account is adopted (" + Now(p) + ")", Now(p) == 13);
+    MasterSets(p, 7); Apply(p);
+    MasterSets(p, 17); Apply(p);
+    Ok("and kept through the same evening (" + Now(p) + ")", Now(p) == 13);
+    AdminSets(p, 20); Apply(p);
+    Ok("but never above the main account's (" + Now(p) + ")", Now(p) == 17);
+    AdminSets(p, null); Apply(p);
+    Ok("and removing it on the account hands the profile back to the main account's (" + Now(p) + ")", Now(p) == 17);
+
+    // A configuration from before the record: today's reading once, then recorded.
+    p = Household(Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = 17; }),
+                  Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = 10; }), all: true);
+    Ok("a profile from before it has no record", ownProp != null && ownProp.GetValue(RowOf(p)) == null && lastProp.GetValue(RowOf(p)) == null);
+    Apply(p);
+    Ok("it keeps the narrower rating on the account (" + Now(p) + ")", Now(p) == 10);
+    Ok("and is recorded", Score(lastProp?.GetValue(RowOf(p))) == 10);
+}
+
 // ── Schedules, limits, permissions ───────────────────────────────────────────
 Console.WriteLine();
 Console.WriteLine("── Schedules, limits and permissions ───────────────────────────");

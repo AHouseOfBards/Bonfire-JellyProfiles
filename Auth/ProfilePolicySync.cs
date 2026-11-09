@@ -115,9 +115,16 @@ namespace Jellyfin.Profiles.Auth
             // refuses a disabled account before getting here, and Jellyfin refuses one at
             // sign-in. This used to write IsDisabled = false, which turned a profile switched
             // off in Dashboard -> Users back on the next time anyone picked it.
-            (targetPolicy.MaxParentalRating, targetPolicy.MaxParentalSubRating) = ProfilesBaseController.ClampRating(
-                childMaxParentalRating, childMaxParentalSubRating,
-                masterPolicy.MaxParentalRating, masterPolicy.MaxParentalSubRating);
+            //
+            // "Its own" is the rating it keeps of its own, not whatever is on the account, which
+            // is mostly Bonfire's last write: reading it off the account left every profile at
+            // the main account's strictest rating for good (R-1045). See InheritedRating.
+            var rating = InheritedRating.Resolve(
+                new ProfileRating { Score = masterPolicy.MaxParentalRating, SubScore = masterPolicy.MaxParentalSubRating },
+                new ProfileRating { Score = childMaxParentalRating, SubScore = childMaxParentalSubRating },
+                mapping.OwnRating, mapping.LastAppliedRating);
+            targetPolicy.MaxParentalRating = rating.Applied.Score;
+            targetPolicy.MaxParentalSubRating = rating.Applied.SubScore;
 
             // Re-apply the profile's tag filters. CopyUserPolicy above just overwrote them with
             // the master's, so without this every profile switch would silently drop them.
@@ -328,6 +335,14 @@ namespace Jellyfin.Profiles.Auth
                     {
                         live.OwnLimits = limits.Own;
                         live.LastAppliedLimits = limits.Applied;
+                        changed = true;
+                    }
+
+                    if (!InheritedRating.Same(live.OwnRating, rating.Own)
+                        || !InheritedRating.Same(live.LastAppliedRating, rating.Applied))
+                    {
+                        live.OwnRating = rating.Own;
+                        live.LastAppliedRating = rating.Applied;
                         changed = true;
                     }
 

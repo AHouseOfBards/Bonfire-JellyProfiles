@@ -208,6 +208,40 @@ if (files.Count > 0)
     }
 }
 
+// R-1045: a profile's own rating and the one Bonfire last wrote are new on the mapping. A file
+// from before them has neither, and must load as "no record" (null) so the first sign-in
+// behaves as it always did and records them; a file that has them must give the values back.
+Console.WriteLine();
+Console.WriteLine("── A profile's remembered rating ───────────────────────────────────");
+if (files.Count > 0)
+{
+    var mapType = cfgType.Assembly.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);
+    var ownProp = mapType.GetProperty("OwnRating");
+    var lastProp = mapType.GetProperty("LastAppliedRating");
+    Ok("a mapping has an own rating and a last-applied rating", ownProp != null && lastProp != null);
+    if (ownProp != null && lastProp != null)
+    {
+        var golden = File.ReadAllText(files[0]);
+        Ok("the file from before them has neither", !golden.Contains("OwnRating") && !golden.Contains("LastAppliedRating"));
+        var old = Read(golden);
+        var rows = ((IEnumerable)cfgType.GetProperty("Mappings").GetValue(old)).Cast<object>().ToList();
+        Ok("it loads with no record on any mapping", rows.Count > 0 && rows.All(m => ownProp.GetValue(m) == null && lastProp.GetValue(m) == null),
+           rows.Count + " mappings");
+        Ok("and writing it back adds no rating elements", !Write(old).Contains("OwnRating") && !Write(old).Contains("LastAppliedRating"));
+
+        var withRating = golden.Replace("</ProfileMapping>",
+            "<OwnRating><Score>10</Score></OwnRating><LastAppliedRating><Score>7</Score><SubScore>1</SubScore></LastAppliedRating></ProfileMapping>");
+        var loaded = Read(withRating);
+        var first = ((IEnumerable)cfgType.GetProperty("Mappings").GetValue(loaded)).Cast<object>().First();
+        object Part(object rating, string name) => rating?.GetType().GetProperty(name).GetValue(rating);
+        Ok("a file that has them gives the values back",
+           Equals(Part(ownProp.GetValue(first), "Score"), 10) && Part(ownProp.GetValue(first), "SubScore") == null
+           && Equals(Part(lastProp.GetValue(first), "Score"), 7) && Equals(Part(lastProp.GetValue(first), "SubScore"), 1));
+        var twice = Write(Read(Write(loaded)));
+        Ok("and they survive a write and a read, twice", twice == Write(loaded) && Differ(loaded, Read(twice), "config") == null);
+    }
+}
+
 // Settings cut before 2.0. A file written by 1.6, 1.7 or a 1.9 beta still carries them, with
 // whatever value the household had chosen. Each must load, leave every other value exactly as
 // it was, and be gone from the next save. The golden file is the baseline; each case turns it
