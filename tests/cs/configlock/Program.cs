@@ -224,7 +224,8 @@ var allowed = new Dictionary<string, string>(StringComparer.Ordinal)
                      = "static readonly in Plugin; one configuration save and its .lastgood copy at a time",
     ["CodesLock"]    ="static readonly in Mail.EmailCodes; guards issuing, checking and spending a code",
     ["UsageLock"]    = "static readonly in Auth.ViewingTracker; guards viewing time, extra time and requests",
-    ["SaveLock"]     = "static readonly in Auth.ViewingTracker; one write of viewing_usage.json at a time, taken before UsageLock",
+    ["PickerFileLock"] = "static readonly in Auth.PickerMarks; reading and writing proxy_picker.json, which TVs are in a child's profile",
+    ["SaveLock"]     ="static readonly in Auth.ViewingTracker; one write of viewing_usage.json at a time, taken before UsageLock",
     ["ViewingTracker.UsageLock"]
                      = "the same static readonly field, qualified from the timer and the gate",
     ["list"]         = "a List<DateTime> held in a ConcurrentDictionary in RateLimiter — the "

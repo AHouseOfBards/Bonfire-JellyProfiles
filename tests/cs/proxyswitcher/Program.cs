@@ -625,6 +625,51 @@ Ok("signing out of the app signs the profile out too",
    string.Join(",", sessionLog.LoggedOut));
 
 Console.WriteLine();
+Console.WriteLine("── Profile sessions from before a restart (R-1037) ─────────────");
+
+// Jellyfin's tokens do not expire. The picker forgets the profile session it minted when the
+// server restarts, so nothing ever signed it out: one valid token per device and profile,
+// for good. What it minted is kept on disk and ended at the next start.
+var marksType = asm.GetType("Jellyfin.Profiles.Auth.PickerMarks");
+var switcherType = asm.GetType("Jellyfin.Profiles.Auth.ProxySwitcher");
+void Restart() => switcherType.GetMethod("SimulateRestart", BindingFlags.Static | BindingFlags.NonPublic)?.Invoke(null, null);
+bool Marked(string token) => marksType?.GetMethod("Find", BindingFlags.Static | BindingFlags.NonPublic)?.Invoke(null, new object[] { token }) != null;
+void Sweep() => ((Task)marksType?.GetMethod("SweepAsync", BindingFlags.Static | BindingFlags.NonPublic)
+    ?.Invoke(null, new object[] { sessions, devices, NullLogger.Instance }))?.GetAwaiter().GetResult();
+
+Ok("this build remembers which TVs are in a child's profile", marksType != null);
+Child();
+Ok("a TV in a child's profile is on record", Marked(MOON_TOKEN));
+{
+    var before = sessionLog.LoggedOut.Count;
+    Restart();
+    Sweep();
+    Ok("after a restart the profile session it made is ended", sessionLog.LoggedOut.Skip(before).Contains("tok-" + N(KIDS)), string.Join(",", sessionLog.LoggedOut.Skip(before)));
+    Ok("and the main account's token is not touched", !sessionLog.LoggedOut.Skip(before).Contains(MOON_TOKEN));
+    Ok("the TV is still on record, since its main token is still good", Marked(MOON_TOKEN));
+    var again2 = sessionLog.LoggedOut.Count;
+    Sweep();
+    Ok("and a second sweep ends nothing twice", sessionLog.LoggedOut.Count == again2, string.Join(",", sessionLog.LoggedOut.Skip(again2)));
+}
+
+Child();
+{
+    Restart();
+    deviceTokens.Remove(MOON_TOKEN);   // the TV signed out while the server was down
+    Sweep();
+    Ok("a record whose main token is gone is dropped", !Marked(MOON_TOKEN));
+    deviceTokens[MOON_TOKEN] = (MASTER, "Moonfin for Android TV");
+}
+
+Child();
+Children(IdOf(Get("/UserViews").body, "Switch profile"));
+Ok("a TV back on the picker is no longer on record", !Marked(MOON_TOKEN));
+Ok("and the picker's source no longer says its sessions are left to expire",
+   !File.ReadAllText(Path.Combine(RepoRoot(), "Auth", "ProxySwitcher.cs")).Contains("left to expire"));
+ProxyReset();
+Set("ProxyClients", new List<string> { "moonfin" });
+
+Console.WriteLine();
 Console.WriteLine("── A profile signed out behind the app's back ──────────────────");
 
 var fresh = Get("/UserViews");
@@ -958,16 +1003,19 @@ public class DeviceManagerStub : DispatchProxy
         Calls++;
         var q = args[0];
         var token = (string)q.GetType().GetProperty("AccessToken")?.GetValue(q);
+        var userId = q.GetType().GetProperty("UserId")?.GetValue(q) as Guid? ?? Guid.Empty;
         var items = new List<Device>();
-        if (token != null && _tokens.TryGetValue(token, out var row))
+        // By token, or (a later query) every row of one account.
+        foreach (var pair in _tokens.Where(p => token != null ? p.Key == token : userId != Guid.Empty && p.Value.user == userId))
         {
             var d = (Device)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Device));
             void P(string name, object v) => typeof(Device).GetProperty(name).SetValue(d, v);
-            P("UserId", row.user);
-            P("AppName", row.app);
+            P("UserId", pair.Value.user);
+            P("AppName", pair.Value.app);
             P("AppVersion", "1.4.0");
             P("DeviceName", "Shield");
             P("DeviceId", "moon-1");
+            P("AccessToken", pair.Key);
             items.Add(d);
         }
 

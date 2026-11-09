@@ -61,6 +61,9 @@ namespace Jellyfin.Profiles
             // nothing but read the session list while no profile has limits.
             serviceCollection.AddHostedService<ViewingTimer>();
 
+            // Ends the profile sessions the picker made before the last restart.
+            serviceCollection.AddHostedService<ProxyPickerStartup>();
+
             // For other plugins: which household a user belongs to. Read-only.
             serviceCollection.AddSingleton<IBonfireProfiles, BonfireProfiles>();
         }

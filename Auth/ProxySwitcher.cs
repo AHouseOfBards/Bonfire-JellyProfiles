@@ -60,8 +60,10 @@ namespace Jellyfin.Profiles.Auth
     /// or two and gets the new profile's.</para>
     ///
     /// <para><b>A restart</b> forgets every pick, and the app is back at the picker on its
-    /// next request. The profile sessions minted before it are left to expire, and are
-    /// replaced the next time the same profile is picked on that device.</para>
+    /// next request. Jellyfin tokens do not expire, so the profile sessions minted before it
+    /// would stay valid for good: they are kept on disk (<see cref="PickerMarks"/>) and ended
+    /// at the next start. A profile session is also ended the next time the same profile is
+    /// picked on that device.</para>
     ///
     /// <para><b>What this is not.</b> A security boundary for the main account: whoever holds
     /// its token could sign into it anywhere. The PIN keypad, its throttle, the device list
@@ -212,6 +214,7 @@ namespace Jellyfin.Profiles.Auth
             if (signedOut)
             {
                 ChildTokens.TryRemove(session.MasterToken, out _);
+                PickerMarks.Remove(session.MasterToken);
                 Sessions.TryRemove(session.MasterToken, out _);
                 logger.LogInformation(
                     "ProfilesPlugin: {Client} on {Device} was in a child's profile and Bonfire can no longer hold it there; it is signed out.",
@@ -231,6 +234,19 @@ namespace Jellyfin.Profiles.Auth
             Sessions.Clear();
             NotOurs.Clear();
             ChildTokens.Clear();
+            PickerMarks.Clear();
+        }
+
+        /// <summary>
+        /// For harnesses: what a restart does. Everything held in memory is lost; what was kept on
+        /// disk (<see cref="PickerMarks"/>) is read back the next time it is asked for.
+        /// </summary>
+        internal static void SimulateRestart()
+        {
+            Sessions.Clear();
+            NotOurs.Clear();
+            ChildTokens.Clear();
+            PickerMarks.Reload();
         }
 
         private static async Task<bool> HandleAsync(HttpContext context, Func<Task> forward, ILogger logger)
@@ -1122,6 +1138,8 @@ namespace Jellyfin.Profiles.Auth
             session.Acting = new ActingAs(profileId, result.AccessToken);
             ChildTokens[session.MasterToken] = session;
             ChildTokens[result.AccessToken] = session;
+            // On disk too, so a restart cannot forget which session this is.
+            PickerMarks.Add(session.MasterToken, session.MasterId, profileId, result.AccessToken);
 
             logger.LogInformation(
                 "ProfilesPlugin: {Client} on {Device} opened profile {Profile} from the picker.",
@@ -1139,7 +1157,12 @@ namespace Jellyfin.Profiles.Auth
             // Back on the picker, which refuses what it does not draw, so no longer a child's
             // to guard. Not when SignOutChildAsync is ending it: that clears the mark itself,
             // once Jellyfin has confirmed the sign-out.
-            if (!keepMark) ChildTokens.TryRemove(session.MasterToken, out _);
+            if (!keepMark)
+            {
+                ChildTokens.TryRemove(session.MasterToken, out _);
+                PickerMarks.Remove(session.MasterToken);
+            }
+
             if (was != null) ChildTokens.TryRemove(was.Token, out _);
 
             if (was == null || was.Token == session.MasterToken || services.Sessions == null) return;
