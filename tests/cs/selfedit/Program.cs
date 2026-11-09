@@ -301,6 +301,17 @@ r = Call("UpdateProfile", "{\"profileId\":\"" + KID + "\",\"profileName\":\"Sib\
 Ok("a rename onto an existing profile's account is refused", r.status == 400, r.status + " " + r.message);
 Ok("and the picture sent with it was not saved", OnDisk() == diskBefore, diskBefore + " -> " + OnDisk());
 
+// ── P2-705: a new PIN ends the lock the old one was guessed into ─────────────
+Console.WriteLine();
+Console.WriteLine("── /update: a new PIN starts the guess count again (P2-705) ──────");
+var budget = asm.GetType("Jellyfin.Profiles.Controllers.PinBudget", true);
+bool BudgetOpen() => (bool)budget.GetMethod("TryBegin", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new object[] { KID });
+for (int i = 0; i < 8; i++) BudgetOpen();
+Ok("setup: the profile's PIN is locked by wrong guesses", !BudgetOpen());
+r = Call("UpdateProfile", "{\"profileId\":\"" + KID + "\",\"profileName\":\"Kiddo\",\"masterPin\":\"" + PIN + "\",\"pin\":\"9999\"}", MAIN);
+Ok("the main account sets it a new PIN", r.status == 200, r.status + " " + r.message);
+Ok("and the lock is gone", BudgetOpen());
+
 try { Directory.Delete(tempDir, true); } catch { }
 Console.WriteLine();
 if (fails.Count > 0)

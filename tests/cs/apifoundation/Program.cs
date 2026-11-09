@@ -288,8 +288,15 @@ activity.Clear();
 var reqType = ctrlType.GetMethod("ResetPinAdmin").GetParameters()[0].ParameterType;
 var reset = Activator.CreateInstance(reqType);
 reqType.GetProperty("ProfileId").SetValue(reset, KID);
+// A profile whose PIN was guessed at until it locked (P2-705): clearing the PIN has to end
+// the lock too, or the new one it is given is refused for the rest of the quarter hour.
+var budget = asm.GetType("Jellyfin.Profiles.Controllers.PinBudget", true);
+bool BudgetOpen() => (bool)budget.GetMethod("TryBegin", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new object[] { KID });
+for (int i = 0; i < 8; i++) BudgetOpen();
+Ok("setup: the profile's PIN is locked by wrong guesses", !BudgetOpen());
 var resetResult = Call("ResetPinAdmin", KeyPrincipal(true, "Administrator"), new[] { reset });
 Ok("an API key can clear a PIN", resetResult.status == 200, resetResult.status + " " + resetResult.value);
+Ok("and clearing it ends the lock on that profile", BudgetOpen());
 Ok("which is written to the Activity log, naming the profile and who did it",
    activity.Count == 1 && activity[0].Type == "BonfirePinReset" && activity[0].Name.Contains("Kid") && activity[0].Name.StartsWith("An API key")
    && activity[0].UserId == KID,

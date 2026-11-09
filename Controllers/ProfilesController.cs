@@ -1295,6 +1295,10 @@ namespace Jellyfin.Profiles.Controllers
                 Plugin.Instance?.SaveConfiguration();
             }
 
+            // The guesses were at the PIN that is gone. The email reset ends them too; this
+            // path left them standing (P2-705).
+            PinBudget.End(request.ProfileId);
+
             // Resetting a master's PIN takes it off the PIN provider, or its password would
             // be refused there.
             ProfilesBootstrapTask.ReconcileAuthProvidersNow();
@@ -2202,6 +2206,9 @@ namespace Jellyfin.Profiles.Controllers
             {
                 ProfilesBootstrapTask.ReconcileAuthProvidersNow();
             }
+
+            // The guesses were at the old PIN; a new one, or none, starts clean (P2-705).
+            if (request.Pin != null && request.ProfileId != masterUserId) PinBudget.End(request.ProfileId);
 
             // Another household that opened it with the old PIN is out (R-1302b).
             if (pinChanged) await SignOutAfterPinChangeAsync(request.ProfileId).ConfigureAwait(false);
