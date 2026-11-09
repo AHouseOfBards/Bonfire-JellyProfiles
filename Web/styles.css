@@ -2147,6 +2147,14 @@ body.profiles-no-scroll [id*="spinner"] {
 @media (max-width: 899px) {
     .jpf-no-flex-gap .jpf-more-body > * + * { margin-top: 1.5rem; }
 }
+/* The same body is a grid from 900px, and a grid has its own gap, so the rule above
+   stops there. A browser with no grid (Chromium 53, webOS 4.5) ignores that display
+   and stays a flex column with no flex gap, and at television width it is far past
+   900px: the children touched. Only for a browser with no grid, or webOS 5 would get
+   this margin on top of its grid gap. */
+@supports not (display: grid) {
+    .jpf-no-flex-gap .jpf-more-body > * + * { margin-top: 1.5rem; }
+}
 .jpf-no-flex-gap .profile-section-body > * + * { margin-top: 1.1rem; }
 .jpf-no-flex-gap .tag-editor > * + * { margin-top: 8px; }
 
