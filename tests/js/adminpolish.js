@@ -121,8 +121,9 @@ ok('the FAQ no longer points "below" into a closed fold', !/Check Client script 
 ok('it has a button to the client script instead', /id="faqOpenClientScript"/.test(html)
    && /faqGo\.addEventListener\('click', function \(\) \{ goTo\(page, 'troubleshoot', 'jpfClientScript'\); \}\)/.test(script));
 ok('and goTo opens the fold it lands in', /const advanced = target\.closest\('details'\);\s*if \(advanced\) advanced\.open = true;/.test(script));
-ok('a stale script is a status with a way to fix it',
-   /admin\.status\.scriptStale'\),\s*tab: 'troubleshoot', anchor: 'jpfClientScript', fix:/.test(script));
+ok('a failed script is a status with a way to fix it (the stale one is gone: isVersionStale is always false)',
+   /admin\.status\.scriptFailed'\),\s*tab: 'troubleshoot', anchor: 'jpfClientScript', fix:/.test(script)
+   && !/scriptStale/.test(script));
 ok('so is Bonfire having been switched off', /admin\.status\.panicUsed'\),\s*tab: 'troubleshoot', anchor: 'jpfFaq', fix:/.test(script) && /id="jpfFaq"/.test(html));
 
 // ── P2-310 ───────────────────────────────────────────────────────────────────

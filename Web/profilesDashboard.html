@@ -487,7 +487,6 @@
     /* The two coloured badges on the version chip: one for a build that will not
        run, one for a build that is merely out of date. */
     #profilesConfigurationPage .jpf-badge-bad { background: #d23f3f; color: #fff; }
-    #profilesConfigurationPage .jpf-badge-stale { background: #f59f00; color: #1a1a1a; }
     #profilesConfigurationPage .jpf-btn-quiet {
         background: rgba(255, 255, 255, 0.08);
         color: rgba(255, 255, 255, 0.75);
@@ -595,54 +594,9 @@
                 <!-- Written by renderInjectionStatus, which knows whether the file is involved. -->
                 <span id="injectionFailureHeadline"></span>
                 <div class="jpf-hidden jpf-note-detail" id="injectionFailureReason"></div>
-                <span class="injectionFileFix">
-                <br>
-                <span data-i18n="admin.banner.howToFix"><strong>How to fix:</strong> run the command for your system, then press <strong>Re-check</strong>.</span>
-                </span>
-                <div class="detectedAccountRow jpf-hidden jpf-subtle jpf-mt-1" id="injectionFailureAccountRow" data-i18n="admin.banner.runningAs">Jellyfin is running as <code class="detectedAccount"></code>.</div>
-                <ul class="injectionFileFix jpf-sublist">
-                    <li class="jpf-mb-2">
-                        <strong data-i18n="admin.banner.linux">Linux (native):</strong>
-                        <br><code id="linuxChownCmd" class="linuxChownCmd" translate="no">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code>
-                        <br><code id="linuxChmodCmd" class="linuxChmodCmd" translate="no">sudo chmod 664 /usr/share/jellyfin/web/index.html</code>
-                        <br><span style="font-size:0.85em; opacity:0.8;" data-i18n="admin.banner.restorePerms">To undo it later, run <code>chmod 644</code>.</span>
-                    </li>
-                    <li class="jpf-mb-2">
-                        <strong data-i18n="admin.banner.docker">Docker (run on the host):</strong>
-                        <br><code id="dockerChownCmd" class="dockerChownCmd" translate="no">docker exec -u root &lt;container-name&gt; chown jellyfin:jellyfin /jellyfin/jellyfin-web/index.html</code>
-                        <br><code id="dockerChmodCmd" class="dockerChmodCmd" translate="no">docker exec -u root &lt;container-name&gt; chmod 664 /jellyfin/jellyfin-web/index.html</code>
-                    </li>
-                    <li>
-                        <strong data-i18n="admin.banner.windows">Windows (administrator command prompt):</strong>
-                        <br><code id="windowsFixCmd" class="windowsFixCmd" translate="no">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "Users:(M)" /grant "NT AUTHORITY\NetworkService:(M)"</code>
-                    </li>
-                </ul>
                 <div class="jpf-mt-3">
                     <button type="button" is="emby-button" class="raised retryInjectionBtn jpf-badge-bad" data-i18n="admin.banner.recheck">Re-check</button>
                     <span class="retryInjectionStatus jpf-subtle" style="margin-left:10px;"></span>
-                </div>
-            </div>
-
-            <div class="jpf-hidden jpf-note jpf-note-warn" id="staleVersionWarningContainer">
-                <strong class="jpf-note-title" style="color:#ffc078;"><span aria-hidden="true">⚡ </span><span data-i18n="admin.banner.staleTitle">The script tag in index.html is out of date</span></strong>
-                <span data-i18n="admin.banner.staleBody">Nothing is broken. Browsers pick up the new script within about five minutes.</span>
-                <div class="jpf-hidden jpf-note-detail" id="staleReason"></div>
-                <ul class="jpf-sublist">
-                    <li class="jpf-mb-1" data-i18n="admin.banner.staleRefresh"><strong>If something new doesn't appear:</strong> hard-refresh the browser (<strong>Ctrl+Shift+R</strong>, or <strong>Cmd+Shift+R</strong> on a Mac).</li>
-                    <li>
-                        <span data-i18n="admin.banner.staleWrite"><strong>To update the tag by itself next time:</strong> let Jellyfin write to <code>index.html</code>.</span>
-                        <div class="detectedAccountRow jpf-hidden jpf-subtle" style="margin:6px 0;" data-i18n="admin.banner.runningAsOnly">Jellyfin is running as <code class="detectedAccount"></code>. These commands give access to that account only.</div>
-                        <ul class="jpf-sublist">
-                            <li class="jpf-mb-0"><strong data-i18n="admin.banner.linux">Linux (native):</strong> <code class="linuxChownCmd" translate="no">sudo chown jellyfin:jellyfin /usr/share/jellyfin/web/index.html</code> | <code class="linuxChmodCmd" translate="no">sudo chmod 664 /usr/share/jellyfin/web/index.html</code></li>
-                            <li class="jpf-mb-0"><strong data-i18n="admin.banner.docker">Docker (run on the host):</strong> <code class="dockerChownCmd" translate="no">docker exec -u root &lt;container-name&gt; chown jellyfin:jellyfin /jellyfin/jellyfin-web/index.html</code> | <code class="dockerChmodCmd" translate="no">docker exec -u root &lt;container-name&gt; chmod 664 /jellyfin/jellyfin-web/index.html</code></li>
-                            <li><strong data-i18n="admin.banner.windows">Windows (administrator command prompt):</strong> <code class="windowsFixCmd" translate="no">icacls "C:\Program Files\Jellyfin\Server\jellyfin-web\index.html" /grant "Users:(M)" /grant "NT AUTHORITY\NetworkService:(M)"</code></li>
-                        </ul>
-                    </li>
-                </ul>
-                <div class="jpf-actions jpf-mt-3">
-                    <button type="button" is="emby-button" class="raised retryInjectionBtn jpf-badge-stale" data-i18n="admin.banner.recheck">Re-check</button>
-                    <button type="button" is="emby-button" id="dismissStaleBtn" class="raised jpf-btn-quiet" data-i18n="admin.banner.dismiss">Hide until the next update</button>
-                    <span class="retryInjectionStatus jpf-subtle"></span>
                 </div>
             </div>
 
@@ -1476,7 +1430,6 @@
 
                 'admin.banner.restartVersions': 'Running {running}. Version {newest} is installed and starts when the server process restarts.',
                 'admin.banner.failLive': 'Bonfire is set to serve the client script live, and it isn\'t reaching the page. index.html is not involved, so there is nothing to change on disk.',
-                'admin.banner.accountUnknown': 'unknown',
                 'admin.banner.rechecking': 'Re-checking…',
                 'admin.banner.stillBroken': 'Still not fixed. See the reason above.',
                 'admin.banner.fixedTitle': 'Fixed',
@@ -1492,7 +1445,6 @@
                 'admin.status.attentionMany': '{count} things need your attention.',
                 'admin.status.restart': 'Restart Jellyfin to finish updating Bonfire.',
                 'admin.status.scriptFailed': 'The client script isn\'t reaching the web client, so the switcher won\'t load.',
-                'admin.status.scriptStale': 'The script tag in index.html is out of date. Browsers catch up within minutes.',
                 'admin.status.scriptOk': 'The client script is installed and up to date.',
                 'admin.status.beta': 'This is a pre-release build. Please report anything that looks wrong.',
                 'admin.status.openPinsOne': '1 main account has profiles but no main PIN, so those profiles can switch into it.',
@@ -2121,13 +2073,11 @@
             // page load and the Re-check button can never disagree about the current state.
             function renderInjectionStatus(page, result) {
                 const warningContainer = page.querySelector('#injectionWarningContainer');
-                const staleContainer = page.querySelector('#staleVersionWarningContainer');
                 const okContainer = page.querySelector('#injectionOkContainer');
 
                 renderMechanism(page, result);
 
                 const succeeded = field(result, 'injectionSucceeded');
-                const isStale = field(result, 'isVersionStale');
                 const reason = field(result, 'failureReason');
 
                 const mech = field(result, 'mechanism');
@@ -2139,21 +2089,7 @@
                 // Only treat an explicit false as failure — a missing field must never
                 // produce a false-positive warning.
                 const failed = !restartRequired && (succeeded === false);
-                let stale = (!restartRequired && !failed && isStale === true);
-
                 const ver = field(result, 'pluginVersion');
-
-                // The stale-tag notice is advisory: the switcher works and browsers recover on
-                // their own. On hosts where index.html simply is not writable (a Program Files
-                // install, a read-only container layer) there is nothing the admin can do short
-                // of elevating, so an un-silenceable banner is just nagging. Dismissal is keyed
-                // to the running version, so a genuinely new release surfaces it again.
-                let dismissedFor = null;
-                try { dismissedFor = localStorage.getItem('bonfire-stale-dismissed'); } catch (e) { /* private mode */ }
-                if (stale && ver && dismissedFor === ver) {
-                    stale = false;
-                }
-
                 page.dataset.pluginVersion = ver || '';
                 if (ver) {
                     const badge = page.querySelector('#pluginVersionBadge');
@@ -2194,14 +2130,12 @@
                 }
 
                 if (warningContainer) warningContainer.style.display = failed ? 'block' : 'none';
-                if (staleContainer) staleContainer.style.display = stale ? 'block' : 'none';
-                if (okContainer) okContainer.style.display = (!restartRequired && !failed && !stale) ? 'block' : 'none';
+                if (okContainer) okContainer.style.display = (!restartRequired && !failed) ? 'block' : 'none';
 
                 // The banners above the tabs say this in full; Status lists it with the rest.
                 setStatus(page, 'script',
                     restartRequired ? [{ level: 'warn', text: t('admin.status.restart') }]
                     : failed ? [{ level: 'bad', text: t('admin.status.scriptFailed'), tab: 'troubleshoot', anchor: 'jpfClientScript', fix: t('admin.status.checkIt') }]
-                    : stale ? [{ level: 'info', text: t('admin.status.scriptStale'), tab: 'troubleshoot', anchor: 'jpfClientScript', fix: t('admin.status.checkIt') }]
                     : [{ level: 'ok', text: t('admin.status.scriptOk') }]);
                 if (ver && /-(beta|alpha|rc)/i.test(ver)) {
                     setStatus(page, 'beta', [{ level: 'info', text: t('admin.status.beta'), tab: 'troubleshoot', fix: t('admin.status.report') }]);
@@ -2212,71 +2146,6 @@
                     failReasonEl.textContent = reason || '';
                     failReasonEl.style.display = (failed && reason) ? 'block' : 'none';
                 }
-                const staleReasonEl = page.querySelector('#staleReason');
-                if (staleReasonEl) {
-                    staleReasonEl.textContent = reason || '';
-                    staleReasonEl.style.display = (stale && reason) ? 'block' : 'none';
-                }
-
-                if (failed || stale) {
-                    const path = field(result, 'indexPath') || '/usr/share/jellyfin/web/index.html';
-                    const isWindows = path.includes('\\') || path.includes(':');
-                    const resolvedLinuxPath = isWindows ? '/usr/share/jellyfin/web/index.html' : path;
-                    const resolvedDockerPath = isWindows ? '/jellyfin/jellyfin-web/index.html' : path;
-                    const resolvedWindowsPath = isWindows ? path : 'C:\\Program Files\\Jellyfin\\Server\\jellyfin-web\\index.html';
-
-                    page.querySelectorAll('.linuxChownCmd').forEach(function(el) { el.textContent = 'sudo chown jellyfin:jellyfin ' + resolvedLinuxPath; });
-                    page.querySelectorAll('.linuxChmodCmd').forEach(function(el) { el.textContent = 'sudo chmod 664 ' + resolvedLinuxPath; });
-                    page.querySelectorAll('.dockerChownCmd').forEach(function(el) { el.textContent = 'docker exec -u root <container-name> chown jellyfin:jellyfin ' + resolvedDockerPath; });
-                    page.querySelectorAll('.dockerChmodCmd').forEach(function(el) { el.textContent = 'docker exec -u root <container-name> chmod 664 ' + resolvedDockerPath; });
-                    // The server reports the account it actually runs as, so the command can name
-                    // it exactly. Windows Jellyfin runs either as a service (NT AUTHORITY\
-                    // NetworkService) or as the signed-in user (tray/desktop mode), and Linux
-                    // service accounts are not always "jellyfin" — without this the instructions
-                    // had to cover every case at once and grant Modify to all local users.
-                    const account = field(result, 'serviceAccount');
-                    const winGrant = account
-                        ? '/grant "' + account + ':(M)"'
-                        : '/grant "Users:(M)" /grant "NT AUTHORITY\\NetworkService:(M)"';
-                    page.querySelectorAll('.windowsFixCmd').forEach(function(el) {
-                        el.textContent = 'icacls "' + resolvedWindowsPath + '" ' + winGrant;
-                    });
-
-                    // Same idea for the POSIX commands: chown to the real service account.
-                    if (account) {
-                        const owner = account.indexOf('\\') === -1 ? account : null;
-                        if (owner) {
-                            page.querySelectorAll('.linuxChownCmd').forEach(function(el) {
-                                el.textContent = 'sudo chown ' + owner + ' ' + resolvedLinuxPath;
-                            });
-                            page.querySelectorAll('.dockerChownCmd').forEach(function(el) {
-                                el.textContent = 'docker exec -u root <container-name> chown ' + owner + ' ' + resolvedDockerPath;
-                            });
-                        }
-                    }
-
-                    // Name the account inline so it is obvious which mode this server is in.
-                    page.querySelectorAll('.detectedAccount').forEach(function(el) {
-                        el.textContent = account || t('admin.banner.accountUnknown');
-                    });
-                    page.querySelectorAll('.detectedAccountRow').forEach(function(el) {
-                        el.style.display = account ? 'block' : 'none';
-                    });
-                }
-
-                // The failure banner is written entirely around patching index.html, down
-                // to the chown commands. In middleware mode the file is deliberately left
-                // alone, so every word of that is wrong advice — and it was being handed to
-                // people whose only problem was a pending restart (issue #25). Runs last so
-                // it wins over the command-filling block above, which shows the account row
-                // whenever an account was detected.
-                const hideFileFix = failed;
-                page.querySelectorAll('.injectionFileFix').forEach(function (el) {
-                    el.style.display = hideFileFix ? 'none' : '';
-                });
-                const failAccountRow = page.querySelector('#injectionFailureAccountRow');
-                if (failAccountRow && hideFileFix) failAccountRow.style.display = 'none';
-
                 const headlineEl = page.querySelector('#injectionFailureHeadline');
                 if (headlineEl) {
                     headlineEl.textContent = t('admin.banner.failLive');
@@ -2299,8 +2168,7 @@
                     })
                     .then(function (result) {
                         renderInjectionStatus(page, result);
-                        const ok = field(result, 'injectionSucceeded') !== false
-                                   && field(result, 'isVersionStale') !== true;
+                        const ok = field(result, 'injectionSucceeded') !== false;
                         buttons.forEach(function (b) { b.disabled = false; });
                         statuses.forEach(function (s) {
                             s.textContent = ok ? '' : t('admin.banner.stillBroken');
@@ -5536,8 +5404,7 @@
                         'Jellyfin ' + (sys.Version || '?'),
                         'Browser: ' + navigator.userAgent,
                         '',
-                        'Client script: ' + (field(r, 'injectionSucceeded') === false ? 'FAILED' : 'ok')
-                            + (field(r, 'isVersionStale') ? ', tag out of date' : ''),
+                        'Client script: ' + (field(r, 'injectionSucceeded') === false ? 'FAILED' : 'ok'),
                         'Live injection ' + (field(m, 'middlewareRegistered') ? 'attached' : 'not attached')
                             + ', pages served ' + (field(m, 'middlewareServed') || 0),
                         'Restart pending: ' + (field(m, 'restartRequired') ? 'yes' : 'no'),
@@ -5896,20 +5763,6 @@
                     panicBtn.addEventListener('click', function () { savePanicCode(page); });
                 }
 
-                const dismissBtn = page.querySelector('#dismissStaleBtn');
-                if (dismissBtn && !dismissBtn.dataset.bound) {
-                    dismissBtn.dataset.bound = '1';
-                    dismissBtn.addEventListener('click', function () {
-                        try {
-                            localStorage.setItem('bonfire-stale-dismissed', page.dataset.pluginVersion || '');
-                        } catch (e) { /* private mode — the notice simply returns next load */ }
-                        // Hide the notice only — do not swap in the green "up to date" banner,
-                        // which would be untrue. Dismissing silences an advisory, it does not
-                        // change what is in index.html.
-                        const staleContainer = page.querySelector('#staleVersionWarningContainer');
-                        if (staleContainer) staleContainer.style.display = 'none';
-                    });
-                }
             }
         })();
     </script>

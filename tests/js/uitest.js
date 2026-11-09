@@ -204,8 +204,12 @@ has(html, 'page._showTab = function (name) { if (names.indexOf(name) >= 0) show(
 
 // The banners that say whether the plugin works at all stay outside the tabs.
 const beforeTabs = html.slice(0, html.indexOf('<div class="jpf-tabs"'));
-['injectionWarningContainer', 'staleVersionWarningContainer', 'betaNoticeContainer', 'injectionOkContainer']
+['injectionWarningContainer', 'betaNoticeContainer', 'injectionOkContainer']
     .forEach(function (id) { has(beforeTabs, 'id="' + id + '"', id + ' is above the tabs'); });
+// The stale-tag banner and the chmod/chown panels are gone: isVersionStale is always false
+// and the failure banner hid its file fix whenever it showed (the file is never patched).
+['staleVersionWarningContainer', 'dismissStaleBtn', 'injectionFileFix', 'linuxChownCmd', 'dockerChmodCmd', 'windowsFixCmd']
+    .forEach(function (id) { ok(html.indexOf(id) === -1, id + ' is not on the page any more'); });
 
 // Container balance across the page body: a missed </div> silently swallows a panel.
 // The page's own closing </div> sits after the inline script, so the script is cut

@@ -648,22 +648,16 @@ ok('the dashboard has a restart banner', dash.indexOf('id="restartRequiredContai
 ok('it suppresses the failure banner rather than stacking with it',
     /const failed = !restartRequired && \(succeeded === false\);/.test(dash));
 ok('and the green "all good" banner too',
-    /okContainer\.style\.display = \(!restartRequired && !failed && !stale\)/.test(dash));
-ok('the chown block is hidden: the file is never touched',
-    /const hideFileFix = failed;/.test(dash));
+    /okContainer\.style\.display = \(!restartRequired && !failed\)/.test(dash));
+// Was: hidden whenever the failure banner showed. Now the panels are gone, so nothing can
+// bring the chown advice back for a file that is never touched.
+ok('there is no chown block to show: the file is never touched',
+    !/injectionFileFix|linuxChownCmd|dockerChownCmd|hideFileFix/.test(dash));
 ok('the failure headline says index.html is not involved',
     dash.indexOf('id="injectionFailureHeadline"') !== -1
     && dash.indexOf('index.html is not involved') !== -1);
-ok('the account row cannot be re-shown after being hidden',
-    dash.indexOf('#injectionFailureAccountRow') !== -1
-    && dash.indexOf('if (failAccountRow && hideFileFix)') !== -1);
-
-// The gating must run after the block that fills in the commands, or that block's own
-// show/hide wins and the chown row comes back.
-const gateIdx = dash.indexOf('const hideFileFix');
-const fillIdx = dash.indexOf("page.querySelectorAll('.detectedAccountRow')");
-ok('gating runs after the command-filling block, not before',
-    gateIdx !== -1 && fillIdx !== -1 && gateIdx > fillIdx);
+ok('and no account row or command-filling block is left to re-show one',
+    !/injectionFailureAccountRow|detectedAccountRow|windowsFixCmd/.test(dash));
 
 // ── Result ──────────────────────────────────────────────────────────────────
 console.log();
