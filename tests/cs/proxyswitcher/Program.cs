@@ -304,6 +304,76 @@ var again = Get("/UserViews");
 Ok("the home screen is the picker again", !again.reachedJellyfin && Names(again.body) == "Profiles", Names(again.body));
 
 Console.WriteLine();
+Console.WriteLine("── On the picker, what it does not draw is refused ─────────────");
+
+// A child gets here after Switch profile, a restart or a maintenance bounce, with detail
+// pages still on the app's back stack. Everything the picker does not recognise used to
+// pass on as the main account.
+var someItem = Guid.NewGuid().ToString("N");
+var strangers = new (string method, string path, string what)[]
+{
+    ("GET", "/Items/" + someItem, "an item's details"),
+    ("GET", "/Users/" + N(MASTER) + "/Items/" + someItem, "an item's details, old route"),
+    ("GET", "/Items/" + someItem + "/Similar", "similar items"),
+    ("GET", "/Shows/" + someItem + "/Episodes", "a show's episodes"),
+    ("GET", "/Shows/" + someItem + "/Seasons", "a show's seasons"),
+    ("POST", "/Items/" + someItem + "/PlaybackInfo", "playback info"),
+    ("GET", "/Videos/" + someItem + "/stream?static=true", "a video stream"),
+    ("GET", "/Videos/" + someItem + "/master.m3u8", "an HLS playlist"),
+    ("GET", "/Items/" + someItem + "/Download", "a download"),
+    ("GET", "/Items/" + someItem + "/Images/Primary", "an item's picture that is not a tile"),
+    ("POST", "/QuickConnect/Authorize?code=123456", "a Quick Connect authorize"),
+    ("POST", "/Sessions/Playing", "a playback report"),
+    ("GET", "/Sessions", "the session list"),
+    ("GET", "/Users", "the user list"),
+    ("GET", "/Users/" + N(KIDS), "another account's record"),
+    ("POST", "/Users/Configuration", "a settings write on the main account"),
+    ("POST", "/UserFavoriteItems/" + someItem, "a favourite on the main account"),
+    ("GET", "/Library/VirtualFolders", "the library list"),
+    ("GET", "/Moonfin/Seerr/Api/request", "the request proxy, as the main account"),
+    ("POST", "/Moonfin/Settings", "a plugin settings write"),
+    ("GET", "/Totally/New/Endpoint", "something a newer app calls"),
+};
+foreach (var (method, path, what) in strangers)
+{
+    var r = Get(path, method: method);
+    Ok("on the picker, " + what + " (" + method + " " + path.Split('?')[0] + ") is refused, not passed to Jellyfin as the main account",
+       !r.reachedJellyfin, "Jellyfin saw " + seenPath + " as " + seenAuth);
+}
+
+var stranger = Get("/Items/" + someItem);
+Ok("a refusal is a 404, which the app treats as 'no such thing' (a 401 signs it out, a 403 starts its schedule check)",
+   stranger.status == 404, stranger.status.ToString());
+var similar = Get("/Items/" + someItem + "/Similar");
+Ok("a list it asks for comes back empty, not an error",
+   !similar.reachedJellyfin && similar.status == 200 && (JsonNode.Parse(similar.body) as JsonObject)?["TotalRecordCount"] is not null && Items(similar.body).Count == 0,
+   similar.status + " " + similar.body);
+
+// What the app needs to run and draw the picker still reaches Jellyfin, as the main account.
+var needed = new (string method, string path)[]
+{
+    ("GET", "/System/Info"),
+    ("GET", "/System/Info/Public"),
+    ("GET", "/System/Ping"),
+    ("GET", "/Users/Me"),
+    ("GET", "/Users/" + N(MASTER)),
+    ("GET", "/Users/" + N(MASTER) + "/Images/Primary"),
+    ("POST", "/Sessions/Capabilities/Full"),
+    ("GET", "/Moonfin/Ping"),
+    ("GET", "/Moonfin/Settings/Resolved/tv"),
+    ("GET", "/Moonfin/Seerr/Config"),
+};
+foreach (var (method, path) in needed)
+{
+    var r = Get(path, method: method);
+    Ok("on the picker, " + method + " " + path.Replace(N(MASTER), "{main}") + " still reaches Jellyfin as the main account",
+       r.reachedJellyfin && seenAuth.Contains(MOON_TOKEN), r.status + " " + seenPath);
+}
+var viewsAfter = Get("/UserViews");
+Ok("and the picker still draws", Names(viewsAfter.body) == "Profiles", Names(viewsAfter.body));
+Ok("a tile's own picture still works", Get("/Items/" + IdOf(viewsAfter.body, "Profiles") + "/Images/Primary?tag=x").status == 200);
+
+Console.WriteLine();
 Console.WriteLine("── A profile with a PIN: the keypad ────────────────────────────");
 
 var kidsId = IdOf(back, "Kids");

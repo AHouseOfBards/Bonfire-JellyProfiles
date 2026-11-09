@@ -534,10 +534,148 @@ namespace Jellyfin.Profiles.Auth
                     return true;
 
                 default:
-                    // Everything else is the main account's own business: server info,
-                    // display preferences, its own user record.
-                    return false;
+                    // Refused unless it is on the list. The main account's token is on this
+                    // request, and the person holding the app may be a child who has just
+                    // pressed Switch profile with a detail page still on the app's back
+                    // stack. Passing the unknown through gave them the main account's
+                    // libraries, playback and Quick Connect authorize.
+                    if (PickerAllows(route, context.Request.Method, session.MasterId)) return false;
+
+                    await RefuseOnPickerAsync(context, route).ConfigureAwait(false);
+                    return true;
             }
+        }
+
+        private static bool Is(string[] s, int i, string text)
+            => s.Length > i && string.Equals(s[i], text, StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// What an app may ask on the picker and have Jellyfin answer as the main account.
+        /// Everything else is refused (see <see cref="RefuseOnPickerAsync"/>). Built from
+        /// Moonfin-Core's own source (Moonfin-Client/Moonfin-Core at 330eb31; paths below are
+        /// in it), by following what the app asks between signing in and drawing its home
+        /// screen. A new entry needs a line saying what asks for it.
+        ///
+        /// <para>Tiles, the picker's own folders and pictures, Views, Resume and the other
+        /// list shapes never get here: they are answered before this.</para>
+        /// </summary>
+        internal static bool PickerAllows(Route route, string method, Guid masterId)
+        {
+            var s = route.Segments;
+            var read = HttpMethods.IsGet(method) || HttpMethods.IsHead(method);
+            var post = HttpMethods.IsPost(method);
+
+            switch (route.Kind)
+            {
+                case RouteKind.Socket:
+                    return true;
+
+                // GET /Users/Me: validates the stored token at start (session_repository.dart
+                // validateToken: a 401 here signs the app out), and again for the library
+                // scope (library_scope_service.dart) and the access-schedule probe (app_module.dart).
+                case RouteKind.Me:
+                    return true;
+
+                // GET /Users/{id}: the app's own record, as the main account. Any other id
+                // is another person's account, which a main account that is an administrator
+                // could read.
+                case RouteKind.User:
+                    return route.UserId == masterId;
+            }
+
+            if (s.Length == 0) return false;
+
+            if (read)
+            {
+                // GET /System/Info/Public: the first thing asked of a server, before sign-in
+                // (jellyfin_system_api.dart getPublicSystemInfo).
+                if (s.Length == 3 && Is(s, 0, "System") && Is(s, 1, "Info") && Is(s, 2, "Public")) return true;
+
+                // GET /System/Info: server name and version at start (jellyfin_system_api.dart getSystemInfo).
+                if (s.Length == 2 && Is(s, 0, "System") && Is(s, 1, "Info")) return true;
+
+                // GET /System/Ping: the reachability probe (connectivity_service.dart). Refused,
+                // the app would think the server is down and fall back to its offline catalogue.
+                if (s.Length == 2 && Is(s, 0, "System") && Is(s, 1, "Ping")) return true;
+
+                // GET /Users/{main}/Images/Primary: the avatar in the header
+                // (jellyfin_image_api.dart getUserImageUrl). Only the main account's own.
+                if (s.Length >= 4 && Is(s, 0, "Users") && Is(s, 2, "Images")
+                    && Guid.TryParse(s[1], out var avatarOf) && avatarOf == masterId) return true;
+
+                // GET /Branding/*: login-screen branding, anonymous on the server anyway.
+                if (s.Length >= 2 && Is(s, 0, "Branding")) return true;
+
+                // The Moonfin server plugin, read-only. Ping: found out at start, and a failure
+                // marks the plugin missing for the whole run (plugin_sync_service.dart
+                // _refreshAvailabilityStatus), so the Moonfin features would be gone from a
+                // profile opened afterwards. Settings/Resolved: the settings the plugin hands
+                // this device (syncOnLogin). Seerr/Config, Messages, Themes: the same start-up
+                // sync (_fetchSeerrConfig, server_messages_service.dart, _refreshCustomThemes).
+                // Not Seerr/Api (the request proxy, which acts as the account), nothing that
+                // writes, and not Settings/Stream: the app backs off and retries it.
+                if (Is(s, 0, "Moonfin"))
+                {
+                    if (s.Length == 2 && (Is(s, 1, "Ping") || Is(s, 1, "Messages") || Is(s, 1, "Themes"))) return true;
+                    if (s.Length == 3 && Is(s, 1, "Seerr") && Is(s, 2, "Config")) return true;
+                    if (s.Length == 3 && Is(s, 1, "Settings") && Is(s, 2, "Resolved")) return true;
+                    if (s.Length == 4 && Is(s, 1, "Settings") && Is(s, 2, "Resolved")) return true;
+                }
+
+                // Anonymous on the server, so refusing them only breaks signing in:
+                // the user grid and Quick Connect's progress (server_user_repository.dart,
+                // auth_repository.dart).
+                if (s.Length == 2 && Is(s, 0, "Users") && Is(s, 1, "Public")) return true;
+                if (s.Length == 2 && Is(s, 0, "QuickConnect") && (Is(s, 1, "Enabled") || Is(s, 1, "Connect"))) return true;
+            }
+
+            if (post)
+            {
+                // POST /Sessions/Capabilities/Full: what this device can do, sent after
+                // sign-in (session_repository.dart reportCapabilities). Changes nothing of
+                // the account's.
+                if (s.Length == 3 && Is(s, 0, "Sessions") && Is(s, 1, "Capabilities") && Is(s, 2, "Full")) return true;
+
+                // Signing in to another account on this server: anonymous routes, which take
+                // credentials and nothing from the token on the request.
+                if (s.Length == 2 && Is(s, 0, "Users") && (Is(s, 1, "AuthenticateByName") || Is(s, 1, "AuthenticateWithQuickConnect"))) return true;
+                if (s.Length == 2 && Is(s, 0, "QuickConnect") && Is(s, 1, "Initiate")) return true;
+            }
+
+            // Not Quick Connect's Authorize on purpose: it signs another device in as whoever
+            // owns the token on the request.
+            return false;
+        }
+
+        /// <summary>
+        /// The answer to something the picker does not allow. A 404: the app reads it as "no
+        /// such thing" and carries on. A 401 would sign it out (session_repository.dart),
+        /// and a 403 starts its access-schedule probe (media_server_client_factory.dart).
+        /// The list shapes the app asks for next to a detail page come back empty instead,
+        /// so a page on the back stack draws blank rather than broken.
+        /// </summary>
+        private static async Task RefuseOnPickerAsync(HttpContext context, Route route)
+        {
+            var s = route.Segments;
+            var read = HttpMethods.IsGet(context.Request.Method);
+            var tail = s.Length > 2 && Is(s, 0, "Users") ? s.Skip(2).ToArray() : s;
+
+            if (read && tail.Length == 3 && Is(tail, 0, "Items") && Is(tail, 2, "Similar")
+                || read && tail.Length == 3 && Is(tail, 0, "Shows") && (Is(tail, 2, "Episodes") || Is(tail, 2, "Seasons")))
+            {
+                await WriteJsonAsync(context, Page(context, Array.Empty<JsonObject>())).ConfigureAwait(false);
+                return;
+            }
+
+            if (read && tail.Length == 3 && Is(tail, 0, "Items")
+                && (Is(tail, 2, "SpecialFeatures") || Is(tail, 2, "LocalTrailers") || Is(tail, 2, "Ancestors")))
+            {
+                await WriteJsonAsync(context, new JsonArray()).ConfigureAwait(false);
+                return;
+            }
+
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            context.Response.Headers[HeaderNames.CacheControl] = "no-store";
         }
 
         /// <summary>A folder was opened. This is where every pick, key press and switch happens.</summary>
@@ -1290,6 +1428,9 @@ namespace Jellyfin.Profiles.Auth
 
             public Guid? UserId { get; private set; }
 
+            /// <summary>The path after the base URL, split. Set for every request, whatever its kind.</summary>
+            public string[] Segments { get; private set; } = Array.Empty<string>();
+
             public static Route Classify(HttpRequest request, string? baseUrl)
             {
                 var route = new Route();
@@ -1303,6 +1444,7 @@ namespace Jellyfin.Profiles.Auth
                 }
 
                 var s = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                route.Segments = s;
                 var get = HttpMethods.IsGet(request.Method);
                 var rel = string.Join('/', s);
 
