@@ -1577,7 +1577,7 @@
                 'admin.backup.exportFailed': 'Export failed.',
                 'admin.backup.notJson': 'That file isn\'t valid JSON.',
                 'admin.backup.notExport': 'That doesn\'t look like a Bonfire export.',
-                'admin.backup.confirm': 'This replaces every profile, PIN, Bonfire and device list with that file. It can\'t be undone.',
+                'admin.backup.confirm': 'Export first if you may want today\'s settings back. This replaces every profile, PIN, Bonfire and device list with that file. It can\'t be undone.',
                 'admin.backup.confirmTitle': 'Import configuration',
                 'admin.backup.importFailed': 'Import failed. Nothing was changed.',
 
@@ -1635,7 +1635,8 @@
                 'admin.mnt.isOpen': 'Open.',
                 'admin.mnt.saveChanges': 'Save changes',
                 'admin.mnt.closeButton': 'Close the server',
-                'admin.mnt.confirm': 'Everyone but administrators is locked out until you reopen.',
+                'admin.mnt.confirmStop': 'Everyone but administrators is locked out and what they are watching stops, until you reopen.',
+                'admin.mnt.confirm':'Everyone but administrators is locked out until you reopen.',
                 'admin.mnt.reopened': 'Reopened.',
                 'admin.viewing.serverIs': 'This server runs in {zone}.',
                 'admin.email.working': 'Working. The last test went through.',
@@ -4943,6 +4944,7 @@
                 page.querySelector('#mntMessage').value = field(state, 'message') || '';
                 page.querySelector('#mntUntil').value = isoToLocalInput(field(state, 'untilUtc'));
                 page.querySelector('#mntStop').checked = !!field(state, 'stopPlayback');
+                page._mntStopWas = on && !!field(state, 'stopPlayback');
                 page.querySelector('#mntClose').textContent = on ? t('admin.mnt.saveChanges') : t('admin.mnt.closeButton');
                 page.querySelector('#mntOpen').classList.toggle('jpf-hidden', !on);
                 setStatus(page, 'maintenance', on
@@ -5000,11 +5002,19 @@
                 if (!close || close.dataset.bound) return;
                 close.dataset.bound = '1';
                 close.addEventListener('click', function () {
+                    const stops = !!page.querySelector('#mntStop').checked;
+                    const message = stops ? t('admin.mnt.confirmStop') : t('admin.mnt.confirm');
                     if (!page.querySelector('#mntOpen').classList.contains('jpf-hidden')) {
+                        // Already closed: editing the message or time needs no question, but
+                        // newly ticking "Stop what people are watching" cuts off playback.
+                        if (stops && !page._mntStopWas) {
+                            askFirst(message, t('admin.mnt.saveChanges')).then(function () { saveMaintenance(page, true); });
+                            return;
+                        }
                         saveMaintenance(page, true);
                         return;
                     }
-                    askFirst(t('admin.mnt.confirm'), t('admin.mnt.closeButton'))
+                    askFirst(message, t('admin.mnt.closeButton'))
                         .then(function () { saveMaintenance(page, true); });
                 });
                 page.querySelector('#mntOpen').addEventListener('click', function () { saveMaintenance(page, false); });

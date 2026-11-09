@@ -875,7 +875,7 @@
   "admin.backup.exportFailed": "Eksport nie powiódł się.",
   "admin.backup.notJson": "Ten plik nie jest poprawnym JSON-em.",
   "admin.backup.notExport": "To nie wygląda na eksport Bonfire.",
-  "admin.backup.confirm": "To zastąpi każdy profil, kod PIN, Bonfire i listę urządzeń zawartością tego pliku. Tego nie można cofnąć.",
+  "admin.backup.confirm": "Najpierw wyeksportuj, jeśli możesz potrzebować obecnych ustawień. To zastąpi każdy profil, kod PIN, Bonfire i listę urządzeń zawartością tego pliku. Tego nie można cofnąć.",
   "admin.backup.confirmTitle": "Importuj konfigurację",
   "admin.backup.importFailed": "Import nie powiódł się. Nic nie zostało zmienione.",
   "admin.avatars.none": "Nie ma jeszcze awatarów. Prześlij kilka albo włącz awatary startowe.",
@@ -1040,5 +1040,6 @@
   "notice.asked": "{name} prosi o więcej czasu. Aby odpowiedzieć, otwórz Bonfire, wybierz Zarządzaj profilami, a potem {name}.",
   "admin.loadFailed": "Nie udało się wczytać ustawień. Nic nie można zapisać, dopóki się nie wczytają.",
   "admin.loadRetry": "Spróbuj ponownie",
-  "admin.saveBlocked": "Ustawienia się nie wczytały, więc nic nie zapisano. Naciśnij Spróbuj ponownie."
+  "admin.saveBlocked": "Ustawienia się nie wczytały, więc nic nie zapisano. Naciśnij Spróbuj ponownie.",
+  "admin.mnt.confirmStop": "Wszyscy poza administratorami zostają zablokowani, a to, co oglądają, zostaje zatrzymane, dopóki nie otworzysz ponownie."
 }

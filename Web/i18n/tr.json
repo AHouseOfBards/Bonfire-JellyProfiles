@@ -886,7 +886,7 @@
   "admin.backup.exportFailed": "Dışa aktarma başarısız oldu.",
   "admin.backup.notJson": "Bu dosya geçerli bir JSON değil.",
   "admin.backup.notExport": "Bu bir Bonfire dışa aktarımına benzemiyor.",
-  "admin.backup.confirm": "Bu, her profili, PIN'i, Bonfire'ı ve cihaz listesini o dosyanın içeriğiyle değiştirir. Geri alınamaz.",
+  "admin.backup.confirm": "Mevcut ayarlara ihtiyaç duyabilirseniz önce dışa aktarın. Bu, her profili, PIN'i, Bonfire'ı ve cihaz listesini o dosyanın içeriğiyle değiştirir. Geri alınamaz.",
   "admin.backup.confirmTitle": "Yapılandırmayı içe aktar",
   "admin.backup.importFailed": "İçe aktarma başarısız oldu. Hiçbir şey değişmedi.",
   "admin.avatars.none": "Henüz avatar yok. Birkaç tane yükleyin veya başlangıç avatarlarını açın.",
@@ -1052,5 +1052,6 @@
   "notice.asked": "{name} daha fazla süre istedi. Yanıtlamak için Bonfire'ı açın, Profilleri yönet'i ve ardından {name} profilini seçin.",
   "admin.loadFailed": "Ayarlar yüklenemedi. Yüklenene kadar hiçbir şey kaydedilemez.",
   "admin.loadRetry": "Tekrar dene",
-  "admin.saveBlocked": "Ayarlar yüklenmediği için hiçbir şey kaydedilmedi. Tekrar dene'ye basın."
+  "admin.saveBlocked": "Ayarlar yüklenmediği için hiçbir şey kaydedilmedi. Tekrar dene'ye basın.",
+  "admin.mnt.confirmStop": "Yöneticiler dışında herkes kilitlenir ve izledikleri durur; yeniden açana kadar."
 }

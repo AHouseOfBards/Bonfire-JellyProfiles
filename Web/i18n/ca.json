@@ -875,7 +875,7 @@
   "admin.backup.exportFailed": "L'exportació ha fallat.",
   "admin.backup.notJson": "Aquest fitxer no és un JSON vàlid.",
   "admin.backup.notExport": "Això no sembla una exportació de Bonfire.",
-  "admin.backup.confirm": "Això substitueix cada perfil, PIN, Bonfire i llista de dispositius pel contingut d'aquell fitxer. No es pot desfer.",
+  "admin.backup.confirm": "Exporta abans si pot caldre recuperar la configuració actual. Això substitueix cada perfil, PIN, Bonfire i llista de dispositius pel contingut d'aquell fitxer. No es pot desfer.",
   "admin.backup.confirmTitle": "Importa la configuració",
   "admin.backup.importFailed": "La importació ha fallat. No s'ha canviat res.",
   "admin.avatars.none": "Encara no hi ha avatars. Puja'n alguns o activa els avatars inicials.",
@@ -1040,5 +1040,6 @@
   "notice.asked": "{name} ha demanat més temps. Per respondre, obre Bonfire, tria Gestiona els perfils i després {name}.",
   "admin.loadFailed": "No s'ha pogut carregar la configuració. No es pot desar res fins que es carregui.",
   "admin.loadRetry": "Torna-ho a provar",
-  "admin.saveBlocked": "La configuració no s'ha carregat, així que no s'ha desat res. Prem Torna-ho a provar."
+  "admin.saveBlocked": "La configuració no s'ha carregat, així que no s'ha desat res. Prem Torna-ho a provar.",
+  "admin.mnt.confirmStop": "Tothom excepte els administradors queda bloquejat i el que miren s'atura, fins que ho reobris."
 }

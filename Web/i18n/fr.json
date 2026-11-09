@@ -875,7 +875,7 @@
   "admin.backup.exportFailed": "L'export a échoué.",
   "admin.backup.notJson": "Ce fichier n'est pas un JSON valide.",
   "admin.backup.notExport": "Cela ne ressemble pas à un export Bonfire.",
-  "admin.backup.confirm": "Cela remplace chaque profil, code PIN, Bonfire et liste d'appareils par le contenu de ce fichier. C'est irréversible.",
+  "admin.backup.confirm": "Exportez d'abord si vous pourriez avoir besoin des paramètres actuels. Cela remplace chaque profil, code PIN, Bonfire et liste d'appareils par le contenu de ce fichier. C'est irréversible.",
   "admin.backup.confirmTitle": "Importer la configuration",
   "admin.backup.importFailed": "L'import a échoué. Rien n'a été modifié.",
   "admin.avatars.none": "Aucun avatar pour l'instant. Envoyez-en, ou activez les avatars de départ.",
@@ -1040,5 +1040,6 @@
   "notice.asked": "{name} a demandé plus de temps. Pour répondre, ouvrez Bonfire, choisissez Gérer les profils, puis {name}.",
   "admin.loadFailed": "Impossible de charger les paramètres. Rien ne peut être enregistré tant qu'ils ne sont pas chargés.",
   "admin.loadRetry": "Réessayer",
-  "admin.saveBlocked": "Les paramètres ne sont pas chargés, donc rien n'a été enregistré. Appuyez sur Réessayer."
+  "admin.saveBlocked": "Les paramètres ne sont pas chargés, donc rien n'a été enregistré. Appuyez sur Réessayer.",
+  "admin.mnt.confirmStop": "Tout le monde sauf les administrateurs est bloqué et ce qu'ils regardent s'arrête, jusqu'à ce que vous rouvriez."
 }
