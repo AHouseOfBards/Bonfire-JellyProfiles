@@ -52,7 +52,9 @@ namespace Jellyfin.Profiles.Controllers
         {
             _logger.LogDebug("ProfilesPlugin: GetProfiles endpoint called.");
 
-            var config = Plugin.Instance?.Configuration;
+            // A copy: this route only reads, and walks several lists while another request
+            // may be editing them. See ReadConfigSnapshot.
+            var config = ReadConfigSnapshot();
             if (config == null) return BadRequest("Plugin configuration missing.");
 
             // Resolve Master ID from caller claims context (preventing spoofing)
@@ -751,7 +753,9 @@ namespace Jellyfin.Profiles.Controllers
             var sw = System.Diagnostics.Stopwatch.StartNew();
             long tAuth = 0, tPolicy = 0, tSession = 0;
 
-            var config = Plugin.Instance?.Configuration;
+            // A copy: the lists are only read here. The PIN upgrade and the cross-household
+            // record find the live row themselves, under the lock.
+            var config = ReadConfigSnapshot();
             if (config == null) return BadRequest("Plugin configuration missing.");
 
             // Master user is always valid. If no mapping exists for master, check if request is master user ID.
@@ -1028,7 +1032,8 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public ActionResult VerifyPin([FromBody] SwitchProfileRequest request)
         {
-            var config = Plugin.Instance?.Configuration;
+            // A copy: the lists are only read here, and a PIN upgrade finds the live row itself.
+            var config = ReadConfigSnapshot();
             if (config == null) return BadRequest("Plugin configuration missing.");
 
             var currentUserIdVal = GetCurrentUserId();
@@ -3784,7 +3789,10 @@ namespace Jellyfin.Profiles.Controllers
 
             // Resolve to the master account (a sub-profile calling this should see
             // its master's devices, not its own — sub-profiles don't have sessions).
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            // The lists below are read from a copy; the live configuration is only touched
+            // under the lock further down, where this route writes.
+            var view = ReadConfigSnapshot() ?? config;
+            var currentMapping = view.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
 
             // Every device already whitelisted on one of this account's profiles MUST appear in
@@ -3792,7 +3800,7 @@ namespace Jellyfin.Profiles.Controllers
             // AllowedDeviceIds from the checkboxes it rendered, so any whitelisted device that
             // is missing from this response gets silently dropped on the next save — and a
             // whitelist that empties out stops restricting anything at all.
-            var whitelistedDeviceIds = config.Mappings
+            var whitelistedDeviceIds = view.Mappings
                 .Where(m => m.MasterUserId == masterUserId && m.AllowedDeviceIds != null)
                 .SelectMany(m => m.AllowedDeviceIds!)
                 .Where(id => !string.IsNullOrEmpty(id))
@@ -3804,7 +3812,7 @@ namespace Jellyfin.Profiles.Controllers
             // treating Guid.Empty as "visible to all" leaked every device on the server to
             // every account, because on an existing install *every* record is Guid.Empty.
             var householdUserIds = new HashSet<Guid> { masterUserId };
-            foreach (var m in config.Mappings.Where(m => m.MasterUserId == masterUserId))
+            foreach (var m in view.Mappings.Where(m => m.MasterUserId == masterUserId))
             {
                 householdUserIds.Add(m.ProfileUserId);
             }

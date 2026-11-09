@@ -316,6 +316,44 @@ Ok("too many wrong tries lock the PIN", refusedAt > 0, "first 429 at " + refused
 Ok("and the lock is written once, not once per refused try", locks.Count == 1 && locks[0].UserId == MAIN,
    locks.Count + " lines");
 
+// ── Routes read the configuration as a copy ──────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── A signed-in route does not enumerate the live lists ─────────");
+{
+    // A writer adds and removes a mapping under the configuration lock while the route
+    // runs. A route that walks the live list throws "collection was modified" now and then;
+    // one that reads a copy never does.
+    var lockField = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController", true)
+        .GetField("ConfigLock", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+    var theLock = lockField.GetValue(null);
+    var filler = new List<object>();
+    lock (theLock)
+        for (var i = 0; i < 4000; i++) { var f = Map(Guid.NewGuid(), Guid.NewGuid(), "filler" + i); filler.Add(f); }
+    var stop = false;
+    var writer = new System.Threading.Thread(() =>
+    {
+        while (!stop)
+        {
+            var extra = Activator.CreateInstance(mapType);
+            mapType.GetProperty("ProfileUserId").SetValue(extra, Guid.NewGuid());
+            mapType.GetProperty("MasterUserId").SetValue(extra, Guid.NewGuid());
+            lock (theLock) { mappings.Add(extra); mappings.Remove(extra); }
+        }
+    });
+    writer.Start();
+    var raced = 0;
+    var firstError = "";
+    for (var i = 0; i < 400; i++)
+    {
+        var r = Call("GetProfiles", UserPrincipal(MAIN));
+        if (r.status == -500) { raced++; if (firstError == "") firstError = r.value as string; }
+    }
+    stop = true;
+    writer.Join();
+    lock (theLock) foreach (var f in filler) mappings.Remove(f);
+    Ok("GetProfiles never fails because the list changed under it (" + raced + " of 400)", raced == 0, firstError);
+}
+
 Console.WriteLine();
 try { Directory.Delete(tempDir, true); } catch { }
 if (fails.Count > 0)

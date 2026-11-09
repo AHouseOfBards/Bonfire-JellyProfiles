@@ -327,10 +327,17 @@ namespace Jellyfin.Profiles.Controllers
             {
                 lock (ConfigLock)
                 {
+                    // The row to change is the live one: callers may hold a snapshot's copy,
+                    // and an upgrade written to a copy is lost. Falls back to the row given
+                    // when it is not in the live list.
+                    var row = Plugin.Instance?.Configuration?.Mappings?
+                        .FirstOrDefault(m => m.ProfileUserId == mapping.ProfileUserId) ?? mapping;
+
                     // Re-check inside the lock — a concurrent request may have upgraded it.
-                    if (IsLegacyPinHash(mapping.PinHash))
+                    if (IsLegacyPinHash(row.PinHash))
                     {
-                        mapping.PinHash = HashPin(pin);
+                        row.PinHash = HashPin(pin);
+                        mapping.PinHash = row.PinHash;
                         Plugin.Instance?.SaveConfiguration();
                         _logger.LogInformation(
                             "ProfilesPlugin: Upgraded legacy PIN hash for profile {Id} to PBKDF2.",
@@ -1117,13 +1124,12 @@ namespace Jellyfin.Profiles.Controllers
             // scoped by ownership. KnownDevices is a single server-wide list, so without this
             // every household would see every other household's hardware.
             var callerId = GetCurrentUserId();
-            var ownerId = callerId == null
-                ? Guid.Empty
-                : Auth.DeviceRegistry.HouseholdOf(Plugin.Instance?.Configuration, callerId.Value);
+            var view = ReadConfigSnapshot();
 
             // Households only, as the session listener does: any other signed-in account
             // would otherwise be able to write rows into the device list.
-            if (callerId == null || !Auth.DeviceRegistry.IsHousehold(ReadConfigSnapshot(), callerId.Value)) return;
+            if (callerId == null || !Auth.DeviceRegistry.IsHousehold(view, callerId.Value)) return;
+            var ownerId = Auth.DeviceRegistry.HouseholdOf(view, callerId.Value);
 
             Auth.DeviceRegistry.RecordAndSave(
                 deviceId,
