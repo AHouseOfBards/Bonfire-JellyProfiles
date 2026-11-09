@@ -1056,7 +1056,12 @@
         'account.devicesCount': 'Known devices: {count}',
         'account.devicesCountSubtitle': 'Which screens use this account',
         'account.manageDevices': 'Manage devices',
-        'account.moreSummary': 'Ask for PIN, home network and auto-lock',
+        'account.moreSummary': 'Ask for PIN, home network, auto-lock and layout',
+        'account.layout': 'Layout on this device',
+        'account.layoutAuto': 'Automatic',
+        'account.layoutTv': 'TV layout',
+        'account.layoutStandard': 'Standard layout',
+        'account.layoutHint': 'Only this device. Larger, for a TV.',
         'account.emailOff': 'Email is not set up. Ask your server admin to turn it on in the Bonfire dashboard.',
         'account.devicesSubtitle': 'Rename, merge or forget them',
         'account.zoneTitle': 'Time zone',
@@ -1425,7 +1430,11 @@
             themeKey: 'jellyfin_profiles_theme',
             // The last ?part=custom answer, so a profile on a custom theme starts in it
             // instead of in Bonfire until the server answers.
-            customThemesKey: 'jellyfin_profiles_custom_themes'
+            customThemesKey: 'jellyfin_profiles_custom_themes',
+            // This device's answer to "TV layout or standard": 'tv' or 'standard'. Absent is
+            // Automatic, so choosing Automatic removes the key rather than storing 'auto'.
+            // Device only: the same account is signed in on a phone and a television.
+            layoutKey: 'jellyfin_profiles_layout'
         },
         pluginId: 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9',
         isManageMode: false,
@@ -3042,15 +3051,24 @@
             // attribute this touches, and a write that changes nothing would still be a
             // mutation record and a second pass through here on every unrelated class
             // change Jellyfin makes.
+            //
+            // This device's own choice comes first (Settings → Your account → More), read
+            // from storage once and then kept: apply() runs on every class change Jellyfin
+            // makes, and none of those should touch localStorage.
+            if (this._layoutChoice === undefined) this._layoutChoice = this._readLayoutChoice();
             const apply = () => {
-                const isTv = root.classList.contains('layout-tv')
-                    || (!root.classList.contains('layout-mobile')
-                        && !root.classList.contains('layout-desktop')
-                        && this._uaLooksLikeTv(navigator.userAgent));
+                const choice = this._layoutChoice;
+                const isTv = choice === 'tv' ? true
+                    : choice === 'standard' ? false
+                    : root.classList.contains('layout-tv')
+                        || (!root.classList.contains('layout-mobile')
+                            && !root.classList.contains('layout-desktop')
+                            && this._uaLooksLikeTv(navigator.userAgent));
                 if (isTv !== root.classList.contains('jpf-tv')) {
                     root.classList.toggle('jpf-tv', isTv);
                 }
             };
+            this._applyTvClass = apply;
 
             apply();
             root.classList.toggle('jpf-no-flex-gap', !this._supportsFlexGap());
@@ -3061,6 +3079,29 @@
                 attributes: true,
                 attributeFilter: ['class'],
             });
+        },
+
+        /// This device's layout answer: 'tv', 'standard', or null for Automatic. Anything
+        /// else in storage, or storage that will not answer, is Automatic.
+        _readLayoutChoice: function () {
+            let raw = null;
+            try { raw = localStorage.getItem(this.config.layoutKey); } catch (e) { /* blocked */ }
+            return raw === 'tv' || raw === 'standard' ? raw : null;
+        },
+
+        /// Settings → Your account → More → Layout on this device. 'auto' forgets the
+        /// answer (the key is removed, never stored as a value that could go stale);
+        /// anything but the three is ignored. Applied at once, and by the same function
+        /// the class observer runs, so the two cannot disagree about which one wins.
+        setLayoutChoice: function (value) {
+            if (value !== 'auto' && value !== 'tv' && value !== 'standard') return;
+            this._layoutChoice = value === 'auto' ? null : value;
+            try {
+                if (this._layoutChoice) localStorage.setItem(this.config.layoutKey, this._layoutChoice);
+                else localStorage.removeItem(this.config.layoutKey);
+            } catch (e) { /* blocked: it holds until the page is reloaded */ }
+            if (this._applyTvClass) this._applyTvClass();
+            else this.applyDeviceClasses();
         },
 
         init: function () {
@@ -9209,6 +9250,15 @@
                     <select id="account-lockout-select">${this.renderLockoutOptions(main.lockoutMinutes, false)}</select>
                     <div class="form-hint">${t('profileForm.autoLockHintEdit')}</div>
                 </div>
+                <div class="form-group">
+                    <label for="account-layout-select">${t('account.layout')}</label>
+                    <select id="account-layout-select">
+                        <option value="auto"${!this._layoutChoice ? ' selected' : ''}>${t('account.layoutAuto')}</option>
+                        <option value="tv"${this._layoutChoice === 'tv' ? ' selected' : ''}>${t('account.layoutTv')}</option>
+                        <option value="standard"${this._layoutChoice === 'standard' ? ' selected' : ''}>${t('account.layoutStandard')}</option>
+                    </select>
+                    <div class="form-hint">${t('account.layoutHint')}</div>
+                </div>
             `;
 
             // A count and a button: the list, with rename, merge and forget on each row,
@@ -9380,6 +9430,16 @@
                     else { lockSel.value = String(before); this.revealFold(lockSel); }
                 });
             });
+
+            // Not through saveAccount: this is this device's answer, kept on the device,
+            // and the account on the server never hears of it.
+            const layoutSel = content.querySelector('#account-layout-select');
+            if (layoutSel) {
+                layoutSel.addEventListener('change', () => {
+                    this.setLayoutChoice(layoutSel.value);
+                    say(t('account.saved'));
+                });
+            }
 
             const manage = content.querySelector('#account-manage-devices');
             if (manage) manage.addEventListener('click', () => this.showAccountDevices());
