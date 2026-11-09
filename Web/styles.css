@@ -2450,7 +2450,9 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 /* Thicker and further out. At three metres a 2px outline sitting 2px
    from the control is not findable, and finding the focused control is
-   the entire navigation model on a remote. */
+   the entire navigation model on a remote. Not the profile card: an outline is a
+   rectangle in Chromium 53 whatever the border-radius, so it boxed a round avatar
+   and its name, and the avatar already carries the ring, glow and scale. */
 .jpf-tv .color-dot:focus,
 .jpf-tv .avatar-library-item:focus,
 .jpf-tv .library-check-label:focus,
@@ -2459,7 +2461,6 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-tv #pin-reset-new:focus, .jpf-tv #pin-reset-code:focus,
 .jpf-tv #profiles-floating-bubble:focus,
 .jpf-tv .profile-section :focus,
-.jpf-tv .profile-card:focus,
 .jpf-tv .profiles-btn:focus,
 .jpf-tv .jpf-choice:focus,
 .jpf-tv .jpf-theme-option:focus,
