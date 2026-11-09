@@ -233,6 +233,7 @@
         padding: 0.55em 0; border-bottom: 1px solid rgba(128, 128, 128, 0.2);
     }
     #profilesConfigurationPage .jpf-ob-name { flex: 1 1 12em; font-weight: 600; }
+    #profilesConfigurationPage .jpf-ob-row.jpf-ob-off { opacity: 0.55; }
     #profilesConfigurationPage .jpf-ob-note { display: block; font-weight: 400; margin: 0.2em 0 0; }
     #profilesConfigurationPage .jpf-ob-box { display: inline-flex; align-items: center; margin-left: 1.5em; cursor: pointer; }
     #profilesConfigurationPage .jpf-ob-box input { margin: 0 0.4em 0 0; }
@@ -1987,6 +1988,7 @@
                     // below failing must not lock Save, and one above must.
                     page._configLoaded = true;
                     showConfigLoadError(page, false);
+                    syncDependentToggles(page);
                     loadMappings(page);
                     loadAuditLogs(page);
                     loadAvatarLibrary(page);
@@ -5510,6 +5512,20 @@
                 syncOnboardingRows(page);
             }
 
+            // Settings that do nothing while another is off are shown as unavailable rather
+            // than left to look live (P2-606, P2-609). Disabled boxes are still read by Save,
+            // so the stored choice survives a visit with the dependency off; the theme step's
+            // own boxes are not disabled for the same reason (a disabled step is not sent).
+            function syncDependentToggles(page) {
+                const pin = page.querySelector('#enableClientPinLogin');
+                const list = page.querySelector('#enableClientProfileList');
+                const anywhere = page.querySelector('#clientPinLoginFromAnywhere');
+                if (pin && list && anywhere) anywhere.disabled = !pin.checked && !list.checked;
+                const themes = page.querySelector('#allowProfileThemes');
+                const row = page.querySelector('.jpf-ob-row[data-step="theme"]');
+                if (themes && row) row.classList.toggle('jpf-ob-off', !themes.checked);
+            }
+
             function syncOnboardingRows(page) {
                 page.querySelectorAll('.jpfObShow').forEach(function (show) {
                     const req = page.querySelector('.jpfObRequired[data-step="' + show.getAttribute('data-step') + '"]');
@@ -5653,6 +5669,13 @@
                     modeSelect.addEventListener('change', function () { updateInjectionModeHelp(page); });
                 }
 
+                ['#enableClientPinLogin', '#enableClientProfileList', '#allowProfileThemes'].forEach(function (sel) {
+                    const box = page.querySelector(sel);
+                    if (box && !box.dataset.depBound) {
+                        box.dataset.depBound = '1';
+                        box.addEventListener('change', function () { syncDependentToggles(page); });
+                    }
+                });
                 const retryBtn = page.querySelector('#configLoadRetry');
                 if (retryBtn && !retryBtn.dataset.bound) {
                     retryBtn.dataset.bound = '1';
