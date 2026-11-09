@@ -352,7 +352,7 @@ var tiles2 = Moon("/Users/" + N(ADMIN) + "/Items?ParentId=" + IdOf(home.body, "P
 var minted = sessionLog.Minted.Count;
 var again = Moon("/Users/" + N(ADMIN) + "/Items?ParentId=" + IdOf(tiles2, "Kid"));
 Ok("the picker will not open the kid's profile", sessionLog.Minted.Count == minted, string.Join(",", sessionLog.Minted));
-Ok("and says why", Items(again.body).Any(i => ((string)i["Name"] ?? "").Contains("maintenance")), again.body);
+Ok("and says why", Items(again.body).Any(i => ((string)i["Name"] ?? "").Contains("Back at 3")), again.body);
 
 Console.WriteLine();
 Console.WriteLine("── Quick Connect: a profile authorizing a device ───────────────");
