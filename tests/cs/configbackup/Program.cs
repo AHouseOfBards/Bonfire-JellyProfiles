@@ -104,10 +104,14 @@ var legacyLoaded = new Plugin(new StubPaths(legacy), new RealXml());
 var legacyRow = legacyLoaded.Configuration.KnownDevices.Single();
 Ok("it loads, with an empty owners list", legacyRow.Owners != null && legacyRow.Owners.Count == 0);
 Ok("and is owned by the household that last used it, and nobody else", legacyRow.OwnedBy(HOUSE) && !legacyRow.OwnedBy(KID));
+Ok("and the list of cross-household entries, new in 1.7.4, is empty rather than missing", legacyLoaded.Configuration.CrossHouseholdEntries != null && legacyLoaded.Configuration.CrossHouseholdEntries.Count == 0);
+legacyLoaded.Configuration.CrossHouseholdEntries.Add(new CrossHouseholdEntry { EnteredBy = HOUSE, ProfileUserId = KID, DeviceId = "tv-1", WithoutPin = true });
 legacyRow.Owners = new System.Collections.Generic.List<Guid> { HOUSE, KID };
 legacyLoaded.SaveConfiguration();
 var roundTrip = new Plugin(new StubPaths(legacy), new RealXml()).Configuration.KnownDevices.Single();
 Ok("owners survive a save and a load", roundTrip.OwnedBy(HOUSE) && roundTrip.OwnedBy(KID) && roundTrip.Owners.Count == 2);
+var entryBack = new Plugin(new StubPaths(legacy), new RealXml()).Configuration.CrossHouseholdEntries.SingleOrDefault();
+Ok("and so does a cross-household entry", entryBack != null && entryBack.EnteredBy == HOUSE && entryBack.ProfileUserId == KID && entryBack.DeviceId == "tv-1" && entryBack.WithoutPin);
 
 foreach (var d in new[] { dir, fresh, cleared, nothing, legacy }) { try { Directory.Delete(d, true); } catch { } }
 

@@ -487,7 +487,7 @@ Console.WriteLine();
 Console.WriteLine("── A kick lasts ────────────────────────────────────────────────");
 
 // The kicked member still had the code, and could type it again straight away.
-var kickStart = controllerSrc.IndexOf("public ActionResult KickBonfireMember", StringComparison.Ordinal);
+var kickStart = controllerSrc.IndexOf("KickBonfireMember([FromBody]", StringComparison.Ordinal);
 var kickEnd = kickStart < 0 ? -1 : controllerSrc.IndexOf("[Http", kickStart, StringComparison.Ordinal);
 var kickBody = kickStart < 0 || kickEnd < 0 ? "" : controllerSrc.Substring(kickStart, kickEnd - kickStart);
 Check("kicking a member replaces the code", kickBody.Contains("group.BonfireCode = GenerateSecureCode();"), true);

@@ -900,6 +900,19 @@ namespace Jellyfin.Profiles.Controllers
 
             tSession = sw.ElapsedMilliseconds;
 
+            // Into another household: remembered, so taking the door away later can sign
+            // this device out of it (R-1302). See CrossHouseholdEntry.
+            if (isCrossAccountMasterSwitch)
+            {
+                lock (ConfigLock)
+                {
+                    var live = Plugin.Instance?.Configuration;
+                    var withoutPin = !string.IsNullOrEmpty(pinHashToCheck) && householdLanBypass;
+                    if (live != null && CrossHouseholdEntries.Record(live, callerMasterUserId, targetUser.Id, authRequest.DeviceId, withoutPin, DateTime.UtcNow))
+                        Plugin.Instance?.SaveConfiguration();
+                }
+            }
+
             // Record profile switch audit log
             RecordAuditLog(masterUser?.Username ?? "Unknown", targetUser.Username);
 
@@ -2383,7 +2396,7 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public ActionResult KickBonfireMember([FromBody] KickBonfireRequest request)
+        public async Task<ActionResult> KickBonfireMember([FromBody] KickBonfireRequest request)
         {
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
@@ -2396,6 +2409,7 @@ namespace Jellyfin.Profiles.Controllers
             if (callerMapping != null && callerMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can manage Bonfire groups.");
 
+            string? newCode = null;
             lock (ConfigLock)
             {
                 var group = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterId);
@@ -2410,8 +2424,15 @@ namespace Jellyfin.Profiles.Controllers
                     // is already a member and does not need it.
                     group.BonfireCode = GenerateSecureCode();
                     Plugin.Instance?.SaveConfiguration();
-                    return Ok(new { BonfireCode = group.BonfireCode });
+                    newCode = group.BonfireCode;
                 }
+            }
+
+            if (newCode != null)
+            {
+                // And what they had already opened is closed too (R-1302).
+                await SignOutClosedEntriesAsync().ConfigureAwait(false);
+                return Ok(new { BonfireCode = newCode });
             }
 
             return NotFound("Member not found in your Bonfire group.");
@@ -2455,7 +2476,7 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult LeaveBonfire()
+        public async Task<ActionResult> LeaveBonfire()
         {
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
@@ -2464,6 +2485,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
 
+            bool left = false;
             lock (ConfigLock)
             {
                 var joinedGroup = config.BonfireGroups.FirstOrDefault(g => g.MemberUserIds.Contains(masterId));
@@ -2471,8 +2493,14 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     joinedGroup.MemberUserIds.Remove(masterId);
                     Plugin.Instance?.SaveConfiguration();
-                    return Ok();
+                    left = true;
                 }
+            }
+
+            if (left)
+            {
+                await SignOutClosedEntriesAsync().ConfigureAwait(false);
+                return Ok();
             }
 
             return BadRequest("You are not in any Bonfire group.");
@@ -2482,7 +2510,7 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult DeleteBonfireGroup()
+        public async Task<ActionResult> DeleteBonfireGroup()
         {
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
@@ -2491,6 +2519,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
 
+            bool deleted = false;
             lock (ConfigLock)
             {
                 var group = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterId);
@@ -2498,8 +2527,14 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     config.BonfireGroups.Remove(group);
                     Plugin.Instance?.SaveConfiguration();
-                    return Ok();
+                    deleted = true;
                 }
+            }
+
+            if (deleted)
+            {
+                await SignOutClosedEntriesAsync().ConfigureAwait(false);
+                return Ok();
             }
 
             return BadRequest("You do not own a Bonfire group.");
@@ -2509,7 +2544,7 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult UpdateBonfireSettings([FromBody] UpdateBonfireSettingsRequest request)
+        public async Task<ActionResult> UpdateBonfireSettings([FromBody] UpdateBonfireSettingsRequest request)
         {
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
@@ -2556,6 +2591,8 @@ namespace Jellyfin.Profiles.Controllers
                 Plugin.Instance?.SaveConfiguration();
             }
 
+            // Hiding profiles, or withdrawing the home-network consent, closes doors too.
+            await SignOutClosedEntriesAsync().ConfigureAwait(false);
             return Ok();
         }
 

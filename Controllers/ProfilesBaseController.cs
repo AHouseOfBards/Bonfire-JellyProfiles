@@ -1616,6 +1616,74 @@ namespace Jellyfin.Profiles.Controllers
             return linked;
         }
 
+        /// <summary>
+        /// Signs out every device that came into another household through a door that has
+        /// since closed: a kick, a leave, a deleted Bonfire, or the owner hiding its profiles
+        /// (R-1302). Each entry is asked what /switch would ask now, on the home network so a
+        /// LAN-only consent still counts as a door; one that would be refused is signed out
+        /// on that device only and forgotten. Never throws: the change that called it has
+        /// already been made and saved.
+        /// </summary>
+        protected async Task<int> SignOutClosedEntriesAsync()
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return 0;
+
+            List<CrossHouseholdEntry> entries;
+            List<ProfileMapping> mappings;
+            lock (ConfigLock)
+            {
+                entries = config.CrossHouseholdEntries?.Select(e => e.Copy()).ToList() ?? new List<CrossHouseholdEntry>();
+                mappings = config.Mappings.ToList();
+            }
+            if (entries.Count == 0) return 0;
+
+            var closed = new List<CrossHouseholdEntry>();
+            foreach (var e in entries)
+            {
+                var rules = EvaluateSwitch(mappings, e.EnteredBy, e.ProfileUserId,
+                    GetLinkedMasterUserIds(e.EnteredBy, config), isLocal: true);
+                if (rules.Unauthorized || rules.Refusal != null) closed.Add(e);
+                // In on the owner's home-network consent alone, which has since been withdrawn.
+                else if (e.WithoutPin && !string.IsNullOrEmpty(rules.Target?.PinHash) && !rules.HouseholdLanBypass) closed.Add(e);
+            }
+            if (closed.Count == 0) return 0;
+
+            lock (ConfigLock)
+            {
+                config.CrossHouseholdEntries?.RemoveAll(e => closed.Any(c => c.ProfileUserId == e.ProfileUserId
+                    && string.Equals(c.DeviceId, e.DeviceId, StringComparison.Ordinal)));
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            int signedOut = 0;
+            foreach (var e in closed)
+            {
+                try
+                {
+                    // The (account, device) pair: a device id alone would sign every account on
+                    // that television out, its own household's included.
+                    var devices = _deviceManager?.GetDevices(new Jellyfin.Data.Queries.DeviceQuery { DeviceId = e.DeviceId, UserId = e.ProfileUserId }).Items;
+                    if (devices == null) continue;
+                    foreach (var device in devices)
+                    {
+                        await _sessionManager.Logout(device).ConfigureAwait(false);
+                        signedOut++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "ProfilesPlugin: could not sign {ProfileId} out on device {DeviceId}.", e.ProfileUserId, e.DeviceId);
+                }
+            }
+
+            if (signedOut > 0)
+            {
+                _logger.LogInformation("ProfilesPlugin: signed out {Count} device(s) that had come in from another household.", signedOut);
+            }
+            return signedOut;
+        }
+
         protected int GetMaxProfilesForUser(Guid userId, PluginConfiguration config)
         {
             lock (ConfigLock)
