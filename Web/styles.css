@@ -1271,8 +1271,12 @@ body.profiles-no-scroll [id*="spinner"] {
 
    Scoped to the scrolling container on purpose: sticky positions
    against the nearest scrolling ancestor, and this row only ever
-   appears inside that one. position: sticky is Chrome 56, so it holds
-   on both television baselines.
+   appears inside that one. position: sticky is Chrome 56, so it holds on
+   webOS 5 and Tizen 6 but NOT on webOS 4.5 (Chromium 53), which ignores
+   it. The fallback there is that the row is the last child of the form,
+   so without sticky it is simply the end of the form: still reachable,
+   because the remote's focus move scrolls the focused control into view
+   (_focusVisibly). It just is not pinned. cssbaseline.js names this.
 
    The negative margins pull the bar out through the container's 2rem
    padding so its backdrop spans the full width, and the backdrop has
