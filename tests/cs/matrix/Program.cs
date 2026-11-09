@@ -597,7 +597,9 @@ if (iqType != null)
 
     var cfgType2 = asm.GetType("Jellyfin.Profiles.Configuration.PluginConfiguration", true);
     var cfg2 = Activator.CreateInstance(cfgType2);
-    Check("a new or upgraded server starts on standard", cfgType2.GetProperty("ProfileImageQuality").GetValue(cfg2), "standard");
+    // Was "starts on standard". The default is now maximum (a fresh install); a saved level
+    // is kept, which tests/cs/goldenconfig checks against a real file.
+    Check("a fresh install starts on maximum", cfgType2.GetProperty("ProfileImageQuality").GetValue(cfg2), "maximum");
 }
 
 var baseSrc = System.IO.File.ReadAllText(RepoPath("Controllers", "ProfilesBaseController.cs"));

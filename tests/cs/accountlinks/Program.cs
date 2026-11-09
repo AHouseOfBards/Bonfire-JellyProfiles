@@ -621,7 +621,8 @@ Section("A picture that is refused leaves the one the profile has");
 
 // R-1108: SaveProfileImage and CopyLibraryAvatarToProfile answered a bare null for every
 // failure, and the edit stored that null as "no picture". A 3 MB upload deleted the profile's
-// picture and answered 200. R-1109: any string under /plugins/profiles/image/ was stored as it came.
+// picture and answered 200. (The pictures here are 9 MB: a fresh install's picture quality is
+// Maximum, 8 MB, so 3 MB is a picture it accepts. They are over the limit that is in force.) R-1109: any string under /plugins/profiles/image/ was stored as it came.
 {
     var imageFolder = Path.Combine(tempDir, "plugins", "ProfilesManagement");
     Directory.CreateDirectory(imageFolder);
@@ -643,8 +644,8 @@ Section("A picture that is refused leaves the one the profile has");
         return Call("UpdateProfile", OTHER, B(body.GroupBy(f => f.Item1).Select(g => g.Last()).ToArray()));
     }
 
-    r = Edit(("ProfileImage", Png(3 * 1024 * 1024)), ("ProfileImageThumb", ""));
-    Ok("a 3 MB picture is refused with a reason", r.status == 400 && ((string)r.value ?? "").Contains("too large"), Text(r));
+    r = Edit(("ProfileImage", Png(9 * 1024 * 1024)), ("ProfileImageThumb", ""));
+    Ok("a 9 MB picture is refused with a reason", r.status == 400 && ((string)r.value ?? "").Contains("too large"), Text(r));
     Ok("and the picture it has is untouched", Untouched(), Stored());
 
     r = Edit(("ProfileImage", "data:image/png;base64,@@@not base64@@@"));
@@ -661,7 +662,7 @@ Section("A picture that is refused leaves the one the profile has");
        r.status == 400 && ((string)r.value ?? "").Contains("avatar library") && Untouched(), Text(r));
     cfgType.GetProperty("DisallowCustomAvatarUploads").SetValue(config, false);
 
-    r = Edit(("ProfileName", "Kidlet"), ("ProfileImage", Png(3 * 1024 * 1024)));
+    r = Edit(("ProfileName", "Kidlet"), ("ProfileImage", Png(9 * 1024 * 1024)));
     Ok("a refused picture stops the rest of the edit too: the name is not changed",
        r.status == 400 && (string)P(Row(OKID), "ProfileName") == "Kid" && Untouched(), Text(r));
 
@@ -712,7 +713,7 @@ Section("A picture that is refused leaves the one the profile has");
 
     // Creating: refused before the account exists.
     var usersBefore = world.Users.Count;
-    try { r = Call("CreateProfile", OTHER, B(("ProfileName", "Fresh"), ("ProfileImage", Png(3 * 1024 * 1024)))); }
+    try { r = Call("CreateProfile", OTHER, B(("ProfileName", "Fresh"), ("ProfileImage", Png(9 * 1024 * 1024)))); }
     catch (Exception e) { r = (-1, (e.InnerException ?? e).GetType().Name); }   // the stub makes no accounts: getting that far is the failure
     Ok("creating with a refused picture answers 400 and makes no account", r.status == 400 && world.Users.Count == usersBefore, Text(r));
 }

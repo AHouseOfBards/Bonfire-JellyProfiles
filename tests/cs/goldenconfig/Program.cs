@@ -313,6 +313,33 @@ if (files.Count > 0)
     Ok("what it was told is not written back as the old field", !Write(Read(Bare("native"))).Contains("SwitcherMode"));
 }
 
+// Picture quality across an upgrade. A fresh install starts on maximum; a server that saved a
+// level keeps it, whatever it is. A file with no ProfileImageQuality at all (one written before
+// the setting existed) is the one case that takes the new default: XmlSerializer leaves the
+// property at its initialiser when the element is absent. A value this build cannot read is
+// kept as written but behaves as the safest level (ImageQualities.Normalize), not as maximum.
+Console.WriteLine();
+Console.WriteLine("── Picture quality across an upgrade ───────────────────────────────");
+if (files.Count > 0)
+{
+    var baseline = File.ReadAllText(files[0]);
+    var qualityProp = cfgType.GetProperty("ProfileImageQuality");
+    var tiers = asm.GetType("Jellyfin.Profiles.Configuration.ImageQualities", true);
+    string QualityOf(string xml) => (string)qualityProp.GetValue(Read(xml));
+    string WithQuality(string value) => value == null
+        ? System.Text.RegularExpressions.Regex.Replace(baseline, @"\s*<ProfileImageQuality>[^<]*</ProfileImageQuality>", string.Empty)
+        : baseline.Replace("<ProfileImageQuality>high</ProfileImageQuality>", "<ProfileImageQuality>" + value + "</ProfileImageQuality>");
+
+    Ok("a fresh install starts on maximum", (string)qualityProp.GetValue(Activator.CreateInstance(cfgType)) == "maximum");
+    Ok("the golden file really saved high, and keeps it", QualityOf(baseline) == "high");
+    Ok("a saved standard stays standard", QualityOf(WithQuality("standard")) == "standard");
+    Ok("a saved maximum stays maximum", QualityOf(WithQuality("maximum")) == "maximum");
+    Ok("a file with no saved level takes the new default, maximum", QualityOf(WithQuality(null)) == "maximum");
+    var normalize = tiers.GetMethod("Normalize");
+    Ok("a value it cannot read is kept as written", QualityOf(WithQuality("enormous")) == "enormous");
+    Ok("and behaves as standard, the safest level", (string)normalize.Invoke(null, new object[] { "enormous" }) == "standard");
+}
+
 Console.WriteLine();
 if (fails.Count > 0)
 {

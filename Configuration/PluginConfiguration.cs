@@ -109,9 +109,11 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>
         /// How large profile pictures, library avatars and library artwork are stored. See
         /// <see cref="ImageQualities"/>. Applies to pictures saved from now on; pictures
-        /// already stored keep the size they were saved at.
+        /// already stored keep the size they were saved at. A fresh install starts on
+        /// Maximum; a server that saved a level keeps it. A file written before the setting
+        /// existed has no element, so it takes this default too.
         /// </summary>
-        public string ProfileImageQuality { get; set; } = ImageQualities.Standard;
+        public string ProfileImageQuality { get; set; } = ImageQualities.Maximum;
 
         /// <summary>
         /// What an account gets before it chooses for itself: whether the "Who's Watching?"
@@ -623,8 +625,10 @@ namespace Jellyfin.Profiles.Configuration
     /// <para>
     /// Standard is what every picture was before this setting existed: 512 pixels square,
     /// which is sharp on a phone and soft on a large television or a high-density screen.
+    /// Maximum is the default for a fresh install; a server that saved a level keeps it.
     /// The larger tiers cost disk and bandwidth, and every switcher on the server loads the
-    /// full-size picture of whoever is shown large, so they are opt-in.
+    /// full-size picture of whoever is shown large, so an administrator may step down.
+    /// Anything unreadable falls back to Standard, the safest level, not to the default.
     /// </para>
     /// </summary>
     public static class ImageQualities
