@@ -199,6 +199,62 @@ function tagOf(id) {
         ok('and each is still a tab stop, for the remote', dots.every(d => /tabindex="0"/.test(d)));
     }
 
+    // 12. Focus is a ring, not only a tint. The cascade is resolved: a rule that says
+    // `outline: ring` is no use if a later rule of the same weight says `outline: none`.
+    // Only plain compound selectors ending in :focus are read (every control below is
+    // one); media blocks and descendant rules are not, which is why the television's own
+    // thicker ring is not asserted here.
+    {
+        const css = require('fs').readFileSync(process.argv[3] || require('path').join(L.ROOT, 'Web', 'styles.css'), 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '');
+        const rules = [];
+        let depth = 0, buf = '', order = 0;
+        for (let i = 0; i < css.length; i++) {
+            const ch = css[i];
+            if (ch === '{') {
+                depth++;
+                if (depth === 1) { rules.cur = buf.trim(); buf = ''; continue; }
+            } else if (ch === '}') {
+                depth--;
+                if (depth === 0) {
+                    const sels = rules.cur.charAt(0) === '@' ? [] : rules.cur.split(',').map(s => s.trim());
+                    sels.forEach(s => rules.push({ sel: s, body: buf, order: order++ }));
+                    buf = ''; continue;
+                }
+            }
+            if (depth >= 1) buf += ch; else if (depth === 0) buf += ch;
+        }
+        const outlineOf = (el) => {
+            let best = null;
+            rules.forEach(r => {
+                const m = /^(#[\w-]+)?((?:\.[\w-]+)*):focus$/.exec(r.sel);
+                if (!m) return;
+                if (m[1] && m[1].slice(1) !== el.id) return;
+                const cls = m[2] ? m[2].slice(1).split('.') : [];
+                if (!cls.every(c => (el.classes || []).indexOf(c) !== -1)) return;
+                const d = /(?:^|;|\s)outline\s*:\s*([^;}]+)/.exec(r.body);
+                if (!d) return;
+                const spec = (m[1] ? 100 : 0) + (cls.length + 1) * 10;
+                if (!best || spec > best.spec || (spec === best.spec && r.order > best.order)) best = { spec, order: r.order, value: d[1].trim() };
+            });
+            return best ? best.value : null;
+        };
+        const controls = [
+            ['the primary button', { classes: ['profiles-btn', 'btn-primary'] }],
+            ['the secondary button', { classes: ['profiles-btn', 'btn-secondary'] }],
+            ['a colour swatch', { classes: ['color-dot'] }],
+            ['a library picture', { classes: ['avatar-library-item'] }],
+            ['a library tick-box', { classes: ['library-check-label'] }],
+            ['the devices dropdown', { classes: ['devices-dropdown-trigger'] }],
+            ['the profile PIN box', { id: 'profile-pin-input' }],
+            ['the floating button', { id: 'profiles-floating-bubble', classes: ['profiles-floating-fallback'] }]
+        ];
+        controls.forEach(c => {
+            const v = outlineOf(c[1]);
+            ok(c[0] + ' shows a ring when focused (outline: ' + v + ')', !!v && /^\d+px solid /.test(v));
+        });
+    }
+
     // 10. The letter on an avatar is readable on every palette colour (3:1 at least, it is
     // large text; most are well past it).
     {

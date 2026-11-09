@@ -2357,9 +2357,32 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-tv .profile-section {
     padding: 1.6rem 1.5rem;
 }
+/* A ring on focus, for a keyboard on a desktop or a phone. Most of these controls said
+   "outline: none" and showed focus as a change of fill, which for the primary button is
+   #ffb347 to #ffc773: the same as hovering, and not a mark anyone can find. After every
+   rule that removes the outline, with the same specificity or more, so it wins by
+   order; the television block below is higher still and thickens it. The pill's
+   selector carries its id and class because its own focus rule does. */
+.profiles-btn:focus,
+.color-dot:focus,
+.avatar-library-item:focus,
+.library-check-label:focus,
+.devices-dropdown-trigger:focus,
+#profile-pin-input:focus, #master-pin-input:focus, #main-pin-new:focus, #pin-reset-new:focus, #pin-reset-code:focus,
+#profiles-floating-bubble.profiles-floating-fallback:focus {
+    outline: 2px solid var(--jpf-accent);
+    outline-offset: 2px;
+}
 /* Thicker and further out. At three metres a 2px outline sitting 2px
    from the control is not findable, and finding the focused control is
    the entire navigation model on a remote. */
+.jpf-tv .color-dot:focus,
+.jpf-tv .avatar-library-item:focus,
+.jpf-tv .library-check-label:focus,
+.jpf-tv .devices-dropdown-trigger:focus,
+.jpf-tv #profile-pin-input:focus, .jpf-tv #master-pin-input:focus, .jpf-tv #main-pin-new:focus,
+.jpf-tv #pin-reset-new:focus, .jpf-tv #pin-reset-code:focus,
+.jpf-tv #profiles-floating-bubble:focus,
 .jpf-tv .profile-section :focus,
 .jpf-tv .profile-card:focus,
 .jpf-tv .profiles-btn:focus,
