@@ -72,6 +72,9 @@ ok('PIN tries a day is in Security\'s Advanced', inFold('security', 'pinGuessesP
 ok('the emergency disable code is in Security\'s Advanced, and the PINs are not',
    ['jpfEmergency', 'panicCodeInput', 'savePanicCode', 'panicCodeResult'].every(id => inFold('security', id))
    && !inFold('security', 'requireMainPin') && !inFold('security', 'enablePinResetByEmail'));
+ok('the starter avatars, picture quality and server-folder copy are in Look\'s Advanced',
+   ['enableStarterAvatars', 'profileImageQuality', 'avatarScanPath', 'avatarScanBtn'].every(id => inFold('look', id))
+   && !inFold('look', 'disallowCustomAvatars') && !inFold('look', 'avatarUploadBtn'));
 ok('a refused emergency code opens its fold',
    /const show = function \(msg, ok\) \{[^}]*if \(!ok\) openAdvancedFor\(result\);/.test(script));
 ok('the theme editor and fonts are in Look\'s Advanced',

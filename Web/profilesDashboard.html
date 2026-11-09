@@ -827,26 +827,10 @@
                 </div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
-                        <input is="emby-checkbox" type="checkbox" id="enableStarterAvatars" />
-                        <span data-i18n="admin.avatars.starter">Include the starter avatars</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.avatars.starterHint">30 built-in pictures. Fluent Emoji by Microsoft, MIT licence.</div>
-                </div>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label>
                         <input is="emby-checkbox" type="checkbox" id="disallowCustomAvatars" />
                         <span data-i18n="admin.avatars.libraryOnly">Only allow avatars from this library</span>
                     </label>
                     <div class="fieldDescription" data-i18n="admin.avatars.libraryOnlyHint">Profiles pick from this set instead of uploading. Pictures already chosen stay.</div>
-                </div>
-                <div class="selectContainer jpf-form-narrow">
-                    <label class="selectLabel" for="profileImageQuality" data-i18n="admin.avatars.quality">Picture quality</label>
-                    <select is="emby-select" id="profileImageQuality">
-                        <option value="standard" data-i18n="admin.avatars.qualityStandard">Standard — 512 px, up to 2 MB</option>
-                        <option value="high" data-i18n="admin.avatars.qualityHigh">High — 1024 px, up to 4 MB</option>
-                        <option value="maximum" data-i18n="admin.avatars.qualityMaximum">Maximum — 2048 px, up to 8 MB</option>
-                    </select>
-                    <div class="fieldDescription" data-i18n="admin.avatars.qualityHint">Sharper on big screens, more disk. Applies to new pictures.</div>
                 </div>
                 <div class="buttonContainer">
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
@@ -860,12 +844,6 @@
                     <input class="jpf-hidden" type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" />
                     <input class="jpf-hidden" type="file" id="avatarFolderInput" webkitdirectory directory multiple />
                     <div class="fieldDescription" data-i18n="admin.avatars.uploadHint">JPEG, PNG, WebP or GIF. Squared and resized automatically.</div>
-                    <div class="inputContainer jpf-form-narrow jpf-mt-3">
-                        <label class="inputLabel" for="avatarScanPath" data-i18n="admin.avatars.serverFolder">Or copy a folder on the server</label>
-                        <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" translate="no" />
-                        <div class="fieldDescription" data-i18n="admin.avatars.serverFolderHint">A path on the server, not on this computer.</div>
-                    </div>
-                    <button is="emby-button" type="button" id="avatarScanBtn" class="raised jpf-narrow" data-i18n="admin.avatars.import">Copy from folder</button>
                     <div class="jpf-hidden jpf-status jpf-status-quiet" id="avatarUploadStatus"></div>
                     <div class="jpf-hidden jpf-status jpf-status-error" id="avatarUploadError"></div>
                 </div>
@@ -882,6 +860,34 @@
                     </label>
                     <div class="fieldDescription" data-i18n="admin.theme.richMotionHint">Never on TVs or with reduced motion.</div>
                 </div>
+                <!-- Avatar library options: the starter set, picture quality and copying a
+                     folder from the server. Rarely changed, so they sit here, not above. -->
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="enableStarterAvatars" />
+                        <span data-i18n="admin.avatars.starter">Include the starter avatars</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.avatars.starterHint">30 built-in pictures. Fluent Emoji by Microsoft, MIT licence.</div>
+                </div>
+                <div class="selectContainer jpf-form-narrow">
+                    <label class="selectLabel" for="profileImageQuality" data-i18n="admin.avatars.quality">Picture quality</label>
+                    <select is="emby-select" id="profileImageQuality">
+                        <option value="standard" data-i18n="admin.avatars.qualityStandard">Standard — 512 px, up to 2 MB</option>
+                        <option value="high" data-i18n="admin.avatars.qualityHigh">High — 1024 px, up to 4 MB</option>
+                        <option value="maximum" data-i18n="admin.avatars.qualityMaximum">Maximum — 2048 px, up to 8 MB</option>
+                    </select>
+                    <div class="fieldDescription" data-i18n="admin.avatars.qualityHint">Sharper on big screens, more disk. Applies to new pictures.</div>
+                </div>
+                <div class="buttonContainer">
+                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
+                </div>
+                <div class="inputContainer jpf-form-narrow jpf-mt-3">
+                    <label class="inputLabel" for="avatarScanPath" data-i18n="admin.avatars.serverFolder">Or copy a folder on the server</label>
+                    <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" translate="no" />
+                    <div class="fieldDescription" data-i18n="admin.avatars.serverFolderHint">A path on the server, not on this computer.</div>
+                </div>
+                <button is="emby-button" type="button" id="avatarScanBtn" class="raised jpf-narrow" data-i18n="admin.avatars.import">Copy from folder</button>
+
                 <!-- The administrator's own themes, hidden built-ins and uploaded fonts
                      (1.7.2). Everything here saves at once through admin/themes/*; only
                      the default above waits for Save. -->
