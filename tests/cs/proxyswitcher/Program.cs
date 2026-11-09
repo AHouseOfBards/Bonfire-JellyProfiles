@@ -138,6 +138,10 @@ static Microsoft.AspNetCore.Builder.ForwardedHeadersOptions KnownProxy(string ad
 // What Jellyfin was handed, for the last request that reached it.
 string seenPath = null, seenQuery = null, seenAuth = null;
 
+// Faults to inject: a service the request's provider throws for, or a body that throws when written.
+Type throwFor = null;
+bool throwOnWrite = false;
+
 var next = new RequestDelegate(async c =>
 {
     seenPath = c.Request.Path.Value;
@@ -173,7 +177,7 @@ MemoryStream lastBytes = null;
     string remote = "203.0.113.9", string forwardedFor = null)
 {
     seenPath = seenQuery = seenAuth = null;
-    var ctx = new DefaultHttpContext { RequestServices = services };
+    var ctx = new DefaultHttpContext { RequestServices = throwFor == null ? services : new ThrowingProvider(services, throwFor) };
     ctx.Request.Method = method;
     var q = pathAndQuery.IndexOf('?');
     ctx.Request.Path = q < 0 ? pathAndQuery : pathAndQuery[..q];
@@ -185,7 +189,7 @@ MemoryStream lastBytes = null;
     var sink = new MemoryStream();
     lastResponse = ctx.Response;
     lastBytes = sink;
-    ctx.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>(new StreamResponseBodyFeature(sink));
+    ctx.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>(new StreamResponseBodyFeature(throwOnWrite ? new ThrowingStream() : sink));
 
     var invoke = mwType.GetMethod("Invoke");
     var args = invoke.GetParameters().Select(p =>
@@ -421,6 +425,12 @@ Ok("another app on the same account is untouched", atv.reachedJellyfin && seenAu
 var anon = Get("/System/Info/Public", token: "");
 Ok("a request with no token is untouched", anon.reachedJellyfin);
 
+// These two ran with the app in the Kids profile, and asserted that turning Bonfire off
+// handed the app to Jellyfin on the main account's token: the very thing the section
+// below says must not happen to a child. They are about the picker being off, so they
+// now run on the picker, which is what they were meant to show.
+Children(IdOf(kidsHome.body, "Switch profile"));
+
 Set("ProxyClients", new List<string>());
 var off = Get("/UserViews");
 Ok("with no app ticked, Moonfin is untouched", off.reachedJellyfin && seenAuth.Contains(MOON_TOKEN), seenAuth);
@@ -436,6 +446,151 @@ if (panicField != null)
     }
     finally { panicField.SetValue(null, false); }
 }
+
+// Back in Kids, as the rest of this file expects.
+void ToKids()
+{
+    var pk = Children(IdOf(Children(IdOf(Get("/UserViews").body, "Profiles")), "Kids"));
+    foreach (var k in new[] { "1", "2", "3", "4" }) pk = Children(IdOf(pk, k));
+    Children(IdOf(pk, "OK ••••"));
+}
+Children(IdOf(Get("/UserViews").body, "Switch profile"));
+ToKids();
+Ok("back in the Kids profile", Get("/UserViews").reachedJellyfin && seenAuth.Contains("tok-" + N(KIDS)), seenAuth);
+
+Console.WriteLine();
+Console.WriteLine("── A child's TV is never left on the main account ───────────────");
+
+// Leaving the swap used to fail open: the emergency code, the app unticked and an error
+// inside the picker each handed the request to Jellyfin on the main account's token, so a
+// TV left in a child's profile became the unrestricted account, silently. Now it is
+// signed out, and asks for the main password again.
+void ProxyReset() => switcher.GetMethod("Reset", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
+void Child()  // put the TV in Kids from a clean start
+{
+    ProxyReset();
+    deviceTokens[MOON_TOKEN] = (MASTER, "Moonfin for Android TV");
+    Set("ProxyClients", new List<string> { "moonfin" });
+    ToKids();
+}
+bool SignedOut(int before) => sessionLog.LoggedOut.Skip(before).Contains(MOON_TOKEN) && sessionLog.LoggedOut.Skip(before).Contains("tok-" + N(KIDS));
+
+if (panicField != null)
+{
+    Child();
+    Ok("(set-up) the TV is in Kids", Get("/UserViews").reachedJellyfin && seenAuth.Contains("tok-" + N(KIDS)), seenAuth);
+    var before = sessionLog.LoggedOut.Count;
+    panicField.SetValue(null, true);
+    try
+    {
+        var r = Get("/UserViews");
+        Ok("the emergency code: a TV in a child's profile does not reach Jellyfin as the main account",
+           !r.reachedJellyfin && !(seenAuth ?? "").Contains(MOON_TOKEN), "Jellyfin saw " + seenAuth);
+        Ok("it is refused with a 401, so the app asks for the main password", r.status == 401, r.status.ToString());
+        Ok("and the profile's session and the main account's token are both signed out", SignedOut(before), string.Join(",", sessionLog.LoggedOut.Skip(before)));
+    }
+    finally { panicField.SetValue(null, false); }
+}
+
+Child();
+{
+    var before = sessionLog.LoggedOut.Count;
+    Set("ProxyClients", new List<string>());
+    var r = Get("/UserViews");
+    Ok("the app unticked, nothing else ticked: not passed on as the main account", !r.reachedJellyfin && r.status == 401, r.status + " " + seenAuth);
+    Ok("and signed out", SignedOut(before), string.Join(",", sessionLog.LoggedOut.Skip(before)));
+}
+
+Child();
+{
+    var before = sessionLog.LoggedOut.Count;
+    Set("ProxyClients", new List<string> { "some-other-app" });   // something is ticked, but not this app
+    var r = Get("/UserViews");
+    Ok("the app unticked while another is ticked: not passed on as the main account", !r.reachedJellyfin && r.status == 401, r.status + " " + seenAuth);
+    Ok("and signed out", SignedOut(before), string.Join(",", sessionLog.LoggedOut.Skip(before)));
+    Set("ProxyClients", new List<string> { "moonfin" });
+}
+
+Child();
+{
+    // The last profile of the household deleted while the TV is in it.
+    var before = sessionLog.LoggedOut.Count;
+    var held = mappings.Cast<object>().ToList();
+    mappings.Clear();
+    var r = Get("/UserViews");
+    foreach (var m in held) mappings.Add(m);
+    Ok("the profiles deleted while the TV is in one: not passed on as the main account", !r.reachedJellyfin && r.status == 401, r.status + " " + seenAuth);
+    Ok("and signed out", SignedOut(before), string.Join(",", sessionLog.LoggedOut.Skip(before)));
+}
+
+Child();
+{
+    // An error inside the picker, before Jellyfin sees the request. Here: the session
+    // manager cannot be reached, which the viewing-hours check on the profile needs.
+    var before = sessionLog.LoggedOut.Count;
+    throwFor = typeof(ISessionManager);
+    var r = Get("/UserViews");
+    throwFor = null;
+    Ok("an error inside the picker: not passed on as the main account", !r.reachedJellyfin && !(seenAuth ?? "").Contains(MOON_TOKEN), "Jellyfin saw " + seenAuth);
+    Ok("it is refused (503), not answered with the main account's libraries", r.status == 503, r.status.ToString());
+    var later = Get("/UserViews");
+    Ok("and the TV is still in Kids afterwards: nothing was signed out for an error",
+       later.reachedJellyfin && seenAuth.Contains("tok-" + N(KIDS)) && !SignedOut(before), seenAuth);
+}
+
+// A Jellyfin that cannot be reached to sign out must leave the TV refused, not open.
+Child();
+{
+    SessionManagerStub.FailLogout.Add(MOON_TOKEN);
+    Set("ProxyClients", new List<string>());
+    var first = Get("/UserViews");
+    Set("ProxyClients", new List<string> { "moonfin" });
+    var second = Get("/UserViews");
+    Set("ProxyClients", new List<string>());
+    var third = Get("/UserViews");
+    Ok("when Jellyfin cannot sign it out, it is refused, and stays refused", first.status == 401 && !first.reachedJellyfin
+       && second.status == 401 && !second.reachedJellyfin && third.status == 401 && !third.reachedJellyfin,
+       first.status + "," + second.status + "," + third.status);
+    SessionManagerStub.FailLogout.Clear();
+    var fourth = Get("/UserViews");
+    Ok("until the sign-out gets through", fourth.status == 401 && sessionLog.LoggedOut.Contains(MOON_TOKEN));
+    Set("ProxyClients", new List<string> { "moonfin" });
+}
+
+// The picker itself, an adult, an app on the main account: not a child's.
+ProxyReset();
+Set("ProxyClients", new List<string> { "moonfin" });
+{
+    var before = sessionLog.LoggedOut.Count;
+    Get("/UserViews");   // the picker
+    Set("ProxyClients", new List<string>());
+    var r = Get("/UserViews");
+    Ok("a TV on the picker, with the app unticked, is passed on as before", r.reachedJellyfin && seenAuth.Contains(MOON_TOKEN), seenAuth);
+    Ok("and nobody is signed out", sessionLog.LoggedOut.Count == before);
+    Set("ProxyClients", new List<string> { "moonfin" });
+
+    // An error on the picker: the main account's request must not be passed on either.
+    throwOnWrite = true;
+    (int status, string body, bool reachedJellyfin) e;
+    // Passed on, the error surfaces again from Jellyfin's own write: a crash is also a fail.
+    try { e = Get("/UserViews"); }
+    catch (Exception) { e = (0, null, true); }
+    throwOnWrite = false;
+    Ok("an error while on the picker does not pass the request on as the main account", !e.reachedJellyfin && e.status == 503, e.status + " Jellyfin saw " + seenAuth);
+}
+
+// Off with nobody in a child's profile costs what it always did: no lookup, no read.
+ProxyReset();
+Set("ProxyClients", new List<string>());
+{
+    var calls0 = DeviceManagerStub.Calls;
+    for (var i = 0; i < 50; i++) Get("/Videos/abc/hls1/main/" + i + ".ts");
+    Ok("nothing ticked and nobody in a child's profile: no device lookups", DeviceManagerStub.Calls == calls0, (DeviceManagerStub.Calls - calls0) + " lookups");
+}
+Set("ProxyClients", new List<string> { "moonfin" });
+ProxyReset();
+// Put the session back where the rest of the file expects it: in Kids.
+Child();
 
 var logout = Get("/Sessions/Logout", method: "POST");
 Ok("signing out of the app signs the profile out too",
@@ -635,8 +790,34 @@ return 0;
 
 // ── Stubs ────────────────────────────────────────────────────────────────────
 
+public sealed class ThrowingProvider : IServiceProvider
+{
+    private readonly IServiceProvider _inner;
+    private readonly Type _blocked;
+    public ThrowingProvider(IServiceProvider inner, Type blocked) { _inner = inner; _blocked = blocked; }
+    public object GetService(Type t) => t == _blocked ? throw new InvalidOperationException("injected: " + t.Name) : _inner.GetService(t);
+}
+
+public sealed class ThrowingStream : Stream
+{
+    public override bool CanRead => false;
+    public override bool CanSeek => false;
+    public override bool CanWrite => true;
+    public override long Length => 0;
+    public override long Position { get => 0; set { } }
+    public override void Flush() { }
+    public override int Read(byte[] b, int o, int c) => 0;
+    public override long Seek(long o, SeekOrigin s) => 0;
+    public override void SetLength(long v) { }
+    public override void Write(byte[] b, int o, int c) => throw new InvalidOperationException("injected: write");
+    public override Task WriteAsync(byte[] b, int o, int c, CancellationToken t) => throw new InvalidOperationException("injected: write");
+    public override ValueTask WriteAsync(ReadOnlyMemory<byte> b, CancellationToken t = default) => throw new InvalidOperationException("injected: write");
+}
+
 public class SessionManagerStub : DispatchProxy
 {
+    /// <summary>Tokens Jellyfin cannot sign out right now.</summary>
+    public static HashSet<string> FailLogout = new();
     public List<Guid> Minted = new();
     public List<AuthenticationRequest> Requests = new();
     public List<string> LoggedOut = new();
@@ -670,6 +851,7 @@ public class SessionManagerStub : DispatchProxy
 
         if (m.Name == "Logout" && args.Length == 1 && args[0] is string token)
         {
+            if (FailLogout.Contains(token)) return Task.FromException(new InvalidOperationException("Jellyfin unreachable"));
             LoggedOut.Add(token);
             return Task.CompletedTask;
         }

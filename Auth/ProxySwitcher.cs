@@ -92,8 +92,16 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         public static async Task<bool> TryHandleAsync(HttpContext context, RequestDelegate next, ILogger logger)
         {
-            if (Plugin.IsPanicDisabled) return false;
-            if (!ProxyClients.AnyEnabled(Plugin.Instance?.Configuration)) return false;
+            // Off: the emergency code, or no app ticked. Until a TV has been put in a child's
+            // profile that is all there is to it, and this stays what it always was: a flag
+            // and a list count. While one is in a child's profile its token is not the
+            // child's to use, so a request on it is answered here instead of passed on as the
+            // main account, which is where the app would otherwise land (see SignOutChildAsync).
+            if (Plugin.IsPanicDisabled || !ProxyClients.AnyEnabled(Plugin.Instance?.Configuration))
+            {
+                if (ChildTokens.IsEmpty) return false;
+                return await RefuseIfChildAsync(context, logger).ConfigureAwait(false);
+            }
 
             var forwarded = false;
             Task Forward()
@@ -109,10 +117,106 @@ namespace Jellyfin.Profiles.Auth
             catch (Exception ex) when (!forwarded && ex is not OperationCanceledException && !context.Response.HasStarted)
             {
                 // Our own logic failed before Jellyfin saw the request. The app gets what it
-                // would have got without us, rather than an error.
+                // would have got without us, rather than an error, except where that is the
+                // main account: a request from a child's profile, or from the picker, carries
+                // the main account's token, and passing it on would hand that over.
+                if (MustNotFallThrough(context.Request))
+                {
+                    logger.LogWarning(ex, "ProfilesPlugin: the profile picker could not handle {Path}; refusing it.", context.Request.Path);
+                    context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                    return true;
+                }
+
                 logger.LogWarning(ex, "ProfilesPlugin: the profile picker could not handle {Path}; passing it on.", context.Request.Path);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Sessions a request on the main account's token must never fall back to, by that
+        /// token and by the profile's: it is in a child's profile. Written when a profile
+        /// is entered, cleared when the session goes back to the picker. Kept in a set of its
+        /// own so the off paths above can ask "is any TV in a child's profile?" without a
+        /// lookup, a header read or the configuration.
+        /// </summary>
+        private static readonly ConcurrentDictionary<string, ProxySession> ChildTokens = new(StringComparer.Ordinal);
+
+        private static bool IsChild(ProxySession session)
+            => session.Acting is { } a && a.Token != session.MasterToken && a.ProfileId != session.MasterId;
+
+        /// <summary>
+        /// True for a request that came from a child's profile or from the picker. Only used
+        /// after something has gone wrong, so it is allowed to read the token.
+        /// </summary>
+        private static bool MustNotFallThrough(HttpRequest request)
+        {
+            try
+            {
+                var token = ReadToken(request);
+                if (string.IsNullOrEmpty(token)) return false;
+                if (ChildTokens.ContainsKey(token)) return true;
+                return Sessions.TryGetValue(token, out var s) && s.Acting == null;
+            }
+            catch (Exception)
+            {
+                // Cannot tell. With a TV in a child's profile, assume it is that one.
+                return !ChildTokens.IsEmpty;
+            }
+        }
+
+        /// <summary>
+        /// Off, with a TV in a child's profile: if this request is that TV's, it is signed
+        /// out. Otherwise it is not ours.
+        /// </summary>
+        private static async Task<bool> RefuseIfChildAsync(HttpContext context, ILogger logger)
+        {
+            var token = ReadToken(context.Request);
+            if (string.IsNullOrEmpty(token) || !ChildTokens.TryGetValue(token, out var session)) return false;
+
+            return await SignOutChildAsync(context, session, new Services(context.RequestServices), logger).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// A TV in a child's profile can no longer be kept there (the emergency code, the
+        /// app unticked, the profiles deleted). The profile's session ends and so does the main
+        /// account's token, which the app answers by asking for the main password again.
+        /// Passing the request on instead would have left the child on the main account, with
+        /// no parental controls and no way back to the picker.
+        ///
+        /// <para>The mark is kept until Jellyfin has confirmed the sign-out, so a failure to
+        /// reach it leaves every later request refused, not open. Always answers 401, which is
+        /// the answer the main token would get once it is gone.</para>
+        /// </summary>
+        private static async Task<bool> SignOutChildAsync(HttpContext context, ProxySession session, Services services, ILogger logger)
+        {
+            await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
+            ChildTokens[session.MasterToken] = session;
+
+            var signedOut = false;
+            try
+            {
+                if (services.Sessions != null)
+                {
+                    await services.Sessions.Logout(session.MasterToken).ConfigureAwait(false);
+                    signedOut = true;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "ProfilesPlugin: could not sign {Client} on {Device} out of the main account; refusing it until it can be.", session.Client, session.Device);
+            }
+
+            if (signedOut)
+            {
+                ChildTokens.TryRemove(session.MasterToken, out _);
+                Sessions.TryRemove(session.MasterToken, out _);
+                logger.LogInformation(
+                    "ProfilesPlugin: {Client} on {Device} was in a child's profile and Bonfire can no longer hold it there; it is signed out.",
+                    session.Client, session.Device);
+            }
+
+            if (!context.Response.HasStarted) context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return true;
         }
 
         /// <summary>Drops the "not ours" memory, so an app ticked a moment ago is picked up on its next request.</summary>
@@ -123,6 +227,7 @@ namespace Jellyfin.Profiles.Auth
         {
             Sessions.Clear();
             NotOurs.Clear();
+            ChildTokens.Clear();
         }
 
         private static async Task<bool> HandleAsync(HttpContext context, Func<Task> forward, ILogger logger)
@@ -137,7 +242,12 @@ namespace Jellyfin.Profiles.Auth
             var emby = request.Headers["X-Emby-Authorization"].ToString();
             var named = auth.Length > 0 || emby.Length > 0;
             var live = Plugin.Instance?.Configuration;
-            if (named && !ProxyClients.MayBe(live, auth, emby)) return false;
+            if (named && !ProxyClients.MayBe(live, auth, emby))
+            {
+                // Not an app that is ticked, as far as the headers say. A child's TV whose
+                // app has been unticked since says exactly that, and is still a child's.
+                return !ChildTokens.IsEmpty && await RefuseIfChildAsync(context, logger).ConfigureAwait(false);
+            }
 
             // Our own reading, not Jellyfin's (RequestAuth), on purpose: the token here only
             // finds the picker's session, and whoever sends it signed in with the main
@@ -169,10 +279,19 @@ namespace Jellyfin.Profiles.Auth
                 return false;
             }
 
+            // A sign-out that could not reach Jellyfin yet: still not to be served.
+            if (!ChildTokens.IsEmpty && !IsChild(session) && ChildTokens.ContainsKey(token))
+            {
+                return await SignOutChildAsync(context, session, services, logger).ConfigureAwait(false);
+            }
+
             // Unticked since: behave as today. The list is replaced, never edited, when the
             // settings are saved, so reading it here without the lock is safe.
             if (!ProxyClients.IsEnabled(live, session.Client))
             {
+                // In a child's profile it cannot be let go to the main account.
+                if (IsChild(session)) return await SignOutChildAsync(context, session, services, logger).ConfigureAwait(false);
+
                 await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
                 Sessions.TryRemove(token, out _);
                 return false;
@@ -189,6 +308,9 @@ namespace Jellyfin.Profiles.Auth
                 // The main account's last profile was deleted: nothing to pick.
                 if (!HasProfiles(config, session.MasterId))
                 {
+                    // A child in the profile that was just deleted is no exception.
+                    if (IsChild(session)) return await SignOutChildAsync(context, session, services, logger).ConfigureAwait(false);
+
                     await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
                     Sessions.TryRemove(token, out _);
                     return false;
@@ -965,6 +1087,8 @@ namespace Jellyfin.Profiles.Auth
 
             await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
             session.Acting = new ActingAs(profileId, result.AccessToken);
+            ChildTokens[session.MasterToken] = session;
+            ChildTokens[result.AccessToken] = session;
 
             logger.LogInformation(
                 "ProfilesPlugin: {Client} on {Device} opened profile {Profile} from the picker.",
@@ -978,6 +1102,11 @@ namespace Jellyfin.Profiles.Auth
             var was = session.Acting;
             session.Acting = null;
             CloseSockets(session);
+
+            // Back on the picker, which refuses what it does not draw, so no longer a child's
+            // to guard. SignOutChildAsync puts the mark back when it needs it kept.
+            ChildTokens.TryRemove(session.MasterToken, out _);
+            if (was != null) ChildTokens.TryRemove(was.Token, out _);
 
             if (was == null || was.Token == session.MasterToken || services.Sessions == null) return;
 
