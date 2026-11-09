@@ -251,6 +251,21 @@ Console.WriteLine("── A backup from a version that had settings since cut �
     var older = new Dictionary<string, object>();
     foreach (var kv in fileConfig) older[kv.Key] = kv.Value;
     foreach (var kv in oldFields) older[kv.Key] = kv.Value;
+
+    // ProfileMapping.SwitcherMode: every row of every older export carries it, "gate" unless
+    // somebody chose native in 1.3.1-beta. Added to each mapping here.
+    object WithSwitcherMode(string legacy)
+    {
+        var rows = new List<Dictionary<string, JsonElement>>();
+        foreach (var item in fileConfig["Mappings"].EnumerateArray())
+        {
+            var row = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(item.GetRawText());
+            row["SwitcherMode"] = JsonSerializer.SerializeToElement(legacy);
+            rows.Add(row);
+        }
+        return rows;
+    }
+    older["Mappings"] = WithSwitcherMode("gate");
     var olderBody = JsonSerializer.SerializeToElement(new { exportedUtc = "2026-01-01T00:00:00Z", pluginVersion = "1.7.4.0", configuration = older });
 
     Overwrite(live, Defaults());
@@ -262,6 +277,17 @@ Console.WriteLine("── A backup from a version that had settings since cut �
     Ok("and every other setting comes back", olderLost.Count == 0, string.Join(", ", olderLost));
     foreach (var name in oldFields.Keys)
         Ok(name + " is not a setting any more", cfgType.GetProperty(name) == null);
+
+    // A native choice from 1.3.1-beta, on rows that never chose the two newer settings, is
+    // carried into them rather than dropped with the field.
+    older["Mappings"] = WithSwitcherMode("native");
+    Overwrite(live, Defaults());
+    importRoute.Invoke(NewController(), new object[] { JsonSerializer.SerializeToElement(new { configuration = older }) });
+    var mapRows = ((System.Collections.IList)cfgType.GetProperty("Mappings").GetValue(live)).Cast<object>().ToList();
+    var mapT = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);
+    Ok("a native row that never chose keeps the menu and no startup prompt",
+       mapRows.Count > 0 && mapRows.All(r => Equals(mapT.GetProperty("AskOnStartup").GetValue(r), false) && Equals(mapT.GetProperty("SwitcherLocation").GetValue(r), "menu")));
+    Ok("and the old field is not written back", !JsonSerializer.Serialize(mapRows).Contains("SwitcherMode"));
 }
 
 try { Directory.Delete(tempDir, true); } catch { }

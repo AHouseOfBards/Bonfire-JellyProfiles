@@ -65,6 +65,7 @@ var droppedOnPurpose = new Dictionary<string, string>
 {
     ["PluginConfiguration/RequireMasterPinForCreation"] = "removed in 1.7.2: creating a profile asks for the main PIN like every other change",
     ["PluginConfiguration/IndexInjectionMode"] = "removed in 2.0: only the middleware remains",
+    ["PluginConfiguration/Mappings/ProfileMapping/SwitcherMode"] = "removed in 2.0: AskOnStartup and SwitcherLocation replaced it in 1.3.2; a native one is carried into them on load",
 };
 
 string Write(object cfg)
@@ -244,6 +245,39 @@ if (files.Count > 0)
         CutCase("injection mode " + mode,
             baseline.Replace("<IndexInjectionMode>middleware</IndexInjectionMode>", "<IndexInjectionMode>" + mode + "</IndexInjectionMode>"),
             "<IndexInjectionMode>" + mode + "</IndexInjectionMode>");
+
+    // ProfileMapping.SwitcherMode. The golden file has gate on both mappings, beside an
+    // explicit AskOnStartup and SwitcherLocation. Whatever the old field said, an explicit
+    // choice stands, so every other value is the same.
+    foreach (var legacy in new[] { "gate", "native" })
+        CutCase("switcher mode " + legacy,
+            baseline.Replace("<SwitcherMode>gate</SwitcherMode>", "<SwitcherMode>" + legacy + "</SwitcherMode>"),
+            "<SwitcherMode>" + legacy + "</SwitcherMode>");
+
+    // An account that never chose either of the newer two, only the old one. Only "native"
+    // was ever a choice (every row carried "gate"), and it must not be lost: it becomes the
+    // two settings it meant. "gate" must not invent either, or the administrator's default
+    // would stop reaching that account.
+    string Bare(string legacy) => System.Text.RegularExpressions.Regex.Replace(
+        baseline.Replace("<SwitcherMode>gate</SwitcherMode>", "<SwitcherMode>" + legacy + "</SwitcherMode>"),
+        @"\s*<(AskOnStartup|SwitcherLocation)>[^<]*</\1>", string.Empty);
+    var mapType = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);
+    (object ask, object loc) Prefs(string xml)
+    {
+        var m = (IList)cfgType.GetProperty("Mappings").GetValue(Read(xml));
+        return (mapType.GetProperty("AskOnStartup").GetValue(m[0]), mapType.GetProperty("SwitcherLocation").GetValue(m[0]));
+    }
+    var nativeOnly = Prefs(Bare("native"));
+    Ok("an account that only had native keeps it: no startup prompt", Equals(nativeOnly.ask, false), nativeOnly.ask?.ToString());
+    Ok("and the switcher stays in Jellyfin's menu", Equals(nativeOnly.loc, "menu"), nativeOnly.loc?.ToString());
+    var gateOnly = Prefs(Bare("gate"));
+    Ok("an account that only had gate chose nothing: no startup answer", gateOnly.ask == null, gateOnly.ask?.ToString());
+    Ok("and no location", gateOnly.loc == null, gateOnly.loc?.ToString());
+    var nativeThenAsk = Prefs(Bare("native").Replace("</SwitcherMode>", "</SwitcherMode><AskOnStartup>true</AskOnStartup>"));
+    Ok("native beside an explicit startup prompt keeps the explicit one", Equals(nativeThenAsk.ask, true), nativeThenAsk.ask?.ToString());
+    var askThenNative = Prefs(Bare("native").Replace("<SwitcherMode>", "<AskOnStartup>true</AskOnStartup><SwitcherMode>"));
+    Ok("and so does an explicit one listed before it", Equals(askThenNative.ask, true), askThenNative.ask?.ToString());
+    Ok("what it was told is not written back as the old field", !Write(Read(Bare("native"))).Contains("SwitcherMode"));
 }
 
 Console.WriteLine();

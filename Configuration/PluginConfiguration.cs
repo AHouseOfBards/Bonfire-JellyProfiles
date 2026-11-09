@@ -591,13 +591,6 @@ namespace Jellyfin.Profiles.Configuration
         /// from "deliberately set to the default", which is why both new fields are nullable:
         /// an account that has chosen keeps its choice, and one that has not inherits the
         /// server-wide default the administrator set.
-        /// <para>
-        /// The legacy <see cref="ProfileMapping.SwitcherMode"/> still wins over the default,
-        /// but only when it says <c>native</c>. It is a non-nullable field that has always
-        /// defaulted to <c>gate</c>, so every mapping carries that value whether or not
-        /// anybody chose it — reading it as an explicit choice would mean the administrator's
-        /// default could never apply to anyone.
-        /// </para>
         /// </summary>
         public static (bool AskOnStartup, string Location) Resolve(
             ProfileMapping? mapping,
@@ -607,11 +600,9 @@ namespace Jellyfin.Profiles.Configuration
             string fallbackLocation = Normalize(defaultLocation ?? Button);
             if (mapping == null) return (defaultAskOnStartup, fallbackLocation);
 
-            bool legacyNative = SwitcherModes.Normalize(mapping.SwitcherMode) == SwitcherModes.Native;
-
             return (
-                mapping.AskOnStartup ?? (legacyNative ? false : defaultAskOnStartup),
-                Normalize(mapping.SwitcherLocation ?? (legacyNative ? Menu : fallbackLocation))
+                mapping.AskOnStartup ?? defaultAskOnStartup,
+                Normalize(mapping.SwitcherLocation ?? fallbackLocation)
             );
         }
     }
@@ -973,19 +964,37 @@ namespace Jellyfin.Profiles.Configuration
         public bool HideMySubProfilesFromOthers { get; set; } = false;
         public bool HideOthersSubProfilesFromMe { get; set; } = false;
         /// <summary>
-        /// Legacy combined switcher setting. Superseded by <see cref="AskOnStartup"/> and
-        /// <see cref="SwitcherLocation"/>; read only by <see cref="SwitcherLocations.Resolve"/>
-        /// to migrate accounts configured under 1.3.1-beta. No longer written.
+        /// Reads the 1.3.1-beta combined switcher setting and nothing else. It is not a
+        /// setting any more: this has no value to give back, so nothing writes it out, and
+        /// what it was told becomes <see cref="AskOnStartup"/> and <see cref="SwitcherLocation"/>.
+        /// <para>
+        /// Only <c>native</c> was ever a choice. The old field defaulted to <c>gate</c> on every
+        /// row whether or not anyone chose, so <c>gate</c> says nothing and is ignored. A
+        /// <c>native</c> account that never touched the two newer settings would otherwise
+        /// have gone back to the administrator's default the day the field was dropped.
+        /// An explicit value of either newer setting always wins, whichever the file lists first.
+        /// </para>
         /// </summary>
-        public string SwitcherMode { get; set; } = SwitcherModes.Gate;
+        [System.Xml.Serialization.XmlElement("SwitcherMode")]
+        [System.Text.Json.Serialization.JsonPropertyName("SwitcherMode")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? LegacySwitcherMode
+        {
+            get => null;
+            set
+            {
+                if (SwitcherModes.Normalize(value) != SwitcherModes.Native) return;
+                AskOnStartup ??= false;
+                SwitcherLocation ??= SwitcherLocations.Menu;
+            }
+        }
 
         /// <summary>
         /// Whether the "Who's Watching?" screen appears when the client first loads. It is
         /// shown once per browser session, not on every trip to the home screen.
         /// <para>
         /// Null means never explicitly set, in which case the server-wide
-        /// <see cref="PluginConfiguration.DefaultAskOnStartup"/> applies — unless
-        /// <see cref="SwitcherMode"/> carries a real 1.3.1-beta choice. See
+        /// <see cref="PluginConfiguration.DefaultAskOnStartup"/> applies. See
         /// <see cref="SwitcherLocations.Resolve"/>. That distinction is the whole reason this
         /// is nullable rather than defaulting to true.
         /// </para>

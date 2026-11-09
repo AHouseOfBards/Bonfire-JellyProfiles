@@ -56,9 +56,12 @@ object MakeMapping(bool hasPin, bool allowHousehold, bool ownLanBypass)
 object MakePrefMapping(string legacyMode, bool? ask, string location)
 {
     var m = Activator.CreateInstance(mappingType);
-    if (legacyMode != null) mappingType.GetProperty("SwitcherMode").SetValue(m, legacyMode);
     mappingType.GetProperty("AskOnStartup").SetValue(m, ask);
     mappingType.GetProperty("SwitcherLocation").SetValue(m, location);
+    // The old field is only read now, as a file or backup is loaded, and turned into the two
+    // above where they were not chosen. Last here because this sets a null, which a file
+    // that simply lacks the element never does.
+    if (legacyMode != null) mappingType.GetProperty("LegacySwitcherMode").SetValue(m, legacyMode);
     return m;
 }
 
@@ -193,9 +196,8 @@ Console.WriteLine("----------------------------------");
     Check("unchosen mapping -> admin ask", Resolve(fresh, false, "menu").ask, false);
     Check("unchosen mapping -> admin location", Resolve(fresh, false, "menu").loc, "menu");
 
-    // SwitcherMode is non-nullable and has always defaulted to "gate", so every mapping
-    // carries it whether or not anyone chose. Treating it as an explicit choice would
-    // stop the administrator's default reaching anybody.
+    // The old SwitcherMode defaulted to "gate" on every mapping whether or not anyone chose.
+    // Treating it as an explicit choice would stop the administrator's default reaching anybody.
     var legacyGate = MakePrefMapping("gate", null, null);
     Check("legacy gate does not block the default (ask)", Resolve(legacyGate, false, "menu").ask, false);
     Check("legacy gate does not block the default (location)", Resolve(legacyGate, false, "menu").loc, "menu");
