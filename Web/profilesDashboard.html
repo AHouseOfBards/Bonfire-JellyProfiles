@@ -374,6 +374,14 @@
                     until the container comes back.
                 </div>
             </div>
+            <!-- Shown when the settings could not be read. Save is refused while it is up,
+                 because the form is showing defaults and a save would write them. -->
+            <div class="jpf-hidden jpf-note jpf-note-error" id="configLoadError" role="alert">
+                <strong>Couldn't load the settings. Nothing can be saved until they load.</strong>
+                <div>
+                    <button type="button" is="emby-button" class="raised" id="configLoadRetry">Try again</button>
+                </div>
+            </div>
             <div class="jpf-hidden jpf-note jpf-note-error" id="injectionWarningContainer">
                 <strong class="jpf-note-title" style="color:#ff8787;">⚠️ Client Script Auto-Injection Failed</strong>
                 <span id="injectionFailureHeadline">The plugin was unable to automatically modify Jellyfin's <code>index.html</code>.
@@ -879,7 +887,16 @@
                 show(start);
             }
 
+            // The form is only a copy of the settings once a read has worked. Until then it
+            // shows defaults, and Save posts every setting on the page, so a save from that
+            // state would overwrite the real ones. saveConfiguration checks the flag.
+            function showConfigLoadError(page, on) {
+                const box = page.querySelector('#configLoadError');
+                if (box) box.classList.toggle('jpf-hidden', !on);
+            }
+
             function loadConfiguration(page) {
+                page._configLoaded = false;
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
@@ -907,6 +924,10 @@
                     page.querySelector('#indexInjectionMode').value =
                         (mode === 'both' || mode === 'file') ? mode : 'middleware';
                     updateInjectionModeHelp(page);
+                    // Every settings field is filled in. Set here, not at the end: a loader
+                    // below failing must not lock Save, and one above must.
+                    page._configLoaded = true;
+                    showConfigLoadError(page, false);
                     loadMappings(page);
                     loadAuditLogs(page);
                     loadAvatarLibrary(page);
@@ -914,6 +935,7 @@
                     loadPanicStatus(page);
                 }).catch(function (err) {
                     console.error("Failed to load plugin configuration:", err);
+                    if (!page._configLoaded) showConfigLoadError(page, true);
                     Dashboard.hideLoadingMsg();
                 });
             }
@@ -2279,6 +2301,13 @@
             // POST admin/settings takes the six fields and mutates them in place, so there is
             // nothing else in the request to lose.
             function saveConfiguration(page) {
+                // The form is showing defaults, not the settings, until a read has worked.
+                if (!page._configLoaded) {
+                    showConfigLoadError(page, true);
+                    Dashboard.alert({ message: 'The settings did not load, so nothing was saved. Press Try again.', title: 'Error' });
+                    return;
+                }
+
                 // parseInt('-4', 10) is -4, which is truthy, so `|| 5` never caught a negative
                 // — it only caught the empty box. The server rejects out-of-range values too;
                 // clamping here means the common case gets a saved setting rather than an error.
@@ -2340,6 +2369,12 @@
                 // The method moved to Advanced, so it is no longer inside the General form and
                 // its Save button. saveConfiguration reads every field by id from the page, so
                 // it saves correctly from either tab.
+                const retryBtn = page.querySelector('#configLoadRetry');
+                if (retryBtn && !retryBtn.dataset.bound) {
+                    retryBtn.dataset.bound = '1';
+                    retryBtn.addEventListener('click', function () { loadConfiguration(page); });
+                }
+
                 const saveModeBtn = page.querySelector('#saveInjectionMode');
                 if (saveModeBtn && !saveModeBtn.dataset.bound) {
                     saveModeBtn.dataset.bound = '1';
