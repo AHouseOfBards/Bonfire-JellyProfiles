@@ -550,6 +550,30 @@ if (reopenProp != null)
     Close(false);
 }
 
+Console.WriteLine();
+Console.WriteLine("── Paths that are open ─────────────────────────────────────────");
+
+Close(true);
+// An open path is matched where Jellyfin routes it, at the start of the path after the base
+// URL, not anywhere in it: a segment that happens to read "web" in the middle of a stream
+// URL must not make the request open.
+var innerWeb = Send("/Videos/" + N(OTHER) + "/hls1/web/3.ts", MEMBER_TOKEN);
+Ok("a stream of something else is refused whatever its segments are called", Refused(innerWeb), Show(innerWeb));
+var innerMe = Send("/Users/" + N(MEMBER) + "/Items/Users/Me", MEMBER_TOKEN);
+Ok("and so is a path that only ends in an open one", Refused(innerMe), Show(innerMe));
+Ok("a path with the open one in the middle is refused", Refused(Send("/Items/" + N(OTHER) + "/Images/socket/0", MEMBER_TOKEN)));
+Ok("the web client's own files still load", Through(Send("/web/index.html")));
+
+var classify = gateType.GetMethod("Classify", BindingFlags.Static | BindingFlags.NonPublic);
+string Kind(string method, string path, string baseUrl)
+{
+    var ps = classify.GetParameters();
+    var args = ps.Length >= 3 ? new object[] { method, path, baseUrl } : new object[] { method, path };
+    return classify.Invoke(null, args).ToString();
+}
+Ok("under a base URL the web client's files are still open", Kind("GET", "/jf/web/index.html", "/jf") == "Open", Kind("GET", "/jf/web/index.html", "/jf"));
+Ok("and a segment named web under it is not", Kind("GET", "/jf/Videos/" + N(OTHER) + "/hls1/web/3.ts", "/jf") != "Open", Kind("GET", "/jf/Videos/" + N(OTHER) + "/hls1/web/3.ts", "/jf"));
+
 try { Directory.Delete(tempDir, true); } catch { }
 return Finish();
 

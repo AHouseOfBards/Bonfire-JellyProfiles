@@ -8,6 +8,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Profiles.Configuration;
 using Jellyfin.Profiles.Controllers;
+using MediaBrowser.Common.Net;
+using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Controller.Devices;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
@@ -156,7 +158,7 @@ namespace Jellyfin.Profiles.Auth
             Other,
         }
 
-        private static readonly string[] OpenAnywhere =
+        private static readonly string[] OpenPaths =
         {
             "/web/",
             "/System/Info/Public",
@@ -186,16 +188,48 @@ namespace Jellyfin.Profiles.Auth
             "/Sessions/Playing",
         };
 
-        internal static PathKind Classify(string method, string path)
+        /// <summary>
+        /// The path as Jellyfin routes it: what follows the base URL it is published under. We
+        /// sit ahead of its UsePathBase, so the request still carries it. With no base URL
+        /// configured, or one the path does not start with, the path is returned as it is.
+        /// </summary>
+        internal static string AfterBaseUrl(string path, string? baseUrl)
+        {
+            var prefix = (baseUrl ?? string.Empty).TrimEnd('/');
+            if (prefix.Length == 0 || !path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase)) return path;
+            return path[prefix.Length..];
+        }
+
+        /// <summary>The published Base URL, or empty. Read only once the gate is on.</summary>
+        internal static string BaseUrlOf(IServerConfigurationManager? serverConfig)
+        {
+            try
+            {
+                return serverConfig == null
+                    ? string.Empty
+                    : WebInjection.NormalizeBaseUrl(serverConfig.GetNetworkConfiguration().BaseUrl);
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
+        }
+
+        internal static PathKind Classify(string method, string path, string? baseUrl = null)
         {
             if (string.IsNullOrEmpty(path)) return PathKind.Open;
 
-            foreach (var open in OpenAnywhere)
+            // Open paths are matched at the start of the path, never anywhere in it: the
+            // stream URL /Videos/{id}/hls1/{playlistId}/{n}.ts carries a free-text segment, and
+            // one that read "web" was an open path that skipped the stream check.
+            path = AfterBaseUrl(path, baseUrl);
+
+            foreach (var open in OpenPaths)
             {
-                if (path.Contains(open, StringComparison.OrdinalIgnoreCase)) return PathKind.Open;
+                if (path.StartsWith(open, StringComparison.OrdinalIgnoreCase)) return PathKind.Open;
             }
 
-            if (path.EndsWith("/web", StringComparison.OrdinalIgnoreCase)) return PathKind.Open;
+            if (path.Equals("/web", StringComparison.OrdinalIgnoreCase)) return PathKind.Open;
 
             if (HttpMethods.IsPost(method))
             {
@@ -227,9 +261,9 @@ namespace Jellyfin.Profiles.Auth
         /// True when a request by <paramref name="userId"/>, who is not an administrator, is
         /// turned away. Also used by the profile picker for a profile it is acting as.
         /// </summary>
-        internal static bool Refuses(MaintenanceMode m, string method, string path, Guid userId, ISessionManager? sessions)
+        internal static bool Refuses(MaintenanceMode m, string method, string path, Guid userId, ISessionManager? sessions, string? baseUrl = null)
         {
-            switch (Classify(method, path))
+            switch (Classify(method, path, baseUrl))
             {
                 case PathKind.Open:
                     return false;
@@ -313,7 +347,8 @@ namespace Jellyfin.Profiles.Auth
         /// Answers the request with 503 if it is turned away. False means it was not touched.
         /// </summary>
         public static async Task<bool> TryRefuseAsync(
-            HttpContext context, IUserManager? users, IDeviceManager? devices, ISessionManager? sessions, ILogger logger)
+            HttpContext context, IUserManager? users, IDeviceManager? devices, ISessionManager? sessions, ILogger logger,
+            IServerConfigurationManager? serverConfig = null)
         {
             var m = Active();
             if (m == null)
@@ -332,7 +367,8 @@ namespace Jellyfin.Profiles.Auth
 
             try
             {
-                switch (Classify(request.Method, path))
+                var baseUrl = BaseUrlOf(serverConfig);
+                switch (Classify(request.Method, path, baseUrl))
                 {
                     case PathKind.Open:
                         return false;
@@ -374,7 +410,7 @@ namespace Jellyfin.Profiles.Auth
                 }).ConfigureAwait(false);
                 if (userId == Guid.Empty || IsAdmin(users, userId)) return false;
 
-                if (!Refuses(m, request.Method, path, userId, sessions)) return false;
+                if (!Refuses(m, request.Method, path, userId, sessions, baseUrl)) return false;
 
                 await WriteRefusalAsync(context, m).ConfigureAwait(false);
                 return true;
