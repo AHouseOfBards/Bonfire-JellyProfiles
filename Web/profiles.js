@@ -1540,10 +1540,13 @@
             const input = dialog.querySelector('#profiles-prompt-input');
             const submit = () => {
                 const value = (input.value || '').trim();
-                if (!value) return;
+                // Said, not swallowed: a screen reader hears the box is invalid and focus
+                // goes back to it, where before Save and Enter did nothing at all.
+                if (!value) { input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
                 close();
                 if (typeof onSubmit === 'function') onSubmit(value);
             };
+            input.addEventListener('input', () => input.removeAttribute('aria-invalid'));
 
             dialog.querySelector('#prompt-cancel-btn').addEventListener('click', close);
             dialog.querySelector('#prompt-save-btn').addEventListener('click', submit);

@@ -656,20 +656,20 @@
             <!-- Grouped by job, not by when each setting was added. Status is first because
                  it is the one an administrator opens the page to read. -->
             <div class="jpf-tabs" role="tablist" aria-label="Bonfire settings sections" data-i18n-aria-label="admin.tab.label">
-                <button type="button" class="jpf-tab" role="tab" data-tab="status" aria-controls="jpfPanelStatus" data-i18n="admin.tab.status">Status</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="households" aria-controls="jpfPanelHouseholds" data-i18n="admin.tab.households">Households</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="devices" aria-controls="jpfPanelDevices" data-i18n="admin.tab.devices">Devices</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="security" aria-controls="jpfPanelSecurity" data-i18n="admin.tab.security">Security</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="look" aria-controls="jpfPanelLook" data-i18n="admin.tab.look">Look</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="setup" aria-controls="jpfPanelSetup" data-i18n="admin.tab.setup">Setup</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="apps" aria-controls="jpfPanelApps" data-i18n="admin.tab.apps">Apps</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="messages" aria-controls="jpfPanelMessages" data-i18n="admin.tab.messages">Messages</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="activity" aria-controls="jpfPanelActivity" data-i18n="admin.tab.activity">Activity</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="troubleshoot" aria-controls="jpfPanelTroubleshoot" data-i18n="admin.tab.troubleshoot">Troubleshoot</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="status" id="jpfTabStatus" aria-controls="jpfPanelStatus" data-i18n="admin.tab.status">Status</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="households" id="jpfTabHouseholds" aria-controls="jpfPanelHouseholds" data-i18n="admin.tab.households">Households</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="devices" id="jpfTabDevices" aria-controls="jpfPanelDevices" data-i18n="admin.tab.devices">Devices</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="security" id="jpfTabSecurity" aria-controls="jpfPanelSecurity" data-i18n="admin.tab.security">Security</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="look" id="jpfTabLook" aria-controls="jpfPanelLook" data-i18n="admin.tab.look">Look</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="setup" id="jpfTabSetup" aria-controls="jpfPanelSetup" data-i18n="admin.tab.setup">Setup</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="apps" id="jpfTabApps" aria-controls="jpfPanelApps" data-i18n="admin.tab.apps">Apps</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="messages" id="jpfTabMessages" aria-controls="jpfPanelMessages" data-i18n="admin.tab.messages">Messages</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="activity" id="jpfTabActivity" aria-controls="jpfPanelActivity" data-i18n="admin.tab.activity">Activity</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="troubleshoot" id="jpfTabTroubleshoot" aria-controls="jpfPanelTroubleshoot" data-i18n="admin.tab.troubleshoot">Troubleshoot</button>
             </div>
 
             <!-- ── Status ─────────────────────────────────────────────────────────── -->
-            <div class="jpf-tab-panel" id="jpfPanelStatus" data-panel="status" role="tabpanel" hidden>
+            <div class="jpf-tab-panel" id="jpfPanelStatus" data-panel="status" role="tabpanel" aria-labelledby="jpfTabStatus" hidden>
                 <div class="sectionTitleContainer jpf-row">
                     <h2 class="sectionTitle" data-i18n="admin.status.title">Status</h2>
                     <!-- Filled in from the server's own version; no hardcoded literal to go stale. -->
@@ -700,7 +700,7 @@
             </div><!-- /status -->
 
             <!-- ── Households ─────────────────────────────────────────────────────── -->
-            <div class="jpf-tab-panel" id="jpfPanelHouseholds" data-panel="households" role="tabpanel" hidden>
+            <div class="jpf-tab-panel" id="jpfPanelHouseholds" data-panel="households" role="tabpanel" aria-labelledby="jpfTabHouseholds" hidden>
                 <div class="sectionTitleContainer jpf-section" id="jpfAccounts">
                     <h2 class="sectionTitle" data-i18n="admin.households.title">Accounts &amp; profiles</h2>
                 </div>
@@ -729,7 +729,7 @@
             </div><!-- /households -->
 
             <!-- ── Devices ────────────────────────────────────────────────────────── -->
-            <div class="jpf-tab-panel" id="jpfPanelDevices" data-panel="devices" role="tabpanel" hidden>
+            <div class="jpf-tab-panel" id="jpfPanelDevices" data-panel="devices" role="tabpanel" aria-labelledby="jpfTabDevices" hidden>
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.devices.title">Signed-in devices</h2>
                 </div>
@@ -741,7 +741,7 @@
             </div><!-- /devices -->
 
             <!-- ── Security ───────────────────────────────────────────────────────── -->
-            <div class="jpf-tab-panel" id="jpfPanelSecurity" data-panel="security" role="tabpanel" hidden>
+            <div class="jpf-tab-panel" id="jpfPanelSecurity" data-panel="security" role="tabpanel" aria-labelledby="jpfTabSecurity" hidden>
                 <div class="sectionTitleContainer jpf-section" id="jpfPins">
                     <h2 class="sectionTitle" data-i18n="admin.security.pinsTitle">PINs</h2>
                 </div>
@@ -797,7 +797,7 @@
             </div><!-- /security -->
 
             <!-- ── Look ───────────────────────────────────────────────────────────── -->
-            <div class="jpf-tab-panel" id="jpfPanelLook" data-panel="look" role="tabpanel" hidden>
+            <div class="jpf-tab-panel" id="jpfPanelLook" data-panel="look" role="tabpanel" aria-labelledby="jpfTabLook" hidden>
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.switcher.title">Switcher</h2>
                 </div>
@@ -1052,7 +1052,7 @@
             </div><!-- /look -->
 
             <!-- ── Setup ──────────────────────────────────────────────────────────── -->
-            <div class="jpf-tab-panel" id="jpfPanelSetup" data-panel="setup" role="tabpanel" hidden>
+            <div class="jpf-tab-panel" id="jpfPanelSetup" data-panel="setup" role="tabpanel" aria-labelledby="jpfTabSetup" hidden>
                 <div class="sectionTitleContainer jpf-section" id="jpfViewing">
                     <h2 class="sectionTitle" data-i18n="admin.viewing.title">Viewing hours</h2>
                 </div>
@@ -1164,7 +1164,7 @@
             </div><!-- /setup -->
 
             <!-- ── Apps ───────────────────────────────────────────────────────────── -->
-            <div class="jpf-tab-panel" id="jpfPanelApps" data-panel="apps" role="tabpanel" hidden>
+            <div class="jpf-tab-panel" id="jpfPanelApps" data-panel="apps" role="tabpanel" aria-labelledby="jpfTabApps" hidden>
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.apps.title">Sign-in on other apps</h2>
                 </div>
@@ -1218,7 +1218,7 @@
             </div><!-- /apps -->
 
             <!-- ── Messages ───────────────────────────────────────────────────────── -->
-            <div class="jpf-tab-panel" id="jpfPanelMessages" data-panel="messages" role="tabpanel" hidden>
+            <div class="jpf-tab-panel" id="jpfPanelMessages" data-panel="messages" role="tabpanel" aria-labelledby="jpfTabMessages" hidden>
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.ann.title">Announcements</h2>
                 </div>
@@ -1297,7 +1297,7 @@
             </div><!-- /messages -->
 
             <!-- ── Activity ───────────────────────────────────────────────────────── -->
-            <div class="jpf-tab-panel" id="jpfPanelActivity" data-panel="activity" role="tabpanel" hidden>
+            <div class="jpf-tab-panel" id="jpfPanelActivity" data-panel="activity" role="tabpanel" aria-labelledby="jpfTabActivity" hidden>
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.audit.title">Profile switches</h2>
                 </div>
@@ -1329,7 +1329,7 @@
             </div><!-- /activity -->
 
             <!-- ── Troubleshoot ───────────────────────────────────────────────────── -->
-            <div class="jpf-tab-panel" id="jpfPanelTroubleshoot" data-panel="troubleshoot" role="tabpanel" hidden>
+            <div class="jpf-tab-panel" id="jpfPanelTroubleshoot" data-panel="troubleshoot" role="tabpanel" aria-labelledby="jpfTabTroubleshoot" hidden>
                 <div class="sectionTitleContainer jpf-section" id="jpfFaq">
                     <h2 class="sectionTitle" data-i18n="admin.help.title">Common problems</h2>
                 </div>

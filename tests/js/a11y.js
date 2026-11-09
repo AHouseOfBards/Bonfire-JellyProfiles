@@ -147,6 +147,13 @@ function tagOf(id) {
             ok(dr[0] + ': is modal', !!d && d.attrs['aria-modal'] === 'true');
             ok(dr[0] + ': is named by its heading', !!d && !!heading.id && d.attrs['aria-labelledby'] === heading.id,
                 d && JSON.stringify(d.attrs));
+            if (d && /prompt/.test(dr[0])) {
+                // 18. An empty name is refused out loud.
+                const box = d.querySelector('#profiles-prompt-input');
+                box.value = '  ';
+                d.fire('keydown', { key: 'Enter' });
+                ok('a prompt refused for an empty name marks the box invalid', box.attrs['aria-invalid'] === 'true', JSON.stringify(box.attrs));
+            }
             if (d) d.remove();
             ok(dr[0] + ': closing hands focus back to what opened it', opener.focused === 1, 'focused ' + opener.focused);
         }
@@ -266,6 +273,19 @@ function tagOf(id) {
         ok('tiles do not scale under the pointer or focus',
             /\.profile-card:focus \.profile-avatar[^{]*\{[^}]*transform:\s*none/.test(all));
         ok('swatches and buttons do not scale', /\.color-dot:focus[^{]*\{[^}]*transform:\s*none/.test(all));
+    }
+
+    // 19. Each dashboard panel is named by its tab, and each tab points at its panel.
+    {
+        const html = require('fs').readFileSync(require('path').join(L.ROOT, 'Web', 'profilesDashboard.html'), 'utf8');
+        const panels = html.match(/<div class="jpf-tab-panel"[^>]*>/g) || [];
+        ok('the dashboard panels were found (' + panels.length + ')', panels.length >= 10);
+        panels.forEach(p => {
+            const id = (/\bid="([^"]+)"/.exec(p) || [])[1];
+            const by = (/aria-labelledby="([^"]+)"/.exec(p) || [])[1];
+            const tab = by ? (html.match(new RegExp('<button[^>]*\\bid="' + by + '"[^>]*>')) || [])[0] : null;
+            ok(id + ' is named by a tab that controls it', !!tab && new RegExp('aria-controls="' + id + '"').test(tab), p);
+        });
     }
 
     // 10. The letter on an avatar is readable on every palette colour (3:1 at least, it is
