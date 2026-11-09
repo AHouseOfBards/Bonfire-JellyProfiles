@@ -538,6 +538,13 @@
     #profilesConfigurationPage .jpf-check-fix { padding: 4px 12px; white-space: nowrap; }
     @media (max-width: 480px) {
         #profilesConfigurationPage .jpf-check { grid-template-columns: 1fr; gap: 4px; }
+        /* One column on a phone: server over port, an announcement over its buttons, a
+           label over its field. */
+        #profilesConfigurationPage .jpf-email-server { grid-template-columns: 1fr; }
+        #profilesConfigurationPage .jpf-ann-item { grid-template-columns: 1fr; }
+        #profilesConfigurationPage .jpf-ann-buttons { grid-column: 1; grid-row: auto; }
+        #profilesConfigurationPage .jpf-te-adv { grid-template-columns: 1fr; }
+        #profilesConfigurationPage .jpf-te-adv .jpf-te-msg { grid-column: 1; }
     }
 
     /* Troubleshoot. */
