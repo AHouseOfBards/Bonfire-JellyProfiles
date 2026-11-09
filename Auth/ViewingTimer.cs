@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Profiles.Configuration;
 using Jellyfin.Profiles.Mail;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Session;
 using Microsoft.Extensions.Hosting;
@@ -55,14 +56,87 @@ namespace Jellyfin.Profiles.Auth
         public Task StartAsync(CancellationToken cancellationToken)
         {
             _timer = new Timer(_ => OnTick(), null, Interval, Interval);
+            _sessions.PlaybackStart += OnPlaybackStart;
+            _sessions.PlaybackStopped += OnPlaybackStopped;
             return Task.CompletedTask;
         }
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
+            _sessions.PlaybackStart -= OnPlaybackStart;
+            _sessions.PlaybackStopped -= OnPlaybackStopped;
             _timer?.Change(Timeout.Infinite, Timeout.Infinite);
             ViewingTracker.Save(_logger);
             return Task.CompletedTask;
+        }
+
+        // The tick only sees what is playing at the moment it looks, so a play that starts and
+        // stops between two looks was never billed (R-1025): thirty-second clips, back to back,
+        // were free. These two bill what the tick did not see. The start is remembered, and the
+        // stop bills from the later of that and the last look to now; the tick bills the rest
+        // while the play is going on, so no second is billed twice.
+        private void OnPlaybackStart(object? sender, PlaybackProgressEventArgs e)
+        {
+            try
+            {
+                NotePlaybackStart(e?.Session?.UserId ?? Guid.Empty, e?.Session?.Id, ViewingGate.IsVideo(e?.MediaInfo), ViewingTracker.Now());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "ProfilesPlugin: could not note the start of a playback.");
+            }
+        }
+
+        private void OnPlaybackStopped(object? sender, PlaybackStopEventArgs e)
+        {
+            try
+            {
+                NotePlaybackStopped(e?.Session?.UserId ?? Guid.Empty, e?.Session?.Id, ViewingGate.IsVideo(e?.MediaInfo), ViewingTracker.Now());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "ProfilesPlugin: could not bill the end of a playback.");
+            }
+        }
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> Started = new(StringComparer.Ordinal);
+        private const int MaxStarted = 1000;
+
+        /// <summary>A limited profile started a video on a session. Remembered until it stops.</summary>
+        internal static void NotePlaybackStart(Guid userId, string? sessionId, bool video, DateTime nowUtc)
+        {
+            if (!video || userId == Guid.Empty || string.IsNullOrEmpty(sessionId)) return;
+            if (!ViewingTracker.Index().ContainsKey(userId)) return;
+            if (Started.Count >= MaxStarted)
+            {
+                foreach (var old in Started.Where(p => nowUtc - p.Value > TimeSpan.FromHours(12)).Select(p => p.Key).ToList())
+                {
+                    Started.TryRemove(old, out _);
+                }
+
+                if (Started.Count >= MaxStarted) return;
+            }
+
+            Started[sessionId] = nowUtc;
+        }
+
+        /// <summary>
+        /// A video stopped on a session: bills what the tick did not. From the later of the
+        /// start and the last look, to now, never more than the tick itself would bill.
+        /// </summary>
+        internal static void NotePlaybackStopped(Guid userId, string? sessionId, bool video, DateTime nowUtc)
+        {
+            if (string.IsNullOrEmpty(sessionId)) return;
+            var hadStart = Started.TryRemove(sessionId, out var started);
+            if (!video || userId == Guid.Empty) return;
+            if (!ViewingTracker.Index().TryGetValue(userId, out var limited)) return;
+
+            var from = LastTickUtc;
+            if (hadStart && (!from.HasValue || started > from.Value)) from = started;
+            if (!from.HasValue) return;
+
+            var seconds = Math.Clamp((nowUtc - from.Value).TotalSeconds, 0, Interval.TotalSeconds * 2);
+            ViewingTracker.AddSeconds(userId, ViewingClock.DayOf(limited.Zone, nowUtc), seconds);
         }
 
         public void Dispose() => _timer?.Dispose();

@@ -800,6 +800,78 @@ stub.Sessions.Add(songSession);
 for (var i = 0; i < 4; i++) { clockNow = clockNow.AddSeconds(30); Tick(); }
 Ok("music is not counted", Used(KID2) == 0);
 
+// ── Plays between looks ──────────────────────────────────────────────────────
+// The tick sees only what is playing at the moment it looks, so a clip that starts and stops
+// between two looks was never billed (R-1025). The playback start and stop reports bill what
+// the tick did not, and nothing twice.
+Section("Plays between looks");
+
+Static(tracker, "Reset");
+Call("SetViewingLimits", MAIN, B(("DailyMinutes", 10), ("MasterPin", "1234")), KID2);
+Fresh();
+stub.Sessions.Clear();
+var noteStart = timer.GetMethod("NotePlaybackStart", Any);
+var noteStop = timer.GetMethod("NotePlaybackStopped", Any);
+Ok("the timer bills a play that ends between two looks", noteStart != null && noteStop != null);
+// A build without the two still runs every assertion below, so each one fails for its own reason.
+{
+    double Secs(Guid id) => (double)Get(Static(tracker, "EntryFor", id), "Seconds");
+    void Start(Guid who, string session, bool video = true) => noteStart?.Invoke(null, new object[] { who, session, video, clockNow });
+    void Stop(Guid who, string session, bool video = true) => noteStop?.Invoke(null, new object[] { who, session, video, clockNow });
+
+    clockNow = Utc(2026, 11, 7, 9);
+    lastTick.SetValue(null, null);
+    Tick();
+    Ok("the first look bills nothing", Secs(KID2) == 0, Secs(KID2).ToString());
+
+    clockNow = clockNow.AddSeconds(5);
+    Start(KID2, "clip");
+    clockNow = clockNow.AddSeconds(20);
+    Stop(KID2, "clip");
+    clockNow = clockNow.AddSeconds(5);
+    Tick();
+    Ok("a clip that starts and stops between two looks is billed for its length (" + Secs(KID2) + " s)", Secs(KID2) == 20, Secs(KID2).ToString());
+
+    // Playing across a look: the look bills its share, the stop only the rest.
+    var before = Secs(KID2);
+    stub.Sessions.Add(SessionStub.Make("kid-two-tv", KID2, item, deviceId: "dev-two"));
+    Start(KID2, "kid-two-tv");
+    clockNow = clockNow.AddSeconds(30);
+    Tick();
+    clockNow = clockNow.AddSeconds(10);
+    stub.Sessions.Clear();
+    Stop(KID2, "kid-two-tv");
+    Ok("a play across a look is billed once: the look's share and the rest (" + (Secs(KID2) - before) + " s)", Secs(KID2) - before == 40, (Secs(KID2) - before).ToString());
+    clockNow = clockNow.AddSeconds(20);
+    Tick();
+    Ok("and the next look, with nothing playing, bills nothing more", Secs(KID2) - before == 40, (Secs(KID2) - before).ToString());
+
+    // What is not counted by the tick is not counted here.
+    before = Secs(KID2);
+    Start(KID2, "song", video: false); clockNow = clockNow.AddSeconds(15); Stop(KID2, "song", video: false);
+    Ok("music is not billed", Secs(KID2) == before, (Secs(KID2) - before).ToString());
+    var stranger = Guid.NewGuid();
+    Start(stranger, "other"); clockNow = clockNow.AddSeconds(15); Stop(stranger, "other");
+    Ok("nor is a profile with no limits", Secs(KID2) == before && Secs(stranger) == 0, Secs(KID2).ToString());
+
+    // A start that was never seen (the plugin began mid-play): from the last look.
+    Tick();
+    before = Secs(KID2);
+    clockNow = clockNow.AddSeconds(12);
+    Stop(KID2, "unseen");
+    Ok("a stop with no start seen is billed from the last look (" + (Secs(KID2) - before) + " s)", Secs(KID2) - before == 12, (Secs(KID2) - before).ToString());
+
+    // And never more than the look itself would bill, whatever the clock says.
+    Tick();
+    before = Secs(KID2);
+    clockNow = clockNow.AddHours(1);
+    Stop(KID2, "late");
+    Ok("never more than a minute at once (" + (Secs(KID2) - before) + " s)", Secs(KID2) - before == 60, (Secs(KID2) - before).ToString());
+
+    // What follows starts KID2's day from nothing again.
+    Static(tracker, "Forget", KID2);
+}
+
 // ── Kept ─────────────────────────────────────────────────────────────────────
 Section("Kept");
 
