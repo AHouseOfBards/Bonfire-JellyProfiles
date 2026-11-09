@@ -127,7 +127,8 @@ const R = routes();
         for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
             const full = path.join(dir, e.name);
             if (e.isDirectory()) {
-                if (!/^(bin|obj|tests|node_modules|\.git)$/.test(e.name)) walk(full);
+                // .claude holds other checkouts of the repo, half-edited, with routes of their own.
+                if (!/^(bin|obj|tests|node_modules|\.git|\.claude)$/.test(e.name)) walk(full);
             } else if (e.name.endsWith('.cs') && !controllerFiles.includes(e.name)
                        && /\[Http(Get|Post|Put|Delete|Patch)\b/.test(fs.readFileSync(full, 'utf8'))) {
                 stray.push(path.relative(L.ROOT, full));
