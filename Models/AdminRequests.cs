@@ -74,6 +74,10 @@ namespace Jellyfin.Profiles.Models
         /// already exist are counted as having seen it.</summary>
         public bool? OnboardingEnabled { get; set; }
 
+        /// <summary>The administrator has answered the new-install question about first-time
+        /// setup. Null leaves it alone.</summary>
+        public bool? OnboardingAsked { get; set; }
+
         /// <summary>Step ids to offer (<c>OnboardingSteps</c>). Unknown ids are refused.</summary>
         public System.Collections.Generic.List<string>? OnboardingSteps { get; set; }
 

@@ -32,7 +32,10 @@ const source = L.dashboardI18n(script)
     + L.extractFunction(script, 'loadOnboarding') + '\n'
     + L.extractFunction(script, 'syncOnboardingRows') + '\n'
     + L.extractFunction(script, 'gettingStartedItems') + '\n'
-    + L.extractFunction(script, 'renderGettingStarted') + '\n';
+    + L.extractFunction(script, 'renderGettingStarted') + '\n'
+    // Only on a dashboard that asks; an older one fails the assertions below instead of here.
+    + (has('onboardingAskDue') ? L.extractFunction(script, 'onboardingAskDue') + '\n' : '')
+    + (has('answerOnboardingAsk') ? L.extractFunction(script, 'answerOnboardingAsk') + '\n' : '');
 
 // ── stub elements ────────────────────────────────────────────────────────────
 function el(attrs) {
@@ -60,7 +63,7 @@ const STEPS = ['welcome', 'mainPin', 'firstProfile', 'switcher', 'theme'];
 function makePage() {
     const ids = {
         onboardingEnabled: el(), onboardingWelcome: el(),
-        gettingStartedBlock: el(), gettingStarted: el()
+        gettingStartedBlock: el(), gettingStarted: el(), onboardingAsk: el()
     };
     const shows = STEPS.map(s => el({ 'data-step': s }));
     const reqs = STEPS.map(s => el({ 'data-step': s }));
@@ -83,9 +86,17 @@ function makePage() {
 const gone = [];
 const document = { createElement: () => el() };
 const goTo = (page, tab, anchor) => gone.push(tab + '#' + (anchor || ''));
+const posted = [];
+const ApiClient = {
+    getUrl: u => '/' + u,
+    ajax: o => { posted.push(JSON.parse(o.data)); return Promise.resolve({}); }
+};
+const Dashboard = { showLoadingMsg() {}, hideLoadingMsg() {}, alert() {} };
 // eslint-disable-next-line no-new-func
-const api = new Function('document', 'goTo',
-    source + '; return { loadOnboarding, syncOnboardingRows, renderGettingStarted };')(document, goTo);
+const api = new Function('document', 'goTo', 'ApiClient', 'Dashboard',
+    source + '; return { loadOnboarding, syncOnboardingRows, renderGettingStarted,'
+    + ' onboardingAskDue: typeof onboardingAskDue === "function" ? onboardingAskDue : null,'
+    + ' answerOnboardingAsk: typeof answerOnboardingAsk === "function" ? answerOnboardingAsk : null };')(document, goTo, ApiClient, Dashboard);
 
 console.log('\n── First-time setup, as loaded ─────────────────────────────────');
 
@@ -121,55 +132,94 @@ page._config = { RequireMainPin: false, EnableStarterAvatars: false, AvatarLibra
 api.renderGettingStarted(page);
 const rows = () => page.ids.gettingStarted.children;
 const row = key => rows().filter(r => r.getAttribute('data-gs') === key)[0];
-ok('what is not known yet is left out: no profile list, no emergency status',
-   !row('profiles') && !row('emergency'));
-ok('a fresh install lists the rest as to do',
-   ['pins', 'avatars', 'onboarding', 'apps'].every(k => row(k) && row(k).getAttribute('data-level') === 'info'));
+ok('what is not known yet is left out: no profile list', !row('profiles'));
+ok('a fresh install lists the main PIN as to do', row('pins') && row('pins').getAttribute('data-level') === 'info');
 ok('the list is shown', !page.ids.gettingStartedBlock.classList.contains('jpf-hidden'));
-ok('each to-do opens where it is fixed', row('onboarding').children.length === 3);
-row('onboarding').children[2].listeners.click();
-ok('First-time setup opens Setup at its section', gone.pop() === 'setup#jpfOnboarding');
-row('apps').children[2].listeners.click();
-ok('Apps opens the Apps tab', gone.pop() === 'apps#');
+ok('the main PIN opens where it is fixed', row('pins').children.length === 3);
+row('pins').children[2].listeners.click();
+ok('and goes to Security at the PINs', gone.pop() === 'security#jpfPins');
 
 page._mappings = { subProfiles: [] };
 page._panicConfigured = false;
 api.renderGettingStarted(page);
 ok('once known, no profiles is a to-do with nothing to open (households make them)',
    row('profiles') && row('profiles').getAttribute('data-level') === 'info' && row('profiles').children.length === 2);
-ok('and the emergency code joins the list', row('emergency') && row('emergency').getAttribute('data-level') === 'info');
 
-page._config.EnableStarterAvatars = true;
-page._config.Onboarding = { Enabled: true };
-page._config.ProxyClients = ['moonfin'];
-api.renderGettingStarted(page);
-ok('it ticks itself from the settings: avatars, setup, apps',
-   ['avatars', 'onboarding', 'apps'].every(k => row(k).getAttribute('data-level') === 'ok'));
-ok('a ticked row has nothing to open', row('avatars').children.length === 2);
-ok('a starter-less library with pictures counts too', (function () {
-    page._config.EnableStarterAvatars = false;
-    page._config.AvatarLibrary = [{ Id: 'a' }];
-    api.renderGettingStarted(page);
-    return row('avatars').getAttribute('data-level') === 'ok';
-})());
+// P2-301, P2-302: only what a new install needs. Each of these was a to-do that was never one.
+ok('no emergency code, though none is set (it bypasses the picker; Security says so)', !row('emergency'));
+ok('no avatars item, which was done on every install', !row('avatars'));
+ok('no first-time setup item: it is asked once instead', !row('onboarding'));
+ok('no apps item: a choice, not a chore', !row('apps'));
+ok('exactly the profile and the PIN', rows().length === 2, rows().map(r => r.getAttribute('data-gs')).join());
 
 page._config.RequireMainPin = true;
 page._mappings = { SubProfiles: [{}] };
-page._panicConfigured = true;
 api.renderGettingStarted(page);
 ok('all done: the list goes away', page.ids.gettingStartedBlock.classList.contains('jpf-hidden'));
 
+console.log('\n── The first-time setup question ───────────────────────────────');
+
+const askShown = p => !p.ids.onboardingAsk.classList.contains('jpf-hidden');
+function fresh(over) {
+    const p = makePage();
+    p._config = { RequireMainPin: false, Onboarding: Object.assign({}, over || {}) };
+    p._mappings = { subProfiles: [] };
+    return p;
+}
+page = fresh();
+api.renderGettingStarted(page);
+ok('a new install is asked', askShown(page));
+page = fresh(); page._mappings = null;
+api.renderGettingStarted(page);
+ok('not before the profile list is known', !askShown(page));
+page = fresh({ Asked: true });
+api.renderGettingStarted(page);
+ok('not again once answered', !askShown(page));
+page = fresh({ Enabled: true });
+api.renderGettingStarted(page);
+ok('not when it is already on', !askShown(page));
+page = fresh({ StepsChosen: true });
+api.renderGettingStarted(page);
+ok('not when the administrator has already chosen steps', !askShown(page));
+page = fresh(); page._mappings = { subProfiles: [{}] };
+api.renderGettingStarted(page);
+ok('not on an install that already has profiles', !askShown(page));
+
+page = fresh();
+api.renderGettingStarted(page);
+api.answerOnboardingAsk && api.answerOnboardingAsk(page, true);
+ok('yes turns it on and records the answer', posted.length === 1 && posted[0].onboardingAsked === true && posted[0].onboardingEnabled === true,
+   JSON.stringify(posted));
+const settle = () => new Promise(r => setImmediate(r));
+(async function () {
+    await settle(); await settle();
+    ok('and the question goes away, with the box ticked', !askShown(page) && page.ids.onboardingEnabled.checked === true);
+    posted.length = 0;
+    page = fresh();
+    api.renderGettingStarted(page);
+    api.answerOnboardingAsk && api.answerOnboardingAsk(page, false);
+    ok('no records the answer and turns nothing on', posted.length === 1 && posted[0].onboardingAsked === true && !('onboardingEnabled' in posted[0]),
+       JSON.stringify(posted));
+    await settle(); await settle();
+    ok('and the question goes away, the box left off', !askShown(page) && !page.ids.onboardingEnabled.checked);
+    finish();
+})();
+
+function finish() {
 console.log('\n── Wiring ──────────────────────────────────────────────────────');
 ok('the Status tab carries the list', /id="gettingStartedBlock"/.test(html) && /id="gettingStarted"/.test(html));
-ok('Setup carries the section the list points at', /id="jpfOnboarding"/.test(html));
+ok('Setup carries the first-time setup section', /id="jpfOnboarding"/.test(html));
+ok('the Status tab carries the question, with both answers', /id="onboardingAsk"/.test(html)
+   && /id="onboardingAskYes"/.test(html) && /id="onboardingAskNo"/.test(html));
 ok('saving, loading and the two status loads all redraw it',
    /noteSavedSettings\(page, sent\)/.test(script)
    && (script.match(/renderGettingStarted\(page\)/g) || []).length >= 4);
 
-console.log('');
-if (fails.length) {
-    fails.forEach(f => console.log('   - ' + f));
-    console.log(pass + ' passed, ' + fails.length + ' failed');
-    process.exit(1);
+    console.log('');
+    if (fails.length) {
+        fails.forEach(f => console.log('   - ' + f));
+        console.log(pass + ' passed, ' + fails.length + ' failed');
+        process.exit(1);
+    }
+    console.log(pass + ' passed, 0 failed');
 }
-console.log(pass + ' passed, 0 failed');

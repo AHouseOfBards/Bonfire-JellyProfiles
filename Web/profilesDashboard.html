@@ -667,6 +667,17 @@
                 </div>
                 <div class="fieldDescription jpf-lede" id="statusSummary" data-i18n="admin.status.checking">Checking…</div>
                 <div class="jpf-checks" id="statusChecks"></div>
+                <!-- Asked once, on a new install: nothing else on this page is off by default
+                     and worth a question. Gone when answered, or when anything shows it
+                     was never a new install (renderGettingStarted decides). -->
+                <div class="jpf-hidden jpf-note jpf-mt-3" id="onboardingAsk">
+                    <strong class="jpf-label-block" data-i18n="admin.onboarding.askTitle">Show first-time setup?</strong>
+                    <span data-i18n="admin.onboarding.askBody">New accounts get a few screens to set a PIN and make a profile. You can change this under Setup.</span>
+                    <div class="jpf-actions jpf-mt-2">
+                        <button is="emby-button" type="button" class="raised button-submit" id="onboardingAskYes" data-i18n="admin.onboarding.askYes">Turn it on</button>
+                        <button is="emby-button" type="button" class="raised" id="onboardingAskNo" data-i18n="admin.onboarding.askNo">No thanks</button>
+                    </div>
+                </div>
                 <!-- Ticks itself off from the settings; gone once everything is done. -->
                 <div class="jpf-hidden jpf-mt-3" id="gettingStartedBlock">
                     <h3 class="jpf-gs-title" data-i18n="admin.gs.title">Getting started</h3>
@@ -1333,7 +1344,7 @@
                     </details>
                     <details>
                         <summary data-i18n="admin.help.lockedQ">Bonfire is in the way and I can't get in</summary>
-                        <p data-i18n="admin.help.lockedA">Enter the emergency disable code on any Bonfire screen, or press Ctrl+Shift+B. Set one under Security before you need it. If the script doesn't load at all, restart Jellyfin.</p>
+                        <p data-i18n="admin.help.lockedA">Enter the emergency disable code on any Bonfire screen, or press Ctrl+Shift+B. If neither works, or the script doesn't load at all, restart Jellyfin.</p>
                     </details>
                 </div>
 
@@ -1436,10 +1447,6 @@
                 'admin.gs.open': 'Set up',
                 'admin.gs.profiles': 'Make a first profile. Households do this from the Jellyfin home screen.',
                 'admin.gs.pins': 'Require a PIN on every main account.',
-                'admin.gs.emergency': 'Set an emergency code.',
-                'admin.gs.avatars': 'Give profiles pictures to choose from.',
-                'admin.gs.onboarding': 'Turn on first-time setup for new accounts.',
-                'admin.gs.apps': 'Let profiles work in the TV and phone apps.',
                 'admin.saveFailed': 'Couldn\'t save it.',
                 'admin.saveSettingsFailed': 'Couldn\'t save the settings.',
                 'admin.saveBlocked': 'The settings did not load, so nothing was saved. Press Try again.',
@@ -1486,14 +1493,12 @@
                 'admin.status.orphansMany': '{count} leftover records point at deleted accounts.',
                 'admin.status.maintenance': 'The server is closed for maintenance. Only administrators can use it.',
                 'admin.status.panicUsed': 'Bonfire was switched off with the emergency code. Restart Jellyfin to turn it back on.',
-                'admin.status.noPanic': 'No emergency disable code is set.',
                 'admin.status.checkIt': 'Check it',
                 'admin.status.report': 'Report',
                 'admin.status.seeWhich': 'See which',
                 'admin.status.requirePins': 'Require PINs',
                 'admin.status.cleanUp': 'Clean up',
                 'admin.status.reopen': 'Reopen',
-                'admin.status.setOne': 'Set one',
 
                 'admin.households.none': 'No main accounts yet.',
                 'admin.households.pinSet': 'PIN protected',
@@ -5217,11 +5222,9 @@
                     const configured = field(data, 'isConfigured');
                     const disabled = field(data, 'isCurrentlyDisabled');
                     page._panicConfigured = !!configured;
-                    renderGettingStarted(page);
-                    setStatus(page, 'panic', disabled
-                        ? [{ level: 'bad', text: t('admin.status.panicUsed') }]
-                        : configured ? []
-                        : [{ level: 'info', text: t('admin.status.noPanic'), tab: 'security', anchor: 'jpfEmergency', fix: t('admin.status.setOne') }]);
+                    // Not urged: the code bypasses the picker, and Security says so. Only the
+                    // fact that it was used is worth a line on Status.
+                    setStatus(page, 'panic', disabled ? [{ level: 'bad', text: t('admin.status.panicUsed') }] : []);
                     const line = page.querySelector('#panicStatusLine');
                     if (disabled) {
                         line.innerHTML = '<span style="color:#ff9900; font-weight:600;">' + escapeHtml(t('admin.panic.offTitle')) + '</span> ' +
@@ -5333,31 +5336,66 @@
 
             // ── Getting started ───────────────────────────────────────────────────
             //
-            // The things a new install usually wants, each ticked from the settings as they
-            // stand rather than from anything the administrator clicked, so it can't claim
-            // something is done that isn't. Suggestions, not warnings: nothing here is
-            // wrong, so nothing is coloured as if it were.
+            // Only what a new install needs, each ticked from the settings as they stand
+            // rather than from anything the administrator clicked, so it can't claim something
+            // is done that isn't. Suggestions, not warnings: nothing here is wrong, so nothing
+            // is coloured as if it were.
+            //
+            // Short on purpose (P2-301, P2-302). It once also asked for avatars, first-time
+            // setup, the apps and an emergency code. The avatars item was done on every install,
+            // since the starter set is on by default; the emergency code bypasses the picker, so
+            // Security warns against it in the same breath; and the rest are choices, not
+            // chores. First-time setup is asked once instead, below.
             function gettingStartedItems(page) {
                 const c = page._config || {};
                 const r = page._mappings || null;
-                const ob = c.Onboarding || {};
                 const subs = r ? (field(r, 'subProfiles') || []) : null;
                 return [
                     { key: 'profiles', text: t('admin.gs.profiles'), done: subs === null ? null : subs.length > 0 },
-                    { key: 'pins', text: t('admin.gs.pins'), done: !!c.RequireMainPin, tab: 'security', anchor: 'jpfPins' },
-                    { key: 'emergency', text: t('admin.gs.emergency'), done: page._panicConfigured === undefined ? null : !!page._panicConfigured,
-                      tab: 'security', anchor: 'jpfEmergency' },
-                    { key: 'avatars', text: t('admin.gs.avatars'), done: c.EnableStarterAvatars !== false || (c.AvatarLibrary || []).length > 0,
-                      tab: 'look', anchor: 'jpfAvatars' },
-                    { key: 'onboarding', text: t('admin.gs.onboarding'), done: !!field(ob, 'enabled'), tab: 'setup', anchor: 'jpfOnboarding' },
-                    { key: 'apps', text: t('admin.gs.apps'), done: !!(c.EnableClientPinLogin || c.EnableClientProfileList || (c.ProxyClients || []).length),
-                      tab: 'apps' }
+                    { key: 'pins', text: t('admin.gs.pins'), done: !!c.RequireMainPin, tab: 'security', anchor: 'jpfPins' }
                 ];
+            }
+
+            // Whether to ask the administrator about first-time setup: once, on a new install.
+            // New means nothing has been decided about it and no household has made a profile
+            // yet. An install that upgraded into this page already has profiles, and one whose
+            // administrator touched the setting has chosen; neither is asked.
+            function onboardingAskDue(page) {
+                const c = page._config;
+                const r = page._mappings;
+                if (!c || !r) return false;
+                const ob = c.Onboarding || {};
+                if (field(ob, 'asked') || field(ob, 'enabled') || field(ob, 'stepsChosen')) return false;
+                return (field(r, 'subProfiles') || []).length === 0;
+            }
+
+            function answerOnboardingAsk(page, yes) {
+                const body = { onboardingAsked: true };
+                if (yes) body.onboardingEnabled = true;
+                Dashboard.showLoadingMsg();
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('plugins/profiles/admin/settings'),
+                    contentType: 'application/json',
+                    data: JSON.stringify(body)
+                }).then(function () {
+                    Dashboard.hideLoadingMsg();
+                    const c = page._config = page._config || {};
+                    c.Onboarding = Object.assign({}, c.Onboarding || {}, yes ? { Asked: true, Enabled: true } : { Asked: true });
+                    if (yes) page.querySelector('#onboardingEnabled').checked = true;
+                    renderGettingStarted(page);
+                    Dashboard.alert(t('admin.saved'));
+                }, function () {
+                    Dashboard.hideLoadingMsg();
+                    Dashboard.alert({ message: t('admin.saveSettingsFailed'), title: t('admin.error') });
+                });
             }
 
             function renderGettingStarted(page) {
                 const block = page.querySelector('#gettingStartedBlock');
                 const list = page.querySelector('#gettingStarted');
+                const ask = page.querySelector('#onboardingAsk');
+                if (ask) ask.classList.toggle('jpf-hidden', !onboardingAskDue(page));
                 if (!block || !list || !page._config) return;
                 // Not known yet is left out rather than shown as to do.
                 const items = gettingStartedItems(page).filter(function (it) { return it.done !== null; });
@@ -5572,6 +5610,10 @@
                 const again = page.querySelector('#onboardingShowAgain');
                 if (!again || again.dataset.bound) return;
                 again.dataset.bound = '1';
+                const yes = page.querySelector('#onboardingAskYes');
+                const no = page.querySelector('#onboardingAskNo');
+                if (yes) yes.addEventListener('click', function () { answerOnboardingAsk(page, true); });
+                if (no) no.addEventListener('click', function () { answerOnboardingAsk(page, false); });
                 page.querySelectorAll('.jpfObShow').forEach(function (box) {
                     box.addEventListener('change', function () { syncOnboardingRows(page); });
                 });

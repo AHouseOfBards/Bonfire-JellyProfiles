@@ -25,6 +25,11 @@ namespace Jellyfin.Profiles.Configuration
     {
         public bool Enabled { get; set; }
 
+        /// <summary>The administrator has been asked, on a new install, whether they want
+        /// the setup, and answered either way. Never read by the server: the dashboard asks
+        /// until it is set, and only while nothing has been configured yet.</summary>
+        public bool Asked { get; set; }
+
         /// <summary>The steps offered, as <see cref="OnboardingSteps"/> ids. Read only once
         /// <see cref="StepsChosen"/> is set; until then every step is offered.</summary>
         public List<string> Steps { get; set; } = new();

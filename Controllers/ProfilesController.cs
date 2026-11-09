@@ -5282,6 +5282,8 @@ namespace Jellyfin.Profiles.Controllers
                     onboarding.RequiredSteps = OnboardingSteps.Normalize(request.OnboardingRequiredSteps);
                 if (request.OnboardingWelcomeText != null)
                     onboarding.WelcomeText = request.OnboardingWelcomeText.Trim();
+                if (request.OnboardingAsked.HasValue)
+                    onboarding.Asked = request.OnboardingAsked.Value;
                 if (request.OnboardingEnabled.HasValue)
                 {
                     onboarding.Enabled = request.OnboardingEnabled.Value;

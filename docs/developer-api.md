@@ -2162,6 +2162,7 @@ anything added since you read it.
 | `skipQuickConnectOnKnownDevices` | boolean | Same. |
 | `profileImageQuality` | string | `standard` (512 px, 2 MB), `high` (1024 px, 4 MB) or `maximum` (2048 px, 8 MB). |
 | `onboardingEnabled` | boolean | [First-time setup](#first-time-setup) on or off. The first time it goes on, existing accounts count as having seen it. |
+| `onboardingAsked` | boolean | The dashboard's new-install question about first-time setup has been answered, yes or no. Changes nothing else. |
 | `onboardingSteps` | string[] | Steps to offer: `welcome`, `mainPin`, `resetEmail`, `firstProfile`, `switcher`, `theme`. |
 | `onboardingRequiredSteps` | string[] | Steps that can't be skipped. |
 | `onboardingWelcomeText` | string | Plain text for the first screen, up to 500 characters. |

@@ -202,6 +202,33 @@ cfgType.GetProperty("AllowProfileThemes").SetValue(config, false);
 Ok("theme is not offered while profiles can't have their own", !Steps(NEW).Any(s => s.id == "theme"));
 cfgType.GetProperty("AllowProfileThemes").SetValue(config, true);
 
+// ── The question on a new install ────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── The question on a new install ───────────────────────────────");
+
+var askedProp = obType.GetProperty("Asked");
+Ok("the setting remembers that the administrator has been asked", askedProp != null);
+if (askedProp != null)
+{
+    Ok("not asked until answered", !(bool)Ob("Asked"));
+    var enabledBefore = (bool)Ob("Enabled");
+    var stepsBefore = (bool)Ob("StepsChosen");
+    var answerNo = Admin(new() { ["OnboardingAsked"] = (bool?)true });
+    Ok("answering says so and changes nothing else",
+       answerNo.status == 200 && (bool)Ob("Asked") && (bool)Ob("Enabled") == enabledBefore && (bool)Ob("StepsChosen") == stepsBefore,
+       answerNo.status + " " + answerNo.value);
+    var leaveAlone = Admin(new() { ["OnboardingWelcomeText"] = (string)Ob("WelcomeText") });
+    Ok("a save that doesn't mention it leaves it alone", leaveAlone.status == 200 && (bool)Ob("Asked"));
+    var notAdminAsk = Admin(new() { ["OnboardingAsked"] = (bool?)false }, OLD);
+    Ok("only an administrator can answer", notAdminAsk.status == 401 && (bool)Ob("Asked"), notAdminAsk.status + " " + notAdminAsk.value);
+    // XmlSerializer is how Jellyfin keeps it between starts.
+    var xmlAsked = new XmlSerializer(obType);
+    var wasAsked = Onboarding();
+    using (var sw = new StringWriter()) { xmlAsked.Serialize(sw, wasAsked); using var sr = new StringReader(sw.ToString());
+        Ok("and it survives the serializer", (bool)obType.GetProperty("Asked").GetValue(xmlAsked.Deserialize(sr))); }
+    Admin(new() { ["OnboardingAsked"] = (bool?)false });
+}
+
 // ── Steps ────────────────────────────────────────────────────────────────────
 Console.WriteLine();
 Console.WriteLine("── Choosing steps ──────────────────────────────────────────────");
