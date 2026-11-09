@@ -101,7 +101,9 @@ namespace Jellyfin.Profiles.Auth
             // main account, which is where the app would otherwise land (see SignOutChildAsync).
             if (Plugin.IsPanicDisabled || !ProxyClients.AnyEnabled(Plugin.Instance?.Configuration))
             {
-                if (ChildTokens.IsEmpty) return false;
+                // PickerMarks.Any: a TV that was in a child's profile before a restart is no
+                // longer in ChildTokens, and is exactly the one this must not let through.
+                if (ChildTokens.IsEmpty && !PickerMarks.Any) return false;
                 return await RefuseIfChildAsync(context, logger).ConfigureAwait(false);
             }
 
@@ -156,13 +158,13 @@ namespace Jellyfin.Profiles.Auth
             {
                 var token = ReadToken(request);
                 if (string.IsNullOrEmpty(token)) return false;
-                if (ChildTokens.ContainsKey(token)) return true;
+                if (ChildTokens.ContainsKey(token) || PickerMarks.Find(token) != null) return true;
                 return Sessions.TryGetValue(token, out var s) && s.Acting == null;
             }
             catch (Exception)
             {
                 // Cannot tell. With a TV in a child's profile, assume it is that one.
-                return !ChildTokens.IsEmpty;
+                return !ChildTokens.IsEmpty || PickerMarks.Any;
             }
         }
 
@@ -173,9 +175,61 @@ namespace Jellyfin.Profiles.Auth
         private static async Task<bool> RefuseIfChildAsync(HttpContext context, ILogger logger)
         {
             var token = ReadToken(context.Request);
-            if (string.IsNullOrEmpty(token) || !ChildTokens.TryGetValue(token, out var session)) return false;
+            if (string.IsNullOrEmpty(token)) return false;
+
+            if (!ChildTokens.TryGetValue(token, out var session))
+            {
+                // Not in memory: either not a child's, or one from before a restart, which is
+                // on disk and is signed out the same way.
+                var mark = PickerMarks.Find(token);
+                if (mark == null) return false;
+                session = RestoredSession(context.Request, token, mark);
+            }
 
             return await SignOutChildAsync(context, session, new Services(context.RequestServices), logger).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// A TV that was in a child's profile before a restart is back and the picker has taken
+        /// it: it starts at the picker, so only the profile's old session is left to end. The
+        /// record is kept if that could not be done, so the next start tries again.
+        /// </summary>
+        private static async Task EndRestoredAsync(PickerMarks.Mark mark, string masterToken, Services services, ILogger logger)
+        {
+            if (!string.IsNullOrEmpty(mark.ProfileToken) && services.Sessions != null)
+            {
+                try
+                {
+                    await services.Sessions.Logout(mark.ProfileToken).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    logger.LogWarning(ex, "ProfilesPlugin: could not end a profile session from before the restart.");
+                    return;
+                }
+            }
+
+            PickerMarks.Remove(masterToken);
+        }
+
+        /// <summary>
+        /// A session for a TV that was in a child's profile before a restart, built from what was
+        /// kept on disk and what the request says: enough to sign the profile and the main
+        /// token out.
+        /// </summary>
+        private static ProxySession RestoredSession(HttpRequest request, string token, PickerMarks.Mark mark)
+        {
+            var auth = request.Headers[HeaderNames.Authorization];
+            var emby = request.Headers["X-Emby-Authorization"];
+            return new ProxySession
+            {
+                MasterToken = token,
+                MasterId = mark.MasterId,
+                Client = Controllers.ProfilesBaseController.ParseAuthorizationParameter(auth, emby, "Client") ?? string.Empty,
+                Device = Controllers.ProfilesBaseController.ParseAuthorizationParameter(auth, emby, "Device") ?? string.Empty,
+                DeviceId = Controllers.ProfilesBaseController.ParseAuthorizationParameter(auth, emby, "DeviceId") ?? string.Empty,
+                Acting = string.IsNullOrEmpty(mark.ProfileToken) ? null : new ActingAs(mark.ProfileId, mark.ProfileToken),
+            };
         }
 
         /// <summary>
@@ -265,7 +319,7 @@ namespace Jellyfin.Profiles.Auth
             {
                 // Not an app that is ticked, as far as the headers say. A child's TV whose
                 // app has been unticked since says exactly that, and is still a child's.
-                return !ChildTokens.IsEmpty && await RefuseIfChildAsync(context, logger).ConfigureAwait(false);
+                return (!ChildTokens.IsEmpty || PickerMarks.Any) && await RefuseIfChildAsync(context, logger).ConfigureAwait(false);
             }
 
             // Our own reading, not Jellyfin's (RequestAuth), on purpose: the token here only
@@ -282,9 +336,14 @@ namespace Jellyfin.Profiles.Auth
             // session already known. Only a request naming a ticked app can start one.
             if (!Sessions.TryGetValue(token, out var session))
             {
-                if (!named) return false;
+                // Nothing in memory about this token, but it may be a TV that was in a child's
+                // profile before a restart (on disk). It is never served as the main account:
+                // at the picker, if the picker takes it; signed out, if nothing of ours does.
+                var restored = PickerMarks.Find(token);
+                if (!named) return restored != null && await RefuseIfChildAsync(context, logger).ConfigureAwait(false);
                 session = FindOrRegister(token, request, Controllers.ProfilesBaseController.ReadConfigSnapshot(), services, logger);
-                if (session == null) return false;
+                if (session == null) return restored != null && await RefuseIfChildAsync(context, logger).ConfigureAwait(false);
+                if (restored != null) await EndRestoredAsync(restored, token, services, logger).ConfigureAwait(false);
             }
             else if (!await StillSignedInAsync(session, services, logger).ConfigureAwait(false))
             {

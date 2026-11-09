@@ -181,7 +181,7 @@ MemoryStream lastBytes = null;
 // One request through the real middleware. Returns the body the app got, or null when
 // Jellyfin answered it (seenPath says what Jellyfin saw).
 (int status, string body, bool reachedJellyfin) Get(string pathAndQuery, string token = MOON_TOKEN, string client = "Moonfin for Android TV", string method = "GET",
-    string remote = "203.0.113.9", string forwardedFor = null, string acceptLanguage = null)
+    string remote = "203.0.113.9", string forwardedFor = null, string acceptLanguage = null, bool bare = false)
 {
     seenPath = seenQuery = seenAuth = null;
     var ctx = new DefaultHttpContext { RequestServices = throwFor == null ? services : new ThrowingProvider(services, throwFor) };
@@ -192,7 +192,9 @@ MemoryStream lastBytes = null;
     ctx.Connection.RemoteIpAddress = IPAddress.Parse(remote);
     if (forwardedFor != null) ctx.Request.Headers["X-Forwarded-For"] = forwardedFor;
     if (acceptLanguage != null) ctx.Request.Headers["Accept-Language"] = acceptLanguage;
-    ctx.Request.Headers["Authorization"] =
+    // A bare request names no app and carries only the token, like an image or a stream URL.
+    if (bare) ctx.Request.Headers["X-Emby-Token"] = token;
+    else ctx.Request.Headers["Authorization"] =
         "MediaBrowser Client=\"" + client + "\", Device=\"Shield\", DeviceId=\"moon-1\", Version=\"1.4.0\", Token=\"" + token + "\"";
     var sink = new MemoryStream();
     lastResponse = ctx.Response;
@@ -668,6 +670,107 @@ Ok("and the picker's source no longer says its sessions are left to expire",
    !File.ReadAllText(Path.Combine(RepoRoot(), "Auth", "ProxySwitcher.cs")).Contains("left to expire"));
 ProxyReset();
 Set("ProxyClients", new List<string> { "moonfin" });
+
+Console.WriteLine();
+Console.WriteLine("── A restart does not let a child's TV onto the main account ───");
+
+// The picker's sessions and its marks on a child's TV are in memory. A restart emptied both,
+// so a TV that was in a child's profile sent its next request on the main account's token with
+// nothing of ours looking at it, and whenever nothing of ours was going to answer (the app
+// unticked, the profiles deleted, the emergency code, a bare image request) Jellyfin did,
+// as the main account. What was kept on disk is what is checked here.
+{
+    var before = sessionLog.LoggedOut.Count;
+    Child();
+    Restart();
+    Set("ProxyClients", new List<string>());
+    var r = Get("/UserViews");
+    Ok("after a restart, the app unticked: a TV that was in a child's profile is not passed on as the main account",
+       !r.reachedJellyfin && r.status == 401, r.status + " " + seenAuth);
+    Ok("and is signed out, the profile's session with it", sessionLog.LoggedOut.Skip(before).Contains(MOON_TOKEN)
+       && sessionLog.LoggedOut.Skip(before).Contains("tok-" + N(KIDS)), string.Join(",", sessionLog.LoggedOut.Skip(before)));
+    Ok("and is then no longer on record", !Marked(MOON_TOKEN));
+    var later = Get("/UserViews");
+    Ok("what is asked after that is the app's own, as it always was", later.reachedJellyfin && seenAuth.Contains(MOON_TOKEN), seenAuth);
+    Set("ProxyClients", new List<string> { "moonfin" });
+}
+
+Child();
+{
+    Restart();
+    Set("ProxyClients", new List<string> { "some-other-app" });
+    var r = Get("/UserViews");
+    Ok("after a restart, another app ticked: still not the main account", !r.reachedJellyfin && r.status == 401, r.status + " " + seenAuth);
+    Set("ProxyClients", new List<string> { "moonfin" });
+}
+
+Child();
+{
+    Restart();
+    var held = mappings.Cast<object>().ToList();
+    mappings.Clear();
+    var r = Get("/UserViews");
+    foreach (var m in held) mappings.Add(m);
+    Ok("after a restart, the profiles deleted: still not the main account", !r.reachedJellyfin && r.status == 401, r.status + " " + seenAuth);
+}
+
+if (panicField != null)
+{
+    Child();
+    Restart();
+    panicField.SetValue(null, true);
+    try
+    {
+        var r = Get("/UserViews");
+        Ok("after a restart, the emergency code: still not the main account", !r.reachedJellyfin && r.status == 401, r.status + " " + seenAuth);
+    }
+    finally { panicField.SetValue(null, false); }
+}
+
+Child();
+{
+    Restart();
+    var r = Get("/Videos/abc/hls1/main/1.ts", bare: true);
+    Ok("after a restart, a request that names no app (an image, a stream) is not the main account either", !r.reachedJellyfin && r.status == 401, r.status + " " + seenAuth);
+}
+
+Child();
+{
+    // The picker is on, as it was: the TV starts at the picker, and the profile it had is ended.
+    var before = sessionLog.LoggedOut.Count;
+    Restart();
+    var r = Get("/UserViews");
+    Ok("after a restart, with the picker on, the TV starts at the picker", !r.reachedJellyfin && Names(r.body) == "Profiles", Names(r.body) + " " + seenAuth);
+    Ok("and the profile's old session is ended", sessionLog.LoggedOut.Skip(before).Contains("tok-" + N(KIDS)), string.Join(",", sessionLog.LoggedOut.Skip(before)));
+    Ok("and is no longer on record", !Marked(MOON_TOKEN));
+}
+
+Child();
+{
+    // A Jellyfin that cannot sign it out: refused now, and still refused, not let through.
+    SessionManagerStub.FailLogout.Add(MOON_TOKEN);
+    Restart();
+    Set("ProxyClients", new List<string>());
+    var first = Get("/UserViews");
+    var second = Get("/UserViews");
+    SessionManagerStub.FailLogout.Clear();
+    Ok("after a restart, when Jellyfin cannot sign it out, it is refused and stays refused", !first.reachedJellyfin && first.status == 401
+       && !second.reachedJellyfin && second.status == 401, first.status + "," + second.status);
+    Set("ProxyClients", new List<string> { "moonfin" });
+}
+
+// A TV that was only on the picker is not a child's, restart or not.
+ProxyReset();
+Set("ProxyClients", new List<string> { "moonfin" });
+{
+    Get("/UserViews");
+    Restart();
+    Set("ProxyClients", new List<string>());
+    var r = Get("/UserViews");
+    Ok("after a restart, a TV that was on the picker is passed on as before", r.reachedJellyfin && seenAuth.Contains(MOON_TOKEN), seenAuth);
+    Set("ProxyClients", new List<string> { "moonfin" });
+}
+ProxyReset();
 
 Console.WriteLine();
 Console.WriteLine("── A profile signed out behind the app's back ──────────────────");
