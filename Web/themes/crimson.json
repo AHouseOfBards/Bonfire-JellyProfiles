@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "crimson",
-  "revision": 2,
+  "revision": 3,
   "scheme": "dark",
   "name": {
     "key": "theme.crimson"
@@ -13,7 +13,7 @@
     "onAccent": "#ffffff",
     "text1": "#fbf1e4eb",
     "text2": "#fbf1e4b0",
-    "text3": "#fbf1e47a",
+    "text3": "#fbf1e484",
     "surface1": "#f3c96908",
     "surface2": "#f3c96910",
     "surface3": "#f3c9691c",

@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "glass",
-  "revision": 2,
+  "revision": 3,
   "scheme": "dark",
   "name": {
     "key": "theme.glass"
@@ -12,8 +12,8 @@
     "accentFocus": "#ffffff",
     "onAccent": "#1d1d1f",
     "text1": "#ffffffeb",
-    "text2": "#ffffffad",
-    "text3": "#ffffff73",
+    "text2": "#ffffffb7",
+    "text3": "#ffffff9f",
     "surface1": "#ffffff08",
     "surface2": "#ffffff0f",
     "surface3": "#ffffff1c",

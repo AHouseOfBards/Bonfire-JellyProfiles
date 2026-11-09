@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "bonfire",
-  "revision": 2,
+  "revision": 3,
   "scheme": "dark",
   "name": {
     "key": "theme.bonfire"
@@ -12,8 +12,8 @@
     "accentFocus": "#ffc773",
     "onAccent": "#2b1704",
     "text1": "#fffaf2eb",
-    "text2": "#fffaf2b0",
-    "text3": "#fffaf278",
+    "text2": "#fffaf2be",
+    "text3": "#fffaf2a6",
     "surface1": "#ffffff08",
     "surface2": "#ffffff0f",
     "surface3": "#ffffff1c",

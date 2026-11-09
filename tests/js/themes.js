@@ -297,12 +297,24 @@ serverIds.forEach(id => {
     }
     ok(id + ': body text on its panel, ' + r(contrast(over(text1, panel), panel)) + ':1 (7 needed)',
        contrast(over(text1, panel), panel) >= 7);
+    // The accent is also text: "Forgot PIN?", the "current" badge, the announcement icon
+    // and a few section headings. Text, so 4.5, against the panel they sit on.
+    const accentText = parseColour(d['--jpf-accent-text']);
+    ok(id + ': the accent as text is a colour (' + d['--jpf-accent-text'] + ')', !!accentText);
+    if (!accentText) return;
+    ok(id + ': the accent as text on its panel, ' + r(contrast(accentText, panel)) + ':1 (4.5 needed)',
+       contrast(accentText, panel) >= 4.5);
+    // Hints, subtitles and result messages are drawn in text-3 on the panel too.
+    ok(id + ': the faintest text on its panel, ' + r(contrast(over(text3, panel), panel)) + ':1 (4.5 needed)',
+       contrast(over(text3, panel), panel) >= 4.5);
     bg.forEach((stop, n) => {
         const label = id + ' background stop ' + (n + 1);
         ok(label + ': the title, ' + r(contrast(over(text1, stop), stop)) + ':1 (7 needed)',
            contrast(over(text1, stop), stop) >= 7);
-        ok(label + ': the faintest text, ' + r(contrast(over(text3, stop), stop)) + ':1 (3 needed)',
-           contrast(over(text3, stop), stop) >= 3);
+        ok(label + ': the faintest text, ' + r(contrast(over(text3, stop), stop)) + ':1 (4.5 needed)',
+           contrast(over(text3, stop), stop) >= 4.5);
+        ok(label + ': the accent as text (the "current" badge), ' + r(contrast(over(accentText, stop), stop)) + ':1 (4.5 needed)',
+           contrast(over(accentText, stop), stop) >= 4.5);
         // The accent is the focus outline on a television and the "current" ring; the
         // ring is the hover and D-pad frame. Both are non-text, so 3:1.
         ok(label + ': the accent as a focus outline, ' + r(contrast(accent, stop)) + ':1 (3 needed)',
@@ -328,6 +340,8 @@ console.log('\n── The screens read the tokens instead of literals ───�
     ['.profile-card:focus-within .profile-avatar', 'border-color', 'var(--jpf-ring)'],
     ['.profile-card.manage-mode:hover .profile-avatar', 'transform', 'scale(var(--jpf-hover-scale))'],
     ['.btn-primary', 'color', 'var(--jpf-on-accent)'],
+    ['.jpf-text-link', 'color', 'var(--jpf-accent-text, var(--jpf-accent))'],
+    ['.profile-current-badge', 'color', 'var(--jpf-accent-text, var(--jpf-accent))'],
     ['.btn-primary:hover', 'background-color', 'var(--jpf-accent-hover)'],
     ['.create-profile-container > .profile-dialog-actions', 'background', 'var(--jpf-panel)'],
     ['.form-group select option', 'background-color', 'var(--jpf-panel)'],

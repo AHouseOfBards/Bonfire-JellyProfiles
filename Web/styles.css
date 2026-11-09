@@ -904,7 +904,7 @@ body.profiles-no-scroll [id*="spinner"] {
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--jpf-accent);
+    color: var(--jpf-accent-text, var(--jpf-accent));
     margin-top: 2px;
 }
 .profile-card:hover .profile-avatar,
@@ -1701,7 +1701,7 @@ body.profiles-no-scroll [id*="spinner"] {
    reaches these with the remote (see .profile-section :focus below). */
 .jpf-text-link {
     background: none; border: 0; padding: 6px 2px; margin: 0;
-    color: var(--jpf-accent); font: inherit; font-size: 0.9rem; font-weight: 600;
+    color: var(--jpf-accent-text, var(--jpf-accent)); font: inherit; font-size: 0.9rem; font-weight: 600;
     text-decoration: underline; cursor: pointer;
 }
 .jpf-text-link:hover { opacity: 0.85; }

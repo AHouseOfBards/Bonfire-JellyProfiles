@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "jellyfin-dark",
-  "revision": 1,
+  "revision": 2,
   "scheme": "dark",
   "name": {
     "key": "theme.jellyfin-dark"
@@ -13,7 +13,7 @@
     "onAccent": "#0b0b0b",
     "text1": "#ffffffcc",
     "text2": "#ffffff99",
-    "text3": "#ffffff70",
+    "text3": "#ffffff76",
     "surface1": "#ffffff08",
     "surface2": "#ffffff0f",
     "surface3": "#ffffff1c",

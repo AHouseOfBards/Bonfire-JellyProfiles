@@ -403,6 +403,44 @@
         }).filter(Boolean);
         const gateBg = layers.length ? layers.join(', ') : col(bg.fill, '#101010');
 
+        // The accent drawn as small text ("Forgot PIN?", the "current" badge). A brand
+        // colour that carries white button text is dark, which is too dim to read on a
+        // dark panel, and the two needs cannot be met by one value. So the text gets its
+        // own: the accent itself when it can be read on the panel and on every colour of
+        // the background (a see-through stop laid over each solid one, as the contrast
+        // check does), otherwise the accent moved towards the text colour a step at a
+        // time, so it stays the same hue and changes no more than it must.
+        const accentText = (() => {
+            const lin = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+            const lumOf = k => 0.2126 * lin(k[0]) + 0.7152 * lin(k[1]) + 0.0722 * lin(k[2]);
+            const ratio = (p, q) => {
+                const a = lumOf(p), b = lumOf(q);
+                return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+            };
+            const seen = (String(gateBg).match(/#[0-9a-fA-F]{6}\b|rgba?\([^)]*\)/g) || []).map(s => {
+                if (s.charAt(0) === '#') return rgbOf(s).concat([1]);
+                const n = s.replace(/^rgba?\(|\)$/g, '').split(',').map(Number);
+                return [n[0], n[1], n[2], n.length > 3 ? n[3] : 1];
+            });
+            const solid = seen.filter(k => k[3] >= 1);
+            const backs = solid.slice();
+            seen.forEach(k => {
+                if (k[3] >= 1) return;
+                solid.forEach(s => backs.push([0, 1, 2].map(i => Math.round(k[i] * k[3] + s[i] * (1 - k[3])))));
+            });
+            const panelHex = hex(c.panel);
+            if (panelHex) backs.push(rgbOf(panelHex));
+            const readable = k => backs.every(b => ratio(k, b) >= 4.5);
+            const from = rgbOf(accent);
+            if (!backs.length || readable(from)) return accent.slice(0, 7).toLowerCase();
+            const to = light ? [0, 0, 0] : [255, 255, 255];
+            for (let i = 1; i <= 20; i++) {
+                const k = [0, 1, 2].map(j => Math.round(from[j] + (to[j] - from[j]) * i / 20));
+                if (readable(k)) return '#' + k.map(x => (x < 16 ? '0' : '') + x.toString(16)).join('');
+            }
+            return light ? '#000000' : '#ffffff';
+        })();
+
         const av = shape.avatar || {};
         const avatarR = av.kind === 'circle' ? '50%'
             : av.kind === 'rounded' ? num(av.radius, 30) + '%'
@@ -442,6 +480,7 @@
         const vars = [
             ['--jpf-accent', accent.slice(0, 7)],
             ['--jpf-accent-rgb', ac.join(', ')],
+            ['--jpf-accent-text', accentText],
             ['--jpf-accent-hover', col(c.accentFocus, accent)],
             ['--jpf-on-accent', col(c.onAccent, '#fff')],
             ['--jpf-accent-a08', tint(accent, 0.08)], ['--jpf-accent-a18', tint(accent, 0.18)],

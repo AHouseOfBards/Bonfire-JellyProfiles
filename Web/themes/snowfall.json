@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "snowfall",
-  "revision": 2,
+  "revision": 3,
   "scheme": "dark",
   "name": {
     "key": "theme.snowfall"
@@ -13,7 +13,7 @@
     "onAccent": "#1a1205",
     "text1": "#ffffffeb",
     "text2": "#ffffffad",
-    "text3": "#ffffff73",
+    "text3": "#ffffff87",
     "surface1": "#ffffff08",
     "surface2": "#ffffff0f",
     "surface3": "#ffffff1c",

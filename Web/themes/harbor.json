@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "harbor",
-  "revision": 2,
+  "revision": 3,
   "scheme": "dark",
   "name": {
     "key": "theme.harbor"
@@ -13,7 +13,7 @@
     "onAccent": "#06201d",
     "text1": "#effcfaeb",
     "text2": "#effcfab0",
-    "text3": "#effcfa78",
+    "text3": "#effcfa82",
     "surface1": "#bff3ec08",
     "surface2": "#bff3ec0f",
     "surface3": "#bff3ec1c",

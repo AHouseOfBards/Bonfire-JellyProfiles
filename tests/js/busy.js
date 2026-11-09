@@ -151,7 +151,7 @@ const switchAt = text.indexOf('executeProfileSwitch: function');
 const body = text.slice(switchAt, switchAt + 8000);
 ok('the switch raises it before the request goes out',
     body.indexOf('this.setSwitchBusy(profileId, true);') > 0
-    && body.indexOf('this.setSwitchBusy(profileId, true);') < body.indexOf('fetch(url'));
+    && body.indexOf('this.setSwitchBusy(profileId, true);') < body.indexOf('this._fetchTimed(url'));
 const catchAt = body.indexOf('.catch(err');
 // Enumerated, not first-found. There is more than one place the switch gives up now —
 // the request failing, and the credentials write that will not stick — and taking the

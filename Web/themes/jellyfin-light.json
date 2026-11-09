@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "jellyfin-light",
-  "revision": 1,
+  "revision": 2,
   "scheme": "light",
   "name": {
     "key": "theme.jellyfin-light"
@@ -12,8 +12,8 @@
     "accentFocus": "#00698c",
     "onAccent": "#ffffff",
     "text1": "#222222",
-    "text2": "#222222b3",
-    "text3": "#22222285",
+    "text2": "#222222c4",
+    "text3": "#222222a1",
     "surface1": "#00000008",
     "surface2": "#0000000d",
     "surface3": "#00000017",
