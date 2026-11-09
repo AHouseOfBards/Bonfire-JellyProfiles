@@ -13,7 +13,7 @@
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- Wholphin and Android TV couldn't load the profile list. (#43)\n- OK did nothing on settings-page confirmations such as Reset PIN and closing for maintenance. (#44)\n- A narrower schedule set on a profile in Dashboard → Users was replaced at its next sign-in.\n\n**Changed**\n\n- On Swiftfin, Roku and other apps, the refusal when viewing time runs out or the server is closed now says what to do.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.3.1/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "bd852f8a0ed936b6ed769a094bc4b316",
         "timestamp": "2026-11-08T00:00:00Z"
       },
       {
