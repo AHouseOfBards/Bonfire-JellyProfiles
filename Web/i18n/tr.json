@@ -17,6 +17,7 @@
   "gate.whosWatching": "Kim izliyor?",
   "gate.manageProfiles": "Profilleri yönet",
   "gate.signedIn": "Oturum açıldı",
+  "gate.opening": "{name} açılıyor",
   "gate.pinProtected": "PIN korumalı",
   "gate.noPin": "PIN yok",
   "gate.addProfile": "Profil ekle",

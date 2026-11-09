@@ -172,6 +172,16 @@ function tagOf(id) {
         ok('each tile is a button to a screen reader', cards.length > 0 && cards.every(c => /role="button"/.test(c)), cards[0]);
         const kit = html.slice(html.indexOf('data-id="bbbb"'));
         ok('a PIN-protected tile says so in words', /class="jpf-sr">PIN Protected</.test(kit.slice(0, kit.indexOf('profile-card') > 0 ? kit.length : 2000)));
+        // 17. Opening a profile is announced, not only drawn as a spinner.
+        env3.sandbox.document.getElementById = id => overlay.querySelector('#' + id);
+        const live = overlay.querySelector('#jpf-switch-live');
+        ok('there is a live region to announce in', !!live && /role="status"/.test(html), String(live));
+        if (live) {
+            P3.setSwitchBusy('bbbb', true);
+            ok('opening a profile is said in words', live.textContent === 'Opening Kit', live.textContent);
+            P3.setSwitchBusy('bbbb', false);
+            ok('and the line is cleared when it is over', live.textContent === '', live.textContent);
+        }
         ok('the picture badges are hidden from a screen reader',
             !/<div class="profile-lock-indicator">/.test(html) && !/<div class="profile-bonfire-indicator" title/.test(html));
     }

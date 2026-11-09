@@ -16,6 +16,7 @@
   "gate.whosWatching": "Kto ogląda?",
   "gate.manageProfiles": "Zarządzaj profilami",
   "gate.signedIn": "Zalogowano",
+  "gate.opening": "Otwieranie: {name}",
   "gate.pinProtected": "Zabezpieczone kodem PIN",
   "gate.noPin": "Brak kodu PIN",
   "gate.addProfile": "Dodaj profil",

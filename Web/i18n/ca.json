@@ -16,6 +16,7 @@
   "gate.whosWatching": "Qui està mirant?",
   "gate.manageProfiles": "Gestiona els perfils",
   "gate.signedIn": "Sessió iniciada",
+  "gate.opening": "Obrint {name}",
   "gate.pinProtected": "Protegit amb PIN",
   "gate.noPin": "Sense PIN",
   "gate.addProfile": "Afegeix un perfil",

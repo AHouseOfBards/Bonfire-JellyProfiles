@@ -774,6 +774,7 @@
         'gate.whosWatching': "Who's Watching?",
         'gate.manageProfiles': 'Manage Profiles',
         'gate.signedIn': 'Signed in',
+        'gate.opening': 'Opening {name}',
         'gate.pinProtected': 'PIN Protected',
         'gate.noPin': 'No PIN',
         'gate.manageHint': 'Tap a profile to edit it. The labels show its status.',
@@ -5924,7 +5925,11 @@
 
             // jpf-one-home: one household on screen, so its heading names nothing the title
             // has not. Themes without a panel round each household hide it then.
+            // The live region sits outside .profiles-modal-content, which every screen
+            // after this one replaces: it has to be there, empty, before it has anything
+            // to say, or a screen reader does not announce the first change to it.
             overlay.innerHTML = `
+                <div id="jpf-switch-live" class="jpf-sr" role="status" aria-live="polite"></div>
                 <div class="profiles-modal-content anim-fade-in${groupKeys.length === 1 ? ' jpf-one-home' : ''}">
                     <h1 class="profiles-title">${title}</h1>
                     ${this.isManageMode ? `<p class="jpf-manage-hint">${t('gate.manageHint')}</p>` : ''}
@@ -7074,6 +7079,14 @@
         /// only reasonable reading was that the tap had missed — and the reporter kept
         /// tapping. _switchLock already made the extra taps harmless; it just never said so.
         setSwitchBusy: function (profileId, busy) {
+            // The spinner is all a sighted person gets; this is the same news in words.
+            const live = document.getElementById('jpf-switch-live');
+            if (live) {
+                const wanted = this.normalizeGuid(profileId);
+                const who = (this.currentProfiles || []).find(p => this.normalizeGuid(p.profileUserId) === wanted);
+                live.textContent = busy ? t('gate.opening', { name: who ? who.profileName : '' }) : '';
+            }
+
             const overlay = document.getElementById('profiles-gate-overlay');
             if (overlay) {
                 overlay.classList.toggle('is-switching', busy);

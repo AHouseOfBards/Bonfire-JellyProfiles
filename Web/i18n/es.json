@@ -16,6 +16,7 @@
   "gate.whosWatching": "¿Quién está viendo?",
   "gate.manageProfiles": "Administrar perfiles",
   "gate.signedIn": "Sesión iniciada",
+  "gate.opening": "Abriendo {name}",
   "gate.pinProtected": "Protegido con PIN",
   "gate.noPin": "Sin PIN",
   "gate.addProfile": "Añadir perfil",
