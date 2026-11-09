@@ -107,6 +107,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-links-" + Guid.NewGuid()
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
+// A server that already has Bonfire; a new install is tested in configbackup.
+config.GetType().GetProperty("RequireMainPin")?.SetValue(config, false);
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 IList Links() => (IList)cfgType.GetProperty("LinkedAccounts").GetValue(config);
 bool Linked(Guid household, Guid user) => Links().Cast<object>().Any(l =>

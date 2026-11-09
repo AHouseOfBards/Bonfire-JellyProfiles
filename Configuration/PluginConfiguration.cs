@@ -22,8 +22,9 @@ namespace Jellyfin.Profiles.Configuration
 
         /// <summary>
         /// A main account can't change its household (profiles, devices, sharing, switcher
-        /// settings) until it has a PIN. Off by default. Without it, a main account with no
-        /// PIN leaves all of that open to anyone who can reach its switcher.
+        /// settings) until it has a PIN. On for a new install (see the Plugin constructor) and
+        /// off for a server that had Bonfire before. Without it, a main account with no PIN
+        /// leaves all of that open to anyone who can reach its switcher.
         /// </summary>
         public bool RequireMainPin { get; set; }
         public List<ProfileMapping> Mappings { get; set; } = new List<ProfileMapping>();

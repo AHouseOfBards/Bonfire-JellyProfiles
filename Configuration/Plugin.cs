@@ -53,6 +53,16 @@ namespace Jellyfin.Profiles
             // Before anything in this start can save: the configuration is read lazily, on
             // first use, and the first save is what overwrites the file.
             BackUpIfVersionChanged(runningVersion);
+
+            // A new install requires a main PIN (P2-703). This is done here and not as the
+            // property's default because a file saved before 1.7.2 has no element for it,
+            // and a default of true would turn it on for that server at the next start.
+            // In memory only: the first real save writes it, and a file with a good copy
+            // beside it is being recovered, not created.
+            if (!System.IO.File.Exists(ConfigurationFilePath) && !System.IO.File.Exists(LastGoodPath))
+            {
+                Configuration.RequireMainPin = true;
+            }
         }
 
         private static string RunningVersionText()

@@ -109,6 +109,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-email-" + Guid.NewGuid()
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
+// A server that already has Bonfire; a new install is tested in configbackup.
+config.GetType().GetProperty("RequireMainPin")?.SetValue(config, false);
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 object Email() => cfgType.GetProperty("Email").GetValue(config);
 IList AccountEmails() => (IList)cfgType.GetProperty("AccountEmails").GetValue(config);

@@ -90,6 +90,45 @@ Ok("with no good copy to go back to it starts empty", orphan.Configuration.Mappi
 Ok("but the unreadable file is still kept", Directory.GetFiles(nothing, "*.unreadable-*").Length == 1);
 
 Console.WriteLine();
+Console.WriteLine("── The main PIN is required on a new install only (P2-703) ─────");
+
+var brandNew = NewDir();
+var newServer = new Plugin(new StubPaths(brandNew), new RealXml());
+Ok("a new install requires a main PIN", newServer.Configuration.RequireMainPin);
+
+// RequireMainPin arrived in 1.7.2, so a server that last saved under 1.7.1 has no element.
+var older = NewDir();
+var writer = new Plugin(new StubPaths(older), new RealXml());
+_ = writer.Configuration;
+var olderPath = writer.ConfigurationFilePath;
+writer.Configuration.RequireMainPin = false;
+writer.SaveConfiguration();
+File.Delete(olderPath + ".lastgood");
+var text = File.ReadAllText(olderPath);
+var withoutElement = System.Text.RegularExpressions.Regex.Replace(text, @"\s*<RequireMainPin>[^<]*</RequireMainPin>", "");
+Ok("the older file really has no element", withoutElement != text && !withoutElement.Contains("RequireMainPin"));
+File.WriteAllText(olderPath, withoutElement);
+var upgraded = new Plugin(new StubPaths(older), new RealXml());
+Ok("a server upgrading from a file without the setting stays off", !upgraded.Configuration.RequireMainPin);
+
+var turnedOff = NewDir();
+var admin = new Plugin(new StubPaths(turnedOff), new RealXml());
+admin.Configuration.RequireMainPin = false;
+admin.SaveConfiguration();
+var restarted = new Plugin(new StubPaths(turnedOff), new RealXml());
+Ok("an administrator who turned it off is not overruled at the next start", !restarted.Configuration.RequireMainPin);
+
+// Only the last good copy left: the configuration is being recovered, not created.
+var recovering = NewDir();
+var saver = new Plugin(new StubPaths(recovering), new RealXml());
+saver.Configuration.RequireMainPin = false;
+saver.SaveConfiguration();
+Ok("the good copy exists", File.Exists(saver.ConfigurationFilePath + ".lastgood"));
+File.Delete(saver.ConfigurationFilePath);
+var recovered = new Plugin(new StubPaths(recovering), new RealXml());
+Ok("a missing file with a good copy beside it is not a new install", !recovered.Configuration.RequireMainPin);
+
+Console.WriteLine();
 Console.WriteLine("── A different version starts: the file is copied first (R-1319) ──");
 
 // Rolling the plugin back loads a file written by a newer one, and the first save writes it
