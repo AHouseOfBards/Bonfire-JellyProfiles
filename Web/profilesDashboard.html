@@ -802,6 +802,22 @@
             // name, a profile name typed by any account holder. This page runs with the
             // administrator's token, so an unescaped one of those is script running as the
             // administrator. Escape anything that is not a literal written in this file.
+            /// Asks, and resolves only on OK; Cancel leaves it pending, so what hangs off it
+            /// just never runs.
+            ///
+            /// Dashboard.confirm is confirm(message, title, callback) and returns nothing
+            /// (jellyfin-web, src/utils/dashboard.js, 10.11 and master alike). Every button here
+            /// used to chain .then on it: the dialog appeared, the chain threw behind it, and OK
+            /// did nothing. Reset PIN, signing a device out and importing a backup all looked
+            /// like they worked and didn't (#44).
+            function askFirst(message, title) {
+                return new Promise(function (resolve) {
+                    Dashboard.confirm(message, title, function (confirmed) {
+                        if (confirmed) resolve();
+                    });
+                });
+            }
+
             function escapeHtml(str) {
                 if (str === null || str === undefined) return '';
                 return String(str)
@@ -1423,7 +1439,7 @@
                     page.querySelectorAll('.reset-pin-btn').forEach(function (btn) {
                         btn.addEventListener('click', function () {
                             const profileId = btn.getAttribute('data-id');
-                            Dashboard.confirm('Are you sure you want to reset and clear the PIN for this profile?', 'Reset PIN').then(function () {
+                            askFirst('Are you sure you want to reset and clear the PIN for this profile?', 'Reset PIN').then(function () {
                                 resetPin(page, profileId);
                             });
                         });
@@ -1647,7 +1663,7 @@
                             btn.addEventListener('click', function () {
                                 // Signing somebody out interrupts whatever they are watching,
                                 // and the administrator is often not in the same room.
-                                Dashboard.confirm(
+                                askFirst(
                                     'Sign ' + btn.getAttribute('data-name') + ' out of this device?',
                                     'Sign out'
                                 ).then(function () {
@@ -1737,7 +1753,7 @@
                             return;
                         }
 
-                        Dashboard.confirm(
+                        askFirst(
                             'This replaces every profile, PIN, Bonfire and device list with the contents of that file. It cannot be undone.',
                             'Import configuration'
                         ).then(function () {
