@@ -16,8 +16,8 @@
 //   3. focus STARTS on the obvious element, named per overlay in the ledger below.
 //   4. the Back key (webOS 461, Tizen 10009, XF86Back) pressed through the real handler
 //      clicks a control that leaves the screen, or, on the startup gate (a required
-//      choice), is absorbed. Escape is checked on the dialogs, which own it; the full
-//      screens answer Back only.
+//      choice), is absorbed. Escape does the same on the full screens, and is left to the
+//      dialogs, which bind it themselves.
 //
 // Honest limits: the stub has no layout. Arrow reachability runs on a modelled layout (one
 // column, document order), so it proves every control is a candidate and nothing in the
@@ -413,9 +413,13 @@ async function openOverlay(o) {
 
         // 4. Back, through the real keydown handler, once per key and on a freshly drawn screen
         // each time (a screen that was left has no listeners to press again).
-        for (const key of [{ keyCode: 461 }, { keyCode: 10009 }, { key: 'XF86Back', keyCode: 0 }]) {
+        // Escape means the same on the full screens. The dialogs own it, and are checked below.
+        const backKeys = [{ keyCode: 461 }, { keyCode: 10009 }, { key: 'XF86Back', keyCode: 0 }];
+        if (!o.dialog) backKeys.push({ key: 'Escape', keyCode: 27 });
+        for (const key of backKeys) {
             const again = await openOverlay(o);
             const r = surfaceOf(again.html, again.labels);
+            r.id = o.dialog ? 'a-dialog' : 'profiles-gate-overlay';
             let clicked = [];
             const e0 = effects, h0 = content.innerHTML;
             r.querySelector = (sel) => {
@@ -451,6 +455,29 @@ async function openOverlay(o) {
             flush();
             ok(o.name + ': Escape closes it', again.holder.removed === true);
         }
+    }
+
+    // When Escape is not a request to leave the screen.
+    {
+        const gate = { id: 'profiles-gate-overlay', contains: () => true };
+        let dismissed = 0;
+        PP._activeTrapSurface = () => gate;
+        PP._dismissSurface = () => { dismissed++; };
+        PP._overlayTrap = null;
+        PP._bindOverlayFocusTrap();
+        const handler = winListeners.filter(l => l.type === 'keydown')[0];
+        const press = (extra) => handler.fn(Object.assign({ key: 'Escape', keyCode: 27, target: gate, ctrlKey: false,
+            altKey: false, metaKey: false, preventDefault() {}, stopPropagation() {} }, extra));
+        press({ isTrusted: false });
+        ok('Escape that the script sent to Jellyfin\'s own menu does not leave the screen', dismissed === 0);
+        press({ target: { nodeType: 1, closest: (s) => (s === '[aria-expanded="true"]' ? {} : null) } });
+        ok('Escape with a list open closes the list, not the screen', dismissed === 0);
+        PP._activeTrapSurface = () => ({ id: 'a-dialog', contains: () => true });
+        press({});
+        ok('Escape on a dialog is left to the dialog', dismissed === 0);
+        PP._activeTrapSurface = () => gate;
+        press({});
+        ok('Escape on a full screen leaves it', dismissed === 1);
     }
 
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');

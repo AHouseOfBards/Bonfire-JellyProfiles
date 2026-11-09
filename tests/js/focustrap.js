@@ -321,6 +321,7 @@ const gateSurface = {
     id: 'profiles-gate-overlay',
     isConnected: true,
     contains: n => items.indexOf(n) >= 0 || n === pinField,
+    querySelector: () => null,
     querySelectorAll: () => items,
     getAttribute: () => null
 };

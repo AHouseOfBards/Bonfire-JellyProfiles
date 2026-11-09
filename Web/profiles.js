@@ -5653,6 +5653,16 @@
                     return;
                 }
 
+                // Escape means Back on the full screens. Not on a dialog, which binds it
+                // itself, so it is not stopped here either. Not when the script sent it:
+                // closeUserMenu dispatches one at Jellyfin's own menu. And not with a list
+                // open, where it closes the list.
+                if ((e.key === 'Escape' || e.key === 'Esc') && surface.id === 'profiles-gate-overlay' && e.isTrusted !== false
+                    && !(e.target && e.target.closest && e.target.closest('[aria-expanded="true"]'))) {
+                    this._dismissSurface(surface);
+                    return;
+                }
+
                 // An event dispatched at `window` has no element target, and contains()
                 // wants a node. Treat it as outside: the direction keys still move, and
                 // _moveOverlayFocus enters at the first control when the active element is
