@@ -13,7 +13,7 @@
         "changelog": "**Fixed**\n\n- A second household's PIN was refused on a device two households share.\n- Security and privacy fixes. Updating is recommended.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.4/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "51f4a895b1873941547dd9cc20a26a0c",
         "timestamp": "2026-11-09T00:00:00Z"
       },
       {
