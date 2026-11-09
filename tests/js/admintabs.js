@@ -54,6 +54,21 @@ ok('no setting was dropped: every control id the page saves is still in exactly 
     'profileImageQuality', 'onboardingEnabled', 'fontUpload', 'themeImport', 'themeNew'].every(id =>
         Object.keys(panels).filter(n => has(n, id)).length === 1));
 
+// The Moonfin picker is beta, and says so where it is switched on and where it is described.
+// It stays off by default (an empty ProxyClients list; tests/cs/proxyswitcher).
+const pickerBlock = (panels.apps || '').slice((panels.apps || '').indexOf('data-i18n="admin.apps.pickerTitle"'));
+ok('the Apps tab marks the profile picker as beta, in one short line about native support',
+   /data-i18n="admin\.apps\.pickerTitle">[^<]*\(beta\)</.test(pickerBlock)
+   && /data-i18n="admin\.apps\.pickerBeta">[^<]*native support[^<]*</.test(pickerBlock));
+const fs = require('fs'), path = require('path');
+const readme = fs.readFileSync(path.join(L.ROOT, 'README.md'), 'utf8');
+const clients = fs.readFileSync(path.join(L.ROOT, 'docs', 'clients.md'), 'utf8');
+ok('README names the picker as beta and says it may change when native support arrives',
+   /Profile picker \(beta\)/.test(readme) && /may change when native support arrives/.test(readme));
+ok('docs/clients.md does too, on the picker\'s own section',
+   /## Profile picker \(beta\)[\s\S]*?may change when native support arrives/.test(clients.replace(/\s+/g, ' ')));
+ok('and its intro calls the picker beta', /Moonfin gets a profile picker \(beta\)/.test(clients.replace(/\s+/g, ' ')));
+
 console.log('\n── Advanced ────────────────────────────────────────────────────');
 const folds = n => (panels[n].match(/<details class="jpf-advanced[^"]*"/g) || []).length;
 const summaries = n => (panels[n].match(/<details class="jpf-advanced[\s\S]*?<summary([^>]*)>([^<]*)</g) || []);

@@ -58,7 +58,7 @@ the profile's PIN where the app asks for a password. Android TV is confirmed on 
 the others are not yet.
 
 **Profile picker (beta):** Moonfin shows a Profiles folder on its home screen
-([how it works](docs/clients.md#profile-picker-beta)).
+([how it works](docs/clients.md#profile-picker-beta)). It's off by default and may change when native support arrives.
 
 Details for every app are in [Apps](docs/clients.md).
 
