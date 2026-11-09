@@ -592,7 +592,18 @@ if (iqType != null)
     Check("standard is the 512-pixel, 2 MB picture of every earlier release", (Size("standard"), Bytes("standard")), (512, 2 * 1024 * 1024));
     Check("high is 1024 pixels, 4 MB", (Size("high"), Bytes("high")), (1024, 4 * 1024 * 1024));
     Check("maximum is 2048 pixels, 8 MB", (Size("maximum"), Bytes("maximum")), (2048, 8 * 1024 * 1024));
-    Check("an unknown name is standard", normalizeTier.Invoke(null, new object[] { "ultra" }), "standard");
+    // The stored ids are values in saved configs and are NOT the words on screen (Low, Medium,
+    // High, Maximum): "high" is still 1024 px and "maximum" still 2048 px, whatever they are
+    // called. These four lines are what stops a rename from changing a saved server's setting.
+    Check("ultra is 4096 pixels, 16 MB", (Size("ultra"), Bytes("ultra")), (4096, 16 * 1024 * 1024));
+    var isKnown = iqType.GetMethod("IsKnown", Flags);
+    Check("ultra is a known level", isKnown.Invoke(null, new object[] { "ultra" }), true);
+    Check("ULTRA, in any case, is too", normalizeTier.Invoke(null, new object[] { "ULTRA" }), "ultra");
+    Check("the largest picture any level takes is ultra's, so a saved one stays readable",
+        iqType.GetProperty("LargestMaxBytes", Flags).GetValue(null), 16 * 1024 * 1024);
+    // Was { "ultra" }: it is a real level now, so the unknown name here is another one.
+    Check("an unknown name is standard", normalizeTier.Invoke(null, new object[] { "enormous" }), "standard");
+    Check("and is not known", isKnown.Invoke(null, new object[] { "enormous" }), false);
     Check("so is none", normalizeTier.Invoke(null, new object[] { null }), "standard");
 
     var cfgType2 = asm.GetType("Jellyfin.Profiles.Configuration.PluginConfiguration", true);

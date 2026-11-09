@@ -332,7 +332,7 @@ ok('defaultTimeZone follows the select, empty for the server\'s own', flippedBod
 // standard, which is the server's own fallback and never a refusal.
 const higher = await run({ profileImageQuality: 'high' });
 ok('profileImageQuality follows the select', sent(higher).profileImageQuality === 'high');
-const unknownQuality = await run({ profileImageQuality: 'ultra' });
+const unknownQuality = await run({ profileImageQuality: 'enormous' });
 ok('an unknown picture quality is sent as standard', sent(unknownQuality).profileImageQuality === 'standard');
 
 // Anything unrecognised in the location select becomes 'button' rather than being sent

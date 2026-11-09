@@ -630,12 +630,23 @@ namespace Jellyfin.Profiles.Configuration
     /// full-size picture of whoever is shown large, so an administrator may step down.
     /// Anything unreadable falls back to Standard, the safest level, not to the default.
     /// </para>
+    /// <para>
+    /// <b>The ids are stored values, and they differ from the words on screen on purpose.</b>
+    /// The dashboard calls the four levels Low, Medium, High and Maximum; the ids are
+    /// <c>standard</c>, <c>high</c>, <c>maximum</c> and <c>ultra</c>. A fourth level was added
+    /// above the old three, so the words moved up one place. The ids did not: saved configs
+    /// already hold <c>high</c> (1024 px) and <c>maximum</c> (2048 px), and renaming them to
+    /// match the words would turn every such server's setting into a different size on
+    /// upgrade. Never rename an id; add a new one. tests/js/imagequality.js and
+    /// tests/cs/matrix pin each id to its size and each label to its id's real size.
+    /// </para>
     /// </summary>
     public static class ImageQualities
     {
         public const string Standard = "standard";
         public const string High = "high";
         public const string Maximum = "maximum";
+        public const string Ultra = "ultra";
 
         /// <summary>What one tier means.</summary>
         public sealed record Spec(int MasterSize, int ThumbSize, double JpegQuality, int MaxBytes);
@@ -643,18 +654,21 @@ namespace Jellyfin.Profiles.Configuration
         private static readonly Spec StandardSpec = new(512, 128, 0.85, 2 * 1024 * 1024);
         private static readonly Spec HighSpec = new(1024, 256, 0.9, 4 * 1024 * 1024);
         private static readonly Spec MaximumSpec = new(2048, 256, 0.92, 8 * 1024 * 1024);
+        private static readonly Spec UltraSpec = new(4096, 256, 0.92, 16 * 1024 * 1024);
 
-        /// <summary>Whether this is one of the three names, exactly (case aside).</summary>
+        /// <summary>Whether this is one of the four names, exactly (case aside).</summary>
         public static bool IsKnown(string? quality)
             => string.Equals(quality, Standard, System.StringComparison.OrdinalIgnoreCase)
                || string.Equals(quality, High, System.StringComparison.OrdinalIgnoreCase)
-               || string.Equals(quality, Maximum, System.StringComparison.OrdinalIgnoreCase);
+               || string.Equals(quality, Maximum, System.StringComparison.OrdinalIgnoreCase)
+               || string.Equals(quality, Ultra, System.StringComparison.OrdinalIgnoreCase);
 
         /// <summary>Maps arbitrary input to a known tier, falling back to <see cref="Standard"/>.</summary>
         public static string Normalize(string? quality)
         {
             if (string.Equals(quality, High, System.StringComparison.OrdinalIgnoreCase)) return High;
             if (string.Equals(quality, Maximum, System.StringComparison.OrdinalIgnoreCase)) return Maximum;
+            if (string.Equals(quality, Ultra, System.StringComparison.OrdinalIgnoreCase)) return Ultra;
             return Standard;
         }
 
@@ -662,6 +676,7 @@ namespace Jellyfin.Profiles.Configuration
         {
             High => HighSpec,
             Maximum => MaximumSpec,
+            Ultra => UltraSpec,
             _ => StandardSpec
         };
 
@@ -670,7 +685,7 @@ namespace Jellyfin.Profiles.Configuration
         /// larger tier was set must stay readable after it is lowered, so reading never
         /// checks against the current tier — only saving does.
         /// </summary>
-        public static int LargestMaxBytes => MaximumSpec.MaxBytes;
+        public static int LargestMaxBytes => UltraSpec.MaxBytes;
     }
 
     /// <summary>

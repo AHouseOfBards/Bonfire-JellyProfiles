@@ -5192,7 +5192,7 @@ namespace Jellyfin.Profiles.Controllers
             if (request.ProfileImageQuality != null && !ImageQualities.IsKnown(request.ProfileImageQuality))
             {
                 return BadRequest($"Picture quality must be '{ImageQualities.Standard}', "
-                                + $"'{ImageQualities.High}' or '{ImageQualities.Maximum}'.");
+                                + $"'{ImageQualities.High}', '{ImageQualities.Maximum}' or '{ImageQualities.Ultra}'.");
             }
 
             var unknownStep = (request.OnboardingSteps ?? new List<string>())

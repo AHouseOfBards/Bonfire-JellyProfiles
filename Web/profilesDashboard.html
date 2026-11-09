@@ -872,9 +872,12 @@
                 <div class="selectContainer jpf-form-narrow">
                     <label class="selectLabel" for="profileImageQuality" data-i18n="admin.avatars.quality">Picture quality</label>
                     <select is="emby-select" id="profileImageQuality">
-                        <option value="standard" data-i18n="admin.avatars.qualityStandard">Standard — 512 px, up to 2 MB</option>
-                        <option value="high" data-i18n="admin.avatars.qualityHigh">High — 1024 px, up to 4 MB</option>
-                        <option value="maximum" data-i18n="admin.avatars.qualityMaximum">Maximum — 2048 px, up to 8 MB</option>
+                        <!-- The values are stored ids and are not the words: "high" is 1024 px and
+                             "maximum" 2048 px, as in every saved config. See ImageQualities. -->
+                        <option value="standard" data-i18n="admin.avatars.qualityStandard">Low — 512 px, up to 2 MB</option>
+                        <option value="high" data-i18n="admin.avatars.qualityHigh">Medium — 1024 px, up to 4 MB</option>
+                        <option value="maximum" data-i18n="admin.avatars.qualityMaximum">High — 2048 px, up to 8 MB</option>
+                        <option value="ultra" data-i18n="admin.avatars.qualityUltra">Maximum — 4096 px, up to 16 MB</option>
                     </select>
                     <div class="fieldDescription" data-i18n="admin.avatars.qualityHint">Sharper on big screens, more disk. Applies to new pictures.</div>
                 </div>
@@ -2918,12 +2921,13 @@
             const IMAGE_QUALITY_SPECS = {
                 standard: { master: 512, thumb: 128, jpeg: 0.85, mb: 2 },
                 high: { master: 1024, thumb: 256, jpeg: 0.9, mb: 4 },
-                maximum: { master: 2048, thumb: 256, jpeg: 0.92, mb: 8 }
+                maximum: { master: 2048, thumb: 256, jpeg: 0.92, mb: 8 },
+                ultra: { master: 4096, thumb: 256, jpeg: 0.92, mb: 16 }
             };
 
             function normalizeImageQuality(value) {
                 const v = String(value || '').toLowerCase();
-                return v === 'high' || v === 'maximum' ? v : 'standard';
+                return v === 'high' || v === 'maximum' || v === 'ultra' ? v : 'standard';
             }
 
             // A theme the server will take as the default, or Bonfire. The server refuses

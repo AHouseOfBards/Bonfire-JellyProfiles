@@ -929,8 +929,8 @@ Send `If-None-Match`, or every picture is downloaded again on every page load.
 ### Uploading a picture
 
 `profileImage` and `profileImageThumb` on `/create` and `/update` take a
-`data:image/…;base64,…` value. The size limit is set by the server's picture quality: 2, 4
-or 8 MB. `GET /avatars` reports it, and the size to draw at.
+`data:image/…;base64,…` value. The size limit is set by the server's picture quality: 2, 4,
+8 or 16 MB. `GET /avatars` reports it, and the size to draw at.
 
 The server doesn't resize or convert anything, so the client draws both sizes itself, at
 the sizes `GET /avatars` gives. JPEG, PNG, WebP and GIF are accepted; SVG isn't. `profileImage` can also be an `http(s)` URL, which is stored as a
@@ -2179,7 +2179,7 @@ anything added since you read it.
 | `enableClientProfileList` | boolean | Same. |
 | `clientPinLoginFromAnywhere` | boolean | Same. |
 | `skipQuickConnectOnKnownDevices` | boolean | Same. |
-| `profileImageQuality` | string | `standard` (512 px, 2 MB), `high` (1024 px, 4 MB) or `maximum` (2048 px, 8 MB). |
+| `profileImageQuality` | string | `standard` (512 px, 2 MB), `high` (1024 px, 4 MB), `maximum` (2048 px, 8 MB) or `ultra` (4096 px, 16 MB). The dashboard calls them Low, Medium, High and Maximum; the stored ids are unchanged. |
 | `onboardingEnabled` | boolean | [First-time setup](#first-time-setup) on or off. The first time it goes on, existing accounts count as having seen it. |
 | `onboardingAsked` | boolean | The dashboard's new-install question about first-time setup has been answered, yes or no. Changes nothing else. |
 | `onboardingSteps` | string[] | Steps to offer: `welcome`, `mainPin`, `resetEmail`, `firstProfile`, `switcher`, `theme`. |
