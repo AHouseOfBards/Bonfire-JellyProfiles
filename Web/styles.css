@@ -488,6 +488,14 @@ body.profiles-no-scroll [id*="spinner"] {
     color: var(--jpf-text-1); font-family: var(--jpf-font);
     overflow-y: auto; padding: 2rem 0; box-sizing: border-box;
     opacity: 1; transition: opacity 0.22s ease;
+    /* A notch or a rounded corner: keep clear of it. jellyfin-web asks for the whole screen
+       (viewport-fit=cover) and does the same on its own padded-left/right. Declared after
+       the plain padding and not instead of it, because a browser that does not know env()
+       drops the declaration, and a calc() around the only value would drop the padding too. */
+    padding-top: calc(2rem + env(safe-area-inset-top));
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
 }
 /* The theme's font on every Bonfire surface and every control in one. A dialog is
    appended to <body>, outside the gate, so it never had the gate's font; and a button,
@@ -544,6 +552,8 @@ body.profiles-no-scroll [id*="spinner"] {
     max-width: 33%; pointer-events: none;
     color: var(--jpf-text-2); font-weight: 600; font-size: 1rem; line-height: 1.2;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    top: calc(1rem + env(safe-area-inset-top));
+    right: calc(1rem + env(safe-area-inset-right));
 }
 #profiles-logo img { display: block; max-width: 100%; max-height: 48px; width: auto; height: auto; margin-left: auto; }
 .jpf-tv #profiles-logo { top: 5vh; right: 5vw; max-width: 30vw; font-size: 1.4rem; }
@@ -1299,7 +1309,10 @@ body.profiles-no-scroll [id*="spinner"] {
     width: 100%; max-width: var(--jpf-w-form); box-sizing: border-box;
     display: flex; flex-direction: column; gap: 1.5rem;
     background: var(--jpf-sheet-bg); border: var(--jpf-sheet-border);
-    border-radius: var(--jpf-r-lg); padding: 2rem; box-shadow: var(--jpf-sheet-shadow);
+    border-radius: var(--jpf-r-lg); box-shadow: var(--jpf-sheet-shadow);
+    /* The padding is a variable because the sticky button row below pulls itself out
+       through it by exactly that much; a short screen changes both in one place. */
+    --jpf-form-pad: 2rem; padding: var(--jpf-form-pad);
     text-align: left; max-height: 75vh; overflow-y: auto;
 }
 .profile-dialog-actions {
@@ -1330,10 +1343,10 @@ body.profiles-no-scroll [id*="spinner"] {
     position: sticky;
     /* Sticky stops at the container's padding edge, not the border edge, so bottom: 0
        left the container's own 2rem of padding showing under the bar (P2-503). */
-    bottom: -2rem;
+    bottom: calc(var(--jpf-form-pad) * -1);
     z-index: 2;
-    margin: 1rem -2rem -2rem;
-    padding: 1rem 2rem;
+    margin: 1rem calc(var(--jpf-form-pad) * -1) calc(var(--jpf-form-pad) * -1);
+    padding: 1rem var(--jpf-form-pad);
     /* Not 100%: with padding and the negative margins that made the bar 4rem wider
        than the column. Auto stretches it to exactly the column plus the bleed. */
     width: auto;
@@ -1374,6 +1387,8 @@ body.profiles-no-scroll [id*="spinner"] {
         left: 12px;
         right: auto;
         bottom: 12px;
+        left: calc(12px + env(safe-area-inset-left));
+        bottom: calc(12px + env(safe-area-inset-bottom));
     }
 }
 /* Wrap Bonfire join row on very small phones so the button
@@ -2290,6 +2305,40 @@ body.profiles-no-scroll [id*="spinner"] {
     .jpf-no-flex-gap .profile-section-body > * + * { margin-top: 0.95rem; }
 }
 
+/* ── Short screens ────────────────────────────────────────────────
+   A phone on its side is 360 to 430px tall, and the title (3rem plus 3rem under it), the
+   gate's own padding and the form's 2rem all assume a screen at least twice that: at
+   640x360 the form kept one field above its button row and the row itself ran 14px off the
+   bottom. Height-based on purpose: a short window is just as short at any width. Last
+   before the television block, so it outranks the rules it eases on order, and every
+   selector here is the one the rule it overrides uses (the two-column form is named too,
+   or its 85vh would win on specificity at 900px and wider).
+   Not the 480 / 900 / 1280 width scale: that is for widths, and this is a height. */
+@media (max-height: 500px) {
+    #profiles-gate-overlay {
+        padding-top: 0.75rem;
+        padding-bottom: 0.75rem;
+        padding-top: calc(0.75rem + env(safe-area-inset-top));
+        padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    }
+    .profiles-title {
+        font-size: 1.75rem;
+        font-size: calc(1.75rem * var(--jpf-title-scale));
+        margin-bottom: 0.75rem;
+    }
+    .create-profile-container,
+    .create-profile-container.is-two-col {
+        --jpf-form-pad: 1rem;
+        gap: 1rem;
+        max-height: calc(100vh - 5.5rem);
+    }
+    .create-profile-container > .profile-dialog-actions {
+        margin-top: 0.25rem;
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+}
+
 /* ── Television ───────────────────────────────────────────────────
    Applied when <html> carries jpf-tv; see applyDeviceClasses for how
    that is decided. The largest breakpoint in this sheet is
@@ -2362,6 +2411,17 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .jpf-tv .profile-section {
     padding: 1.6rem 1.5rem;
+}
+/* The form is capped at 75vh, or 85vh in two columns, and sits under a 4rem title with 4rem
+   below it. At jellyfin-web's 27px root on a 1080p set that is more than the screen: the
+   Save row started 70px below it. Capped by what is left once the title and the gate's
+   padding are paid for instead, in rem so it follows the root size (20px at 720p). No
+   overscan margin of Bonfire's own: jellyfin-web adds none on a television either
+   (padded-left and padded-right are 3.3%), and the gate's own 2rem is already 5% of the
+   height. Named with the two-column class too, which would otherwise win on specificity. */
+.jpf-tv .create-profile-container,
+.jpf-tv .create-profile-container.is-two-col {
+    max-height: calc(100vh - 14rem);
 }
 /* A ring on focus, for a keyboard on a desktop or a phone. Most of these controls said
    "outline: none" and showed focus as a change of fill, which for the primary button is
