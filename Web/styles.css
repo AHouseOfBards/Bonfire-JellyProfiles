@@ -1269,7 +1269,8 @@ body.profiles-no-scroll [id*="spinner"] {
 /* The confirm and alert boxes. Their width was written inline, where no rule here
    could widen it, so on a 1080p television they were a small card on a big screen. */
 .confirm-dialog-content, .alert-dialog-content,
-.prompt-dialog-content, .select-dialog-content {
+.prompt-dialog-content, .select-dialog-content,
+.libart-dialog-content {
     /* border-box, because the 24px padding sat on top of a 90% width and on a 360px phone
        the box ran edge to edge (P2-510). A 16px gutter either side instead. */
     box-sizing: border-box;
@@ -2392,7 +2393,8 @@ body.profiles-no-scroll [id*="spinner"] {
     margin: 0 2rem 4rem;
 }
 .jpf-tv .confirm-dialog-content, .jpf-tv .alert-dialog-content,
-.jpf-tv .prompt-dialog-content, .jpf-tv .select-dialog-content {
+.jpf-tv .prompt-dialog-content, .jpf-tv .select-dialog-content,
+.jpf-tv .libart-dialog-content {
     max-width: 760px;
 }
 .jpf-tv .profiles-title {

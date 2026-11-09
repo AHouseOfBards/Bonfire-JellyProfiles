@@ -5370,8 +5370,9 @@
                     "background:rgba(0,0,0,0.85); backdrop-filter:blur(8px);" +
                     "display:flex; align-items:center; justify-content:center; z-index:" + DIALOG_Z + ";";
                 dialog.innerHTML =
-                    '<div style="background:var(--jpf-panel); border:1px solid var(--jpf-border-1); border-radius: var(--jpf-r-md);' +
-                    ' padding:22px; max-width:420px; width:94%; max-height:86vh; overflow:auto;">' +
+                    // Width comes from the shared dialog rule, so a television gets the wider box too.
+                    '<div class="libart-dialog-content" style="background:var(--jpf-panel); border:1px solid var(--jpf-border-1); border-radius: var(--jpf-r-md);' +
+                    ' padding:22px; max-height:86vh; overflow:auto;">' +
                     '<h2 style="margin:0 0 14px 0; color:var(--jpf-text-1); font-size:1.15rem; font-weight:700;">' + t('avatar.libraryArtworkTitle') + '</h2>' +
                     '<div id="profiles-libart-host"></div>' +
                     '<div id="profiles-libart-error" style="display:none; color:var(--jpf-danger); font-size:0.85rem;' +
