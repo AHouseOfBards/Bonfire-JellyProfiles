@@ -155,11 +155,14 @@ namespace Jellyfin.Profiles.Auth // TEMPORARY (R-1032/R-1033): remove before 2.0
                 produced = captured.ToArray(); // TEMPORARY (R-1032/R-1033): remove before 2.0
             } // TEMPORARY (R-1032/R-1033): remove before 2.0
 
-            if (context.Response.HasStarted) return; // TEMPORARY (R-1032/R-1033): remove before 2.0
+            // The captured bytes are always sent on, even if the response has somehow started:
+            // dropping them would cut the playlist short. Only the look is skipped then.
+            // TEMPORARY (R-1032/R-1033): remove before 2.0
 
             try // TEMPORARY (R-1032/R-1033): remove before 2.0
             { // TEMPORARY (R-1032/R-1033): remove before 2.0
-                if (context.Response.StatusCode == StatusCodes.Status200OK // TEMPORARY (R-1032/R-1033): remove before 2.0
+                if (!context.Response.HasStarted // TEMPORARY (R-1032/R-1033): remove before 2.0
+                    && context.Response.StatusCode == StatusCodes.Status200OK // TEMPORARY (R-1032/R-1033): remove before 2.0
                     && !context.Response.Headers.ContainsKey("Content-Encoding") // TEMPORARY (R-1032/R-1033): remove before 2.0
                     && produced.Length > 0 && produced.Length <= MaxBody) // TEMPORARY (R-1032/R-1033): remove before 2.0
                 { // TEMPORARY (R-1032/R-1033): remove before 2.0
