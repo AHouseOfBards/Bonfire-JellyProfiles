@@ -147,12 +147,11 @@ correct attempt resets the count. A refused request returns `429`.
 | Limiter | Applies to | Attempts | Window | Counted per |
 | --- | --- | --- | --- | --- |
 | PIN | `POST /switch`, `POST /verify-pin` | 5 | 15 minutes | address and profile |
-| PIN, per profile | the same, plus the main account's PIN on edits | 10 | 15 minutes | profile, all addresses |
-| client PIN | a PIN typed into another app's sign-in | 5, and 20 a day | 15 minutes, 24 hours | account |
+| PIN, per account | every PIN check: the two routes above, the main account's PIN on edits, and a PIN typed into another app's sign-in | 5, and 20 a day | 15 minutes, 24 hours | account, all addresses and routes |
 | Bonfire | `POST /bonfire/join` | 3 | 15 minutes | address |
 | panic | `POST /panic` | 5 | 60 minutes | address |
 
-A client PIN that hits its limit gets Jellyfin's usual `Invalid username or password`. A
+A guess the 15-minute limit refused doesn't count against the day. A client PIN that hits its limit gets Jellyfin's usual `Invalid username or password`. A
 main account's real password keeps working.
 
 ## Stability
@@ -799,7 +798,9 @@ Bonfire, `401` not a main account, `429` too many tries.
 ```
 
 Removes the member and changes the code so they can't rejoin. Returns the new code:
-`{ "bonfireCode": "Q7M2KX" }`.
+`{ "bonfireCode": "Q7M2KX" }`. Anything the member had already opened through the Bonfire is
+signed out on that device. Leaving, deleting the Bonfire and withdrawing home-network
+switching do the same.
 
 ### `POST /plugins/profiles/bonfire/regenerate-code`
 

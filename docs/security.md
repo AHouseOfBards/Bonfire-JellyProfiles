@@ -13,9 +13,9 @@ These hold in every app and can't be turned off from a browser.
   main account, such as remote access, schedules, bitrate, downloads and Live TV. A profile
   never gets more than its main account.
 - **PINs.** Every switch and sign-in checks the PIN on the server.
-  - The switcher allows 5 wrong PINs per 15 minutes from one address, and 10 per profile
-    from all addresses together.
-  - Other apps' sign-in screens allow 5 per 15 minutes and 20 a day, per account.
+  - The switcher allows 5 wrong PINs per 15 minutes from one address.
+  - Every PIN check, wherever it is typed, shares one allowance per account: 5 per 15
+    minutes and 20 a day, from all addresses together.
 - **Other households.** In a shared Bonfire, opening someone else's account or profile
   needs its PIN. The exception is when its owner has turned on *Let my Bonfire switch
   into my account on this network* and you're on their network. Hidden profiles can't be
