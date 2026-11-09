@@ -75,6 +75,8 @@
   "profileForm.namePlaceholder": "p. ex. Nens",
   "profileForm.masterNameHint": "El perfil principal pren el nom del teu compte de Jellyfin.",
   "profileForm.avatarColor": "Color de l'avatar",
+  "profileForm.colorGroup": "Color del perfil",
+  "profileForm.colorN": "Color {n} de {total}",
   "profileForm.colorHintNoPicture": "S'usa com a fons de l'avatar mentre no hi hagi cap foto.",
   "profileForm.colorHintHasPicture": "Es veu darrere de la foto, allà on és transparent.",
   "profileForm.colorHintUnused": "No s'usa mentre el fons sigui transparent.",

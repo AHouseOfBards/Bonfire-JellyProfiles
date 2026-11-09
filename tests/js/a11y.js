@@ -152,6 +152,43 @@ function tagOf(id) {
         }
     }
 
+    // 6. A profile tile is a button, and says what it will ask for.
+    {
+        const env3 = D.loadPlugin(SRC);
+        const P3 = env3.PP;
+        P3.beginNavigation = () => 1;
+        P3.navIsCurrent = () => true;
+        const overlay = D.makeContent();
+        const profiles = [
+            { profileUserId: 'aaaa', profileName: 'Sam', isMaster: true, isBonfire: false, requiresPin: false, avatarColor: '#E50914', avatarInitial: 'S' },
+            { profileUserId: 'bbbb', profileName: 'Kit', isMaster: false, isBonfire: true, requiresPin: true, avatarColor: '#00A4DC', avatarInitial: 'K' }
+        ];
+        P3.currentProfiles = profiles;
+        P3.isManageMode = false;
+        try { P3.renderOverlayContent(overlay, profiles); } catch (e) { console.log('  (render threw: ' + e.message + ')'); }
+        const html = overlay.innerHTML;
+        const cards = html.match(/<div class="profile-card[^>]*>/g) || [];
+        ok('the tiles are drawn', cards.length === 2, 'drew ' + cards.length);
+        ok('each tile is a button to a screen reader', cards.length > 0 && cards.every(c => /role="button"/.test(c)), cards[0]);
+        const kit = html.slice(html.indexOf('data-id="bbbb"'));
+        ok('a PIN-protected tile says so in words', /class="jpf-sr">PIN Protected</.test(kit.slice(0, kit.indexOf('profile-card') > 0 ? kit.length : 2000)));
+        ok('the picture badges are hidden from a screen reader',
+            !/<div class="profile-lock-indicator">/.test(html) && !/<div class="profile-bonfire-indicator" title/.test(html));
+    }
+
+    // 7. The colour swatches are a radio group, named by position, with a state.
+    {
+        const P4 = D.loadPlugin(SRC).PP;
+        const html = P4.renderColorPicker('#E50914');
+        const dots = html.match(/<div class="color-dot[^>]*>/g) || [];
+        ok('the swatches are drawn', dots.length > 1, dots.length + ' drawn');
+        ok('they sit in a labelled group', /role="radiogroup" aria-label="[^"]+"/.test(html));
+        ok('each says whether it is chosen', dots.length > 0 && dots.every(d => /aria-checked="(true|false)"/.test(d)));
+        ok('exactly the chosen colour is checked', dots.filter(d => /aria-checked="true"/.test(d)).length === 1);
+        ok('none is announced as a hex code', dots.every(d => !/aria-label="#/.test(d)), dots[0]);
+        ok('and each is still a tab stop, for the remote', dots.every(d => /tabindex="0"/.test(d)));
+    }
+
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);
 })();

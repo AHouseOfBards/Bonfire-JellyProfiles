@@ -75,6 +75,8 @@
   "profileForm.namePlaceholder": "np. Dzieci",
   "profileForm.masterNameHint": "Profil główny przejmuje nazwę Twojego konta Jellyfin.",
   "profileForm.avatarColor": "Kolor awatara",
+  "profileForm.colorGroup": "Kolor profilu",
+  "profileForm.colorN": "Kolor {n} z {total}",
   "profileForm.colorHintNoPicture": "Używany jako tło awatara, dopóki nie zostanie ustawione zdjęcie.",
   "profileForm.colorHintHasPicture": "Widoczny za zdjęciem, tam gdzie jest przezroczyste.",
   "profileForm.colorHintUnused": "Nieużywany, dopóki tło jest przezroczyste.",

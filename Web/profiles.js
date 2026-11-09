@@ -841,6 +841,8 @@
         'profileForm.namePlaceholder': 'e.g. Kids',
         'profileForm.masterNameHint': 'The main account takes its name from your Jellyfin account.',
         'profileForm.avatarColor': 'Avatar Color',
+        'profileForm.colorGroup': 'Profile color',
+        'profileForm.colorN': 'Color {n} of {total}',
         'profileForm.colorHintNoPicture': 'Used as the avatar background when no picture is set.',
         'profileForm.colorHintHasPicture': 'Shows behind the picture, wherever it is transparent.',
         'profileForm.colorHintUnused': 'Not used while the background is transparent.',
@@ -2548,15 +2550,24 @@
         renderColorPicker: function (selectedColor) {
             const palette = AVATAR_PALETTE;
             const active = (selectedColor || '').toLowerCase();
+            // Named by position, not by hex code ("#E50914" says nothing to anyone), and
+            // every swatch stays a tab stop: the remote's arrows and the focus trap skip
+            // tabindex="-1", so rolling it to one swatch would hide the rest from a TV.
             return `
-                <div class="avatar-color-picker">
-                    ${palette.map(c => `
+                <div class="avatar-color-picker" role="radiogroup" aria-label="${t('profileForm.colorGroup')}">
+                    ${palette.map((c, i) => `
                         <div class="color-dot${c.toLowerCase() === active ? ' active' : ''}"
                              style="background-color: ${c}" data-color="${c}"
-                             role="radio" aria-label="${c}" tabindex="0"></div>
+                             role="radio" aria-checked="${c.toLowerCase() === active ? 'true' : 'false'}"
+                             aria-label="${t('profileForm.colorN', { n: i + 1, total: palette.length })}" tabindex="0"></div>
                     `).join('')}
                 </div>
             `;
+        },
+
+        /// aria-checked follows the .active class, which is what the two forms keep.
+        _syncColorRadios: function (dots) {
+            dots.forEach(d => d.setAttribute('aria-checked', d.classList.contains('active') ? 'true' : 'false'));
         },
 
         // ── Tag filtering ───────────────────────────────────────────────────────────
@@ -5782,7 +5793,7 @@
             const renderCard = (p) => `
                 <div class="profile-card focusable ${this.isManageMode ? 'manage-mode' : ''}${
                     signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' is-current' : ''
-                }" data-id="${p.profileUserId}" data-pin="${p.requiresPin}" tabindex="0"${
+                }" data-id="${p.profileUserId}" data-pin="${p.requiresPin}" role="button" tabindex="0"${
                     signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' aria-current="true"' : ''
                 }>
                     <div class="profile-avatar-container">
@@ -5812,7 +5823,7 @@
                             ` : ''}
                         </div>
                         ${p.requiresPin ? `
-                        <div class="profile-lock-indicator">
+                        <div class="profile-lock-indicator" aria-hidden="true">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px; color: #fff;">
                                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
@@ -5820,13 +5831,15 @@
                         </div>
                         ` : ''}
                         ${p.isBonfire ? `
-                        <div class="profile-bonfire-indicator" title="${p.isLinked ? t('gate.addedAccount') : t('gate.bonfireProfile')}">
+                        <div class="profile-bonfire-indicator" aria-hidden="true" title="${p.isLinked ? t('gate.addedAccount') : t('gate.bonfireProfile')}">
                             <span class="material-icons" style="font-size: 1.15rem; color: #fff;">${p.isLinked ? 'link' : 'local_fire_department'}</span>
                         </div>
                         ` : ''}
                     </div>
                     <div class="profile-name">
                         <span>${escapeHtml(p.profileName)}</span>
+                        ${p.isBonfire ? `<span class="jpf-sr">${p.isLinked ? t('gate.addedAccount') : t('gate.bonfireProfile')}</span>` : ''}
+                        ${p.requiresPin && !this.isManageMode ? `<span class="jpf-sr">${t('gate.pinProtected')}</span>` : ''}
                         ${signedInId && this.normalizeGuid(p.profileUserId) === signedInId
                             ? `<span class="profile-current-badge">${t('gate.signedIn')}</span>` : ''}
                         ${this.viewingLine(p.viewing)
@@ -5881,7 +5894,7 @@
                     if (this.isManageMode) {
                         if (!atLimit) {
                             cardsHtml += `
-                                <div class="profile-card action-add-profile focusable" tabindex="0">
+                                <div class="profile-card action-add-profile focusable" role="button" tabindex="0">
                                     <div class="profile-avatar-container">
                                         <div class="profile-avatar add-avatar">+</div>
                                     </div>
@@ -8165,6 +8178,7 @@
                     dot.addEventListener('click', () => {
                         dots.forEach(d => d.classList.remove('active'));
                         dot.classList.add('active');
+                        this._syncColorRadios(dots);
                         selectedColor = dot.getAttribute('data-color');
                         const createPreview = document.getElementById('create-image-upload-preview');
                         if (createPreview && !createPreview.querySelector('img')) {
@@ -8579,10 +8593,12 @@
                     const color = dot.getAttribute('data-color');
                     if (color.toLowerCase() === selectedColor.toLowerCase()) {
                         dot.classList.add('active');
+                        this._syncColorRadios(dots);
                     }
                     dot.addEventListener('click', () => {
                         dots.forEach(d => d.classList.remove('active'));
                         dot.classList.add('active');
+                        this._syncColorRadios(dots);
                         selectedColor = color;
                         const editPreview = document.getElementById('edit-image-upload-preview');
                         if (editPreview && !editPreview.querySelector('img')) {

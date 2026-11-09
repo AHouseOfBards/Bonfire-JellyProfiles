@@ -82,6 +82,8 @@
   "profileForm.namePlaceholder": "örn. Çocuklar",
   "profileForm.masterNameHint": "Ana profil, adını Jellyfin hesabınızdan alır.",
   "profileForm.avatarColor": "Avatar rengi",
+  "profileForm.colorGroup": "Profil rengi",
+  "profileForm.colorN": "Renk {n} / {total}",
   "profileForm.colorHintNoPicture": "Fotoğraf ayarlanmadığında avatar arka planı olarak kullanılır.",
   "profileForm.colorHintHasPicture": "Şeffaf alanların arkasında görünür.",
   "profileForm.colorHintUnused": "Arka plan şeffafken kullanılmaz.",

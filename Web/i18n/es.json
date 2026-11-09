@@ -77,6 +77,8 @@
   "profileForm.namePlaceholder": "p. ej. Niños",
   "profileForm.masterNameHint": "El perfil principal toma el nombre de tu cuenta de Jellyfin.",
   "profileForm.avatarColor": "Color del avatar",
+  "profileForm.colorGroup": "Color del perfil",
+  "profileForm.colorN": "Color {n} de {total}",
   "profileForm.colorHintNoPicture": "Se usa como fondo del avatar mientras no haya foto.",
   "profileForm.colorHintHasPicture": "Se ve detrás de la foto, donde sea transparente.",
   "profileForm.colorHintUnused": "No se usa mientras el fondo sea transparente.",
