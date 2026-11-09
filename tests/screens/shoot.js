@@ -92,11 +92,17 @@ async function main() {
                     // --full yes: a screen taller than the device is shot whole, by growing the
                     // window to fit whatever scrolls. For reading a long form, not a golden:
                     // anything sized in vh grows with it.
+                    // Grown until nothing is left over, not once: a form capped at 75vh grows
+                    // with the window, so one step left its last section cut off at the
+                    // bottom, and three reviews reported that as a defect (P2-1001 and others).
                     if (a.full === 'yes') {
-                        const extra = await c.evaluate('Math.max.apply(null,[0].concat([].slice.call(document.querySelectorAll("*")).filter(function(e){var o=getComputedStyle(e).overflowY;return (o==="auto"||o==="scroll")&&e.scrollHeight>e.clientHeight+1;}).map(function(e){return e.scrollHeight-e.clientHeight;})))');
-                        if (extra > 0) {
-                            const d = chrome.DEVICES[size];
-                            await c.page('Emulation.setDeviceMetricsOverride', { width: d.width, height: Math.min(d.height + extra, 8000), deviceScaleFactor: d.scale, mobile: d.mobile });
+                        const d = chrome.DEVICES[size];
+                        let height = d.height;
+                        for (let i = 0; i < 6; i++) {
+                            const extra = await c.evaluate('Math.max.apply(null,[0].concat([].slice.call(document.querySelectorAll("*")).filter(function(e){var o=getComputedStyle(e).overflowY;return (o==="auto"||o==="scroll")&&e.scrollHeight>e.clientHeight+1;}).map(function(e){return e.scrollHeight-e.clientHeight;})))');
+                            if (extra <= 0 || height >= 8000) break;
+                            height = Math.min(height + extra, 8000);
+                            await c.page('Emulation.setDeviceMetricsOverride', { width: d.width, height: height, deviceScaleFactor: d.scale, mobile: d.mobile });
                             await c.evaluate('new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(r)})})');
                         }
                     }
