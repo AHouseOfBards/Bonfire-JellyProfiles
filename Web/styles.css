@@ -1777,6 +1777,12 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-viewing-dayname input { accent-color: var(--jpf-accent); cursor: pointer; }
 .jpf-viewing-day select { flex: 1 1 7rem; min-width: 0; }
 .jpf-viewing-dash { opacity: 0.6; }
+/* On a phone the day, two times and a dash do not fit one line: the end time fell to a line
+   of its own with no day beside it. The day takes a line, the times share the next. */
+@media (max-width: 480px) {
+    .jpf-viewing-dayname { flex: 1 1 100%; }
+    .jpf-no-flex-gap .jpf-viewing-day > .jpf-viewing-dayname + select { margin-left: 0; }
+}
 .jpf-viewing-now { font-weight: 600; }
 .jpf-viewing-asked { color: var(--jpf-warn); font-weight: 600; }
 .jpf-actions-wrap { justify-content: center; }
