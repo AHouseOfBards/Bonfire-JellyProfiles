@@ -415,7 +415,6 @@
   "admin.tab.households": "Llars",
   "admin.tab.devices": "Dispositius",
   "admin.tab.security": "Seguretat",
-  "admin.tab.experience": "Experiència",
   "admin.tab.apps": "Aplicacions",
   "admin.tab.messages": "Missatges",
   "admin.tab.activity": "Activitat",
@@ -976,10 +975,10 @@
   "admin.email.clear": "Elimina",
   "admin.email.clearTitle": "Vols eliminar aquesta adreça?",
   "admin.email.clearConfirm": "{name} deixarà de rebre codis i avisos.",
-  "admin.email.needsEmail": "Necessita un correu que funcioni. Configura-ho a Missatges.",
+  "admin.email.needsEmail": "Necessita un correu que funcioni. Configura-ho a Configuració.",
   "admin.status.emailUntested": "El correu està configurat però no s'ha provat, així que no s'envia res.",
   "admin.status.sendTest": "Envia una prova",
-  "admin.viewing.title": "Hores de visualització",
+  "admin.viewing.title": "Fus horari",
   "admin.viewing.lede": "Els comptes principals fixen hores i límits diaris a cada perfil. Les hores es llegeixen en aquesta zona fins que una llar en triï una.",
   "admin.viewing.zone": "Zona horària per defecte",
   "admin.viewing.serverZone": "La del servidor",
@@ -1049,5 +1048,7 @@
   "account.moreSummary": "Demanar PIN, xarxa de casa i bloqueig automàtic",
   "account.emailOff": "El correu no està configurat. Demana a l'administrador del servidor que l'activi al tauler de Bonfire.",
   "gate.manageHint": "Toca un perfil per editar-lo. Les etiquetes en mostren l'estat.",
-  "onboarding.switcherLater": "Ho pots canviar més tard a Configuració."
+  "onboarding.switcherLater": "Ho pots canviar més tard a Configuració.",
+  "admin.tab.look": "Aspecte",
+  "admin.tab.setup": "Configuració"
 }

@@ -426,7 +426,6 @@
   "admin.tab.households": "Haneler",
   "admin.tab.devices": "Cihazlar",
   "admin.tab.security": "Güvenlik",
-  "admin.tab.experience": "Deneyim",
   "admin.tab.apps": "Uygulamalar",
   "admin.tab.messages": "Mesajlar",
   "admin.tab.activity": "Etkinlik",
@@ -987,10 +986,10 @@
   "admin.email.clear": "Kaldır",
   "admin.email.clearTitle": "Bu adres kaldırılsın mı?",
   "admin.email.clearConfirm": "{name} artık kod ve bildirim almayacak.",
-  "admin.email.needsEmail": "Çalışan bir e-posta gerekir. Mesajlar'da ayarlayın.",
+  "admin.email.needsEmail": "Çalışan bir e-posta gerekir. Kurulum'da ayarlayın.",
   "admin.status.emailUntested": "E-posta ayarlandı ama test edilmedi, bu yüzden hiçbir şey gönderilmiyor.",
   "admin.status.sendTest": "Test gönder",
-  "admin.viewing.title": "İzleme saatleri",
+  "admin.viewing.title": "Saat dilimi",
   "admin.viewing.lede": "Ana hesaplar her profil için saatleri ve günlük sınırları belirler. Bir hane kendi dilimini seçene kadar saatler bu dilime göre okunur.",
   "admin.viewing.zone": "Varsayılan saat dilimi",
   "admin.viewing.serverZone": "Sunucunun kendi dilimi",
@@ -1061,5 +1060,7 @@
   "account.moreSummary": "PIN sorma, ev ağı ve otomatik kilit",
   "account.emailOff": "E-posta kurulu değil. Sunucu yöneticisinden Bonfire panelinde açmasını isteyin.",
   "gate.manageHint": "Düzenlemek için bir profile dokunun. Etiketler durumunu gösterir.",
-  "onboarding.switcherLater": "Bunu daha sonra Ayarlar'dan değiştirebilirsiniz."
+  "onboarding.switcherLater": "Bunu daha sonra Ayarlar'dan değiştirebilirsiniz.",
+  "admin.tab.look": "Görünüm",
+  "admin.tab.setup": "Kurulum"
 }

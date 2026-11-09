@@ -29,7 +29,7 @@ function ok(name, cond, detail) {
 
 const html = process.argv[3] ? require('fs').readFileSync(process.argv[3], 'utf8') : L.readDashboard();
 const script = L.dashboardScript(html);
-const names = ['renderEmail', 'loadEmail', 'showEmailResult', 'saveEmail', 'testEmail'];
+const names = ['renderEmail', 'loadEmail', 'showEmailResult', 'showOutcome', 'openAdvancedFor', 'saveEmail', 'testEmail'];
 const missing = names.filter(n => !new RegExp('function ' + n + '\\s*\\(').test(script));
 ok('this page has an Email section', missing.length === 0 && html.indexOf('id="jpfEmail"') !== -1, missing.join(','));
 if (missing.length) {
@@ -132,7 +132,7 @@ const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(
     w = makeWorld(untested);
     w.api.renderEmail(w.page, untested);
     ok('untested: a warning, also on the Status tab', /jpf-note-warn/.test(w.els.emailStatus.className)
-       && w.statuses.email.length === 1 && w.statuses.email[0].level === 'warn' && w.statuses.email[0].tab === 'messages');
+       && w.statuses.email.length === 1 && w.statuses.email[0].level === 'warn' && w.statuses.email[0].tab === 'setup');
     ok('the switch is off and can not be turned on', !w.els.enablePinResetByEmail.checked && w.els.enablePinResetByEmail.disabled);
     ok('and says what it needs', !w.els.pinResetNeedsEmail.classList.contains('jpf-hidden')
        && w.els.pinResetNeedsEmail.textContent !== '');

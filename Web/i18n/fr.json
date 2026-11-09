@@ -415,7 +415,6 @@
   "admin.tab.households": "Foyers",
   "admin.tab.devices": "Appareils",
   "admin.tab.security": "Sécurité",
-  "admin.tab.experience": "Expérience",
   "admin.tab.apps": "Applications",
   "admin.tab.messages": "Messages",
   "admin.tab.activity": "Activité",
@@ -976,10 +975,10 @@
   "admin.email.clear": "Retirer",
   "admin.email.clearTitle": "Retirer cette adresse ?",
   "admin.email.clearConfirm": "{name} ne recevra plus de codes ni d'avis.",
-  "admin.email.needsEmail": "Nécessite un e-mail fonctionnel. Configurez-le dans Messages.",
+  "admin.email.needsEmail": "Nécessite un e-mail fonctionnel. Configurez-le dans Configuration.",
   "admin.status.emailUntested": "L'e-mail est configuré mais pas testé, donc rien n'est envoyé.",
   "admin.status.sendTest": "Envoyer un test",
-  "admin.viewing.title": "Heures de visionnage",
+  "admin.viewing.title": "Fuseau horaire",
   "admin.viewing.lede": "Les comptes principaux fixent des heures et des limites par jour sur chaque profil. Les heures sont lues dans ce fuseau jusqu'à ce qu'un foyer choisisse le sien.",
   "admin.viewing.zone": "Fuseau horaire par défaut",
   "admin.viewing.serverZone": "Celui du serveur",
@@ -1049,5 +1048,7 @@
   "account.moreSummary": "Demander le PIN, réseau local et verrouillage auto",
   "account.emailOff": "L'e-mail n'est pas configuré. Demandez à l'administrateur du serveur de l'activer dans le tableau de bord Bonfire.",
   "gate.manageHint": "Touchez un profil pour le modifier. Les étiquettes indiquent son état.",
-  "onboarding.switcherLater": "Vous pourrez le changer plus tard dans les Paramètres."
+  "onboarding.switcherLater": "Vous pourrez le changer plus tard dans les Paramètres.",
+  "admin.tab.look": "Apparence",
+  "admin.tab.setup": "Configuration"
 }

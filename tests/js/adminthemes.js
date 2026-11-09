@@ -109,9 +109,9 @@ console.log('\n── The Themes section is on the page ────────
     const missing = ids.filter(id => markup.indexOf('id="' + id + '"') === -1);
     ok('every control is in the markup', missing.length === 0, 'missing: ' + missing.join(', '));
     const section = markup.indexOf('id="jpfThemes"');
-    ok('it sits in the Experience tab, after the default theme',
+    ok('it sits in the Look tab, after the default theme',
        section > markup.indexOf('id="defaultTheme"') && section < markup.indexOf('id="jpfViewing"')
-       && section > markup.indexOf('data-panel="experience"'));
+       && section > markup.indexOf('data-panel="look"'));
     const fallback = /<select[^>]*id="fontFallback"[^>]*>([\s\S]*?)<\/select>/.exec(markup);
     const values = fallback ? (fallback[1].match(/value="([^"]*)"/g) || []).map(v => v.slice(7, -1)) : [];
     ok('a font falls back to sans-serif or serif, nothing else', JSON.stringify(values) === '["sans-serif","serif"]', values.join(','));
@@ -534,7 +534,7 @@ function part7() {
             '#fontUpload': { disabled: false },
             '#fontFile': { value: 'x' },
             '#fontFileName': { textContent: 'x' },
-            '#fontResult': { textContent: '', style: {}, classList: { toggle() {} } }
+            '#fontResult': { textContent: '', style: {}, classList: { toggle() {}, add() {}, remove() {}, contains: () => false } }
         };
         const file = opts.file === null ? null : Object.assign({ name: 'shop.woff2', size: 1000 }, opts.file || {});
         const page = {
@@ -547,7 +547,7 @@ function part7() {
             return Promise.resolve({ ok: true, json: () => Promise.resolve({ family: 'Shop Sign' }) });
         };
         // loadThemes and authorizationHeader are the page's own, run elsewhere; stood in for.
-        const fns = lift(['showThemeStatus', 'readThemeError', 'refreshClientThemes', 'uploadThemeFont'], {
+        const fns = lift(['showThemeStatus', 'showOutcome', 'openAdvancedFor', 'readThemeError', 'refreshClientThemes', 'uploadThemeFont'], {
             fetch: fetchStub, window: {},
             loadThemes: () => {}, authorizationHeader: () => 'MediaBrowser Token="tok"',
             ApiClient: { getUrl: (u, q) => '/' + u + (q ? '?' + Object.keys(q).map(k => k + '=' + encodeURIComponent(q[k])).join('&') : '') }

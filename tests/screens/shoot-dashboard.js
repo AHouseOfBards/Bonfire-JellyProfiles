@@ -3,7 +3,7 @@
  * grows to the page's height). For reviewing layout, density and words; not a golden,
  * because jellyfin-web's own controls are only approximated (see dashboard.js).
  *
- *   node tests/screens/shoot-dashboard.js --out <dir> [--tab experience] [--device desktop,phone]
+ *   node tests/screens/shoot-dashboard.js --out <dir> [--tab look] [--device desktop,phone]
  */
 'use strict';
 

@@ -650,7 +650,8 @@
                 <button type="button" class="jpf-tab" role="tab" data-tab="households" aria-controls="jpfPanelHouseholds" data-i18n="admin.tab.households">Households</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="devices" aria-controls="jpfPanelDevices" data-i18n="admin.tab.devices">Devices</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="security" aria-controls="jpfPanelSecurity" data-i18n="admin.tab.security">Security</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="experience" aria-controls="jpfPanelExperience" data-i18n="admin.tab.experience">Experience</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="look" aria-controls="jpfPanelLook" data-i18n="admin.tab.look">Look</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="setup" aria-controls="jpfPanelSetup" data-i18n="admin.tab.setup">Setup</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="apps" aria-controls="jpfPanelApps" data-i18n="admin.tab.apps">Apps</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="messages" aria-controls="jpfPanelMessages" data-i18n="admin.tab.messages">Messages</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="activity" aria-controls="jpfPanelActivity" data-i18n="admin.tab.activity">Activity</button>
@@ -692,14 +693,6 @@
                     <input is="emby-input" type="number" id="maxProfiles" min="1" max="20" required />
                     <div class="fieldDescription" data-i18n="admin.households.maxProfilesHint">1 to 20. An account's own limit, set above, wins.</div>
                 </div>
-                <details class="jpf-advanced jpf-block-end">
-                    <summary data-i18n="admin.advanced.title">Advanced</summary>
-                    <div class="inputContainer jpf-form-narrow">
-                        <label class="inputLabel" for="pinGuessesPerDay" data-i18n="admin.households.pinPerDay">PIN tries a day</label>
-                        <input is="emby-input" type="number" id="pinGuessesPerDay" min="1" max="20" />
-                        <div class="fieldDescription" data-i18n="admin.households.pinPerDayHint">Wrong tries per account, all apps together. 1 to 20.</div>
-                    </div>
-                </details>
                 <div class="buttonContainer jpf-block-end">
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
                 </div>
@@ -746,6 +739,14 @@
                     <div class="fieldDescription" data-i18n="admin.security.pinResetByEmailHint">A code goes to the address the account confirmed.</div>
                     <div class="fieldDescription jpf-hidden" id="pinResetNeedsEmail"></div>
                 </div>
+                <details class="jpf-advanced jpf-section">
+                    <summary data-i18n="admin.advanced.title">Advanced</summary>
+                    <div class="inputContainer jpf-form-narrow">
+                        <label class="inputLabel" for="pinGuessesPerDay" data-i18n="admin.households.pinPerDay">PIN tries a day</label>
+                        <input is="emby-input" type="number" id="pinGuessesPerDay" min="1" max="20" />
+                        <div class="fieldDescription" data-i18n="admin.households.pinPerDayHint">Wrong tries per account, all apps together. 1 to 20.</div>
+                    </div>
+                </details>
                 <div class="buttonContainer jpf-block-end">
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
                 </div>
@@ -774,8 +775,8 @@
                 <div class="fieldDescription jpf-lede" data-i18n="admin.security.apiBody">Scripts and other apps can use Bonfire's administrator routes with a key from Dashboard → API Keys.</div>
             </div><!-- /security -->
 
-            <!-- ── Experience ─────────────────────────────────────────────────────── -->
-            <div class="jpf-tab-panel" id="jpfPanelExperience" data-panel="experience" role="tabpanel" hidden>
+            <!-- ── Look ───────────────────────────────────────────────────────────── -->
+            <div class="jpf-tab-panel" id="jpfPanelLook" data-panel="look" role="tabpanel" hidden>
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.switcher.title">Switcher</h2>
                 </div>
@@ -828,6 +829,63 @@
                     <div class="fieldDescription" data-i18n="admin.theme.allowProfilesHint">Off shows everyone the default. Choices already made are kept.</div>
                 </div>
 
+                <div class="sectionTitleContainer jpf-section" id="jpfAvatars">
+                    <h2 class="sectionTitle" data-i18n="admin.avatars.title">Avatar library</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.avatars.lede">Pictures anyone can pick for a profile. On a TV this is the only way to set one.</div>
+                <div class="jpf-hidden jpf-note jpf-note-soft" id="avatarMissingWarning">
+                    <!-- Filled in when a profile or library entry points at a file that is gone -->
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="enableStarterAvatars" />
+                        <span data-i18n="admin.avatars.starter">Include the starter avatars</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.avatars.starterHint">30 built-in pictures. Fluent Emoji by Microsoft, MIT licence.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="disallowCustomAvatars" />
+                        <span data-i18n="admin.avatars.libraryOnly">Only allow avatars from this library</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.avatars.libraryOnlyHint">Profiles pick from this set instead of uploading. Pictures already chosen stay.</div>
+                </div>
+                <div class="selectContainer jpf-form-narrow">
+                    <label class="selectLabel" for="profileImageQuality" data-i18n="admin.avatars.quality">Picture quality</label>
+                    <select is="emby-select" id="profileImageQuality">
+                        <option value="standard" data-i18n="admin.avatars.qualityStandard">Standard — 512 px, up to 2 MB</option>
+                        <option value="high" data-i18n="admin.avatars.qualityHigh">High — 1024 px, up to 4 MB</option>
+                        <option value="maximum" data-i18n="admin.avatars.qualityMaximum">Maximum — 2048 px, up to 8 MB</option>
+                    </select>
+                    <div class="fieldDescription" data-i18n="admin.avatars.qualityHint">Sharper on big screens, more disk. Applies to new pictures.</div>
+                </div>
+                <div class="buttonContainer">
+                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
+                </div>
+
+                <div class="jpf-upload">
+                    <div class="jpf-actions">
+                        <button is="emby-button" type="button" id="avatarUploadBtn" class="raised" data-i18n="admin.avatars.upload">Upload pictures</button>
+                        <button is="emby-button" type="button" id="avatarFolderBtn" class="raised" data-i18n="admin.avatars.uploadFolder">Upload a folder</button>
+                    </div>
+                    <input class="jpf-hidden" type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" />
+                    <input class="jpf-hidden" type="file" id="avatarFolderInput" webkitdirectory directory multiple />
+                    <div class="fieldDescription" data-i18n="admin.avatars.uploadHint">JPEG, PNG, WebP or GIF. Squared and resized automatically.</div>
+                    <div class="inputContainer jpf-form-narrow jpf-mt-3">
+                        <label class="inputLabel" for="avatarScanPath" data-i18n="admin.avatars.serverFolder">Or copy a folder on the server</label>
+                        <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" translate="no" />
+                        <div class="fieldDescription" data-i18n="admin.avatars.serverFolderHint">A path on the server, not on this computer.</div>
+                    </div>
+                    <button is="emby-button" type="button" id="avatarScanBtn" class="raised jpf-narrow" data-i18n="admin.avatars.import">Copy from folder</button>
+                    <div class="jpf-hidden jpf-status jpf-status-quiet" id="avatarUploadStatus"></div>
+                    <div class="jpf-hidden jpf-status jpf-status-error" id="avatarUploadError"></div>
+                </div>
+                <div class="jpf-avatar-grid" id="avatarLibraryGrid">
+                    <!-- Library avatars rendered here -->
+                </div>
+
+                <details class="jpf-advanced jpf-section">
+                    <summary data-i18n="admin.advanced.title">Advanced</summary>
                 <!-- The administrator's own themes, hidden built-ins and uploaded fonts
                      (1.7.2). Everything here saves at once through admin/themes/*; only
                      the default above waits for Save. -->
@@ -968,7 +1026,11 @@
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow" id="fontUpload" data-i18n="admin.themes.fontUpload">Upload font</button>
                     <div class="jpf-hidden jpf-status" id="fontResult"></div>
                 </div>
+                </details>
+            </div><!-- /look -->
 
+            <!-- ── Setup ──────────────────────────────────────────────────────────── -->
+            <div class="jpf-tab-panel" id="jpfPanelSetup" data-panel="setup" role="tabpanel" hidden>
                 <div class="sectionTitleContainer jpf-section" id="jpfViewing">
                     <h2 class="sectionTitle" data-i18n="admin.viewing.title">Viewing hours</h2>
                 </div>
@@ -1033,61 +1095,60 @@
                 </div>
                 <div class="fieldDescription" data-i18n="admin.onboarding.showAgainHint">Every main account sees it on its next visit.</div>
 
-                <div class="sectionTitleContainer jpf-section" id="jpfAvatars">
-                    <h2 class="sectionTitle" data-i18n="admin.avatars.title">Avatar library</h2>
+                <div class="sectionTitleContainer jpf-section" id="jpfEmail">
+                    <h2 class="sectionTitle" data-i18n="admin.email.title">Email</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.avatars.lede">Pictures anyone can pick for a profile. On a TV this is the only way to set one.</div>
-                <div class="jpf-hidden jpf-note jpf-note-soft" id="avatarMissingWarning">
-                    <!-- Filled in when a profile or library entry points at a file that is gone -->
-                </div>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label>
-                        <input is="emby-checkbox" type="checkbox" id="enableStarterAvatars" />
-                        <span data-i18n="admin.avatars.starter">Include the starter avatars</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.avatars.starterHint">30 built-in pictures. Fluent Emoji by Microsoft, MIT licence.</div>
-                </div>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label>
-                        <input is="emby-checkbox" type="checkbox" id="disallowCustomAvatars" />
-                        <span data-i18n="admin.avatars.libraryOnly">Only allow avatars from this library</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.avatars.libraryOnlyHint">Profiles pick from this set instead of uploading. Pictures already chosen stay.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.email.lede">Lets main accounts get a code for a forgotten PIN, and notices they ask for. Use your mail provider's SMTP settings.</div>
+                <div id="emailStatus" class="jpf-note">…</div>
+                <div class="jpf-email-server">
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="emailHost" data-i18n="admin.email.host">Server</label>
+                        <input is="emby-input" type="text" id="emailHost" autocomplete="off" placeholder="smtp.example.com" data-i18n-placeholder="admin.email.hostPlaceholder" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="emailPort" data-i18n="admin.email.port">Port</label>
+                        <input is="emby-input" type="number" id="emailPort" min="1" max="65535" />
+                    </div>
                 </div>
                 <div class="selectContainer jpf-form-narrow">
-                    <label class="selectLabel" for="profileImageQuality" data-i18n="admin.avatars.quality">Picture quality</label>
-                    <select is="emby-select" id="profileImageQuality">
-                        <option value="standard" data-i18n="admin.avatars.qualityStandard">Standard — 512 px, up to 2 MB</option>
-                        <option value="high" data-i18n="admin.avatars.qualityHigh">High — 1024 px, up to 4 MB</option>
-                        <option value="maximum" data-i18n="admin.avatars.qualityMaximum">Maximum — 2048 px, up to 8 MB</option>
+                    <label class="selectLabel" for="emailSecurity" data-i18n="admin.email.security">Security</label>
+                    <select is="emby-select" id="emailSecurity">
+                        <option value="starttls" data-i18n="admin.email.starttls">STARTTLS</option>
+                        <option value="none" data-i18n="admin.email.none">None, for a relay on your network</option>
                     </select>
-                    <div class="fieldDescription" data-i18n="admin.avatars.qualityHint">Sharper on big screens, more disk. Applies to new pictures.</div>
+                    <div class="fieldDescription" data-i18n="admin.email.securityHint">Port 465 isn't supported. Use 587 with STARTTLS.</div>
                 </div>
-                <div class="buttonContainer">
-                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="emailUsername" data-i18n="admin.email.username">Username</label>
+                    <input is="emby-input" type="text" id="emailUsername" autocomplete="off" />
+                    <div class="fieldDescription" data-i18n="admin.email.usernameHint">Blank if your server doesn't need one.</div>
                 </div>
-
-                <div class="jpf-upload">
-                    <div class="jpf-actions">
-                        <button is="emby-button" type="button" id="avatarUploadBtn" class="raised" data-i18n="admin.avatars.upload">Upload pictures</button>
-                        <button is="emby-button" type="button" id="avatarFolderBtn" class="raised" data-i18n="admin.avatars.uploadFolder">Upload a folder</button>
-                    </div>
-                    <input class="jpf-hidden" type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" />
-                    <input class="jpf-hidden" type="file" id="avatarFolderInput" webkitdirectory directory multiple />
-                    <div class="fieldDescription" data-i18n="admin.avatars.uploadHint">JPEG, PNG, WebP or GIF. Squared and resized automatically.</div>
-                    <div class="inputContainer jpf-form-narrow jpf-mt-3">
-                        <label class="inputLabel" for="avatarScanPath" data-i18n="admin.avatars.serverFolder">Or copy a folder on the server</label>
-                        <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" translate="no" />
-                        <div class="fieldDescription" data-i18n="admin.avatars.serverFolderHint">A path on the server, not on this computer.</div>
-                    </div>
-                    <button is="emby-button" type="button" id="avatarScanBtn" class="raised jpf-narrow" data-i18n="admin.avatars.import">Copy from folder</button>
-                    <div class="jpf-hidden jpf-status jpf-status-quiet" id="avatarUploadStatus"></div>
-                    <div class="jpf-hidden jpf-status jpf-status-error" id="avatarUploadError"></div>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="emailPassword" data-i18n="admin.email.password">Password</label>
+                    <input is="emby-input" type="password" id="emailPassword" autocomplete="new-password" />
+                    <div class="fieldDescription" id="emailPasswordHint"></div>
                 </div>
-                <div class="jpf-avatar-grid" id="avatarLibraryGrid">
-                    <!-- Library avatars rendered here -->
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="emailFrom" data-i18n="admin.email.from">From address</label>
+                    <input is="emby-input" type="email" id="emailFrom" autocomplete="off" />
                 </div>
-            </div><!-- /experience -->
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="emailFromName" data-i18n="admin.email.fromName">From name</label>
+                    <input is="emby-input" type="text" id="emailFromName" maxlength="100" autocomplete="off" />
+                </div>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="emailTestTo" data-i18n="admin.email.testTo">Send a test to</label>
+                    <input is="emby-input" type="email" id="emailTestTo" autocomplete="email" />
+                    <div class="fieldDescription" data-i18n="admin.email.testHint">Email works once a test goes through.</div>
+                </div>
+                <div class="buttonContainer jpf-ann-actions">
+                    <button is="emby-button" type="button" id="emailTest" class="raised button-submit" data-i18n="admin.email.saveAndTest">Save and send test</button>
+                    <button is="emby-button" type="button" id="emailSave" class="raised" data-i18n="admin.email.saveOnly">Save only</button>
+                </div>
+                <div class="jpf-hidden jpf-status" id="emailResult"></div>
+                <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.email.accounts">Addresses</h3>
+                <div id="emailAccounts" class="jpf-block-end"></div>
+            </div><!-- /setup -->
 
             <!-- ── Apps ───────────────────────────────────────────────────────────── -->
             <div class="jpf-tab-panel" id="jpfPanelApps" data-panel="apps" role="tabpanel" hidden>
@@ -1163,18 +1224,21 @@
                     </select>
                     <div class="fieldDescription" data-i18n="admin.ann.severityHint">Info can be dismissed. Warning and Critical stay until they end.</div>
                 </div>
-                <div class="jpf-ann-dates">
-                    <div class="inputContainer">
-                        <label class="inputLabel" for="annStarts" data-i18n="admin.ann.starts">Starts</label>
-                        <input is="emby-input" type="datetime-local" id="annStarts" />
-                        <div class="fieldDescription" data-i18n="admin.ann.startsHint">Blank for now.</div>
+                <details class="jpf-advanced jpf-section" id="annAdvanced">
+                    <summary data-i18n="admin.advanced.title">Advanced</summary>
+                    <div class="jpf-ann-dates">
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="annStarts" data-i18n="admin.ann.starts">Starts</label>
+                            <input is="emby-input" type="datetime-local" id="annStarts" />
+                            <div class="fieldDescription" data-i18n="admin.ann.startsHint">Blank for now.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel" for="annEnds" data-i18n="admin.ann.ends">Ends</label>
+                            <input is="emby-input" type="datetime-local" id="annEnds" />
+                            <div class="fieldDescription" data-i18n="admin.ann.endsHint">Blank to keep it until you delete it.</div>
+                        </div>
                     </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel" for="annEnds" data-i18n="admin.ann.ends">Ends</label>
-                        <input is="emby-input" type="datetime-local" id="annEnds" />
-                        <div class="fieldDescription" data-i18n="admin.ann.endsHint">Blank to keep it until you delete it.</div>
-                    </div>
-                </div>
+                </details>
                 <div class="buttonContainer jpf-ann-actions">
                     <button is="emby-button" type="button" id="annSave" class="raised button-submit" data-i18n="admin.ann.post">Post announcement</button>
                     <button is="emby-button" type="button" id="annCancel" class="raised jpf-hidden" data-i18n="admin.ann.cancelEdit">Cancel edit</button>
@@ -1210,60 +1274,6 @@
                     <button is="emby-button" type="button" id="mntOpen" class="raised jpf-hidden" data-i18n="admin.mnt.open">Reopen</button>
                 </div>
                 <div class="jpf-hidden jpf-status" id="mntResult"></div>
-
-                <div class="sectionTitleContainer jpf-section" id="jpfEmail">
-                    <h2 class="sectionTitle" data-i18n="admin.email.title">Email</h2>
-                </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.email.lede">Lets main accounts get a code for a forgotten PIN, and notices they ask for. Use your mail provider's SMTP settings.</div>
-                <div id="emailStatus" class="jpf-note">…</div>
-                <div class="jpf-email-server">
-                    <div class="inputContainer">
-                        <label class="inputLabel" for="emailHost" data-i18n="admin.email.host">Server</label>
-                        <input is="emby-input" type="text" id="emailHost" autocomplete="off" placeholder="smtp.example.com" data-i18n-placeholder="admin.email.hostPlaceholder" />
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel" for="emailPort" data-i18n="admin.email.port">Port</label>
-                        <input is="emby-input" type="number" id="emailPort" min="1" max="65535" />
-                    </div>
-                </div>
-                <div class="selectContainer jpf-form-narrow">
-                    <label class="selectLabel" for="emailSecurity" data-i18n="admin.email.security">Security</label>
-                    <select is="emby-select" id="emailSecurity">
-                        <option value="starttls" data-i18n="admin.email.starttls">STARTTLS</option>
-                        <option value="none" data-i18n="admin.email.none">None, for a relay on your network</option>
-                    </select>
-                    <div class="fieldDescription" data-i18n="admin.email.securityHint">Port 465 isn't supported. Use 587 with STARTTLS.</div>
-                </div>
-                <div class="inputContainer jpf-form-narrow">
-                    <label class="inputLabel" for="emailUsername" data-i18n="admin.email.username">Username</label>
-                    <input is="emby-input" type="text" id="emailUsername" autocomplete="off" />
-                    <div class="fieldDescription" data-i18n="admin.email.usernameHint">Blank if your server doesn't need one.</div>
-                </div>
-                <div class="inputContainer jpf-form-narrow">
-                    <label class="inputLabel" for="emailPassword" data-i18n="admin.email.password">Password</label>
-                    <input is="emby-input" type="password" id="emailPassword" autocomplete="new-password" />
-                    <div class="fieldDescription" id="emailPasswordHint"></div>
-                </div>
-                <div class="inputContainer jpf-form-narrow">
-                    <label class="inputLabel" for="emailFrom" data-i18n="admin.email.from">From address</label>
-                    <input is="emby-input" type="email" id="emailFrom" autocomplete="off" />
-                </div>
-                <div class="inputContainer jpf-form-narrow">
-                    <label class="inputLabel" for="emailFromName" data-i18n="admin.email.fromName">From name</label>
-                    <input is="emby-input" type="text" id="emailFromName" maxlength="100" autocomplete="off" />
-                </div>
-                <div class="inputContainer jpf-form-narrow">
-                    <label class="inputLabel" for="emailTestTo" data-i18n="admin.email.testTo">Send a test to</label>
-                    <input is="emby-input" type="email" id="emailTestTo" autocomplete="email" />
-                    <div class="fieldDescription" data-i18n="admin.email.testHint">Email works once a test goes through.</div>
-                </div>
-                <div class="buttonContainer jpf-ann-actions">
-                    <button is="emby-button" type="button" id="emailTest" class="raised button-submit" data-i18n="admin.email.saveAndTest">Save and send test</button>
-                    <button is="emby-button" type="button" id="emailSave" class="raised" data-i18n="admin.email.saveOnly">Save only</button>
-                </div>
-                <div class="jpf-hidden jpf-status" id="emailResult"></div>
-                <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.email.accounts">Addresses</h3>
-                <div id="emailAccounts" class="jpf-block-end"></div>
             </div><!-- /messages -->
 
             <!-- ── Activity ───────────────────────────────────────────────────────── -->
@@ -1652,7 +1662,7 @@
                 'admin.email.clear': 'Remove',
                 'admin.email.clearTitle': 'Remove this address?',
                 'admin.email.clearConfirm': '{name} will stop getting codes and notices.',
-                'admin.email.needsEmail': 'Needs working email. Set it up under Messages.',
+                'admin.email.needsEmail': 'Needs working email. Set it up under Setup.',
                 'admin.status.emailUntested': "Email is set up but hasn't been tested, so nothing is sent.",
                 'admin.status.sendTest': 'Send a test',
                 'admin.mnt.closedTold': 'Closed. Apps told: {told}.',
@@ -1926,6 +1936,9 @@
                 // hand-edited localStorage value cannot become one.
                 let start = '';
                 try { start = localStorage.getItem('bonfire-admin-tab') || ''; } catch (e) { /* private mode */ }
+                // Experience was split into Look and Setup in 2.0; a browser that last had
+                // it open still holds its name.
+                if (start === 'experience') start = 'look';
                 if (names.indexOf(start) < 0) start = names[0];
                 show(start);
             }
@@ -3391,7 +3404,7 @@
             function renderAvatarHealth(page, missing) {
                 setStatus(page, 'avatars', missing.length
                     ? [{ level: 'info', text: missing.length === 1 ? t('admin.status.avatarsOne') : t('admin.status.avatarsMany', { count: missing.length }),
-                         tab: 'experience', anchor: 'jpfAvatars', fix: t('admin.status.seeWhich') }]
+                         tab: 'look', anchor: 'jpfAvatars', fix: t('admin.status.seeWhich') }]
                     : []);
                 const el = page.querySelector('#avatarMissingWarning');
                 if (!missing.length) { el.style.display = 'none'; return; }
@@ -3459,11 +3472,23 @@
                 delete page.dataset.annEditing;
             }
 
-            function showAnnouncementResult(page, msg, good) {
-                const result = page.querySelector('#annResult');
+            // An Advanced fold is closed until somebody opens it, so an error that lands inside
+            // one is an error nobody sees. Every message goes through here: a failure opens the
+            // fold it sits in.
+            function openAdvancedFor(el) {
+                const fold = el && el.closest ? el.closest('details.jpf-advanced') : null;
+                if (fold) fold.open = true;
+            }
+
+            function showOutcome(result, msg, good) {
                 result.textContent = msg;
                 result.style.color = good ? '#51cf66' : '#ff6b6b';
                 result.classList.remove('jpf-hidden');
+                if (!good) openAdvancedFor(result);
+            }
+
+            function showAnnouncementResult(page, msg, good) {
+                showOutcome(page.querySelector('#annResult'), msg, good);
             }
 
             function loadAnnouncements(page) {
@@ -3515,6 +3540,10 @@
                         page.querySelector('#annSeverity').value = severity;
                         page.querySelector('#annStarts').value = isoToLocalInput(field(a, 'startsUtc'));
                         page.querySelector('#annEnds').value = isoToLocalInput(field(a, 'endsUtc'));
+                        // Dates this announcement already has are not to be hidden in a closed fold.
+                        if (page.querySelector('#annStarts').value || page.querySelector('#annEnds').value) {
+                            openAdvancedFor(page.querySelector('#annStarts'));
+                        }
                         page.querySelector('#annCount').textContent = (field(a, 'message') || '').length + ' / 280';
                         page.querySelector('#annSave').textContent = t('admin.ann.saveChanges');
                         page.querySelector('#annCancel').classList.remove('jpf-hidden');
@@ -3575,7 +3604,11 @@
                     showAnnouncementResult(page, editing ? t('admin.ann.saved') : t('admin.ann.postDone'), true);
                     loadAnnouncements(page);
                 }, function (err) {
-                    errorText(err, t('admin.saveFailed')).then(function (msg) { showAnnouncementResult(page, msg, false); });
+                    errorText(err, t('admin.saveFailed')).then(function (msg) {
+                        showAnnouncementResult(page, msg, false);
+                        // The server may be refusing the dates, which sit in the fold.
+                        if (body.startsUtc || body.endsUtc) openAdvancedFor(page.querySelector('#annStarts'));
+                    });
                 });
             }
 
@@ -4045,9 +4078,9 @@
             function showThemeStatus(page, selector, msg, good) {
                 const el = page.querySelector(selector);
                 if (!el) return;
-                el.textContent = msg || '';
-                el.style.color = good ? '#51cf66' : '#ff6b6b';
-                el.classList.toggle('jpf-hidden', !msg);
+                if (msg) { showOutcome(el, msg, good); return; }
+                el.textContent = '';
+                el.classList.add('jpf-hidden');
             }
 
             /// After a change the client script in this window should see: the pickers here
@@ -4964,10 +4997,7 @@
             }
 
             function showMaintenanceResult(page, msg, good) {
-                const result = page.querySelector('#mntResult');
-                result.textContent = msg;
-                result.style.color = good ? '#51cf66' : '#ff6b6b';
-                result.classList.remove('jpf-hidden');
+                showOutcome(page.querySelector('#mntResult'), msg, good);
             }
 
             function saveMaintenance(page, enabled) {
@@ -5100,7 +5130,7 @@
                 });
 
                 setStatus(page, 'email', configured && !verified
-                    ? [{ level: 'warn', text: t('admin.status.emailUntested'), tab: 'messages', anchor: 'jpfEmail', fix: t('admin.status.sendTest') }]
+                    ? [{ level: 'warn', text: t('admin.status.emailUntested'), tab: 'setup', anchor: 'jpfEmail', fix: t('admin.status.sendTest') }]
                     : []);
             }
 
@@ -5114,10 +5144,7 @@
             }
 
             function showEmailResult(page, msg, good) {
-                const result = page.querySelector('#emailResult');
-                result.textContent = msg;
-                result.style.color = good ? '#51cf66' : '#ff6b6b';
-                result.classList.remove('jpf-hidden');
+                showOutcome(page.querySelector('#emailResult'), msg, good);
             }
 
             // Saves the form. Resolves the saved state, or null when refused (and says why).
@@ -5321,8 +5348,8 @@
                     { key: 'emergency', text: t('admin.gs.emergency'), done: page._panicConfigured === undefined ? null : !!page._panicConfigured,
                       tab: 'security', anchor: 'jpfEmergency' },
                     { key: 'avatars', text: t('admin.gs.avatars'), done: c.EnableStarterAvatars !== false || (c.AvatarLibrary || []).length > 0,
-                      tab: 'experience', anchor: 'jpfAvatars' },
-                    { key: 'onboarding', text: t('admin.gs.onboarding'), done: !!field(ob, 'enabled'), tab: 'experience', anchor: 'jpfOnboarding' },
+                      tab: 'look', anchor: 'jpfAvatars' },
+                    { key: 'onboarding', text: t('admin.gs.onboarding'), done: !!field(ob, 'enabled'), tab: 'setup', anchor: 'jpfOnboarding' },
                     { key: 'apps', text: t('admin.gs.apps'), done: !!(c.EnableClientPinLogin || c.EnableClientProfileList || (c.ProxyClients || []).length),
                       tab: 'apps' }
                 ];

@@ -1,7 +1,7 @@
 /*
  * The dashboard's fixture: Dashboard → Bonfire with no Jellyfin server, one tab at a time.
  * Loaded before the page's own markup and script. The address says what to draw:
- * /dashboard?tab=experience&device=desktop.
+ * /dashboard?tab=look&device=desktop.
  *
  * What is real: the page exactly as the plugin ships it (Web/profilesDashboard.html), its
  * script and its English. What is not: jellyfin-web around it. Jellyfin's dashboard styles
@@ -160,5 +160,5 @@
             }, 600);
         });
     };
-    window.__tabs = ['status', 'households', 'devices', 'security', 'experience', 'apps', 'messages', 'activity', 'troubleshoot'];
+    window.__tabs = ['status', 'households', 'devices', 'security', 'look', 'setup', 'apps', 'messages', 'activity', 'troubleshoot'];
 })();

@@ -415,7 +415,6 @@
   "admin.tab.households": "Gospodarstwa",
   "admin.tab.devices": "Urządzenia",
   "admin.tab.security": "Bezpieczeństwo",
-  "admin.tab.experience": "Wygląd i działanie",
   "admin.tab.apps": "Aplikacje",
   "admin.tab.messages": "Komunikaty",
   "admin.tab.activity": "Aktywność",
@@ -976,10 +975,10 @@
   "admin.email.clear": "Usuń",
   "admin.email.clearTitle": "Usunąć ten adres?",
   "admin.email.clearConfirm": "{name} przestanie dostawać kody i powiadomienia.",
-  "admin.email.needsEmail": "Wymaga działającego e-maila. Skonfiguruj go w Wiadomościach.",
+  "admin.email.needsEmail": "Wymaga działającego e-maila. Skonfiguruj go w Konfiguracji.",
   "admin.status.emailUntested": "E-mail jest skonfigurowany, ale nie przetestowany, więc nic nie jest wysyłane.",
   "admin.status.sendTest": "Wyślij test",
-  "admin.viewing.title": "Godziny oglądania",
+  "admin.viewing.title": "Strefa czasowa",
   "admin.viewing.lede": "Konta główne ustawiają godziny i dzienne limity dla każdego profilu. Godziny są liczone w tej strefie, dopóki domownicy nie wybiorą własnej.",
   "admin.viewing.zone": "Domyślna strefa czasowa",
   "admin.viewing.serverZone": "Strefa serwera",
@@ -1049,5 +1048,7 @@
   "account.moreSummary": "Pytanie o PIN, sieć domowa i autoblokada",
   "account.emailOff": "E-mail nie jest skonfigurowany. Poproś administratora serwera o włączenie go w panelu Bonfire.",
   "gate.manageHint": "Dotknij profilu, aby go edytować. Etykiety pokazują jego stan.",
-  "onboarding.switcherLater": "Możesz to zmienić później w Ustawieniach."
+  "onboarding.switcherLater": "Możesz to zmienić później w Ustawieniach.",
+  "admin.tab.look": "Wygląd",
+  "admin.tab.setup": "Konfiguracja"
 }

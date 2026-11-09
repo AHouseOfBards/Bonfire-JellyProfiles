@@ -258,7 +258,7 @@ const settle = () => new Promise(r => setImmediate(r));
     let render = null;
     try {
         const fns = L.dashboardI18n(script) + ['field', 'formatWhen', 'announcementSchedule', 'isoToLocalInput', 'errorText',
-                     'resetAnnouncementForm', 'showAnnouncementResult', 'loadAnnouncements', 'renderAnnouncements']
+                     'resetAnnouncementForm', 'showAnnouncementResult', 'showOutcome', 'openAdvancedFor', 'loadAnnouncements', 'renderAnnouncements']
             .map(n => L.extractFunction(script, n)).join('\n');
         render = new Function('document', 'Dashboard', 'ApiClient', fns + '\nreturn renderAnnouncements;');
     } catch (e) { render = null; }

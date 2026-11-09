@@ -128,7 +128,7 @@ ok('a fresh install lists the rest as to do',
 ok('the list is shown', !page.ids.gettingStartedBlock.classList.contains('jpf-hidden'));
 ok('each to-do opens where it is fixed', row('onboarding').children.length === 3);
 row('onboarding').children[2].listeners.click();
-ok('First-time setup opens Experience at its section', gone.pop() === 'experience#jpfOnboarding');
+ok('First-time setup opens Setup at its section', gone.pop() === 'setup#jpfOnboarding');
 row('apps').children[2].listeners.click();
 ok('Apps opens the Apps tab', gone.pop() === 'apps#');
 
@@ -161,7 +161,7 @@ ok('all done: the list goes away', page.ids.gettingStartedBlock.classList.contai
 
 console.log('\n── Wiring ──────────────────────────────────────────────────────');
 ok('the Status tab carries the list', /id="gettingStartedBlock"/.test(html) && /id="gettingStarted"/.test(html));
-ok('Experience carries the section the list points at', /id="jpfOnboarding"/.test(html));
+ok('Setup carries the section the list points at', /id="jpfOnboarding"/.test(html));
 ok('saving, loading and the two status loads all redraw it',
    /noteSavedSettings\(page, sent\)/.test(script)
    && (script.match(/renderGettingStarted\(page\)/g) || []).length >= 4);

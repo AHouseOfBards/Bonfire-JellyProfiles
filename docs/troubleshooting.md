@@ -105,7 +105,7 @@ file over `PluginConfiguration.xml`, and start the newer version.
 
 Bonfire includes thirty starter avatars from Microsoft's Fluent Emoji. You can turn them
 off with **Include the starter avatars** under
-**Dashboard → Plugins → Bonfire → Experience → Avatar library**. Profiles already using one keep it.
+**Dashboard → Plugins → Bonfire → Look → Avatar library**. Profiles already using one keep it.
 
 Film and TV characters aren't included, because they belong to their studios. Add your
 own on the same page:
