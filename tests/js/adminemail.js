@@ -29,8 +29,11 @@ function ok(name, cond, detail) {
 
 const html = process.argv[3] ? require('fs').readFileSync(process.argv[3], 'utf8') : L.readDashboard();
 const script = L.dashboardScript(html);
-const names = ['renderEmail', 'loadEmail', 'showEmailResult', 'showOutcome', 'openAdvancedFor', 'saveEmail', 'testEmail'];
-const missing = names.filter(n => !new RegExp('function ' + n + '\\s*\\(').test(script));
+const required = ['renderEmail', 'loadEmail', 'showEmailResult', 'saveEmail', 'testEmail'];
+// What showEmailResult calls, on a dashboard that has them; an older one is judged on its own.
+const names = required.concat(['showOutcome', 'paintOutcome', 'openAdvancedFor']
+    .filter(n => new RegExp('function ' + n + '\\s*\\(').test(script)));
+const missing = required.filter(n => !new RegExp('function ' + n + '\\s*\\(').test(script));
 ok('this page has an Email section', missing.length === 0 && html.indexOf('id="jpfEmail"') !== -1, missing.join(','));
 if (missing.length) {
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
@@ -148,7 +151,7 @@ const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(
     const blank = { port: 587, security: 'starttls', configured: false, verified: false, accounts: [] };
     w = makeWorld(blank);
     w.api.renderEmail(w.page, blank);
-    ok('not set up: says so, and nothing on the Status tab', w.els.emailStatus.textContent === 'Not set up.'
+    ok('not set up: says so, and nothing on the Status tab', w.els.emailStatus.textContent === "Email isn't set up."
        && w.statuses.email.length === 0 && w.els.emailPasswordHint.textContent === '');
 
     console.log('\n── Saving ──────────────────────────────────────────────────────');
@@ -198,6 +201,13 @@ const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(
     w.api.testEmail(w.page);
     await settle();
     ok("a failed test says the server's reason", w.els.emailResult.textContent === "The mail server didn't accept the username or password.");
+    // P2-306: the reason was only on the Email section, which is not where an administrator is
+    // looking. Status carries it, with a way back.
+    ok("and Status says so too, with the reason and a way to the section",
+       w.statuses.email && w.statuses.email.length === 1 && w.statuses.email[0].level === 'warn'
+       && /didn't accept the username or password/.test(w.statuses.email[0].text)
+       && w.statuses.email[0].tab === 'setup' && w.statuses.email[0].anchor === 'jpfEmail',
+       JSON.stringify(w.statuses.email));
 
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);

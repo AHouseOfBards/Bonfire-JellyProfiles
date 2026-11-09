@@ -547,7 +547,7 @@ function part7() {
             return Promise.resolve({ ok: true, json: () => Promise.resolve({ family: 'Shop Sign' }) });
         };
         // loadThemes and authorizationHeader are the page's own, run elsewhere; stood in for.
-        const fns = lift(['showThemeStatus', 'showOutcome', 'openAdvancedFor', 'readThemeError', 'refreshClientThemes', 'uploadThemeFont'], {
+        const fns = lift(['showThemeStatus', 'showOutcome', 'paintOutcome', 'openAdvancedFor', 'readThemeError', 'refreshClientThemes', 'uploadThemeFont'], {
             fetch: fetchStub, window: {},
             loadThemes: () => {}, authorizationHeader: () => 'MediaBrowser Token="tok"',
             ApiClient: { getUrl: (u, q) => '/' + u + (q ? '?' + Object.keys(q).map(k => k + '=' + encodeURIComponent(q[k])).join('&') : '') }

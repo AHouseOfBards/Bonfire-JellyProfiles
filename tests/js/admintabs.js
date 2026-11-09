@@ -114,7 +114,7 @@ function node(fold) {
 }
 let api = null;
 try {
-    api = new Function(L.dashboardI18n(script) + L.extractFunction(script, 'openAdvancedFor') + L.extractFunction(script, 'showOutcome')
+    api = new Function(L.dashboardI18n(script) + L.extractFunction(script, 'openAdvancedFor') + L.extractFunction(script, 'paintOutcome') + L.extractFunction(script, 'showOutcome')
         + '; return { showOutcome, openAdvancedFor };')();
 } catch (e) { api = null; }
 ok('the page has the functions that do it', api !== null);

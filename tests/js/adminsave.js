@@ -35,6 +35,8 @@ const source = L.dashboardI18n(script)
     + L.extractFunction(script, 'normalizeImageQuality') + '\n'
     + L.extractFunction(script, 'normalizeTheme') + '\n'
     + L.extractFunction(script, 'onboardingTicked') + '\n'
+    // Save clears the "unsaved changes" note; it is not what this harness is about.
+    + (script.indexOf('function setUnsaved') !== -1 ? L.extractFunction(script, 'setUnsaved') + '\n' : '')
     + L.extractFunction(script, 'saveConfiguration');
 
 // ── the stub server ──────────────────────────────────────────────────────────
@@ -121,6 +123,7 @@ async function run(fieldValues) {
         querySelectorAll: function (sel) {
             if (sel === '.jpfObShow') return obShow;
             if (sel === '.jpfObRequired') return obRequired;
+            if (sel === '.jpf-unsaved') return [];   // the note beside each Save; none in this stub
             if (sel !== '.jpfProxyClient') throw new Error('the page has no ' + sel);
             return proxyBoxes;
         }
