@@ -4,7 +4,7 @@
  * stylesheet could not make them larger (an inline style outranks everything but
  * !important).
  *
- * Two questions, asked of each of the two boxes separately:
+ * Two questions, asked of each of the four boxes (confirm, alert, prompt, select) separately:
  *   1. does the markup still carry a max-width or width of its own?
  *   2. on a .jpf-tv page, which max-width does the cascade settle on, and is it larger
  *      than the one everyone else gets?
@@ -73,7 +73,7 @@ function tags(cls) {
     return out;
 }
 
-for (const cls of ['confirm-dialog-content', 'alert-dialog-content']) {
+for (const cls of ['confirm-dialog-content', 'alert-dialog-content', 'prompt-dialog-content', 'select-dialog-content']) {
     console.log('── ' + cls + ' ──');
     const found = tags(cls);
     ok(cls + ' is built somewhere', found.length > 0);

@@ -1534,8 +1534,6 @@
                     border: 1px solid var(--jpf-border-1);
                     border-radius: var(--jpf-r-md);
                     padding: 24px;
-                    max-width: 420px;
-                    width: 90%;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                 ">
                     <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
@@ -1613,8 +1611,6 @@
                     border: 1px solid var(--jpf-border-1);
                     border-radius: var(--jpf-r-md);
                     padding: 24px;
-                    max-width: 420px;
-                    width: 90%;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                 ">
                     <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
