@@ -5003,18 +5003,18 @@
                 close.dataset.bound = '1';
                 close.addEventListener('click', function () {
                     const stops = !!page.querySelector('#mntStop').checked;
-                    const message = stops ? t('admin.mnt.confirmStop') : t('admin.mnt.confirm');
+                    const question = stops ? t('admin.mnt.confirmStop') : t('admin.mnt.confirm');
                     if (!page.querySelector('#mntOpen').classList.contains('jpf-hidden')) {
                         // Already closed: editing the message or time needs no question, but
                         // newly ticking "Stop what people are watching" cuts off playback.
                         if (stops && !page._mntStopWas) {
-                            askFirst(message, t('admin.mnt.saveChanges')).then(function () { saveMaintenance(page, true); });
+                            askFirst(question, t('admin.mnt.saveChanges')).then(function () { saveMaintenance(page, true); });
                             return;
                         }
                         saveMaintenance(page, true);
                         return;
                     }
-                    askFirst(message, t('admin.mnt.closeButton'))
+                    askFirst(question, t('admin.mnt.closeButton'))
                         .then(function () { saveMaintenance(page, true); });
                 });
                 page.querySelector('#mntOpen').addEventListener('click', function () { saveMaintenance(page, false); });
