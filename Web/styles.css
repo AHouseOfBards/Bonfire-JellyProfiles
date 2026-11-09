@@ -1785,6 +1785,9 @@ body.profiles-no-scroll [id*="spinner"] {
     flex-shrink: 0;
 }
 .image-upload-btn {
+    /* The phone rule below makes it width: 100%, and with the default content-box the
+       padding and border were added on top, so it ran past its panel in every theme. */
+    box-sizing: border-box;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
