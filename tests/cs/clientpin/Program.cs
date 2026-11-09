@@ -634,6 +634,24 @@ Ok("an app lockout writes an Activity entry for the profile",
 ForgetAttempts(KID);
 Ok("and once the window has passed it opens again", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
 
+// An old unsalted hash is replaced by a salted one the first time its PIN is entered on an
+// app, as it is on the web. A profile used only on a television kept the old hash for good.
+{
+    var OLDKID = Guid.NewGuid();
+    var legacy = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+        System.Text.Encoding.UTF8.GetBytes("2468"))).ToLowerInvariant();
+    var row = Mapping(OLDKID, MASTER, null);
+    mappingType.GetProperty("PinHash").SetValue(row, legacy);
+    mappings.Add(row);
+    string Stored() => (string)mappingType.GetProperty("PinHash").GetValue(row);
+    Try(MakeUser(OLDKID, "Oldkid"), "1357");
+    Ok("a wrong PIN leaves an old hash as it was", Stored() == legacy);
+    Ok("the right PIN on an app still opens an old-hash profile", Try(MakeUser(OLDKID, "Oldkid"), "2468") == "Oldkid");
+    Ok("and the stored hash is now the salted kind", Stored().StartsWith("pbkdf2.sha256$"), Stored());
+    Ok("which the same PIN still opens", Try(MakeUser(OLDKID, "Oldkid"), "2468") == "Oldkid");
+    ForgetAttempts(OLDKID);
+}
+
 // Checked and counted as one step. A check followed later by a count let every one of a
 // burst of parallel guesses through, because each passed the check before any failure
 // had been recorded.

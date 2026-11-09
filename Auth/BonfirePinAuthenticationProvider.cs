@@ -282,6 +282,7 @@ namespace Jellyfin.Profiles.Auth
                     else if (PinHasher.Verify(password, master.PinHash) == PinHasher.PinResult.Match)
                     {
                         EndPinAttempt(resolvedUser.Id);
+                        UpgradeLegacyHash(master, password);
                         _logger.LogInformation(
                             "ProfilesPlugin: master account {UserId} entered by PIN on a client.",
                             master.MasterUserId);
@@ -473,6 +474,7 @@ namespace Jellyfin.Profiles.Auth
             }
 
             EndPinAttempt(mapping.ProfileUserId);
+            UpgradeLegacyHash(mapping, password);
 
             _logger.LogInformation(
                 "ProfilesPlugin: profile {ProfileId} entered by PIN on a client.",
@@ -532,6 +534,36 @@ namespace Jellyfin.Profiles.Auth
         /// account's one allowance, shared with the web (<see cref="Controllers.PinBudget"/>).
         /// Counted before the PIN is checked, so parallel guesses cannot all pass together.
         /// </summary>
+        /// <summary>
+        /// Replaces an old unsalted hash with a salted one after its PIN has just matched,
+        /// as the web path does. <paramref name="snapshot"/> is a copy, so the live row is
+        /// found again under the lock and only changed if it still holds the hash that
+        /// matched. Hashed outside the lock; a failure here never refuses the sign-in.
+        /// </summary>
+        private void UpgradeLegacyHash(ProfileMapping snapshot, string pin)
+        {
+            try
+            {
+                var old = snapshot.PinHash;
+                if (!PinHasher.IsLegacy(old)) return;
+                var upgraded = PinHasher.Hash(pin);
+                lock (Controllers.ProfilesBaseController.ConfigLock)
+                {
+                    var live = Plugin.Instance?.Configuration?.Mappings
+                        .FirstOrDefault(m => m.ProfileUserId == snapshot.ProfileUserId);
+                    if (live == null || live.PinHash != old) return;
+                    live.PinHash = upgraded;
+                    Plugin.Instance?.SaveConfiguration();
+                }
+                _logger.LogInformation(
+                    "ProfilesPlugin: Upgraded legacy PIN hash for profile {Id} to PBKDF2.", snapshot.ProfileUserId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ProfilesPlugin: Could not upgrade the PIN hash for profile {Id}.", snapshot.ProfileUserId);
+            }
+        }
+
         internal static bool BeginPinAttempt(Guid userId) => Controllers.PinBudget.TryBegin(userId);
 
         /// <summary>A PIN was right: the account's allowance starts again.</summary>
