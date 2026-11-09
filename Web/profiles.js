@@ -5500,10 +5500,23 @@
                 '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
                 '#pin-cancel-btn, #master-pin-cancel-btn, #create-cancel-btn, #edit-cancel-btn, ' +
                 '#select-cancel-btn, #prompt-cancel-btn, #actions-cancel-btn, ' +
-                '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #theme-settings-back-btn, #account-back-btn, #profiles-resume-btn, #profiles-libart-cancel, ' +
+                '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #theme-settings-back-btn, #account-back-btn, #self-cancel-btn, #profiles-resume-btn, #profiles-libart-cancel, ' +
                 '#onboarding-skip, #main-pin-skip, #pin-reset-back'
             );
             if (back) back.click();
+        },
+
+        /// Puts focus on the first control of a screen that was just drawn, on a television
+        /// only. A remote has no pointer, so a screen that starts with nothing focused makes
+        /// the person press a key to find out where they are. Not on a phone or a desktop:
+        /// focusing a text box there pops the keyboard before anyone asked for it. Screens
+        /// that know a better first control focus it themselves afterwards.
+        _focusFirstOnTv: function (root, selector) {
+            if (!document.documentElement.classList.contains('jpf-tv')) return;
+            setTimeout(() => {
+                const first = root.querySelector(selector || 'input:not([type="hidden"]), select, button, [tabindex="0"]');
+                if (first) first.focus();
+            }, 100);
         },
 
         /// Moves focus one step through the surface in document order, wrapping at both
@@ -8736,6 +8749,7 @@
                 const viewingEditor = this.initViewingEditor(content.querySelector('#create-viewing-slot'), null, true);
                 this.bindThemePicker('create');
                 this.initTVCheckboxes(content);
+                this._focusFirstOnTv(content);
                 this.initTagEditors(content);
             });
         },
@@ -9232,6 +9246,7 @@
                 const viewingEditor = this.initViewingEditor(content.querySelector('#edit-viewing-slot'), profile);
                 this.bindThemePicker('edit');
                 this.initTVCheckboxes(content);
+                this._focusFirstOnTv(content);
                 this.initTagEditors(content);
             })
             .catch(err => {
@@ -9659,6 +9674,7 @@
 
             content.querySelector('#account-back-btn').addEventListener('click', () => this.showSettingsMenu());
             this.initTVCheckboxes(content);
+            this._focusFirstOnTv(content);
         },
 
         /// The household's time zone, which viewing hours are read in. Drawn once the
@@ -9923,6 +9939,8 @@
             `;
             const skipBtn = content.querySelector('#onboarding-skip');
             if (skipBtn) skipBtn.addEventListener('click', skip);
+            // The step's own control, if it has a better one, focuses it afterwards.
+            this._focusFirstOnTv(content, '#onboarding-next');
             return content;
         },
 
@@ -10294,6 +10312,7 @@
             open('settings-switcher-style', this.showSwitcherModeModal);
             open('settings-your-bonfire', this.showBonfireModal);
             open('settings-theme', () => this.showThemeSettings(null));
+            this._focusFirstOnTv(content);
 
             const back = content.querySelector('#settings-back-btn');
             if (back) {
