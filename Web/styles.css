@@ -1279,7 +1279,10 @@ body.profiles-no-scroll [id*="spinner"] {
 /* The confirm and alert boxes. Their width was written inline, where no rule here
    could widen it, so on a 1080p television they were a small card on a big screen. */
 .confirm-dialog-content, .alert-dialog-content {
-    max-width: 420px; width: 90%;
+    /* border-box, because the 24px padding sat on top of a 90% width and on a 360px phone
+       the box ran edge to edge (P2-510). A 16px gutter either side instead. */
+    box-sizing: border-box;
+    max-width: 420px; width: calc(100% - 32px);
 }
 
 /* Profile Creation Form styles */
@@ -1401,6 +1404,9 @@ body.profiles-no-scroll [id*="spinner"] {
    doesn't overflow or clip its label. Was 360px; on the one phone breakpoint now,
    which only wraps it a little earlier. */
 @media (max-width: 480px) {
+    /* The row is flex with no wrap, so the two 100% items shared it and the field was
+       squeezed to 22px wide. */
+    .bonfire-join-row { flex-wrap: wrap !important; }
     #bonfire-join-input,
     #bonfire-join-btn {
         flex: 1 1 100% !important;
@@ -2660,6 +2666,35 @@ html.jpf-fading { transition: opacity 0.18s ease; }
 .jpf-flat .profile-card .profile-avatar,
 .jpf-flat .profiles-btn {
     transition: none;
+}
+
+/* Phones: a thumb is about 44px (P2-510, P2-511). Buttons and fields were 40px, checkbox rows
+   26px with an 18px box, the colour dots 36px. After the rules they correct, so equal
+   specificity resolves here, and the checkbox rule is !important because the base one is. */
+@media (max-width: 480px) {
+    .profiles-btn,
+    .form-group input[type="text"],
+    .form-group input[type="email"],
+    .form-group input[type="password"],
+    .bonfire-form-group input[type="text"],
+    .bonfire-form-group input[type="email"],
+    .form-group select,
+    .devices-dropdown-trigger,
+    .tag-input {
+        min-height: 44px;
+        box-sizing: border-box;
+    }
+    .library-check-label {
+        min-height: 44px;
+        box-sizing: border-box;
+    }
+    .library-check-label input {
+        width: 22px !important;
+        height: 22px !important;
+    }
+    /* 44px dots in a 4px gap fill the row the same as 36px in 12px did. */
+    .color-dot { width: 44px; height: 44px; }
+    .avatar-color-picker { gap: 4px; }
 }
 
 /* Reduced motion (2.0). Short fades and a gentle focus scale are the default; a person who

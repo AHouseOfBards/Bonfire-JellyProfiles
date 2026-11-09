@@ -59,6 +59,24 @@ const MEASURE = `(function () {
     return { h: b.getBoundingClientRect().height, clipped: b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1,
       lines: Math.round(b.getBoundingClientRect().height / parseFloat(getComputedStyle(b).fontSize)) };
   });
+  // Everything a thumb has to hit, smaller than 44px in either direction (P2-510/511). A
+  // checkbox is judged by the label round it, which is what takes the tap; a label that only
+  // names a field is not a control.
+  out.small = [];
+  qa('button, input, select, textarea, summary, a[href], [role=button], .color-dot, .devices-dropdown-trigger').forEach(function (e) {
+    if (e.type === 'hidden' || e.type === 'file') return;
+    var cs = getComputedStyle(e);
+    if (cs.display === 'none' || cs.visibility === 'hidden') return;
+    var t = e, l = e.closest ? e.closest('label') : null;
+    if ((e.type === 'checkbox' || e.type === 'radio') && l && l.offsetWidth) t = l;
+    var b = t.getBoundingClientRect();
+    if (!b.width || !b.height) return;
+    if (b.height < 43.5 || b.width < 43.5) {
+      out.small.push(Math.round(b.width) + 'x' + Math.round(b.height) + ' ' + e.tagName.toLowerCase() + (e.id ? '#' + e.id : typeof e.className === 'string' && e.className ? '.' + e.className.split(' ')[0] : ''));
+    }
+  });
+  var dlg = document.querySelector('.confirm-dialog-content, .alert-dialog-content');
+  out.dialog = box(dlg);
   return out;
 })()`;
 
@@ -95,6 +113,18 @@ async function main() {
             ok(size + ': the two-column form takes 70% of the width (' + Math.round(e.form.w) + 'px of ' + e.vw + ')', e.form.w >= e.vw * 0.7);
             const s = await look('settings', size);
             ok(size + ': Settings takes half the width (' + Math.round(s.form.w) + 'px of ' + s.vw + ')', s.form.w >= s.vw * 0.5);
+        }
+        // P2-510/511: on a phone the dialogs ran edge to edge and almost nothing was a
+        // 44px target (buttons and fields 41px, checkboxes 18px, colour dots 36px).
+        const ph = 'phone-360x640';
+        console.log('\n── ' + ph + ' ──');
+        const d = await look('dialog', ph);
+        ok(ph + ': the confirm dialog keeps a gutter (' + Math.round(d.dialog.l) + '..' + Math.round(d.dialog.r) + ' of ' + d.vw + ')',
+            d.dialog.l >= 12 && d.dialog.r <= d.vw - 12);
+        for (const scene of ['add', 'edit-more', 'sharing', 'settings', 'manage', 'dialog']) {
+            const m = await look(scene, ph);
+            ok(ph + ' ' + scene + ': every control is at least 44px each way (' + m.small.length + ' are not)', m.small.length === 0,
+                m.small.slice(0, 6).join(', '));
         }
     } finally {
         await c.close();
