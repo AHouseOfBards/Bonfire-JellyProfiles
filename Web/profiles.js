@@ -2399,7 +2399,7 @@
                         <span class="material-icons profile-section-icon" aria-hidden="true">${icon}</span>
                         <div class="profile-section-heading">
                             <h2 class="profile-section-title">${escapeHtml(title)}</h2>
-                            <span class="profile-section-subtitle">${escapeHtml(subtitle)}</span>
+                            ${subtitle ? `<span class="profile-section-subtitle">${escapeHtml(subtitle)}</span>` : ''}
                         </div>
                     </div>
                     <div class="profile-section-body">${bodyHtml}</div>
@@ -9058,7 +9058,9 @@
                 // The artwork switch lives under More. The per-library controls it reveals
                 // stay on the library rows; initLibraryArtworkEditor finds both by class
                 // inside the form, so the two need not sit together.
-                const artworkSwitch = `
+                // It sat bare between the Theme and Tags cards, the one control on the form
+                // outside a titled card (P2-1010).
+                const artworkSwitch = this.renderSection('image', t('profileForm.artworkHeader'), '', `
                     <div class="form-group">
                         <label class="library-check-label libart-toggle">
                             <input type="checkbox" id="edit-libart-toggle" />
@@ -9067,7 +9069,7 @@
                         <div class="form-hint libart-explainer" id="edit-libart-hint" style="display: none;">
                             ${t('profileForm.artworkExplainer')}
                         </div>
-                    </div>`;
+                    </div>`);
 
                 // ── More: tags on top of the libraries ──────────────────────────
                 // Devices sit above with what the profile can watch (P2-605).
