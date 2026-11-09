@@ -30,7 +30,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       # Necessary but NOT sufficient — this passed against the 1.5.2 defect, which was
       # valid JavaScript that threw on the first call. tests/run.sh is what catches that.
