@@ -2709,6 +2709,24 @@ html.jpf-fading { transition: opacity 0.18s ease; }
     .color-dot { width: 44px; height: 44px; }
     .avatar-color-picker { gap: 4px; }
 }
+/* Phones: nothing a person has to read is under 12px. Hints and section subtitles were 10.8
+   and 11.2px, the signed-in, PIN and time-left lines under a tile 10.1 and 10.8px, because
+   each was a fraction of a root that is itself small on a phone. 0.85rem is 12.2px at
+   jellyfin-web's phone root. The theme picker's miniature of the switcher is a picture
+   of a screen and is left alone. */
+@media (max-width: 480px) {
+    .profile-section-subtitle,
+    .form-hint,
+    .jpf-more-hint,
+    .libart-explainer,
+    .jpf-theme-option-tag,
+    .jpf-theme-preview-name,
+    .profile-current-badge,
+    .profile-viewing,
+    .profile-pin-badge {
+        font-size: 0.85rem;
+    }
+}
 
 /* Reduced motion (2.0). Short fades and a gentle focus scale are the default; a person who
 asked for less gets none of them. Focus stays findable by its ring and border. The

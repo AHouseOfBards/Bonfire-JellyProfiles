@@ -97,6 +97,17 @@ const MEASURE = `(function () {
     var hit = glyph && lb.left < glyph.r && lb.right > glyph.l && lb.top < glyph.b && lb.bottom > glyph.t;
     return { badge: lb.width, tile: tb.width, hit: !!hit };
   });
+  // The smallest visible text. The theme picker's miniature of the switcher is a picture of
+  // a screen, not text anyone reads at that size, so it is left out.
+  out.tiny = [];
+  [].slice.call(document.querySelectorAll('#profiles-gate-overlay *, .confirm-dialog-content *, .alert-dialog-content *')).forEach(function (e) {
+    var t = '';
+    for (var n = e.firstChild; n; n = n.nextSibling) if (n.nodeType === 3) t += n.textContent;
+    t = t.trim();
+    if (!t || !e.offsetWidth || e.closest('.jpf-theme-preview-button') || e.classList.contains('material-icons')) return;
+    var fs = parseFloat(getComputedStyle(e).fontSize);
+    if (fs < 11.95) out.tiny.push(Math.round(fs * 10) / 10 + 'px ' + (typeof e.className === 'string' && e.className ? '.' + e.className.split(' ')[0] : e.tagName.toLowerCase()) + ' "' + t.slice(0, 14) + '"');
+  });
   var dlg = document.querySelector('.confirm-dialog-content, .alert-dialog-content');
   out.dialog = box(dlg);
   return out;
@@ -148,6 +159,12 @@ async function main() {
             ok(size + ' ' + scene + ': there is a lock badge to measure', m.locks.length > 0);
             ok(size + ' ' + scene + ': no lock badge covers its tile\'s letter, and none is over 35% of the tile',
                 m.locks.every(k => !k.hit && k.badge <= k.tile * 0.35), JSON.stringify(m.locks));
+        }
+        // Text under 12px on a phone: hints and section subtitles at 10.8px and 11.2px, the
+        // signed-in and PIN badges at 10.1px and 10.8px.
+        for (const scene of ['add', 'edit-more', 'themes', 'timeup', 'manage', 'settings', 'sharing', 'account', 'dialog', 'pin']) {
+            const m = await look(scene, ph);
+            ok(ph + ' ' + scene + ': no text under 12px (' + m.tiny.length + ' are)', m.tiny.length === 0, m.tiny.slice(0, 5).join(', '));
         }
         // P2-513: the edit-more shot was the edit shot, because the section opened below the
         // fold of a form that was left scrolled to the top.
