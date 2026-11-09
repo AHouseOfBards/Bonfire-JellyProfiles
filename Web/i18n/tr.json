@@ -32,6 +32,8 @@
   "maintenance.adminTitle": "Bakım nedeniyle kapalı. Yalnızca yöneticiler girebilir.",
   "maintenance.backBy": "Dönüş: {time}",
   "maintenance.signOut": "Oturumu kapat",
+  "maintenance.checkAgain": "Tekrar kontrol et",
+  "maintenance.stillClosed": "Hâlâ kapalı.",
 
   "pin.enterProfilePin": "Profil PIN'ini girin",
   "pin.enterMasterPin": "Ana PIN'i girin",

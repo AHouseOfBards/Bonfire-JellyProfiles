@@ -45,7 +45,8 @@ function makeEl(tag) {
                      toggle: c => (classes.has(c) ? classes.delete(c) : classes.add(c)) },
         setAttribute: (k, v) => { attrs[k] = String(v); },
         getAttribute: k => (k in attrs ? attrs[k] : null),
-        appendChild: c => { el.children.push(c); return c; },
+        appendChild: c => { c.parent = el; el.children.push(c); return c; },
+        remove: () => { if (el.parent) el.parent.children = el.parent.children.filter(c => c !== el); },
         addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
         click: () => (listeners.click || []).forEach(fn => fn({ preventDefault() {} })),
         querySelector: s => { let hit = null; walk(el, e => { if (!hit && e !== el && s === 'button' && e.tagName === 'BUTTON') hit = e; }); return hit; },
@@ -67,10 +68,13 @@ src = src.replace(INIT, 'globalThis.__PROFILES = ProfilesPlugin;');
 function load(opts) {
     const body = makeEl('body');
     const calls = [];
+    const timers = [];
     let loggedOut = 0, reloaded = 0;
     const sandbox = {
         console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
-        setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
+        setTimeout: () => 0, clearTimeout() {},
+        setInterval: fn => { timers.push({ fn, live: true }); return timers.length; },
+        clearInterval: id => { if (timers[id - 1]) timers[id - 1].live = false; },
         document: {
             documentElement: { classList: makeEl().classList },
             getElementById: id => { let hit = null; walk(body, e => { if (!hit && e.id === id) hit = e; }); return hit; },
@@ -99,7 +103,7 @@ function load(opts) {
     sandbox.globalThis = sandbox;
     vm.createContext(sandbox);
     vm.runInContext(src, sandbox, { filename: SRC_PATH });
-    return { P: sandbox.__PROFILES, body, calls, sandbox, counts: () => ({ loggedOut, reloaded }) };
+    return { P: sandbox.__PROFILES, body, calls, sandbox, timers, counts: () => ({ loggedOut, reloaded }) };
 }
 const json = b => Promise.resolve({ ok: true, json: () => Promise.resolve(b) });
 const closed = { name: 'Bonfire', maintenance: { message: 'Upgrading. ' + EVIL, untilUtc: '2026-11-05T03:00:00Z' } };
@@ -142,9 +146,12 @@ const notice = env => env.sandbox.document.getElementById('profiles-maintenance'
     // carrying this class. Without it, the arrow keys walk off the cover into the page
     // underneath, which the remote can still drive.
     ok('which keeps a remote\'s focus inside it', n && n.classList.contains('jpf-trap-surface'));
-    const out = n && n.querySelector('button');
-    ok('with a Sign out button', !!out && out.textContent === 'Sign out');
-    ok('which has focus, for a remote', out && out.focused);
+    // The cover has two buttons since P2-202 (Check again, Sign out), so this finds Sign
+    // out by its label rather than by being the first button.
+    const buttonNamed = (root, text) => { let hit = null; walk(root, e => { if (e.tagName === 'BUTTON' && e.textContent === text) hit = e; }); return hit; };
+    const out = n && buttonNamed(n, 'Sign out');
+    ok('with a Sign out button', !!out);
+    ok('and a button has focus, for a remote', !!(out && (out.focused || buttonNamed(n, 'Check again').focused)));
     ok('and a remote can reach it', out && out.classList.contains('focusable'));
     if (out) { out.click(); await settle(); }
     ok('signing out signs out, then reloads', env.counts().loggedOut === 1 && env.counts().reloaded === 1);
@@ -156,6 +163,61 @@ const notice = env => env.sandbox.document.getElementById('profiles-maintenance'
     n = notice(env);
     ok('gets a strip, not a cover', !!n && !n.classList.contains('is-blocking'));
     ok('worded for them', n && /Only administrators/.test(byClass(n, 'profiles-maintenance-title')[0].textContent));
+
+    console.log('\n── The cover can be re-checked, and checks itself (P2-202) ─────');
+    const member = { Policy: { IsAdministrator: false } };
+    const live = e => e.timers.filter(x => x.live);
+    {
+        let open = false;
+        let offline = false;
+        const serve = () => (offline ? Promise.reject(new Error('offline')) : json(open ? { name: 'Bonfire', maintenance: null } : closed));
+        env = load({ serve, user: member });
+        env.P.checkMaintenance();
+        await settle();
+        n = notice(env);
+        const again = n && buttonNamed(n, 'Check again');
+        ok('the cover offers Check again beside Sign out', !!again && !!buttonNamed(n, 'Sign out'));
+        ok('and a timer, owned by the cover, is running', live(env).length === 1);
+
+        const before = env.calls.length;
+        if (again) { again.click(); await settle(); }
+        ok('Check again asks the server again, past the one-minute cache', env.calls.length === before + 1);
+        ok('still closed: the cover stays and says so',
+           !!notice(env) && byClass(n, 'profiles-maintenance-when').some(e => e.textContent === 'Still closed.'));
+
+        offline = true;
+        if (again) { again.click(); await settle(); }
+        ok('an answer that cannot be read leaves the cover up', !!notice(env) && env.counts().reloaded === 0);
+        offline = false;
+
+        const tick = live(env)[0];
+        ok('the timer re-checks on its own', !!tick);
+        open = true;
+        if (tick) { tick.fn(); await settle(); }
+        ok('maintenance over: the cover comes down by itself', !notice(env));
+        ok('and the page reloads, since everything behind it was refused', env.counts().reloaded === 1);
+        ok('and the timer stops', live(env).length === 0);
+
+        open = false;
+        env = load({ serve, user: member });
+        env.P.checkMaintenance();
+        await settle();
+        n = notice(env);
+        open = true;
+        const b = n && buttonNamed(n, 'Check again');
+        if (b) { b.click(); await settle(); }
+        ok('Check again takes it down once maintenance has ended', !notice(env) && env.counts().reloaded === 1);
+
+        open = false;
+        env = load({ serve, user: null });
+        env.P.checkMaintenance();
+        await settle();
+        ok('the strip is re-checked too', !!notice(env) && live(env).length === 1);
+        open = true;
+        if (live(env)[0]) live(env)[0].fn();
+        await settle();
+        ok('and goes without a reload', !notice(env) && env.counts().reloaded === 0 && live(env).length === 0);
+    }
 
     console.log('\n── Open, or unknown ────────────────────────────────────────────');
     for (const [label, serve] of [

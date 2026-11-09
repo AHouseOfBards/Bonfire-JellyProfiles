@@ -31,6 +31,8 @@
   "maintenance.adminTitle": "Przerwa techniczna. Wejść mogą tylko administratorzy.",
   "maintenance.backBy": "Planowany powrót: {time}",
   "maintenance.signOut": "Wyloguj się",
+  "maintenance.checkAgain": "Sprawdź ponownie",
+  "maintenance.stillClosed": "Nadal zamknięte.",
   "pin.enterProfilePin": "Wprowadź kod PIN profilu",
   "pin.enterMasterPin": "Wprowadź główny kod PIN",
   "pin.incorrectPin": "Nieprawidłowy kod PIN. Spróbuj ponownie.",

@@ -716,6 +716,8 @@
         'maintenance.adminTitle': 'Closed for maintenance. Only administrators can get in.',
         'maintenance.backBy': 'Back by {time}',
         'maintenance.signOut': 'Sign out',
+        'maintenance.checkAgain': 'Check again',
+        'maintenance.stillClosed': 'Still closed.',
 
         'pin.enterProfilePin': 'Enter Profile PIN',
         'pin.enterMasterPin': 'Enter Master PIN',
@@ -5937,7 +5939,21 @@
                 inner.appendChild(when);
             }
 
+            // Asked again while the cover is up, on a timer the cover owns and stops when it
+            // closes. Never on checkRoute: that runs twice a second on every page, and this
+            // is needed only while a notice is showing.
+            let status = null;
             if (blocking) {
+                const again = document.createElement('button');
+                again.type = 'button';
+                again.className = 'profiles-btn btn-primary focusable';
+                again.textContent = t('maintenance.checkAgain');
+                again.addEventListener('click', () => this._recheckMaintenance(box, blocking, status));
+                inner.appendChild(again);
+                status = document.createElement('div');
+                status.className = 'profiles-maintenance-when';
+                status.setAttribute('role', 'status');
+
                 const out = document.createElement('button');
                 out.type = 'button';
                 out.className = 'profiles-btn btn-secondary focusable';
@@ -5946,6 +5962,7 @@
                     Promise.resolve(ApiClient.logout()).then(() => window.location.reload(), () => window.location.reload());
                 });
                 inner.appendChild(out);
+                inner.appendChild(status);
             }
 
             box.appendChild(inner);
@@ -5954,6 +5971,34 @@
                 const btn = box.querySelector('button');
                 if (btn) btn.focus();
             }
+            this._stopMaintenanceTimer();
+            this._maintenanceTimer = setInterval(() => {
+                if (document.getElementById('profiles-maintenance') !== box) { this._stopMaintenanceTimer(); return; }
+                this._recheckMaintenance(box, blocking, null);
+            }, 30000);
+        },
+
+        _stopMaintenanceTimer: function () {
+            if (this._maintenanceTimer) clearInterval(this._maintenanceTimer);
+            this._maintenanceTimer = null;
+        },
+
+        /// Asks /info again, past the one-minute cache. Maintenance over takes the notice
+        /// down; an answer that cannot be read leaves it up, since "unknown" is not "open".
+        /// A cover is followed by a reload: everything behind it was refused while it was up.
+        _recheckMaintenance: function (box, blocking, status) {
+            this._serverInfo = null;
+            this.serverInfo().then(info => {
+                if (document.getElementById('profiles-maintenance') !== box) { this._stopMaintenanceTimer(); return; }
+                if (!info) return;
+                if (info.maintenance || info.Maintenance) {
+                    if (status) status.textContent = t('maintenance.stillClosed');
+                    return;
+                }
+                this._stopMaintenanceTimer();
+                box.remove();
+                if (blocking) window.location.reload();
+            });
         },
 
         _announcementSeverity: function (a) {

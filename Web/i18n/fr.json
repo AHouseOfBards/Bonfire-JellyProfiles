@@ -31,6 +31,8 @@
   "maintenance.adminTitle": "Fermé pour maintenance. Seuls les administrateurs peuvent entrer.",
   "maintenance.backBy": "Retour prévu : {time}",
   "maintenance.signOut": "Se déconnecter",
+  "maintenance.checkAgain": "Vérifier à nouveau",
+  "maintenance.stillClosed": "Toujours fermé.",
   "pin.enterProfilePin": "Entrez le code PIN du profil",
   "pin.enterMasterPin": "Entrez le code PIN principal",
   "pin.incorrectPin": "Code PIN incorrect. Veuillez réessayer.",
