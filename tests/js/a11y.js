@@ -199,6 +199,19 @@ function tagOf(id) {
         ok('and each is still a tab stop, for the remote', dots.every(d => /tabindex="0"/.test(d)));
     }
 
+    // 16. A label over a custom widget is tied to it. A bare <label> names nothing.
+    {
+        const bare = [];
+        SRC.replace(/<label>\$\{t\('([^']+)'\)\}<\/label>/g, (m, key) => { bare.push(key); return m; });
+        // The colour picker is a radiogroup with its own name; its label is a caption.
+        const unnamed = bare.filter(k => k !== 'profileForm.avatarColor');
+        ok('every label over a widget is tied to it' + (unnamed.length ? ' (bare: ' + unnamed.join(', ') + ')' : ''),
+            unnamed.length === 0);
+        const P5 = D.loadPlugin(SRC).PP;
+        const tags = P5.renderTagEditor('x-tags', [], 'ph', 'sug', 'x-label');
+        ok('a tag editor names its box after the label', /<input[^>]*aria-labelledby="x-label"/.test(tags), tags);
+    }
+
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);
 })();

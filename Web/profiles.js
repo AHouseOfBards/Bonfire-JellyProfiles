@@ -2356,8 +2356,8 @@
                     ${v && v.askedUtc ? `<div class="form-hint jpf-viewing-asked">${t('viewing.askedHint', { name: escapeHtml(profile.profileName) })}</div>` : ''}
                     ${v && !creating ? `
                     <div class="form-group">
-                        <label>${t('viewing.moreTime')}</label>
-                        <div class="jpf-inline-row">
+                        <label id="viewing-more-label">${t('viewing.moreTime')}</label>
+                        <div class="jpf-inline-row" role="group" aria-labelledby="viewing-more-label">
                             ${[15, 30, 60].map(m => `<button type="button" class="profiles-btn btn-secondary viewing-grant" data-minutes="${m}">${escapeHtml(this.durationText(m))}</button>`).join('')}
                             ${v.askedUtc ? `<button type="button" class="profiles-btn btn-secondary viewing-grant" data-minutes="0">${t('viewing.decline')}</button>` : ''}
                         </div>
@@ -2681,13 +2681,16 @@
             return `<span class="tag-chip" data-tag="${safe}"><span>${safe}</span><button type="button" class="tag-chip-remove" tabindex="0" aria-label="${t('profileForm.removeTagAria', { tag: safe })}">×</button></span>`;
         },
 
-        renderTagEditor: function (id, tags, placeholder, suggestionsId) {
+        renderTagEditor: function (id, tags, placeholder, suggestionsId, labelId) {
             const chips = (tags || []).map(tag => this.renderTagChip(tag)).join('');
+            // The label above is a bare <label> over a widget, which names nothing: the box
+            // would be read out as its placeholder.
+            const named = labelId ? ` aria-labelledby="${labelId}"` : '';
             return `
-                <div class="tag-editor" id="${id}">
+                <div class="tag-editor" id="${id}"${labelId ? ' role="group"' + named : ''}>
                     <div class="tag-chip-list" data-empty-label="${escapeHtml(t('profileForm.noTags'))}" ${(tags || []).length ? '' : 'data-empty="true"'}>${chips}</div>
                     <div class="tag-input-row">
-                        <input type="text" class="tag-input" placeholder="${escapeHtml(placeholder)}" list="${suggestionsId}" autocomplete="off" />
+                        <input type="text" class="tag-input"${named} placeholder="${escapeHtml(placeholder)}" list="${suggestionsId}" autocomplete="off" />
                         <button type="button" class="profiles-btn btn-secondary tag-add-btn">${t('common.add')}</button>
                     </div>
                 </div>
@@ -2755,9 +2758,9 @@
 
             return `
                 <div class="form-group">
-                    <label>${t('profileForm.allowedDevices')}</label>
+                    <label id="${p}devices-label">${t('profileForm.allowedDevices')}</label>
                     <div class="devices-dropdown-container" style="position: relative;">
-                        <div id="${p}devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
+                        <div id="${p}devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false" aria-labelledby="${p}devices-label ${p}devices-dropdown-selected-text">
                             <span id="${p}devices-dropdown-selected-text">${t(unavailable && isEdit ? 'profileForm.devicesUnchanged' : 'profileForm.allDevicesAllowed')}</span>
                         </div>
                         <div id="${p}devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
@@ -2833,13 +2836,13 @@
             return `
                 ${this.renderTagSuggestions(suggestions, libraryTags)}
                 <div class="form-group">
-                    <label>${t('profileForm.blockedTags')}</label>
-                    ${this.renderTagEditor(p + 'blocked-tags', blocked, t('profileForm.tagPlaceholderAdults'), suggestions)}
+                    <label id="${p}blocked-tags-label">${t('profileForm.blockedTags')}</label>
+                    ${this.renderTagEditor(p + 'blocked-tags', blocked, t('profileForm.tagPlaceholderAdults'), suggestions, p + 'blocked-tags-label')}
                     <div class="form-hint">${t('profileForm.blockedTagsHint')}</div>
                 </div>
                 <div class="form-group">
-                    <label>${t('profileForm.allowedTags')}</label>
-                    ${this.renderTagEditor(p + 'allowed-tags', allowed, t('profileForm.tagPlaceholderKids'), suggestions)}
+                    <label id="${p}allowed-tags-label">${t('profileForm.allowedTags')}</label>
+                    ${this.renderTagEditor(p + 'allowed-tags', allowed, t('profileForm.tagPlaceholderKids'), suggestions, p + 'allowed-tags-label')}
                     <div class="form-hint form-hint-warn">${t('profileForm.allowedTagsHint')}</div>
                 </div>
             `;
@@ -6989,8 +6992,8 @@
                 } else if (address && !editing) {
                     body = `
                         <div class="form-group">
-                            <label>${t('accountEmail.address')}</label>
-                            <div class="jpf-inline-row">
+                            <label id="account-email-label">${t('accountEmail.address')}</label>
+                            <div class="jpf-inline-row" role="group" aria-labelledby="account-email-label">
                                 <span class="jpf-email-address">${escapeHtml(address)}</span>
                                 <button type="button" id="account-email-change" class="profiles-btn btn-secondary">${t('accountEmail.change')}</button>
                                 <button type="button" id="account-email-remove" class="profiles-btn btn-secondary">${t('accountEmail.remove')}</button>
@@ -7819,8 +7822,8 @@
             // the row, which read as belonging to whatever came next.
             return `
                 <div class="form-group">
-                    <label>${t('avatar.profilePicture')}</label>
-                    <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: var(--jpf-gap);">
+                    <label id="${prefix}-picture-label">${t('avatar.profilePicture')}</label>
+                    <div class="profile-image-upload-container" role="group" aria-labelledby="${prefix}-picture-label" style="display: flex; flex-direction: column; gap: var(--jpf-gap);">
                         <div class="image-upload-row">
                             <div id="${prefix}-image-upload-preview" class="image-upload-preview${
                                 currentImage && currentTransparent ? ' is-transparent' : ''
@@ -8999,8 +9002,8 @@
                     <button type="button" id="links-add" class="profiles-btn btn-primary">${t('links.add')}</button>
                     ${shown.length ? `
                     <div class="form-group" style="margin-top: 1.25rem;">
-                        <label>${t('links.shownTitle')}</label>
-                        <div class="jpf-link-list">${shown.map(x => row(x, 'links-leave', t('links.leave'), t('links.leaveAria', { name: x.name }))).join('')}</div>
+                        <label id="links-shown-label">${t('links.shownTitle')}</label>
+                        <div class="jpf-link-list" role="group" aria-labelledby="links-shown-label">${shown.map(x => row(x, 'links-leave', t('links.leave'), t('links.leaveAria', { name: x.name }))).join('')}</div>
                     </div>` : ''}
                     <div id="links-status" class="form-hint" role="status" aria-live="polite"></div>
                 `);
