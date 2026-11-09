@@ -89,7 +89,27 @@ var orphan = new Plugin(new StubPaths(nothing), new RealXml());
 Ok("with no good copy to go back to it starts empty", orphan.Configuration.Mappings.Count == 0);
 Ok("but the unreadable file is still kept", Directory.GetFiles(nothing, "*.unreadable-*").Length == 1);
 
-foreach (var d in new[] { dir, fresh, cleared, nothing }) { try { Directory.Delete(d, true); } catch { } }
+Console.WriteLine();
+Console.WriteLine("── A device record from before owners existed (R-1050) ─────────");
+
+// What 1.7.3 wrote: a device with a MasterUserId and no Owners element at all.
+var legacy = NewDir();
+var legacyHost = new Plugin(new StubPaths(legacy), new RealXml());
+_ = legacyHost.Configuration;
+File.WriteAllText(legacyHost.ConfigurationFilePath,
+    "<?xml version=\"1.0\" encoding=\"utf-8\"?><PluginConfiguration><KnownDevices><KnownDevice>"
+    + "<DeviceId>tv-1</DeviceId><DeviceName>TV</DeviceName><MasterUserId>" + HOUSE + "</MasterUserId>"
+    + "</KnownDevice></KnownDevices></PluginConfiguration>");
+var legacyLoaded = new Plugin(new StubPaths(legacy), new RealXml());
+var legacyRow = legacyLoaded.Configuration.KnownDevices.Single();
+Ok("it loads, with an empty owners list", legacyRow.Owners != null && legacyRow.Owners.Count == 0);
+Ok("and is owned by the household that last used it, and nobody else", legacyRow.OwnedBy(HOUSE) && !legacyRow.OwnedBy(KID));
+legacyRow.Owners = new System.Collections.Generic.List<Guid> { HOUSE, KID };
+legacyLoaded.SaveConfiguration();
+var roundTrip = new Plugin(new StubPaths(legacy), new RealXml()).Configuration.KnownDevices.Single();
+Ok("owners survive a save and a load", roundTrip.OwnedBy(HOUSE) && roundTrip.OwnedBy(KID) && roundTrip.Owners.Count == 2);
+
+foreach (var d in new[] { dir, fresh, cleared, nothing, legacy }) { try { Directory.Delete(d, true); } catch { } }
 
 Console.WriteLine();
 Console.WriteLine($"{passed} passed, {failed} failed");

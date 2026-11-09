@@ -523,6 +523,43 @@ if (resolve != null)
         devicesList.Clear();
         record.Invoke(null, new object[] { config, null, "TV", "Android TV", MASTER, now, null });
         Ok("a sign-in with no device id records nothing", devicesList.Count == 0);
+
+        // One browser or Roku, two households (R-1050). It stayed the first one's for good:
+        // the second could not restrict a profile to it, and once a PIN needed a household
+        // device (R-1344), its PINs were refused there.
+        var NEIGHBOUR = Guid.NewGuid();
+        devicesList.Clear();
+        record.Invoke(null, new object[] { config, "tv-shared", "Lounge", "Roku", MASTER, now, null });
+        record.Invoke(null, new object[] { config, "tv-shared", "Lounge", "Roku", NEIGHBOUR, now, null });
+        var shared = devicesList.Count == 1 ? devicesList[0] : null;
+        var ownedBy = knownType.GetMethod("OwnedBy");
+        Ok("a second household on the same device owns it too",
+           shared != null && ownedBy != null && (bool)ownedBy.Invoke(shared, new object[] { NEIGHBOUR })
+           && (bool)ownedBy.Invoke(shared, new object[] { MASTER }));
+        Ok("and its sign-in screen shows whoever was there last",
+           shared != null && (Guid)knownType.GetProperty("MasterUserId").GetValue(shared) == NEIGHBOUR);
+        record.Invoke(null, new object[] { config, "tv-shared", "Lounge", "Roku", MASTER, now, null });
+        Ok("which goes back when the first signs in again, both still owning it",
+           shared != null && ownedBy != null
+           && (Guid)knownType.GetProperty("MasterUserId").GetValue(shared) == MASTER
+           && (bool)ownedBy.Invoke(shared, new object[] { NEIGHBOUR }));
+
+        var isOwnedBy = registry.GetMethod("IsOwnedBy", BindingFlags.Public | BindingFlags.Static);
+        Ok("each household is recognised there, under the id the app sends",
+           isOwnedBy != null
+           && (bool)isOwnedBy.Invoke(null, new object[] { config, " tv-shared", NEIGHBOUR })
+           && (bool)isOwnedBy.Invoke(null, new object[] { config, "tv-shared", MASTER })
+           && !(bool)isOwnedBy.Invoke(null, new object[] { config, "tv-shared", Guid.NewGuid() })
+           && !(bool)isOwnedBy.Invoke(null, new object[] { config, "tv-shared", Guid.Empty }));
+
+        // Both households' device lists include it, so either can restrict a profile to it.
+        var scope = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController", true)
+            .GetMethod("ScopeDevicesToHousehold", BindingFlags.NonPublic | BindingFlags.Static);
+        int Listed(Guid household) => scope == null ? -1 : ((System.Collections.IList)scope.Invoke(null, new object[]
+            { devicesList, household, new HashSet<string>(StringComparer.OrdinalIgnoreCase) })).Count;
+        Ok("and it is on both households' device lists", Listed(MASTER) == 1 && Listed(NEIGHBOUR) == 1);
+        Ok("but on nobody else's", Listed(Guid.NewGuid()) == 0);
+        devicesList.Clear();
     }
 
     Console.WriteLine();

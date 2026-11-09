@@ -483,10 +483,7 @@ namespace Jellyfin.Profiles.Auth
         /// uses"; the PIN is still the credential.
         /// </summary>
         private static bool KnownToHousehold(PluginConfiguration? config, string? deviceId, Guid householdId)
-        {
-            if (householdId == Guid.Empty) return false;
-            return DeviceRegistry.FindMaster(config, deviceId) == householdId;
-        }
+            => DeviceRegistry.IsOwnedBy(config, deviceId, householdId);
 
         /// <summary>A PIN as Bonfire accepts one: four to eight digits.</summary>
         private static bool LooksLikePin(string? value)

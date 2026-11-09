@@ -346,6 +346,18 @@ Ok("a stranger's guesses do not pause the PIN on the family television",
    Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
 Ok("where the main account's PIN works too", Try(MakeUser(MASTER, "bard"), "9999") == "bard");
 
+// A television two households share, the other one there last (R-1050). Its sign-in screen
+// shows the neighbours' profiles, and this household's PINs still work on it.
+Remember("shared-tv", OUTSID);
+var ownersProp = knownType.GetProperty("Owners");
+if (ownersProp != null) ownersProp.SetValue(devicesList[devicesList.Count - 1], new List<Guid> { MASTER, OUTSID });
+FromDevice("shared-tv");
+Ok("on a television shared with another household, a profile's PIN works",
+   Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+Ok("and so does the main account's", Try(MakeUser(MASTER, "bard"), "9999") == "bard");
+devicesList.RemoveAt(devicesList.Count - 1);
+FromDevice("family-tv");
+
 Console.WriteLine();
 Console.WriteLine("── The name the household typed ───────────────────────────────");
 

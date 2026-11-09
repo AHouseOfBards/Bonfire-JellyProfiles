@@ -1326,6 +1326,9 @@ namespace Jellyfin.Profiles.Controllers
             if (string.IsNullOrWhiteSpace(target.Client) && !string.IsNullOrWhiteSpace(source.Client))
                 target.Client = source.Client;
             if (target.MasterUserId == Guid.Empty) target.MasterUserId = source.MasterUserId;
+            // Every household that used either id still owns the one left (R-1050).
+            target.Owners = Auth.DeviceRegistry.AddOwners(target.Owners,
+                new[] { target.MasterUserId, source.MasterUserId }.Concat(source.Owners ?? new List<Guid>()).ToArray());
 
             config.KnownDevices.Remove(source);
             return true;
@@ -1565,7 +1568,7 @@ namespace Jellyfin.Profiles.Controllers
             ISet<string> whitelistedDeviceIds)
         {
             var devices = knownDevices
-                .Where(d => d.MasterUserId == masterUserId
+                .Where(d => d.OwnedBy(masterUserId)
                             || whitelistedDeviceIds.Contains(d.DeviceId))
                 .GroupBy(d => d.DeviceId, StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.OrderByDescending(d => d.LastSeen).First())

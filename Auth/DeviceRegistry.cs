@@ -380,9 +380,13 @@ namespace Jellyfin.Profiles.Auth
             if (RokuFriendlyName(suffix) != suffix) return false;
 
             var rows = knownDevices.ToList();
-            var owner = rows.FirstOrDefault(d => string.Equals(d.DeviceId?.Trim(), bare, StringComparison.OrdinalIgnoreCase))?.MasterUserId;
-            var other = rows.FirstOrDefault(d => string.Equals(d.DeviceId?.Trim(), appended, StringComparison.OrdinalIgnoreCase))?.MasterUserId;
-            return owner.HasValue && owner.Value != Guid.Empty && owner == other;
+            var owner = rows.FirstOrDefault(d => string.Equals(d.DeviceId?.Trim(), bare, StringComparison.OrdinalIgnoreCase));
+            var other = rows.FirstOrDefault(d => string.Equals(d.DeviceId?.Trim(), appended, StringComparison.OrdinalIgnoreCase));
+            if (owner == null || other == null) return false;
+
+            // A household that owns both. Not "the same last household": on a Roku two
+            // households share, the two rows can be last seen by different ones (R-1050).
+            return AddOwners(owner.Owners, owner.MasterUserId).Any(other.OwnedBy);
         }
 
         /// <summary>
@@ -391,6 +395,41 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         private static Guid Lookup(PluginConfiguration config, string deviceId)
             => LookupRow(config, deviceId)?.MasterUserId ?? Guid.Empty;
+
+        /// <summary>A new owners list: the old one plus these, without Guid.Empty or repeats.</summary>
+        internal static List<Guid> AddOwners(List<Guid>? owners, params Guid[] add)
+        {
+            var result = owners?.Where(g => g != Guid.Empty).ToList() ?? new List<Guid>();
+            foreach (var g in add)
+                if (g != Guid.Empty && !result.Contains(g)) result.Add(g);
+            return result;
+        }
+
+        /// <summary>
+        /// True if <paramref name="householdId"/> has signed in on this device, under any of
+        /// the ids <see cref="FindMaster"/> knows it by (R-1050). FindMaster answers "whose
+        /// profiles does this sign-in screen show", which is one household; this answers
+        /// "may this household's PIN be typed here", which on a shared device is several.
+        /// </summary>
+        public static bool IsOwnedBy(PluginConfiguration? config, string? deviceId, Guid householdId)
+        {
+            if (householdId == Guid.Empty || config?.KnownDevices == null || string.IsNullOrWhiteSpace(deviceId)) return false;
+            var wanted = deviceId.Trim();
+            if (LookupRow(config, wanted) is KnownDevice exact && exact.OwnedBy(householdId)) return true;
+
+            // The same derivations as FindMaster.
+            foreach (var userId in HouseholdMembers(config))
+            {
+                var suffix = userId.ToString();
+                if (LookupRow(config, wanted + suffix)?.OwnedBy(householdId) == true) return true;
+                if (LookupRow(config, Sha1Hex(wanted + "+" + suffix))?.OwnedBy(householdId) == true) return true;
+            }
+            foreach (var name in HouseholdNames(config))
+            {
+                if (LookupRow(config, Sha1Hex(wanted + "+" + name))?.OwnedBy(householdId) == true) return true;
+            }
+            return false;
+        }
 
         private static KnownDevice? LookupRow(PluginConfiguration config, string deviceId)
             => config.KnownDevices.FirstOrDefault(d =>
@@ -607,6 +646,16 @@ namespace Jellyfin.Profiles.Auth
                     existing.MasterUserId = ownerId;
                     save = true;
                 }
+
+                // Another household on the same device (R-1050). It used to stay the first
+                // owner's for good. Now both own it, and the sign-in screen shows whoever was
+                // here last. Saved only when the household changes, not on every request.
+                else if (ownerId != Guid.Empty && existing.MasterUserId != ownerId)
+                {
+                    existing.Owners = AddOwners(existing.Owners, existing.MasterUserId, ownerId);
+                    existing.MasterUserId = ownerId;
+                    save = true;
+                }
             }
             else
             {
@@ -624,7 +673,8 @@ namespace Jellyfin.Profiles.Auth
                         : deviceName!,
                     Client = string.IsNullOrWhiteSpace(client) ? string.Empty : client,
                     LastSeen = now,
-                    MasterUserId = ownerId
+                    MasterUserId = ownerId,
+                    Owners = AddOwners(null, ownerId),
                 });
                 ProfilesBaseController.DevicePersistedAt[deviceId] = now;
                 save = true;
