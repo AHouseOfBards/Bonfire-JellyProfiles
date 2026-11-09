@@ -186,6 +186,7 @@ namespace Jellyfin.Profiles.Auth
             "/Videos/",
             "/Audio/",
             "/Sessions/Playing",
+            "/PlayingItems/",
         };
 
         /// <summary>
@@ -269,7 +270,7 @@ namespace Jellyfin.Profiles.Auth
                 case PathKind.Open:
                     return false;
                 case PathKind.Stream:
-                    return m.StopPlayback || !ContinuesPlayback(path, userId, sessions);
+                    return m.StopPlayback || !ContinuesPlayback(path, userId, sessions, method);
             }
 
             // The account's own record, which a client reads to learn who is signed in.
@@ -293,8 +294,23 @@ namespace Jellyfin.Profiles.Auth
         /// progress or stop report, or a stream of an item the gates let it start
         /// (<see cref="PlaybackRecord"/>). The "playing" report that starts something is not.
         /// </summary>
-        internal static bool ContinuesPlayback(string path, Guid userId, ISessionManager? sessions)
+        internal static bool ContinuesPlayback(string path, Guid userId, ISessionManager? sessions, string? method = null)
         {
+            // The older routes, /PlayingItems/{id} and /Users/{id}/PlayingItems/{id}: a POST to the
+            // item is the report that starts something, a POST to its /Progress goes on, and a
+            // DELETE is the stop. Only the last two continue.
+            var playing = path.IndexOf("/PlayingItems/", StringComparison.OrdinalIgnoreCase);
+            if (playing >= 0)
+            {
+                var tail = path[(playing + "/PlayingItems/".Length)..].TrimEnd('/');
+                var slash = tail.IndexOf('/');
+                var itemSegment = slash < 0 ? tail : tail[..slash];
+                if (!Guid.TryParse(itemSegment, out _) || method == null) return false;
+                return slash < 0
+                    ? HttpMethods.IsDelete(method)
+                    : HttpMethods.IsPost(method) && tail[slash..].Equals("/Progress", StringComparison.OrdinalIgnoreCase);
+            }
+
             var at = path.IndexOf("/Sessions/Playing", StringComparison.OrdinalIgnoreCase);
             if (at >= 0)
             {

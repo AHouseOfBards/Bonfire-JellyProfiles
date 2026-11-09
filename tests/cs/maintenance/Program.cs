@@ -606,6 +606,22 @@ var slashAuth = Send("/QuickConnect/Authorize?code=121212", KID_TOKEN, "POST", "
 Ok("the code asked for on a trailing-slash Initiate is remembered, so its device can be judged", Through(slashAuth), Show(slashAuth));
 qcList.Clear();
 
+Console.WriteLine();
+Console.WriteLine("── A stream on the older playback routes ───────────────────────");
+
+Close(true);
+var legacyProgress = Send("/Users/" + N(MEMBER) + "/PlayingItems/" + N(FILM) + "/Progress", MEMBER_TOKEN, "POST", "{}");
+Ok("progress on the user-scoped route keeps going", Through(legacyProgress), Show(legacyProgress));
+Ok("and on the plain one", Through(Send("/PlayingItems/" + N(FILM) + "/Progress", MEMBER_TOKEN, "POST", "{}")));
+Ok("the stop report on the user-scoped route", Through(Send("/Users/" + N(MEMBER) + "/PlayingItems/" + N(FILM), MEMBER_TOKEN, "DELETE")));
+Ok("and on the plain one", Through(Send("/PlayingItems/" + N(FILM), MEMBER_TOKEN, "DELETE")));
+var legacyStart = Send("/Users/" + N(MEMBER) + "/PlayingItems/" + N(OTHER), MEMBER_TOKEN, "POST", "{}");
+Ok("the report that starts something on it is refused", Refused(legacyStart), Show(legacyStart));
+Ok("and on the plain one", Refused(Send("/PlayingItems/" + N(OTHER), MEMBER_TOKEN, "POST", "{}")));
+Close(true, "", stop: true);
+Ok("asked to stop playback, its progress is refused too", Refused(Send("/PlayingItems/" + N(FILM) + "/Progress", MEMBER_TOKEN, "POST", "{}")));
+Close(true);
+
 try { Directory.Delete(tempDir, true); } catch { }
 return Finish();
 
