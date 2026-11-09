@@ -626,6 +626,11 @@ ForgetAttempts(KID);
 for (int i = 0; i < 5; i++) Try(MakeUser(KID, "Bardkids"), "000" + i);
 Ok("after five wrong PINs, even the right one is refused for a while",
    Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
+// The lock is written down, as it is when the web switcher locks the same PIN: an app is
+// the door most guessing comes through, and nobody read a log line.
+Ok("an app lockout writes an Activity entry for the profile",
+   ServiceStub.Activity.Count(a => a.Type == "BonfirePinLocked" && a.UserId == KID) == 1,
+   string.Join(", ", ServiceStub.Activity.Select(a => a.Type)));
 ForgetAttempts(KID);
 Ok("and once the window has passed it opens again", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
 
@@ -1501,6 +1506,25 @@ public class RecordingUserManager : DispatchProxy
 // user manager to answer GetUserById. DispatchProxy because IUserManager gains and loses
 // members between patch releases and a hand-written implementation would not compile
 // against two of them.
+public class ActivityRecorder : DispatchProxy
+{
+    public List<ActivityLog> Entries;
+
+    public static MediaBrowser.Model.Activity.IActivityManager Create(List<ActivityLog> entries)
+    {
+        var p = DispatchProxy.Create<MediaBrowser.Model.Activity.IActivityManager, ActivityRecorder>();
+        ((ActivityRecorder)(object)p).Entries = entries;
+        return p;
+    }
+
+    protected override object Invoke(MethodInfo m, object[] args)
+    {
+        if (m.Name == "CreateAsync") { lock (Entries) Entries.Add((ActivityLog)args[0]); return Task.CompletedTask; }
+        if (m.ReturnType == typeof(Task)) return Task.CompletedTask;
+        return null;
+    }
+}
+
 sealed class ServiceStub : IServiceProvider
 {
     private readonly IUserManager _users;
@@ -1509,9 +1533,14 @@ sealed class ServiceStub : IServiceProvider
 
     public static IServiceProvider Create() => new ServiceStub(UserManagerStub.Create());
 
+    /// <summary>What was written to the Activity log, through the provider's own service provider.</summary>
+    public static readonly List<ActivityLog> Activity = new();
+
     public object? GetService(Type serviceType)
     {
         if (serviceType == typeof(IUserManager)) return _users;
+        if (serviceType == typeof(MediaBrowser.Model.Activity.IActivityManager))
+            return ActivityRecorder.Create(Activity);
 
         // What the provider asks for when it needs to check a real password. Both of
         // Jellyfin's own are here on purpose: InvalidAuthProvider exists to refuse

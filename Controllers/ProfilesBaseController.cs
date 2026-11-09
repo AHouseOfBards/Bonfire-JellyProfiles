@@ -1220,25 +1220,9 @@ namespace Jellyfin.Profiles.Controllers
             return null;
         }
 
-        // When each lockout was last written to the Activity log. Every refused attempt
-        // after the limit is another refusal, and one line per guess would bury the log.
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> LockoutsLogged = new();
-
-        /// <summary>A PIN locked by too many wrong tries: one Activity log line per lock.</summary>
+        /// <summary>A PIN locked by too many wrong tries: one Activity log line per lock. Shared with the apps' door, see <see cref="Auth.PinLockout"/>.</summary>
         protected void LogLockout(Guid userId, string key)
-        {
-            var now = DateTime.UtcNow;
-            if (LockoutsLogged.TryGetValue(key, out var last) && now - last < TimeSpan.FromMinutes(15)) return;
-            if (LockoutsLogged.Count > 1000) LockoutsLogged.Clear();
-            LockoutsLogged[key] = now;
-
-            var name = ReadConfigSnapshot()?.Mappings.FirstOrDefault(m => m.ProfileUserId == userId)?.ProfileName
-                       ?? _userManager.GetUserById(userId)?.Username
-                       ?? "A profile";
-            LogActivity(name + "'s PIN is locked after too many wrong tries", "PinLocked", userId,
-                severity: Microsoft.Extensions.Logging.LogLevel.Warning);
-            Mail.Notifications.PinLocked(userId, name, _logger);
-        }
+            => Auth.PinLockout.Raise(userId, key, HttpContext?.RequestServices, _userManager, _logger);
 
         /// <summary>The right PIN, or none needed: both allowances start again.</summary>
         protected static void EndPinAttempt(string addressKey, Guid profileId)

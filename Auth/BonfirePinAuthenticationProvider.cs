@@ -277,6 +277,7 @@ namespace Jellyfin.Profiles.Auth
                             "ProfilesPlugin: too many wrong PINs for master account {UserId}; PIN sign-in is "
                             + "paused for it, and only its password is being checked.",
                             resolvedUser.Id);
+                        PinLockout.Raise(resolvedUser.Id, resolvedUser.Id.ToString("N"), _services, null, _logger);
                     }
                     else if (PinHasher.Verify(password, master.PinHash) == PinHasher.PinResult.Match)
                     {
@@ -453,6 +454,7 @@ namespace Jellyfin.Profiles.Auth
                     "ProfilesPlugin: too many wrong PINs for profile {ProfileId}; PIN sign-in on other "
                     + "apps is paused for it.",
                     mapping.ProfileUserId);
+                PinLockout.Raise(mapping.ProfileUserId, mapping.ProfileUserId.ToString("N"), _services, null, _logger);
                 throw Decline();
             }
 
