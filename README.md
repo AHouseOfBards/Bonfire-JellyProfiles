@@ -5,7 +5,7 @@ history, library access and parental controls.
 
 Works with Jellyfin 10.11 and 12.0.
 
-![The profile picker, showing two profiles in a Bonfire](images/profile-selector.png)
+![The profile picker, showing two profiles in a household](images/profile-selector.png)
 
 ## Features
 

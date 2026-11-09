@@ -408,11 +408,16 @@ function renderGrid(e) {
         let threw = null;
         try { html = renderGrid(e); } catch (err) { threw = err; }
         ok(label + ': the grid renders', !threw, threw && threw.stack.split('\n').slice(0, 3).join(' | '));
-        ok(label + ': your own profiles are "Your Bonfire"', html.indexOf('Your Bonfire') !== -1);
-        ok(label + ': and not "Kindred\'s Bonfire"', html.indexOf('Kindred&#39;s Bonfire') === -1
-           && html.indexOf("Kindred's Bonfire") === -1);
-        ok(label + ': a linked household is still somebody else\'s ("Ash\'s Bonfire")',
-           html.indexOf('Ash&#39;s Bonfire') !== -1 || html.indexOf("Ash's Bonfire") !== -1);
+        // A main account and its profiles are a household. "Bonfire" is the product, and the
+        // name of an invite-code group; it was the picker heading here until this was reworded
+        // ("Your Bonfire" and "Ash's Bonfire" became "Your household" and "Ash's household").
+        ok(label + ': your own profiles are "Your household"', html.indexOf('Your household') !== -1);
+        ok(label + ': and not "Kindred\'s household"', html.indexOf('Kindred&#39;s household') === -1
+           && html.indexOf("Kindred's household") === -1);
+        ok(label + ': a linked household is still somebody else\'s ("Ash\'s household")',
+           html.indexOf('Ash&#39;s household') !== -1 || html.indexOf("Ash's household") !== -1);
+        ok(label + ': and neither heading says Bonfire any more', html.indexOf('Your Bonfire') === -1 && html.indexOf("'s Bonfire") === -1
+           && html.indexOf('s Bonfire') === -1);
         ok(label + ': the stored master is now this household\'s',
            e.store[MASTER_KEY] && JSON.parse(e.store[MASTER_KEY]).masterUserId === MASTER);
     });

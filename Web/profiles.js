@@ -808,9 +808,9 @@
         'gate.noPin': 'No PIN',
         'gate.manageHint': 'Tap a profile to edit it. The labels show its status.',
         'gate.addProfile': 'Add Profile',
-        'gate.yourBonfire': 'Your Bonfire',
+        'gate.yourBonfire': 'Your household',
         'gate.guest': 'Guest',
-        'gate.bonfireOf': "{name}'s Bonfire",
+        'gate.bonfireOf': "{name}'s household",
         'gate.limitReached': '{count}/{max} profiles — limit reached',
         'gate.cantGetPast': "Can't get past this screen?",
         'gate.bonfireProfile': 'Bonfire Profile',
@@ -6018,9 +6018,11 @@
                 let headerIcon = '';
                 let isBonfireIcon = false;
 
-                // Both headers use the campfire glyph — the section is called a Bonfire, so a
-                // house icon read as a different concept entirely. Your own Bonfire keeps the
-                // warm flame colour; linked ones are tinted by .bonfire-icon-color so the two
+                // Both headers use the campfire glyph — it was the Bonfire's own section, and a
+                // house icon read as a different concept entirely. The headings say household
+                // now (a main account and its profiles; "Bonfire" is the product, and an
+                // invite-code group), but the glyph stays. Your own household keeps the warm
+                // flame colour; linked ones are tinted by .bonfire-icon-color so the two
                 // remain distinguishable at a glance.
                 if (isLocalGroup) {
                     headerTitle = t('gate.yourBonfire');

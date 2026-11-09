@@ -54,6 +54,19 @@ PP.handleSessionExpired = () => {};
         !/'(bonfire|settings)\.[A-Za-z]+': "?'?[^\n]*\b(group|friend|sub-profile)/i.test(
             EN.split('\n').filter(l => /'(bonfire\.|settings\.yourBonfireBody)/.test(l) && !/bonfire\.(deleteGroup|leaveGroup)\w*'|bonfire\.failed/.test(l)).join('\n')));
 
+    // A main account and its profiles are a household. "Bonfire" is the product, and the name
+    // of an invite-code group ("Host a Bonfire", "Join a Bonfire"); it is not the word for
+    // the household, so only the Sharing screen's own strings (bonfire.*, settings.yourBonfireBody)
+    // may say "your Bonfire" or "X's Bonfire". Every other screen says household.
+    const bonfireAsHousehold = EN.split(/\r?\n/).filter(l => {
+        const m = /^\s*'([^']+)':\s*(.*)$/.exec(l);
+        if (!m || /^(bonfire\.|settings\.yourBonfireBody$)/.test(m[1])) return false;
+        return /\byour Bonfire\b|['’]s Bonfire\b|\bBonfire of\b/i.test(m[2]);
+    }).map(l => l.trim().slice(0, 60));
+    ok('no string outside Sharing calls a household a Bonfire', bonfireAsHousehold.length === 0, bonfireAsHousehold.join(' | '));
+    ok('the picker heading is "Your household"', /'gate\.yourBonfire': 'Your household'/.test(EN));
+    ok("and a linked one is \"{name}'s household\"", /'gate\.bonfireOf': "\{name\}'s household"/.test(EN));
+
     // ── P2-104, P2-113: the picture chooser and the artwork note ────────────────────
     console.log('\n── Form clutter ────────────────────────────────────────────────');
     const lib = { avatars: [{ id: 'a', url: '/a.png', thumbUrl: '/a.png', displayName: 'A' }], allowCustomUploads: true };
