@@ -1665,6 +1665,11 @@
         /// dialog closes before `run` is called. Escape closes it with no choice. The arrow
         /// keys move along the buttons, for a remote.
         showActionsDialog: function (title, message, actions) {
+            // The TV Back key clicks the dialog's cancel button (_dismissSurface), so it has
+            // to have an id. The cancel is the first action with nothing to run: choosing it
+            // only closes the dialog, which is exactly what Back should do.
+            let cancelAt = -1;
+            actions.forEach((a, i) => { if (cancelAt < 0 && !(a && typeof a.run === 'function')) cancelAt = i; });
             const dialog = document.createElement('div');
             dialog.id = 'profiles-actions-dialog';
             dialog.classList.add('jpf-trap-surface');
@@ -1697,7 +1702,7 @@
                     <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
                     <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${escapeHtml(message)}</p>
                     <div class="jpf-actions jpf-actions-wrap">
-                        ${actions.map((a, i) => `<button type="button" data-action="${i}" class="profiles-btn ${a.primary ? 'btn-primary' : 'btn-secondary'}">${escapeHtml(a.label)}</button>`).join('')}
+                        ${actions.map((a, i) => `<button type="button"${i === cancelAt ? ' id="actions-cancel-btn"' : ''} data-action="${i}" class="profiles-btn ${a.primary ? 'btn-primary' : 'btn-secondary'}">${escapeHtml(a.label)}</button>`).join('')}
                     </div>
                 </div>
             `;
@@ -5178,6 +5183,7 @@
             const back = surface.querySelector(
                 '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
                 '#pin-cancel-btn, #master-pin-cancel-btn, #create-cancel-btn, #edit-cancel-btn, ' +
+                '#select-cancel-btn, #prompt-cancel-btn, #actions-cancel-btn, ' +
                 '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #theme-settings-back-btn, #account-back-btn, #profiles-resume-btn, #profiles-libart-cancel, ' +
                 '#onboarding-skip, #main-pin-skip, #pin-reset-back'
             );
