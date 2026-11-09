@@ -780,6 +780,18 @@ Ok("and stopped after them", stub.Stopped.Contains("kid-tv"));
 Ok("the limit email went once", Mails() == mailsNow);
 Ok("the stream is refused once the grace is over, for an app that ignored the stop",
    Code(Static(gate, "Check", "/Videos/" + item + "/hls1/main/9.ts", KID, sessions, library, clockNow.AddMinutes(2))) == "daily_limit_reached");
+// An app that changes the audio track, the subtitles or the quality asks for PlaybackInfo of
+// the item it is already playing again. Refused, that ends a stream the grace is meant to
+// let finish; a different item, or the same one once the grace is over, is still refused.
+Static(gate, "NoteAllowed", "/Items/" + item + "/PlaybackInfo", KID);
+Ok("PlaybackInfo for the item already playing goes through while the grace is open",
+   Static(gate, "Check", "/Items/" + item + "/PlaybackInfo", KID, sessions, library, clockNow.AddSeconds(-10)) == null);
+Ok("but not for anything else",
+   Code(Static(gate, "Check", "/Items/" + Guid.NewGuid() + "/PlaybackInfo", KID, sessions, library, clockNow.AddSeconds(-10))) == "daily_limit_reached");
+Ok("and not once the grace is over",
+   Code(Static(gate, "Check", "/Items/" + item + "/PlaybackInfo", KID, sessions, library, clockNow.AddMinutes(2))) == "daily_limit_reached");
+Ok("a download of it is still refused",
+   Code(Static(gate, "Check", "/Items/" + item + "/Download", KID, sessions, library, clockNow.AddSeconds(-10))) == "daily_limit_reached");
 
 var songSession = SessionStub.Make("kid-speaker", KID2, song, deviceId: "dev-speaker", media: MediaType.Audio);
 Call("SetViewingLimits", MAIN, B(("DailyMinutes", 10), ("MasterPin", "1234")), KID2);

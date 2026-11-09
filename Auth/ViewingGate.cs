@@ -152,6 +152,18 @@ namespace Jellyfin.Profiles.Auth
                     if (item != null && item.MediaType != Jellyfin.Data.Enums.MediaType.Video
                         && item.MediaType != Jellyfin.Data.Enums.MediaType.Unknown) return null;
                 }
+
+                // A player that changes the audio track, the subtitles or the quality asks for
+                // PlaybackInfo of the item it is already playing again. Refusing it ended a
+                // stream the grace is meant to let finish. Same rule as the stream itself.
+                if (kind == Kind.PlaybackInfo && id != null && PlaybackRecord.Has(userId, id.Value))
+                {
+                    DateTime? playGrace;
+                    lock (ViewingTracker.UsageLock) playGrace = ViewingTracker.EntryFor(userId).GraceEndsUtc;
+                    // Only inside a grace that was actually set: with none, there is nothing to
+                    // finish, and the record would be renewed by every request it let through.
+                    if (playGrace.HasValue && nowUtc < playGrace.Value.AddMinutes(1)) return null;
+                }
             }
             else
             {
