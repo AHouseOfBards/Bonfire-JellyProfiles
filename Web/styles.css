@@ -576,6 +576,9 @@ body.profiles-no-scroll [id*="spinner"] {
     background: none; border: none; color: inherit; opacity: 0.7;
     font-size: 1.4rem; line-height: 1; padding: 0.2rem 0.5rem; cursor: pointer;
     border-radius: var(--jpf-r-sm);
+    /* A finger and a remote both have to find it: the glyph alone was about 20px. */
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 2.75rem; min-height: 2.75rem;
 }
 .profiles-announcement-dismiss:hover,
 .profiles-announcement-dismiss:focus { opacity: 1; background: var(--jpf-surface-2); outline: none; box-shadow: 0 0 0 2px var(--jpf-accent); }
@@ -2362,6 +2365,12 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-tv .profile-section :focus-visible {
     outline: 4px solid var(--jpf-accent);
     outline-offset: 4px;
+}
+/* The announcement's dismiss button sits on the gate and the home page, outside every
+   .profile-section above, and its own focus rule says outline: none with a 2px shadow. */
+.jpf-tv .profiles-announcement-dismiss:focus {
+    outline: 4px solid var(--jpf-accent);
+    outline-offset: 2px;
 }
 
 /* ── The gate, fitted to the screen (issue #31) ───────────────────
