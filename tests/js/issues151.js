@@ -499,7 +499,8 @@ const animNames = new Set((src.match(/animation:\s*([a-zA-Z][\w-]*)/g) || [])
     .map(m => m.replace(/animation:\s*/, '')));
 const keyframes = new Set((src.match(/@keyframes\s+([a-zA-Z][\w-]*)/g) || [])
     .map(m => m.replace(/@keyframes\s+/, '')));
-const missingKf = [...animNames].filter(n => !keyframes.has(n));
+// "none" is the keyword for no animation (the reduced-motion block), not a name.
+const missingKf = [...animNames].filter(n => n !== 'none' && !keyframes.has(n));
 ok('every animation names a keyframe that exists', missingKf.length === 0);
 if (missingKf.length) console.log('        missing: ' + missingKf.join(', '));
 
