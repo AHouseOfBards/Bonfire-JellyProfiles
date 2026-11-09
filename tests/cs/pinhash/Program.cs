@@ -23,7 +23,8 @@ static string RepoRoot()
     return d ?? throw new Exception("could not find the repository root");
 }
 
-var tfm = AppContext.BaseDirectory.Contains("net10.0") ? "net10.0" : "net9.0";
+var tfm = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
+    Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)).Name;
 var asm = Assembly.LoadFrom(Path.Combine(RepoRoot(), "bin", "Release", tfm, "Jellyfin.Profiles.dll"));
 var hasher = asm.GetType("Jellyfin.Profiles.Auth.PinHasher", true);
 string Verify(string pin, string stored) => hasher.GetMethod("Verify").Invoke(null, new object[] { pin, stored }).ToString();
