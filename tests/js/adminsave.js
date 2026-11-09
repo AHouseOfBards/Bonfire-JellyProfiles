@@ -85,16 +85,12 @@ async function run(fieldValues) {
     const proxyTicked = (fieldValues && fieldValues.proxyTicked) || [];
     delete fields.proxyTicked;
 
-    // First-time setup: a Show and a Can't skip box per step. A Can't skip box is
-    // disabled while its step is not shown, and a disabled box is never sent.
+    // First-time setup: a Show box per step.
     const steps = ['welcome', 'mainPin', 'firstProfile', 'switcher', 'theme'];
     const shown = (fieldValues && fieldValues.obShown) || steps;
-    const required = (fieldValues && fieldValues.obRequired) || [];
     delete fields.obShown;
-    delete fields.obRequired;
     const box = (step, on, off) => ({ checked: on, disabled: !!off, getAttribute: function () { return step; } });
     const obShow = steps.map(st => box(st, shown.indexOf(st) !== -1));
-    const obRequired = steps.map(st => box(st, required.indexOf(st) !== -1, shown.indexOf(st) === -1));
     const proxyBoxes = ['moonfin'].map(function (key) {
         return { checked: proxyTicked.indexOf(key) !== -1, getAttribute: function () { return key; } };
     });
@@ -120,7 +116,6 @@ async function run(fieldValues) {
         },
         querySelectorAll: function (sel) {
             if (sel === '.jpfObShow') return obShow;
-            if (sel === '.jpfObRequired') return obRequired;
             if (sel === '.jpf-unsaved') return [];   // the note beside each Save; none in this stub
             if (sel !== '.jpfProxyClient') throw new Error('the page has no ' + sel);
             return proxyBoxes;
@@ -227,7 +222,6 @@ const expected = [
     'profileImageQuality',
     'onboardingEnabled',
     'onboardingSteps',
-    'onboardingRequiredSteps',
     'onboardingWelcomeText'
 ];
 
@@ -279,9 +273,8 @@ ok('every shown step is sent, in page order',
    JSON.stringify(body && body.onboardingSteps) === '["welcome","mainPin","firstProfile","switcher","theme"]');
 ok('the welcome is sent trimmed', body && body.onboardingWelcomeText === 'Welcome home.');
 ok('the switch is sent as it stands', body && body.onboardingEnabled === false);
-const ob = sent(await run({ onboardingEnabled: true, obShown: ['welcome', 'mainPin'], obRequired: ['mainPin', 'theme'] }));
+const ob = sent(await run({ onboardingEnabled: true, obShown: ['welcome', 'mainPin'] }));
 ok('only ticked steps are sent', JSON.stringify(ob.onboardingSteps) === '["welcome","mainPin"]');
-ok("a step that isn't shown can't be required", JSON.stringify(ob.onboardingRequiredSteps) === '["mainPin"]');
 ok('on is sent as on', ob.onboardingEnabled === true);
 ok('the Status checklist is told what was saved', base.calls.noted && base.calls.noted.requireMainPin === false);
 

@@ -626,7 +626,6 @@
   "admin.onboarding.stepTheme": "Thème",
   "admin.onboarding.themeNeeds": "Seulement si les profils peuvent choisir un thème.",
   "admin.onboarding.show": "Afficher",
-  "admin.onboarding.required": "Obligatoire",
   "admin.onboarding.welcome": "Message de bienvenue",
   "admin.onboarding.welcomeHint": "Texte brut. Vide, celui de Bonfire est utilisé.",
   "admin.onboarding.showAgain": "Afficher à nouveau à tous",

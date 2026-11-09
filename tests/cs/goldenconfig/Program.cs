@@ -233,7 +233,7 @@ if (files.Count > 0)
            string.Join(",", mustBeGone.Where(m => written.Contains(m.Split('>')[0].TrimStart('<')))));
         var now = Leaves(written);
         var gone = mustBeGone.Select(m => m.Split('>')[0].TrimStart('<')).ToList();
-        bool IsCut(string key) => gone.Any(g => key.Substring(0, key.IndexOf('=')).EndsWith("/" + g));
+        bool IsCut(string key) => gone.Any(g => { var path = key.Substring(0, key.IndexOf('=')); return path.EndsWith("/" + g) || path.Contains("/" + g + "/"); });
         var lostOthers = baselineLeaves.Where(kv => !IsCut(kv.Key) && (!now.TryGetValue(kv.Key, out var n) || n < kv.Value)).Select(kv => kv.Key).ToList();
         Ok(name + ": every other value is kept", lostOthers.Count == 0, lostOthers.Count + " lost, first: " + string.Join(" | ", lostOthers.Take(3)));
         var addedOthers = now.Where(kv => !baselineLeaves.ContainsKey(kv.Key)).Select(kv => kv.Key).ToList();
@@ -262,6 +262,20 @@ if (files.Count > 0)
         CutCase("email From name", WithEmail("<FromName>Hearth</FromName>", fingerprint), "<FromName>Hearth</FromName>");
         var loadedEmail = emailProp.GetValue(Read(WithEmail("<FromName>Hearth</FromName>", fingerprint)));
         Ok("a tested email setup is still tested", (bool)emailProp.PropertyType.GetProperty("IsVerified").GetValue(loadedEmail));
+        baselineLeaves = Leaves(Write(Read(baseline)));
+    }
+
+    // OnboardingSettings.RequiredSteps, the "can't skip" list of first-time setup. Also newer
+    // than the golden file, so the section is added here as a 1.9 beta wrote it.
+    {
+        string WithOnboarding(string required) =>
+            baseline.Replace("</PluginConfiguration>", "<Onboarding><Enabled>true</Enabled><StepsChosen>true</StepsChosen>"
+                + "<Steps><string>welcome</string><string>mainPin</string><string>theme</string></Steps>"
+                + required + "<WelcomeText>Welcome home.</WelcomeText><Generation>4</Generation></Onboarding></PluginConfiguration>");
+        baselineLeaves = Leaves(Write(Read(WithOnboarding(""))));
+        CutCase("first-time setup required steps",
+            WithOnboarding("<RequiredSteps><string>mainPin</string><string>theme</string></RequiredSteps>"),
+            "<RequiredSteps>");
         baselineLeaves = Leaves(Write(Read(baseline)));
     }
 

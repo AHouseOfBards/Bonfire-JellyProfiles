@@ -626,7 +626,6 @@
   "admin.onboarding.stepTheme": "Tema",
   "admin.onboarding.themeNeeds": "Només si els perfils poden triar tema.",
   "admin.onboarding.show": "Mostra",
-  "admin.onboarding.required": "No es pot ometre",
   "admin.onboarding.welcome": "Missatge de benvinguda",
   "admin.onboarding.welcomeHint": "Text pla. Si és buit, s’usa el de Bonfire.",
   "admin.onboarding.showAgain": "Torna-la a mostrar a tothom",

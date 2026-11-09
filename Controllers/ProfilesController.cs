@@ -3050,14 +3050,12 @@ namespace Jellyfin.Profiles.Controllers
         internal static List<OnboardingStepInfo> OnboardingStepsFor(Guid mainId, PluginConfiguration config)
         {
             var o = config.Onboarding ?? new OnboardingSettings();
-            var required = OnboardingSteps.Normalize(o.RequiredSteps);
             return o.OfferedSteps()
                 .Where(id => id != OnboardingSteps.Theme || config.AllowProfileThemes)
                 .Where(id => id != OnboardingSteps.ResetEmail || Features.Available(Features.Email, config))
                 .Select(id => new OnboardingStepInfo
                 {
                     Id = id,
-                    Required = required.Contains(id),
                     Done = id == OnboardingSteps.MainPin ? MainHasPin(mainId, config)
                          : id == OnboardingSteps.FirstProfile ? config.Mappings.Any(m => m.MasterUserId == mainId && m.ProfileUserId != mainId)
                          : id == OnboardingSteps.ResetEmail ? config.AccountEmails.Any(a => a.UserId == mainId && !string.IsNullOrEmpty(a.Address))
@@ -5197,7 +5195,6 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             var unknownStep = (request.OnboardingSteps ?? new List<string>())
-                .Concat(request.OnboardingRequiredSteps ?? new List<string>())
                 .FirstOrDefault(s => !OnboardingSteps.IsKnown(s));
             if (unknownStep != null)
             {
@@ -5300,8 +5297,6 @@ namespace Jellyfin.Profiles.Controllers
                     onboarding.Steps = OnboardingSteps.Normalize(request.OnboardingSteps);
                     onboarding.StepsChosen = true;
                 }
-                if (request.OnboardingRequiredSteps != null)
-                    onboarding.RequiredSteps = OnboardingSteps.Normalize(request.OnboardingRequiredSteps);
                 if (request.OnboardingWelcomeText != null)
                     onboarding.WelcomeText = request.OnboardingWelcomeText.Trim();
                 if (request.OnboardingAsked.HasValue)

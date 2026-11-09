@@ -318,7 +318,9 @@ const last = url => sent(url).pop();
 
     PP._onboarding = { steps: [{ id: 'resetEmail', required: true, done: false }], welcome: '', index: 0 };
     PP.showOnboardingStep();
-    ok('required: no Skip', !!id('#onboarding-email') && !id('#onboarding-skip'));
+    // "Can't skip" is gone. A server that has not been updated yet still sends the flag; it
+    // must not take Skip away.
+    ok('a step an older server marks "required" still has Skip', !!id('#onboarding-email') && !!id('#onboarding-skip'));
     id('#onboarding-email').value = 'parent@example.com';
     id('#onboarding-next').click();
     await settle();

@@ -273,6 +273,13 @@ Console.WriteLine("── A backup from a version that had settings since cut �
     foreach (var kv in emailSection) emailWithName[kv.Key] = kv.Value;
     emailWithName["FromName"] = "Hearth";
     older["Email"] = emailWithName;
+
+    // OnboardingSettings.RequiredSteps: the "can't skip" list, inside the Onboarding section.
+    var onboardingSection = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(fileConfig["Onboarding"].GetRawText());
+    var onboardingWithRequired = new Dictionary<string, object>();
+    foreach (var kv in onboardingSection) onboardingWithRequired[kv.Key] = kv.Value;
+    onboardingWithRequired["RequiredSteps"] = new[] { "mainPin" };
+    older["Onboarding"] = onboardingWithRequired;
     var olderBody = JsonSerializer.SerializeToElement(new { exportedUtc = "2026-01-01T00:00:00Z", pluginVersion = "1.7.4.0", configuration = older });
 
     Overwrite(live, Defaults());
@@ -286,6 +293,8 @@ Console.WriteLine("── A backup from a version that had settings since cut �
         Ok(name + " is not a setting any more", cfgType.GetProperty(name) == null);
     Ok("FromName is not an email setting any more", asm.GetType("Jellyfin.Profiles.Configuration.EmailSettings", true).GetProperty("FromName") == null);
     Ok("and the rest of the email section came back", olderAfter["Email"] == snapshot["Email"]);
+    Ok("RequiredSteps is not a first-time setup setting any more", asm.GetType("Jellyfin.Profiles.Configuration.OnboardingSettings", true).GetProperty("RequiredSteps") == null);
+    Ok("and the rest of first-time setup came back", olderAfter["Onboarding"] == snapshot["Onboarding"]);
 
     // A native choice from 1.3.1-beta, on rows that never chose the two newer settings, is
     // carried into them rather than dropped with the field.

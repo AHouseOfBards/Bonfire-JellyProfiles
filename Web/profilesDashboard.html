@@ -1076,34 +1076,29 @@
                     </label>
                     <div class="fieldDescription" data-i18n="admin.onboarding.enableHint">Main accounts that already exist won't see it.</div>
                 </div>
-                <!-- One row per step: shown, and whether it can be skipped. Plain checkboxes
-                     in labels rather than emby-checkbox, which draws one per row. -->
+                <!-- One row per step: whether it is shown. A plain checkbox in a label rather
+                     than emby-checkbox, which draws one per row. -->
                 <div class="jpf-ob-steps" id="onboardingSteps">
                     <div class="jpf-ob-row" data-step="welcome">
                         <span class="jpf-ob-name" data-i18n="admin.onboarding.stepWelcome">Welcome</span>
                         <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="welcome" /><span data-i18n="admin.onboarding.show">Show</span></label>
-                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObRequired" data-step="welcome" /><span data-i18n="admin.onboarding.required">Can't skip</span></label>
                     </div>
                     <div class="jpf-ob-row" data-step="mainPin">
                         <span class="jpf-ob-name" data-i18n="admin.onboarding.stepMainPin">Main PIN</span>
                         <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="mainPin" /><span data-i18n="admin.onboarding.show">Show</span></label>
-                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObRequired" data-step="mainPin" /><span data-i18n="admin.onboarding.required">Can't skip</span></label>
                     </div>
                     <div class="jpf-ob-row" data-step="firstProfile">
                         <span class="jpf-ob-name" data-i18n="admin.onboarding.stepFirstProfile">First profile</span>
                         <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="firstProfile" /><span data-i18n="admin.onboarding.show">Show</span></label>
-                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObRequired" data-step="firstProfile" /><span data-i18n="admin.onboarding.required">Can't skip</span></label>
                     </div>
                     <div class="jpf-ob-row" data-step="switcher">
                         <span class="jpf-ob-name" data-i18n="admin.onboarding.stepSwitcher">How to switch</span>
                         <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="switcher" /><span data-i18n="admin.onboarding.show">Show</span></label>
-                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObRequired" data-step="switcher" /><span data-i18n="admin.onboarding.required">Can't skip</span></label>
                     </div>
                     <div class="jpf-ob-row" data-step="theme">
                         <span class="jpf-ob-name"><span data-i18n="admin.onboarding.stepTheme">Theme</span>
                             <span class="fieldDescription jpf-ob-note" data-i18n="admin.onboarding.themeNeeds">Only while profiles can choose a theme.</span></span>
                         <label class="jpf-ob-box"><input type="checkbox" class="jpfObShow" data-step="theme" /><span data-i18n="admin.onboarding.show">Show</span></label>
-                        <label class="jpf-ob-box"><input type="checkbox" class="jpfObRequired" data-step="theme" /><span data-i18n="admin.onboarding.required">Can't skip</span></label>
                     </div>
                 </div>
                 <div class="inputContainer">
@@ -5561,21 +5556,15 @@
             // ── First-time setup ──────────────────────────────────────────────────
             //
             // Until the administrator has picked, every step is offered (StepsChosen is
-            // false and Steps empty), so every Show box starts ticked. A required step must
-            // be shown: untick Show and its Can't skip goes off and greys out.
+            // false and Steps empty), so every Show box starts ticked.
             function loadOnboarding(page, ob) {
                 page.querySelector('#onboardingEnabled').checked = !!field(ob, 'enabled');
                 const chosen = !!field(ob, 'stepsChosen');
                 const steps = (field(ob, 'steps') || []).map(String);
-                const required = (field(ob, 'requiredSteps') || []).map(String);
                 page.querySelectorAll('.jpfObShow').forEach(function (box) {
                     box.checked = !chosen || steps.indexOf(box.getAttribute('data-step')) !== -1;
                 });
-                page.querySelectorAll('.jpfObRequired').forEach(function (box) {
-                    box.checked = required.indexOf(box.getAttribute('data-step')) !== -1;
-                });
                 page.querySelector('#onboardingWelcome').value = field(ob, 'welcomeText') || '';
-                syncOnboardingRows(page);
             }
 
             // Settings that do nothing while another is off are shown as unavailable rather
@@ -5592,15 +5581,6 @@
                 if (themes && row) row.classList.toggle('jpf-ob-off', !themes.checked);
             }
 
-            function syncOnboardingRows(page) {
-                page.querySelectorAll('.jpfObShow').forEach(function (show) {
-                    const req = page.querySelector('.jpfObRequired[data-step="' + show.getAttribute('data-step') + '"]');
-                    if (!req) return;
-                    if (!show.checked) req.checked = false;
-                    req.disabled = !show.checked;
-                });
-            }
-
             function onboardingTicked(page, cls) {
                 return Array.prototype.filter.call(page.querySelectorAll(cls), function (box) {
                     return box.checked && !box.disabled;
@@ -5615,9 +5595,6 @@
                 const no = page.querySelector('#onboardingAskNo');
                 if (yes) yes.addEventListener('click', function () { answerOnboardingAsk(page, true); });
                 if (no) no.addEventListener('click', function () { answerOnboardingAsk(page, false); });
-                page.querySelectorAll('.jpfObShow').forEach(function (box) {
-                    box.addEventListener('change', function () { syncOnboardingRows(page); });
-                });
                 again.addEventListener('click', function () {
                     askFirst(t('admin.onboarding.showAgainConfirm'), t('admin.onboarding.showAgainTitle')).then(function () {
                         ApiClient.ajax({
@@ -5644,7 +5621,7 @@
                 'defaultTheme', 'allowProfileThemes', 'defaultTimeZone', 'enableClientPinLogin',
                 'enableClientProfileList', 'clientPinLoginFromAnywhere', 'skipQuickConnectOnKnownDevices',
                 'profileImageQuality', 'onboardingEnabled', 'onboardingWelcome'];
-            const SAVED_FIELD_CLASSES = ['jpfProxyClient', 'jpfObShow', 'jpfObRequired'];
+            const SAVED_FIELD_CLASSES = ['jpfProxyClient', 'jpfObShow'];
 
             function isSavedField(el) {
                 if (!el) return false;
@@ -5727,7 +5704,6 @@
                     profileImageQuality: normalizeImageQuality(page.querySelector('#profileImageQuality').value),
                     onboardingEnabled: page.querySelector('#onboardingEnabled').checked,
                     onboardingSteps: onboardingTicked(page, '.jpfObShow'),
-                    onboardingRequiredSteps: onboardingTicked(page, '.jpfObRequired'),
                     onboardingWelcomeText: page.querySelector('#onboardingWelcome').value.trim()
                 };
 

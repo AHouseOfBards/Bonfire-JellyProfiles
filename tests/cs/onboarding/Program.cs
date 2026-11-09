@@ -150,11 +150,11 @@ bool Pending(Guid who)
     var r = Call("GetOnboarding", who);
     return r.status == 200 && (bool)Get(r.value, "Pending");
 }
-List<(string id, bool required, bool done)> Steps(Guid who)
+List<(string id, bool done)> Steps(Guid who)
 {
     var r = Call("GetOnboarding", who);
     return ((IEnumerable)Get(r.value, "Steps")).Cast<object>()
-        .Select(s => ((string)Get(s, "Id"), (bool)Get(s, "Required"), (bool)Get(s, "Done"))).ToList();
+        .Select(s => ((string)Get(s, "Id"), (bool)Get(s, "Done"))).ToList();
 }
 bool PrefsPending(Guid who)
 {
@@ -237,8 +237,11 @@ var bad = Admin(new() { ["OnboardingSteps"] = new List<string> { "welcome", "ema
 Ok("an unknown step is refused", bad.status == 400, bad.status + " " + bad.value);
 Ok("and nothing else in the request is applied", (string)Ob("WelcomeText") == "" && !(bool)Ob("StepsChosen"));
 
-var badReq = Admin(new() { ["OnboardingRequiredSteps"] = new List<string> { "nope" } });
-Ok("so is an unknown required step", badReq.status == 400, badReq.status + " " + badReq.value);
+// "Can't skip" was cut: no request field, no stored list, no flag on a step. Every step
+// can be skipped.
+Ok("there is no required-steps field on the request", asm.GetType("Jellyfin.Profiles.Models.AdminSettingsRequest", true).GetProperty("OnboardingRequiredSteps") == null);
+Ok("none stored", obType.GetProperty("RequiredSteps") == null);
+Ok("and none on the step the client is sent", asm.GetType("Jellyfin.Profiles.Models.OnboardingStepInfo", true).GetProperty("Required") == null);
 
 var longText = Admin(new() { ["OnboardingWelcomeText"] = new string('a', 501) });
 Ok("a welcome over 500 characters is refused", longText.status == 400, longText.status + " " + longText.value);
@@ -248,7 +251,6 @@ Ok("and one of 500 is taken, as documented", fits.status == 200 && ((string)Ob("
 var pick = Admin(new()
 {
     ["OnboardingSteps"] = new List<string> { "theme", "welcome", "welcome", "MAINPIN" },
-    ["OnboardingRequiredSteps"] = new List<string> { "mainPin" },
     ["OnboardingWelcomeText"] = "  Welcome home.  ",
 });
 var stored = ((IEnumerable<string>)Ob("Steps")).ToList();
@@ -256,8 +258,6 @@ Ok("steps are stored once each, in order, spelled as the API spells them",
    pick.status == 200 && stored.SequenceEqual(new[] { "welcome", "mainPin", "theme" }), string.Join(",", stored));
 var newSteps = Steps(NEW);
 Ok("only the chosen steps are offered", newSteps.Select(s => s.id).SequenceEqual(stored));
-Ok("a required step says so, and only that one",
-   newSteps.Single(s => s.id == "mainPin").required && !newSteps.Any(s => s.id != "mainPin" && s.required));
 var got = Call("GetOnboarding", NEW);
 Ok("the welcome comes back trimmed", (string)Get(got.value, "WelcomeText") == "Welcome home.");
 Ok("and is not sent to anyone not pending", (string)Get(Call("GetOnboarding", OLD).value, "WelcomeText") == ""
@@ -334,9 +334,8 @@ var back = RoundTrip(config);
 var backOb = cfgType.GetProperty("Onboarding").GetValue(back);
 Ok("steps survive a save without doubling",
    ((IEnumerable<string>)obType.GetProperty("Steps").GetValue(backOb)).SequenceEqual((IEnumerable<string>)Ob("Steps")));
-Ok("so do required steps and who has seen it",
-   ((IEnumerable<string>)obType.GetProperty("RequiredSteps").GetValue(backOb)).SequenceEqual((IEnumerable<string>)Ob("RequiredSteps"))
-   && ((IEnumerable)obType.GetProperty("Seen").GetValue(backOb)).Cast<object>().Count() == ((IEnumerable)Ob("Seen")).Cast<object>().Count());
+Ok("so does who has seen it",
+   ((IEnumerable)obType.GetProperty("Seen").GetValue(backOb)).Cast<object>().Count() == ((IEnumerable)Ob("Seen")).Cast<object>().Count());
 Ok("and the generation and the one-time excuse",
    (int)obType.GetProperty("Generation").GetValue(backOb) == (int)Ob("Generation")
    && (bool)obType.GetProperty("ExistingAccountsExempted").GetValue(backOb));

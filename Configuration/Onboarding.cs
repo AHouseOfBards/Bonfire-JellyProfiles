@@ -37,8 +37,10 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>The administrator has picked the steps. An empty pick offers none.</summary>
         public bool StepsChosen { get; set; }
 
-        /// <summary>Steps that cannot be skipped. A step not offered is ignored here.</summary>
-        public List<string> RequiredSteps { get; set; } = new();
+        // There used to be a RequiredSteps list here, "can't skip" per step. It was only ever
+        // a client screen with no Skip on it, and nothing on the server held anyone to it
+        // (a main PIN is what RequireMainPin is for). Every step can be skipped now. A file
+        // or backup that still has the element loads; the next save leaves it out.
 
         /// <summary>The administrator's own words on the first screen. Plain text.</summary>
         public string WelcomeText { get; set; } = string.Empty;
@@ -64,7 +66,6 @@ namespace Jellyfin.Profiles.Configuration
         {
             var copy = (OnboardingSettings)MemberwiseClone();
             copy.Steps = Steps?.ToList() ?? new List<string>();
-            copy.RequiredSteps = RequiredSteps?.ToList() ?? new List<string>();
             copy.Seen = Seen?.Select(r => new OnboardingRecord { UserId = r.UserId, Generation = r.Generation }).ToList()
                         ?? new List<OnboardingRecord>();
             return copy;

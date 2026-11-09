@@ -9324,7 +9324,6 @@
                 if (!data || (data.pending !== undefined ? data.pending : data.Pending) !== true) return;
                 const steps = (data.steps || data.Steps || []).map(s => ({
                     id: s.id || s.Id,
-                    required: (s.required !== undefined ? s.required : s.Required) === true,
                     done: (s.done !== undefined ? s.done : s.Done) === true
                 })).filter(s => ONBOARDING_STEPS.indexOf(s.id) !== -1);
                 // Already true when setup began: passed over, and not counted in "Step n of m".
@@ -9365,7 +9364,7 @@
                 ob.index++;
                 this.showOnboardingStep();
             };
-            const skip = step.required ? null : () => {
+            const skip = () => {
                 if (this._onboarding !== ob) return;
                 ob.index++;
                 this.showOnboardingStep();

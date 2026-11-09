@@ -80,9 +80,6 @@ namespace Jellyfin.Profiles.Models
         /// <summary>Step ids to offer (<c>OnboardingSteps</c>). Unknown ids are refused.</summary>
         public System.Collections.Generic.List<string>? OnboardingSteps { get; set; }
 
-        /// <summary>Step ids that cannot be skipped. Unknown ids are refused.</summary>
-        public System.Collections.Generic.List<string>? OnboardingRequiredSteps { get; set; }
-
         /// <summary>Plain text for the first screen. Empty for none.</summary>
         public string? OnboardingWelcomeText { get; set; }
 

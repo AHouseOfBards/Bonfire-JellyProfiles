@@ -1307,11 +1307,11 @@ turned on count as having seen it.
   "generation": 1,
   "welcomeText": "Welcome to the Smith family server.",
   "steps": [
-    { "id": "welcome", "required": false, "done": false },
-    { "id": "mainPin", "required": true, "done": false },
-    { "id": "firstProfile", "required": false, "done": true },
-    { "id": "switcher", "required": false, "done": false },
-    { "id": "theme", "required": false, "done": false }
+    { "id": "welcome", "done": false },
+    { "id": "mainPin", "done": false },
+    { "id": "firstProfile", "done": true },
+    { "id": "switcher", "done": false },
+    { "id": "theme", "done": false }
   ]
 }
 ```
@@ -1322,7 +1322,6 @@ turned on count as having seen it.
 | `generation` | Changes when the administrator shows it again. |
 | `welcomeText` | Plain text from the administrator. Empty when not pending. |
 | `steps` | In order. Empty when not pending. A step whose feature is off isn't listed: `theme` needs profiles to be allowed a theme. |
-| `steps[].required` | The person can't skip it. |
 | `steps[].done` | Already true: a PIN is set (`mainPin`) or a profile exists (`firstProfile`). |
 
 Each step changes things through the usual routes: [`/account`](#post-pluginsprofilesaccount)
@@ -2179,7 +2178,6 @@ anything added since you read it.
 | `onboardingEnabled` | boolean | [First-time setup](#first-time-setup) on or off. The first time it goes on, existing accounts count as having seen it. |
 | `onboardingAsked` | boolean | The dashboard's new-install question about first-time setup has been answered, yes or no. Changes nothing else. |
 | `onboardingSteps` | string[] | Steps to offer: `welcome`, `mainPin`, `resetEmail`, `firstProfile`, `switcher`, `theme`. |
-| `onboardingRequiredSteps` | string[] | Steps that can't be skipped. |
 | `onboardingWelcomeText` | string | Plain text for the first screen, up to 500 characters. |
 | `enablePinResetByEmail` | boolean | Main accounts may [reset a forgotten PIN by email](#email). `400` turning it on while email isn't working; one already on stays on. |
 | `defaultTimeZone` | string | The time zone for [viewing hours](#viewing-hours) in households that haven't chosen one. An IANA id, or `""` for the server's own. |

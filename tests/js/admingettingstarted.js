@@ -2,7 +2,7 @@
  * The dashboard's first-time setup section and the Status tab's getting-started list
  * (1.7.2).
  *
- * Runs the real loadOnboarding, syncOnboardingRows and renderGettingStarted out of the
+ * Runs the real loadOnboarding and renderGettingStarted out of the
  * dashboard against stub elements, and reads back what they set and drew. Red against
  * the dashboard at cd9160c, which had neither.
  *
@@ -22,7 +22,7 @@ function ok(name, cond, detail) {
 const html = L.readDashboard();
 const script = L.dashboardScript(html);
 const has = name => new RegExp('function ' + name + '\\s*\\(').test(script);
-if (!['loadOnboarding', 'syncOnboardingRows', 'renderGettingStarted', 'gettingStartedItems'].every(has)) {
+if (!['loadOnboarding', 'renderGettingStarted', 'gettingStartedItems'].every(has)) {
     ok('this dashboard has first-time setup and the getting-started list', false);
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(1);
@@ -30,7 +30,6 @@ if (!['loadOnboarding', 'syncOnboardingRows', 'renderGettingStarted', 'gettingSt
 const source = L.dashboardI18n(script)
     + L.extractFunction(script, 'field') + '\n'
     + L.extractFunction(script, 'loadOnboarding') + '\n'
-    + L.extractFunction(script, 'syncOnboardingRows') + '\n'
     + L.extractFunction(script, 'gettingStartedItems') + '\n'
     + L.extractFunction(script, 'renderGettingStarted') + '\n'
     // Only on a dashboard that asks; an older one fails the assertions below instead of here.
@@ -66,18 +65,15 @@ function makePage() {
         gettingStartedBlock: el(), gettingStarted: el(), onboardingAsk: el()
     };
     const shows = STEPS.map(s => el({ 'data-step': s }));
-    const reqs = STEPS.map(s => el({ 'data-step': s }));
+    // No "can't skip" boxes: a page that still looked for them would throw here.
     return {
-        ids, shows, reqs,
+        ids, shows,
         querySelector(sel) {
             if (sel.charAt(0) === '#') return ids[sel.slice(1)] || null;
-            const m = /^\.jpfObRequired\[data-step="(\w+)"\]$/.exec(sel);
-            if (m) return reqs[STEPS.indexOf(m[1])] || null;
             throw new Error('no ' + sel);
         },
         querySelectorAll(sel) {
             if (sel === '.jpfObShow') return shows;
-            if (sel === '.jpfObRequired') return reqs;
             throw new Error('no ' + sel);
         }
     };
@@ -94,7 +90,7 @@ const ApiClient = {
 const Dashboard = { showLoadingMsg() {}, hideLoadingMsg() {}, alert() {} };
 // eslint-disable-next-line no-new-func
 const api = new Function('document', 'goTo', 'ApiClient', 'Dashboard',
-    source + '; return { loadOnboarding, syncOnboardingRows, renderGettingStarted,'
+    source + '; return { loadOnboarding, renderGettingStarted,'
     + ' onboardingAskDue: typeof onboardingAskDue === "function" ? onboardingAskDue : null,'
     + ' answerOnboardingAsk: typeof answerOnboardingAsk === "function" ? answerOnboardingAsk : null };')(document, goTo, ApiClient, Dashboard);
 
@@ -103,25 +99,19 @@ console.log('\n── First-time setup, as loaded ──────────
 let page = makePage();
 api.loadOnboarding(page, {});
 ok('a configuration that never chose shows every step', page.shows.every(b => b.checked));
-ok('and requires none, and is off', page.reqs.every(b => !b.checked && !b.disabled) && !page.ids.onboardingEnabled.checked);
+ok('and is off', !page.ids.onboardingEnabled.checked);
 
 page = makePage();
+// A stored RequiredSteps from an older version rides along and is ignored.
 api.loadOnboarding(page, { Enabled: true, StepsChosen: true, Steps: ['welcome', 'theme'],
                            RequiredSteps: ['welcome', 'mainPin'], WelcomeText: 'Hello' });
 ok('a chosen set shows only those steps',
    page.shows.map(b => b.checked).join() === 'true,false,false,false,true');
-ok("a required step that isn't shown is unticked and greyed",
-   page.reqs[1].checked === false && page.reqs[1].disabled === true);
-ok('a required step that is shown stays ticked', page.reqs[0].checked === true && page.reqs[0].disabled === false);
 ok('on, with its welcome', page.ids.onboardingEnabled.checked && page.ids.onboardingWelcome.value === 'Hello');
 
 page = makePage();
 api.loadOnboarding(page, { StepsChosen: true, Steps: [] });
 ok('an empty choice shows nothing (not "everything")', page.shows.every(b => !b.checked));
-
-page.shows[2].checked = true;
-api.syncOnboardingRows(page);
-ok('ticking Show makes Can\'t skip available again', page.reqs[2].disabled === false);
 
 console.log('\n── Getting started ─────────────────────────────────────────────');
 

@@ -155,9 +155,6 @@ namespace Jellyfin.Profiles.Models
         /// <summary>welcome, mainPin, firstProfile, switcher or theme.</summary>
         public string Id { get; set; } = string.Empty;
 
-        /// <summary>Cannot be skipped.</summary>
-        public bool Required { get; set; }
-
         /// <summary>Already true of this account: a PIN set, a profile made. Show it or not.</summary>
         public bool Done { get; set; }
     }

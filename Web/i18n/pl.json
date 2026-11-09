@@ -626,7 +626,6 @@
   "admin.onboarding.stepTheme": "Motyw",
   "admin.onboarding.themeNeeds": "Tylko gdy profile mogą wybierać motyw.",
   "admin.onboarding.show": "Pokaż",
-  "admin.onboarding.required": "Nie można pominąć",
   "admin.onboarding.welcome": "Wiadomość powitalna",
   "admin.onboarding.welcomeHint": "Zwykły tekst. Puste pole: domyślna wiadomość Bonfire.",
   "admin.onboarding.showAgain": "Pokaż ponownie wszystkim",
