@@ -7069,6 +7069,12 @@
                     })
                     .then(res => {
                         if (!res.ok) return res.text().then(text => { throw new Error(text); });
+                        // The main account just changed its own PIN. This is the one the server
+                        // checks on every later change, so keeping the old one made each of them
+                        // fail as an incorrect main PIN, and count as a wrong try, until Done (#44).
+                        if (pin !== null && this.normalizeGuid(profile.profileUserId) === this.normalizeGuid(masterState.masterUserId)) {
+                            this.masterPin = pin || null;
+                        }
                         // Artwork is stored per library, so it is saved after the profile
                         // itself rather than folded into that one request.
                         // The account on screen changed its own theme: put it on now rather
