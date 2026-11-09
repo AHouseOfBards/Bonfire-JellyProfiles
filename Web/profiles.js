@@ -704,6 +704,7 @@
         'gate.signedIn': 'Signed in',
         'gate.pinProtected': 'PIN Protected',
         'gate.noPin': 'No PIN',
+        'gate.manageHint': 'Tap a profile to edit it. The labels show its status.',
         'gate.addProfile': 'Add Profile',
         'gate.yourBonfire': 'Your Bonfire',
         'gate.guest': 'Guest',
@@ -896,6 +897,7 @@
         'onboarding.profileTitle': 'Add a profile',
         'onboarding.profileBody': 'Make one for someone else at home. You can add more later.',
         'onboarding.switcherTitle': 'How do you want to switch?',
+        'onboarding.switcherLater': 'You can change this later in Settings.',
         'onboarding.themeTitle': 'Pick a look',
         'onboarding.themeBody': 'You can change it later in Settings.',
         'onboarding.emailTitle': 'Add your email',
@@ -5815,6 +5817,7 @@
             overlay.innerHTML = `
                 <div class="profiles-modal-content anim-fade-in${groupKeys.length === 1 ? ' jpf-one-home' : ''}">
                     <h1 class="profiles-title">${title}</h1>
+                    ${this.isManageMode ? `<p class="jpf-manage-hint">${t('gate.manageHint')}</p>` : ''}
                     ${sectionsHtml}
                     <div class="profiles-footer">
                         <button id="profiles-toggle-manage-btn" class="profiles-btn btn-secondary">${manageBtnText}</button>
@@ -6517,6 +6520,7 @@
             content.innerHTML = `
                 <h1 class="profiles-title">${t('mainPin.setTitle')}</h1>
                 <div class="pin-entry-container">
+                    ${setup ? this._onboardingStepLine() : ''}
                     <p class="profiles-pin-note">${required && !setup ? t('mainPin.requiredBody') : t('mainPin.setBody')}</p>
                     <input type="text" id="main-pin-new" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     <div id="main-pin-new-error" class="profiles-pin-error" role="alert" hidden></div>
@@ -9360,14 +9364,10 @@
             this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
             if (!content) return null;
-            const ob = this._onboarding;
-            const shown = ob.steps.filter(s => s.id !== 'welcome' && !s.given);
-            const position = shown.indexOf(ob.steps[ob.index]);
             content.innerHTML = `
                 <h1 class="profiles-title">${title}</h1>
                 <div class="create-profile-container jpf-onboarding" style="max-width: var(--jpf-w-form); width: 100%;">
-                    ${position !== -1 && shown.length > 1
-                        ? `<p class="jpf-onboarding-step">${t('onboarding.step', { n: position + 1, total: shown.length })}</p>` : ''}
+                    ${this._onboardingStepLine()}
                     ${body}
                     <div id="onboarding-error" class="profiles-pin-error" role="alert" hidden></div>
                     <div class="bonfire-dialog-actions jpf-actions jpf-onboarding-actions">
@@ -9379,6 +9379,17 @@
             const skipBtn = content.querySelector('#onboarding-skip');
             if (skipBtn) skipBtn.addEventListener('click', skip);
             return content;
+        },
+
+        /// "Step 2 of 5" for the step on screen, or '' with nothing to count. The PIN step
+        /// draws its own screen and calls this too, so it is numbered like the rest (P2-110).
+        _onboardingStepLine: function () {
+            const ob = this._onboarding;
+            if (!ob) return '';
+            const shown = ob.steps.filter(s => s.id !== 'welcome' && !s.given);
+            const position = shown.indexOf(ob.steps[ob.index]);
+            return position !== -1 && shown.length > 1
+                ? `<p class="jpf-onboarding-step">${t('onboarding.step', { n: position + 1, total: shown.length })}</p>` : '';
         },
 
         _onboardingError: function (content, message) {
@@ -9538,6 +9549,7 @@
                     ${option('button', 'account_circle', t('switcher.bonfireButtonTitle'), t('switcher.bonfireButtonBody'))}
                     ${option('menu', 'switch_account', t('switcher.menuTitle'), t('switcher.menuBody'))}
                 </div>
+                <div class="form-hint" id="onboarding-switcher-later">${t('onboarding.switcherLater')}</div>
             `, t('onboarding.next'), skip);
             if (!content) return;
 
@@ -9949,7 +9961,7 @@
                             <input type="checkbox" id="switcher-ask-startup" ${askOnStartup ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                             <span>${t('switcher.askOnStartup')}</span>
                         </label>
-                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.78rem !important; position: relative !important; display: block !important;">
+                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.75 !important; font-size: 0.8rem !important; position: relative !important; display: block !important;">
                             ${t('switcher.askOnStartupHint')}
                         </div>
                     </div>

@@ -1047,5 +1047,7 @@
   "account.devicesCountSubtitle": "Quines pantalles fan servir aquest compte",
   "account.manageDevices": "Gestiona els dispositius",
   "account.moreSummary": "Demanar PIN, xarxa de casa i bloqueig automàtic",
-  "account.emailOff": "El correu no està configurat. Demana a l'administrador del servidor que l'activi al tauler de Bonfire."
+  "account.emailOff": "El correu no està configurat. Demana a l'administrador del servidor que l'activi al tauler de Bonfire.",
+  "gate.manageHint": "Toca un perfil per editar-lo. Les etiquetes en mostren l'estat.",
+  "onboarding.switcherLater": "Ho pots canviar més tard a Configuració."
 }

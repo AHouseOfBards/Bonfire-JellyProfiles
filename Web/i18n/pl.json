@@ -1047,5 +1047,7 @@
   "account.devicesCountSubtitle": "Które ekrany używają tego konta",
   "account.manageDevices": "Zarządzaj urządzeniami",
   "account.moreSummary": "Pytanie o PIN, sieć domowa i autoblokada",
-  "account.emailOff": "E-mail nie jest skonfigurowany. Poproś administratora serwera o włączenie go w panelu Bonfire."
+  "account.emailOff": "E-mail nie jest skonfigurowany. Poproś administratora serwera o włączenie go w panelu Bonfire.",
+  "gate.manageHint": "Dotknij profilu, aby go edytować. Etykiety pokazują jego stan.",
+  "onboarding.switcherLater": "Możesz to zmienić później w Ustawieniach."
 }

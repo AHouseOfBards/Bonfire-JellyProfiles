@@ -1047,5 +1047,7 @@
   "account.devicesCountSubtitle": "Qué pantallas usan esta cuenta",
   "account.manageDevices": "Administrar dispositivos",
   "account.moreSummary": "Pedir PIN, red de casa y bloqueo automático",
-  "account.emailOff": "El correo no está configurado. Pide al administrador del servidor que lo active en el panel de Bonfire."
+  "account.emailOff": "El correo no está configurado. Pide al administrador del servidor que lo active en el panel de Bonfire.",
+  "gate.manageHint": "Toca un perfil para editarlo. Las etiquetas muestran su estado.",
+  "onboarding.switcherLater": "Puedes cambiarlo más tarde en Configuración."
 }

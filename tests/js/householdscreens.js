@@ -134,6 +134,22 @@ PP.handleSessionExpired = () => {};
     ok('revealFold opens the fold a field is in', fold.open === true);
     ok('Email off says so rather than vanishing', /Email is not set up/.test(EN));
 
+    // ── P2-108 to P2-112: setup and the manage grid ─────────────────────────────────
+    console.log('\n── First-time setup, manage grid ───────────────────────────────');
+    PP._onboarding = {
+        steps: ['welcome', 'mainPin', 'resetEmail', 'firstProfile', 'switcher'].map(id => ({ id: id, required: false, done: false, given: false })),
+        welcome: '', index: 1, waiting: false
+    };
+    PP.promptSetMainPin([], false, () => {}, { onSkip: () => {} });
+    ok('the PIN step says which step it is', /class="jpf-onboarding-step">Step 1 of 4</.test(content.innerHTML), content.innerHTML.slice(0, 120));
+    PP._onboardingSwitcher(() => {}, () => {});
+    ok('the switcher step says it can be changed later', /id="onboarding-switcher-later"/.test(content.innerHTML));
+    const css = L.extractCss(SRC);
+    ok('an email field is styled like the text fields (no white bar)',
+        /\.bonfire-form-group input\[type="email"\]/.test(css));
+    PP.isManageMode = true;
+    ok('the manage grid says tiles are tapped and labels are status', /'gate\.manageHint': 'Tap a profile/.test(EN) && /jpf-manage-hint/.test(SRC));
+
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);
 })();

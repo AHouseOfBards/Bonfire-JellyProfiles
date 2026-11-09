@@ -1403,6 +1403,8 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .form-group input[type="text"],
 .bonfire-form-group input[type="text"],
+.bonfire-form-group input[type="email"],
+.form-group input[type="email"],
 .form-group input[type="password"] {
     background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border);
     border-radius: var(--jpf-input-r); padding: 10px; color: var(--jpf-text-1); font-size: 1rem;
@@ -1422,7 +1424,8 @@ body.profiles-no-scroll [id*="spinner"] {
     background-color: var(--jpf-panel);
     color: var(--jpf-text-1);
 }
-.form-group input:focus, .form-group select:focus {
+.form-group input:focus, .form-group select:focus,
+.bonfire-form-group input[type="email"]:focus {
     border-color: var(--jpf-accent); outline: none;
     box-shadow: 0 0 10px var(--jpf-accent-a40);
 }
@@ -1651,6 +1654,13 @@ body.profiles-no-scroll [id*="spinner"] {
     letter-spacing: 0.04em;
     text-transform: uppercase;
     opacity: 0.6;
+}
+/* Under "Manage Profiles": the badges on each tile are status, not buttons (P2-112). */
+.jpf-manage-hint {
+    margin: -0.5rem 0 1.5rem 0;
+    text-align: center;
+    font-size: 0.95rem;
+    color: var(--jpf-text-2);
 }
 .jpf-onboarding-text {
     margin: 0 0 1.5rem 0;

@@ -1059,5 +1059,7 @@
   "account.devicesCountSubtitle": "Bu hesabı kullanan ekranlar",
   "account.manageDevices": "Cihazları yönet",
   "account.moreSummary": "PIN sorma, ev ağı ve otomatik kilit",
-  "account.emailOff": "E-posta kurulu değil. Sunucu yöneticisinden Bonfire panelinde açmasını isteyin."
+  "account.emailOff": "E-posta kurulu değil. Sunucu yöneticisinden Bonfire panelinde açmasını isteyin.",
+  "gate.manageHint": "Düzenlemek için bir profile dokunun. Etiketler durumunu gösterir.",
+  "onboarding.switcherLater": "Bunu daha sonra Ayarlar'dan değiştirebilirsiniz."
 }
