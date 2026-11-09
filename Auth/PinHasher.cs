@@ -29,6 +29,9 @@ namespace Jellyfin.Profiles.Auth
         public const int Iterations = 150_000;
         private const int SaltBytes = 16;
         private const int HashBytes = 32;
+        private const int MinSaltBytes = 8;
+        private const int MinHashBytes = 16;
+        private const int MaxIterations = 10_000_000;
         public const string Prefix = "pbkdf2.sha256$";
 
         /// <summary>Why a verification failed, so a caller can log the malformed cases.</summary>
@@ -86,7 +89,8 @@ namespace Jellyfin.Profiles.Auth
             var parts = storedHash.Substring(Prefix.Length).Split('$');
             if (parts.Length != 3
                 || !int.TryParse(parts[0], out var iterations)
-                || iterations <= 0)
+                || iterations <= 0
+                || iterations > MaxIterations)
             {
                 return PinResult.MalformedHash;
             }
@@ -95,6 +99,9 @@ namespace Jellyfin.Profiles.Auth
             {
                 var salt = Convert.FromBase64String(parts[1]);
                 var expected = Convert.FromBase64String(parts[2]);
+                // An empty expected hash derives to an empty array, and two empty arrays
+                // compare equal: every PIN would match. Hash() never writes parts this short.
+                if (salt.Length < MinSaltBytes || expected.Length < MinHashBytes) return PinResult.MalformedHash;
                 var actual = Rfc2898DeriveBytes.Pbkdf2(
                     Encoding.UTF8.GetBytes(pin), salt, iterations, HashAlgorithmName.SHA256, expected.Length);
                 return CryptographicOperations.FixedTimeEquals(actual, expected)
