@@ -173,6 +173,11 @@ const PROP_FEATURES = [
 /* which selectors are flex containers, and which are grid (grid gap is Chrome 66) */
 const displayOf = new Map();
 for (const r of rules) {
+    // A flex fallback under @supports not (display: grid) is for a browser older than
+    // Chromium 57, below this 68 baseline. Read as the container's display here it made
+    // a grid container look like a flex one and demanded a margin on top of its grid gap.
+    // Section 3 checks those blocks on their own terms.
+    if (r.context.some(c => /^@supports\s+not\s*\(\s*display\s*:\s*(inline-)?grid/.test(c))) continue;
     const m = r.body.match(/display\s*:\s*(inline-)?(flex|grid)/);
     if (m) for (const s of r.selector.split(',')) displayOf.set(s.trim(), m[2]);
 }
@@ -231,6 +236,236 @@ for (const f of PROP_FEATURES) {
     }
     if (!seen) ok('no ' + f.prop + ' to worry about', true);
 }
+
+/* ── 3. Chromium 53, the floor (webOS 4.5) ───────────────────────────────────
+ *
+ * Everything above is written against 68. The floor the client promises is 53, and three
+ * things the 68 checks cannot see were broken there (P2-504..507):
+ *
+ *   - :focus-within is Chrome 60. In a list with :hover and :focus it took both with it.
+ *   - display: grid is Chrome 57. Declared with nothing to fall back to, it is a block.
+ *   - position: sticky is Chrome 56.
+ *
+ * Each detector below is a function of a parsed sheet, and runs first on small sheets that
+ * must trip it. A detector that cannot go red is a restatement, the way jsbaseline.js
+ * proves its own first.
+ */
+console.log();
+console.log('── Chromium 53: selectors, grid and sticky ────────────────────');
+
+// A selector this old a parser cannot read. Matched on the text of one selector, never on
+// the list: the list is what a mixed use is measured against.
+const OLD_UNPARSEABLE = [
+    { name: ':focus-within', since: 60, re: /:focus-within/ },
+    { name: ':focus-visible', since: 86, re: /:focus-visible/ },
+    { name: ':is()', since: 88, re: /:is\(/ },
+    { name: ':where()', since: 88, re: /:where\(/ },
+    { name: ':has()', since: 105, re: /:has\(/ },
+    { name: '::placeholder', since: 57, re: /::placeholder/ },
+    { name: '::marker', since: 86, re: /::marker/ },
+    { name: ':not() with a list', since: 88, re: /:not\([^)]*,/ }
+];
+
+/** A selector list's members, split on the commas outside any parentheses. */
+function splitList(sel) {
+    const out = [];
+    let depth = 0, from = 0;
+    for (let i = 0; i < sel.length; i++) {
+        if (sel[i] === '(') depth++;
+        else if (sel[i] === ')') depth--;
+        else if (sel[i] === ',' && depth === 0) { out.push(sel.slice(from, i)); from = i + 1; }
+    }
+    out.push(sel.slice(from));
+    return out;
+}
+
+/** Every selector that shares a comma list with one Chromium 53 cannot parse. */
+function mixedLists(rs) {
+    const out = [];
+    for (const r of rs) {
+        const parts = splitList(r.selector).map(s => s.trim().replace(/\s+/g, ' ')).filter(Boolean);
+        if (parts.length < 2) continue;
+        const bad = parts.map(p => OLD_UNPARSEABLE.find(f => f.re.test(p)) || null);
+        parts.forEach((p, i) => {
+            if (bad[i]) return;
+            const partner = bad.findIndex(b => b);
+            if (partner !== -1) out.push({ line: r.index, victim: p, culprit: parts[partner], feature: bad[partner].name });
+        });
+    }
+    return out;
+}
+
+const displayDecl = body => {
+    const all = [];
+    body.replace(/(^|[;{\s])display\s*:\s*([^;}]+)/g, (m, pre, v) => { all.push(v.trim()); return m; });
+    return all;
+};
+const isGridValue = v => /^(inline-)?grid\b/.test(v);
+const supportsNotGrid = ctx => ctx.some(c => /^@supports\s+not\s*\(\s*display\s*:\s*(inline-)?grid\s*\)/.test(c));
+const hasGap = body => /(^|[;{\s])(row-|column-)?gap\s*:/.test(body);
+const norm = s => s.trim().replace(/\s+/g, ' ');
+
+/** The simple selectors of the last compound: ".a.b:hover" -> [".a", ".b", ":hover"]. */
+function lastCompound(sel) {
+    const m = /([^\s>+~]+)$/.exec(norm(sel));
+    return m ? m[1] : '';
+}
+const simpleParts = c => c.match(/[.#:][^.#:\s]+|^[a-z][a-z0-9-]*/gi) || [];
+/** `base` styles every element `sel` does: same ancestry, and a subset of its last compound. */
+function covers(base, sel) {
+    const b = norm(base), s = norm(sel);
+    const bp = b.slice(0, b.length - lastCompound(b).length), sp = s.slice(0, s.length - lastCompound(s).length);
+    if (bp !== sp) return false;
+    const have = simpleParts(lastCompound(s));
+    return simpleParts(lastCompound(b)).every(x => have.indexOf(x) !== -1);
+}
+
+/**
+ * Every grid container, and what a browser with no grid gets. Two nameable fallbacks:
+ *   - an EARLIER display other than grid for the same elements, which the unparseable
+ *     grid declaration leaves standing, or
+ *   - a rule under @supports not (display: grid) that sets one.
+ * And when that fallback is a flex row with a gap, the children's spacing must exist for
+ * a browser with no grid AND no flex gap: a .jpf-no-flex-gap margin rule that is not
+ * boxed into a media range, or one inside the @supports-not block. A margin rule that
+ * only runs below 900px did not cover a grid that starts at 900px; "some fallback
+ * exists" is an aggregate, so each container is matched on its own.
+ */
+function gridProblems(rs) {
+    const out = [];
+    rs.forEach((r, idx) => {
+        for (const sel of splitList(r.selector).map(norm)) {
+            if (/jpf-no-flex-gap/.test(sel) || r.context.some(c => /^@supports\s+not/.test(c))) continue;
+            if (!displayDecl(r.body).some(isGridValue)) continue;
+            // "Underneath" the grid rule in the cascade: earlier in the sheet, or a plainer
+            // selector (fewer classes in its last compound) wherever it sits. The second
+            // is how .create-profile-container sits after .create-profile-container.is-two-col.
+            const under = (o, s) => rs.indexOf(o) < idx
+                || simpleParts(lastCompound(s)).length < simpleParts(lastCompound(sel)).length;
+            const earlier = rs.filter(o =>
+                !o.context.some(c => /^@supports\s+not/.test(c)) &&
+                splitList(o.selector).some(s => covers(s, sel) && under(o, s)) &&
+                displayDecl(o.body).some(v => !isGridValue(v) && v !== 'none'));
+            const guarded = rs.filter(o => supportsNotGrid(o.context) &&
+                splitList(o.selector).some(s => norm(s) === sel) &&
+                displayDecl(o.body).some(v => !isGridValue(v) && v !== 'none'));
+            const declFallback = displayDecl(r.body).some(v => !isGridValue(v));
+            if (!earlier.length && !guarded.length && !declFallback) {
+                out.push({ line: r.index, sel, why: 'no display other than grid for a browser without it' });
+                continue;
+            }
+            // The effective gap: this rule's, or the earlier fallback rule's.
+            const gap = hasGap(r.body) || earlier.some(o => hasGap(o.body));
+            if (!gap) continue;
+            const containers = earlier.map(o => splitList(o.selector).find(s => covers(s, sel))).concat([sel]).map(norm);
+            const spaced = rs.some(o => {
+                if (!splitList(o.selector).some(s => /jpf-no-flex-gap/.test(s) && containers.some(c => s.indexOf(c) !== -1))) return false;
+                if (!/margin/.test(o.body)) return false;
+                // Valid with no grid and no flex gap: no media range at all, or the no-grid block.
+                return !o.context.some(c => /^@media/.test(c)) || supportsNotGrid(o.context);
+            }) || rs.some(o => supportsNotGrid(o.context) && guarded.length && /margin/.test(o.body));
+            if (!spaced) out.push({ line: r.index, sel, why: 'its children touch with no grid and no flex gap: no margin rule that applies outside a media range' });
+        }
+    });
+    return out;
+}
+
+/** Every position: sticky, and whether anything is named for the browsers without it. */
+function stickyProblems(rs, accepted) {
+    const out = [];
+    for (const r of rs) {
+        if (!/(^|[;{\s])position\s*:\s*sticky/.test(r.body)) continue;
+        for (const sel of splitList(r.selector).map(norm)) {
+            const a = accepted.find(x => x.selector === sel);
+            if (!a) out.push({ line: r.index, sel, why: 'sticky with no fallback the check can name' });
+            else if (!a.holds()) out.push({ line: r.index, sel, why: 'its named fallback no longer holds: ' + a.fallback });
+        }
+    }
+    return out;
+}
+
+const parseSheet = text => parse(text.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' ')));
+
+// ── the detectors must be able to go red ───────────────────────────────────────
+{
+    const m = mixedLists(parseSheet('.a:hover, .a:focus, .a:focus-within { color: red; }'));
+    ok('detector: a :focus-within list sharing a rule with :hover and :focus is flagged, both victims named',
+        m.length === 2 && m.every(x => x.feature === ':focus-within') && m.some(x => x.victim === '.a:hover') && m.some(x => x.victim === '.a:focus'));
+    ok('detector: :focus-within in a rule of its own is not flagged',
+        mixedLists(parseSheet('.a:hover, .a:focus { color: red; } .a:focus-within { color: red; }')).length === 0);
+    ok('detector: :is() beside a plain selector is flagged',
+        mixedLists(parseSheet('.a, :is(.b, .c) { x: y; }')).length === 1);
+
+    ok('detector: grid with nothing before it is flagged',
+        gridProblems(parseSheet('.g { display: grid; }')).length === 1);
+    ok('detector: grid after a flex rule for the same element passes, with no gap',
+        gridProblems(parseSheet('.g { display: flex; } @media (min-width: 900px) { .g { display: grid; } }')).length === 0);
+    ok('detector: that grid with a gap and a margin fallback boxed below 900px is flagged',
+        gridProblems(parseSheet('.g { display: flex; gap: 1rem; } @media (min-width: 900px) { .g { display: grid; } }'
+            + '@media (max-width: 899px) { .jpf-no-flex-gap .g > * + * { margin-top: 1rem; } }')).length === 1);
+    ok('detector: and passes once the margin also applies under @supports not (display: grid)',
+        gridProblems(parseSheet('.g { display: flex; gap: 1rem; } @media (min-width: 900px) { .g { display: grid; } }'
+            + '@supports not (display: grid) { .jpf-no-flex-gap .g > * + * { margin-top: 1rem; } }')).length === 0);
+    ok('detector: grid whose only fallback is an @supports-not flex block with a margin passes',
+        gridProblems(parseSheet('.g { display: grid; gap: 4px; } @supports not (display: grid) { .g { display: flex; } .g > * { margin: 0 4px 4px 0; } }')).length === 0);
+    ok('detector: sticky with no named fallback is flagged',
+        stickyProblems(parseSheet('.bar { position: sticky; }'), []).length === 1);
+    ok('detector: sticky whose named fallback has stopped holding is flagged',
+        stickyProblems(parseSheet('.bar { position: sticky; }'), [{ selector: '.bar', fallback: 'x', holds: () => false }]).length === 1);
+}
+
+// ── the sheet, one finding at a time ───────────────────────────────────────────
+const mixed = mixedLists(rules);
+mixed.forEach(x => ok(x.victim + ' at L' + lineOf(x.line)
+    + ' does not share a rule with ' + x.feature + ' (' + x.culprit + ')', false,
+    x.culprit + ' is unparseable on Chromium 53 and takes this selector with it'));
+ok('no comma list mixes a Chromium 53 selector with one it can parse (' + rules.length + ' rules read)', mixed.length === 0);
+
+/* Enumerated, not counted: each :focus-within selector is one rule's whole list. */
+for (const r of rules) {
+    for (const f of OLD_UNPARSEABLE) {
+        const parts = splitList(r.selector).map(norm).filter(p => f.re.test(p));
+        for (const p of parts) {
+            if (splitList(r.selector).length === 1) ok(f.name + ' at L' + lineOf(r.index) + ' is a rule of its own: ' + p.slice(0, 60), true);
+        }
+    }
+}
+
+const grids = gridProblems(rules);
+grids.forEach(g => ok('grid on ' + g.sel + ' at L' + lineOf(g.line) + ' has a fallback', false, g.why));
+ok('every display: grid has a fallback for a browser without grid', grids.length === 0);
+
+const SRC_JS = L.readProfiles();
+const STICKY_OK = [{
+    selector: '.create-profile-container > .profile-dialog-actions',
+    fallback: 'the row is the last child of the form, so it is the end of the form unpinned, and the remote\'s focus move scrolls it into view',
+    holds: () => {
+        if (!/_focusVisibly:\s*function[\s\S]{0,2500}scrollIntoView/.test(SRC_JS)) return false;
+        // Last child, for each form that draws the row: nothing follows it but the form's
+        // own closing tag and the end of the template.
+        const open = '<div class="profile-dialog-actions jpf-actions">';
+        let at = SRC_JS.indexOf(open), seen = 0;
+        while (at !== -1) {
+            seen++;
+            const re = /<div\b[^>]*>|<\/div>/g;
+            re.lastIndex = at + open.length;
+            let depth = 1, m, end = -1;
+            while ((m = re.exec(SRC_JS)) !== null) {
+                depth += m[0] === '</div>' ? -1 : 1;
+                if (depth === 0) { end = re.lastIndex; break; }
+            }
+            if (end === -1 || !/^\s*<\/div>\s*`/.test(SRC_JS.slice(end, end + 80))) return false;
+            at = SRC_JS.indexOf(open, at + open.length);
+        }
+        return seen > 0;
+    }
+}];
+const stickies = stickyProblems(rules, STICKY_OK);
+stickies.forEach(s => ok('position: sticky on ' + s.sel + ' at L' + lineOf(s.line) + ' has a fallback', false, s.why));
+ok('every position: sticky has a fallback that can be named and holds', stickies.length === 0);
+// The comment said it "holds on both television baselines". It does not on webOS 4.5.
+ok('no comment claims sticky holds on both television baselines',
+    !/sticky[\s\S]{0,200}holds\s+on\s+both\s+television/i.test(css));
 
 console.log();
 console.log('  baseline Chromium ' + BASELINE + ': ' + pass + ' passed, ' + fails.length + ' failed');

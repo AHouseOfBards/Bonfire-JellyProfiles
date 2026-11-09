@@ -854,7 +854,14 @@ body.profiles-no-scroll [id*="spinner"] {
    sets box-shadow and border-color on .profile-avatar. Listing the
    same three states keeps the specificity above it. */
 .profile-card:hover .profile-avatar.is-transparent,
-.profile-card:focus .profile-avatar.is-transparent,
+.profile-card:focus .profile-avatar.is-transparent {
+    box-shadow: none;
+    border-color: transparent;
+}
+/* :focus-within is its own rule, here and in the four below: it is Chrome 60, and on
+   Chromium 53 (webOS 4.5) one selector it cannot parse drops every rule it is listed
+   in, so sharing a list with :hover and :focus took those down with it. Each is
+   directly after the rule it was split from, so the cascade is unchanged. */
 .profile-card:focus-within .profile-avatar.is-transparent {
     box-shadow: none;
     border-color: transparent;
@@ -867,7 +874,14 @@ body.profiles-no-scroll [id*="spinner"] {
    the box-shadow glow rebuilt so it follows the picture instead of the
    box it no longer fills. */
 .profile-card:hover .profile-avatar.is-transparent img,
-.profile-card:focus .profile-avatar.is-transparent img,
+.profile-card:focus .profile-avatar.is-transparent img {
+    filter:
+        drop-shadow(3px 0 0 var(--jpf-ring))
+        drop-shadow(-3px 0 0 var(--jpf-ring))
+        drop-shadow(0 3px 0 var(--jpf-ring))
+        drop-shadow(0 -3px 0 var(--jpf-ring))
+        drop-shadow(0 6px 20px var(--jpf-accent));
+}
 .profile-card:focus-within .profile-avatar.is-transparent img {
     filter:
         drop-shadow(3px 0 0 var(--jpf-ring))
@@ -891,7 +905,11 @@ body.profiles-no-scroll [id*="spinner"] {
     margin-top: 2px;
 }
 .profile-card:hover .profile-avatar,
-.profile-card:focus .profile-avatar,
+.profile-card:focus .profile-avatar {
+    transform: scale(var(--jpf-hover-scale));
+    box-shadow: var(--jpf-hover-glow);
+    border-color: var(--jpf-ring);
+}
 .profile-card:focus-within .profile-avatar {
     transform: scale(var(--jpf-hover-scale));
     box-shadow: var(--jpf-hover-glow);
@@ -905,7 +923,10 @@ body.profiles-no-scroll [id*="spinner"] {
     background: var(--jpf-add-bg) !important; color: var(--jpf-add-color);
 }
 .profile-card:hover .add-avatar,
-.profile-card:focus .add-avatar,
+.profile-card:focus .add-avatar {
+    border-color: var(--jpf-ring); color: var(--jpf-name-hover);
+    background: var(--jpf-add-hover-bg) !important;
+}
 .profile-card:focus-within .add-avatar {
     border-color: var(--jpf-ring); color: var(--jpf-name-hover);
     background: var(--jpf-add-hover-bg) !important;
@@ -938,7 +959,10 @@ body.profiles-no-scroll [id*="spinner"] {
     width: 140px; text-align: center;
 }
 .profile-card:hover .profile-name,
-.profile-card:focus .profile-name,
+.profile-card:focus .profile-name {
+    opacity: 1;
+    color: var(--jpf-name-hover);
+}
 .profile-card:focus-within .profile-name {
     opacity: 1;
     color: var(--jpf-name-hover);
@@ -2047,7 +2071,10 @@ body.profiles-no-scroll [id*="spinner"] {
     border-bottom: 1px solid var(--jpf-border-1);
     transition: background 0.2s;
 }
-.device-dropdown-item:hover, .device-dropdown-item:focus-within {
+.device-dropdown-item:hover {
+    background: var(--jpf-surface-1);
+}
+.device-dropdown-item:focus-within {
     background: var(--jpf-surface-1);
 }
 /* Settings -> Your account -> Devices: the same rows, drawn open rather than in a

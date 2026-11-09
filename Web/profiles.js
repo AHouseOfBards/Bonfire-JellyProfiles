@@ -552,7 +552,9 @@
             css += sel + ' .profile-card.action-add-profile .profile-avatar-container::before { display: none; }\n'
                 + sel + ' .profile-avatar { z-index: 1; box-sizing: border-box; }\n'
                 + sel + ' .profile-card:hover .profile-avatar-container,\n'
-                + sel + ' .profile-card:focus .profile-avatar-container,\n'
+                + sel + ' .profile-card:focus .profile-avatar-container { transform: scale(' + focusScale + '); }\n'
+                // Its own rule: :focus-within is Chrome 60, and a selector Chromium 53 cannot
+                // parse drops every other selector listed with it.
                 + sel + ' .profile-card:focus-within .profile-avatar-container { transform: scale(' + focusScale + '); }\n';
             // The small preview in the pickers: three tiles, each framed in the colour
             // halfway along its gradient (a box-shadow cannot be a gradient). Written here
