@@ -2247,6 +2247,13 @@ body.profiles-no-scroll [id*="spinner"] {
     font-size: 1.5rem;
     padding: 16px 36px;
 }
+/* The PIN screens' button row is capped at --jpf-w-narrow (420px), sized for 1rem
+   buttons. A television's are 1.5rem with 36px of padding, two of them plus the gap
+   come to more than 420px at 1080p, and the row wrapped: Cancel over Submit, hard
+   left. 720p and desktop fit, which is why it was only seen on the big screen. */
+.jpf-tv .pin-actions {
+    max-width: calc(var(--jpf-w-narrow) * 1.6);
+}
 .jpf-tv .profile-section-title {
     font-size: 1.6rem;
 }
