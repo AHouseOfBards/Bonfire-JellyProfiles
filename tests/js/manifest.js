@@ -151,6 +151,25 @@ ok('the release workflow rejects a checksum that already belongs to another vers
 ok('and says so as an error rather than a warning',
    /same checksum as/.test(wf) && /::error::/.test(wf));
 
+console.log('\n── Campground hears about stable releases, and only those ──────');
+
+// Campground offers everything it is told about to every server on its link, so a beta
+// reaching it is a beta offered to everyone. It also copies the entry it is told about,
+// so it must not hear before the bot's checksum commit and the download are verified.
+const steps = wf.split(/\n(?=      - name: )/);
+const tellIdx = steps.findIndex(function (s) { return /Campground-Jellyfin\/dispatches/.test(s); });
+const tell = tellIdx === -1 ? '' : steps[tellIdx];
+const verifyIdx = steps.findIndex(function (s) { return /name: Verify published asset/.test(s); });
+ok('a release tells Campground', tellIdx !== -1);
+ok('only a stable release does', /\n\s+if: steps\.version\.outputs\.channel == 'stable'\n/.test(tell));
+ok('and only after the published download is verified', verifyIdx !== -1 && tellIdx > verifyIdx);
+// The release is already public by now. A dead token must not paint it red.
+ok('a failure there does not fail the release', /\n\s+continue-on-error: true\n/.test(tell));
+ok('it names the plugin Campground lists it under', /client_payload\[plugin\]=Bonfire/.test(tell));
+ok('and the version, passed through env rather than pasted into the script',
+   /\n\s+V: \$\{\{ steps\.version\.outputs\.version \}\}\n/.test(tell) &&
+   /client_payload\[version\]=\$V/.test(tell));
+
 console.log('\n── Withdrawn versions stay withdrawn ───────────────────────────');
 
 // 1.6.1.2 and 1.6.1.3 blanked every sub-profile's authentication provider id

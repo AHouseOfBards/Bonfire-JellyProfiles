@@ -289,3 +289,25 @@ jobs:
             exit 1
           fi
           echo "✅ Published asset matches the manifest checksum. Install will succeed."
+
+      # Campground-Jellyfin is the one link for all the plugins. It copies the newest stable
+      # entry from main's manifest, so it hears only once that entry and its download are
+      # proven above, and never about a beta: it offers what it lists to everyone. The token
+      # is a fine-grained one limited to that repository. The release is already public at
+      # this point, so a dead token warns instead of failing it; the Run workflow button in
+      # Campground does the same job by hand.
+      - name: Tell Campground a stable version is out
+        if: steps.version.outputs.channel == 'stable'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.CAMPGROUND_TOKEN }}
+          V: ${{ steps.version.outputs.version }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::CAMPGROUND_TOKEN is not set. Run Update manifest in Campground-Jellyfin by hand."
+            exit 0
+          fi
+          gh api repos/AHouseOfBards/Campground-Jellyfin/dispatches --method POST \
+            -f event_type=plugin-released \
+            -f "client_payload[plugin]=Bonfire" \
+            -f "client_payload[version]=$V"
