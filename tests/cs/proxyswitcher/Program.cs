@@ -103,10 +103,17 @@ var usernames = new Dictionary<Guid, string> { [MASTER] = "Bard", [KIDS] = "Bard
 
 const string MOON_TOKEN = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const string ATV_TOKEN = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const string FR_TOKEN = "cccccccccccccccccccccccccccccccc";
+const string XX_TOKEN = "dddddddddddddddddddddddddddddddd";
+const string NONE_TOKEN = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 var deviceTokens = new Dictionary<string, (Guid, string)>
 {
     [MOON_TOKEN] = (MASTER, "Moonfin for Android TV"),
     [ATV_TOKEN] = (MASTER, "Jellyfin Android TV"),
+    // More Moonfin sessions of the same household, for the picker's language (P2-706).
+    [FR_TOKEN] = (MASTER, "Moonfin for Android TV"),
+    [XX_TOKEN] = (MASTER, "Moonfin for Android TV"),
+    [NONE_TOKEN] = (MASTER, "Moonfin for Android TV"),
 };
 var devices = DeviceManagerStub.Create(deviceTokens);
 var sessions = SessionManagerStub.Create();
@@ -174,7 +181,7 @@ MemoryStream lastBytes = null;
 // One request through the real middleware. Returns the body the app got, or null when
 // Jellyfin answered it (seenPath says what Jellyfin saw).
 (int status, string body, bool reachedJellyfin) Get(string pathAndQuery, string token = MOON_TOKEN, string client = "Moonfin for Android TV", string method = "GET",
-    string remote = "203.0.113.9", string forwardedFor = null)
+    string remote = "203.0.113.9", string forwardedFor = null, string acceptLanguage = null)
 {
     seenPath = seenQuery = seenAuth = null;
     var ctx = new DefaultHttpContext { RequestServices = throwFor == null ? services : new ThrowingProvider(services, throwFor) };
@@ -184,6 +191,7 @@ MemoryStream lastBytes = null;
     if (q >= 0) ctx.Request.QueryString = new QueryString(pathAndQuery[q..]);
     ctx.Connection.RemoteIpAddress = IPAddress.Parse(remote);
     if (forwardedFor != null) ctx.Request.Headers["X-Forwarded-For"] = forwardedFor;
+    if (acceptLanguage != null) ctx.Request.Headers["Accept-Language"] = acceptLanguage;
     ctx.Request.Headers["Authorization"] =
         "MediaBrowser Client=\"" + client + "\", Device=\"Shield\", DeviceId=\"moon-1\", Version=\"1.4.0\", Token=\"" + token + "\"";
     var sink = new MemoryStream();
@@ -794,6 +802,27 @@ else
     wrapped.SendAsync(new ArraySegment<byte>(bytes, 30, bytes.Length - 30), WebSocketMessageType.Text, true, CancellationToken.None).GetAwaiter().GetResult();
     Ok("a watched-state message carries the main account's id, so the app keeps it",
        inner.Sent.Count == 1 && inner.Sent[0].Contains(N(MASTER)) && !inner.Sent[0].Contains(N(KIDS)), string.Join(" | ", inner.Sent));
+}
+
+// ── The picker's own words, in the app's language (P2-706) ───────────────────
+Console.WriteLine();
+Console.WriteLine("── The picker speaks the app's language ────────────────────────");
+{
+    // The app's Accept-Language decides, fixed when the session starts. The French words
+    // come from Web/i18n/fr.json, the same file the mail's are.
+    var fr = Get("/UserViews", token: FR_TOKEN, acceptLanguage: "fr-FR,fr;q=0.9,en;q=0.8");
+    Ok("the folder is named in French", Names(fr.body) == "Profils", Names(fr.body));
+    var frTiles = Get("/Users/" + N(MASTER) + "/Items?ParentId=" + IdOf(fr.body, "Profils") + "&Recursive=false", token: FR_TOKEN, acceptLanguage: "fr-FR");
+    var frKids = (string)Items(frTiles.body).FirstOrDefault(i => ((string)i["Name"]) == "Kids")?["Id"];
+    var frPad = Get("/Users/" + N(MASTER) + "/Items?ParentId=" + frKids + "&Recursive=false", token: FR_TOKEN, acceptLanguage: "fr-FR");
+    Ok("the keypad's Delete and OK are too", Names(frPad.body) == "1, 2, 3, 4, 5, 6, 7, 8, 9, 0, Effacer, OK", Names(frPad.body));
+
+    // A language the plugin has no file for falls back to English, key by key.
+    var xx = Get("/UserViews", token: XX_TOKEN, acceptLanguage: "tlh");
+    Ok("a language with no file is English", Names(xx.body) == "Profiles", Names(xx.body));
+    // And an app that sends none, with nothing stored, is as before.
+    var none = Get("/UserViews", token: NONE_TOKEN);
+    Ok("no Accept-Language is English", Names(none.body) == "Profiles", Names(none.body));
 }
 
 Console.WriteLine();

@@ -480,6 +480,9 @@ namespace Jellyfin.Profiles.Auth
             public string Device = string.Empty;
             public string DeviceId = string.Empty;
             public string Version = string.Empty;
+
+            /// <summary>The words on the picker's tiles are in this language; empty is English.</summary>
+            public string Language = string.Empty;
             public readonly byte[] Secret = RandomNumberGenerator.GetBytes(16);
             public readonly SemaphoreSlim Gate = new(1, 1);
             public readonly ConcurrentDictionary<Guid, Tile> Tiles = new();
@@ -572,6 +575,7 @@ namespace Jellyfin.Profiles.Auth
                 Device = device.DeviceName ?? string.Empty,
                 DeviceId = device.DeviceId ?? string.Empty,
                 Version = device.AppVersion ?? string.Empty,
+                Language = PickerLanguage(request, config, device.UserId),
             };
 
             session = Sessions.GetOrAdd(token, session);
@@ -580,6 +584,24 @@ namespace Jellyfin.Profiles.Auth
                 session.Client, session.Device);
             return session;
         }
+
+        /// <summary>
+        /// The language for the picker's tiles: the app's own (Accept-Language, first tag),
+        /// else the one stored with the main account's email address, else English. Fixed for
+        /// the session, because a tile's name is part of its id (<see cref="MakeTile"/>).
+        /// </summary>
+        private static string PickerLanguage(HttpRequest request, PluginConfiguration? config, Guid masterId)
+        {
+            var header = request.Headers[HeaderNames.AcceptLanguage].ToString();
+            var first = header.Split(',')[0].Split(';')[0].Trim();
+            var language = Mail.EmailText.CleanLanguage(first);
+            if (language.Length == 0)
+                language = Mail.EmailText.CleanLanguage(config?.AccountEmails?.FirstOrDefault(a => a.UserId == masterId)?.Language);
+            return language;
+        }
+
+        /// <summary>A piece of the picker's own text in the session's language.</summary>
+        private static string Say(ProxySession session, string key) => Mail.EmailText.Get(key, session.Language);
 
         private static bool HasProfiles(PluginConfiguration? config, Guid masterId)
             => config?.Mappings != null
@@ -614,9 +636,9 @@ namespace Jellyfin.Profiles.Auth
             return tile;
         }
 
-        private static Tile ProfilesView(ProxySession s) => MakeTile(s, TileKind.ProfilesView, Guid.Empty, Guid.Empty, string.Empty, string.Empty, "Profiles");
+        private static Tile ProfilesView(ProxySession s) => MakeTile(s, TileKind.ProfilesView, Guid.Empty, Guid.Empty, string.Empty, string.Empty, Say(s, "notice.picker.profiles"));
 
-        private static Tile SwitchView(ProxySession s) => MakeTile(s, TileKind.SwitchView, Guid.Empty, Guid.Empty, string.Empty, string.Empty, "Switch profile");
+        private static Tile SwitchView(ProxySession s) => MakeTile(s, TileKind.SwitchView, Guid.Empty, Guid.Empty, string.Empty, string.Empty, Say(s, "notice.picker.switch"));
 
         private static async Task<bool> AnswerPickerAsync(
             HttpContext context, ProxySession session, Route route, PluginConfiguration? config, Services services, Func<Task> forward)
@@ -929,8 +951,9 @@ namespace Jellyfin.Profiles.Auth
                 tiles.Add(MakeTile(session, TileKind.Key, parentId, profileId, entered, d, d));
             }
 
-            tiles.Add(MakeTile(session, TileKind.Key, parentId, profileId, entered, "del", "Delete"));
-            tiles.Add(MakeTile(session, TileKind.Key, parentId, profileId, entered, "ok", entered.Length == 0 ? "OK" : "OK " + new string('•', entered.Length)));
+            tiles.Add(MakeTile(session, TileKind.Key, parentId, profileId, entered, "del", Say(session, "notice.picker.delete")));
+            var okWord = Say(session, "notice.picker.ok");
+            tiles.Add(MakeTile(session, TileKind.Key, parentId, profileId, entered, "ok", entered.Length == 0 ? okWord : okWord + " " + new string('•', entered.Length)));
             return tiles;
         }
 
@@ -962,7 +985,7 @@ namespace Jellyfin.Profiles.Auth
             // five tries on one press.
             if (session.LastWrongOk == key.Id && DateTime.UtcNow - session.LastWrongOkAt < RepeatWindow)
             {
-                return Keypad(session, key.ProfileId, string.Empty, key.Id, "Wrong PIN");
+                return Keypad(session, key.ProfileId, string.Empty, key.Id, Say(session, "notice.picker.wrongPin"));
             }
 
             var mapping = config?.Mappings?.FirstOrDefault(m => m.ProfileUserId == key.ProfileId && m.MasterUserId == session.MasterId);
@@ -973,14 +996,14 @@ namespace Jellyfin.Profiles.Auth
             if (!BonfirePinAuthenticationProvider.BeginPinAttempt(key.ProfileId))
             {
                 logger.LogWarning("ProfilesPlugin: too many wrong PINs for profile {ProfileId} on the picker.", key.ProfileId);
-                return Keypad(session, key.ProfileId, string.Empty, key.Id, "Too many tries. Try later.");
+                return Keypad(session, key.ProfileId, string.Empty, key.Id, Say(session, "notice.picker.tooMany"));
             }
 
             if (PinHasher.Verify(key.Entered, mapping.PinHash) != PinHasher.PinResult.Match)
             {
                 session.LastWrongOk = key.Id;
                 session.LastWrongOkAt = DateTime.UtcNow;
-                return Keypad(session, key.ProfileId, string.Empty, key.Id, "Wrong PIN");
+                return Keypad(session, key.ProfileId, string.Empty, key.Id, Say(session, "notice.picker.wrongPin"));
             }
 
             BonfirePinAuthenticationProvider.EndPinAttempt(key.ProfileId);
@@ -1013,11 +1036,11 @@ namespace Jellyfin.Profiles.Auth
             }
 
             var mapping = config?.Mappings?.FirstOrDefault(m => m.ProfileUserId == profileId && m.MasterUserId == session.MasterId);
-            if (mapping == null || services.Users == null || services.Sessions == null) return "Couldn't open this profile.";
+            if (mapping == null || services.Users == null || services.Sessions == null) return Say(session, "notice.picker.cantOpen");
 
             if (MaintenanceGate.Active() != null && !MaintenanceGate.IsAdmin(services.Users, profileId))
             {
-                return "Closed for maintenance.";
+                return Say(session, "notice.picker.maintenance");
             }
 
             var access = Controllers.ProfilesBaseController.EvaluateDeviceRestriction(
@@ -1026,18 +1049,18 @@ namespace Jellyfin.Profiles.Auth
                 && access != Controllers.ProfilesBaseController.DeviceAccess.Allowed)
             {
                 logger.LogWarning("ProfilesPlugin: the picker refused profile {ProfileId} on device {DeviceId} ({Reason}).", profileId, session.DeviceId, access);
-                return "Not allowed on this device.";
+                return Say(session, "notice.picker.device");
             }
 
             var user = services.Users.GetUserById(profileId);
-            if (user == null) return "Couldn't open this profile.";
+            if (user == null) return Say(session, "notice.picker.cantOpen");
 
             // The main account too: turning it off in Dashboard -> Users never touched its
             // profiles' accounts, so they stayed open from the picker (R-1135).
             if (services.Users.GetUserDto(user, string.Empty).Policy?.IsDisabled == true
                 || Controllers.ProfilesBaseController.MainAccountDisabled(services.Users, mapping))
             {
-                return "This profile is turned off.";
+                return Say(session, "notice.picker.off");
             }
 
             if (services.Libraries != null
@@ -1079,13 +1102,13 @@ namespace Jellyfin.Profiles.Auth
             {
                 logger.LogWarning(ex, "ProfilesPlugin: the picker could not open {User}.", user.Username);
                 return ex.Message.Contains("device", StringComparison.OrdinalIgnoreCase)
-                    ? "Not allowed on this device."
-                    : "Too many sessions for this profile.";
+                    ? Say(session, "notice.picker.device")
+                    : Say(session, "notice.picker.sessions");
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogError(ex, "ProfilesPlugin: the picker could not open {User}.", user.Username);
-                return "Couldn't open this profile.";
+                return Say(session, "notice.picker.cantOpen");
             }
 
             await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
