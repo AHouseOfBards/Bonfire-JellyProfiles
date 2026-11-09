@@ -2094,6 +2094,24 @@ body.profiles-no-scroll [id*="spinner"] {
     }
 }
 
+/* The library is a grid, and grid is Chrome 57: on webOS 4.5 (Chromium 53) it was a
+   block of buttons with no size. A wrapping row of fixed 56px tiles instead, spaced
+   with margins because that browser has no flex gap either. The padding-top trick
+   above sizes against the container's width, which a fixed tile must not, so it is
+   undone here. Only where grid is missing: elsewhere the grid draws it. */
+@supports not (display: grid) {
+    .avatar-library-grid {
+        display: flex;
+        flex-wrap: wrap;
+    }
+    .avatar-library-item {
+        width: 56px;
+        height: 56px;
+        padding-top: 0;
+        margin: 0 8px 8px 0;
+    }
+}
+
 /* ── Flex gap, replaced with margins where it does nothing ────────
    Flex gap is Chrome 84. On both television baselines every gap on a
    flex container is ignored and the children sit flush against each
