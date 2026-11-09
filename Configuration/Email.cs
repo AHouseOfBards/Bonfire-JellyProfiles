@@ -32,7 +32,11 @@ namespace Jellyfin.Profiles.Configuration
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string FromAddress { get; set; } = string.Empty;
-        public string FromName { get; set; } = "Bonfire";
+
+        // The name mail is sent under used to be a setting. It is "Bonfire" now, always
+        // (Mailer.FromDisplayName). A file that still has the element loads; the next save
+        // leaves it out. Nothing in the connection depended on it, so the fingerprint below
+        // is unchanged and a verified setup stays verified.
 
         /// <summary>The <see cref="Fingerprint"/> at the last test that went through.</summary>
         public string VerifiedFingerprint { get; set; } = string.Empty;

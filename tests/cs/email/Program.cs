@@ -255,8 +255,11 @@ r = Admin("UpdateEmailSettings", B(("Security", "ssl")));
 Ok("an unknown security mode is refused", r.status == 400);
 r = Admin("UpdateEmailSettings", B(("FromAddress", "not an address")));
 Ok("a bad From address is refused", r.status == 400);
-r = Admin("UpdateEmailSettings", B(("FromName", "Bonfire\r\nBcc: someone@example.com")));
-Ok("a From name with a line break is refused", r.status == 400);
+// The name mail is sent under is not a setting: nothing a request or a file says can put a
+// header or a line break there. (The sender itself needs a mail server to run; this is
+// the constant it uses.)
+Ok("there is no From name setting to put a line break in", asm.GetType("Jellyfin.Profiles.Configuration.EmailSettings", true).GetProperty("FromName") == null);
+Ok("mail is sent as Bonfire", (string)asm.GetType("Jellyfin.Profiles.Mail.Mailer", true).GetField("FromDisplayName", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public).GetRawConstantValue() == "Bonfire");
 
 r = Admin("UpdateEmailSettings", B(("Host", " smtp.example.com "), ("Port", (int?)587), ("Security", "STARTTLS"),
     ("Username", "bonfire@example.com"), ("Password", "s3cret"), ("FromAddress", "bonfire@example.com")));

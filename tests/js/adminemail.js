@@ -72,7 +72,7 @@ function el(extra) {
 function makeWorld(state, opts) {
     opts = opts || {};
     const ids = ['emailHost', 'emailPort', 'emailSecurity', 'emailUsername', 'emailPassword', 'emailPasswordHint',
-        'emailFrom', 'emailFromName', 'emailStatus', 'enablePinResetByEmail', 'pinResetNeedsEmail', 'emailAccounts',
+        'emailFrom', 'emailStatus', 'enablePinResetByEmail', 'pinResetNeedsEmail', 'emailAccounts',
         'emailResult', 'emailTestTo'];
     const els = {};
     ids.forEach(id => { els[id] = el(); });
@@ -109,7 +109,7 @@ const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(
 
     const working = {
         host: 'smtp.example.com', port: 587, security: 'starttls', username: 'u', hasPassword: true,
-        fromAddress: 'bonfire@example.com', fromName: 'Bonfire', configured: true, verified: true, pinResetByEmail: false,
+        fromAddress: 'bonfire@example.com', configured: true, verified: true, pinResetByEmail: false,
         accounts: [{ userId: 'u1', name: '<b>Bard</b>', address: 'bard@example.com' }]
     };
     let w = makeWorld(working);

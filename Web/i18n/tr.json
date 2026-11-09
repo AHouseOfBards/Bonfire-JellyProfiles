@@ -956,7 +956,6 @@
   "admin.email.usernameHint": "Sunucunuz istemiyorsa boş bırakın.",
   "admin.email.password": "Parola",
   "admin.email.from": "Gönderen adresi",
-  "admin.email.fromName": "Gönderen adı",
   "admin.email.testTo": "Testi şu adrese gönder",
   "admin.email.testHint": "Bir test ulaştığında e-posta çalışır.",
   "admin.email.saveAndTest": "Kaydet ve test gönder",

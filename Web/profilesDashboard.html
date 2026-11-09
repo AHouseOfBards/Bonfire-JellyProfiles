@@ -1155,10 +1155,6 @@
                     <input is="emby-input" type="email" id="emailFrom" autocomplete="off" />
                 </div>
                 <div class="inputContainer jpf-form-narrow">
-                    <label class="inputLabel" for="emailFromName" data-i18n="admin.email.fromName">From name</label>
-                    <input is="emby-input" type="text" id="emailFromName" maxlength="100" autocomplete="off" />
-                </div>
-                <div class="inputContainer jpf-form-narrow">
                     <label class="inputLabel" for="emailTestTo" data-i18n="admin.email.testTo">Send a test to</label>
                     <input is="emby-input" type="email" id="emailTestTo" autocomplete="email" />
                     <div class="fieldDescription" data-i18n="admin.email.testHint">Email works once a test goes through.</div>
@@ -5075,7 +5071,6 @@
                 page.querySelector('#emailPassword').value = '';
                 page.querySelector('#emailPasswordHint').textContent = field(s, 'hasPassword') ? t('admin.email.passwordKept') : '';
                 page.querySelector('#emailFrom').value = field(s, 'fromAddress') || '';
-                page.querySelector('#emailFromName').value = field(s, 'fromName') || '';
 
                 const status = page.querySelector('#emailStatus');
                 status.className = 'jpf-note' + (verified ? ' jpf-note-ok' : configured ? ' jpf-note-warn' : '');
@@ -5162,8 +5157,7 @@
                     port: Number.isFinite(port) ? port : 587,
                     security: page.querySelector('#emailSecurity').value === 'none' ? 'none' : 'starttls',
                     username: page.querySelector('#emailUsername').value.trim(),
-                    fromAddress: page.querySelector('#emailFrom').value.trim(),
-                    fromName: page.querySelector('#emailFromName').value.trim()
+                    fromAddress: page.querySelector('#emailFrom').value.trim()
                 };
                 // Blank keeps the stored one: the form never holds it.
                 const password = page.querySelector('#emailPassword').value;

@@ -246,6 +246,25 @@ if (files.Count > 0)
             baseline.Replace("<IndexInjectionMode>middleware</IndexInjectionMode>", "<IndexInjectionMode>" + mode + "</IndexInjectionMode>"),
             "<IndexInjectionMode>" + mode + "</IndexInjectionMode>");
 
+    // EmailSettings.FromName. The 1.7.1 golden file predates the email settings, so the
+    // section is added here, as a 1.9 beta wrote it, with and without the name. The setup
+    // was tested, so it also carries its fingerprint; cutting the name must not undo that,
+    // or every administrator's PIN reset by email would stop on upgrade.
+    {
+        const string EmailTail = "<Host>smtp.example.com</Host><Port>2525</Port><Security>none</Security>"
+            + "<Username>mailer</Username><Password>app-password</Password><FromAddress>bonfire@example.com</FromAddress>";
+        string WithEmail(string extra, string fingerprint) =>
+            baseline.Replace("</PluginConfiguration>", "<Email>" + EmailTail + extra
+                + (fingerprint == null ? "" : "<VerifiedFingerprint>" + fingerprint + "</VerifiedFingerprint>") + "</Email></PluginConfiguration>");
+        var emailProp = cfgType.GetProperty("Email");
+        var fingerprint = (string)emailProp.PropertyType.GetMethod("Fingerprint").Invoke(emailProp.GetValue(Read(WithEmail("", null))), null);
+        baselineLeaves = Leaves(Write(Read(WithEmail("", fingerprint))));
+        CutCase("email From name", WithEmail("<FromName>Hearth</FromName>", fingerprint), "<FromName>Hearth</FromName>");
+        var loadedEmail = emailProp.GetValue(Read(WithEmail("<FromName>Hearth</FromName>", fingerprint)));
+        Ok("a tested email setup is still tested", (bool)emailProp.PropertyType.GetProperty("IsVerified").GetValue(loadedEmail));
+        baselineLeaves = Leaves(Write(Read(baseline)));
+    }
+
     // ProfileMapping.SwitcherMode. The golden file has gate on both mappings, beside an
     // explicit AskOnStartup and SwitcherLocation. Whatever the old field said, an explicit
     // choice stands, so every other value is the same.

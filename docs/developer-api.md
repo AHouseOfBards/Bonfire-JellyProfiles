@@ -1687,7 +1687,6 @@ changed. Profiles' PINs are reset by the main account, not by email.
   "username": "bonfire@example.com",
   "hasPassword": true,
   "fromAddress": "bonfire@example.com",
-  "fromName": "Bonfire",
   "configured": true,
   "verified": true,
   "pinResetByEmail": false,
@@ -1710,8 +1709,7 @@ The password is never returned.
 | `security` | string | `starttls`, or `none` for a relay on your own network. |
 | `username` | string | Empty for a server that takes none. |
 | `password` | string | Omit to keep the stored one; empty clears it. |
-| `fromAddress` | string | The address mail comes from. |
-| `fromName` | string | The name shown with it. |
+| `fromAddress` | string | The address mail comes from. It is shown as "Bonfire". |
 
 All optional. Returns the `GET` shape. Changing anything the connection uses makes it
 unverified until the next test, and everything that needs email stops until then.

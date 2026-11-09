@@ -17,7 +17,6 @@ namespace Jellyfin.Profiles.Models
         public string? Password { get; set; }
 
         public string? FromAddress { get; set; }
-        public string? FromName { get; set; }
     }
 
     /// <summary>POST /admin/email/test.</summary>

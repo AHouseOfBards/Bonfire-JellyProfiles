@@ -158,7 +158,7 @@ var byHand = new Dictionary<string, object>
     ["ProxyClients"] = new List<string> { "moonfin" },
     ["AccountEmails"] = ListOf(T("AccountEmail"), Item("AccountEmail", ("UserId", MASTER), ("Address", "bard@example.com"), ("Language", "de"), ("NotifyLimitReached", true))),
     ["Email"] = Item("EmailSettings", ("Host", "smtp.example.com"), ("Port", 2525), ("Username", "mailer"), ("Password", "app-password"),
-        ("FromAddress", "bonfire@example.com"), ("FromName", "Hearth"), ("Security", "none")),
+        ("FromAddress", "bonfire@example.com"), ("Security", "none")),
     ["Maintenance"] = Item("MaintenanceMode", ("Enabled", true), ("Message", "Back at nine."), ("StopPlayback", true)),
     ["Onboarding"] = Item("OnboardingSettings", ("Enabled", true), ("WelcomeText", "Welcome home."), ("Generation", 4)),
     ["DefaultTheme"] = "harbor",
@@ -266,6 +266,13 @@ Console.WriteLine("── A backup from a version that had settings since cut �
         return rows;
     }
     older["Mappings"] = WithSwitcherMode("gate");
+
+    // EmailSettings.FromName: the name mail was sent under. It sits inside the Email section.
+    var emailSection = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(fileConfig["Email"].GetRawText());
+    var emailWithName = new Dictionary<string, object>();
+    foreach (var kv in emailSection) emailWithName[kv.Key] = kv.Value;
+    emailWithName["FromName"] = "Hearth";
+    older["Email"] = emailWithName;
     var olderBody = JsonSerializer.SerializeToElement(new { exportedUtc = "2026-01-01T00:00:00Z", pluginVersion = "1.7.4.0", configuration = older });
 
     Overwrite(live, Defaults());
@@ -277,6 +284,8 @@ Console.WriteLine("── A backup from a version that had settings since cut �
     Ok("and every other setting comes back", olderLost.Count == 0, string.Join(", ", olderLost));
     foreach (var name in oldFields.Keys)
         Ok(name + " is not a setting any more", cfgType.GetProperty(name) == null);
+    Ok("FromName is not an email setting any more", asm.GetType("Jellyfin.Profiles.Configuration.EmailSettings", true).GetProperty("FromName") == null);
+    Ok("and the rest of the email section came back", olderAfter["Email"] == snapshot["Email"]);
 
     // A native choice from 1.3.1-beta, on rows that never chose the two newer settings, is
     // carried into them rather than dropped with the field.

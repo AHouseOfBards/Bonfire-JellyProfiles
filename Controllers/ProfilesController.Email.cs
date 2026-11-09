@@ -57,7 +57,6 @@ namespace Jellyfin.Profiles.Controllers
                 Username = e.Username,
                 HasPassword = !string.IsNullOrEmpty(e.Password),
                 FromAddress = e.FromAddress,
-                FromName = e.FromName,
                 Configured = e.IsConfigured,
                 Verified = e.IsVerified,
                 PinResetByEmail = config.EnablePinResetByEmail,
@@ -98,8 +97,6 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest("That server name isn't valid.");
             if (request.FromAddress != null && request.FromAddress.Trim().Length > 0 && !Mailer.IsValidAddress(request.FromAddress))
                 return BadRequest("The From address isn't valid.");
-            if (request.FromName != null && (request.FromName.Length > 100 || request.FromName.IndexOfAny(new[] { '\r', '\n' }) >= 0))
-                return BadRequest("The From name can be at most 100 characters, on one line.");
 
             PluginConfiguration? saved;
             lock (ConfigLock)
@@ -121,7 +118,6 @@ namespace Jellyfin.Profiles.Controllers
                 if (request.Username != null) e.Username = request.Username.Trim();
                 if (request.Password != null) e.Password = request.Password;
                 if (request.FromAddress != null) e.FromAddress = request.FromAddress.Trim();
-                if (request.FromName != null) e.FromName = request.FromName.Trim();
 
                 Plugin.Instance?.SaveConfiguration();
                 saved = config.SnapshotForReading();

@@ -945,7 +945,6 @@
   "admin.email.usernameHint": "En blanco si tu servidor no lo necesita.",
   "admin.email.password": "Contraseña",
   "admin.email.from": "Dirección del remitente",
-  "admin.email.fromName": "Nombre del remitente",
   "admin.email.testTo": "Enviar una prueba a",
   "admin.email.testHint": "El correo funciona cuando una prueba llega.",
   "admin.email.saveAndTest": "Guardar y enviar prueba",

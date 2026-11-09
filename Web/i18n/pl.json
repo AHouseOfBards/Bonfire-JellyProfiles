@@ -945,7 +945,6 @@
   "admin.email.usernameHint": "Puste, jeśli serwer jej nie wymaga.",
   "admin.email.password": "Hasło",
   "admin.email.from": "Adres nadawcy",
-  "admin.email.fromName": "Nazwa nadawcy",
   "admin.email.testTo": "Wyślij test na",
   "admin.email.testHint": "E-mail działa, gdy test dotrze.",
   "admin.email.saveAndTest": "Zapisz i wyślij test",

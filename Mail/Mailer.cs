@@ -36,8 +36,7 @@ namespace Jellyfin.Profiles.Mail
         {
             using var message = new MailMessage
             {
-                From = new MailAddress(settings.FromAddress.Trim(),
-                    string.IsNullOrWhiteSpace(settings.FromName) ? "Bonfire" : settings.FromName.Trim()),
+                From = new MailAddress(settings.FromAddress.Trim(), Mailer.FromDisplayName),
                 Subject = subject,
                 Body = body,
                 IsBodyHtml = false,
@@ -67,6 +66,9 @@ namespace Jellyfin.Profiles.Mail
     /// <summary>Where Bonfire's mail goes out.</summary>
     internal static class Mailer
     {
+        /// <summary>The name shown beside the From address. Fixed.</summary>
+        internal const string FromDisplayName = "Bonfire";
+
         /// <summary>The real sender. Replaced by reflection in tests/cs/email.</summary>
         internal static IMailSender Sender = new SmtpMailSender();
 

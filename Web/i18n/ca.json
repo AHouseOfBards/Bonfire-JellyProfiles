@@ -945,7 +945,6 @@
   "admin.email.usernameHint": "En blanc si el servidor no en necessita.",
   "admin.email.password": "Contrasenya",
   "admin.email.from": "Adreça del remitent",
-  "admin.email.fromName": "Nom del remitent",
   "admin.email.testTo": "Envia una prova a",
   "admin.email.testHint": "El correu funciona quan una prova arriba.",
   "admin.email.saveAndTest": "Desa i envia una prova",

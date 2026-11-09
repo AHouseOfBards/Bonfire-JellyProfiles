@@ -75,7 +75,7 @@
         },
         'admin/maintenance': function () { return { enabled: false, message: '', untilUtc: null, startedUtc: null, stopPlayback: false }; },
         'admin/email': function () {
-            return { host: '', port: 587, security: 'starttls', username: '', hasPassword: false, fromAddress: '', fromName: '',
+            return { host: '', port: 587, security: 'starttls', username: '', hasPassword: false, fromAddress: '',
                 configured: false, verified: false, pinResetByEmail: false, accounts: [] };
         },
         'admin/panic-status': function () { return { isConfigured: false, isCurrentlyDisabled: false }; },

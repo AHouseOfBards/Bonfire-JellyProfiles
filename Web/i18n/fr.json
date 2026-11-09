@@ -945,7 +945,6 @@
   "admin.email.usernameHint": "Vide si votre serveur n'en demande pas.",
   "admin.email.password": "Mot de passe",
   "admin.email.from": "Adresse de l'expéditeur",
-  "admin.email.fromName": "Nom de l'expéditeur",
   "admin.email.testTo": "Envoyer un test à",
   "admin.email.testHint": "L'e-mail fonctionne dès qu'un test passe.",
   "admin.email.saveAndTest": "Enregistrer et envoyer un test",

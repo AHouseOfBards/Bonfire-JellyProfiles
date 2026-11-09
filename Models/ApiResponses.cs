@@ -113,7 +113,6 @@ namespace Jellyfin.Profiles.Models
         public string Username { get; set; } = string.Empty;
         public bool HasPassword { get; set; }
         public string FromAddress { get; set; } = string.Empty;
-        public string FromName { get; set; } = string.Empty;
 
         /// <summary>Enough is filled in to try.</summary>
         public bool Configured { get; set; }
