@@ -545,19 +545,25 @@ body.profiles-no-scroll [id*="spinner"] {
 /* The server's logo, top right (1.7.2). Absolute on the gate, which is the scroll box, so
    it goes up with the page instead of floating over a long form. Never a target: it is
    not a control, and on a TV it must not take focus from a profile. Kept small and away
-   from the title: 48px tall at most, a third of the width. On a TV, 5% in from each edge,
+   from the title: 72px tall at most (1.7.3: half as big again, rounded, with padding; the
+   text in the title's colour), a third of the width. On a TV, 5% in from each edge,
    the overscan safe area docs/themes.md promises to apps drawing the same thing. */
 #profiles-logo {
     position: absolute; top: 1rem; right: 1rem; z-index: 1;
     max-width: 33%; pointer-events: none;
-    color: var(--jpf-text-2); font-weight: 600; font-size: 1rem; line-height: 1.2;
+    color: var(--jpf-text-1); font-weight: 600; font-size: 1.5rem; line-height: 1.2;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    padding: 0.5rem 0.75rem; border-radius: 12px; box-sizing: border-box;
     top: calc(1rem + env(safe-area-inset-top));
     right: calc(1rem + env(safe-area-inset-right));
 }
-#profiles-logo img { display: block; max-width: 100%; max-height: 48px; width: auto; height: auto; margin-left: auto; }
-.jpf-tv #profiles-logo { top: 5vh; right: 5vw; max-width: 30vw; font-size: 1.4rem; }
-.jpf-tv #profiles-logo img { max-height: 72px; }
+#profiles-logo img { display: block; max-width: 100%; max-height: 72px; width: auto; height: auto; margin-left: auto; border-radius: 8px; }
+.jpf-tv #profiles-logo { top: 5vh; right: 5vw; max-width: 30vw; font-size: 2.1rem; }
+.jpf-tv #profiles-logo img { max-height: 108px; }
+/* Room for it above the content, so on a short screen it sits above the title rather than
+   on it. A logo and nothing else changes: the class is only set while one is drawn. */
+#profiles-gate-overlay.jpf-has-logo .profiles-modal-content { padding-top: 6.5rem; }
+.jpf-tv #profiles-gate-overlay.jpf-has-logo .profiles-modal-content { padding-top: calc(5vh + 124px + 1rem); }
 /* Announcements, above the title. Each theme colours them through its own accent, warn
    and danger tokens, so no theme needs a rule of its own. Margins, not flex gap: gap on a
    flex box is Chromium 84, and webOS 4.5 is 53. */

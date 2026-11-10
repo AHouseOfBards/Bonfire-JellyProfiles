@@ -12462,6 +12462,9 @@
                 if (box.parentNode) box.parentNode.removeChild(box);
                 box = null;
             }
+            // The logo is absolute, so it was drawn over the title and the tiles on a short
+            // screen. The class gives the gate's content room above it (see styles.css).
+            if (gate && gate.classList && !logo) gate.classList.remove('jpf-has-logo');
             if (!gate || !logo || box) return;
 
             box = document.createElement('div');
@@ -12469,7 +12472,11 @@
             box.setAttribute('data-logo', key);
             const asText = () => {
                 while (box.firstChild) box.removeChild(box.firstChild);
-                if (!logo.text) { if (box.parentNode) box.parentNode.removeChild(box); return; }
+                if (!logo.text) {
+                    if (box.parentNode) box.parentNode.removeChild(box);
+                    if (gate.classList) gate.classList.remove('jpf-has-logo');
+                    return;
+                }
                 box.className = 'is-text';
                 box.textContent = logo.text;
             };
@@ -12484,6 +12491,7 @@
                 asText();
             }
             gate.appendChild(box);
+            if (gate.classList && box.parentNode === gate) gate.classList.add('jpf-has-logo');
         },
 
         /// The custom themes and their fonts in <style id="jpf-themes-custom">, after the
