@@ -1775,6 +1775,10 @@ body.profiles-no-scroll [id*="spinner"] {
 /* ── First-time setup (1.7.2) ───────────────────────────────────────
    Margins, not flex gap: the whole setup runs on televisions first. */
 .jpf-onboarding { text-align: left; }
+/* The welcome is a title, one sentence and one button, not a form: pinned left under a
+   centred title it looked unfinished. The steps after it are forms and stay left. */
+.jpf-onboarding.jpf-onboarding-welcome { text-align: center; }
+.jpf-onboarding.jpf-onboarding-welcome .jpf-onboarding-actions { justify-content: center; }
 .jpf-onboarding-step {
     margin: 0 0 0.75rem 0;
     font-size: 0.8rem;

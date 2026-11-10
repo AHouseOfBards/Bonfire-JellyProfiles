@@ -10224,14 +10224,15 @@
         },
 
         /// The frame every step but the PIN shares: title, body, an error line, and the
-        /// buttons. A required step has no Skip.
-        _onboardingFrame: function (title, body, nextLabel, skip) {
+        /// buttons. A required step has no Skip. `extraClass` marks a step that is not a
+        /// form (the welcome), which centres.
+        _onboardingFrame: function (title, body, nextLabel, skip, extraClass) {
             this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
             if (!content) return null;
             content.innerHTML = `
                 <h1 class="profiles-title">${title}</h1>
-                <div class="create-profile-container jpf-onboarding" style="max-width: var(--jpf-w-form); width: 100%;">
+                <div class="create-profile-container jpf-onboarding${extraClass ? ' ' + extraClass : ''}" style="max-width: var(--jpf-w-form); width: 100%;">
                     ${this._onboardingStepLine()}
                     ${body}
                     <div id="onboarding-error" class="profiles-pin-error" role="alert" hidden></div>
@@ -10270,7 +10271,8 @@
         /// sends one is ignored.
         _onboardingWelcome: function (next) {
             const content = this._onboardingFrame(t('onboarding.welcomeTitle'),
-                `<p class="jpf-onboarding-text">${t('onboarding.welcomeBody')}</p>`, t('onboarding.start'), null);
+                `<p class="jpf-onboarding-text">${t('onboarding.welcomeBody')}</p>`, t('onboarding.start'), null,
+                'jpf-onboarding-welcome');
             if (!content) return;
             const go = content.querySelector('#onboarding-next');
             go.addEventListener('click', next);
