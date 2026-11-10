@@ -356,7 +356,7 @@ console.log('\n── The screens read the tokens instead of literals ───�
     ['.profile-avatar', 'border', 'var(--jpf-ring-w) solid transparent'],
     ['.profile-name', 'color', 'var(--jpf-name-color)'],
     ['.profiles-btn', 'border-radius', 'var(--jpf-btn-radius)'],
-    ['.btn-secondary', 'text-transform', 'var(--jpf-btn2-case)'],
+    ['.profiles-btn', 'text-transform', 'var(--jpf-btn2-case)'],
     ['.btn-secondary:focus', 'background', 'var(--jpf-btn2-hover-bg)'],
     ['.add-avatar', 'border', 'var(--jpf-add-border)'],
     ['.create-profile-container', 'background', 'var(--jpf-sheet-bg)'],

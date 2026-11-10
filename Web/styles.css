@@ -1232,16 +1232,30 @@ body.profiles-no-scroll [id*="spinner"] {
 #pin-reset-code:placeholder-shown, #pin-reset-new:placeholder-shown {
     font-size: 1rem; letter-spacing: normal;
 }
-#pin-reset-code::placeholder, #pin-reset-new::placeholder,
-#profile-pin-input::placeholder, #master-pin-input::placeholder, #main-pin-new::placeholder {
-    font-size: 1rem; letter-spacing: normal;
+/* Four dim dots until something is typed, like a phone's lock screen. Drawn as background
+   gradients, not placeholder text: there is nothing to translate, and a screen reader
+   hears the field's aria-label and not "bullet bullet". The boxes carry placeholder=" "
+   only so :placeholder-shown (Chromium 47) can tell empty from typed; ::placeholder is
+   Chromium 57 and would be dropped on a television. */
+#profile-pin-input:placeholder-shown, #master-pin-input:placeholder-shown, #main-pin-new:placeholder-shown,
+#pin-reset-new:placeholder-shown, #pin-reset-code:placeholder-shown {
+    background-image:
+        radial-gradient(circle 5px at 50% 50%, var(--jpf-text-3) 3.5px, transparent 5px),
+        radial-gradient(circle 5px at 50% 50%, var(--jpf-text-3) 3.5px, transparent 5px),
+        radial-gradient(circle 5px at 50% 50%, var(--jpf-text-3) 3.5px, transparent 5px),
+        radial-gradient(circle 5px at 50% 50%, var(--jpf-text-3) 3.5px, transparent 5px);
+    background-size: 10px 10px;
+    background-repeat: no-repeat;
+    background-position: calc(50% - 39px) 50%, calc(50% - 13px) 50%, calc(50% + 13px) 50%, calc(50% + 39px) 50%;
 }
 #create-pin-input, #edit-pin-input {
     -webkit-text-security: disc;
 }
 #profile-pin-input:focus, #master-pin-input:focus, #main-pin-new:focus, #pin-reset-new:focus, #pin-reset-code:focus {
-    border-color: var(--jpf-accent); outline: none;
-    box-shadow: 0 0 15px var(--jpf-accent-a30);
+    /* One ring. The accent border and glow that were here sat inside the 2px outline that
+       keyboard focus gets below, so a focused box was drawn twice. The outline stays: it
+       is the one a television thickens. */
+    outline: none;
 }
 
 /* Button Styling */
@@ -2717,11 +2731,6 @@ html.jpf-fading { transition: opacity 0.18s ease; }
 .jpf-flat #profiles-floating-bubble.profiles-floating-fallback,
 .jpf-flat #profiles-floating-bubble.profiles-floating-fallback:hover,
 .jpf-flat #profiles-floating-bubble.profiles-floating-fallback:focus,
-.jpf-flat #profile-pin-input:focus,
-.jpf-flat #master-pin-input:focus,
-.jpf-flat #main-pin-new:focus,
-.jpf-flat #pin-reset-new:focus,
-.jpf-flat #pin-reset-code:focus,
 .jpf-flat .btn-primary:hover,
 .jpf-flat .btn-primary:focus,
 .jpf-flat .btn-secondary:hover,
