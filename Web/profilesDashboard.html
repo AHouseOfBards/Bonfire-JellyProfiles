@@ -2363,13 +2363,10 @@
                     const open = masterUsers.filter(function (m) {
                         return field(m, 'requiresPin') !== true && (subsByMaster[normId(field(m, 'profileUserId'))] || []).length > 0;
                     }).length;
-                    const required = page.dataset.requireMainPin === '1';
-                    setStatus(page, 'pins', open
-                        ? [{ level: required ? 'warn' : 'info',
-                             text: open === 1 ? t('admin.status.openPinsOne') : t('admin.status.openPinsMany', { count: open }),
-                             tab: required ? 'households' : 'security', anchor: required ? 'jpfAccounts' : 'jpfPins',
-                             fix: required ? t('admin.status.seeWhich') : t('admin.status.requirePins') }]
-                        : []);
+                    setStatus(page, 'pins', pinStatusRows(open, page.dataset.requireMainPin === '1'));
+                    // Getting started asks for the same thing, so it leaves it to this row.
+                    page._openPins = open;
+                    renderGettingStarted(page);
 
                     // Neither state is an error, so neither gets an error colour. This was
                     // red for protected and green for unprotected, i.e. exactly backwards.
@@ -5521,14 +5518,29 @@
             // since the starter set is on by default; the emergency code bypasses the picker, so
             // Security warns against it in the same breath; and the rest are choices, not
             // chores. First-time setup is asked once instead, below.
+            // The Status row for main accounts that have profiles and no main PIN. A warning,
+            // so the headline counts it: it once read "Nothing needs your attention" over
+            // this very row, and over a Getting started item asking for the same PIN.
+            function pinStatusRows(open, required) {
+                if (!open) return [];
+                return [{ level: 'warn',
+                          text: open === 1 ? t('admin.status.openPinsOne') : t('admin.status.openPinsMany', { count: open }),
+                          tab: required ? 'households' : 'security', anchor: required ? 'jpfAccounts' : 'jpfPins',
+                          fix: required ? t('admin.status.seeWhich') : t('admin.status.requirePins') }];
+            }
+
             function gettingStartedItems(page) {
                 const c = page._config || {};
                 const r = page._mappings || null;
                 const subs = r ? (field(r, 'subProfiles') || []) : null;
                 const items = [
-                    { key: 'profiles', text: t('admin.gs.profiles'), done: subs === null ? null : subs.length > 0 },
-                    { key: 'pins', text: t('admin.gs.pins'), done: !!c.RequireMainPin, tab: 'security', anchor: 'jpfPins' }
+                    { key: 'profiles', text: t('admin.gs.profiles'), done: subs === null ? null : subs.length > 0 }
                 ];
+                // One row for one task: while Status is already naming the accounts with
+                // no main PIN, it carries the way to fix it.
+                if (c.RequireMainPin || !(page._openPins > 0)) {
+                    items.push({ key: 'pins', text: t('admin.gs.pins'), done: !!c.RequireMainPin, tab: 'security', anchor: 'jpfPins' });
+                }
                 // Only on a server whose own zone is UTC, which is what a container reports
                 // when nobody set one: viewing hours would then be read in UTC. Any other
                 // server's zone is a real answer, so it is never asked. The zone arrives with
