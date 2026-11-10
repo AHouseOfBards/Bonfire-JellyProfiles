@@ -49,7 +49,9 @@ const ALLOWED = {
         '.btn-primary:hover,\n.btn-primary:focus': 'a light edge on the accent fill',
         '.image-upload-preview': "a profile's initial on that profile's own colour",
         '#profiles-floating-bubble.profiles-floating-fallback':
-            "the fallback pill sits on jellyfin-web's page, not on Bonfire's"
+            "the fallback pill sits on jellyfin-web's page, not on Bonfire's",
+        '#profiles-logo.jpf-logo-back-light':
+            'set only behind a dark logo the theme would hide; it contrasts with the logo, not the theme (logobacking.js)'
     },
     js: {
         'class="profile-avatar-overlay-svg"': 'the edit pencil over a darkened picture',
