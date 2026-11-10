@@ -58,7 +58,17 @@
     <Compile Remove="tests\**" />
     <EmbeddedResource Remove="tests\**" />
     <None Remove="tests\**" />
+    <!-- Compiled through the Import below, which links each file under its own name. The
+         default glob would add every file a second time. -->
+    <Compile Remove="Campground.Shared\**" />
+    <None Remove="Campground.Shared\**" />
   </ItemGroup>
+
+  <!-- Campground.Shared, the library every Campground plugin compiles in as internal code.
+       A vendored copy: refresh it with tools/vendor-shared.sh in Campground-Coordination,
+       never by editing it here (CI checks the hashes in campground-shared.json). Bonfire
+       uses it for index.html, so the plugins share one middleware and one copy of each tag. -->
+  <Import Project="Campground.Shared\Campground.Shared.props" />
 
   <ItemGroup>
     <EmbeddedResource Include="Web/profilesDashboard.html" />

@@ -50,6 +50,21 @@ namespace Jellyfin.Profiles
             Instance = this;
             AppPaths = applicationPaths;
 
+            // Where Campground plugins keep their shared state (<data>/campground). The one
+            // thing Bonfire reads there today is the shared emergency brake, which the
+            // index.html coordinator checks: a file named DISABLE (everything) or
+            // DISABLE.bonfire leaves Bonfire's tags out of the page. The first plugin to
+            // call this sets the root; later calls are no-ops.
+            try
+            {
+                Campground.Shared.Storage.CampgroundPaths.Initialize(applicationPaths);
+            }
+            catch (Exception)
+            {
+                // A data folder that cannot be created costs only the file-based brake. The
+                // plugin itself must still start.
+            }
+
             // Before anything in this start can save: the configuration is read lazily, on
             // first use, and the first save is what overwrites the file.
             BackUpIfVersionChanged(runningVersion);

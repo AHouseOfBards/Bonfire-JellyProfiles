@@ -20,9 +20,14 @@ static string RepoPath(params string[] parts)
     return System.IO.Path.Combine(all.ToArray());
 }
 
-// Exercises the 1.4.1 injection path against the compiled plugin:
-//   - WebInjection.Inject / Remove / IsFullyInjected  — the shared HTML surgery
+// Exercises the injection path against the compiled plugin:
+//   - Campground.Shared IndexHtml.Apply, with Bonfire's own WebInjection.Registration
+//     — the HTML surgery done to every page served (2.0; WebInjection.Inject until then)
+//   - WebInjection.Remove                             — the cleanup of a file patched on disk
 //   - ProfilesIndexMiddleware.IsIndexPath             — what the middleware answers
+//
+// Apply is called with no browser runtime, so what is asserted is exactly Bonfire's two
+// fragments; tests/cs/pipeline covers the runtime.
 //
 // The point of most of these is the double-injection hazard: the on-disk patcher and the
 // middleware can both act on the same document, and the failure mode is two copies of
@@ -41,19 +46,36 @@ var mw = asm.GetType("Jellyfin.Profiles.ProfilesIndexMiddleware", true);
 
 const BindingFlags Flags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
 
-var injectM = wi.GetMethod("Inject", Flags) ?? throw new Exception("Inject not found");
+var indexHtml = asm.GetType("Campground.Shared.Injection.IndexHtml", true);
+var regType = asm.GetType("Campground.Shared.Injection.ScriptRegistration", true);
+var applyM = indexHtml.GetMethod("Apply", Flags) ?? throw new Exception("IndexHtml.Apply not found");
 var removeM = wi.GetMethod("Remove", Flags) ?? throw new Exception("Remove not found");
-var fullyM = wi.GetMethod("IsFullyInjected", Flags) ?? throw new Exception("IsFullyInjected not found");
 var isPathM = mw.GetMethod("IsIndexPath", Flags) ?? throw new Exception("IsIndexPath not found");
+var registration = wi.GetProperty("Registration", Flags)?.GetValue(null)
+    ?? throw new Exception("WebInjection.Registration not found");
 
 string ScriptVersion = (string)wi.GetProperty("ScriptVersion", Flags).GetValue(null);
 
+// A typed array, because Apply takes IReadOnlyList<ScriptRegistration>.
+var tags = Array.CreateInstance(regType, 1);
+tags.SetValue(registration, 0);
+
 (bool Changed, string Html) Inject(string html)
 {
-    var args = new object[] { html, null };
-    var changed = (bool)injectM.Invoke(null, args);
-    return (changed, (string)args[1]);
+    var args = new object[] { html, null, tags, null, null };
+    var changed = (bool)applyM.Invoke(null, args);
+    return (changed, (string)args[4]);
 }
+
+// What WebInjection.IsFullyInjected meant: both fragments there, once, naming this build —
+// and the coordinator agreeing there is nothing left to do, which is how it decides to pass
+// a page through. The second half alone is not enough: a document with a <head> and no
+// </body> leaves it nothing it CAN do, which is not the same as being injected.
+bool IsFullyInjected(string html) =>
+    !Inject(html).Changed
+    && CountScriptTags(html) == 1
+    && CountHeadScripts(html) == 1
+    && html.Contains($"profiles.js?v={ScriptVersion}", StringComparison.Ordinal);
 
 (bool Changed, string Html) Remove(string html)
 {
@@ -62,7 +84,6 @@ string ScriptVersion = (string)wi.GetProperty("ScriptVersion", Flags).GetValue(n
     return (changed, (string)args[1]);
 }
 
-bool IsFullyInjected(string html) => (bool)fullyM.Invoke(null, new object[] { html });
 bool IsIndexPath(string path, string baseUrl) => (bool)isPathM.Invoke(null, new object[] { path, baseUrl });
 
 int pass = 0, fail = 0;
@@ -155,13 +176,19 @@ Console.WriteLine("── An old head script is replaced, not duplicated ──�
 Console.WriteLine();
 Console.WriteLine("── A tag written by hand is recognised ──────────────────────");
 {
-    // Different quoting and attribute order — the version regex must still find it, or the
-    // dashboard reports "stale" forever and the middleware injects a second copy.
+    // Different quoting and attribute order. It must be recognised as ours, or the page gets
+    // a second copy: two scripts, two gates.
+    //
+    // Until 2.0 it was also left exactly as written, because WebInjection read the version
+    // back out and found it current. The coordinator compares whole tags instead, so it
+    // rewrites this one to its own form — still one tag, in the page as served; the file on
+    // disk is not touched. Asserted as it now is, rather than dropped.
     var hand = Clean.Replace("</body>",
         $"<script defer src='/plugins/profiles/profiles.js?v={ScriptVersion}'></script>\n</body>");
     var withHead = Inject(hand).Html;
     Check("only one body tag after injection", CountScriptTags(withHead), 1);
-    Check("hand-written tag was left in place", withHead.Contains("defer src='"), true);
+    Check("and it is this build's tag, in the coordinator's form",
+        withHead.Contains($"<script src=\"/plugins/profiles/profiles.js?v={ScriptVersion}\" defer></script>"), true);
 }
 
 Console.WriteLine();

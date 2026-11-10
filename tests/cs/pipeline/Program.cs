@@ -13,8 +13,12 @@ using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Model.Configuration;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // Drives ProfilesIndexMiddleware through a real ASP.NET request, which nothing has ever
@@ -27,6 +31,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 // what follows is about that: the capture has to survive SendFileAsync, a PipeWriter, and
 // another plugin's markup, and it has to hand back anything it cannot transform exactly
 // as it arrived.
+//
+// From 2.0 the document is edited by the Campground coordinator (Campground.Shared), which
+// sits inside ProfilesIndexMiddleware. So Run() does not construct either middleware: it asks
+// the plugin's own PluginServiceRegistrator what to register, and composes the startup
+// filters exactly as ASP.NET's GenericWebHostService does (last registered innermost). The
+// order the two are in, and that each is in at all, is then under test with everything else.
 
 int pass = 0;
 var fails = new List<string>();
@@ -71,9 +81,43 @@ var indexFile = Path.Combine(tempDir, "index.html");
 await File.WriteAllTextAsync(indexFile, PlainIndex);
 
 // ── Harness ────────────────────────────────────────────────────────────────
+// What Jellyfin's host would have: the plugin's registrations, plus the services the
+// middlewares take per request. The user-list injection takes the user, device, session and
+// network managers; the index path this file exercises never touches them, and the proxies
+// throw on any call — so if that ever stops being true, these tests say so loudly instead of
+// quietly exercising a different path.
+var services = new ServiceCollection();
+new PluginServiceRegistrator().RegisterServices(services, appHost);
+services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+services.AddSingleton(serverConfig);
+services.AddSingleton(userManager);
+services.AddSingleton(deviceManager);
+services.AddSingleton(sessionManager);
+services.AddSingleton(networkManager);
+services.AddSingleton(appHost);
+var provider = services.BuildServiceProvider();
+var startupFilters = provider.GetServices<IStartupFilter>().ToList();
+
+// GenericWebHostService: foreach (var filter in StartupFilters.Reverse()) configure =
+// filter.Configure(configure). The first filter registered ends up outermost.
+RequestDelegate Pipeline(RequestDelegate downstream)
+{
+    var app = new ApplicationBuilder(provider);
+    Action<IApplicationBuilder> configure = a => a.Run(downstream);
+    foreach (var filter in Enumerable.Reverse(startupFilters))
+    {
+        configure = filter.Configure(configure);
+    }
+
+    configure(app);
+    return app.Build();
+}
+
 async Task<Result> Run(string path, RequestDelegate downstream, Action<HttpContext> arrange = null)
 {
     var context = new DefaultHttpContext();
+    context.RequestServices = provider;
     context.Request.Method = "GET";
     context.Request.Path = path;
     arrange?.Invoke(context);
@@ -88,27 +132,13 @@ async Task<Result> Run(string path, RequestDelegate downstream, Action<HttpConte
         seen.IfNoneMatch = ctx.Request.Headers.ContainsKey("If-None-Match");
         seen.Range = ctx.Request.Headers.ContainsKey("Range");
         seen.Called = true;
+        seen.Calls++;
         return downstream(ctx);
     };
 
-    var middleware = new ProfilesIndexMiddleware(next, NullLogger<ProfilesIndexMiddleware>.Instance);
-    // The user-list injection takes these; the index path this file exercises never
-    // touches them, and both proxies throw on any call — so if that ever stops being true,
-    // these tests say so loudly instead of quietly exercising a different path.
-    //
-    // Arguments are matched to Invoke's parameters by type, so the harness builds against
-    // an older middleware (which does not take IServerApplicationHost) as well as this one.
-    var invokeArgs = typeof(ProfilesIndexMiddleware).GetMethod("Invoke").GetParameters()
-        .Select(p => p.ParameterType == typeof(HttpContext) ? (object)context
-            : p.ParameterType == typeof(IServerConfigurationManager) ? serverConfig
-            : p.ParameterType == typeof(IUserManager) ? userManager
-            : p.ParameterType == typeof(IDeviceManager) ? deviceManager
-            : p.ParameterType == typeof(MediaBrowser.Controller.Session.ISessionManager) ? sessionManager
-            : p.ParameterType == typeof(MediaBrowser.Common.Net.INetworkManager) ? networkManager
-            : p.ParameterType == typeof(MediaBrowser.Controller.IServerApplicationHost) ? appHost
-            : throw new InvalidOperationException("Invoke takes " + p.ParameterType.Name))
-        .ToArray();
-    await (Task)typeof(ProfilesIndexMiddleware).GetMethod("Invoke").Invoke(middleware, invokeArgs);
+    // Invoke's parameters are resolved from RequestServices by type, as in the server, so
+    // this builds against an older middleware with a different Invoke as well as this one.
+    await Pipeline(next)(context);
 
     return new Result
     {
@@ -230,6 +260,55 @@ Check("an already-injected document is passed through",
     Count(already.Body, "/plugins/profiles/profiles.js") == 1);
 Check("and its head script is not duplicated either",
     Count(already.Body, "id=\"jpf-eh\"") == 1);
+
+Console.WriteLine();
+Console.WriteLine("── One coordinator for every Campground plugin ─────────────────");
+
+// Bonfire's middleware must stay outermost: the sign-in gates, the proxy switcher and the
+// user-list edits run there, ahead of everything, and the coordinator buffers the document
+// from inside it. Named by type, because a count would pass with the two the wrong way round.
+var filterNames = startupFilters.Select(f => f.GetType().Name).ToList();
+Check("Bonfire's startup filter is registered first (outermost), got " + string.Join(", ", filterNames),
+    filterNames.Count > 0 && filterNames[0] == "ProfilesStartupFilter");
+Check("and the Campground coordinator's comes after it",
+    filterNames.IndexOf("CampgroundStartupFilter") > 0);
+
+// The browser runtime goes in once, ahead of Bonfire's head script.
+Check("the Campground runtime is inlined once", Count(sent.Body, "id=\"campground-runtime\"") == 1);
+Check("ahead of Bonfire's head script",
+    sent.Body.IndexOf("id=\"campground-runtime\"", StringComparison.Ordinal) >= 0
+    && sent.Body.IndexOf("id=\"campground-runtime\"", StringComparison.Ordinal)
+        < sent.Body.IndexOf("id=\"jpf-eh\"", StringComparison.Ordinal));
+Check("the runtime is not added a second time either", Count(already.Body, "id=\"campground-runtime\"") == 1);
+
+// Another plugin's script arrives in the same pass. Registered through the coordinator the
+// way that plugin's own registrator would, then taken back out so the counts below hold.
+var asmP = typeof(ProfilesIndexMiddleware).Assembly;
+var coordinator = asmP.GetType("Campground.Shared.Injection.InjectionCoordinator");
+var regType = asmP.GetType("Campground.Shared.Injection.ScriptRegistration");
+Check("the coordinator is compiled into the plugin", coordinator != null && regType != null);
+if (coordinator != null && regType != null)
+{
+    var otherPlugin = Activator.CreateInstance(regType, "gametent", "/plugins/gametent/gametent.js", "3.1.0", 200, null, null);
+    const BindingFlags CoordFlags = BindingFlags.Static | BindingFlags.NonPublic;
+    coordinator.GetMethod("Register", CoordFlags).Invoke(null, new[] { otherPlugin });
+    try
+    {
+        var shared = await Run("/web/index.html", WriteBody(PlainIndex));
+        Check("a second plugin's script is added in the same pass",
+            Count(shared.Body, "/plugins/gametent/gametent.js?v=3.1.0") == 1);
+        Check("beside Bonfire's, once each",
+            Count(shared.Body, "/plugins/profiles/profiles.js") == 1 && Count(shared.Body, "id=\"jpf-eh\"") == 1);
+        Check("in order: Bonfire (100) before it (200)",
+            shared.Body.IndexOf("/plugins/profiles/profiles.js", StringComparison.Ordinal)
+            < shared.Body.IndexOf("/plugins/gametent/gametent.js", StringComparison.Ordinal));
+        Check("and the document was asked for once", shared.Seen.Calls == 1);
+    }
+    finally
+    {
+        coordinator.GetMethod("Unregister", CoordFlags).Invoke(null, new object[] { "gametent" });
+    }
+}
 
 Console.WriteLine();
 Console.WriteLine("── Content negotiation is suspended, then restored ─────────────");
@@ -418,11 +497,13 @@ var servedProp = typeof(ProfilesIndexMiddleware)
     .GetProperty("ServedCountValue", System.Reflection.BindingFlags.Static
         | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
 var served = (long)servedProp.GetValue(null);
-// Five documents were actually rewritten above: SendFile, Response.Body, PipeWriter, the
-// file-transformation one, and the conditional request. The 404, the JSON, the encoded
-// body, the 304, the already-injected document, /web/main.js and the POST must not count
-// — the dashboard reports this number as "pages served".
-Check("served count is one per document actually rewritten (got " + served + ")", served == 6);
+// Seven documents were actually rewritten above: SendFile, Response.Body, PipeWriter, the
+// file-transformation one, the one carrying a second plugin's script, the conditional
+// request, and the success that clears the last error. The 404, the JSON, the encoded
+// body, the 304, the already-injected documents, the two that cannot be injected into,
+// /web/main.js and the POST must not count — the dashboard reports this number as "pages
+// served". It is the coordinator's count, read through the property the dashboard reads.
+Check("served count is one per document actually rewritten (got " + served + ")", served == 7);
 
 Console.WriteLine();
 Console.WriteLine("── A Base URL (R-1093) ─────────────────────────────────────────");
@@ -551,6 +632,7 @@ static int Count(string haystack, string needle)
 sealed class SeenHeaders
 {
     public bool Called;
+    public int Calls;
     public bool AcceptEncoding;
     public bool IfNoneMatch;
     public bool Range;

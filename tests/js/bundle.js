@@ -220,12 +220,16 @@ if (tdecl) {
 console.log();
 console.log('── contracts the split must not have broken ────────────────────');
 
-// P5-4: the cache-buster.
+// P5-4: the cache-buster. Since 2.0 the tag is written by the Campground coordinator from
+// Bonfire's registration, so both halves are checked: what Bonfire hands over, and that the
+// shared tag still writes it as ?v=. (tests/cs/injection asserts the served tag itself.)
 const inj = fs.readFileSync(path.join(L.ROOT, 'Injection', 'WebInjection.cs'), 'utf8');
-ok('the script tag still carries ?v={ScriptVersion}',
-    inj.indexOf('profiles.js?v={ScriptVersion}') !== -1);
-ok('and the reader that parses it back is unchanged',
-    /profiles\\\.js\\\?v=\(\[\^/.test(inj));
+const sharedTag = fs.readFileSync(path.join(L.ROOT, 'Campground.Shared', 'src', 'Injection', 'IndexHtml.cs'), 'utf8');
+ok('Bonfire registers profiles.js with ScriptVersion as its version',
+    /Registration => new\(\s*PluginIds\.Bonfire,\s*ScriptPath,\s*ScriptVersion,/.test(inj)
+    && inj.indexOf('ScriptPath = "/plugins/profiles/profiles.js"') !== -1);
+ok('and the shared tag writes that version as ?v=',
+    sharedTag.indexOf('{reg.Path}?v={Uri.EscapeDataString(reg.Version)}') !== -1);
 
 // P5-5: the locales marker is what lets a contributor add a language as one file.
 ok('SUPPORTED_LOCALES still ships empty, for the server to fill',

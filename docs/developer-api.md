@@ -2232,7 +2232,7 @@ Every account and profile, and whether the client script is reaching browsers.
 | `newerVersionInstalled` | An update is waiting for a restart. Null means unknown, not "no". |
 | `middlewareRegistered` | The middleware was set up at startup. |
 | `middlewareActive` | It has served the web page at least once. This is the "working" signal. |
-| `middlewareServed`, `middlewareLastServedUtc` | Pages served since startup, and when last. |
+| `middlewareServed`, `middlewareLastServedUtc` | Pages served since startup, and when last. Counted once for every Campground plugin on the server, since one middleware adds all their tags. |
 | `middlewareError` | Why the last page couldn't have the tags added, or null. |
 
 ### `POST /plugins/profiles/admin/reset-pin`

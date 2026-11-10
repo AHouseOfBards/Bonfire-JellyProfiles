@@ -1,0 +1,19 @@
+<Project>
+  <!--
+    Compiles Campground.Shared into a plugin as internal code.
+
+    Each plugin keeps a vendored copy of this folder (src/, web/, this file, campground-shared.json) at
+    <plugin repo>/Campground.Shared/, so anyone can build the plugin from its public repo. The canonical
+    copy lives in AHouseOfBards/Campground-Coordination/shared; update a plugin's copy with
+    tools/vendor-shared.ps1, never by editing it in place (CI checks the hashes in campground-shared.json).
+
+    In the plugin's .csproj:
+      <Import Project="Campground.Shared\Campground.Shared.props" />
+  -->
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)src\**\*.cs" Link="Campground.Shared\%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)web\campground.js"
+                      LogicalName="Campground.Shared.campground.js"
+                      Link="Campground.Shared\web\campground.js" />
+  </ItemGroup>
+</Project>

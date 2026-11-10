@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Campground.Shared.Injection;
 using Jellyfin.Profiles.Configuration;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller;
@@ -97,20 +98,23 @@ namespace Jellyfin.Profiles
         private readonly RequestDelegate _next;
         private readonly ILogger<ProfilesIndexMiddleware> _logger;
 
-        /// <summary>Number of requests this middleware has answered since the server started.</summary>
-        internal static long ServedCount;
+        // The three below are the Campground coordinator's, which serves index.html for every
+        // Campground plugin on the server, so they describe the page Bonfire's script is in
+        // even when another plugin's copy of the middleware is the one doing it.
 
-        /// <summary>Thread-safe read of <see cref="ServedCount"/>.</summary>
-        internal static long ServedCountValue => Interlocked.Read(ref ServedCount);
+        /// <summary>index.html documents rewritten since the server started.</summary>
+        internal static long ServedCountValue => InjectionCoordinator.Health().ServedCount;
 
-        /// <summary>When it last answered one, or null if it never has.</summary>
-        internal static DateTime? LastServedUtc { get; private set; }
+        /// <summary>When one last was, or null if none has been.</summary>
+        internal static DateTime? LastServedUtc => InjectionCoordinator.Health().LastServedUtc;
 
         /// <summary>
-        /// Why the last attempt passed the document through untouched, or null. Only set for
-        /// genuine failures — declining because the tags are already present is not one.
+        /// Why the last index.html was passed through untouched, or null. Only set for genuine
+        /// failures — declining because the tags are already present is not one — and reset
+        /// on every page handled, so one transient failure does not sit on the dashboard
+        /// until a restart.
         /// </summary>
-        internal static string? LastError { get; private set; }
+        internal static string? LastError => InjectionCoordinator.Health().LastError;
 
         /// <summary>
         /// True once a request has arrived that this middleware would have handled. Distinguishes
@@ -298,123 +302,25 @@ namespace Jellyfin.Profiles
 
             HasSeenIndexRequest = true;
 
-            // Reset per handled request. The dashboard renders this as "the last problem",
-            // and only the success path used to clear it — so one transient failure was
-            // appended to the green banner until the server restarted.
-            LastError = null;
-
             // Reaching here is the proof the bootstrap task cannot have at startup: the
             // hook is in the pipeline and handling requests. Only now is it safe to take
             // the tags out of index.html, which until this moment are what is making the
             // switcher work. One-shot and off-thread; see the method itself.
+            //
+            // Safe to do from here rather than from the middleware that now adds the tags:
+            // PluginServiceRegistrator adds that one in the same call that adds this, so
+            // one cannot be in the pipeline without the other.
             ProfilesBootstrapTask.CleanIndexOnceMiddlewareIsLive();
 
-            var originalBody = context.Features.Get<IHttpResponseBodyFeature>();
-            if (originalBody == null)
-            {
-                // Nothing to capture through. Let Jellyfin answer as it would without us.
-                Fail("the response has no body feature to capture.");
-                await _next(context).ConfigureAwait(false);
-                return;
-            }
-
-            byte[] produced;
-            using (var captured = new MemoryStream())
-            {
-                // Constructed without a prior feature deliberately: given one, CompleteAsync
-                // would complete the real response, and the whole point is that we still get
-                // to write to it afterwards.
-                var capture = new StreamResponseBodyFeature(captured);
-                var negotiation = SuspendContentNegotiation(context.Request);
-                context.Features.Set<IHttpResponseBodyFeature>(capture);
-
-                try
-                {
-                    await _next(context).ConfigureAwait(false);
-
-                    // Downstream may have written through the PipeWriter rather than the
-                    // stream; completing it is what pushes those bytes into the buffer.
-                    await capture.CompleteAsync().ConfigureAwait(false);
-                }
-                finally
-                {
-                    context.Features.Set(originalBody);
-                    RestoreContentNegotiation(context.Request, negotiation);
-                }
-
-                produced = captured.ToArray();
-            }
-
-            if (context.Response.HasStarted)
-            {
-                await DeliverStartedAsync(context, produced, "index.html", "the script could not be added")
-                    .ConfigureAwait(false);
-                return;
-            }
-
-            if (!IsTransformable(context.Response))
-            {
-                await PassThroughAsync(context, produced).ConfigureAwait(false);
-                return;
-            }
-
-            string html;
-            var baseUrl = ReadBaseUrl(serverConfig);
-            try
-            {
-                var document = Encoding.UTF8.GetString(produced);
-
-                // Already there — the file still carries tags an older release wrote, or something
-                // else in the pipeline added the same tags. A second copy would give the
-                // browser two scripts and two gates.
-                if (WebInjection.IsFullyInjectedAt(document, baseUrl))
-                {
-                    await PassThroughAsync(context, produced).ConfigureAwait(false);
-                    return;
-                }
-
-                if (!WebInjection.InjectAt(document, baseUrl, out html))
-                {
-                    // Neither anchor found and nothing already present, so this is not a
-                    // document we understand. Hand back whatever the pipeline made.
-                    Fail("index.html has no <head> or </body> to inject into.");
-                    await PassThroughAsync(context, produced).ConfigureAwait(false);
-                    return;
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // The client went away. Not our problem, and not worth logging.
-                return;
-            }
-            catch (Exception ex)
-            {
-                Fail(ex.Message);
-                _logger.LogWarning(
-                    ex,
-                    "ProfilesPlugin: could not add the client script to index.html; serving it unchanged.");
-                await PassThroughAsync(context, produced).ConfigureAwait(false);
-                return;
-            }
-
-            var bytes = Encoding.UTF8.GetBytes(html);
-            context.Response.ContentType = "text/html; charset=utf-8";
-            context.Response.ContentLength = bytes.Length;
-
-            // The body is no longer the file the static file handler measured, so the
-            // validators it attached describe something else. Removed rather than
-            // recomputed: this document must not be cached anyway, because it carries the
-            // ?v= that tells the browser to re-fetch profiles.js after a plugin update.
-            context.Response.Headers.Remove(HeaderNames.ETag);
-            context.Response.Headers.Remove(HeaderNames.LastModified);
-            context.Response.Headers[HeaderNames.CacheControl] = "no-cache, no-store, must-revalidate";
-            context.Response.Headers[HeaderNames.Pragma] = "no-cache";
-            context.Response.Headers[HeaderNames.Expires] = "0";
-
-            LastServedUtc = DateTime.UtcNow;
-            Interlocked.Increment(ref ServedCount);
-
-            await context.Response.Body.WriteAsync(bytes, context.RequestAborted).ConfigureAwait(false);
+            // The document itself is the Campground coordinator's (Campground.Shared,
+            // Injection/IndexMiddleware.cs), which sits inside this middleware and adds every
+            // Campground plugin's tags in one pass — Bonfire's included, from
+            // WebInjection.Registration. This middleware used to buffer index.html and add
+            // them itself; with a second plugin doing the same, the page was buffered twice
+            // and each plugin had to recognise the other's work. The capture, the
+            // negotiation suspend, the pass-through rules and the cache headers all moved
+            // there unchanged, and tests/cs/pipeline drives the two together.
+            await _next(context).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -870,31 +776,6 @@ namespace Jellyfin.Profiles
             return path.TrimEnd('/').EndsWith("/QuickConnect/Initiate", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static void Fail(string reason) => LastError = reason;
-
-        /// <summary>
-        /// True when the captured response is a plain, complete HTML document we can edit.
-        /// Anything else — a 404, a redirect, a body some other layer has already encoded — is
-        /// handed back exactly as it arrived.
-        /// </summary>
-        private static bool IsTransformable(HttpResponse response)
-        {
-            if (response.StatusCode != StatusCodes.Status200OK)
-            {
-                return false;
-            }
-
-            // Suspending Accept-Encoding should have prevented this. If something compressed
-            // the body regardless, decoding it is not worth the machinery.
-            if (response.Headers.ContainsKey(HeaderNames.ContentEncoding))
-            {
-                return false;
-            }
-
-            var contentType = response.ContentType;
-            return !string.IsNullOrEmpty(contentType)
-                   && contentType.StartsWith("text/html", StringComparison.OrdinalIgnoreCase);
-        }
 
         /// <summary>
         /// The response had already started when it came back to us. Something downstream
@@ -1016,9 +897,8 @@ namespace Jellyfin.Profiles
         }
 
         /// <summary>
-        /// The Base URL Jellyfin is published under, read the way Jellyfin does it
-        /// (<c>GetNetworkConfiguration().BaseUrl</c>), or empty when there is none or it
-        /// cannot be read.
+        /// Whether Jellyfin is itself listening with HTTPS, which is half of the condition
+        /// for its HTTPS redirect being in the pipeline.
         /// </summary>
         private static bool ListensWithHttps(IServerApplicationHost? appHost)
         {
@@ -1031,18 +911,6 @@ namespace Jellyfin.Profiles
                 // Unknown is "not redirecting": the cost of being wrong is one answered
                 // request that Jellyfin would have redirected, not a server with no switcher.
                 return false;
-            }
-        }
-
-        private static string ReadBaseUrl(IServerConfigurationManager serverConfig)
-        {
-            try
-            {
-                return WebInjection.NormalizeBaseUrl(serverConfig.GetNetworkConfiguration().BaseUrl);
-            }
-            catch (Exception)
-            {
-                return string.Empty;
             }
         }
 

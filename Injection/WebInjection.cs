@@ -1,18 +1,24 @@
 using System;
 using System.Text.RegularExpressions;
+using Campground.Shared.Injection;
+using Campground.Shared.Registry;
 
 namespace Jellyfin.Profiles
 {
     /// <summary>
-    /// The two script fragments the plugin adds to Jellyfin's index.html, and the logic that
-    /// puts them there.
+    /// The two script fragments the plugin adds to Jellyfin's index.html, and the cleanup that
+    /// takes them back out of a file an older release patched on disk.
     ///
-    /// This used to live inside <see cref="ProfilesBootstrapTask"/>, which patched the file on
-    /// disk. From 1.4.1 the same fragments are also injected on the fly by
-    /// <see cref="ProfilesIndexMiddleware"/>, which serves index.html straight from the request
-    /// pipeline and never touches the file. Both paths share this class so the tag they produce
-    /// cannot drift apart — a mismatch would make the on-disk patcher and the middleware
-    /// perpetually "fix" each other's work.
+    /// <para>
+    /// Putting them into the document is no longer done here. Since 2.0 every Campground
+    /// plugin hands its fragments to the shared coordinator (<see cref="Registration"/>), and
+    /// one middleware adds all of them in one pass, so two plugins cannot each buffer
+    /// index.html and each add the other's tags a second time. Until then this class had
+    /// its own Inject, IsFullyInjected and a version reader; the shared IndexHtml is the
+    /// generalised copy of that code, and writes the same body tag byte for byte.
+    /// tests/cs/injection drives the shared code with these fragments, so a change there
+    /// that would alter what Bonfire serves fails here.
+    /// </para>
     /// </summary>
     internal static class WebInjection
     {
@@ -32,11 +38,34 @@ namespace Jellyfin.Profiles
             typeof(WebInjection).Assembly.GetName().Version?.ToString() ?? "0";
 
         /// <summary>
-        /// The exact script tag to inject before &lt;/body&gt;. The URL
-        /// /plugins/profiles/profiles.js is the path Jellyfin uses to serve embedded resources
-        /// from plugin assemblies.
+        /// Where the client script is served, without the Base URL. The coordinator writes the
+        /// tag as <c>&lt;script src="{base}{ScriptPath}?v={ScriptVersion}" defer&gt;</c>
+        /// before &lt;/body&gt;; the prefix has to be there because Jellyfin's
+        /// BaseUrlRedirectionMiddleware answers any path without it by redirecting to
+        /// <c>&lt;base&gt;/web/</c>, so a bare path comes back as the HTML page and the
+        /// switcher, the gate and the theme never load.
         /// </summary>
-        internal static string BodyScriptTag => BodyScriptTagAt(null);
+        internal const string ScriptPath = "/plugins/profiles/profiles.js";
+
+        /// <summary>
+        /// What Bonfire asks the Campground coordinator to put in index.html: the client
+        /// script, and <see cref="HeadScript"/> in &lt;head&gt;.
+        /// <para>
+        /// The coordinator puts a head snippet just before &lt;/head&gt;, where this class
+        /// used to put it just after &lt;head&gt;. Nothing in &lt;head&gt; can paint, and
+        /// jellyfin-web's own bundles there are deferred (html-webpack-plugin 5, whose
+        /// defaults are inject: 'head' and scriptLoading: 'defer'; release-10.11.z), so both
+        /// places run before the first frame and before any bundle. tests/js/headscript.js
+        /// runs the script itself.
+        /// </para>
+        /// </summary>
+        internal static ScriptRegistration Registration => new(
+            PluginIds.Bonfire,
+            ScriptPath,
+            ScriptVersion,
+            Order: 100,
+            HeadSnippet: HeadScript,
+            HeadId: HeadMarker);
 
         /// <summary>
         /// The Base URL (Dashboard, Networking) as Jellyfin itself normalises it: a leading
@@ -47,19 +76,6 @@ namespace Jellyfin.Profiles
             var trimmed = (baseUrl ?? string.Empty).Trim().Trim('/');
             return trimmed.Length == 0 ? string.Empty : "/" + trimmed;
         }
-
-        /// <summary>
-        /// The script tag for a server published under <paramref name="baseUrl"/>. The tag
-        /// has to carry it: Jellyfin's BaseUrlRedirectionMiddleware answers any path without
-        /// the base by redirecting to <c>&lt;base&gt;/web/</c>, so a bare
-        /// /plugins/profiles/profiles.js comes back as the HTML page and the switcher, the
-        /// gate and the theme never load.
-        /// </summary>
-        internal static string BodyScriptTagAt(string? baseUrl) =>
-            $"<script src=\"{NormalizeBaseUrl(baseUrl)}/plugins/profiles/profiles.js?v={ScriptVersion}\" defer></script>";
-
-        /// <summary>Unique substring to detect whether the body tag is already present.</summary>
-        internal const string BodyMarker = "/plugins/profiles/profiles.js";
 
         /// <summary>
         /// Tiny inline script injected into &lt;head&gt; — runs before any deferred bundle,
@@ -207,132 +223,13 @@ namespace Jellyfin.Profiles
             "}();" +
             "</script>";
 
-        /// <summary>Unique substring to detect whether the head script is already present.</summary>
+        /// <summary>The head script's id, which is how the coordinator finds and replaces it.</summary>
         internal const string HeadMarker = "jpf-eh";
-
-        // Pulls the ?v= value out of whatever plugin script tag is currently in the HTML.
-        // Comparing the extracted version beats comparing the whole tag string: a hand-edited
-        // file with different attribute order, quoting or spacing is still recognised as
-        // current instead of being reported as stale forever.
-        private static readonly Regex InjectedVersionRegex = new(
-            @"/plugins/profiles/profiles\.js\?v=([^""'&\s>]+)",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        private static readonly Regex HeadScriptRegex = new(
-            @"<script id=""jpf-eh"">[\s\S]*?</script>",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        private static readonly Regex BodyScriptRegex = new(
-            @"<script[^>]*src=[""'][^""']*/plugins/profiles/profiles\.js[^""']*[""'][^>]*>\s*(</script>)?",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        // The src up to the plugin path, so the Base URL the tag was written for can be read
-        // back as well as the version.
-        private static readonly Regex InjectedPrefixRegex = new(
-            @"<script[^>]*src=[""']([^""']*)/plugins/profiles/profiles\.js",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        /// <summary>Version recorded in the HTML's script tag, or null if absent/unparseable.</summary>
-        internal static string? GetInjectedScriptVersion(string html)
-        {
-            var m = InjectedVersionRegex.Match(html);
-            return m.Success ? m.Groups[1].Value : null;
-        }
-
-        /// <summary>True when the HTML's script tag already points at this build.</summary>
-        internal static bool IsScriptVersionCurrent(string html)
-            => string.Equals(GetInjectedScriptVersion(html), ScriptVersion, StringComparison.Ordinal);
-
-        /// <summary>
-        /// True when both fragments are present and the body tag names this exact build, so
-        /// there is nothing to do.
-        /// </summary>
-        internal static bool IsFullyInjected(string html) => IsFullyInjectedAt(html, null);
-
-        /// <summary>
-        /// <see cref="IsFullyInjected(string)"/> for a server under <paramref name="baseUrl"/>:
-        /// a tag that names the right build but the wrong prefix is not injected, it is
-        /// broken.
-        /// </summary>
-        internal static bool IsFullyInjectedAt(string html, string? baseUrl)
-            => html.Contains(BodyMarker, StringComparison.Ordinal)
-               && html.Contains(HeadMarker, StringComparison.Ordinal)
-               && IsScriptVersionCurrent(html)
-               && IsPrefixCurrent(html, baseUrl);
-
-        private static bool IsPrefixCurrent(string html, string? baseUrl)
-        {
-            var m = InjectedPrefixRegex.Match(html);
-            return m.Success
-                && string.Equals(m.Groups[1].Value, NormalizeBaseUrl(baseUrl), StringComparison.Ordinal);
-        }
-
-        /// <summary>
-        /// Adds both fragments to <paramref name="html"/>, updating either one if it is present
-        /// but out of date.
-        /// </summary>
-        /// <param name="html">The document to inject into.</param>
-        /// <param name="result">The document afterwards. Equal to the input when nothing changed.</param>
-        /// <returns>True when <paramref name="result"/> differs from the input.</returns>
-        internal static bool Inject(string html, out string result) => InjectAt(html, null, out result);
-
-        /// <summary>
-        /// <see cref="Inject(string, out string)"/> for a server under
-        /// <paramref name="baseUrl"/>; the body tag carries the prefix.
-        /// </summary>
-        internal static bool InjectAt(string html, string? baseUrl, out string result)
-        {
-            bool changed = false;
-
-            // ── 1. Update or inject head early-hide script ───────────────────
-            if (HeadScriptRegex.IsMatch(html))
-            {
-                if (!html.Contains(HeadScript, StringComparison.Ordinal))
-                {
-                    // MatchEvaluator, not a replacement string: "$" is a substitution token
-                    // in the string overload, so a "$" anywhere in the script would corrupt
-                    // the document silently.
-                    html = HeadScriptRegex.Replace(html, _ => HeadScript);
-                    changed = true;
-                }
-            }
-            else
-            {
-                int headIdx = html.IndexOf("<head>", StringComparison.OrdinalIgnoreCase);
-                if (headIdx != -1)
-                {
-                    html = html.Insert(headIdx + "<head>".Length, NewlineOf(html) + HeadScript);
-                    changed = true;
-                }
-            }
-
-            // ── 2. Update or inject body script ──────────────────────────────
-            if (BodyScriptRegex.IsMatch(html))
-            {
-                if (!IsScriptVersionCurrent(html) || !IsPrefixCurrent(html, baseUrl))
-                {
-                    // MatchEvaluator — see the note on the head script above.
-                    var tag = BodyScriptTagAt(baseUrl);
-                    html = BodyScriptRegex.Replace(html, _ => tag);
-                    changed = true;
-                }
-            }
-            else
-            {
-                int bodyIdx = html.IndexOf("</body>", StringComparison.OrdinalIgnoreCase);
-                if (bodyIdx != -1)
-                {
-                    html = html.Insert(bodyIdx, BodyScriptTagAt(baseUrl) + NewlineOf(html));
-                    changed = true;
-                }
-            }
-
-            result = html;
-            return changed;
-        }
 
         /// <summary>
         /// Takes both fragments back out, restoring the document to how Jellyfin shipped it.
+        /// Used only on the file on disk, which releases up to 1.4.x (and the "file" and
+        /// "both" modes after them) patched; see ProfilesBootstrapTask.TryUnpatchIndex.
         /// </summary>
         /// <param name="html">The document to clean.</param>
         /// <param name="result">The document afterwards. Equal to the input when nothing changed.</param>
@@ -363,22 +260,11 @@ namespace Jellyfin.Profiles
             return true;
         }
 
-        /// <summary>
-        /// The line ending the document already uses.
-        ///
-        /// <para>
-        /// Not <see cref="Environment.NewLine"/>, which is whatever the *server* runs on. A
-        /// Windows Jellyfin writing CRLF into the LF index.html it shipped with is harmless to
-        /// the browser but leaves the file subtly different from the packaged one, which then
-        /// makes it impossible to restore exactly when injection is turned off again.
-        /// </para>
-        /// </summary>
-        private static string NewlineOf(string html)
-            => html.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-
-        // Removal-only variants. Inject() must keep using the pair above: it replaces a
-        // stale fragment in place, and a pattern that swallowed the surrounding newline
-        // would glue the replacement to whatever it sits next to.
+        // Each pattern takes the newline its fragment was written with, which is what lets a
+        // patched file come back byte for byte. The line ending is the document's own, never
+        // Environment.NewLine: a Windows server writing CRLF into the LF file Jellyfin shipped
+        // would leave it subtly different from the packaged one. (The shared IndexHtml keeps
+        // the same rule for the document it serves.)
         private static readonly Regex HeadScriptRemovalRegex = new(
             @"(\r?\n)?<script id=""jpf-eh"">[\s\S]*?</script>",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);

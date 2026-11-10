@@ -232,6 +232,25 @@ var allowed = new Dictionary<string, string>(StringComparer.Ordinal)
                      + "reference is stable for the key's lifetime and is never replaced",
 };
 
+// The vendored Campground.Shared library (2.0). Its locks are on its own objects, and it
+// cannot take Bonfire's configuration at all: it never names a Jellyfin.Profiles type, which
+// is asserted below rather than assumed. Allowed by file AND target, not by name, because
+// `_gate` here says nothing about a `_gate` Bonfire might add — and a new lock in a future
+// copy of the library fails until someone writes down why it is safe.
+var sharedAllowed = new Dictionary<string, string>(StringComparer.Ordinal)
+{
+    ["Campground.Shared/src/Contracts/EncoderLedger.cs|leases"]
+        = "the registry's leases section, one dictionary for the life of the process",
+    ["Campground.Shared/src/Injection/InjectionCoordinator.cs|state"]
+        = "the registry's injection.state section; writes the owner and its version together",
+    ["Campground.Shared/src/Registry/CampgroundRegistry.cs|AppDomain.CurrentDomain"]
+        = "the one object every plugin's load context shares; guards creating the registry",
+    ["Campground.Shared/src/Security/RateLimiter.cs|_gate"]
+        = "readonly object per limiter instance, never replaced",
+    ["Campground.Shared/src/Storage/AtomicJsonFile.cs|_gate"]
+        = "readonly object per file instance; one read or write of that file at a time",
+};
+
 var sources = Directory
     .GetFiles(RepoRoot(), "*.cs", SearchOption.AllDirectories)
     .Where(p => !p.Contains(Path.DirectorySeparatorChar + "tests" + Path.DirectorySeparatorChar)
@@ -258,15 +277,32 @@ foreach (var path in sources)
         if (!m.Success) continue;
         sites++;
         var target = m.Groups[1].Value;
-        var okHere = allowed.ContainsKey(target);
+        var relSlash = rel.Replace('\\', '/');
+        string why = null;
+        if (relSlash.StartsWith("Campground.Shared/", StringComparison.Ordinal))
+            sharedAllowed.TryGetValue(relSlash + "|" + target, out why);
+        else
+            allowed.TryGetValue(target, out why);
+        var okHere = why != null;
         Ok(rel + ":" + (i + 1) + "  lock (" + target + ")"
-           + (okHere ? "  — " + allowed[target] : "  — NOT a known configuration-independent lock"),
+           + (okHere ? "  — " + why : "  — NOT a known configuration-independent lock"),
            okHere);
     }
 }
 
 Ok("the scan actually found locks (" + sites + " sites) — a regex that matches nothing "
    + "would otherwise pass this whole section", sites >= 20);
+
+// What makes the shared allowances above safe. If a copy of the library ever reaches into
+// Bonfire, its locks have to be judged like Bonfire's own.
+var sharedFiles = sources.Where(p => Path.GetRelativePath(RepoRoot(), p).Replace('\\', '/')
+    .StartsWith("Campground.Shared/", StringComparison.Ordinal)).ToArray();
+var reaching = sharedFiles.Where(p => Regex.IsMatch(File.ReadAllText(p),
+    @"Jellyfin\.Profiles|PluginConfiguration|Plugin\.Instance|ConfigLock")).ToArray();
+Ok("the vendored Campground.Shared never names Bonfire's plugin or configuration ("
+   + sharedFiles.Length + " files" + (reaching.Length == 0 ? ")" : "; does: "
+   + string.Join(", ", reaching.Select(p => Path.GetFileName(p))) + ")"),
+   sharedFiles.Length > 0 && reaching.Length == 0);
 
 Console.WriteLine();
 Console.WriteLine("── Every save happens while the lock is held ───────────────────");

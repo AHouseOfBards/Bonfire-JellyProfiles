@@ -19,6 +19,7 @@
 'use strict';
 
 const fs = require('fs');
+const path = require('path');
 const L = require('./_lib');
 
 const FLOOR = 53;
@@ -207,6 +208,36 @@ ok('the client declares no classes, so no class-field syntax to carry',
 ok('nothing in the client script is newer than Chromium ' + FLOOR,
     over.length === 0, over.join('\n          '));
 console.log('        in use, and old enough: ' + (used.join('; ') || 'nothing notable'));
+
+// ── the Campground runtime ─────────────────────────────────────────────────
+// Since 2.0 the shared coordinator inlines Campground.Shared/web/campground.js into every
+// index.html, ahead of everything of ours, so it reaches every television profiles.js does.
+// It is a separate inline <script>, so a token Chromium 53 cannot parse takes down only that
+// script — but window.Campground is gone with it, for every Campground plugin. Same floor.
+// Missing is a failure: the plugin embeds it, so the build has lost its copy.
+//
+//     node tests/js/jsbaseline.js "" path/to/campground.js
+const RUNTIME = process.argv[3] || path.join(L.ROOT, 'Campground.Shared', 'web', 'campground.js');
+console.log();
+console.log('── Campground.Shared/web/campground.js against Chromium ' + FLOOR + ' ──────');
+if (!fs.existsSync(RUNTIME)) {
+    ok('the vendored Campground runtime is there to check', false, RUNTIME);
+} else {
+    const rt = stripCommentsAndStrings(fs.readFileSync(RUNTIME, 'utf8'));
+    const rtOver = [];
+    for (const [name, re, since] of FEATURES) {
+        re.lastIndex = 0;
+        const hits = (rt.match(re) || []).length;
+        if (hits && since > FLOOR) rtOver.push(`${name} needs Chromium ${since}, ${hits} use(s)`);
+    }
+    const rtSpreads = objectSpreads(rt);
+    if (rtSpreads) rtOver.push(`object spread / rest needs Chromium 60, ${rtSpreads} use(s)`);
+    // No class bodies to search for fields in: ES5 has no classes, so any is too new.
+    const rtClasses = (rt.match(/\bclass\s+\w+[^{]*\{/g) || []).length;
+    if (rtClasses) rtOver.push(`${rtClasses} class declaration(s); the runtime is ES5`);
+    ok('nothing in the Campground runtime is newer than Chromium ' + FLOOR,
+        rtOver.length === 0, rtOver.join('\n          '));
+}
 
 // The dashboard is administrator-only and runs in a desktop browser, so it is held to
 // no floor — but it is scanned, because "the admin page is fine" should be a fact

@@ -1,3 +1,5 @@
+using Campground.Shared.Injection;
+using Campground.Shared.Registry;
 using Jellyfin.Profiles.Auth;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Authentication;
@@ -34,13 +36,28 @@ namespace Jellyfin.Profiles
             // report it.
             serviceCollection.AddHostedService<ProfilesBootstrapTask>();
 
-            // Serves index.html with the script tags already in it, so the file on disk does
-            // not have to be modified at all. This call site is the reason the whole approach
+            // Bonfire's middleware: the sign-in gates, the proxy switcher, the user-list edits,
+            // and noting that index.html is being served (the tags themselves are added by the
+            // coordinator below), so the file on disk is never modified. This call site is the
+            // reason the whole approach
             // works: Jellyfin invokes RegisterServices from ApplicationHost.Init, which runs
             // inside ConfigureServices, before the request pipeline is built — so an
             // IStartupFilter registered here is picked up like any other.
             serviceCollection.AddTransient<IStartupFilter, ProfilesStartupFilter>();
             ProfilesIndexMiddleware.IsRegistered = true;
+
+            // The Campground coordinator, which adds the script tags to index.html for every
+            // Campground plugin on the server in one pass (Campground.Shared, §3.5). Every
+            // plugin adds its copy and the newest one runs; the others pass the page through
+            // untouched.
+            //
+            // AFTER ProfilesStartupFilter, deliberately. ASP.NET builds startup filters so
+            // the first one registered is the outermost middleware, which keeps Bonfire's
+            // where it has always been — in front of everything, where the sign-in gates,
+            // the proxy switcher and the user-list edits must run — and puts the coordinator
+            // inside it, buffering the document the rest of the pipeline produces.
+            // tests/cs/pipeline builds the pipeline from these registrations, in this order.
+            serviceCollection.AddCampgroundInjection(PluginIds.Bonfire, WebInjection.Registration);
 
             // Lets a sub-profile be entered with its PIN from a client that has no
             // switcher — a television, mostly. UserManager takes

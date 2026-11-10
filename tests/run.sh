@@ -69,6 +69,12 @@ if [ "$WHICH" = "all" ] || [ "$WHICH" = "js" ]; then
         case "$base" in *.verify.js|*.scan.js) continue ;; esac
         run "${base%.js}" node "$f"
     done
+    # The vendored Campground.Shared must be byte for byte what campground-shared.json
+    # records. Edited in place, it would ship a library no other Campground plugin has —
+    # and the newest copy on a server runs index.html for all of them. Change it in
+    # Campground-Coordination and re-vendor instead. Here rather than as its own CI step so
+    # the desk and the pipeline cannot disagree.
+    run "sharedcopy" sh Campground.Shared/check-shared.sh
     echo
 fi
 
