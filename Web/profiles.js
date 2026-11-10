@@ -2816,8 +2816,13 @@
         },
 
         renderColorPicker: function (selectedColor) {
-            const palette = AVATAR_PALETTE;
             const active = (selectedColor || '').toLowerCase();
+            // A colour from another app, or an older palette, is not one of the 18. Offered
+            // as one more swatch, selected: without it nothing was selected, and the
+            // preview fell back to the default blue instead of the profile's own colour.
+            const palette = HEX_COLOR_RE.test(selectedColor || '')
+                && AVATAR_PALETTE.map(c => c.toLowerCase()).indexOf(active) === -1
+                ? AVATAR_PALETTE.concat([selectedColor]) : AVATAR_PALETTE;
             // Named by position, not by hex code ("#E50914" says nothing to anyone), and
             // every swatch stays a tab stop: the remote's arrows and the focus trap skip
             // tabindex="-1", so rolling it to one swatch would hide the rest from a TV.
