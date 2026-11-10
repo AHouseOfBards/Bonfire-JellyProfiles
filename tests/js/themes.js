@@ -238,6 +238,12 @@ ok('and nothing points Bonfire\'s accent at Jellyfin\'s', !/var\(--jpf-bonfire-a
 // them, on any selector naming a theme, is the shared block of 1.7.1 coming back.
 const stray = RULES.filter(r => r.selectors.some(s => /data-jpf-theme/.test(s))
     && !serverIds.some(id => themeBlock(id)[0] === r)
+    // A theme with a pattern writes opaque fills for a phone, on its own selectors, in a
+    // max-width: 480px block of its own (tests/js/decostack.js measures them). Still never a
+    // shared block: it has to name exactly one theme's attribute and body, and only fills.
+    && !(r.at && /max-width:\s*480px/.test(r.at) && serverIds.some(id =>
+        r.selectors.indexOf('[data-jpf-theme="' + id + '"]') !== -1 && r.selectors.indexOf('[data-jpf-theme="' + id + '"] body') !== -1)
+        && Object.keys(r.decls).every(k => /^--jpf-(surface-\d|btn2-bg|add-bg|add-hover-bg|sheet-bg|card-bg|input-bg)$/.test(k)))
     && Object.keys(r.decls).some(k => BLOCK_TOKENS.indexOf(k) !== -1));
 ok('no rule but a theme\'s own block sets its tokens' + (stray.length ? ' (' + stray[0].selectors[0] + ')' : ''),
    stray.length === 0);

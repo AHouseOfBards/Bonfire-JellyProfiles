@@ -1344,6 +1344,12 @@ body.profiles-no-scroll [id*="spinner"] {
     --jpf-form-pad: 2rem; padding: var(--jpf-form-pad);
     text-align: left; max-height: 75vh; overflow-y: auto;
 }
+/* Sharing is a card (the accounts one) with the Host and Join sections beside it; a theme
+   with a sheet drew a second frame round all of it. No frame here: the cards inside carry
+   the look. Its blur is left out of the theme's frost rule by this class. */
+.create-profile-container.jpf-sheet-bare {
+    background: transparent; border: 0 solid transparent; box-shadow: none;
+}
 .profile-dialog-actions {
     margin-top: 1rem; display: flex; justify-content: space-between; width: 100%; gap: var(--jpf-gap);
 }

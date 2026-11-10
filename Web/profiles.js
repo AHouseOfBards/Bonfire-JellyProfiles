@@ -710,7 +710,7 @@
             const blur = num(frost.blur, 24);
             const small = Math.round(blur * 2 / 3);
             css += '@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {\n'
-                + '    ' + sel + ' .create-profile-container:not(.jpf-theme-page) {\n        -webkit-backdrop-filter: blur(' + blur + 'px) saturate(160%);\n        backdrop-filter: blur(' + blur + 'px) saturate(160%);\n    }\n'
+                + '    ' + sel + ' .create-profile-container:not(.jpf-theme-page):not(.jpf-sheet-bare) {\n        -webkit-backdrop-filter: blur(' + blur + 'px) saturate(160%);\n        backdrop-filter: blur(' + blur + 'px) saturate(160%);\n    }\n'
                 + '    ' + sel + ' .btn-secondary {\n        -webkit-backdrop-filter: blur(' + small + 'px) saturate(160%);\n        backdrop-filter: blur(' + small + 'px) saturate(160%);\n    }\n}\n';
         }
 
@@ -9458,7 +9458,7 @@
 
             content.innerHTML = `
                 <h1 class="profiles-title">${t('bonfire.yourBonfireTitle')}</h1>
-                <div class="create-profile-container" style="max-width: 500px; width: 100%;">
+                <div class="create-profile-container jpf-sheet-bare" style="max-width: 500px; width: 100%;">
                     <div id="account-links-slot"></div>
                     <div id="bonfire-container" class="jpf-col-gap-15" style="width: 100%; min-height: 100px; display: flex; flex-direction: column; gap: 1.5rem;">
                         <div style="display: flex; justify-content: center; padding: 20px;">
