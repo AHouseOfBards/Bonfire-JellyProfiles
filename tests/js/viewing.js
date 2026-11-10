@@ -251,7 +251,8 @@ const last = url => sent(url).pop();
     const zone = slot.querySelector('#account-zone-select');
     ok('the household zone is listed and chosen', zone && zone.value === 'Europe/Paris');
     ok('the first choice follows the server, and names it', zone && zone.options[0].value === ''
-       && slot.innerHTML.indexOf('Server default (Europe/London)') !== -1);
+       // The city alone, so the label fits the box (accountzone.js).
+       && slot.innerHTML.indexOf('Server default (London)') !== -1);
     ok('zones read with spaces', slot.innerHTML.indexOf('>America/New York<') !== -1);
     zone.value = 'America/New_York';
     zone.fire('change');
