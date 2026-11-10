@@ -967,16 +967,15 @@
         'avatar.libraryArtworkTitle': 'Library artwork',
 
         'errors.error': 'Error',
-        'errors.validationError': 'Validation Error',
-        'errors.unauthorized': 'Unauthorized',
+        'errors.validationError': "Can't save yet",
         'errors.failedDeleteDevice': 'Failed to delete device.',
         'errors.failedRenameDevice': 'Failed to rename device.',
         'errors.failedMergeDevice': 'Failed to merge devices.',
-        'errors.withMessage': 'Error: {message}',
-        'errors.savingProfile': 'Error saving profile: {message}',
-        'errors.loadProfileDetails': 'Failed to load profile details: {message}',
+        'errors.generic': 'Something went wrong. Try again.',
+        'errors.savingProfile': 'Could not save the profile.',
+        'errors.loadProfileDetails': 'Could not load the profile.',
         'errors.failedDeleteProfile': 'Failed to delete profile',
-        'errors.deletingProfile': 'Error deleting profile: {message}',
+        'errors.deletingProfile': 'Could not delete the profile.',
         'errors.couldNotSaveArtwork': 'Could not save the artwork.',
         'errors.couldNotSaveThat': 'Could not save that.',
         'errors.heicUnsupported': "HEIC photos aren't supported. Export the photo as JPEG first.",
@@ -1006,7 +1005,7 @@
         'profileForm.clearPin': 'Clear PIN',
         'profileForm.pinIsSetHint': '🔒 <strong>A PIN is set.</strong> Leave blank to keep it, type a new one to replace it, or use Clear PIN.',
         'profileForm.pinAdminWarning': 'This account administers the server. Its PIN can sign in on TVs and other apps, so keep it long and private.',
-        'profileForm.noPinSetHint': 'No PIN set. This profile can be opened by anyone who can reach the switcher.',
+        'profileForm.noPinSetHint': 'No PIN. Anyone can open this profile.',
         'profileForm.bypassPinLan': 'Skip the PIN on my home network',
         'profileForm.bypassPinHint': 'No PIN prompt on your home network.',
         'profileForm.askPinToOpen': 'Ask for the PIN to open this account',
@@ -1097,7 +1096,7 @@
         'profileForm.deleteDeviceMessage': 'Remove this device? Any access restrictions for it go too.',
 
         'panic.emergencyDisable': 'Emergency disable',
-        'panic.dialogBody': "Enter the code your server administrator set. This shuts the Bonfire switcher off until Jellyfin is restarted — the profile gate disappears and this account is used as-is. It does not unlock anyone else's profile.",
+        'panic.dialogBody': "Enter the code your server administrator set. This turns the profile switcher off until Jellyfin restarts. It does not unlock anyone else's profile.",
         'panic.emergencyCodePlaceholder': 'Emergency code',
         'panic.disable': 'Disable',
         'panic.checking': 'Checking…',
@@ -1274,7 +1273,7 @@
         'switcher.failedTitle': "Couldn't switch",
         'switcher.failedBody': 'That did not work. Try again.',
         'switcher.notSavedTitle': 'Switch not saved',
-        'switcher.notSavedBody': 'This device would not store the change, so you are still signed in as before.',
+        'switcher.notSavedBody': 'This device could not save the change. You are still signed in as before.',
         'switcher.manageTitle': 'Manage Profiles',
         'switcher.manageNeedsMaster': 'Open {name} first, then choose Manage Profiles.',
 
@@ -1337,8 +1336,8 @@
         'bonfire.leaveGroupConfirmTitle': 'Leave Bonfire',
         'bonfire.leaveGroupConfirmBody': 'Leave this Bonfire? You will stop sharing profiles.',
         'bonfire.failedLeaveGroup': 'Could not leave the Bonfire.',
-        'bonfire.failedGenerateCode': 'Failed to generate code: {message}',
-        'bonfire.failedLoadStatus': 'Failed to load Bonfire status: {message}',
+        'bonfire.failedGenerateCode': 'Could not create the code. Try again.',
+        'bonfire.failedLoadStatus': 'Could not load Bonfire. Try again.',
         'bonfire.unknownUser': 'Unknown User',
         'bonfire.hideMine': 'Hide my profiles from others',
         'bonfire.hideMineHint': 'Others see only my main account.',
@@ -1352,7 +1351,6 @@
         'bonfire.settingsSaveFailed': 'Could not save. Nothing was changed.',
         'bonfire.adminAccountWarning': 'This is an admin account.',
         'bonfire.adminAccountWarningBody': 'Whoever switches into it gets your admin rights.',
-        'bonfire.proxyHint': 'Behind a reverse proxy, check Networking → Known Proxies first, or everyone looks local.',
         'bonfire.allowHouseholdTitle': 'Allow household switching?',
         'bonfire.allowHouseholdBody': 'Anyone in your Bonfire can open your account on your home network without your PIN.',
 
@@ -9020,7 +9018,7 @@
                         // its id. A failure here must not look like a failed create.
                         const id = created && (created.profileUserId || created.ProfileUserId);
                         const saveLimits = () => viewingEditor.save(id).catch(err => {
-                            this.showAlert(t('errors.error'), t('errors.savingProfile', { message: escapeHtml(err.message) }));
+                            this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.savingProfile'))));
                         });
                         // The first profile is when a main PIN starts to matter: from now on
                         // the main account is the way past that profile's restrictions.
@@ -9533,7 +9531,7 @@
                                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
                             });
                     })
-                    .catch(err => this.showAlert(t('errors.error'), t('errors.savingProfile', { message: escapeHtml(err.message) })));
+                    .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.savingProfile')))));
                 });
 
                 // Delete handler
@@ -9557,7 +9555,7 @@
                 this.initTagEditors(content);
             })
             .catch(err => {
-                this.showAlert(t('errors.error'), t('errors.loadProfileDetails', { message: escapeHtml(err.message) }));
+                this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.loadProfileDetails'))));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
             });
         },
@@ -10050,7 +10048,7 @@
                     this.showAlert(t('errors.error'), escapeHtml(refusalText(res)) || t(failKey));
                     return null;
                 })
-                .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
+                .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.generic')))));
             };
 
             content.querySelectorAll('.device-delete-btn').forEach(btn => {
@@ -10128,7 +10126,7 @@
                             () => deviceAction('merge-duplicates?apply=true', null, 'errors.failedMergeDevice'));
                     })
                     .catch(err => this.showAlert(t('errors.error'),
-                        t('errors.withMessage', { message: escapeHtml(err.message) })));
+                        escapeHtml(this._failText(err, t('errors.generic')))));
                 });
             }
         },
@@ -10945,7 +10943,7 @@
                 if (!res.ok) throw new Error(t('errors.failedDeleteProfile'));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
             })
-            .catch(err => this.showAlert(t('errors.error'), t('errors.deletingProfile', { message: escapeHtml(err.message) })));
+            .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.deletingProfile')))));
         },
 
         loadBonfireStatus: function (content, apiClient, masterToken) {
@@ -10962,8 +10960,11 @@
             .then(res => {
                 if (res.status === 401) {
                     this.handleSessionExpired();
-                    throw new Error(t('errors.unauthorized'));
+                    throw new Error('status request refused: 401');
                 }
+                // An error page is not a status. Without this, res.json() on one threw a
+                // parse error that was then shown to the person as the reason.
+                if (!res.ok) throw new Error('status request failed: ' + res.status);
                 return res.json();
             })
             .then(status => {
@@ -10972,7 +10973,7 @@
             })
             .catch(err => {
                 if (!this.navIsCurrent(ticket)) return;
-                container.innerHTML = `<div style="color: var(--jpf-danger); font-size: 0.9rem;">${t('bonfire.failedLoadStatus', { message: escapeHtml(err.message) })}</div>`;
+                container.innerHTML = `<div style="color: var(--jpf-danger); font-size: 0.9rem;">${t('bonfire.failedLoadStatus')}</div>`;
             });
         },
 
@@ -11074,9 +11075,6 @@
                     <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid var(--jpf-warn); border-radius: var(--jpf-r-sm); font-size: 0.75rem; line-height: 1.5; color: var(--jpf-text-1);">
                         <strong style="color: var(--jpf-warn);">${t('bonfire.adminAccountWarning')}</strong> ${t('bonfire.adminAccountWarningBody')}
                     </div>` : ''}
-                    <div style="margin-left: 1.6rem; margin-top: 8px; font-size: 0.78rem; line-height: 1.5; opacity: 0.7;">
-                        ${t('bonfire.proxyHint')}
-                    </div>
                 </div>
             ` : '';
 
@@ -11145,7 +11143,7 @@
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedKick'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
+                        .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.generic')))));
                     });
                 });
             });
@@ -11165,7 +11163,7 @@
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedNewCode'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
+                        .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.generic')))));
                     });
                 });
             }
@@ -11183,7 +11181,7 @@
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedDeleteGroup'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
+                        .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.generic')))));
                     });
                 });
             }
@@ -11201,7 +11199,7 @@
                             if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedLeaveGroup'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
+                        .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.generic')))));
                     });
                 });
             }
@@ -11224,7 +11222,7 @@
                     .catch(err => {
                         generateBtn.disabled = false;
                         generateBtn.textContent = t('bonfire.generateJoinCode');
-                        this.showAlert(t('errors.error'), t('bonfire.failedGenerateCode', { message: escapeHtml(err.message) }));
+                        this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('bonfire.failedGenerateCode'))));
                     });
                 });
             }
