@@ -13,7 +13,7 @@
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- On a phone, viewing-hours rows broke across lines and Delete Profile wrapped.\n- Buttons and form rows touched on older TVs.\n- Long names ran into the next profile on a crowded TV.\n- The library artwork picker was too small on a TV.\n- Escape now goes back on Settings and the profile forms.\n- Back did nothing on your own profile's screen, and some TV screens opened with nothing focused.\n- Opening Name and picture raised the phone keyboard.\n- Errors now say what to do, and an empty list says what to add.\n\n**Changed**\n\n- New installs require a main PIN. Existing servers keep their setting.\n- A profile can change its own name and picture from the switcher.\n- The picker has a bigger focus ring and a lock badge on TV, balanced rows, and no crown on the main account.\n- With richer animation on, Bloom and Harvest drift and Starlight twinkles.\n- Buttons in a theme all use the same letter case, and an empty PIN box shows four dots.\n- A custom logo is larger, and gets a backing on themes where it would disappear.\n- The admin theme list shows a preview of each theme.\n- On a phone, no text is smaller than 12px and every control is easy to tap.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.9.0.3/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "b1f9e99d2371f39972b7b1998eb28f3c",
         "timestamp": "2026-11-10T00:00:00Z"
       },
       {
