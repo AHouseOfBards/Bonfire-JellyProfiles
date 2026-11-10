@@ -68,8 +68,13 @@ const MEASURE = `(function () {
   return out;
 })()`;
 
+const RADIUS = {};
 function themes() {
     const dir = path.join(ROOT, 'Web', 'themes');
+    fs.readdirSync(dir).filter(f => /\.json$/.test(f) && f !== 'fonts.json').forEach(f => {
+        const t = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+        RADIUS[t.id] = ((t.shape || {}).radius || {}).medium;
+    });
     return fs.readdirSync(dir).filter(f => /\.json$/.test(f) && f !== 'fonts.json')
         .map(f => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')).id).sort();
 }
@@ -102,7 +107,9 @@ async function main() {
                     ok(where + ': has some padding', m.pad >= 8, 'padding ' + m.pad);
                     // The picture's own corners only: a transparent logo shows no corner, and
                     // nothing round the picture may clip it or sit behind it as a plate.
-                    if (!m.text) ok(where + ': the picture has rounded corners', m.imgRadius >= 6, 'radius ' + m.imgRadius);
+                    // In the theme's own medium corner (Crimson's are 3px, Bloom's 16px), so the
+                    // logo matches the tiles and buttons beside it; never square.
+                    if (!m.text) ok(where + ': the picture has the theme\'s rounded corners', m.imgRadius > 0 && m.imgRadius === RADIUS[theme], 'radius ' + m.imgRadius + ', theme medium ' + RADIUS[theme]);
                     ok(where + ': no plate behind it and nothing clips it', m.radius === 0 && m.plate === 'rgba(0, 0, 0, 0)', 'radius ' + m.radius + ', background ' + m.plate);
                     if (m.text) {
                         ok(where + ': the text is in the title colour', m.color === m.titleColor, m.color + ' vs ' + m.titleColor);

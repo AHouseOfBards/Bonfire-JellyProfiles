@@ -557,7 +557,7 @@ body.profiles-no-scroll [id*="spinner"] {
     top: calc(1rem + env(safe-area-inset-top));
     right: calc(1rem + env(safe-area-inset-right));
 }
-#profiles-logo img { display: block; max-width: 100%; max-height: 72px; width: auto; height: auto; margin-left: auto; border-radius: 8px; }
+#profiles-logo img { display: block; max-width: 100%; max-height: 72px; width: auto; height: auto; margin-left: auto; border-radius: var(--jpf-r-md); }
 .jpf-tv #profiles-logo { top: 5vh; right: 5vw; max-width: 30vw; font-size: 2.1rem; }
 .jpf-tv #profiles-logo img { max-height: 108px; }
 /* Room for it above the content, so on a short screen it sits above the title rather than

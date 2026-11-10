@@ -6933,7 +6933,7 @@
                 <h1 class="profiles-title">${t('pin.enterProfilePin')}</h1>
                 <div class="pin-entry-container">
                     <div class="jpf-pin-keys-hint">${t('pin.numberKeys')}</div>
-                    <input type="text" id="profile-pin-input" maxlength="8" placeholder=" "pattern="[0-9]*" inputmode="numeric" aria-label="${t('pin.enterProfilePin')}" aria-describedby="pin-error-msg" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
+                    <input type="text" id="profile-pin-input" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${t('pin.enterProfilePin')}" aria-describedby="pin-error-msg" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
                     <div id="pin-error-msg" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions jpf-actions">
                         <button id="pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.back')}</button>
@@ -7086,7 +7086,7 @@
                     ${setup ? this._onboardingStepLine() : ''}
                     <p class="profiles-pin-note">${noteKey ? t(noteKey) : required && !setup ? t('mainPin.requiredBody') : t('mainPin.setBody')}</p>
                     <div class="jpf-pin-keys-hint">${t('pin.numberKeys')}</div>
-                    <input type="text" id="main-pin-new" maxlength="8" placeholder=" "pattern="[0-9]*" inputmode="numeric" aria-label="${t('mainPin.setTitle')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    <input type="text" id="main-pin-new" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${t('mainPin.setTitle')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     <div id="main-pin-new-error" class="profiles-pin-error" role="alert" hidden></div>
                     <div class="pin-actions jpf-actions">
                         ${setup && !setup.onSkip ? '' : `<button id="main-pin-skip" class="profiles-btn btn-secondary">${required && !setup ? t('common.cancel') : t('mainPin.notNow')}</button>`}
@@ -7146,7 +7146,7 @@
                 <h1 class="profiles-title">${t('pin.enterMasterPin')}</h1>
                 <div class="pin-entry-container">
                     <div class="jpf-pin-keys-hint">${t('pin.numberKeys')}</div>
-                    <input type="text" id="master-pin-input" maxlength="8" placeholder=" "pattern="[0-9]*" inputmode="numeric" aria-label="${t('pin.enterMasterPin')}" aria-describedby="master-pin-error-msg" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
+                    <input type="text" id="master-pin-input" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${t('pin.enterMasterPin')}" aria-describedby="master-pin-error-msg" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
                     <div id="master-pin-error-msg" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions jpf-actions">
                         <button id="master-pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>

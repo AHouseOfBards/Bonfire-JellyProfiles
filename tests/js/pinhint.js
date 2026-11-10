@@ -45,7 +45,9 @@ function boxOf(id) {
         ok(s[0] + ': no row of dots posing as a typed PIN', box.indexOf('••') === -1, box);
         // A placeholder was tried first: the box is 180px wide with 0.6rem letter-spacing, so
         // on a television it read "Use the number" and sat at the bottom of the box.
-        ok(s[0] + ': no placeholder in a box too narrow for one', !/placeholder=/.test(box), box);
+        // A single space is allowed and is not words: it is what lets :placeholder-shown
+        // draw the empty box's four dots (pinbox.js), and it draws nothing itself.
+        ok(s[0] + ': no placeholder in a box too narrow for one', !/placeholder="[^"]*[^"\s][^"]*"/.test(box), box);
         ok(s[0] + ': the hint is its own line', /class="jpf-pin-keys-hint">Use the number keys</.test(content.innerHTML));
         ok(s[0] + ': the box is named after what it asks for', /aria-label="(?!Use the number)[^"]+"/.test(box), box);
     }
