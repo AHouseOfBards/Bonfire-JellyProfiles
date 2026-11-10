@@ -102,7 +102,9 @@ function world(store, fetchAnswer) {
     const obj = {
         config: { customThemesKey: 'jellyfin_profiles_custom_themes' },
         settingsCalls: [],
-        _setThemeSettings(prefs) { this.settingsCalls.push(prefs); this.applyTheme(prefs.theme); }
+        _setThemeSettings(prefs) { this.settingsCalls.push(prefs); this.applyTheme(prefs.theme); },
+        // The logo's backing is measured in a browser by logobacking.js.
+        fitLogoBacking() {}
     };
     const gen = 'const BONFIRE_THEMES = ' + JSON.stringify(payload) + ';\n'
         + ['themeCss', 'servedFontName', 'gateBackground', 'customFontFaceCss', 'customThemesCss']

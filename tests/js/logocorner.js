@@ -49,7 +49,7 @@ const MEASURE = `(function () {
   var cs = getComputedStyle(box);
   var img = box.querySelector('img');
   var title = root.querySelector('.profiles-title');
-  var out = { found: true, root: parseFloat(getComputedStyle(document.documentElement).fontSize), text: !img, box: r(box), vw: innerWidth,
+  var out = { found: true, root: parseFloat(getComputedStyle(document.documentElement).fontSize), text: !img, box: r(box), vw: innerWidth, vh: innerHeight,
     pad: parseFloat(cs.paddingTop) + parseFloat(cs.paddingLeft), radius: parseFloat(cs.borderTopLeftRadius) || 0,
     plate: cs.backgroundColor + (cs.backgroundImage !== 'none' ? ' ' + cs.backgroundImage : ''), size: parseFloat(cs.fontSize), color: cs.color, titleColor: title ? getComputedStyle(title).color : '' };
   if (img) { var ic = getComputedStyle(img); out.imgMax = parseFloat(ic.maxHeight); out.imgRadius = parseFloat(ic.borderTopLeftRadius) || 0; out.img = r(img); }
@@ -115,7 +115,9 @@ async function main() {
                         ok(where + ': the text is in the title colour', m.color === m.titleColor, m.color + ' vs ' + m.titleColor);
                         ok(where + ': the text is half as big again', m.size / m.root >= (tv ? 2.0 : 1.49), m.size + 'px on a ' + m.root + 'px root');
                     } else {
-                        ok(where + ': the picture may be half as big again', m.imgMax >= (tv ? 108 : 72), 'max-height ' + m.imgMax + 'px');
+                        // On a TV a tenth of the screen's height: 108px at 1080p, the same share
+                        // at 720p (logobacking.js holds the two to the same share).
+                        ok(where + ': the picture may be half as big again', m.imgMax >= (tv ? m.vh * 0.1 - 0.5 : 72), 'max-height ' + m.imgMax + 'px of ' + m.vh);
                     }
                     ok(where + ': off the title and the tiles', m.hits.length === 0, m.hits.join(', '));
                 }

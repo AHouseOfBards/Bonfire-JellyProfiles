@@ -434,6 +434,9 @@ if (constants && names.every(n => methods[n])) {
             _themeSettings: null,
             fontCalls: 0,
             injectFonts() { this.fontCalls++; },
+            // applyTheme re-judges the logo's backing; that is measured in a browser by
+            // logobacking.js, and there is no logo in this world.
+            fitLogoBacking() {},
             normalizeGuid: g => String(g || '').replace(/-/g, '').toLowerCase()
         };
         // Since 1.7.2 _setThemeSettings caches each theme's gate background, which it gets
