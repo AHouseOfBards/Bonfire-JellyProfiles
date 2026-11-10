@@ -7270,7 +7270,7 @@
                 <h1 class="profiles-title">${t('pinReset.title')}</h1>
                 <div class="pin-entry-container">
                     <p class="profiles-pin-note" id="pin-reset-note"></p>
-                    <input type="text" id="pin-reset-code" maxlength="7" inputmode="numeric" placeholder=" " aria-label="${t('accountEmail.code')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    <input type="text" id="pin-reset-code" maxlength="7" inputmode="numeric" placeholder="${t('accountEmail.code')}" aria-label="${t('accountEmail.code')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     <input type="text" id="pin-reset-new" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder=" " aria-label="${t('pinReset.newPin')}" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     <div id="pin-reset-error" class="profiles-pin-error" role="alert" hidden></div>
                     <div class="pin-actions jpf-actions">

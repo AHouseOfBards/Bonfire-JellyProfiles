@@ -1236,9 +1236,10 @@ body.profiles-no-scroll [id*="spinner"] {
    gradients, not placeholder text: there is nothing to translate, and a screen reader
    hears the field's aria-label and not "bullet bullet". The boxes carry placeholder=" "
    only so :placeholder-shown (Chromium 47) can tell empty from typed; ::placeholder is
-   Chromium 57 and would be dropped on a television. */
+   Chromium 57 and would be dropped on a television. Not the emailed code: it is six
+   visible digits, not a PIN, so it keeps the word "Code" as its placeholder. */
 #profile-pin-input:placeholder-shown, #master-pin-input:placeholder-shown, #main-pin-new:placeholder-shown,
-#pin-reset-new:placeholder-shown, #pin-reset-code:placeholder-shown {
+#pin-reset-new:placeholder-shown {
     background-image:
         radial-gradient(circle 5px at 50% 50%, var(--jpf-text-3) 3.5px, transparent 5px),
         radial-gradient(circle 5px at 50% 50%, var(--jpf-text-3) 3.5px, transparent 5px),
