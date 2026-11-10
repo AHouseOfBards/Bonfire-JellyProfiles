@@ -9995,11 +9995,13 @@
                     const zones = this._field(data, 'zones') || [];
                     const chosen = this._field(data, 'household') || '';
                     const fallback = this._field(data, 'default') || this._field(data, 'server') || '';
+                    // "Server default (Chicago)", not "(America/Chicago)": a native select can't
+                    // shorten its text, and the full id was cut under the arrow on a phone (P2-1002).
                     slot.innerHTML = this.renderSection('schedule', t('account.zoneTitle'), t('account.zoneSubtitle'), `
                         <div class="form-group">
                             <label for="account-zone-select">${t('account.zone')}</label>
                             <select id="account-zone-select">
-                                <option value="">${t('account.zoneDefault', { zone: escapeHtml(fallback) })}</option>
+                                <option value="">${t('account.zoneDefault', { zone: escapeHtml(fallback.split('/').pop().replace(/_/g, ' ')) })}</option>
                                 ${zones.map(z => `<option value="${escapeHtml(z)}"${z === chosen ? ' selected' : ''}>${escapeHtml(z.replace(/_/g, ' '))}</option>`).join('')}
                             </select>
                         </div>`);
