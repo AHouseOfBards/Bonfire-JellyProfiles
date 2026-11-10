@@ -93,16 +93,6 @@
 #profiles-gate-overlay::before {
     position: fixed;
 }
-/* On a phone the content fills the width, so every ornament lands behind a button, a
-   field or a line of text, and shows through their translucent fills. Not drawn there;
-   the theme's colours and type still carry it. (The twinkle layer is ::after, which its
-   own rule makes position: fixed, hence !important.) */
-@media (max-width: 480px) {
-    #profiles-gate-overlay::before,
-    #profiles-gate-overlay::after {
-        display: none !important;
-    }
-}
 .jpf-theme-preview {
     position: relative;
     z-index: 0;

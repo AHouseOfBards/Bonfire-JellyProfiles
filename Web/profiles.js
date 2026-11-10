@@ -611,6 +611,37 @@
         const selectors = (id === 'bonfire' ? [':root', 'body'] : []).concat([sel, sel + ' body']);
         let css = selectors.join(',\n') + ' {\n' + vars.map(v => '    ' + v[0] + ': ' + v[1] + ';').join('\n') + '\n}\n';
 
+        // A pattern is drawn behind the screen, and on a phone the content fills the width, so
+        // every ornament lands behind a button, a field or a card and shows through its
+        // translucent fill. Hiding the ornaments there was tried and the owner wants them kept,
+        // so at that width the fills are made opaque instead: each one laid over the theme's
+        // plain background, which is how it already looks where no ornament is. A fill that is
+        // fully clear (a sheet with no frame) stays clear; it paints nothing for an ornament to
+        // show through. tests/js/decostack.js measures this against the layer on and off.
+        if (patternImage) {
+            const plain = hex(g(bg, 'fill')) ? rgbOf(hex(g(bg, 'fill'))) : null;
+            const solidOver = v => {
+                const h = hex(v);
+                if (!h || !plain) return null;
+                const a = alphaOf(h);
+                if (a >= 1 || a <= 0) return null;
+                const k = rgbOf(h);
+                return '#' + [0, 1, 2].map(i => {
+                    const x = Math.round(k[i] * a + plain[i] * (1 - a));
+                    return (x < 16 ? '0' : '') + x.toString(16);
+                }).join('');
+            };
+            const fills = [
+                ['--jpf-surface-1', c.surface1], ['--jpf-surface-2', c.surface2], ['--jpf-surface-3', c.surface3],
+                ['--jpf-btn2-bg', b2.fill], ['--jpf-add-bg', add.fill], ['--jpf-add-hover-bg', add.focusFill],
+                ['--jpf-sheet-bg', sheet.fill], ['--jpf-card-bg', card.fill], ['--jpf-input-bg', input.fill]
+            ].map(f => [f[0], solidOver(f[1])]).filter(f => f[1]);
+            if (fills.length) {
+                css += '@media (max-width: 480px) {\n    ' + selectors.join(',\n    ') + ' {\n'
+                    + fills.map(f => '        ' + f[0] + ': ' + f[1] + ';').join('\n') + '\n    }\n}\n';
+            }
+        }
+
         // Without panels the tiles sit straight on the background, so the layout changes
         // with it: one row where one fits, and a quiet heading, gone when there is only
         // one household. The doubled attribute keeps these at the weight they had as
