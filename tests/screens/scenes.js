@@ -204,6 +204,19 @@
             P.useCustomThemes({ logo: { image: '/plugins/profiles/themes/logo/' + '9be1'.repeat(8) + '.jpg', text: null, alt: 'The Hayes House' } }, false);
             return gate(P);
         },
+        // A see-through logo: white, near-black, or orange (fixture.js draws them).
+        logowhite: function (P) {
+            P.useCustomThemes({ logo: { image: '/plugins/profiles/themes/logo/' + 'ff'.repeat(16) + '.png', text: null, alt: 'The Hayes House' } }, false);
+            return gate(P);
+        },
+        logodark: function (P) {
+            P.useCustomThemes({ logo: { image: '/plugins/profiles/themes/logo/' + '11'.repeat(16) + '.png', text: null, alt: 'The Hayes House' } }, false);
+            return gate(P);
+        },
+        logoorange: function (P) {
+            P.useCustomThemes({ logo: { image: '/plugins/profiles/themes/logo/' + 'e8'.repeat(16) + '.png', text: null, alt: 'The Hayes House' } }, false);
+            return gate(P);
+        },
         logotext: function (P) {
             P.useCustomThemes({ logo: { image: null, text: 'The Hayes House', alt: null } }, false);
             return gate(P);

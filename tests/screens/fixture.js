@@ -28,6 +28,39 @@ const lib = require('../js/_lib');
 const ROOT = path.resolve(__dirname, '..', '..');
 const BOOT = 'ProfilesPlugin.init();';
 
+// A see-through logo in one colour, as a server might hold one: a wordmark-like block of
+// bars on a clear ground, about 40% of it painted, with soft (half-alpha) edges. Built here
+// so no binary sits in the repo. Served for logo ids made of one repeated hex pair.
+function clearLogoPng(rgb) {
+    const zlib = require('zlib');
+    // Drawn at four times 160x60, so the stylesheet's height cap sizes it, not its own pixels.
+    const W = 640, H = 240;
+    const raw = Buffer.alloc((W * 4 + 1) * H);
+    const paint = (X, Y) => { const x = X >> 2, y = Y >> 2; return paint1(x, y); };
+    const paint1 = (x, y) => (y >= 12 && y < 48) && ((x >= 8 && x < 40) || (x >= 52 && x < 64) || (x >= 76 && x < 108) || (x >= 120 && x < 152)) && !(y >= 24 && y < 36 && x >= 16 && x < 32);
+    for (let y = 0; y < H; y++) {
+        raw[y * (W * 4 + 1)] = 0;
+        for (let x = 0; x < W; x++) {
+            const o = y * (W * 4 + 1) + 1 + x * 4;
+            const a = paint(x, y) ? 255 : (paint(x - 1, y) || paint(x + 1, y) || paint(x, y - 1) || paint(x, y + 1)) ? 128 : 0;
+            raw[o] = rgb[0]; raw[o + 1] = rgb[1]; raw[o + 2] = rgb[2]; raw[o + 3] = a;
+        }
+    }
+    const crcTable = [];
+    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; crcTable[n] = c >>> 0; }
+    const crc = b => { let c = 0xffffffff; for (const x of b) c = crcTable[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+    const chunk = (type, data) => {
+        const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+        const td = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+        const c = Buffer.alloc(4); c.writeUInt32BE(crc(td));
+        return Buffer.concat([len, td, c]);
+    };
+    const ihdr = Buffer.alloc(13);
+    ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4); ihdr[8] = 8; ihdr[9] = 6;
+    return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr),
+        chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+
 /** The served script, with the bootstrap swapped for a handle the scenes can call. */
 function bundle(src) {
     const js = lib.readClientBundle(src || fs.readFileSync(path.join(ROOT, 'Web', 'profiles.js'), 'utf8'));
@@ -83,6 +116,12 @@ function start(port, options) {
         // The logo scene's picture: the plugin's own icon, standing in for a server's logo.
         if (/^\/plugins\/profiles\/themes\/logo\/[0-9a-f]{32}\.jpg$/.test(url.pathname)) {
             return send(200, 'image/jpeg', fs.readFileSync(path.join(ROOT, 'images', 'icon.jpg')));
+        }
+        // The see-through logos: "ff"... is white, "11"... near-black, "e8"... the accent orange.
+        const clear = /^\/plugins\/profiles\/themes\/logo\/(([0-9a-f]{2})\2{15})\.png$/.exec(url.pathname);
+        if (clear) {
+            const v = parseInt(clear[2], 16);
+            return send(200, 'image/png', clearLogoPng(v === 0xe8 ? [232, 120, 48] : [v, v, v]));
         }
         const material =/^\/fixture\/(material-icons\.woff2)$/.exec(url.pathname);
         if (material && opts.materialIcons && fs.existsSync(opts.materialIcons)) {

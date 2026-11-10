@@ -471,6 +471,8 @@
                 const a = lumOf(p), b = lumOf(q);
                 return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
             };
+            // gateColours does the same for the logo; not shared, because the harnesses
+            // lift themeCss out of this file and run it on its own.
             const seen = (String(gateBg).match(/#[0-9a-fA-F]{6}\b|rgba?\([^)]*\)/g) || []).map(s => {
                 if (s.charAt(0) === '#') return rgbOf(s).concat([1]);
                 const n = s.replace(/^rgba?\(|\)$/g, '').split(',').map(Number);
@@ -843,6 +845,57 @@
         if (!theme) return '';
         const m = /--jpf-gate-bg: ([^;]*);/.exec(themeCss(theme, BONFIRE_THEMES.patterns || {}));
         return m ? m[1] : '';
+    }
+
+    /// The relative luminance of an [r, g, b] colour, and the contrast ratio of two, as
+    /// WCAG defines them.
+    function relLum(k) {
+        const lin = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+        return 0.2126 * lin(k[0]) + 0.7152 * lin(k[1]) + 0.0722 * lin(k[2]);
+    }
+    function contrastOf(a, b) {
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    }
+
+    /// The solid colours of a gate background (themeCss's --jpf-gate-bg), as [r, g, b]:
+    /// what the logo's backing is decided against. Not the see-through stops laid over them,
+    /// as themeCss's accent text is, because a see-through stop is a glow placed somewhere:
+    /// Bonfire's is orange, at the bottom, and counting it put a backing behind an orange
+    /// logo at the top that read at 6:1 on what was really behind it.
+    function gateColours(gateBg) {
+        return (String(gateBg || '').match(/#[0-9a-fA-F]{6}\b|rgba?\([^)]*\)/g) || []).map(s => {
+            if (s.charAt(0) === '#') return [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16)).concat([1]);
+            const n = s.replace(/^rgba?\(|\)$/g, '').split(',').map(Number);
+            return [n[0], n[1], n[2], n.length > 3 ? n[3] : 1];
+        }).filter(k => k[3] >= 1);
+    }
+
+    /// The luminance of each visible pixel of a loaded logo, read off a canvas of at most
+    /// 64px a side, which is plenty to tell what colour a logo is. [] for a solid picture
+    /// (under 3% of it see-through): it carries its own background, so it never needs one.
+    /// null when the canvas cannot be read: a picture from another origin (the web client
+    /// bundled inside a TV app) taints it, and then the logo is left as it is.
+    function logoLums(img) {
+        try {
+            const w = img.naturalWidth, h = img.naturalHeight;
+            if (!w || !h) return null;
+            const s = Math.min(1, 64 / Math.max(w, h));
+            const cv = document.createElement('canvas');
+            cv.width = Math.max(1, Math.round(w * s));
+            cv.height = Math.max(1, Math.round(h * s));
+            const g = cv.getContext('2d');
+            g.drawImage(img, 0, 0, cv.width, cv.height);
+            const d = g.getImageData(0, 0, cv.width, cv.height).data;
+            const out = [];
+            let clear = 0;
+            for (let i = 0; i < d.length; i += 4) {
+                if (d[i + 3] < 250) clear++;
+                if (d[i + 3] >= 128) out.push(relLum([d[i], d[i + 1], d[i + 2]]));
+            }
+            return clear / (d.length / 4) < 0.03 ? [] : out;
+        } catch (e) {
+            return null;
+        }
     }
 
     const EN_STRINGS = {
@@ -4569,7 +4622,11 @@
             // Kept as asked, so a custom theme that arrives after this is put on then.
             this._wantedTheme = String(theme || '').toLowerCase();
             const id = normalizeTheme(theme);
-            if (root.getAttribute('data-jpf-theme') !== id) root.setAttribute('data-jpf-theme', id);
+            if (root.getAttribute('data-jpf-theme') !== id) {
+                root.setAttribute('data-jpf-theme', id);
+                // A see-through logo that read on the last theme may not on this one.
+                this.fitLogoBacking();
+            }
         },
 
         /// The stored themes: { last, users: { normalisedUserId: theme }, bg: { theme: gate
@@ -12445,6 +12502,8 @@
             if (document.getElementById('jpf-styles')) this.applyCustomThemesCss();
             if (this._lastThemePrefs) this._setThemeSettings(this._lastThemePrefs);
             else if (this._wantedTheme) this.applyTheme(this._wantedTheme);
+            // The same theme id may now have other colours.
+            this.fitLogoBacking();
         },
 
         /// The server's logo, top right of the gate (1.7.2). On the gate itself, not inside
@@ -12485,6 +12544,10 @@
                 img.alt = logo.alt || '';
                 // A logo replaced since this device's copy was kept 404s: the text, if any.
                 img.onerror = asText;
+                img.onload = () => {
+                    img._jpfLums = logoLums(img);
+                    this.fitLogoBacking();
+                };
                 img.src = pluginUrl(logo.image);
                 box.appendChild(img);
             } else {
@@ -12492,6 +12555,39 @@
             }
             gate.appendChild(box);
             if (gate.classList && box.parentNode === gate) gate.classList.add('jpf-has-logo');
+        },
+
+        /// A see-through logo sits straight on the gate, and one logo serves every theme: a
+        /// white one vanished on Jellyfin Light, a black one on every dark theme. Its visible
+        /// pixels are read once, when it loads (logoLums), and held against the solid colours
+        /// of the theme's background (gateColours) when it loads and whenever the theme
+        /// changes. If a third or more of them fall under 3:1, WCAG's floor for graphics,
+        /// the logo gets a backing: dark behind a light logo, light behind a dark one. Not
+        /// the theme's panel colour, which on a dark theme is as dark as its background and
+        /// would hide a dark logo just the same. A logo that reads is left bare, and so is a
+        /// solid picture. Only from drawLogo and applyTheme, never from checkRoute.
+        fitLogoBacking: function () {
+            const box = document.getElementById('profiles-logo');
+            const img = box && box.querySelector('img');
+            if (!img || !box.classList) return;
+            const px = img._jpfLums;
+            let want = '';
+            if (px && px.length) {
+                const id = document.documentElement.getAttribute('data-jpf-theme') || 'bonfire';
+                const backs = gateColours(gateBackground(id)).map(relLum);
+                if (backs.length) {
+                    const lo = Math.min.apply(null, backs), hi = Math.max.apply(null, backs);
+                    let lost = 0, lostSum = 0;
+                    px.forEach(L => {
+                        const near = L < lo ? lo : L > hi ? hi : L;
+                        if (contrastOf(L, near) < 3) { lost++; lostSum += L; }
+                    });
+                    // 0.179 is where black and white contrast equally with a colour.
+                    if (lost / px.length >= 1 / 3) want = lostSum / lost > 0.179 ? 'dark' : 'light';
+                }
+            }
+            box.classList.toggle('jpf-logo-back-dark', want === 'dark');
+            box.classList.toggle('jpf-logo-back-light', want === 'light');
         },
 
         /// The custom themes and their fonts in <style id="jpf-themes-custom">, after the

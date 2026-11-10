@@ -559,11 +559,17 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 #profiles-logo img { display: block; max-width: 100%; max-height: 72px; width: auto; height: auto; margin-left: auto; border-radius: var(--jpf-r-md); }
 .jpf-tv #profiles-logo { top: 5vh; right: 5vw; max-width: 30vw; font-size: 2.1rem; }
-.jpf-tv #profiles-logo img { max-height: 108px; }
+/* A tenth of the screen's height, not 108px: 108px was 10% of a 1080p screen and 15% of a
+   720p one, so the same logo looked half as big again on the smaller television. */
+.jpf-tv #profiles-logo img { max-height: 10vh; }
+/* A see-through logo that would vanish on this theme gets a backing (fitLogoBacking): dark
+   behind a light logo, light behind a dark one, so it contrasts with the logo itself. */
+#profiles-logo.jpf-logo-back-dark { background: rgba(16, 16, 16, 0.85); border-radius: var(--jpf-r-md); }
+#profiles-logo.jpf-logo-back-light { background: rgba(255, 255, 255, 0.92); border-radius: var(--jpf-r-md); }
 /* Room for it above the content, so on a short screen it sits above the title rather than
    on it. A logo and nothing else changes: the class is only set while one is drawn. */
 #profiles-gate-overlay.jpf-has-logo .profiles-modal-content { padding-top: 6.5rem; }
-.jpf-tv #profiles-gate-overlay.jpf-has-logo .profiles-modal-content { padding-top: calc(5vh + 124px + 1rem); }
+.jpf-tv #profiles-gate-overlay.jpf-has-logo .profiles-modal-content { padding-top: calc(15vh + 16px + 1rem); }
 /* Announcements, above the title. Each theme colours them through its own accent, warn
    and danger tokens, so no theme needs a rule of its own. Margins, not flex gap: gap on a
    flex box is Chromium 84, and webOS 4.5 is 53. */
