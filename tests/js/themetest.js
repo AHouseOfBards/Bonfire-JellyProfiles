@@ -113,7 +113,12 @@ check('the palette array is still literals',
 check('no var() reached the palette',
     /const AVATAR_PALETTE = \[[\s\S]{0,400}var\(--/.test(SRC), false);
 // The picker must draw from that palette, or the check above guards an array nobody uses.
-check('the picker draws from it', /const palette = AVATAR_PALETTE;/.test(SRC), true);
+// The palette may be followed by the profile's own off-palette colour (renderColorPicker
+// adds it as one more swatch), so this asks that the picker's list starts from the array,
+// not that it is the array and nothing else.
+check('the picker draws from it',
+    /const palette = [^;]*\bAVATAR_PALETTE\.concat\(\[selectedColor\]\) : AVATAR_PALETTE;/.test(SRC)
+    || /const palette = AVATAR_PALETTE;/.test(SRC), true);
 
 console.log();
 console.log('── Signals mean what they look like ──────────────────────────');
