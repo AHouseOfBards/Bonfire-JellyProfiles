@@ -533,6 +533,29 @@ namespace Jellyfin.Profiles.Controllers
             return mapping.BypassPinOnLocalNetwork && isLocal;
         }
 
+        /// <summary>
+        /// Remembers that <paramref name="householdId"/> (a main account) has made a request
+        /// from the server's own network, and returns whether it has now been seen there.
+        /// The configuration is written only when this is the first time. Read inside the
+        /// lock, like <c>UpdateAdminSettings</c>: a snapshot taken earlier may be stale.
+        /// </summary>
+        protected static bool NoteHouseholdSeenLocally(Guid householdId, bool isLocal, PluginConfiguration? snapshot)
+        {
+            if (!isLocal) return snapshot?.HouseholdsSeenLocally?.Contains(householdId) ?? false;
+            lock (ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (config == null) return true;
+                config.HouseholdsSeenLocally ??= new List<Guid>();
+                if (!config.HouseholdsSeenLocally.Contains(householdId))
+                {
+                    config.HouseholdsSeenLocally.Add(householdId);
+                    Plugin.Instance?.SaveConfiguration();
+                }
+                return true;
+            }
+        }
+
         /// <summary>A main account's own row, as opposed to one of its sub-profiles.</summary>
         internal static bool IsMainRow(ProfileMapping m) =>
             m.MasterUserId != Guid.Empty && m.ProfileUserId == m.MasterUserId;

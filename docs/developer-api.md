@@ -418,6 +418,7 @@ Every profile the caller can switch to: their own household, then any linked Bon
     "lockoutMinutes": 10,
     "maxSubProfiles": 5,
     "bypassPinOnLocalNetwork": false,
+    "seenOnLocalNetwork": false,
     "allowedDeviceIds": [],
     "isBonfire": false,
     "profileImage": null,
@@ -446,6 +447,7 @@ Every profile the caller can switch to: their own household, then any linked Bon
 | `blockedTags` | string[] | The profile's own blocked tags. The main account's are added when it's opened. |
 | `allowedTags` | string[] | The profile's own allowed tags. Empty means no allow-list. |
 | `bypassPinOnLocalNetwork` | boolean | Skip the PIN on the home network. |
+| `seenOnLocalNetwork` | boolean | The caller's own household has made a request from the server's network. Set once, never cleared. Screens offer `bypassPinOnLocalNetwork` only where this or that is true. False on another household's entries. |
 | `allowedDeviceIds` | string[] | Devices it may be opened on. Empty means any. |
 | `isBonfire` | boolean | Belongs to another household in the caller's Bonfire, or is an [added account](#other-accounts). |
 | `isLinked` | boolean | Another main account added to the caller's switcher. Opening it signs into that account. |
@@ -598,7 +600,7 @@ The main account's own settings.
 | `lockoutMinutes` | integer | No | Minutes before the account locks. `0` is never. Clamped to 0–1440. Omit to keep it. |
 | `timeZone` | string | No | The household's time zone, an IANA id such as `Europe/Paris`, for [viewing hours](#viewing-hours). `""` follows the server default. Omit to keep it. |
 
-Response: `{ "hasPin": true, "askPinToOpen": false, "bypassPinOnLocalNetwork": false, "lockoutMinutes": 5, "timeZone": "" }`.
+Response: `{ "hasPin": true, "askPinToOpen": false, "bypassPinOnLocalNetwork": false, "seenOnLocalNetwork": false, "lockoutMinutes": 5, "timeZone": "" }`.
 
 An account with no PIN can set one without `masterPin`, even while the server requires
 it.

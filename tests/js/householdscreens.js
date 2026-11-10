@@ -123,7 +123,7 @@ PP.handleSessionExpired = () => {};
     console.log('\n── Your account ────────────────────────────────────────────────');
     PP.masterPin = '2468';
     PP.currentProfiles = [{ profileUserId: 'main', profileName: 'Bard', isMaster: true, isBonfire: false, hasPin: true,
-        askPinToOpen: true, bypassPinOnLocalNetwork: false, lockoutMinutes: 5 }];
+        askPinToOpen: true, bypassPinOnLocalNetwork: false, seenOnLocalNetwork: true, lockoutMinutes: 5 }];
     PP.fetchSharedFormData = () => Promise.resolve({ devices: [{ deviceId: 'a', deviceName: 'TV' }, { deviceId: 'b', deviceName: 'Phone' }] });
     PP.showAccountSettings();
     await settle();

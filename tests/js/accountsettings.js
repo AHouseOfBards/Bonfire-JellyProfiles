@@ -48,7 +48,7 @@ function freshAccount() {
     PP.masterPin = '2468';
     PP.currentProfiles = [
         { profileUserId: 'main', profileName: 'Bard', isMaster: true, isBonfire: false, hasPin: true,
-          askPinToOpen: true, bypassPinOnLocalNetwork: false, lockoutMinutes: 5, isAdministrator: false },
+          askPinToOpen: true, bypassPinOnLocalNetwork: false, seenOnLocalNetwork: true, lockoutMinutes: 5, isAdministrator: false },
         { profileUserId: 'kid', profileName: 'Kid', isMaster: false, isBonfire: false }
     ];
     PP.fetchSharedFormData = () => Promise.resolve({ devices: DEVICES });

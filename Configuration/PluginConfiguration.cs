@@ -34,6 +34,15 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>Other accounts shown in a household's switcher (issue #39). See <see cref="LinkedAccount"/>.</summary>
         public List<LinkedAccount> LinkedAccounts { get; set; } = new List<LinkedAccount>();
 
+        /// <summary>
+        /// Households (main account ids) that have made a request from the server's own
+        /// network, as Jellyfin classifies it. "Skip the PIN on my home network" can only
+        /// ever apply to a household that has been seen there, so the screens offer it to
+        /// no other (unless it is already on, so it can be turned off). Written once, the
+        /// first time, and never cleared. An older configuration loads with it empty.
+        /// </summary>
+        public List<Guid> HouseholdsSeenLocally { get; set; } = new List<Guid>();
+
         /// <summary>Devices signed into another household's account. See <see cref="CrossHouseholdEntry"/>.</summary>
         public List<CrossHouseholdEntry> CrossHouseholdEntries { get; set; } = new List<CrossHouseholdEntry>();
         public List<UserProfileLimitOverride> UserProfileLimitOverrides { get; set; } = new List<UserProfileLimitOverride>();
@@ -71,6 +80,7 @@ namespace Jellyfin.Profiles.Configuration
             copy.KnownDevices = KnownDevices?.ToList() ?? new List<KnownDevice>();
             copy.BonfireGroups = BonfireGroups?.ToList() ?? new List<BonfireGroup>();
             copy.LinkedAccounts = LinkedAccounts?.Select(l => l.Copy()).ToList() ?? new List<LinkedAccount>();
+            copy.HouseholdsSeenLocally = HouseholdsSeenLocally?.ToList() ?? new List<Guid>();
             copy.CrossHouseholdEntries = CrossHouseholdEntries?.Select(e => e.Copy()).ToList() ?? new List<CrossHouseholdEntry>();
             copy.UserProfileLimitOverrides = UserProfileLimitOverrides?.ToList() ?? new List<UserProfileLimitOverride>();
             copy.AvatarLibrary = AvatarLibrary?.ToList() ?? new List<AvatarLibraryItem>();

@@ -35,7 +35,7 @@ PP.showAlert = () => {};
 PP.masterPin = '2468';
 PP._themeSettings = { theme: 'bonfire', defaultTheme: 'bonfire', allow: true };
 PP.currentProfiles = [
-    { profileUserId: 'main', profileName: 'Bard', isMaster: true, isBonfire: false, hasPin: true },
+    { profileUserId: 'main', profileName: 'Bard', isMaster: true, isBonfire: false, hasPin: true, seenOnLocalNetwork: true },
     { profileUserId: 'kid', profileName: 'Kid', isMaster: false, isBonfire: false }
 ];
 PP.fetchSharedFormData = () => Promise.resolve({

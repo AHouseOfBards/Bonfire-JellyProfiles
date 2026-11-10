@@ -194,8 +194,8 @@ function check(label, html, expected) {
     PP.masterPin = '2468';
     PP._themeSettings = { theme: 'bonfire', defaultTheme: 'bonfire', allow: true };
     PP.currentProfiles = [
-        { profileUserId: 'main', profileName: 'Bard', isMaster: true, isBonfire: false, hasPin: true, askPinToOpen: true },
-        { profileUserId: 'kid', profileName: 'Kid', isMaster: false, isBonfire: false, avatarInitial: 'K', avatarColor: '#E50914' }
+        { profileUserId: 'main', profileName: 'Bard', isMaster: true, isBonfire: false, hasPin: true, askPinToOpen: true, seenOnLocalNetwork: true },
+        { profileUserId: 'kid', profileName: 'Kid', isMaster: false, isBonfire: false, seenOnLocalNetwork: true, avatarInitial: 'K', avatarColor: '#E50914' }
     ];
     PP.fetchSharedFormData = () => Promise.resolve({
         libraries: [{ Id: '11111111-1111-1111-1111-111111111111', Name: 'Movies' }],

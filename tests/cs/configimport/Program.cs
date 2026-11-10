@@ -177,6 +177,7 @@ var byHand = new Dictionary<string, object>
     ["AvatarLibrary"] = ListOf(T("AvatarLibraryItem"), Item("AvatarLibraryItem", ("Id", "a1"), ("DisplayName", "Fox"))),
     ["QuickConnectSharedDeviceNames"] = new List<string> { "SHIELD Android TV" },
     ["ProxyClients"] = new List<string> { "moonfin" },
+    ["HouseholdsSeenLocally"] = new List<Guid> { MASTER },
     ["AccountEmails"] = ListOf(T("AccountEmail"), Item("AccountEmail", ("UserId", MASTER), ("Address", "bard@example.com"), ("Language", "de"), ("NotifyLimitReached", true))),
     ["Email"] = Item("EmailSettings", ("Host", "smtp.example.com"), ("Port", 2525), ("Username", "mailer"), ("Password", "app-password"),
         ("FromAddress", "bonfire@example.com"), ("Security", "none")),

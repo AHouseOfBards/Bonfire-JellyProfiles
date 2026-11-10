@@ -2316,6 +2316,9 @@
                 lockoutMinutes: pick(p, 'lockoutMinutes', 5),
                 maxSubProfiles: pick(p, 'maxSubProfiles', 5),
                 bypassPinOnLocalNetwork: pick(p, 'bypassPinOnLocalNetwork', false),
+                // Whether this household has been seen on the server's network; the option
+                // above is only offered where it can apply.
+                seenOnLocalNetwork: pick(p, 'seenOnLocalNetwork', false),
                 // Main account only, and only to its owner. True unless the owner turned it off.
                 askPinToOpen: pick(p, 'askPinToOpen', true) !== false,
                 allowedDeviceIds: pick(p, 'allowedDeviceIds', []),
@@ -8756,13 +8759,14 @@
                         <select id="create-lockout-select">${this.renderLockoutOptions(5, true)}</select>
                         <div class="form-hint">${t('profileForm.autoLockHintCreate')}</div>
                     </div>
+                    ${this.showHomeSkip(this.householdSeenLocally(), false) ? `
                     <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
                             <input type="checkbox" id="create-local-bypass-checkbox" style="cursor: pointer; accent-color: var(--jpf-accent);" />
                             <span>${t('profileForm.bypassPinLan')}</span>
                         </label>
                         <div class="form-hint">${t('profileForm.bypassPinHint')}</div>
-                    </div>
+                    </div>` : ''}
                 `;
 
                 // ── Basics: what this profile can watch ─────────────────────────
@@ -8952,7 +8956,9 @@
                     const pin = document.getElementById('create-pin-input').value;
                     const rating = document.getElementById('create-rating-select').value;
                     const lockoutMinutes = parseInt(document.getElementById('create-lockout-select').value, 10);
-                    const bypassPin = document.getElementById('create-local-bypass-checkbox').checked;
+                    // Absent until the household has been seen on the server's network.
+                    const bypassBox = document.getElementById('create-local-bypass-checkbox');
+                    const bypassPin = bypassBox ? bypassBox.checked : false;
                     
                     const checkedLibs = [];
                     content.querySelectorAll('.library-checkbox:checked').forEach(cb => {
@@ -9138,13 +9144,14 @@
                         <select id="edit-lockout-select">${this.renderLockoutOptions(currentLockout, false)}</select>
                         <div class="form-hint">${t('profileForm.autoLockHintEdit')}</div>
                     </div>
+                    ${this.showHomeSkip(profile.seenOnLocalNetwork, profile.bypassPinOnLocalNetwork) ? `
                     <div class="form-group">
                         <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
                             <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent);" />
                             <span>${t('profileForm.bypassPinLan')}</span>
                         </label>
                         <div class="form-hint">${t('profileForm.bypassPinHint')}</div>
-                    </div>
+                    </div>` : ''}
                 `;
 
                 // ── Basics: what this profile can watch ─────────────────────────
@@ -9775,7 +9782,9 @@
             // every household screen uses (P2-603).
             const rare = `
                 ${check('account-ask-pin', main.askPinToOpen, t('profileForm.askPinToOpen'), t('profileForm.askPinToOpenHint'))}
-                ${check('account-lan-bypass', main.bypassPinOnLocalNetwork, t('profileForm.bypassPinLan'), t('profileForm.bypassPinHint'))}
+                ${this.showHomeSkip(main.seenOnLocalNetwork, main.bypassPinOnLocalNetwork)
+                    ? check('account-lan-bypass', main.bypassPinOnLocalNetwork, t('profileForm.bypassPinLan'), t('profileForm.bypassPinHint'))
+                    : ''}
                 <div class="form-group">
                     <label for="account-lockout-select">${t('profileForm.autoLock')}</label>
                     <select id="account-lockout-select">${this.renderLockoutOptions(main.lockoutMinutes, false)}</select>
@@ -9903,6 +9912,7 @@
                         if (pick('hasPin') !== undefined) main.hasPin = pick('hasPin') === true;
                         if (pick('askPinToOpen') !== undefined) main.askPinToOpen = pick('askPinToOpen') !== false;
                         if (pick('bypassPinOnLocalNetwork') !== undefined) main.bypassPinOnLocalNetwork = pick('bypassPinOnLocalNetwork') === true;
+                        if (pick('seenOnLocalNetwork') === true) main.seenOnLocalNetwork = true;
                         if (typeof pick('lockoutMinutes') === 'number') main.lockoutMinutes = pick('lockoutMinutes');
                         return true;
                     }, () => true);
@@ -10131,6 +10141,20 @@
                         escapeHtml(this._failText(err, t('errors.generic')))));
                 });
             }
+        },
+
+        /// "Skip the PIN on my home network" can only apply to a household the server has seen
+        /// on its own network, so it is offered to no other. Where it is already on it stays,
+        /// so it can be turned off. `seen` is the household's flag from /list; `on` is this
+        /// row's own setting.
+        showHomeSkip: function (seen, on) {
+            return seen === true || on === true;
+        },
+
+        /// Whether the signed-in household has been seen on the server's network.
+        householdSeenLocally: function () {
+            const main = (this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
+            return !!(main && main.seenOnLocalNetwork);
         },
 
         /// The auto-lock choices. `isNew` marks five minutes as the default in its label.

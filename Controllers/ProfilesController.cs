@@ -75,6 +75,9 @@ namespace Jellyfin.Profiles.Controllers
 
             var remoteIp = HttpContext.Connection.RemoteIpAddress;
             bool isLocal = remoteIp != null && _networkManager.IsInLocalNetwork(remoteIp);
+            // Remembered so the screens only offer "skip the PIN on my home network" to a
+            // household it can apply to.
+            bool seenLocally = NoteHouseholdSeenLocally(masterUserId, isLocal, config);
 
             var localMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
             bool localHidesOthers = localMapping?.HideOthersSubProfilesFromMe ?? false;
@@ -130,6 +133,7 @@ namespace Jellyfin.Profiles.Controllers
                     LockoutMinutes = linkedMapping?.LockoutMinutes ?? 5,
                     MaxSubProfiles = GetMaxProfilesForUser(linkedId, config),
                     BypassPinOnLocalNetwork = linkedMapping?.BypassPinOnLocalNetwork ?? false,
+                    SeenOnLocalNetwork = linkedId == masterUserId && seenLocally,
                     // Owner only. Another household is always asked for the PIN regardless.
                     AskPinToOpen = currentUserId == linkedId ? (linkedMapping?.AskPinToOpen ?? true) : (bool?)null,
                     AllowedDeviceIds = currentUserId == linkedId
@@ -199,6 +203,7 @@ namespace Jellyfin.Profiles.Controllers
                                 BlockedTags = ownerView ? (m.BlockedTags ?? new List<string>()) : new List<string>(),
                                 AllowedTags = ownerView ? (m.AllowedTags ?? new List<string>()) : new List<string>(),
                                 BypassPinOnLocalNetwork = m.BypassPinOnLocalNetwork,
+                                SeenOnLocalNetwork = linkedId == masterUserId && seenLocally,
                                 // Only so the delete confirmation can say the account stays.
                                 KeepAccountOnDelete = ownerView && m.KeepAccountOnDelete,
                                 AllowedDeviceIds = ownerView ? (m.AllowedDeviceIds ?? new List<string>()) : new List<string>(),
@@ -792,6 +797,7 @@ namespace Jellyfin.Profiles.Controllers
 
             var remoteIp = HttpContext.Connection.RemoteIpAddress;
             bool isLocal = remoteIp != null && _networkManager.IsInLocalNetwork(remoteIp);
+            NoteHouseholdSeenLocally(callerMasterUserId, isLocal, config);
             var ip = remoteIp?.ToString() ?? "127.0.0.1";
 
             // Who may enter what, decided in one place for /switch, /verify-pin and /list.
@@ -3413,8 +3419,10 @@ namespace Jellyfin.Profiles.Controllers
             bool bypass;
             int lockout;
             string timeZone;
+            bool seenLocally;
             lock (ConfigLock)
             {
+                seenLocally = Plugin.Instance?.Configuration?.HouseholdsSeenLocally?.Contains(mainId) ?? false;
                 var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == mainId);
                 if (row == null)
                 {
@@ -3451,7 +3459,7 @@ namespace Jellyfin.Profiles.Controllers
             // Another household that opened it with the old PIN is out (R-1302b).
             if (!string.IsNullOrEmpty(request.Pin)) await SignOutAfterPinChangeAsync(mainId).ConfigureAwait(false);
 
-            return Ok(new { HasPin = hasPin, AskPinToOpen = askPinToOpen, BypassPinOnLocalNetwork = bypass, LockoutMinutes = lockout, TimeZone = timeZone });
+            return Ok(new { HasPin = hasPin, AskPinToOpen = askPinToOpen, BypassPinOnLocalNetwork = bypass, SeenOnLocalNetwork = seenLocally, LockoutMinutes = lockout, TimeZone = timeZone });
         }
 
         /// <summary>
