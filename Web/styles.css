@@ -2713,6 +2713,7 @@ html.jpf-fading { transition: opacity 0.18s ease; }
 .jpf-flat .profile-card:hover .profile-avatar,
 .jpf-flat .profile-card:focus .profile-avatar,
 .jpf-flat #bonfire-join-input:focus,
+.jpf-flat #profiles-panic-input:focus,
 .jpf-flat .bonfire-kick-btn:focus,
 .jpf-flat .bonfire-kick-btn:hover,
 .jpf-flat #profiles-floating-bubble.profiles-floating-fallback,
