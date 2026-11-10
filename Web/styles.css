@@ -1248,6 +1248,10 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-btn {
     padding: 10px 24px; border: 1.5px solid transparent; border-radius: var(--jpf-btn-radius);
     font-weight: 600; font-size: 1rem; cursor: pointer;
+    /* One case and one spacing per theme, for every button: the theme's secondary buttons
+       used to set these alone, so BACK sat beside a sentence-case Unlock. */
+    text-transform: var(--jpf-btn2-case);
+    letter-spacing: var(--jpf-btn2-spacing);
     transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
 }
 .profiles-btn:disabled {
@@ -1268,8 +1272,6 @@ body.profiles-no-scroll [id*="spinner"] {
 .btn-secondary {
     background: var(--jpf-btn2-bg); color: var(--jpf-btn2-color);
     border: var(--jpf-btn2-border);
-    text-transform: var(--jpf-btn2-case);
-    letter-spacing: var(--jpf-btn2-spacing);
     font-weight: var(--jpf-btn2-weight);
 }
 .btn-secondary:hover,
