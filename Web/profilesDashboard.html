@@ -272,7 +272,7 @@
         display: grid;
         grid-template-columns: minmax(0, 1fr) 8em;
         gap: 0 1.5em;
-        max-width: 40em;
+        max-width: 520px;   /* the same as .jpf-form-narrow, so it lines up with the fields under it */
     }
     #profilesConfigurationPage .jpf-ann-actions { display: flex; gap: 0.75em; flex-wrap: wrap; }
     #profilesConfigurationPage .jpf-ann-list { display: grid; gap: 10px; }
@@ -467,6 +467,10 @@
     /* A heading that opens a new group of settings inside one form. */
     #profilesConfigurationPage .jpf-subhead { margin-top: 1.5em; }
     #profilesConfigurationPage .jpf-block-end { margin-bottom: 3em; }
+    /* A closed Advanced section is a line of text. With nothing under it, the Save button
+       after it read as part of it. Margins between siblings collapse, so a heading that
+       follows (3em) is unchanged. */
+    #profilesConfigurationPage .jpf-advanced { margin-bottom: 1.5em; }
 
     /* The rest of the vocabulary. Layout that belongs to one element still gets
        a name -- .jpf-avatar-grid says what it is, where a repeated
@@ -837,17 +841,6 @@
                 <div class="jpf-hidden jpf-note jpf-note-soft" id="avatarMissingWarning">
                     <!-- Filled in when a profile or library entry points at a file that is gone -->
                 </div>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label>
-                        <input is="emby-checkbox" type="checkbox" id="disallowCustomAvatars" />
-                        <span data-i18n="admin.avatars.libraryOnly">Only allow avatars from this library</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.avatars.libraryOnlyHint">Profiles pick from this set instead of uploading. Pictures already chosen stay.</div>
-                </div>
-                <div class="buttonContainer">
-                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
-                </div>
-
                 <div class="jpf-upload">
                     <div class="jpf-actions">
                         <button is="emby-button" type="button" id="avatarUploadBtn" class="raised" data-i18n="admin.avatars.upload">Upload pictures</button>
@@ -861,6 +854,17 @@
                 </div>
                 <div class="jpf-avatar-grid" id="avatarLibraryGrid">
                     <!-- Library avatars rendered here -->
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="disallowCustomAvatars" />
+                        <span data-i18n="admin.avatars.libraryOnly">Only allow avatars from this library</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.avatars.libraryOnlyHint">Profiles pick from this set instead of uploading. Pictures already chosen stay.</div>
+                </div>
+                <div class="buttonContainer">
+                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
                 </div>
 
                 <details class="jpf-advanced jpf-section">
@@ -1101,7 +1105,7 @@
                     </label>
                     <div class="fieldDescription" data-i18n="admin.onboarding.enableHint">Main accounts that already exist won't see it.</div>
                 </div>
-                <div class="buttonContainer jpf-row">
+                <div class="buttonContainer jpf-actions">
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
                     <button is="emby-button" type="button" class="raised jpf-narrow" id="onboardingShowAgain" data-i18n="admin.onboarding.showAgain">Show again to everyone</button>
                 </div>

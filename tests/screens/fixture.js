@@ -86,7 +86,8 @@ function start(port, options) {
         // The dashboard page, inside a stand-in for jellyfin-web's dashboard (dashboard.js).
         if (url.pathname === '/dashboard') {
             const page = fs.readFileSync(path.join(__dirname, 'dashboard.html'), 'utf8');
-            const plugin = fs.readFileSync(path.join(ROOT, 'Web', 'profilesDashboard.html'), 'utf8');
+            // opts.dashboard: another checkout's copy, so a harness can be pointed at the old page.
+            const plugin = fs.readFileSync(opts.dashboard || path.join(ROOT, 'Web', 'profilesDashboard.html'), 'utf8');
             return send(200, TYPES['.html'], page.replace('{{DASHBOARD}}', () => plugin));
         }
         if (url.pathname === '/dashboard.js') {
