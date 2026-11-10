@@ -1523,6 +1523,20 @@ body.profiles-no-scroll [id*="spinner"] {
     background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border);
     border-radius: var(--jpf-input-r); padding: 10px; color: var(--jpf-text-1); font-size: 1rem;
 }
+/* A field's placeholder took the browser's grey (#757575) in every theme, 3.4:1 on Bonfire's
+   field. It takes the theme's own quiet text colour instead. Two rules, not one list: a
+   browser that cannot read one pseudo-element drops the whole rule, and Chromium 53 only
+   knows the prefixed one. */
+#profiles-gate-overlay input::-webkit-input-placeholder, #profiles-gate-overlay textarea::-webkit-input-placeholder,
+.jpf-trap-surface input::-webkit-input-placeholder, .jpf-trap-surface textarea::-webkit-input-placeholder,
+.create-profile-container input::-webkit-input-placeholder, .create-profile-container textarea::-webkit-input-placeholder {
+    color: var(--jpf-text-2); opacity: 1;
+}
+#profiles-gate-overlay input::placeholder, #profiles-gate-overlay textarea::placeholder,
+.jpf-trap-surface input::placeholder, .jpf-trap-surface textarea::placeholder,
+.create-profile-container input::placeholder, .create-profile-container textarea::placeholder {
+    color: var(--jpf-text-2); opacity: 1;
+}
 .form-group select {
     background: var(--jpf-input-bg) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
     background-size: 20px;
