@@ -553,7 +553,7 @@ body.profiles-no-scroll [id*="spinner"] {
     max-width: 33%; pointer-events: none;
     color: var(--jpf-text-1); font-weight: 600; font-size: 1.5rem; line-height: 1.2;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    padding: 0.5rem 0.75rem; border-radius: 12px; box-sizing: border-box;
+    padding: 0.5rem 0.75rem; box-sizing: border-box;
     top: calc(1rem + env(safe-area-inset-top));
     right: calc(1rem + env(safe-area-inset-right));
 }

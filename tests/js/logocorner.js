@@ -51,7 +51,7 @@ const MEASURE = `(function () {
   var title = root.querySelector('.profiles-title');
   var out = { found: true, root: parseFloat(getComputedStyle(document.documentElement).fontSize), text: !img, box: r(box), vw: innerWidth,
     pad: parseFloat(cs.paddingTop) + parseFloat(cs.paddingLeft), radius: parseFloat(cs.borderTopLeftRadius) || 0,
-    size: parseFloat(cs.fontSize), color: cs.color, titleColor: title ? getComputedStyle(title).color : '' };
+    plate: cs.backgroundColor + (cs.backgroundImage !== 'none' ? ' ' + cs.backgroundImage : ''), size: parseFloat(cs.fontSize), color: cs.color, titleColor: title ? getComputedStyle(title).color : '' };
   if (img) { var ic = getComputedStyle(img); out.imgMax = parseFloat(ic.maxHeight); out.imgRadius = parseFloat(ic.borderTopLeftRadius) || 0; out.img = r(img); }
   // Whatever it must stay off: the title's own text, and each tile.
   var hits = [];
@@ -100,7 +100,10 @@ async function main() {
                     const tv = /^tv/.test(device);
                     ok(where + ': top right', m.box.r > m.vw * 0.5 && m.box.t < 120, 'box ' + Math.round(m.box.l) + ',' + Math.round(m.box.t) + ' in ' + m.vw);
                     ok(where + ': has some padding', m.pad >= 8, 'padding ' + m.pad);
-                    ok(where + ': has rounded corners', (m.text ? m.radius : Math.max(m.radius, m.imgRadius)) >= 6, 'radius ' + m.radius + '/' + m.imgRadius);
+                    // The picture's own corners only: a transparent logo shows no corner, and
+                    // nothing round the picture may clip it or sit behind it as a plate.
+                    if (!m.text) ok(where + ': the picture has rounded corners', m.imgRadius >= 6, 'radius ' + m.imgRadius);
+                    ok(where + ': no plate behind it and nothing clips it', m.radius === 0 && m.plate === 'rgba(0, 0, 0, 0)', 'radius ' + m.radius + ', background ' + m.plate);
                     if (m.text) {
                         ok(where + ': the text is in the title colour', m.color === m.titleColor, m.color + ' vs ' + m.titleColor);
                         ok(where + ': the text is half as big again', m.size / m.root >= (tv ? 2.0 : 1.49), m.size + 'px on a ' + m.root + 'px root');
