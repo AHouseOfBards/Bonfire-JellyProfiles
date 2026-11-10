@@ -673,7 +673,7 @@
                 + '    border-radius: 50%;\n    border: ' + w + 'px solid transparent;\n'
                 + '    background:\n        ' + pair(rings.gradients[0]) + ';\n    z-index: 0;\n    pointer-events: none;\n}\n';
             for (let k = 2; k <= n; k++) {
-                css += sel + ' .profile-card:nth-child(' + n + 'n' + (k === n ? '' : '+' + k) + ') .profile-avatar-container::before {\n'
+                css += sel + ' .profile-card:nth-of-type(' + n + 'n' + (k === n ? '' : '+' + k) + ') .profile-avatar-container::before {\n'
                     + '    background:\n        ' + pair(rings.gradients[k - 1]) + ';\n}\n';
             }
             css += sel + ' .profile-card.action-add-profile .profile-avatar-container::before { display: none; }\n'
@@ -6564,6 +6564,54 @@
         ///
         /// Below the floor it stops shrinking and lets the gate scroll: on a phone with
         /// nine profiles, scrolling is better than tiles too small to read.
+        /// Evens out the rows of a grid: four tiles on a tablet drew three and then one alone.
+        /// The row length the width allows is read from the layout as it is; if the rows
+        /// that gives would differ by more than one tile, a zero-height break (a <span>, so
+        /// the avatar-ring :nth-of-type counting still sees only cards) is put after each
+        /// row of the even split: 4 = 2+2, 5 = 3+2, 10 = 4+3+3, longer rows first.
+        /// Run from fitGateToScreen, which already runs on every render and resize and
+        /// again for each tile size it tries; never from the route poll.
+        balanceGateRows: function (grid) {
+            if (!grid || !grid.children || !grid.querySelectorAll) return;
+            [].slice.call(grid.querySelectorAll('.jpf-row-break')).forEach((b) => { b.parentNode.removeChild(b); });
+            const cards = [].slice.call(grid.children).filter((e) => e.classList && e.classList.contains('profile-card'));
+            cards.forEach((c) => { c.style.marginTop = ''; });
+            const n = cards.length;
+            if (n < 3) return;
+            const top0 = cards[0].getBoundingClientRect().top;
+            let per = 0;
+            while (per < n && Math.abs(cards[per].getBoundingClientRect().top - top0) < 2) per++;
+            if (per >= n) return;
+            const rows = Math.ceil(n / per);
+            if (n - (rows - 1) * per >= per - 1) return;       // already within one tile
+            const base = Math.floor(n / rows);
+            const extra = n % rows;
+            // The line a break makes sits between two row gaps; one has to be taken back, or
+            // the rows it separates would be a gap further apart than the rest.
+            let rowGap = parseFloat(getComputedStyle(grid).rowGap);
+            if (!isFinite(rowGap)) rowGap = 0;
+            // A negative margin on the break itself does not work: a flex line cannot be
+            // shorter than nothing, so the rows came out two gaps apart. The tiles after
+            // the break take it instead, which shortens their line by the same amount.
+            let at = 0;
+            for (let r = 0; r < rows - 1; r++) {
+                at += base + (r < extra ? 1 : 0);
+                const br = document.createElement('span');
+                br.className = 'jpf-row-break';
+                br.setAttribute('aria-hidden', 'true');
+                br.style.cssText = 'flex: 0 0 100%; width: 100%; height: 0; margin: 0; padding: 0; pointer-events: none;';
+                grid.insertBefore(br, cards[at]);
+            }
+            if (rowGap > 0) {
+                let line = 0, left = 0;
+                for (let i = 0; i < n; i++) {
+                    const size = base + (line < extra ? 1 : 0);
+                    if (line > 0) cards[i].style.marginTop = (-rowGap) + 'px';
+                    if (++left === size) { line++; left = 0; }
+                }
+            }
+        },
+
         fitGateToScreen: function (overlay) {
             if (!overlay || !overlay.querySelector) return;
 
@@ -6591,9 +6639,14 @@
             if (!content) return;
             const fits = () => overlay.scrollHeight <= overlay.clientHeight + 1;
 
+            const balance = () => {
+                if (!overlay.querySelectorAll) return;
+                [].slice.call(overlay.querySelectorAll('.profiles-grid')).forEach((g) => this.balanceGateRows(g));
+            };
             content.classList.remove('jpf-fitted');
             content.style.removeProperty('--jpf-tile');
             content.style.removeProperty('--jpf-name-fit');
+            balance();
             if (fits()) return;
 
             const sample = grid.querySelector('.profile-avatar-container');
@@ -6620,6 +6673,7 @@
             const tryTile = (size) => {
                 content.style.setProperty('--jpf-tile', size + 'px');
                 content.style.setProperty('--jpf-name-fit', Math.max(size / natural, nameFloor).toFixed(3));
+                balance();
                 return fits();
             };
 
