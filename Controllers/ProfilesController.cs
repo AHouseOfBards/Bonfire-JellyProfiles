@@ -4719,6 +4719,11 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
+            // 5b. Its picture. Bonfire serves a profile's picture only while a mapping exists
+            //     (GetProfileImage), so without this the picture is left on disk and the
+            //     account shows initials. Best effort: the account is complete without it.
+            await CopyPictureToAccountAsync(mapping.ProfileUserId).ConfigureAwait(false);
+
             // 6. The master may have just lost its last profile.
             ProfilesBootstrapTask.ReconcileAuthProvidersNow();
 
@@ -4733,6 +4738,38 @@ namespace Jellyfin.Profiles.Controllers
                 "ProfileMadeAccount", user.Id, "It no longer belongs to " + masterName + ".");
 
             return (0, null, user);
+        }
+
+        /// <summary>
+        /// Copies a former profile's stored picture to the Jellyfin user's own avatar, the way
+        /// Jellyfin's own upload does: a file under the user configuration directory, named by
+        /// the <c>User.ProfileImage</c> row. Never throws; a failure is logged and the account
+        /// simply has no picture, as it would have before.
+        /// </summary>
+        private async Task CopyPictureToAccountAsync(Guid userId)
+        {
+            try
+            {
+                var found = FindImageFile(ProfileImageFolder, userId.ToString(), false);
+                var user = _userManager.GetUserById(userId);
+                if (found == null || user == null) return;
+
+                var usersFolder = (Plugin.Instance?.AppPaths as MediaBrowser.Controller.IServerApplicationPaths)?.UserConfigurationDirectoryPath
+                    ?? Path.Combine(Plugin.Instance?.AppPaths.ConfigurationDirectoryPath ?? Path.GetTempPath(), "users");
+                // The folder is named after the account, as Jellyfin's is; its name is
+                // already valid for a path, but nothing here relies on that.
+                var folder = Path.Combine(usersFolder, Path.GetFileName(user.Username));
+                Directory.CreateDirectory(folder);
+                var target = Path.Combine(folder, "profile" + Path.GetExtension(found.Value.Path).ToLowerInvariant());
+                System.IO.File.Copy(found.Value.Path, target, true);
+
+                user.ProfileImage = new Jellyfin.Database.Implementations.Entities.ImageInfo(target);
+                await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "ProfilesPlugin: could not copy the picture of {Id} to its new account.", userId);
+            }
         }
 
         /// <summary>

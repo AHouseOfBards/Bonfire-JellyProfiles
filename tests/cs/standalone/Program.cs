@@ -245,6 +245,32 @@ Ok("a failed write answers 500 with what is left to do", failed.status == 500 &&
    failed.status + " " + failedError + " " + failed.value);
 Ok("and the profile is not a profile any more", !world.MappedNow(FAILING));
 
+Console.WriteLine();
+Console.WriteLine("── The profile picture goes with it ────────────────────────────");
+
+// R-1164: the picture was served only while a mapping existed, so a profile that became its
+// own account lost it. It is copied to the Jellyfin user's own avatar, which is what the
+// sign-in screen and every other client show.
+var PIC = Guid.NewGuid();
+var NOPIC = Guid.NewGuid();
+world.Add(PIC, "Bard_Pic", BONFIRE);
+world.Add(NOPIC, "Bard_NoPic", BONFIRE);
+Map(PIC, MASTER, "Pic");
+Map(NOPIC, MASTER, "NoPic");
+var picFolder = Path.Combine(tempDir, "plugins", "ProfilesManagement");
+Directory.CreateDirectory(picFolder);
+var picBytes = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4 };
+File.WriteAllBytes(Path.Combine(picFolder, PIC + ".png"), picBytes);
+world.Log.Clear();
+var picked = Call(ADMIN, PIC, "", "pw");
+var avatar = world.Users[PIC].ProfileImage;
+Ok("a profile with a picture becomes an account with that picture as its avatar",
+   picked.status == 200 && avatar != null && File.Exists(avatar.Path) && File.ReadAllBytes(avatar.Path).SequenceEqual(picBytes),
+   picked.status + " " + (avatar?.Path ?? "no avatar"));
+Ok("and the avatar is a png file, so Jellyfin serves it as one", avatar != null && avatar.Path.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
+Ok("one without a picture gets no avatar, and is not refused",
+   Call(ADMIN, NOPIC, "", "pw").status == 200 && world.Users[NOPIC].ProfileImage == null);
+
 try { Directory.Delete(tempDir, true); } catch { }
 return Finish();
 
