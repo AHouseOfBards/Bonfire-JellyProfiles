@@ -5163,6 +5163,9 @@
         invalidateProfileCache: function () {
             this.cachedProfiles = [];
             this._profilePrefetchPending = false;
+            // A prefetch already in flight was asked before this change and would land after
+            // it, putting the pre-edit list back. It checks this number when it answers.
+            this._profileCacheGen = (this._profileCacheGen || 0) + 1;
         },
 
         /// Renders the profile grid.
@@ -11633,12 +11636,18 @@
                 }, 2500);
             };
 
+            // True while the "allow household switching" question is on screen. The box is
+            // already ticked by then, and a debounced save from one of the other boxes would
+            // read that tick and send it, skipping the question (a PIN-skip setting), after
+            // which Cancel would "revert" to a lastSaved that had just become true.
+            let lanConfirmPending = false;
+
             const saveSettings = () => {
                 clearTimeout(_settingsDebounceTimer);
                 _settingsDebounceTimer = setTimeout(() => {
                     const hideMineVal = hideMineCb ? hideMineCb.checked : false;
                     const hideOthersVal = hideOthersCb ? hideOthersCb.checked : false;
-                    const lanBypassVal = lanBypassCb ? lanBypassCb.checked : false;
+                    const lanBypassVal = lanBypassCb ? (lanConfirmPending ? lastSaved.lanBypass : lanBypassCb.checked) : false;
 
                     const body = {
                         hideMySubProfilesFromOthers: hideMineVal,
@@ -11704,11 +11713,12 @@
                         ? `<br><br><strong style="color:var(--jpf-warn);">${t('bonfire.adminAccountWarning')}</strong> ${t('bonfire.adminAccountWarningBody')}`
                         : '';
 
+                    lanConfirmPending = true;
                     this.showConfirmDialog(
                         t('bonfire.allowHouseholdTitle'),
                         t('bonfire.allowHouseholdBody') + adminLine,
-                        () => saveSettings(),
-                        () => { lanBypassCb.checked = lastSaved.lanBypass; }
+                        () => { lanConfirmPending = false; saveSettings(); },
+                        () => { lanConfirmPending = false; lanBypassCb.checked = lastSaved.lanBypass; }
                     );
                 });
             }
@@ -12221,6 +12231,7 @@
             this._prefetchNoMasterAt = 0;
 
             this._profilePrefetchPending = true;
+            const gen = this._profileCacheGen || 0;
             this._requestList(ApiClient, masterState.token)
                 .then(res => {
                     // A 401 used to be swallowed with every other failure, leaving a dead
@@ -12234,6 +12245,8 @@
                     return res.json();
                 })
                 .then(profiles => {
+                    // Invalidated while this was in flight: the answer predates the change.
+                    if ((this._profileCacheGen || 0) !== gen) return;
                     const normalized = this.normalizeProfiles(profiles);
                     this.cachedProfiles = normalized;
                     localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
@@ -12260,7 +12273,8 @@
                     this.evaluateFloatingBubbleVisibility(currentRouteType);
                 })
                 .catch(() => {
-                    this._profilePrefetchPending = false;
+                    // A stale answer's failure must not clear the flag of a newer prefetch.
+                    if ((this._profileCacheGen || 0) === gen) this._profilePrefetchPending = false;
                     // Also set by _requestList for a failed request; this covers a body
                     // that would not parse.
                     this._listRetryAt = Date.now() + this.POLL_RETRY_MS;

@@ -283,6 +283,25 @@ function prefetchEnv(fetchImpl) {
        + env.count('plugins/profiles/list') + ')', env.count('plugins/profiles/list') === 1);
 }
 
+console.log('\n── R-1247: a prefetch in flight when the cache is invalidated ───');
+{
+    // The list request is out; an edit invalidates the cache; the pre-edit answer then lands.
+    // It must not be written back over the invalidated cache.
+    let release = null;
+    const slow = () => new Promise(resolve => {
+        release = () => resolve({ ok: true, status: 200, json: () => Promise.resolve([{ profileUserId: 'old', profileName: 'Before the edit' }]) });
+    });
+    const env = prefetchEnv(slow);
+    env.plugin._prefetchProfiles();
+    await flush();
+    ok('the prefetch is out', typeof release === 'function');
+    env.plugin.invalidateProfileCache();
+    release();
+    await flush(); await flush();
+    ok('the pre-edit list does not come back after invalidateProfileCache ('
+       + ((env.plugin.cachedProfiles || []).length) + ' cached)', !(env.plugin.cachedProfiles && env.plugin.cachedProfiles.length));
+}
+
 console.log('\n── R-1241: one resize on a theme with no named header ──────────');
 {
     const env = build({ fetch: neverAnswers });

@@ -290,6 +290,24 @@ await lanOff.settle();
 ok('and saves straight away', lanOff.requests.length === 1);
 ok('sending false', lanOff.requests[0].body.allowHouseholdLanBypass === false);
 
+console.log('\n── The LAN confirm cannot be skipped by another box saving (R-1243) ──');
+
+// The dialog is open with the box ticked and nothing confirmed. A debounced save from one
+// of the other boxes must not carry the unconfirmed tick to the server, and Cancel must
+// then revert to a state that is still the server's.
+const skip = build('ok', { hideMine: false, hideOthers: false, lanBypass: false });
+skip.els['#bonfire-lan-bypass-checkbox'].checked = true;
+skip.els['#bonfire-lan-bypass-checkbox'].fire('change');
+skip.els['#bonfire-hide-mine-checkbox'].checked = true;
+skip.els['#bonfire-hide-mine-checkbox'].fire('change');
+skip.runTimers();
+await skip.settle();
+ok('another box saved while the dialog was open', skip.requests.length === 1);
+ok('and did not send the unconfirmed LAN bypass as on',
+   skip.requests.length === 1 && skip.requests[0].body.allowHouseholdLanBypass !== true);
+skip.confirm().cancel();
+ok('Cancel puts the LAN box back to off', skip.els['#bonfire-lan-bypass-checkbox'].checked === false);
+
 console.log('\n── A second failure reverts to the server state, not the first attempt ──');
 
 // The revert target is the last state the server acknowledged, so two failed toggles in
