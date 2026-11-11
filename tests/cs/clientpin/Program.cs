@@ -1233,7 +1233,10 @@ if (shouldDeny != null)
         var listenerSrc = File.ReadAllText(Path.Combine(RepoRoot(), "Auth", "BonfireSessionListener.cs"));
         var branch = listenerSrc.IndexOf("if (master == Guid.Empty)", StringComparison.Ordinal);
         var noted = listenerSrc.IndexOf("NoteSharedNameAndSave", StringComparison.Ordinal);
-        var recorded = listenerSrc.IndexOf("DeviceRegistry.RecordAndSave", StringComparison.Ordinal);
+        // RecordSightingAndSave since 48d74b7. A missing anchor is its own failure, so a rename
+        // reads as a rename and not as the call having moved.
+        var recorded = listenerSrc.IndexOf("DeviceRegistry.RecordSightingAndSave", StringComparison.Ordinal);
+        Ok("the household branch's device record is still found in the listener", recorded > 0);
         Ok("the sign-in listener notes names for accounts outside every household, and only there",
            branch > 0 && noted > branch && noted < recorded);
 
