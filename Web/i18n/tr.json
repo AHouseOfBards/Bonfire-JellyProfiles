@@ -1027,6 +1027,7 @@
   "admin.email.testing": "Gönderiliyor…",
   "admin.email.testSent": "{to} adresine test gönderildi. E-posta açık.",
   "admin.email.testNeedsTo": "Testin gönderileceği bir adres girin.",
+  "admin.email.portInvalid": "1 ile 65535 arasında bir bağlantı noktası girin.",
   "admin.email.noAccounts": "Henüz e-posta adresi yok. Her ana hesap kendi adresini Bonfire ayarlarından ekler.",
   "admin.email.clear": "Kaldır",
   "admin.email.clearTitle": "Bu adres kaldırılsın mı?",

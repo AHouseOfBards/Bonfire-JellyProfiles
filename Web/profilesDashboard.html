@@ -1748,6 +1748,7 @@
                 'admin.email.testing': 'Sending…',
                 'admin.email.testSent': 'Test sent to {to}. Email is on.',
                 'admin.email.testNeedsTo': 'Enter an address to send the test to.',
+                'admin.email.portInvalid': 'Enter a port from 1 to 65535.',
                 'admin.email.noAccounts': 'No email addresses yet. Each main account adds its own in Bonfire settings.',
                 'admin.email.clear': 'Remove',
                 'admin.email.clearTitle': 'Remove this address?',
@@ -4946,6 +4947,10 @@
                     showThemeStatus(page, '#teResult', t('admin.themes.fixFirst'), false);
                     return;
                 }
+                // A second click while the first is out would save twice, and the second
+                // answer would say "created" for a theme the first already made.
+                if (ed.saving) return;
+                ed.saving = true;
                 const body = themeDraftForSave(ed);
                 ApiClient.ajax({
                     type: 'PUT',
@@ -4960,6 +4965,7 @@
                     loadThemes(page);
                     refreshClientThemes();
                 }, function (err) {
+                    ed.saving = false;
                     readThemeError(err, 'admin.themes.saveFailed', page._themes.data).then(function (e) {
                         if (page._themeEditor !== ed) return;
                         if (e.problems) {
@@ -5688,10 +5694,16 @@
 
             // Saves the form. Resolves the saved state, or null when refused (and says why).
             function saveEmail(page) {
-                const port = parseInt(page.querySelector('#emailPort').value, 10);
+                const portText = String(page.querySelector('#emailPort').value || '').trim();
+                const port = /^\d+$/.test(portText) ? parseInt(portText, 10) : 0;
+                // Not quietly 587: the box would show what was typed while another number saved.
+                if (port < 1 || port > 65535) {
+                    showEmailResult(page, t('admin.email.portInvalid'), false);
+                    return Promise.resolve(null);
+                }
                 const body = {
                     host: page.querySelector('#emailHost').value.trim(),
-                    port: Number.isFinite(port) ? port : 587,
+                    port: port,
                     security: page.querySelector('#emailSecurity').value === 'none' ? 'none' : 'starttls',
                     username: page.querySelector('#emailUsername').value.trim(),
                     fromAddress: page.querySelector('#emailFrom').value.trim()
@@ -6025,6 +6037,7 @@
                 if (saved) add(saved);
                 select.value = saved;
                 ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('plugins/profiles/timezones'), dataType: 'json' }).then(function (data) {
+                    data = data || {};
                     (data.Zones || data.zones || []).forEach(function (zone) { if (zone !== saved) add(zone); });
                     select.value = saved;
                     const server = data.Server || data.server || '';

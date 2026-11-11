@@ -1016,6 +1016,7 @@
   "admin.email.testing": "Enviando…",
   "admin.email.testSent": "Prueba enviada a {to}. El correo está activado.",
   "admin.email.testNeedsTo": "Introduce una dirección para enviar la prueba.",
+  "admin.email.portInvalid": "Introduce un puerto del 1 al 65535.",
   "admin.email.noAccounts": "Aún no hay direcciones de correo. Cada cuenta principal añade la suya en los ajustes de Bonfire.",
   "admin.email.clear": "Quitar",
   "admin.email.clearTitle": "¿Quitar esta dirección?",

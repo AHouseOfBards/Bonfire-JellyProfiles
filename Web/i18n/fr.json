@@ -1016,6 +1016,7 @@
   "admin.email.testing": "Envoi…",
   "admin.email.testSent": "Test envoyé à {to}. L'e-mail est activé.",
   "admin.email.testNeedsTo": "Saisissez une adresse où envoyer le test.",
+  "admin.email.portInvalid": "Saisissez un port de 1 à 65535.",
   "admin.email.noAccounts": "Aucune adresse e-mail pour l'instant. Chaque compte principal ajoute la sienne dans les réglages de Bonfire.",
   "admin.email.clear": "Retirer",
   "admin.email.clearTitle": "Retirer cette adresse ?",

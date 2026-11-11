@@ -159,11 +159,11 @@ const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(
     w = makeWorld(working);
     w.api.renderEmail(w.page, working);
     w.els.emailHost.value = ' smtp.other.example.com ';
-    w.els.emailPort.value = 'abc';
+    w.els.emailPort.value = '2525';
     await w.api.saveEmail(w.page);
     let body = w.calls.pop().body;
     ok('a blank password is not sent, so the saved one is kept', body && !('password' in body));
-    ok('fields are trimmed and a bad port falls back to 587', body.host === 'smtp.other.example.com' && body.port === 587);
+    ok('fields are trimmed and the port is sent as typed', body.host === 'smtp.other.example.com' && body.port === 2525);
 
     w.els.emailPassword.value = 'n3w pass';
     await w.api.saveEmail(w.page);

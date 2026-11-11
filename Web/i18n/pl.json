@@ -1016,6 +1016,7 @@
   "admin.email.testing": "Wysyłanie…",
   "admin.email.testSent": "Test wysłany na {to}. E-mail jest włączony.",
   "admin.email.testNeedsTo": "Wpisz adres, na który wysłać test.",
+  "admin.email.portInvalid": "Wpisz port od 1 do 65535.",
   "admin.email.noAccounts": "Nie ma jeszcze adresów e-mail. Każde konto główne dodaje swój w ustawieniach Bonfire.",
   "admin.email.clear": "Usuń",
   "admin.email.clearTitle": "Usunąć ten adres?",

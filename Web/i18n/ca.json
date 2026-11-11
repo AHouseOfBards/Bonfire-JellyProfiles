@@ -1016,6 +1016,7 @@
   "admin.email.testing": "Enviant…",
   "admin.email.testSent": "Prova enviada a {to}. El correu està activat.",
   "admin.email.testNeedsTo": "Introdueix una adreça per enviar-hi la prova.",
+  "admin.email.portInvalid": "Introdueix un port de l'1 al 65535.",
   "admin.email.noAccounts": "Encara no hi ha adreces de correu. Cada compte principal afegeix la seva a la configuració de Bonfire.",
   "admin.email.clear": "Elimina",
   "admin.email.clearTitle": "Vols eliminar aquesta adreça?",
