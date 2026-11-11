@@ -315,7 +315,11 @@ namespace Jellyfin.Profiles.Auth
             var isSubProfile = config?.Mappings?.Any(m => m.ProfileUserId == userId && m.MasterUserId != userId) == true;
             if (!isSubProfile) return;
 
-            _ = Task.Run(async () =>
+            // Through BackgroundWork, so a server stop cancels the second pass instead of
+            // leaving it to wake after a restart and write with the old host's managers
+            // (Campground-Coordination #33). The first pass is not cancelled midway: it is one
+            // policy write, and the stop waits for it.
+            _ = Configuration.BackgroundWork.Run(async stopping =>
             {
                 try
                 {
@@ -326,8 +330,12 @@ namespace Jellyfin.Profiles.Auth
                     if (userManager == null || libraryManager == null) return;
 
                     await ProfilePolicySync.ApplyAsync(userManager, libraryManager, _logger, userId).ConfigureAwait(false);
-                    await Task.Delay(SecondPass).ConfigureAwait(false);
+                    await Task.Delay(SecondPass, stopping).ConfigureAwait(false);
                     await ProfilePolicySync.ApplyAsync(userManager, libraryManager, _logger, userId).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // The server is stopping. The next sign-in applies it again.
                 }
                 catch (Exception ex)
                 {

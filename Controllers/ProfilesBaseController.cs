@@ -964,7 +964,10 @@ namespace Jellyfin.Profiles.Controllers
             // to the home screen. The trade-off is that a hard crash can lose the most recent
             // entries — acceptable for an informational switch log, and the in-memory copy
             // still serves the dashboard correctly in the meantime.
-            _ = Task.Run(() =>
+            // Through BackgroundWork, so the stop waits for it: after an in-process restart the
+            // new copy's AuditLogLock is a different object, and two copies writing one file
+            // at once is the corruption the lock exists to prevent.
+            _ = BackgroundWork.Run(_ =>
             {
                 try
                 {

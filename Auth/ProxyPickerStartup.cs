@@ -31,11 +31,15 @@ namespace Jellyfin.Profiles.Auth
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            _ = Task.Run(async () =>
+            // The wait used StartAsync's token, which only covers starting up: a restart inside
+            // those twenty seconds left the old copy to wake up and sweep with the old host's
+            // disposed managers (Campground-Coordination #33). BackgroundWork's token is
+            // cancelled when the server stops.
+            _ = Configuration.BackgroundWork.Run(async stopping =>
             {
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(20), cancellationToken).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromSeconds(20), stopping).ConfigureAwait(false);
                     await PickerMarks.SweepAsync(
                         _services.GetService(typeof(ISessionManager)) as ISessionManager,
                         _services.GetService(typeof(IDeviceManager)) as IDeviceManager,
@@ -45,7 +49,7 @@ namespace Jellyfin.Profiles.Auth
                 {
                     _logger.LogWarning(ex, "ProfilesPlugin: the check of profile sessions from before the restart failed.");
                 }
-            }, CancellationToken.None);
+            });
             return Task.CompletedTask;
         }
 

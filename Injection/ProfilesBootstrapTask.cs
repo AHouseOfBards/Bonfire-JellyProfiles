@@ -690,7 +690,7 @@ namespace Jellyfin.Profiles
 
             // Off the request thread: this reads and rewrites a file, and the browser is
             // waiting on the response that triggered it.
-            System.Threading.Tasks.Task.Run(() =>
+            _ = BackgroundWork.Run(_ =>
             {
                 lock (PatchLock)
                 {

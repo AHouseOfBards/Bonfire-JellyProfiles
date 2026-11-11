@@ -23,6 +23,10 @@ namespace Jellyfin.Profiles
             IServiceCollection serviceCollection,
             IServerApplicationHost applicationHost)
         {
+            // First, so the host stops it last: once every other service has unhooked its
+            // events, it cancels Bonfire's background work and waits for it (BackgroundWork).
+            serviceCollection.AddHostedService<Configuration.BackgroundWork.Stopper>();
+
             // ProfilesBootstrapTask runs at every server startup.
             //
             // It does NOT patch index.html, whatever this comment used to say. The "file"

@@ -463,7 +463,7 @@ namespace Jellyfin.Profiles.Controllers
             var values = new Dictionary<string, string> { ["account"] = name };
             var settings = snapshot.Email;
             var logger = _logger;
-            Notifications.Pending.Enqueue(Task.Run(async () =>
+            Notifications.Pending.Enqueue(BackgroundWork.Run(async _ =>
             {
                 try
                 {

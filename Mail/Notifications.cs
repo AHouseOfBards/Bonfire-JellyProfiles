@@ -85,7 +85,7 @@ namespace Jellyfin.Profiles.Mail
             var settings = config.Email;
             var subject = EmailText.Get(subjectKey, account.Language, values);
             var body = EmailText.Get(bodyKey, account.Language, values);
-            var task = Task.Run(async () =>
+            var task = BackgroundWork.Run(async _ =>
             {
                 try
                 {
