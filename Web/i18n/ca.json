@@ -815,7 +815,7 @@
   "admin.households.noPin": "Sense PIN",
   "admin.households.status": "Estat: {pin}",
   "admin.households.resetPin": "Restableix el PIN",
-  "admin.households.resetConfirm": "Vols esborrar el PIN d'aquest perfil?",
+  "admin.households.resetConfirm": "Vols esborrar el PIN de {name}?",
   "admin.households.resetFailed": "No s'ha pogut restablir el PIN. El registre del servidor té els detalls.",
   "admin.households.makeAccount": "Converteix en compte propi",
   "admin.households.openUser": "Pàgina d'usuari",

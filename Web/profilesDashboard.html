@@ -1571,7 +1571,7 @@
                 'admin.households.noPin': 'No PIN',
                 'admin.households.status': 'Status: {pin}',
                 'admin.households.resetPin': 'Reset PIN',
-                'admin.households.resetConfirm': 'Clear this profile\'s PIN?',
+                'admin.households.resetConfirm': 'Clear the PIN for {name}?',
                 'admin.households.resetFailed': 'Couldn\'t reset the PIN. The server log has details.',
                 'admin.households.makeAccount': 'Make own account',
                 'admin.households.openUser': 'User page',
@@ -2158,6 +2158,7 @@
                     page.querySelector('#clientPinLoginFromAnywhere').checked = !!config.ClientPinLoginFromAnywhere;
                     page.querySelector('#skipQuickConnectOnKnownDevices').checked = !!config.SkipQuickConnectOnKnownDevices;
                     // Absent before 1.7.1.2, which is the same as none ticked.
+                    page._proxyClientsLoaded = (config.ProxyClients || []).slice();
                     const proxied = (config.ProxyClients || []).map(function (k) { return String(k).toLowerCase(); });
                     page.querySelectorAll('.jpfProxyClient').forEach(function (box) {
                         box.checked = proxied.indexOf(box.getAttribute('data-proxy-client')) !== -1;
@@ -2583,9 +2584,9 @@
                             : '<span style="font-weight:600;opacity:0.5;">' + escapeHtml(t('admin.households.noPin')) + '</span>';
                     }
 
-                    function resetPinBtnHtml(pId, reqPin) {
+                    function resetPinBtnHtml(pId, reqPin, name) {
                         if (!reqPin) return '';
-                        return '<button type="button" class="raised button-accent button-mini reset-pin-btn" data-id="' + pId +
+                        return '<button type="button" class="raised button-accent button-mini reset-pin-btn" data-id="' + escapeHtml(pId) + '" data-name="' + escapeHtml(name || '') +
                                '" style="margin-left:auto; background:#d23f3f; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">' +
                                escapeHtml(t('admin.households.resetPin')) + '</button>';
                     }
@@ -2613,7 +2614,7 @@
                                '<div class="listItemBodyText" style="font-weight:600; color:#fff;">' + pName + '</div>' +
                                '<div class="listItemBodyText secondary" style="font-size:0.85rem; opacity:0.75; margin-top:2px;">' + t('admin.households.status', { pin: pinStatusHtml(reqPin) }) + '</div>' +
                                '</div>' +
-                               resetPinBtnHtml(pId, reqPin) +
+                               resetPinBtnHtml(pId, reqPin, field(s, 'profileName')) +
                                '<a class="raised button-mini open-user-link" href="' + escapeHtml(jellyfinUserPageUrl(pId)) +
                                '" style="margin-left:8px; padding:5px 12px; border-radius:4px; font-weight:600; align-self:center; text-decoration:none;">' + escapeHtml(t('admin.households.openUser')) + '</a>' +
                                '<button type="button" class="raised button-mini standalone-btn" data-id="' + escapeHtml(pId) +
@@ -2769,7 +2770,7 @@
                                    toggle +
                                    '</div>' +
                                    overrideControl +
-                                   resetPinBtnHtml(pId, reqPin) +
+                                   resetPinBtnHtml(pId, reqPin, field(m, 'profileName')) +
                                    '</div>' +
                                    accountExtrasHtml(m, subs.length) +
                                    subPanel +
@@ -2818,7 +2819,7 @@
                     page.querySelectorAll('.reset-pin-btn').forEach(function (btn) {
                         btn.addEventListener('click', function () {
                             const profileId = btn.getAttribute('data-id');
-                            askFirst(t('admin.households.resetConfirm'), t('admin.households.resetPin')).then(function () {
+                            askFirst(t('admin.households.resetConfirm', { name: btn.getAttribute('data-name') || '' }), t('admin.households.resetPin')).then(function () {
                                 resetPin(page, profileId);
                             });
                         });
@@ -6170,7 +6171,14 @@
                     skipQuickConnectOnKnownDevices: page.querySelector('#skipQuickConnectOnKnownDevices').checked,
                     proxyClients: Array.prototype.filter.call(page.querySelectorAll('.jpfProxyClient'), function (box) {
                         return box.checked;
-                    }).map(function (box) { return box.getAttribute('data-proxy-client'); }),
+                    }).map(function (box) { return box.getAttribute('data-proxy-client'); }).concat(
+                        // An id this form has no box for (set through the API, restored from a
+                        // backup, or added by a newer build) is not ours to drop on Save.
+                        (page._proxyClientsLoaded || []).filter(function (id) {
+                            return !Array.prototype.some.call(page.querySelectorAll('.jpfProxyClient'), function (box) {
+                                return box.getAttribute('data-proxy-client') === String(id).toLowerCase();
+                            });
+                        })),
                     profileImageQuality: normalizeImageQuality(page.querySelector('#profileImageQuality').value),
                     onboardingEnabled: page.querySelector('#onboardingEnabled').checked
                 };

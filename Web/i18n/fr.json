@@ -815,7 +815,7 @@
   "admin.households.noPin": "Aucun code PIN",
   "admin.households.status": "État : {pin}",
   "admin.households.resetPin": "Réinitialiser le code PIN",
-  "admin.households.resetConfirm": "Effacer le code PIN de ce profil ?",
+  "admin.households.resetConfirm": "Effacer le code PIN de {name} ?",
   "admin.households.resetFailed": "Impossible de réinitialiser le code PIN. Le journal du serveur donne les détails.",
   "admin.households.makeAccount": "En faire un compte",
   "admin.households.openUser": "Page de l'utilisateur",

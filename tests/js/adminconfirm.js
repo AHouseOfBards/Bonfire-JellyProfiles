@@ -137,6 +137,12 @@ const settle = () => new Promise(r => setTimeout(r, 5));
         ok('line ' + c.line + ': the action hangs off askFirst', c.after.indexOf('.then') === 0, c.after);
     });
 
+    // R-1237: the Reset PIN question names the profile, since the same button sits on main
+    // accounts and profiles and "this profile" names nobody.
+    const reset = asks.filter(c => c.args[0].indexOf('admin.households.resetConfirm') !== -1);
+    ok('the Reset PIN confirm is asked once', reset.length === 1, reset.length + ' found');
+    ok('and is given the name of whose PIN it clears', reset.length === 1 && /\bname\b/.test(reset[0].args[0]), reset[0] && reset[0].args[0]);
+
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

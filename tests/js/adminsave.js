@@ -85,6 +85,9 @@ async function run(fieldValues) {
     // The profile picker's apps: one checkbox each, found by class. Ticked ones listed here.
     const proxyTicked = (fieldValues && fieldValues.proxyTicked) || [];
     delete fields.proxyTicked;
+    // What the server held when the page loaded (R-1234): ids the form has no box for.
+    const proxyLoaded = (fieldValues && fieldValues.proxyLoaded) || null;
+    delete fields.proxyLoaded;
 
     const proxyBoxes = ['moonfin'].map(function (key) {
         return { checked: proxyTicked.indexOf(key) !== -1, getAttribute: function () { return key; } };
@@ -104,6 +107,7 @@ async function run(fieldValues) {
         // Set by loadConfiguration once the settings have been read; adminload.js covers the
         // refusal. This harness is about what a save sends.
         _configLoaded: true,
+        _proxyClientsLoaded: proxyLoaded,
         querySelector: function (sel) {
             const el = elements[sel.replace('#', '')];
             if (!el) throw new Error('the page has no ' + sel);
@@ -245,6 +249,13 @@ ok('no app ticked sends an empty list, which turns the picker off',
    Array.isArray(body && body.proxyClients) && body.proxyClients.length === 0);
 const moon = await run({ proxyTicked: ['moonfin'] });
 ok('a ticked app is sent by its key', JSON.stringify(sent(moon).proxyClients) === '["moonfin"]');
+// R-1234: an id the form has no box for (set by the API, a backup, a newer build) must survive.
+const unk = await run({ proxyTicked: ['moonfin'], proxyLoaded: ['moonfin', 'futureapp'] });
+ok('a proxy client id with no checkbox is kept on save',
+   JSON.stringify(sent(unk).proxyClients) === '["moonfin","futureapp"]', JSON.stringify(sent(unk).proxyClients));
+const unk2 = await run({ proxyTicked: [], proxyLoaded: ['moonfin', 'futureapp'] });
+ok('unticking the box still removes it, and keeps the unknown one',
+   JSON.stringify(sent(unk2).proxyClients) === '["futureapp"]', JSON.stringify(sent(unk2).proxyClients));
 
 console.log('\n── The starter-avatar switch (issue #32) ───────────────────────');
 

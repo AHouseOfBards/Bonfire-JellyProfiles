@@ -826,7 +826,7 @@
   "admin.households.noPin": "PIN yok",
   "admin.households.status": "Durum: {pin}",
   "admin.households.resetPin": "PIN'i sıfırla",
-  "admin.households.resetConfirm": "Bu profilin PIN'i temizlensin mi?",
+  "admin.households.resetConfirm": "{name} için PIN temizlensin mi?",
   "admin.households.resetFailed": "PIN sıfırlanamadı. Ayrıntılar sunucu günlüğünde.",
   "admin.households.makeAccount": "Ayrı hesap yap",
   "admin.households.openUser": "Kullanıcı sayfası",
