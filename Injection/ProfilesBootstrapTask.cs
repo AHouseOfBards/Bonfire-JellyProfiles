@@ -460,16 +460,7 @@ namespace Jellyfin.Profiles
         {
             try
             {
-                var master = _userManager.GetUserById(masterId);
-                if (master != null
-                    && !string.IsNullOrEmpty(master.AuthenticationProviderId)
-                    && !string.Equals(
-                        master.AuthenticationProviderId,
-                        typeof(BonfirePinAuthenticationProvider).FullName,
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    return master.AuthenticationProviderId;
-                }
+                return StandaloneProvider(_userManager.GetUserById(masterId)?.AuthenticationProviderId);
             }
             catch (Exception ex)
             {
@@ -480,6 +471,19 @@ namespace Jellyfin.Profiles
 
             return DefaultProviderIdFallback;
         }
+
+        /// <summary>
+        /// The provider an account can sign in with on its own, given its master's: the
+        /// master's when that is Jellyfin's own provider, Jellyfin's own otherwise. Never
+        /// an LDAP or SSO provider, which has never heard of a sub-profile ("could never sign
+        /// in"), and never this provider. The one rule for both the reconciliation here and
+        /// the controller's made-standalone path (R-1102).
+        /// </summary>
+        internal static string StandaloneProvider(string? masterProviderId)
+            => !string.IsNullOrEmpty(masterProviderId)
+               && masterProviderId.EndsWith(".DefaultAuthenticationProvider", StringComparison.Ordinal)
+                ? masterProviderId
+                : DefaultProviderIdFallback;
 
 
         /// <inheritdoc />

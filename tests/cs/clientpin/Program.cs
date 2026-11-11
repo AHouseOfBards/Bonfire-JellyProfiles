@@ -900,6 +900,19 @@ if (reconcile != null)
     Ok("a master that signs in through another provider is never bound",
        users[LDAPM].AuthenticationProviderId == Ldap, users[LDAPM].AuthenticationProviderId);
 
+    // R-1102: with client PIN off, a profile of an LDAP master was pointed at the master's
+    // provider, which has never heard of it ("could never sign in", as a made-standalone
+    // profile is already told). It goes on Jellyfin's own, as StandaloneProviderId says.
+    enableProp.SetValue(config, false);
+    users[LDAPKID].AuthenticationProviderId = providerType.FullName;
+    reconcile.Invoke(task, null);
+    Ok("with the feature off, a profile of an LDAP master goes to Jellyfin's own provider, not LDAP's",
+       users[LDAPKID].AuthenticationProviderId
+           == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
+       users[LDAPKID].AuthenticationProviderId);
+    enableProp.SetValue(config, true);
+    reconcile.Invoke(task, null);
+
     // Out of the fixture again: the end-state checks below expect Jellyfin's own
     // provider everywhere.
     foreach (var id in new[] { LDAPM, LDAPKID })

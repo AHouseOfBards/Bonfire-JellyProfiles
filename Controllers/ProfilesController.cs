@@ -4677,13 +4677,7 @@ namespace Jellyfin.Profiles.Controllers
         /// provider. An administrator who wants it in the directory moves it there.</para>
         /// </summary>
         private string StandaloneProviderId(Guid masterId)
-        {
-            const string jellyfinDefault = "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider";
-            var id = _userManager.GetUserById(masterId)?.AuthenticationProviderId;
-            return !string.IsNullOrEmpty(id) && id.EndsWith(".DefaultAuthenticationProvider", StringComparison.Ordinal)
-                ? id
-                : jellyfinDefault;
-        }
+            => ProfilesBootstrapTask.StandaloneProvider(_userManager.GetUserById(masterId)?.AuthenticationProviderId);
 
         // ── Maintenance ─────────────────────────────────────────────────────────────
 
