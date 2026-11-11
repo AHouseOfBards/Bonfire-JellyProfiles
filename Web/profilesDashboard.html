@@ -1129,6 +1129,8 @@
                                     <label class="selectLabel" for="tePattern" data-i18n="admin.themes.pattern">Pattern</label>
                                     <select is="emby-select" id="tePattern" data-simple="pattern"></select>
                                 </div>
+                                <!-- Filled by themePhotoControlHtml, the same control Advanced shows under Background. -->
+                                <div class="jpf-te-field jpf-te-photo" data-paths="background.image" id="teSimplePhoto"></div>
                             </div>
                             <div class="jpf-te-advanced jpf-hidden" id="teAdvanced">
                                 <div class="fieldDescription jpf-lede" data-i18n="admin.themes.advancedHint">Every value in the theme file. Lists are written as JSON.</div>
@@ -1674,6 +1676,8 @@
                 'admin.orphans.deadGroup': 'Bonfire {code}: its owner was deleted',
                 'admin.orphans.deadMembersOne': '1 Bonfire membership naming a deleted account',
                 'admin.orphans.deadMembersMany': '{count} Bonfire memberships naming deleted accounts',
+                'admin.orphans.imagesOne': '1 theme background image no theme uses',
+                'admin.orphans.imagesMany': '{count} theme background images no theme uses',
                 'admin.orphans.removeOne': 'Remove this record',
                 'admin.orphans.removeMany': 'Remove these {count} records',
                 'admin.orphans.removed': 'Removed. Profile records: {profiles}. Bonfires: {groups}. Memberships: {members}. Devices were left alone.',
@@ -1954,6 +1958,16 @@
                 'admin.themes.p.font': 'Choose a font from the list, or add one under Fonts.',
                 'admin.themes.p.pattern': 'Choose a pattern from the list.',
                 'admin.themes.p.address': 'Themes can\'t link to other files or sites.',
+                'admin.themes.p.image': 'This image isn\'t on the server. Upload it again.',
+                'admin.themes.photo': 'Background image',
+                'admin.themes.photoHint': 'PNG, JPEG or WebP, up to 2 MB.',
+                'admin.themes.photoUpload': 'Upload image',
+                'admin.themes.photoRemove': 'Remove image',
+                'admin.themes.photoDim': 'Dim',
+                'admin.themes.photoUploading': 'Uploading…',
+                'admin.themes.photoFailed': 'The image didn\'t upload.',
+                'admin.themes.photoFaint': 'Text is hard to read on it. Dim it more.',
+                'admin.themes.importedNoPhoto': '{name} imported. Theme files don\'t carry the background image; upload it in the editor.',
                 'admin.themes.p.size': 'Too large. A theme is at most 64 KB.',
                 'admin.themes.p.taken': 'A built-in theme uses this id.',
                 'admin.themes.p.idInUse': 'Another of your themes uses this id.',
@@ -2459,13 +2473,16 @@
             // administrator sees the list and confirms it before anything goes.
             function renderOrphans(page, data) {
                 const box = page.querySelector('#orphansResult');
-                const total = data.orphans.length + data.deadGroups.length + data.deadMembers.length;
+                const records = data.orphans.length + data.deadGroups.length + data.deadMembers.length;
+                // Uploaded for a theme that was never saved with it (ThemeBackground).
+                const images = typeof data.unusedImages === 'number' ? data.unusedImages : 0;
+                const total = records + images;
                 if (!total) {
                     box.innerHTML = '<span style="opacity:.7;">' + escapeHtml(t('admin.orphans.none')) + '</span>';
                     return;
                 }
-                const found = total === 1 ? t('admin.orphans.foundOne') : t('admin.orphans.foundMany', { count: total });
-                let html = '<div style="margin-bottom:8px;">' + escapeHtml(found) + '</div><ul style="margin:0 0 12px 1.2em;">';
+                const found = !records ? '' : records === 1 ? t('admin.orphans.foundOne') : t('admin.orphans.foundMany', { count: records });
+                let html = (found ? '<div style="margin-bottom:8px;">' + escapeHtml(found) + '</div>' : '') + '<ul style="margin:0 0 12px 1.2em;">';
                 data.orphans.forEach(function (o) {
                     html += '<li>' + escapeHtml(o.profileName || t('admin.orphans.unnamed')) + ' — ' + escapeHtml(o.reason) + '</li>';
                 });
@@ -2475,6 +2492,9 @@
                 const dm = data.deadMembers.length;
                 if (dm) {
                     html += '<li>' + escapeHtml(dm === 1 ? t('admin.orphans.deadMembersOne') : t('admin.orphans.deadMembersMany', { count: dm })) + '</li>';
+                }
+                if (images) {
+                    html += '<li>' + escapeHtml(images === 1 ? t('admin.orphans.imagesOne') : t('admin.orphans.imagesMany', { count: images })) + '</li>';
                 }
                 html += '</ul><button is="emby-button" type="button" id="applyOrphansBtn" class="raised"><span>'
                     + escapeHtml(total === 1 ? t('admin.orphans.removeOne') : t('admin.orphans.removeMany', { count: total }))
@@ -4037,7 +4057,7 @@
                     ['admin.themes.group.text', colours(['text1', 'text2', 'text3', 'name', 'nameFocus'])],
                     ['admin.themes.group.surfaces', colours(['panel', 'surface1', 'surface2', 'surface3', 'border1', 'border2', 'border3', 'shadow'])],
                     ['admin.themes.group.status', colours(['danger', 'warning'])],
-                    ['admin.themes.group.background', [colour('background.fill'), ['background.layers', 'json']]],
+                    ['admin.themes.group.background', [colour('background.fill'), ['background.layers', 'json'], ['background.image', 'photo']]],
                     ['admin.themes.group.shape', [
                         num('shape.radius.small', 0, 64, 1), num('shape.radius.medium', 0, 64, 1), num('shape.radius.large', 0, 64, 1),
                         pick('shape.avatar.kind', ['circle', 'square', 'rounded', 'leaf']), num('shape.avatar.radius', 0, 200, 1),
@@ -4491,6 +4511,7 @@
                     case 'font': return t('admin.themes.p.font');
                     case 'pattern': return t('admin.themes.p.pattern');
                     case 'address': return t('admin.themes.p.address');
+                    case 'image': return t('admin.themes.p.image');
                     case 'size': return t('admin.themes.p.size');
                     case 'taken': return t('admin.themes.p.taken');
                     // This page's own two: an id another custom theme has, and a JSON field
@@ -4732,6 +4753,8 @@
 
             /// Advanced's fields, built once: they are the same for every theme.
             function buildThemeAdvanced(page) {
+                const simplePhoto = page.querySelector('#teSimplePhoto');
+                if (simplePhoto && !simplePhoto.innerHTML) simplePhoto.innerHTML = themePhotoControlHtml();
                 const box = page.querySelector('#teAdvancedFields');
                 if (box.dataset.built) return;
                 box.dataset.built = '1';
@@ -4741,6 +4764,7 @@
                         escapeHtml(t(group[0])) + '</summary>' +
                         group[1].map(function (f) {
                             const path = f[0], kind = f[1], opt = f[2];
+                            if (kind === 'photo') return '<div class="jpf-te-field jpf-te-adv jpf-te-photo" data-paths="' + path + '">' + themePhotoControlHtml() + '</div>';
                             const id = 'teField' + (n++);
                             const attrs = ' id="' + id + '" data-path="' + path + '" data-kind="' + kind + '"';
                             let control;
@@ -4767,6 +4791,7 @@
             function fillThemeEditor(page) {
                 const ed = page._themeEditor;
                 const draft = ed.draft;
+                syncThemePhoto(page);
                 if (ed.view === 'simple') {
                     const v = simpleThemeValues(draft);
                     page.querySelector('#teAccent').value = v.accent;
@@ -4849,6 +4874,12 @@
                 const ed = page._themeEditor;
                 if (!ed) return false;
                 const draft = ed.draft;
+                if (el.classList && el.classList.contains('jpf-te-photo-dim')) {
+                    if (!getThemePath(draft, 'background.image.file')) return false;
+                    setThemePath(draft, 'background.image.dim', Math.round(Number(el.value) * 100) / 100);
+                    syncThemePhoto(page);
+                    return true;
+                }
                 if (el.id === 'teName') {
                     draft.name = { text: el.value.trim() };
                     if (!ed.idTouched) {
@@ -4953,6 +4984,7 @@
                 page.querySelector('#teProblems').innerHTML = ed.checkFailed
                     ? '<div class="jpf-error">' + escapeHtml(t('admin.themes.checkFailed')) + '</div>'
                     : themeProblemsHtml(problems);
+                syncThemePhoto(page);
             }
 
             /// The preview at once; the server's check a moment after the last change.
@@ -4983,6 +5015,8 @@
                 let css = '';
                 try { css = api.css(Object.assign({}, ed.draft, { id: THEME_PREVIEW_ID })) || ''; } catch (e) { css = ''; }
                 style.textContent = css;
+                const photo = getThemePath(ed.draft, 'background.image.file');
+                if (typeof photo === 'string' && typeof api.photo === 'function') api.photo(photo);
                 const name = getThemePath(ed.draft, 'name.text');
                 card.querySelector('.jpf-theme-preview-name').textContent = typeof name === 'string' && name ? name : t('admin.themes.newTitle');
             }
@@ -5048,9 +5082,116 @@
                 });
             }
 
+            /// The background image control: Upload, Remove, the dim slider and a line for what
+            /// is happening. The same markup in Simple and under Advanced's Background, both
+            /// kept in step by syncThemePhoto.
+            function themePhotoControlHtml() {
+                return '<div class="jpf-te-adv-label">' + escapeHtml(t('admin.themes.photo')) + '</div>' +
+                    '<div class="jpf-te-photo-row">' +
+                    '<button is="emby-button" type="button" class="raised" data-photo-act="upload"><span>' + escapeHtml(t('admin.themes.photoUpload')) + '</span></button>' +
+                    '<button is="emby-button" type="button" class="raised jpf-te-photo-remove" data-photo-act="remove"><span>' + escapeHtml(t('admin.themes.photoRemove')) + '</span></button>' +
+                    '<input type="file" class="jpf-te-photo-file jpf-hidden" accept="image/png,image/jpeg,image/webp" tabindex="-1" aria-hidden="true" />' +
+                    '</div>' +
+                    '<label class="jpf-te-photo-dim-box"><span>' + escapeHtml(t('admin.themes.photoDim')) + '</span> ' +
+                    '<input type="range" class="jpf-te-photo-dim" min="0" max="0.95" step="0.05" /></label>' +
+                    '<div class="fieldDescription jpf-te-photo-note"></div>';
+            }
+
+            /// Shows the draft's picture in every copy of the control: Remove and the slider only
+            /// when there is one, the dim it has, and a warning when the server says the text is
+            /// hard to read on it (a contrast problem "on background.image").
+            function syncThemePhoto(page) {
+                const ed = page._themeEditor;
+                if (!ed) return;
+                const file = getThemePath(ed.draft, 'background.image.file');
+                const dim = getThemePath(ed.draft, 'background.image.dim');
+                const faint = (ed.problems || []).some(function (p) { return p && p.code === 'contrast' && /background\.image/.test(String(p.detail || '')); });
+                page.querySelectorAll('#themeEditor .jpf-te-photo').forEach(function (box) {
+                    const remove = box.querySelector('.jpf-te-photo-remove');
+                    const range = box.querySelector('.jpf-te-photo-dim');
+                    const note = box.querySelector('.jpf-te-photo-note');
+                    if (!remove || !range) return;
+                    remove.classList.toggle('jpf-hidden', !file);
+                    range.parentNode.classList.toggle('jpf-hidden', !file);
+                    if (document.activeElement !== range) range.value = typeof dim === 'number' ? String(dim) : '0.8';
+                    if (ed.photoBusy) note.textContent = t('admin.themes.photoUploading');
+                    else if (ed.photoError) note.textContent = ed.photoError;
+                    else note.textContent = file && faint ? t('admin.themes.photoFaint') : t('admin.themes.photoHint');
+                });
+            }
+
+            /// The dim a new picture starts at: the least, from 0.75 in steps of 0.05, at which
+            /// every colour the server holds against the background still reads on a white
+            /// picture and on a black one under the theme's fill. Only a start, like the text
+            /// colour picked for a new accent: the server is what checks it.
+            function themePhotoDim(draft) {
+                const fill = themeRgb(String(getThemePath(draft, 'background.fill') || '').slice(0, 7)) || [16, 16, 16];
+                const toHex = function (k) { return '#' + k.map(function (x) { return ('0' + Math.round(x).toString(16)).slice(-2); }).join(''); };
+                const opacity = getThemePath(draft, 'type.name.opacity');
+                const pairs = [['text1', 7, 1], ['name', 4.5, typeof opacity === 'number' ? opacity : 1], ['text2', 4.5, 1],
+                    ['text3', 3, 1], ['ring', 3, 1], ['accent', 3, 1], ['danger', 3, 1]];
+                const passes = function (d) {
+                    return [255, 0].every(function (end) {
+                        const back = fill.map(function (x) { return x * d + end * (1 - d); });
+                        return pairs.every(function (p) {
+                            const v = String(getThemePath(draft, 'colors.' + p[0]) || '');
+                            const k = themeRgb(v.slice(0, 7));
+                            if (!k) return true;
+                            const a = (v.length === 9 ? parseInt(v.slice(7), 16) / 255 : 1) * p[2];
+                            const over = k.map(function (x, i) { return x * a + back[i] * (1 - a); });
+                            return themeContrast(toHex(over), toHex(back)) >= p[1];
+                        });
+                    });
+                };
+                for (let d = 0.75; d < 0.95; d = Math.round((d + 0.05) * 100) / 100) {
+                    if (passes(d)) return d;
+                }
+                return 0.95;
+            }
+
+            /// Uploads a picture and puts it in the draft. Saved with the theme, like any
+            /// other change; the server deletes one no saved theme names.
+            function uploadThemePhoto(page, file) {
+                const ed = page._themeEditor;
+                if (!ed || ed.photoBusy) return;
+                ed.photoError = '';
+                if (LOGO_TYPES.indexOf(file.type) === -1) { ed.photoError = t('admin.logo.err.type'); syncThemePhoto(page); return; }
+                if (file.size > 2 * 1048576) { ed.photoError = t('admin.logo.err.size', { mb: 2 }); syncThemePhoto(page); return; }
+                ed.photoBusy = true;
+                syncThemePhoto(page);
+                // Hand-rolled, like the logo's: the body is the file itself.
+                fetch(ApiClient.getUrl('plugins/profiles/admin/themes/backgrounds'), {
+                    method: 'POST',
+                    headers: { 'Authorization': authorizationHeader(), 'Content-Type': file.type },
+                    body: file
+                }).then(function (res) {
+                    if (!res.ok) return Promise.reject(res);
+                    return res.json();
+                }).then(function (res) {
+                    ed.photoBusy = false;
+                    if (page._themeEditor !== ed || !res || typeof res.file !== 'string') return;
+                    const dim = getThemePath(ed.draft, 'background.image.dim');
+                    setThemePath(ed.draft, 'background.image', { file: res.file, dim: typeof dim === 'number' ? dim : themePhotoDim(ed.draft) });
+                    syncThemePhoto(page);
+                    themeDraftChanged(page, true);
+                }, function (err) {
+                    ed.photoBusy = false;
+                    readThemeError(err, 'admin.themes.photoFailed', page._themes && page._themes.data).then(function (e) {
+                        if (page._themeEditor !== ed) return;
+                        ed.photoError = e.message;
+                        syncThemePhoto(page);
+                    });
+                });
+            }
+
             function exportTheme(theme) {
                 const id = theme && /^[a-z0-9-]{1,40}$/.test(String(theme.id)) ? theme.id : 'theme';
-                const blob = new Blob([JSON.stringify(theme, null, 2)], { type: 'application/json' });
+                // The background image is a file on this server, not part of the theme's
+                // text, so the file leaves it out rather than name a picture another
+                // server does not have (docs/themes.md, "Background image").
+                const copy = JSON.parse(JSON.stringify(theme || {}));
+                if (copy.background && typeof copy.background === 'object') delete copy.background.image;
+                const blob = new Blob([JSON.stringify(copy, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -5085,6 +5226,14 @@
                     const data = page._themes.data;
                     const id = typeof parsed.id === 'string' ? parsed.id : '';
                     const existing = (data.custom || []).filter(function (c) { return c.id === id; })[0];
+                    // A file never brings a picture (exportTheme leaves it out). One written by
+                    // hand would name a file this server may not have, so it is dropped; a
+                    // theme being replaced keeps the picture it has.
+                    const bg = parsed.background && typeof parsed.background === 'object' ? parsed.background : null;
+                    const hadPhoto = !!(bg && bg.image);
+                    if (bg) delete bg.image;
+                    const kept = existing ? getThemePath(existing.theme, 'background.image') : null;
+                    if (bg && kept && typeof kept === 'object') bg.image = JSON.parse(JSON.stringify(kept));
                     const editInstead = function (problems) {
                         openThemeEditor(page, importedThemeDraft(parsed), existing ? 'edit' : 'new');
                         if (problems) {
@@ -5102,7 +5251,7 @@
                             data: JSON.stringify(parsed)
                         }).then(function () {
                             const name = getThemePath(parsed, 'name.text') || id;
-                            showThemeStatus(page, '#themesResult', t('admin.themes.imported', { name: name }), true);
+                            showThemeStatus(page, '#themesResult', t(hadPhoto && !(bg && bg.image) ? 'admin.themes.importedNoPhoto' : 'admin.themes.imported', { name: name }), true);
                             loadThemes(page);
                             refreshClientThemes();
                         }, function (err) {
@@ -5398,6 +5547,24 @@
                 };
                 editor.addEventListener('input', edited);
                 editor.addEventListener('change', edited);
+                editor.addEventListener('click', function (e) {
+                    const act = e.target.closest && e.target.closest('[data-photo-act]');
+                    if (!act || !page._themeEditor) return;
+                    if (act.getAttribute('data-photo-act') === 'remove') {
+                        setThemePath(page._themeEditor.draft, 'background.image', undefined);
+                        syncThemePhoto(page);
+                        themeDraftChanged(page);
+                        return;
+                    }
+                    const file = act.parentNode.querySelector('.jpf-te-photo-file');
+                    file.value = '';
+                    file.click();
+                });
+                editor.addEventListener('change', function (e) {
+                    if (!e.target.classList || !e.target.classList.contains('jpf-te-photo-file')) return;
+                    const chosen = e.target.files && e.target.files[0];
+                    if (chosen) uploadThemePhoto(page, chosen);
+                });
                 page.querySelectorAll('#themeEditor .jpf-te-mode').forEach(function (b) {
                     b.addEventListener('click', function () { setThemeEditorView(page, b.getAttribute('data-view')); });
                 });

@@ -419,14 +419,18 @@ function part5() {
     const uncovered = Array.from(leaves).filter(l => shared.indexOf(l.split('.')[0]) === -1
         && !paths.some(p => fns.themePathOwns(p, l)));
     ok('Advanced covers every value a built-in theme sets', uncovered.length === 0, uncovered.join(', '));
-    const typos = paths.filter(p => !Array.from(leaves).some(l => fns.themePathOwns(p, l)));
+    // The one field only a custom theme has (2.0): a built-in never carries a background
+    // image, so no built-in file can vouch for the path. Named here, not matched loosely.
+    const CUSTOM_ONLY = ['background.image'];
+    const typos = paths.filter(p => CUSTOM_ONLY.indexOf(p) === -1 && !Array.from(leaves).some(l => fns.themePathOwns(p, l)));
     ok('and has no field no theme has', typos.length === 0, typos.join(', '));
     ok('each group heading is a string key', fields.every(g => /^admin\.themes\.group\.[a-z]+$/.test(g[0])));
 
     // Grouped under headings that say what the field is for. The fields did not change: this
     // list is what Advanced had before they were regrouped, by path and kind, and the page
     // must still have exactly these, each once.
-    const BEFORE = ["background.fill color","background.layers json","colors.accent color","colors.accentFocus color","colors.border1 color","colors.border2 color","colors.border3 color","colors.danger color","colors.name color","colors.nameFocus color","colors.onAccent color","colors.panel color","colors.ring color","colors.shadow color","colors.surface1 color","colors.surface2 color","colors.surface3 color","colors.text1 color","colors.text2 color","colors.text3 color","colors.warning color","decorations json","depth.avatar json","depth.sheet json","depth.title json","focus.glow json","focus.scale number","layout.households choice","parts.addTile.border.color color","parts.addTile.border.style choice","parts.addTile.border.width number","parts.addTile.fill color","parts.addTile.focusFill color","parts.addTile.text color","parts.button2.border.color color","parts.button2.border.style choice","parts.button2.border.width number","parts.button2.fill color","parts.button2.focus.border.color color","parts.button2.focus.border.style choice","parts.button2.focus.border.width number","parts.button2.focus.fill color","parts.button2.focus.glow json","parts.button2.focus.text color","parts.button2.text color","parts.card.fill color","parts.card.line color","parts.input.fill color","parts.input.line color","parts.sheet.border.color color","parts.sheet.border.style choice","parts.sheet.border.width number","parts.sheet.fill color","scheme choice","shape.avatar.kind choice","shape.avatar.radius number","shape.button.kind choice","shape.button.radius number","shape.input.radius number","shape.radius.large number","shape.radius.medium number","shape.radius.small number","shape.ringWidth number","type.button.case choice","type.button.spacing number","type.button.weight number","type.font.fallback choice","type.font.family font","type.name.opacity number","type.name.scale number","type.name.weight number","type.title.scale number","type.title.spacing number","type.title.weight number"];
+    // 2.0 added one on purpose: "background.image photo", the picture's control.
+    const BEFORE = ["background.fill color","background.image photo","background.layers json","colors.accent color","colors.accentFocus color","colors.border1 color","colors.border2 color","colors.border3 color","colors.danger color","colors.name color","colors.nameFocus color","colors.onAccent color","colors.panel color","colors.ring color","colors.shadow color","colors.surface1 color","colors.surface2 color","colors.surface3 color","colors.text1 color","colors.text2 color","colors.text3 color","colors.warning color","decorations json","depth.avatar json","depth.sheet json","depth.title json","focus.glow json","focus.scale number","layout.households choice","parts.addTile.border.color color","parts.addTile.border.style choice","parts.addTile.border.width number","parts.addTile.fill color","parts.addTile.focusFill color","parts.addTile.text color","parts.button2.border.color color","parts.button2.border.style choice","parts.button2.border.width number","parts.button2.fill color","parts.button2.focus.border.color color","parts.button2.focus.border.style choice","parts.button2.focus.border.width number","parts.button2.focus.fill color","parts.button2.focus.glow json","parts.button2.focus.text color","parts.button2.text color","parts.card.fill color","parts.card.line color","parts.input.fill color","parts.input.line color","parts.sheet.border.color color","parts.sheet.border.style choice","parts.sheet.border.width number","parts.sheet.fill color","scheme choice","shape.avatar.kind choice","shape.avatar.radius number","shape.button.kind choice","shape.button.radius number","shape.input.radius number","shape.radius.large number","shape.radius.medium number","shape.radius.small number","shape.ringWidth number","type.button.case choice","type.button.spacing number","type.button.weight number","type.font.fallback choice","type.font.family font","type.name.opacity number","type.name.scale number","type.name.weight number","type.title.scale number","type.title.spacing number","type.title.weight number"];
     const NOW = [];
     fields.forEach(g => g[1].forEach(f => NOW.push(f[0] + ' ' + f[1])));
     ok('no field was added or removed by grouping: the same ' + BEFORE.length + ', each once',
@@ -623,12 +627,12 @@ function part7() {
             const none = await run({ file: null });
             ok('nor with no file chosen', none.sent.length === 0);
         }
-        part8();
+        part8().catch(e => { console.error(e); process.exit(1); });
     })().catch(e => { ok('the upload checks ran', false, e.stack); finish(); });
 }
 
 // ── 8. A new theme can't take another's id ────────────────────────────────────
-function part8() {
+async function part8() {
     console.log('\n── A new theme cannot overwrite another ────────────────────────');
     const fns = lift(['localThemeProblems', 'themeProblemText']);
     ok('localThemeProblems can be run', !!fns);
@@ -647,5 +651,86 @@ function part8() {
         ok('as is a list that is not JSON', fns.localThemeProblems(json).some(p => p.path === 'background.layers' && p.code === 'json'));
     }
     ok('Save checks them before sending', /function saveThemeDraft[\s\S]*?if \(localThemeProblems\(page\)\.length\)[\s\S]*?return;[\s\S]*?type: 'PUT'/.test(script));
+
+    // ── 9. The background image (2.0) ───────────────────────────────────────────
+    console.log('\n── A custom theme\'s background image ──────────────────────────');
+    {
+        ok('Simple has a place for the picture\'s control', /id="teSimplePhoto"[^>]*|data-paths="background\.image"[^>]*id="teSimplePhoto"/.test(markup)
+            && /<div class="jpf-te-field jpf-te-photo" data-paths="background\.image" id="teSimplePhoto">/.test(markup));
+        const fl = lift(['themeFieldList']);
+        const bgGroup = fl && fl.themeFieldList().filter(g => g[0] === 'admin.themes.group.background')[0];
+        ok('and Advanced has it under Background', !!bgGroup && bgGroup[1].some(f => f[0] === 'background.image' && f[1] === 'photo'));
+
+        const ctl = lift(['escapeHtml', 'themePhotoControlHtml']);
+        const html = ctl ? ctl.themePhotoControlHtml() : '';
+        ok('the control: Upload, Remove, a dim slider and a file input for images only',
+            /data-photo-act="upload"/.test(html) && /data-photo-act="remove"/.test(html)
+            && /type="range" class="jpf-te-photo-dim" min="0" max="0\.95"/.test(html)
+            && /type="file"[^>]*accept="image\/png,image\/jpeg,image\/webp"/.test(html), html.slice(0, 200));
+        if (ctl) {
+            ctl.setStrings(frenchStrings());
+            const fr = ctl.themePhotoControlHtml();
+            ok('in the administrator\'s language', fr.indexOf('Envoyer une image') !== -1 && fr.indexOf('Upload image') === -1, fr.slice(0, 200));
+        }
+
+        // The starting dim: the server holds each colour against a white and a black picture
+        // under the fill, and every built-in made into a custom theme must pass at it.
+        const dimFns = lift(['getThemePath', 'themeRgb', 'themeLuminance', 'themeContrast', 'themePhotoDim']);
+        const lin = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+        const lum = k => 0.2126 * lin(k[0]) + 0.7152 * lin(k[1]) + 0.0722 * lin(k[2]);
+        const rat = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+        const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+        BUILT_IN.forEach(theme => {
+            const d = dimFns ? dimFns.themePhotoDim(theme) : NaN;
+            const fill = rgb(theme.background.fill);
+            const worst = [255, 0].map(end => fill.map(x => x * d + end * (1 - d)));
+            const r = Math.min.apply(null, worst.map(b => rat(rgb(theme.colors.text1), b)));
+            ok(theme.id + ': starts at ' + d + ', between 0.75 and 0.95, with text1 at 7:1 on any picture (' + r.toFixed(2) + ')',
+                d >= 0.75 && d <= 0.95 && r >= 7);
+        });
+
+        // Upload: the file itself, then the draft names it at the starting dim.
+        const sent = [];
+        const ed = { draft: JSON.parse(JSON.stringify(bonfireFile)), problems: [] };
+        const pg = { _themeEditor: ed, _themes: { data: {} }, querySelectorAll: () => [] };
+        let changed = 0;
+        const up = lift(['getThemePath', 'setThemePath', 'themeRgb', 'themeLuminance', 'themeContrast', 'themePhotoDim', 'syncThemePhoto', 'uploadThemePhoto'], {
+            fetch: (u, o) => { sent.push([u, o]); return Promise.resolve({ ok: true, json: () => Promise.resolve({ file: 'a'.repeat(32) + '.jpg' }) }); },
+            authorizationHeader: () => 'MediaBrowser Token="x"', LOGO_TYPES: ['image/png', 'image/jpeg', 'image/webp'],
+            themeDraftChanged: () => { changed++; }, readThemeError: () => Promise.resolve({ message: 'x' }),
+            document: { activeElement: null }
+        });
+        if (up) {
+            up.uploadThemePhoto(pg, { type: 'image/svg+xml', size: 10 });
+            ok('an SVG is refused before it is sent', sent.length === 0 && !!ed.photoError);
+            up.uploadThemePhoto(pg, { type: 'image/jpeg', size: 3 * 1048576 });
+            ok('as is a file over 2 MB', sent.length === 0);
+            const file = { type: 'image/jpeg', size: 1000 };
+            up.uploadThemePhoto(pg, file);
+            await new Promise(r => setTimeout(r, 0));
+            ok('a picture is sent as the body, to admin/themes/backgrounds', sent.length === 1 && sent[0][0] === '/plugins/profiles/admin/themes/backgrounds'
+                && sent[0][1].method === 'POST' && sent[0][1].body === file);
+            const img = ed.draft.background.image;
+            ok('and the draft names it at the starting dim', img && img.file === 'a'.repeat(32) + '.jpg' && img.dim === up.themePhotoDim(ed.draft) && changed === 1,
+                JSON.stringify(img));
+        } else ok('the upload is on the page', false);
+
+        // Export leaves the picture out; import never brings one.
+        let blobText = null;
+        const ex = lift(['exportTheme'], {
+            Blob: function (parts) { blobText = parts.join(''); }, URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
+            document: { createElement: () => ({ click() {} }), body: { appendChild() {}, removeChild() {} } }
+        });
+        const withPic = JSON.parse(JSON.stringify(bonfireFile));
+        withPic.background.image = { file: 'a'.repeat(32) + '.jpg', dim: 0.85 };
+        if (ex) ex.exportTheme(withPic);
+        ok('an exported file leaves the picture out', !!blobText && JSON.parse(blobText).background && !JSON.parse(blobText).background.image
+            && !!withPic.background.image, blobText && blobText.slice(0, 80));
+        ok('an import drops a picture the file names, and keeps the replaced theme\'s',
+            /function importThemeFile[\s\S]*?if \(bg\) delete bg\.image;[\s\S]*?bg\.image = JSON\.parse\(JSON\.stringify\(kept\)\)/.test(script));
+        ok('and says so when it dropped one', /importedNoPhoto/.test(script) && /hadPhoto && !\(bg && bg\.image\)/.test(script));
+        const pt = lift(['themeProblemText']);
+        ok('a picture the server does not have is said plainly', !!pt && pt.themeProblemText({ path: 'background.image.file', code: 'image', detail: '' }) === 'This image isn\'t on the server. Upload it again.');
+    }
     finish();
 }
