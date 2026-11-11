@@ -748,10 +748,11 @@
                         <input is="emby-input" type="number" id="pinGuessesPerDay" min="1" max="20" />
                         <div class="fieldDescription" data-i18n="admin.households.pinPerDayHint">Wrong tries per account, all apps together. 1 to 20.</div>
                     </div>
-                    <div class="inputContainer jpf-form-narrow">
-                        <label class="inputLabel" for="trustedPinAddresses" data-i18n="admin.security.trusted">Addresses that count as home</label>
-                        <textarea is="emby-textarea" id="trustedPinAddresses" rows="3" autocomplete="off" spellcheck="false"></textarea>
-                        <div class="fieldDescription" data-i18n="admin.security.trustedHint">One per line, up to 10. Ranges allowed.</div>
+                    <div class="inputContainer jpf-form-narrow" id="trustedBox">
+                        <label class="inputLabel" data-i18n="admin.trust.title">Addresses that skip PINs</label>
+                        <div id="trustedList"></div>
+                        <button is="emby-button" type="button" id="trustedAdd" class="raised jpf-narrow" data-i18n="admin.trust.add">Add address</button>
+                        <div class="fieldDescription" data-i18n="admin.trust.hint">Chosen accounts open without a PIN from there.</div>
                     </div>
 
                     <div class="sectionTitleContainer jpf-section" id="jpfEmergency">
@@ -1454,7 +1455,10 @@
                 'admin.gs.zone': 'Choose a default time zone. This server is on UTC.',
                 'admin.saveFailed': 'Couldn\'t save it.',
                 'admin.saveSettingsFailed': 'Couldn\'t save the settings.',
-                'admin.security.trustedBad': 'An address is invalid or too wide.',
+                'admin.trust.bad': 'An address is invalid, too wide, or has no account.',
+                'admin.trust.address': 'Address or range',
+                'admin.trust.remove': 'Remove',
+                'admin.trust.noAccounts': 'No main accounts yet.',
                 'admin.saveBlocked': 'The settings didn\'t load, so nothing was saved. Press "Try again".',
                 'admin.readFailed': 'Couldn\'t read the current status.',
                 'admin.version.preTitle': 'Pre-release build. Please report problems on GitHub.',
@@ -2013,7 +2017,10 @@
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
                     page.querySelector('#pinGuessesPerDay').value = config.PinGuessesPerDay || 20;
-                    page.querySelector('#trustedPinAddresses').value = (config.TrustedPinAddresses || []).join('\n');
+                    page._trusted = (config.TrustedAddressEntries || []).map(function (e) {
+                        return { address: e.Address || '', userIds: e.UserIds || [] };
+                    });
+                    renderTrusted(page);
                     page.querySelector('#requireMainPin').checked = !!config.RequireMainPin;
                     page.dataset.requireMainPin = config.RequireMainPin ? '1' : '';
                     // Also set by renderEmail; set here too, or a page whose email read
@@ -2342,10 +2349,96 @@
                 });
             }
 
+            // Trusted addresses: one row each, an address and the main accounts it is for.
+            // page._trusted is the saved list; once the rows are drawn the form is the truth.
+            // They are drawn only when the accounts are known, or the ticks would be lost.
+            function collectTrusted(page) {
+                if (!page._trustedDrawn) return page._trusted || [];
+                return Array.prototype.map.call(page.querySelectorAll('#trustedList .jpf-trust-row'), function (row) {
+                    return {
+                        address: row.querySelector('.jpf-trust-addr').value.trim(),
+                        userIds: Array.prototype.filter.call(row.querySelectorAll('.jpf-trust-acct'), function (b) { return b.checked; })
+                            .map(function (b) { return b.value; })
+                    };
+                });
+            }
+
+            function renderTrusted(page) {
+                const list = page.querySelector('#trustedList');
+                const mapped = page._mappings;
+                if (!list || !mapped) return;
+                const accounts = (mapped.MasterUsers || mapped.masterUsers || []).filter(function (m) {
+                    return field(m, 'isAdministrator') !== true;
+                });
+                list.innerHTML = '';
+                (page._trusted || []).forEach(function (entry) {
+                    const row = document.createElement('div');
+                    row.className = 'jpf-trust-row';
+                    row.style.marginBottom = '1em';
+                    const addr = document.createElement('input');
+                    addr.type = 'text';
+                    addr.className = 'jpf-trust-addr jpfTrusted';
+                    addr.value = entry.address;
+                    addr.setAttribute('autocomplete', 'off');
+                    addr.setAttribute('spellcheck', 'false');
+                    addr.setAttribute('aria-label', t('admin.trust.address'));
+                    addr.placeholder = t('admin.trust.address');
+                    addr.style.width = '100%';
+                    row.appendChild(addr);
+                    const wanted = (entry.userIds || []).map(normId);
+                    accounts.forEach(function (a) {
+                        const id = field(a, 'profileUserId');
+                        const label = document.createElement('label');
+                        label.style.display = 'block';
+                        const box = document.createElement('input');
+                        box.type = 'checkbox';
+                        box.className = 'jpf-trust-acct jpfTrusted';
+                        box.value = id;
+                        box.checked = wanted.indexOf(normId(id)) !== -1;
+                        label.appendChild(box);
+                        label.appendChild(document.createTextNode(' ' + (field(a, 'profileName') || '')));
+                        row.appendChild(label);
+                    });
+                    if (!accounts.length) {
+                        const none = document.createElement('div');
+                        none.className = 'fieldDescription';
+                        none.textContent = t('admin.trust.noAccounts');
+                        row.appendChild(none);
+                    }
+                    const del = document.createElement('button');
+                    del.type = 'button';
+                    del.className = 'raised jpf-trust-del';
+                    del.textContent = t('admin.trust.remove');
+                    del.addEventListener('click', function () {
+                        page._trusted = collectTrusted(page);
+                        page._trusted.splice(Array.prototype.indexOf.call(list.children, row), 1);
+                        renderTrusted(page);
+                        setUnsaved(page, true);
+                    });
+                    row.appendChild(del);
+                    list.appendChild(row);
+                });
+                page._trustedDrawn = true;
+                const add = page.querySelector('#trustedAdd');
+                // The server takes ten at most.
+                if (add) add.disabled = (page._trusted || []).length >= 10;
+                if (add && !add._bound) {
+                    add._bound = true;
+                    add.addEventListener('click', function () {
+                        page._trusted = collectTrusted(page);
+                        if (page._trusted.length >= 10) return;
+                        page._trusted.push({ address: '', userIds: [] });
+                        renderTrusted(page);
+                        setUnsaved(page, true);
+                    });
+                }
+            }
+
             function loadMappings(page) {
                 const url = ApiClient.getUrl('plugins/profiles/admin/mappings');
                 ApiClient.getJSON(url).then(function (result) {
                     page._mappings = result;
+                    renderTrusted(page);
                     renderGettingStarted(page);
                     renderInjectionStatus(page, result);
 
@@ -5669,7 +5762,10 @@
                 c.ClientPinLoginFromAnywhere = sent.clientPinLoginFromAnywhere;
                 c.ProxyClients = sent.proxyClients;
                 c.DefaultTimeZone = sent.defaultTimeZone;
-                c.TrustedPinAddresses = sent.trustedPinAddresses;
+                c.TrustedAddressEntries = sent.trustedAddressEntries.map(function (e) {
+                    return { Address: e.address, UserIds: e.userIds };
+                });
+                page._trusted = sent.trustedAddressEntries;
                 c.Onboarding = Object.assign({}, c.Onboarding || {}, { Enabled: sent.onboardingEnabled });
                 page.dataset.requireMainPin = sent.requireMainPin ? '1' : '';
                 renderGettingStarted(page);
@@ -5815,12 +5911,12 @@
             // on, and nothing said which fields had been touched or that anything was waiting.
             // The things that save at once (themes, email, announcements, maintenance) have
             // buttons of their own and are not counted: only what Save sends is.
-            const SAVED_FIELD_IDS = ['maxProfiles', 'pinGuessesPerDay', 'trustedPinAddresses', 'requireMainPin', 'enablePinResetByEmail',
+            const SAVED_FIELD_IDS = ['maxProfiles', 'pinGuessesPerDay', 'requireMainPin', 'enablePinResetByEmail',
                 'disallowCustomAvatars', 'enableStarterAvatars', 'defaultAskOnStartup', 'defaultSwitcherLocation',
                 'defaultTheme', 'allowProfileThemes', 'richThemeMotion', 'defaultTimeZone', 'enableClientPinLogin',
                 'enableClientProfileList', 'clientPinLoginFromAnywhere', 'skipQuickConnectOnKnownDevices',
                 'profileImageQuality', 'onboardingEnabled'];
-            const SAVED_FIELD_CLASSES = ['jpfProxyClient'];
+            const SAVED_FIELD_CLASSES = ['jpfProxyClient', 'jpfTrusted'];
 
             function isSavedField(el) {
                 if (!el) return false;
@@ -5884,9 +5980,11 @@
                 const sent = {
                     maxProfilesPerUser: maxProfiles,
                     pinGuessesPerDay: pinGuessesPerDay,
-                    // One per line; the server refuses a bad, too wide or eleventh entry whole.
-                    trustedPinAddresses: page.querySelector('#trustedPinAddresses').value
-                        .split(/[\s,;]+/).filter(function (a) { return a; }),
+                    // The server refuses a bad, too wide or eleventh entry, or an account that
+                    // is not a main account, whole. A row left blank is not sent.
+                    trustedAddressEntries: collectTrusted(page).filter(function (e) {
+                        return e.address || e.userIds.length;
+                    }),
                     requireMainPin: page.querySelector('#requireMainPin').checked,
                     enablePinResetByEmail: page.querySelector('#enablePinResetByEmail').checked,
                     disallowCustomAvatarUploads: page.querySelector('#disallowCustomAvatars').checked,
@@ -5933,9 +6031,9 @@
                     Dashboard.hideLoadingMsg();
                     // The list is the one field the server refuses for its contents, so a 400
                     // with a list sent says which to look at.
-                    const badList = err && err.status === 400 && sent.trustedPinAddresses.length > 0;
+                    const badList = err && err.status === 400 && sent.trustedAddressEntries.length > 0;
                     Dashboard.alert({
-                        message: t(badList ? 'admin.security.trustedBad' : 'admin.saveSettingsFailed'),
+                        message: t(badList ? 'admin.trust.bad' : 'admin.saveSettingsFailed'),
                         title: t('admin.error')
                     });
                 });
