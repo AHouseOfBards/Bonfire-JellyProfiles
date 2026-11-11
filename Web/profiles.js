@@ -6284,6 +6284,9 @@
             const overlay = document.getElementById('profiles-gate-overlay');
             if (overlay) overlay.remove();
 
+            // A picture-position dialog is on the body, not in the overlay (R-1218).
+            if (this._cropClose) this._cropClose();
+
             // Reopening the gate should re-read the server; caching only spans one
             // session so a library added elsewhere shows up next time.
             this.clearSharedFormData();
@@ -8336,6 +8339,56 @@
             });
         },
 
+        /// Pointer bookkeeping for the picture-position dialog: one finger pans, two
+        /// pinch. pan(dx, dy) and setZoom(z) are the dialog's own; getZoom() reads the
+        /// slider; grab(true/false) flips the cursor. Returns begin/move/end by pointer id.
+        ///
+        /// When one finger of a pinch lifts, the finger left down is measured again from
+        /// where it is now. It was last measured as part of the pinch, so without that the
+        /// first move after the lift was taken from where the drag began and the picture
+        /// jumped (R-1204).
+        _cropGesture: function (getZoom, pan, setZoom, grab) {
+            let dragging = false, lastX = 0, lastY = 0, pinchStart = 0, pinchZoomStart = 1;
+            const active = new Map();
+            const spread = () => {
+                const pts = Array.from(active.values());
+                return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+            };
+            return {
+                count: function () { return active.size; },
+                begin: function (id, x, y) {
+                    active.set(id, { x: x, y: y });
+                    if (active.size === 1) {
+                        dragging = true; lastX = x; lastY = y;
+                        grab(true);
+                    } else if (active.size === 2) {
+                        pinchStart = spread();
+                        pinchZoomStart = getZoom();
+                    }
+                },
+                move: function (id, x, y) {
+                    if (!active.has(id)) return;
+                    active.set(id, { x: x, y: y });
+                    if (active.size >= 2) {
+                        if (active.size === 2 && pinchStart > 0) setZoom(pinchZoomStart * (spread() / pinchStart));
+                        return;
+                    }
+                    if (!dragging) return;
+                    pan(x - lastX, y - lastY);
+                    lastX = x; lastY = y;
+                },
+                end: function (id) {
+                    active.delete(id);
+                    if (active.size < 2) pinchStart = 0;
+                    if (active.size === 1) {
+                        const left = active.values().next().value;
+                        lastX = left.x; lastY = left.y;
+                    }
+                    if (active.size === 0) { dragging = false; grab(false); }
+                }
+            };
+        },
+
         /// Smallest zoom at which the image still covers a square of `size`.
         _coverZoom: function (img, size) {
             return Math.max(size / img.width, size / img.height);
@@ -8531,46 +8584,18 @@
             // across the clients this runs on — a throw from setPointerCapture aborted
             // the handler before dragging was ever set, which is why panning did nothing
             // while the zoom slider still worked. Capture is now best-effort only.
-            let dragging = false, lastX = 0, lastY = 0, pinchStart = 0, pinchZoomStart = 1;
-            const activePointers = new Map();
-
-            const beginPointer = (id, x, y) => {
-                activePointers.set(id, { x: x, y: y });
-                if (activePointers.size === 1) {
-                    dragging = true; lastX = x; lastY = y;
-                    view.style.cursor = 'grabbing';
-                } else if (activePointers.size === 2) {
-                    const pts = Array.from(activePointers.values());
-                    pinchStart = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-                    pinchZoomStart = parseFloat(zoomInput.value);
-                }
-            };
-
-            const movePointer = (id, x, y) => {
-                if (!activePointers.has(id)) return;
-                activePointers.set(id, { x: x, y: y });
-
-                if (activePointers.size === 2 && pinchStart > 0) {
-                    const pts = Array.from(activePointers.values());
-                    const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-                    setZoom(pinchZoomStart * (dist / pinchStart));
-                    return;
-                }
-                if (!dragging) return;
-                crop = this._clampCrop(img, VIEW, {
-                    zoom: crop.zoom,
-                    x: crop.x + (x - lastX),
-                    y: crop.y + (y - lastY)
-                });
-                lastX = x; lastY = y;
-                draw();
-            };
-
-            const endPointer = (id) => {
-                activePointers.delete(id);
-                if (activePointers.size < 2) pinchStart = 0;
-                if (activePointers.size === 0) { dragging = false; view.style.cursor = 'grab'; }
-            };
+            const gesture = this._cropGesture(
+                () => parseFloat(zoomInput.value),
+                (dx, dy) => {
+                    crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x + dx, y: crop.y + dy });
+                    draw();
+                },
+                z => setZoom(z),
+                down => { view.style.cursor = down ? 'grabbing' : 'grab'; }
+            );
+            const beginPointer = (id, x, y) => gesture.begin(id, x, y);
+            const movePointer = (id, x, y) => gesture.move(id, x, y);
+            const endPointer = (id) => gesture.end(id);
 
             // Tracked so the window-level listeners come off again when the dialog closes.
             const bound = [];
@@ -8604,7 +8629,7 @@
                     Array.prototype.forEach.call(e.changedTouches, t => beginPointer(t.identifier, t.clientX, t.clientY));
                 }, { passive: false });
                 on(window, 'touchmove', (e) => {
-                    if (!activePointers.size) return;
+                    if (!gesture.count()) return;
                     // Without this the page scrolls under the finger instead of panning.
                     e.preventDefault();
                     Array.prototype.forEach.call(e.changedTouches, t => movePointer(t.identifier, t.clientX, t.clientY));
@@ -8637,11 +8662,19 @@
                 if (handled) { e.preventDefault(); draw(); }
             });
 
+            // The dialog sits on the body, outside the gate, so tearing the gate down (idle
+            // lock, expiry) used to leave it up with its window listeners (R-1218).
+            // removeProfileOverlay calls this.
             const close = () => {
                 bound.forEach(([target, type, fn, opts]) => target.removeEventListener(type, fn, opts));
                 bound.length = 0;
+                this._cropClose = null;
                 dialog.remove();
             };
+            this._cropClose = close;
+            dialog.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' || e.key === 'Esc') { e.preventDefault(); e.stopPropagation(); close(); }
+            });
             dialog.querySelector('#profiles-crop-cancel').addEventListener('click', close);
             dialog.querySelector('#profiles-crop-save').addEventListener('click', () => {
                 const spec = this.imageSpec();
