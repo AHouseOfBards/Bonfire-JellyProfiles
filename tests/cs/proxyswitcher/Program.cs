@@ -890,7 +890,7 @@ Children(IdOf(Get("/UserViews").body, "Switch profile"));
 SessionManagerStub.Existing.Clear();
 SessionManagerStub.ThrowMessage = "User is at their maximum number of sessions.";
 var limited = Children(IdOf(Children(IdOf(Get("/UserViews").body, "Profiles")), "Open"));
-Ok("a session limit says too many sessions", Names(limited).Contains("Too many sessions"), Names(limited));
+Ok("a session limit says too many screens use the profile", Names(limited).Contains("Too many screens use this profile"), Names(limited));
 SessionManagerStub.ThrowMessage = "User is not allowed access from this device.";
 var barred = Children(IdOf(Children(IdOf(Get("/UserViews").body, "Profiles")), "Open"));
 Ok("a device refusal says not allowed on this device", Names(barred).Contains("Not allowed on this device"), Names(barred));
