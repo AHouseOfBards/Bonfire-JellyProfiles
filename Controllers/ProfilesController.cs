@@ -875,7 +875,7 @@ namespace Jellyfin.Profiles.Controllers
                     if (limited != null) return limited;
 
                     // mapping is non-null here — pinHashToCheck came from it.
-                    if (!VerifyPinAndUpgrade(request.Pin, mapping!, config))
+                    if (!VerifyPinAndUpgrade(request.Pin, mapping!))
                     {
                         return BadRequest("Invalid PIN code.");
                     }
@@ -1110,7 +1110,7 @@ namespace Jellyfin.Profiles.Controllers
                 var limited = BeginPinAttempt(rateLimitKey, request.ProfileId);
                 if (limited != null) return limited;
 
-                if (!VerifyPinAndUpgrade(request.Pin, target, config))
+                if (!VerifyPinAndUpgrade(request.Pin, target))
                 {
                     return BadRequest("Invalid PIN.");
                 }

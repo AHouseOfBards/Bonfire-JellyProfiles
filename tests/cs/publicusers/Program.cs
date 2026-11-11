@@ -585,6 +585,21 @@ if (resolve != null)
             foreach (var r in seenByOutsider)
                 if ((string)knownType.GetProperty("DeviceName").GetValue(r) == "Lounge") leaked = true;
         Ok("a whitelisted id does not reveal a device another household owns", seenByOutsider != null && !leaked);
+
+        // R-1115: whether a whitelisted id matched a record depended on the comparer of the
+        // set the caller built. Device ids are compared ignoring case everywhere else.
+        devicesList.Clear();
+        var unowned = Activator.CreateInstance(knownType);
+        knownType.GetProperty("DeviceId").SetValue(unowned, "Tv-Unowned");
+        knownType.GetProperty("DeviceName").SetValue(unowned, "Old TV");
+        knownType.GetProperty("LastSeen").SetValue(unowned, DateTime.UtcNow);
+        devicesList.Add(unowned);
+        var plainSet = new HashSet<string> { "tv-unowned" };   // default, case-sensitive comparer
+        var viaPlain = scope == null ? null : (System.Collections.IList)scope.Invoke(null, new object[]
+            { devicesList, MASTER, plainSet });
+        Ok("a whitelisted id matches whatever its case and whatever set held it",
+           viaPlain != null && viaPlain.Count == 1
+           && (string)knownType.GetProperty("DeviceName").GetValue(viaPlain[0]) == "Old TV");
         devicesList.Clear();
     }
 

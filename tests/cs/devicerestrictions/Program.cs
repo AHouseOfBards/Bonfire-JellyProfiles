@@ -165,6 +165,12 @@ if (parse != null)
 
     Ok("an absent parameter is null", P(plain, null, "Nonsense") == null);
     Ok("no header at all is null", P(null, null, "DeviceId") == null);
+
+    // R-1124: the scheme was stripped only when it was "MediaBrowser", so a header that
+    // opens with "Emby " had its first parameter read as "Emby Client".
+    Ok("an Emby-scheme header reads its first parameter",
+       P("Emby Client=\"Old App\", DeviceId=\"e1\"", null, "Client") == "Old App");
+    Ok("and the rest", P("Emby Client=\"Old App\", DeviceId=\"e1\"", null, "DeviceId") == "e1");
     Ok("the name is matched case-insensitively", P(plain, null, "deviceid") == "abc123");
 
     // ── The defect itself, pinned ───────────────────────────────────────────
@@ -405,6 +411,23 @@ if (disambiguate != null)
         Device("gggggg77", "Chrome", "Jellyfin Web", master));
     Ok("devices that already read differently are left alone",
        distinct[0] == "Living room TV" && distinct[1] == "Chrome");
+
+    // R-1116: it renamed the list it was given, so a caller that passed live records would
+    // have stored a display name as the device's real one.
+    var handed = KnownList(
+        Device("iiiiii99", "", "Jellyfin Web", master),
+        Device("jjjjjj00", "Chrome", "Jellyfin Web", master),
+        Device("kkkkkk11", "Chrome", "Jellyfin Web", master));
+    var handedBefore = handed.Cast<object>()
+        .Select(d => (string)deviceType.GetProperty("DeviceName").GetValue(d)).ToList();
+    var returned = (IList)disambiguate.Invoke(null, new object[] { handed });
+    var handedAfter = handed.Cast<object>()
+        .Select(d => (string)deviceType.GetProperty("DeviceName").GetValue(d)).ToList();
+    Ok("the records it is handed are not renamed", handedBefore.SequenceEqual(handedAfter));
+    Ok("what it returns is still disambiguated",
+       returned.Count == 3
+       && (string)deviceType.GetProperty("DeviceName").GetValue(returned[1])
+          != (string)deviceType.GetProperty("DeviceName").GetValue(returned[2]));
 
     var blank = Labels(Device("hhhhhh88", "", "", master));
     Ok("a device with neither name nor client still says something",

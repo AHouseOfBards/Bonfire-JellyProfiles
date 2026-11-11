@@ -199,6 +199,10 @@ namespace Jellyfin.Profiles.Controllers
                 _logger.LogWarning("ProfilesPlugin: Failed to parse User ID claim '{Value}' as Guid.", claim.Value);
                 return null;
             }
+            // All zeros is what an API key carries, not a user. Elsewhere an empty id means
+            // "unset" or "every household", so it must not come back looking like a caller.
+            // Administrator checks accept a key through CallerIsApiKey, not through here. R-1119.
+            if (userId == Guid.Empty) return null;
             return userId;
         }
 
@@ -248,9 +252,16 @@ namespace Jellyfin.Profiles.Controllers
 
             // Strip the scheme prefix (e.g. "MediaBrowser ") so the first token parses as
             // "Client=\"...\"" rather than "MediaBrowser Client=\"...\"".
-            const string scheme = "MediaBrowser ";
-            if (header.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
-                header = header.Substring(scheme.Length);
+            // Older clients open with "Emby " rather than "MediaBrowser ". Left in place it
+            // became part of the first key, so "Emby Client" never matched "Client". R-1124.
+            foreach (var scheme in new[] { "MediaBrowser ", "Emby " })
+            {
+                if (header.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
+                {
+                    header = header.Substring(scheme.Length);
+                    break;
+                }
+            }
 
             // Quote-aware scan. `inQuotes` flips on every quote character, so a comma seen
             // while inside a value is kept rather than treated as a separator.
@@ -319,7 +330,7 @@ namespace Jellyfin.Profiles.Controllers
             return result == PinHasher.PinResult.Match;
         }
 
-        protected bool VerifyPinAndUpgrade(string? pin, ProfileMapping mapping, PluginConfiguration config)
+        protected bool VerifyPinAndUpgrade(string? pin, ProfileMapping mapping)
         {
             if (!VerifyPinHash(pin, mapping.PinHash)) return false;
 
@@ -935,6 +946,21 @@ namespace Jellyfin.Profiles.Controllers
                     return JsonSerializer.Deserialize<List<AuditLogEntry>>(
                         System.IO.File.ReadAllText(path)) ?? new List<AuditLogEntry>();
             }
+            catch (JsonException ex)
+            {
+                // Read as empty, the next switch would write a one-entry log over the top
+                // of whatever was damaged. Moved aside instead, so it can still be looked at.
+                _logger.LogError(ex, "ProfilesPlugin: Audit log is damaged; keeping it as audit_log.json.bad.");
+                try
+                {
+                    var path = GetAuditLogPath();
+                    System.IO.File.Move(path, path + ".bad", true);
+                }
+                catch (Exception moveEx)
+                {
+                    _logger.LogError(moveEx, "ProfilesPlugin: Could not move the damaged audit log aside.");
+                }
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "ProfilesPlugin: Failed to read audit log.");
@@ -1020,7 +1046,10 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     lock (AuditLogLock)
                     {
-                        WriteAuditLogs(snapshot);
+                        // The log as it stands now, not the copy taken when this was queued:
+                        // two writes can take the lock in either order, and the older copy
+                        // going last left the file without the newest entry.
+                        WriteAuditLogs(_auditCache ?? snapshot);
                     }
                 }
                 catch (Exception ex)
@@ -1328,7 +1357,7 @@ namespace Jellyfin.Profiles.Controllers
                 return false;
             }
 
-            if (!VerifyPinAndUpgrade(pin, masterMapping, config))
+            if (!VerifyPinAndUpgrade(pin, masterMapping))
             {
                 refusal = BadRequest("Invalid Master PIN code.");
                 return false;
@@ -1773,8 +1802,21 @@ namespace Jellyfin.Profiles.Controllers
         /// than the first.
         /// </para>
         /// </summary>
-        internal static List<KnownDevice> DisambiguateDeviceNames(List<KnownDevice> devices)
+        internal static List<KnownDevice> DisambiguateDeviceNames(List<KnownDevice> input)
         {
+            // Works on copies. It used to rename what it was given, so a caller handing it
+            // live records would have stored a display name as the device's real one. R-1116.
+            var devices = input.Select(d => new KnownDevice
+            {
+                DeviceId = d.DeviceId,
+                DeviceName = d.DeviceName,
+                Client = d.Client,
+                LastSeen = d.LastSeen,
+                MasterUserId = d.MasterUserId,
+                NameIsCustom = d.NameIsCustom,
+                Owners = new List<Guid>(d.Owners ?? new List<Guid>())
+            }).ToList();
+
             foreach (var d in devices)
             {
                 if (!IsPlaceholderDeviceName(d.DeviceName)) continue;
@@ -1916,6 +1958,11 @@ namespace Jellyfin.Profiles.Controllers
             Guid masterUserId,
             ISet<string> whitelistedDeviceIds)
         {
+            // Device ids are compared ignoring case everywhere else; whether this did
+            // depended on the comparer of the set the caller happened to build. R-1115.
+            whitelistedDeviceIds = new HashSet<string>(
+                whitelistedDeviceIds ?? new HashSet<string>(), StringComparer.OrdinalIgnoreCase);
+
             var devices = knownDevices
                 // A whitelist is whatever the client posted, so it vouches only for a record
                 // nobody else owns: an id typed in must not return another household's
@@ -2359,10 +2406,19 @@ namespace Jellyfin.Profiles.Controllers
             if (commaIndex < 0) return null;
 
             var header = dataUrl.Substring(0, commaIndex);
+
+            // The declared type, exactly: "data:image/png;base64" names image/png, and a
+            // substring match let "image/png-evil" or a parameter that merely mentions a
+            // type through. R-1111.
+            var declared = header.Substring("data:".Length);
+            var semicolon = declared.IndexOf(';');
+            if (semicolon >= 0) declared = declared.Substring(0, semicolon);
+            declared = declared.Trim();
+
             string? extension = null;
             foreach (var f in StorableImageFormats)
             {
-                if (header.Contains(f.Mime, StringComparison.OrdinalIgnoreCase)) { extension = f.Extension; break; }
+                if (string.Equals(declared, f.Mime, StringComparison.OrdinalIgnoreCase)) { extension = f.Extension; break; }
             }
 
             // Reject rather than defaulting. Falling back to .jpg would store
@@ -2386,6 +2442,17 @@ namespace Jellyfin.Profiles.Controllers
                         context, bytes.Length, MaxProfileImageBytes);
                     return null;
                 }
+
+                // The bytes have to be what the header says. The file is served from this
+                // origin under the type its extension implies, so a payload that is not an
+                // image of that type is refused rather than stored. R-1111.
+                if (!LooksLike(extension, bytes))
+                {
+                    _logger.LogWarning(
+                        "ProfilesPlugin: Rejected image for {Context} — the data is not a {Extension} file.",
+                        context, extension);
+                    return null;
+                }
                 return (bytes, extension);
             }
             catch (FormatException ex)
@@ -2395,15 +2462,51 @@ namespace Jellyfin.Profiles.Controllers
             }
         }
 
-        /// <summary>Removes every variant of a stored image, in both formats and both sizes.</summary>
+        /// <summary>The file signature for a stored extension: PNG, JPEG, GIF or WebP.</summary>
+        internal static bool LooksLike(string extension, byte[] b)
+        {
+            bool At(int offset, params byte[] sig)
+            {
+                if (b.Length < offset + sig.Length) return false;
+                for (var i = 0; i < sig.Length; i++) if (b[offset + i] != sig[i]) return false;
+                return true;
+            }
+
+            switch (extension)
+            {
+                case ".png": return At(0, 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A);
+                case ".jpg": return At(0, 0xFF, 0xD8, 0xFF);
+                case ".gif": return At(0, 0x47, 0x49, 0x46, 0x38);
+                case ".webp": return At(0, 0x52, 0x49, 0x46, 0x46) && At(8, 0x57, 0x45, 0x42, 0x50);
+                default: return false;
+            }
+        }
+
+        /// <summary>
+        /// Removes every variant of a stored image, in both formats and both sizes.
+        /// Best effort: a file that is open elsewhere or read-only is left and noted, not
+        /// thrown, so a locked picture cannot turn a delete or a save into a 500. R-1112.
+        /// </summary>
         protected static void DeleteImageFiles(string folder, string baseName)
+            => DeleteImageFilesExcept(folder, baseName, null);
+
+        /// <summary>As <see cref="DeleteImageFiles"/>, sparing the named files.</summary>
+        private static void DeleteImageFilesExcept(string folder, string baseName, ISet<string>? keep)
         {
             foreach (var ext in StorableImageExtensions)
             {
                 foreach (var name in new[] { $"{baseName}{ext}", $"{baseName}{ThumbSuffix}{ext}" })
                 {
+                    if (keep != null && keep.Contains(name)) continue;
                     var p = Path.Combine(folder, name);
-                    if (System.IO.File.Exists(p)) System.IO.File.Delete(p);
+                    try
+                    {
+                        if (System.IO.File.Exists(p)) System.IO.File.Delete(p);
+                    }
+                    catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                    {
+                        System.Diagnostics.Trace.TraceWarning("ProfilesPlugin: Could not delete image {0}: {1}", p, ex.Message);
+                    }
                 }
             }
         }
@@ -2419,9 +2522,15 @@ namespace Jellyfin.Profiles.Controllers
             if (master == null) return null;
 
             Directory.CreateDirectory(folder);
-            DeleteImageFiles(folder, baseName);
 
-            System.IO.File.WriteAllBytes(Path.Combine(folder, $"{baseName}{master.Value.Extension}"), master.Value.Bytes);
+            // New files first, old ones after. The old picture used to be deleted before the
+            // new one was written, so a write that failed left the person with neither.
+            // R-1113. Each is written beside its name and moved into place, so a failure
+            // part way never leaves half a file under the real one.
+            var kept = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var masterName = $"{baseName}{master.Value.Extension}";
+            PlaceImageFile(folder, masterName, master.Value.Bytes);
+            kept.Add(masterName);
 
             // A missing or unusable thumbnail is not fatal — the master is served in its
             // place. Falling back costs bandwidth; refusing the whole save would cost the
@@ -2429,11 +2538,32 @@ namespace Jellyfin.Profiles.Controllers
             var thumb = DecodeImageDataUrl(thumbDataUrl, context + " thumbnail");
             if (thumb != null)
             {
-                System.IO.File.WriteAllBytes(
-                    Path.Combine(folder, $"{baseName}{ThumbSuffix}{thumb.Value.Extension}"), thumb.Value.Bytes);
+                var thumbName = $"{baseName}{ThumbSuffix}{thumb.Value.Extension}";
+                PlaceImageFile(folder, thumbName, thumb.Value.Bytes);
+                kept.Add(thumbName);
             }
 
+            // Stale variants go last, so a format change cannot leave the previous file
+            // shadowing the new one.
+            DeleteImageFilesExcept(folder, baseName, kept);
+
             return master.Value.Extension;
+        }
+
+        private static void PlaceImageFile(string folder, string name, byte[] bytes)
+        {
+            var target = Path.Combine(folder, name);
+            var temp = target + ".tmp";
+            try
+            {
+                System.IO.File.WriteAllBytes(temp, bytes);
+                System.IO.File.Move(temp, target, true);
+            }
+            catch
+            {
+                try { if (System.IO.File.Exists(temp)) System.IO.File.Delete(temp); } catch { }
+                throw;
+            }
         }
 
         /// <summary>

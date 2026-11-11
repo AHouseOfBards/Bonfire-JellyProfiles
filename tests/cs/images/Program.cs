@@ -148,6 +148,72 @@ if (helper != null)
         var missing = helper.Invoke(controller, new object[] { gone, "image/png" });
         Ok("a file that has gone answers 404 rather than throwing (" + missing.GetType().Name + ")",
            missing is NotFoundResult);
+
+        // ── What is accepted, and what a failed save leaves behind ─────────────────
+        // R-1111: the declared type was matched by substring and the bytes never looked at.
+        // R-1112: a stale variant that cannot be deleted threw out of the save as a 500.
+        // R-1113: the old image was deleted before the new one was written, so a failed
+        //         write lost the picture the person already had.
+        var decode = baseType.GetMethod("DecodeImageDataUrl", Any);
+        var write = baseType.GetMethod("WriteImageFiles", Any);
+        var deleteAll = baseType.GetMethod("DeleteImageFiles", Any);
+        Ok("the save helpers are reachable", decode != null && write != null && deleteAll != null);
+
+        string Url(string mime, params byte[] bytes) => "data:" + mime + ";base64," + Convert.ToBase64String(bytes);
+        byte[] PngBytes = { 0x89, (byte)'P', (byte)'N', (byte)'G', 0x0D, 0x0A, 0x1A, 0x0A, 1, 2 };
+        byte[] JpegBytes = { 0xFF, 0xD8, 0xFF, 0xE0, 0, 16, 1, 2 };
+        byte[] GifBytes = { (byte)'G', (byte)'I', (byte)'F', (byte)'8', (byte)'9', (byte)'a', 1, 2 };
+        byte[] WebpBytes = { (byte)'R', (byte)'I', (byte)'F', (byte)'F', 4, 0, 0, 0, (byte)'W', (byte)'E', (byte)'B', (byte)'P' };
+        object Decode(string url) => decode.Invoke(controller, new object[] { url, "test" });
+
+        Ok("a real PNG, JPEG, GIF and WebP are each accepted",
+           Decode(Url("image/png", PngBytes)) != null && Decode(Url("image/jpeg", JpegBytes)) != null
+           && Decode(Url("image/gif", GifBytes)) != null && Decode(Url("image/webp", WebpBytes)) != null);
+        Ok("HTML declared as image/png is refused",
+           Decode(Url("image/png", System.Text.Encoding.UTF8.GetBytes("<script>alert(1)</script>"))) == null);
+        Ok("a JPEG declared as image/png is refused", Decode(Url("image/png", JpegBytes)) == null);
+        Ok("a type that merely contains a known one is refused (image/png-evil)",
+           Decode(Url("image/png-evil", PngBytes)) == null);
+
+        var wdir = Path.Combine(dir, "write");
+        Directory.CreateDirectory(wdir);
+        object Write(string name, string url) => write.Invoke(controller, new object[] { wdir, name, url, null, "test" });
+
+        Ok("a first save is written", (string)Write("a", Url("image/png", PngBytes)) == ".png"
+           && File.Exists(Path.Combine(wdir, "a.png")));
+
+        // A save that fails part way: the new JPEG cannot be created because a directory
+        // sits where its file would go. The PNG already stored must still be there.
+        Directory.CreateDirectory(Path.Combine(wdir, "a.jpg"));
+        var threw = false;
+        try { Write("a", Url("image/jpeg", JpegBytes)); }
+        catch (Exception) { threw = true; }
+        Ok("a save that fails leaves the stored picture in place (threw: " + threw + ")",
+           File.Exists(Path.Combine(wdir, "a.png")));
+        Directory.Delete(Path.Combine(wdir, "a.jpg"));
+
+        Ok("a changed format replaces the old one rather than sitting beside it",
+           (string)Write("a", Url("image/jpeg", JpegBytes)) == ".jpg"
+           && File.Exists(Path.Combine(wdir, "a.jpg")) && !File.Exists(Path.Combine(wdir, "a.png")));
+
+        // A file that cannot be deleted. Windows refuses to delete an open file; elsewhere
+        // an open file deletes fine, so there is nothing to hold and the check is vacuous.
+        if (OperatingSystem.IsWindows())
+        {
+            File.WriteAllBytes(Path.Combine(wdir, "b.webp"), WebpBytes);
+            using (new FileStream(Path.Combine(wdir, "b.webp"), FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                var threw2 = false;
+                try { deleteAll.Invoke(null, new object[] { wdir, "b" }); }
+                catch (Exception) { threw2 = true; }
+                Ok("a variant that cannot be deleted does not fail the request", !threw2);
+
+                var threw3 = false;
+                try { Write("b", Url("image/png", PngBytes)); }
+                catch (Exception) { threw3 = true; }
+                Ok("nor does saving over a name that has one", !threw3 && File.Exists(Path.Combine(wdir, "b.png")));
+            }
+        }
     }
     finally
     {
