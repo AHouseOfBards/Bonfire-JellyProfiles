@@ -200,7 +200,9 @@ namespace Jellyfin.Profiles.Auth
 
                 if (master == Guid.Empty)
                 {
-                    _logger.LogInformation(
+                    // Debug: every other account on the server signs in here, and one line per
+                    // sign-in in the Information log is noise for an administrator.
+                    _logger.LogDebug(
                         "ProfilesPlugin: {User} signed in on device {DeviceId} ({Client}), which is not a "
                         + "Bonfire household, so nothing was noted for its sign-in screen.",
                         session.UserName, session.DeviceId, session.Client);
