@@ -41,7 +41,7 @@ because other people build against it too.
 
 ## All routes
 
-All 104 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 105 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -52,6 +52,7 @@ All 104 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `GET /plugins/profiles/ratings` | user | The rating limits a profile can be given. |
 | `POST /plugins/profiles/create` | user | Create a profile. |
 | `POST /plugins/profiles/update` | user | Change a profile. |
+| `POST /plugins/profiles/copy-rules` | user | Copy one profile's rules onto another. |
 | `POST /plugins/profiles/me` | user | A profile changes its own name and picture. |
 | `POST /plugins/profiles/delete` | user | Delete a profile and its account. |
 | `POST /plugins/profiles/switch` | user | Switch to a profile and get its token. |
@@ -679,6 +680,28 @@ Values worth knowing:
   while the rating stays the same.
 
 Returns `200`. Errors as for `/create`.
+
+### `POST /plugins/profiles/copy-rules`
+
+**Authorisation:** signed-in user, and only a main account: a profile gets `401`.
+
+Copies one profile's rules onto another in the same household.
+
+```json
+{ "sourceProfileId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b", "targetProfileId": "5d1c3e0a-7b0e-4f7e-9a58-0c5a1d6c2b11", "masterPin": "1234" }
+```
+
+What the target gets: the rating limit, the allowed and blocked tags, the libraries, and the
+viewing limits (hours, daily and weekend time). It ends as if it had been saved on the
+edit form with those values, so it never gets a higher rating than the main account's or a
+library the main account can't reach, and a library another plugin manages is left as it
+is. Its devices, name, picture and PIN are not changed.
+
+Both profiles have to be the caller's. A profile of another household, the main account, a
+standalone user and one that doesn't exist all get the same `403 not_your_profile`. Two
+identical ids are `400`. Viewing limits need a main PIN, as in `POST /limits/{profileId}`.
+
+Returns `200`. Errors as for `/update`.
 
 ### `POST /plugins/profiles/me`
 
