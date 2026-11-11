@@ -249,11 +249,13 @@ Console.WriteLine("--------------------------------------");
         return (string)inner.GetType().GetField("Item2").GetValue(inner);
     }
 
-    // "AA==" decodes to one byte, enough to exercise the format decision.
-    Check("png accepted", ExtensionFor("data:image/png;base64,AA=="), ".png");
-    Check("jpeg accepted", ExtensionFor("data:image/jpeg;base64,AA=="), ".jpg");
-    Check("webp accepted", ExtensionFor("data:image/webp;base64,AA=="), ".webp");
-    Check("gif accepted", ExtensionFor("data:image/gif;base64,AA=="), ".gif");
+    // Each format's real first bytes: the format decision also checks them (R-1111).
+    string Url(string mime, params byte[] head) => "data:" + mime + ";base64," + Convert.ToBase64String(head);
+    Check("png accepted", ExtensionFor(Url("image/png", 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)), ".png");
+    Check("jpeg accepted", ExtensionFor(Url("image/jpeg", 0xFF, 0xD8, 0xFF, 0xE0)), ".jpg");
+    Check("webp accepted", ExtensionFor(Url("image/webp", 0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50)), ".webp");
+    Check("gif accepted", ExtensionFor(Url("image/gif", 0x47, 0x49, 0x46, 0x38, 0x39, 0x61)), ".gif");
+    Check("png bytes under a jpeg label REJECTED", ExtensionFor(Url("image/jpeg", 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)), null);
 
     // The point of the gate: an unknown type must be refused, not silently stored as .jpg
     // and then served back as image/jpeg from our own origin.

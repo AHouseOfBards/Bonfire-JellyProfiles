@@ -166,7 +166,9 @@ var library = World.Create<ILibraryManager>(world);
     };
 }
 
-string Png(int bytes) => "data:image/png;base64," + Convert.ToBase64String(new byte[bytes]);
+string Png(int bytes) => "data:image/png;base64," + Convert.ToBase64String(PngBytes(bytes));
+// A PNG signature, then zeroes: uploads are checked by their first bytes (R-1111).
+static byte[] PngBytes(int n) { var b = new byte[Math.Max(n, 8)]; new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }.CopyTo(b, 0); return b; }
 string Name(object row) => (string)Row(row, "ProfileName");
 string Image(object row) => (string)Row(row, "ProfileImage");
 string Username(Guid id) => world.Users[id].Username;

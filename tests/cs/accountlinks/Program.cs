@@ -674,7 +674,9 @@ Section("A picture that is refused leaves the one the profile has");
 
     string Stored() => (string)P(Row(OKID), "ProfileImage");
     bool Untouched() => Stored() == current && File.Exists(kidFile) && File.ReadAllBytes(kidFile).SequenceEqual(original);
-    string Png(int bytes) => "data:image/png;base64," + Convert.ToBase64String(new byte[bytes]);
+    string Png(int bytes) => "data:image/png;base64," + Convert.ToBase64String(PngBytes(bytes));
+// A PNG signature, then zeroes: uploads are checked by their first bytes (R-1111).
+static byte[] PngBytes(int n) { var b = new byte[Math.Max(n, 8)]; new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }.CopyTo(b, 0); return b; }
     (int status, object value) Edit(params (string, object)[] fields)
     {
         var body = new List<(string, object)> { ("ProfileId", OKID), ("ProfileName", "Kid") };
