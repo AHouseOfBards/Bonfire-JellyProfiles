@@ -541,7 +541,9 @@ namespace Jellyfin.Profiles.Auth
             var seconds = m.UntilUtc.HasValue && m.UntilUtc.Value > now
                 ? (long)Math.Ceiling((m.UntilUtc.Value - now).TotalSeconds)
                 : 300;
-            response.Headers[HeaderNames.RetryAfter] = Math.Max(60, seconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            // An end time months away is a reason to check back now and then, not a promise
+            // that nothing changes for months: cap it at an hour.
+            response.Headers[HeaderNames.RetryAfter] = Math.Min(3600, Math.Max(60, seconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
             // The administrator's words, then what to do: an app with no notice shows only this.
             await response.WriteAsync(RefusalBody(m), context.RequestAborted).ConfigureAwait(false);

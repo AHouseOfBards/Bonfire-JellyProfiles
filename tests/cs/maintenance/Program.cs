@@ -223,14 +223,19 @@ Ok("and a song", Through(Send("/Items/" + SONG + "/PlaybackInfo", MEMBER_TOKEN, 
 Console.WriteLine();
 Console.WriteLine("── Closed: a household member ──────────────────────────────────");
 
-Close(true, "Upgrading. Back at 3.", until: DateTime.UtcNow.AddMinutes(90));
+Close(true, "Upgrading. Back at 3.", until: DateTime.UtcNow.AddMinutes(50));
 var browse = Send("/Users/" + N(MEMBER) + "/Items", MEMBER_TOKEN);
 Ok("browsing is refused before Jellyfin sees it", Refused(browse), Show(browse));
 Ok("with the administrator's message as plain text",
    browse.body == "Upgrading. Back at 3. Try again later." && browse.response.ContentType.StartsWith("text/plain"), browse.body);
 var retry = int.TryParse(browse.response.Headers["Retry-After"].ToString(), out var secs) ? secs : -1;
-Ok("and Retry-After counts down to the time given", retry > 5300 && retry <= 5400, retry.ToString());
+Ok("and Retry-After counts down to the time given", retry > 2900 && retry <= 3000, retry.ToString());
 Ok("and is not cached", browse.response.Headers["Cache-Control"].ToString() == "no-store");
+Close(true, "Back next year.", until: DateTime.UtcNow.AddDays(300));
+var far = Send("/Users/" + N(MEMBER) + "/Items", MEMBER_TOKEN);
+var farRetry = int.TryParse(far.response.Headers["Retry-After"].ToString(), out var farSecs) ? farSecs : -1;
+Ok("an end time months away does not tell an app to wait months (R-1016)", farRetry > 0 && farRetry <= 3600, farRetry.ToString());
+Close(true, "Upgrading. Back at 3.", until: DateTime.UtcNow.AddMinutes(50));
 
 Ok("starting playback is refused", Refused(Send("/Items/abc/PlaybackInfo", MEMBER_TOKEN, "POST", "{}")));
 // The member's app is playing FILM; SONG is playing on another of its sessions.
