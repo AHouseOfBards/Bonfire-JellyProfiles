@@ -349,6 +349,16 @@ r = Call("AddAccountLink", OTHER, B(("Username", "Lodger"), ("Password", "lpw"))
 Ok("and while it is, not even the right one from somewhere new is tried", r.status == 429 && !Linked(OTHER, LODGER), Text(r));
 ResetLimits();
 
+// R-1071: wrong passwords for somebody else's account spent the household's own PIN allowance
+// and sent the "PIN locked" email. A household with no PIN (NEIGHBOUR) pays nothing back: no
+// right PIN ever cleared it. Names that don't exist, so the per-account limit isn't what trips.
+var pinBudget = asm.GetType("Jellyfin.Profiles.Controllers.PinBudget", true);
+for (int i = 0; i < 8; i++)
+    Call("AddAccountLink", OTHER, B(("Username", "Stranger" + i), ("Password", "x")), ip: "10.1.0." + (i + 1));
+var wait = (TimeSpan)pinBudget.GetMethod("RetryAfter", Any).Invoke(null, new object[] { OTHER });
+Ok("wrong passwords typed for other accounts never spend the household's own PIN allowance", wait == TimeSpan.Zero, wait.ToString());
+ResetLimits();
+
 // ── Seeing and removing ──────────────────────────────────────────────────────
 Section("Seeing and removing");
 
@@ -508,6 +518,9 @@ r = Call("AdminAddAccountLink", ADMIN, B(("HouseholdId", OTHER), ("UserId", ADMI
 Ok("and the same rules hold: an administrator needs a PIN", r.status == 400 && !Linked(OTHER, ADMIN), Text(r));
 r = Call("AdminRemoveAccountLink", ADMIN, B(("HouseholdId", OTHER), ("UserId", LODGER)));
 Ok("and removes", r.status == 200 && !Linked(OTHER, LODGER), Text(r));
+// R-1073: the household path refuses an account turned off in Jellyfin; the administrator's didn't.
+r = Call("AdminAddAccountLink", ADMIN, B(("HouseholdId", OTHER), ("UserId", GONE)));
+Ok("an account turned off in Jellyfin isn't added by an administrator either", r.status == 400 && !Linked(OTHER, GONE), Text(r));
 r = Call("GetAdminMappings", ADMIN);
 var homeRow = ((IEnumerable)P(r.value, "MasterUsers"))?.Cast<object>().FirstOrDefault(m => (Guid)P(m, "ProfileUserId") == HOME);
 Ok("the settings page sees who each household added", homeRow != null

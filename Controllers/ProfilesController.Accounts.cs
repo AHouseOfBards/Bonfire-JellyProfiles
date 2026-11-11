@@ -20,6 +20,7 @@ namespace Jellyfin.Profiles.Controllers
     {
         internal const string CredentialsWrongMessage = "That username or password isn't right.";
         internal const string LinkNotFoundMessage = "That account isn't shown there.";
+        internal const string AccountDisabledMessage = "That account is turned off in Jellyfin.";
         internal const string MainAccountOnlyMessage = "Only the main account can do that.";
 
         // ── Other accounts in the switcher ───────────────────────────────────────────
@@ -70,8 +71,12 @@ namespace Jellyfin.Profiles.Controllers
             // Counted before the password is tried, like a PIN, so guesses sent together can't
             // all get through.
             var address = "link:" + (HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
-            var limited = BeginPinAttempt(address, household);
-            if (limited != null) return limited;
+            // Not BeginPinAttempt: that spends the household's own PIN allowance (PinBudget)
+            // and raises the "PIN locked" log and email, so ten wrong passwords typed for
+            // somebody else's account locked the household's own switcher PIN (R-1071). A
+            // password guessed here has an allowance of its own and never touches the PIN's.
+            if (!RateLimiter.Pin.TryBegin(address))
+                return TooManyAttempts(RateLimiter.Pin, address, "Too many failed attempts.");
             var accountKey = "link:" + username.ToUpperInvariant();
             if (!RateLimiter.LinkPerAccount.TryBegin(accountKey))
                 return TooManyAttempts(RateLimiter.LinkPerAccount, accountKey, "Too many failed attempts.");
@@ -112,7 +117,7 @@ namespace Jellyfin.Profiles.Controllers
             // Only once something was actually added. Cleared straight after the password
             // matched, an account already on the switcher was a free reset between guesses
             // at any other account's password (R-1068). LinkPerAccount is never cleared.
-            EndPinAttempt(address, household);
+            RateLimiter.Pin.Reset(address);
 
             var householdName = _userManager.GetUserById(household)?.Username ?? household.ToString();
             LogActivity(householdName + " added " + account.Username + " to their switcher", "AccountLinked", account.Id);
@@ -173,6 +178,9 @@ namespace Jellyfin.Profiles.Controllers
             var account = _userManager.GetUserById(request.UserId);
             var householdUser = _userManager.GetUserById(request.HouseholdId);
             if (account == null || householdUser == null) return NotFound("User not found.");
+            // The household's own add refuses an account turned off in Jellyfin; so does this (R-1073).
+            if (_userManager.GetUserDto(account, string.Empty).Policy?.IsDisabled ?? false)
+                return BadRequest(AccountDisabledMessage);
 
             lock (ConfigLock)
             {
@@ -500,6 +508,12 @@ namespace Jellyfin.Profiles.Controllers
                 }
 
                 // 4. A profile. Its main-account row goes, with what only a main account has.
+                //    MakeProfileRefusal is not asked again here (R-1074). Everything that adds a
+                //    profile, and so moves the limit or gives this account profiles, goes through
+                //    CreateGate, which is held. What is left is an administrator editing a group
+                //    in the same moments, and by now the account is on Jellyfin's own provider
+                //    with a password nobody knows: refusing here would strand it half-converted,
+                //    which is worse than the one row the group edit would have left behind.
                 lock (ConfigLock)
                 {
                     config.Mappings.RemoveAll(m => m.ProfileUserId == request.UserId);
