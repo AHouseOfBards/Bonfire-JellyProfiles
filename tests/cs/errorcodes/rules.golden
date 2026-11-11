@@ -119,3 +119,5 @@ logo_invalid|Logo alt text is one line
 logo_invalid|Send the logo's text
 image_invalid|That logo is larger than
 image_invalid|Choose a logo image
+image_invalid|That background image is larger than
+image_invalid|Choose a background image

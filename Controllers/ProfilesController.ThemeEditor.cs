@@ -253,7 +253,7 @@ namespace Jellyfin.Profiles.Controllers
             var adminError = RequireAdministrator("manage themes");
             if (adminError != null) return adminError;
 
-            if (Request.ContentLength > ThemeBackground.MaxBytes) return BadRequest("That image is larger than 2 MB.");
+            if (Request.ContentLength > ThemeBackground.MaxBytes) return BadRequest("That background image is larger than 2 MB.");
             // Read to a cap rather than trusting Content-Length, which a chunked upload omits.
             byte[] bytes;
             using (var copy = new MemoryStream())
@@ -263,13 +263,13 @@ namespace Jellyfin.Profiles.Controllers
                 while ((read = await Request.Body.ReadAsync(buffer.AsMemory(0, buffer.Length)).ConfigureAwait(false)) > 0)
                 {
                     copy.Write(buffer, 0, read);
-                    if (copy.Length > ThemeBackground.MaxBytes) return BadRequest("That image is larger than 2 MB.");
+                    if (copy.Length > ThemeBackground.MaxBytes) return BadRequest("That background image is larger than 2 MB.");
                 }
 
                 bytes = copy.ToArray();
             }
 
-            if (bytes.Length == 0) return BadRequest("Choose an image.");
+            if (bytes.Length == 0) return BadRequest("Choose a background image.");
 
             LogoImageInfo info;
             try

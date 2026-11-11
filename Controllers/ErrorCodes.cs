@@ -187,6 +187,8 @@ namespace Jellyfin.Profiles.Controllers
             ("Send the logo's text", "logo_invalid"),
             ("That logo is larger than", "image_invalid"),
             ("Choose a logo image", "image_invalid"),
+            ("That background image is larger than", "image_invalid"),
+            ("Choose a background image", "image_invalid"),
         };
 
         /// <summary>The code for an error, from its status and message.</summary>
