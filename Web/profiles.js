@@ -1086,7 +1086,7 @@
         'profileForm.copyTitle': 'Copy rules',
         'profileForm.copyFrom': 'Copy rules from',
         'profileForm.copyChoose': 'Choose a profile',
-        'profileForm.copyHint': 'Devices, name, picture and PIN stay.',
+        'profileForm.copyHint': 'Devices, name, avatar and PIN stay.',
         'profileForm.copyButton': 'Copy',
         'profileForm.copyConfirm': 'Replace the rating limit, tags, libraries and viewing limits of {target} with those of {source}?',
         'profileForm.nameRequired': 'Profile name is required.',

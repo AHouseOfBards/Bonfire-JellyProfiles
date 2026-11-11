@@ -120,7 +120,7 @@ const MAILWANT = {
     'email.confirm.subject': 'Confirm your Bonfire email',
     'email.confirm.body': "Your code is {code}. It expires in 15 minutes.\n\nEnter it in Bonfire to use this address for {account}.\n\nIf you didn't ask for this, ignore this email.",
     'email.reset.body': "Your code is {code}. It expires in 15 minutes.\n\nEnter it in Bonfire to set a new PIN for {account}.\n\nIf you didn't ask for this, ignore this email. Your PIN hasn't changed.",
-    'email.lockout.body': "{name}'s PIN is locked after too many wrong tries. They can try again within 15 minutes.\n\n" + TAIL,
+    'email.lockout.body': "Someone entered {name}'s PIN wrong too many times. They can try again in 15 minutes.\n\n" + TAIL,
     'email.newDevice.body': "Your household signed in on a new device: {device}.\n\nIf you don't recognize it, ask your server's administrator to sign it out.\n\n" + TAIL,
     'email.timeAsked.body': '{name} asked for more time.\n\nTo answer, open Bonfire, choose Manage profiles, then {name}.\n\n' + TAIL,
     'email.limitReached.body': '{name} has watched {minutes} minutes today and reached the limit.\n\nTo give more time, open Bonfire, choose Manage profiles, then {name}.\n\n' + TAIL,
