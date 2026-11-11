@@ -412,9 +412,13 @@
     }
     #profilesConfigurationPage .jpf-te-mode.is-active { opacity: 1; font-weight: 600; border-bottom-color: var(--jpf-accent); }
     #profilesConfigurationPage .jpf-te-mode:focus-visible { outline: 2px solid var(--jpf-ring); outline-offset: -2px; }
-    #profilesConfigurationPage .jpf-te-body { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; }
-    #profilesConfigurationPage .jpf-te-fields { flex: 1 1 26em; min-width: 0; }
-    #profilesConfigurationPage .jpf-te-side { flex: 0 1 20em; min-width: 14em; position: sticky; top: 1em; }
+    /* row-reverse with the preview first: it sits right of the fields while both fit, and
+       on a line of its own above them once they do not. The bases are sized so both fit
+       the dashboard's column on a desktop (26em + 20em did not, so it always wrapped below). */
+    #profilesConfigurationPage .jpf-te-body { display: flex; flex-direction: row-reverse; flex-wrap: wrap; align-items: flex-start; gap: 24px; }
+    #profilesConfigurationPage .jpf-te-fields { flex: 1 1 21em; min-width: 0; }
+    #profilesConfigurationPage .jpf-te-side { flex: 0 1 18em; min-width: 14em; position: -webkit-sticky; position: sticky; top: 0.5em; z-index: 2; }
+    #profilesConfigurationPage .jpf-te-checks { margin-top: 0.5em; }
     #profilesConfigurationPage .jpf-te-side-title { margin: 1em 0 0.25em; }
     #profilesConfigurationPage .jpf-te-colors {
         display: grid; grid-template-columns: repeat(auto-fit, minmax(11em, 1fr));
@@ -1056,7 +1060,14 @@
                         <button type="button" class="jpf-te-mode" role="tab" data-view="simple" data-i18n="admin.themes.simple">Simple</button>
                         <button type="button" class="jpf-te-mode" role="tab" data-view="advanced" data-i18n="admin.themes.advanced">Advanced</button>
                     </div>
+                    <!-- The preview comes first and the row runs right to left: beside the
+                         fields on a wide page, above them when it wraps, and sticky either way,
+                         so a change can be seen without scrolling to it. It sat under every
+                         control, about 1,000 px down in Advanced. -->
                     <div class="jpf-te-body">
+                        <div class="jpf-te-side">
+                            <div id="tePreview"></div>
+                        </div>
                         <div class="jpf-te-fields">
                             <div class="selectContainer" id="teBaseBox">
                                 <label class="selectLabel" for="teBase" data-i18n="admin.themes.startFrom">Start from</label>
@@ -1066,14 +1077,16 @@
                                 <label class="inputLabel" for="teName" data-i18n="admin.themes.name">Name</label>
                                 <input is="emby-input" type="text" id="teName" maxlength="40" autocomplete="off" />
                             </div>
-                            <div class="inputContainer jpf-te-field" data-paths="id">
+                            <!-- Filled in from the name until it is typed in, so Simple does
+                                 not show it; Advanced does, for whoever wants a particular one. -->
+                            <div class="inputContainer jpf-te-field" data-paths="id" id="teIdBox">
                                 <label class="inputLabel" for="teId" data-i18n="admin.themes.id">Id</label>
                                 <input is="emby-input" type="text" id="teId" maxlength="40" autocomplete="off" spellcheck="false" />
                                 <div class="fieldDescription" data-i18n="admin.themes.idHint">Lower case letters, digits and -. Fixed once saved.</div>
                             </div>
                             <div class="jpf-te-simple" id="teSimple">
                                 <div class="jpf-te-colors">
-                                    <label class="jpf-te-color jpf-te-field" data-paths="colors.accent colors.accentFocus colors.onAccent parts.button2.focus">
+                                    <label class="jpf-te-color jpf-te-field" data-paths="colors.accent colors.accentFocus colors.onAccent colors.ring parts.button2.focus">
                                         <input type="color" id="teAccent" data-simple="accent" />
                                         <span data-i18n="admin.themes.accent">Accent</span>
                                     </label>
@@ -1122,11 +1135,10 @@
                                 <div id="teAdvancedFields"></div>
                             </div>
                         </div>
-                        <div class="jpf-te-side">
-                            <div id="tePreview"></div>
-                            <h4 class="jpf-te-side-title" data-i18n="admin.themes.problems">Problems</h4>
-                            <div class="jpf-te-problems" id="teProblems" aria-live="polite"></div>
-                        </div>
+                    </div>
+                    <div class="jpf-te-checks">
+                        <h4 class="jpf-te-side-title" data-i18n="admin.themes.problems">Problems</h4>
+                        <div class="jpf-te-problems" id="teProblems" aria-live="polite"></div>
                     </div>
                     <div class="jpf-actions jpf-te-end">
                         <button is="emby-button" type="button" class="raised button-submit" id="teSave" data-i18n="admin.themes.save">Save theme</button>
@@ -4157,6 +4169,16 @@
                     setIf('parts.button2.focus.fill', hex);
                     setIf('parts.button2.focus.text', on);
                     setIf('parts.button2.focus.border.color', hex);
+                    // The ring round a focused tile is a tint of the accent, drawn on the
+                    // background: lighter on a dark one, darker on a light one, pushed further
+                    // until it stands off the background at 3:1. It used to keep the starting
+                    // theme's colour, a peach ring on a teal theme.
+                    const ground = themeRgb(getThemePath(draft, 'background.fill')) ? getThemePath(draft, 'background.fill').slice(0, 7)
+                        : (themeRgb(getThemePath(draft, 'colors.panel')) ? getThemePath(draft, 'colors.panel').slice(0, 7) : '#000000');
+                    const away = themeContrast(ground, '#ffffff') >= themeContrast(ground, '#000000') ? '#ffffff' : '#000000';
+                    let ring = themeMix(hex, away, 0.5);
+                    [0.65, 0.8, 0.95].forEach(function (t) { if (themeContrast(ring, ground) < 3) ring = themeMix(hex, away, t); });
+                    setIf('colors.ring', ring);
                 } else if (control === 'bg1' || control === 'bg2') {
                     if (!themeRgb(hex)) return;
                     const now = simpleThemeValues(draft);
@@ -4633,7 +4655,9 @@
 
             /// Opens the editor on `draft`. `mode` is 'new' (a fresh id) or 'edit' (the id is
             /// fixed and a save replaces that theme).
-            function openThemeEditor(page, draft, mode) {
+            /// baseKey: the themeBases key a new draft was copied from, so "Start from" names it
+            /// rather than reading "—" over what is in fact a copy of Bonfire.
+            function openThemeEditor(page, draft, mode, baseKey) {
                 const editor = page.querySelector('#themeEditor');
                 const ed = {
                     mode: mode, draft: draft, view: 'simple', idTouched: mode === 'edit',
@@ -4648,7 +4672,8 @@
 
                 const bases = themeBases(page);
                 page.querySelector('#teBaseBox').classList.toggle('jpf-hidden', mode !== 'new' || !bases.length);
-                fillSelect(page.querySelector('#teBase'), [['', '—']].concat(bases.map(function (b) { return [b.key, b.name]; })), '');
+                const fromKey = bases.some(function (b) { return b.key === baseKey; }) ? baseKey : '';
+                fillSelect(page.querySelector('#teBase'), (fromKey ? [] : [['', '—']]).concat(bases.map(function (b) { return [b.key, b.name]; })), fromKey);
                 page.querySelector('#teName').value = typeof nameText === 'string' ? nameText : '';
                 const idInput = page.querySelector('#teId');
                 idInput.value = typeof draft.id === 'string' ? draft.id : '';
@@ -4790,6 +4815,7 @@
                 ed.view = view === 'advanced' ? 'advanced' : 'simple';
                 page.querySelector('#teSimple').classList.toggle('jpf-hidden', ed.view !== 'simple');
                 page.querySelector('#teAdvanced').classList.toggle('jpf-hidden', ed.view !== 'advanced');
+                page.querySelector('#teIdBox').classList.toggle('jpf-hidden', ed.view !== 'advanced');
                 page.querySelectorAll('#themeEditor .jpf-te-mode').forEach(function (b) {
                     const on = b.getAttribute('data-view') === ed.view;
                     b.classList.toggle('is-active', on);
@@ -5089,7 +5115,7 @@
                     showThemeProblems(page);
                 } else if (act === 'duplicate') {
                     const name = t('admin.themes.copyName', { name: themeDisplayName(data, id) });
-                    openThemeEditor(page, newThemeDraft(entry.theme, name, takenThemeIds(page)), 'new');
+                    openThemeEditor(page, newThemeDraft(entry.theme, name, takenThemeIds(page)), 'new', 'c:' + id);
                 } else if (act === 'export') {
                     exportTheme(entry.theme);
                 } else if (act === 'delete') {
@@ -5336,7 +5362,7 @@
                         return;
                     }
                     const bonfire = bases.filter(function (b) { return b.key === 'b:bonfire'; })[0] || bases[0];
-                    openThemeEditor(page, newThemeDraft(bonfire.theme, t('admin.themes.newName'), takenThemeIds(page)), 'new');
+                    openThemeEditor(page, newThemeDraft(bonfire.theme, t('admin.themes.newName'), takenThemeIds(page)), 'new', bonfire.key);
                 });
                 const importFile = page.querySelector('#themeImportFile');
                 page.querySelector('#themeImport').addEventListener('click', function () {

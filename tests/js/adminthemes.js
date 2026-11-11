@@ -358,6 +358,22 @@ function part5() {
     }));
     ok('a new accent brings text that reads on it, at rest and in focus, on every built-in', weak.length === 0, weak.slice(0, 4).join('; '));
 
+    // The focus ring round a tile is the accent's too. It stayed the starting theme's (a
+    // peach ring on a teal theme) while the Simple screen says related colours follow. It
+    // must follow, and stand off the background it is drawn on.
+    const rings = [];
+    BUILT_IN.forEach(theme => ['#2bb3a3', '#1a73e8', '#ff0000', '#e04ed9'].forEach(a => {
+        const d = JSON.parse(JSON.stringify(theme));
+        if (!d.colors || typeof d.colors.ring !== 'string') return;
+        const before = d.colors.ring;
+        fns.simpleThemeEdit(d, 'accent', a, []);
+        const ring = d.colors.ring.slice(0, 7);
+        const ground = (d.background && d.background.fill) || d.colors.panel;
+        if (ring === before.slice(0, 7)) rings.push(theme.id + ' ' + a + ' ring stayed ' + before);
+        else if (/^#[0-9a-f]{6}/i.test(ground) && ratio(ring, ground.slice(0, 7)) < 3) rings.push(theme.id + ' ' + a + ' ring ' + ring + ' on ' + ground + ' ' + ratio(ring, ground.slice(0, 7)).toFixed(2));
+    }));
+    ok('a new accent moves the focus ring with it, readable on the background, on every built-in', rings.length === 0, rings.slice(0, 4).join('; '));
+
     const d = JSON.parse(JSON.stringify(bonfireFile));
     fns.simpleThemeEdit(d, 'bg1', '#f4f1ea', []);
     fns.simpleThemeEdit(d, 'bg2', '#f4f1ea', []);
