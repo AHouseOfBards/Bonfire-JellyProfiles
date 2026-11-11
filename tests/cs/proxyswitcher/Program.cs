@@ -1034,6 +1034,39 @@ else
 }
 
 Console.WriteLine();
+Console.WriteLine("── A TV that never comes back is forgotten ─────────────────────");
+{
+    var sweep = switcher.GetMethod("SweepIdle", BindingFlags.Static | BindingFlags.NonPublic);
+    var sessionsField = switcher.GetField("Sessions", BindingFlags.Static | BindingFlags.NonPublic);
+    Ok("the picker can forget idle sessions", sweep != null && sessionsField != null);
+    if (sweep != null && sessionsField != null && clockField != null)
+    {
+        const string IDLE_TOKEN = "abababababababababababababababab";
+        var dict = (System.Collections.IDictionary)sessionsField.GetValue(null);
+        Child();                                           // the Moonfin TV, in Kids
+        deviceTokens[IDLE_TOKEN] = (MASTER, "Moonfin for Android TV");
+        Get("/UserViews", IDLE_TOKEN);                     // another TV, on the picker
+        Ok("(set-up) two sessions", dict.Count == 2, dict.Count.ToString());
+
+        var t0 = DateTime.UtcNow;
+        clockField.SetValue(null, (Func<DateTime>)(() => t0 + TimeSpan.FromDays(10)));
+        var early = (int)sweep.Invoke(null, null);
+        Ok("nothing is forgotten after ten days", early == 0 && dict.Count == 2, early + " removed");
+
+        clockField.SetValue(null, (Func<DateTime>)(() => t0 + TimeSpan.FromDays(40)));
+        var late = (int)sweep.Invoke(null, null);
+        Ok("an idle session on the picker is forgotten after forty", late == 1 && !dict.Contains(IDLE_TOKEN), late + " removed");
+        Ok("one in a child's profile is not, however long it has been quiet", dict.Contains(MOON_TOKEN), dict.Count.ToString());
+
+        clockField.SetValue(null, (Func<DateTime>)(() => DateTime.UtcNow));
+        var returned = Get("/UserViews", IDLE_TOKEN);
+        Ok("and the TV that returns is given the picker again", !returned.reachedJellyfin && dict.Contains(IDLE_TOKEN));
+        deviceTokens.Remove(IDLE_TOKEN);
+        ProxyReset(); Child();
+    }
+}
+
+Console.WriteLine();
 Console.WriteLine("── The live connection ─────────────────────────────────────────");
 
 var socketType = asm.GetType("Jellyfin.Profiles.Auth.RewritingWebSocket");

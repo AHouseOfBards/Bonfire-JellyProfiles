@@ -619,6 +619,34 @@ namespace Jellyfin.Profiles.Auth
             }
         }
 
+        /// <summary>The number of sessions above which a new one first drops the idle ones.</summary>
+        private const int SweepAbove = 256;
+
+        /// <summary>How long a picker session may go unused before it is forgotten.</summary>
+        internal static readonly TimeSpan IdleFor = TimeSpan.FromDays(30);
+
+        /// <summary>
+        /// Forgets picker sessions nothing has used for <see cref="IdleFor"/>. Only a session
+        /// on the picker with no live connection: one in a profile holds a token that has to
+        /// be ended properly, and is never dropped here. A TV that returns after being
+        /// forgotten is registered afresh on its next request. The last check of the main
+        /// token (<c>CheckedTicks</c>) is the last use, to within <see cref="RecheckEvery"/>.
+        /// </summary>
+        internal static int SweepIdle()
+        {
+            var cutoff = Clock().Ticks - IdleFor.Ticks;
+            var removed = 0;
+            foreach (var pair in Sessions)
+            {
+                var s = pair.Value;
+                if (s.Acting != null || !s.Sockets.IsEmpty || ChildTokens.ContainsKey(pair.Key)) continue;
+                if (Interlocked.Read(ref s.CheckedTicks) >= cutoff) continue;
+                if (Sessions.TryRemove(pair.Key, out _)) removed++;
+            }
+
+            return removed;
+        }
+
         private static ProxySession? FindOrRegister(
             string token, HttpRequest request, PluginConfiguration? config, Services services, ILogger logger)
         {
@@ -658,6 +686,11 @@ namespace Jellyfin.Profiles.Auth
                 Version = device.AppVersion ?? string.Empty,
                 Language = PickerLanguage(request, config, device.UserId),
             };
+
+            // A TV that never comes back kept its session for the life of the process. Bounded
+            // the way NotOurs is, by size, but by dropping only what is idle: a clear would
+            // send every household back to the picker.
+            if (Sessions.Count >= SweepAbove) SweepIdle();
 
             session = Sessions.GetOrAdd(token, session);
             logger.LogInformation(
