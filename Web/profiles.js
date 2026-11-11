@@ -1,6 +1,29 @@
 (function () {
     'use strict';
 
+    // BEGIN keyName
+    // e.key is Chromium 51; Tizen 3.0 is Chromium 47, where it is undefined and a handler
+    // that reads only e.key does nothing. Every key comparison goes through keyName/isKey,
+    // which fall back to keyCode and also fold the old IE/Edge names ('Esc', 'Left') into
+    // the standard ones. tests/js/keycodefallback.js fails on any direct e.key comparison.
+    const KEY_BY_CODE = {
+        8: 'Backspace', 9: 'Tab', 13: 'Enter', 27: 'Escape', 32: ' ', 35: 'End', 36: 'Home',
+        37: 'ArrowLeft', 38: 'ArrowUp', 39: 'ArrowRight', 40: 'ArrowDown',
+        107: '+', 109: '-', 187: '=', 189: '-'
+    };
+    const KEY_ALIASES = { Esc: 'Escape', Left: 'ArrowLeft', Up: 'ArrowUp', Right: 'ArrowRight', Down: 'ArrowDown', Spacebar: ' ' };
+    function keyName(e) {
+        if (!e) return '';
+        const k = e.key;
+        if (k && k !== 'Unidentified') return KEY_ALIASES[k] || k;
+        const c = e.keyCode || e.which;
+        if (KEY_BY_CODE[c]) return KEY_BY_CODE[c];
+        if (c >= 65 && c <= 90) return String.fromCharCode(c);
+        return '';
+    }
+    function isKey(e, name) { return keyName(e) === (KEY_ALIASES[name] || name); }
+    // END keyName
+
     // A second evaluation in the same page (a tag left in index.html next to the injected
     // one, a client that loads the script as well as the server) would start everything
     // twice: the route poll, the listeners, the history wrap, the gate. The first copy
@@ -1831,8 +1854,8 @@
             dialog.querySelector('#prompt-save-btn').addEventListener('click', submit);
 
             dialog.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') { e.preventDefault(); close(); }
-                else if (e.key === 'Enter') {
+                if (isKey(e, 'Escape')) { e.preventDefault(); close(); }
+                else if (isKey(e, 'Enter')) {
                     // Enter on a button is that button's own press (a remote's OK on
                     // Cancel must cancel), and Enter that ends an IME composition is not
                     // a request to save (keyCode 229 on old Chromium).
@@ -1914,7 +1937,7 @@
             });
 
             dialog.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') { e.preventDefault(); close(); }
+                if (isKey(e, 'Escape')) { e.preventDefault(); close(); }
             });
 
             select.focus();
@@ -1990,7 +2013,7 @@
             cancelBtn.focus();
             
             dialog.addEventListener('keydown', (e) => {
-                if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                if (isKey(e, 'ArrowLeft') || isKey(e, 'ArrowRight')) {
                     e.preventDefault();
                     if (document.activeElement === confirmBtn) {
                         cancelBtn.focus();
@@ -1998,7 +2021,7 @@
                         confirmBtn.focus();
                     }
                 }
-                if (e.key === 'Escape') {
+                if (isKey(e, 'Escape')) {
                     e.preventDefault();
                     cancelBtn.click();
                 }
@@ -2063,7 +2086,7 @@
             closeBtn.focus();
 
             dialog.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+                if (isKey(e, 'Escape') || isKey(e, 'Enter') || isKey(e, ' ')) {
                     e.preventDefault();
                     closeBtn.click();
                 }
@@ -2130,11 +2153,11 @@
             }));
             dialog.addEventListener('keydown', (e) => {
                 const at = buttons.indexOf(document.activeElement);
-                if (e.key === 'Escape') { e.preventDefault(); close(); }
-                else if ((e.key === 'ArrowRight' || e.key === 'ArrowDown') && buttons.length) {
+                if (isKey(e, 'Escape')) { e.preventDefault(); close(); }
+                else if ((isKey(e, 'ArrowRight') || isKey(e, 'ArrowDown')) && buttons.length) {
                     e.preventDefault();
                     buttons[(at + 1) % buttons.length].focus();
-                } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && buttons.length) {
+                } else if ((isKey(e, 'ArrowLeft') || isKey(e, 'ArrowUp')) && buttons.length) {
                     e.preventDefault();
                     buttons[(at - 1 + buttons.length) % buttons.length].focus();
                 }
@@ -2524,7 +2547,7 @@
                 label._tvInit = true;
 
                 label.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
+                    if (isKey(e, 'Enter') || isKey(e, ' ')) {
                         e.preventDefault();
                         const checkbox = label.querySelector('input[type="checkbox"]');
                         if (checkbox) {
@@ -3308,7 +3331,7 @@
 
                 addBtn.addEventListener('click', (e) => { e.preventDefault(); addTag(); input.focus(); });
                 input.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); addTag(); }
+                    if (isKey(e, 'Enter')) { e.preventDefault(); addTag(); }
                 });
                 // Committing on blur means a typed-but-not-added tag isn't silently lost on save.
                 input.addEventListener('blur', () => addTag());
@@ -3333,7 +3356,7 @@
                     removeChip(removeBtn);
                 });
                 chipList.addEventListener('keydown', (e) => {
-                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    if (!isKey(e, 'Enter') && !isKey(e, ' ')) return;
                     const removeBtn = e.target.closest('.tag-chip-remove');
                     if (!removeBtn) return;
                     e.preventDefault();
@@ -4649,7 +4672,7 @@
                 // Ctrl+Shift+B. Chosen to be unreachable by accident and not to collide
                 // with Jellyfin's own shortcuts. It is the way in when the switcher has
                 // failed badly enough that no overlay renders at all.
-                if (e.ctrlKey && e.shiftKey && (e.key === 'B' || e.key === 'b')) {
+                if (e.ctrlKey && e.shiftKey && (isKey(e, 'B') || isKey(e, 'b'))) {
                     e.preventDefault();
                     this.showPanicPrompt();
                 }
@@ -4738,8 +4761,8 @@
 
             submitBtn.addEventListener('click', submit);
             input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') { e.preventDefault(); submit(); }
-                if (e.key === 'Escape') { e.preventDefault(); close(); }
+                if (isKey(e, 'Enter')) { e.preventDefault(); submit(); }
+                if (isKey(e, 'Escape')) { e.preventDefault(); close(); }
             });
 
             setTimeout(() => input.focus(), 50);
@@ -5753,7 +5776,7 @@
                 const cancel = () => { close(); if (onCancel) onCancel(); };
                 dialog.querySelector("#profiles-libart-cancel").addEventListener("click", cancel);
                 dialog.addEventListener("keydown", (e) => {
-                    if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); cancel(); }
+                    if (isKey(e, 'Escape')) { e.stopPropagation(); e.preventDefault(); cancel(); }
                 });
                 if (library.failed) {
                     // An empty grid with no word said looked like a library with no pictures (R-1197).
@@ -6113,7 +6136,7 @@
 
             // e.key is missing on some older TV browsers, so keyCode is the fallback.
             const dirOf = (e) => {
-                switch (e.key) {
+                switch (keyName(e)) {
                     case 'ArrowLeft':  case 'Left':  return 'left';
                     case 'ArrowRight': case 'Right': return 'right';
                     case 'ArrowUp':    case 'Up':    return 'up';
@@ -6149,7 +6172,7 @@
                 // itself, so it is not stopped here either. Not when the script sent it:
                 // closeUserMenu dispatches one at Jellyfin's own menu. And not with a list
                 // open, where it closes the list.
-                if ((e.key === 'Escape' || e.key === 'Esc') && surface.id === 'profiles-gate-overlay' && e.isTrusted !== false
+                if ((isKey(e, 'Escape') || isKey(e, 'Esc')) && surface.id === 'profiles-gate-overlay' && e.isTrusted !== false
                     && !(e.target && e.target.closest && e.target.closest('[aria-expanded="true"]'))) {
                     this._dismissSurface(surface);
                     return;
@@ -6182,7 +6205,7 @@
                     return;
                 }
 
-                if (e.key === 'Tab' || e.keyCode === 9) {
+                if (isKey(e, 'Tab') || e.keyCode === 9) {
                     // Tab follows document order, not geometry. Routing it through the
                     // spatial search meant it did nothing at all in a stacked form, where
                     // every candidate is directly above or below rather than beside.
@@ -6194,7 +6217,7 @@
 
                 // A select landing on the page behind would act on something invisible.
                 // Inside the surface it is left alone: that is how our own buttons fire.
-                const isSelect = e.key === 'Enter' || e.key === ' ' || e.keyCode === 13;
+                const isSelect = isKey(e, 'Enter') || isKey(e, ' ') || e.keyCode === 13;
                 if (isSelect && !inside) {
                     e.preventDefault();
                     e.stopPropagation();
@@ -7195,7 +7218,7 @@
         attachOverlayInteractions: function (overlay, profiles) {
             // Support D-pad Enter/Space selection on focused profile cards
             overlay.addEventListener('keydown', (e) => {
-                if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('profile-card')) {
+                if ((isKey(e, 'Enter') || isKey(e, ' ')) && e.target.classList.contains('profile-card')) {
                     // Prevent accidental selection from propagated keydown events during login
                     if (Date.now() - (this._overlayMountTime || 0) < 350) {
                         e.preventDefault();
@@ -7283,7 +7306,7 @@
                     this.showPanicPrompt();
                 });
                 panicLink.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); panicLink.click(); }
+                    if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); panicLink.click(); }
                 });
                 this.applyPanicLinkVisibility();
             }
@@ -7528,7 +7551,7 @@
 
             document.getElementById('pin-submit-btn').addEventListener('click', submitPin);
             pinInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') submitPin();
+                if (isKey(e, 'Enter')) submitPin();
             });
 
             document.getElementById('pin-cancel-btn').addEventListener('click', () => {
@@ -7636,7 +7659,7 @@
             };
 
             content.querySelector('#main-pin-save').addEventListener('click', save);
-            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+            input.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) save(); });
             const skipBtn = content.querySelector('#main-pin-skip');
             if (skipBtn) skipBtn.addEventListener('click', () => {
                 if (setup) setup.onSkip();
@@ -7762,7 +7785,7 @@
 
             document.getElementById('master-pin-submit-btn').addEventListener('click', submitPin);
             pinInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') submitPin();
+                if (isKey(e, 'Enter')) submitPin();
             });
 
             document.getElementById('master-pin-cancel-btn').addEventListener('click', () => {
@@ -7877,8 +7900,8 @@
             };
 
             content.querySelector('#pin-reset-save').addEventListener('click', save);
-            pin.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
-            code.addEventListener('keydown', (e) => { if (e.key === 'Enter') pin.focus(); });
+            pin.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) save(); });
+            code.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) pin.focus(); });
             content.querySelector('#pin-reset-back').addEventListener('click', back);
             content.querySelector('#pin-reset-again').addEventListener('click', send);
             send();
@@ -7976,7 +7999,7 @@
                         run('account/email', { address: typed });
                     };
                     q('account-email-send').addEventListener('click', send);
-                    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+                    input.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) send(); });
                     const cancel = q('account-email-cancel');
                     if (cancel) cancel.addEventListener('click', () => { editing = false; draw(); });
                 }
@@ -7989,7 +8012,7 @@
                         run('account/email/confirm', { code: typed }, t('accountEmail.saved'));
                     };
                     q('account-email-confirm').addEventListener('click', confirm);
-                    codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirm(); });
+                    codeInput.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) confirm(); });
                     q('account-email-other').addEventListener('click', () => { editing = true; draw(); });
                 }
 
@@ -8652,7 +8675,7 @@
             view.addEventListener('keydown', (e) => {
                 const step = 12;
                 let handled = true;
-                switch (e.key) {
+                switch (keyName(e)) {
                     case 'ArrowLeft':  crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x + step, y: crop.y }); break;
                     case 'ArrowRight': crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x - step, y: crop.y }); break;
                     case 'ArrowUp':    crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x, y: crop.y + step }); break;
@@ -8681,7 +8704,7 @@
             };
             this._cropClose = close;
             dialog.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' || e.key === 'Esc') { e.preventDefault(); e.stopPropagation(); close(); }
+                if (isKey(e, 'Escape') || isKey(e, 'Esc')) { e.preventDefault(); e.stopPropagation(); close(); }
             });
             dialog.querySelector('#profiles-crop-cancel').addEventListener('click', close);
             dialog.querySelector('#profiles-crop-save').addEventListener('click', () => {
@@ -8965,7 +8988,7 @@
             // Label doubles as the file trigger so it can be focused by D-pad.
             if (fileLabel && fileInput) {
                 fileLabel.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+                    if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); fileInput.click(); }
                 });
             }
 
@@ -9022,7 +9045,7 @@
                 };
                 btn.addEventListener('click', (e) => { e.preventDefault(); pick(); });
                 btn.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
+                    if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); pick(); }
                 });
             });
 
@@ -9129,7 +9152,7 @@
                         if (preview && !preview.querySelector('img')) paintAvatar(preview, selectedColor);
                     });
                     dot.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dot.click(); }
+                        if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); dot.click(); }
                     });
                 });
 
@@ -9362,7 +9385,7 @@
 
                 // Support D-pad Enter/Space select on color dots
                 content.addEventListener('keydown', (e) => {
-                    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('color-dot')) {
+                    if ((isKey(e, 'Enter') || isKey(e, ' ')) && e.target.classList.contains('color-dot')) {
                         e.preventDefault();
                         e.target.click();
                     }
@@ -9402,10 +9425,10 @@
                         setCreateOpen(createList.style.display === 'none');
                     });
                     createTrigger.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
+                        if (isKey(e, 'Enter') || isKey(e, ' ')) {
                             e.preventDefault();
                             createTrigger.click();
-                        } else if (e.key === 'Escape') {
+                        } else if (isKey(e, 'Escape')) {
                             setCreateOpen(false);
                         }
                     });
@@ -9414,7 +9437,7 @@
                         e.stopPropagation();
                     });
                     createList.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' && e.target.type === 'checkbox') {
+                        if (isKey(e, 'Enter') && e.target.type === 'checkbox') {
                             e.preventDefault();
                             e.target.checked = !e.target.checked;
                             e.target.dispatchEvent(new Event('change'));
@@ -9805,7 +9828,7 @@
 
                 // Support D-pad Enter/Space select on color dots
                 content.addEventListener('keydown', (e) => {
-                    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('color-dot')) {
+                    if ((isKey(e, 'Enter') || isKey(e, ' ')) && e.target.classList.contains('color-dot')) {
                         e.preventDefault();
                         e.target.click();
                     }
@@ -9853,10 +9876,10 @@
                         setEditOpen(editList.style.display === 'none');
                     });
                     editTrigger.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
+                        if (isKey(e, 'Enter') || isKey(e, ' ')) {
                             e.preventDefault();
                             editTrigger.click();
-                        } else if (e.key === 'Escape') {
+                        } else if (isKey(e, 'Escape')) {
                             setEditOpen(false);
                         }
                     });
@@ -9865,7 +9888,7 @@
                         e.stopPropagation();
                     });
                     editList.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' && e.target.type === 'checkbox') {
+                        if (isKey(e, 'Enter') && e.target.type === 'checkbox') {
                             e.preventDefault();
                             e.target.checked = !e.target.checked;
                             e.target.dispatchEvent(new Event('change'));
@@ -10217,8 +10240,8 @@
                         .catch(err => { busy = false; pass.value = ''; say(this._failText(err, t('errors.couldNotSaveThat')), true); });
                 };
                 slot.querySelector('#links-add').addEventListener('click', add);
-                pass.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
-                user.addEventListener('keydown', (e) => { if (e.key === 'Enter') pass.focus(); });
+                pass.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) add(); });
+                user.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) pass.focus(); });
 
                 const bind = (cls, body, title, message) => {
                     Array.prototype.forEach.call(slot.querySelectorAll('.' + cls), btn => {
@@ -10471,7 +10494,7 @@
                 });
             };
             content.querySelector('#account-pin-save').addEventListener('click', savePin);
-            pinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') savePin(); });
+            pinInput.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) savePin(); });
 
             const clearBtn = content.querySelector('#account-pin-clear');
             if (clearBtn) {
@@ -10901,7 +10924,7 @@
                     });
                 };
                 content.querySelector('#onboarding-next').addEventListener('click', confirm);
-                input.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirm(); });
+                input.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) confirm(); });
                 content.querySelector('#onboarding-email-other').addEventListener('click', () => this._onboardingEmail(next, skip));
                 setTimeout(() => input.focus(), 50);
                 return;
@@ -10921,7 +10944,7 @@
                 });
             };
             content.querySelector('#onboarding-next').addEventListener('click', send);
-            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+            input.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) send(); });
             setTimeout(() => input.focus(), 50);
         },
 
@@ -10964,7 +10987,7 @@
                 });
             };
             content.querySelector('#onboarding-next').addEventListener('click', create);
-            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') create(); });
+            input.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) create(); });
             setTimeout(() => input.focus(), 50);
         },
 
@@ -11006,7 +11029,7 @@
                 };
                 card.addEventListener('click', choose);
                 card.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); }
+                    if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); choose(); }
                 });
             });
             this._roveRadios(cards);
@@ -11193,7 +11216,7 @@
                 if (!el) return;
                 el.addEventListener('click', () => fn.call(this));
                 el.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+                    if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); el.click(); }
                 });
             };
             open('settings-profiles', () => {
@@ -11503,7 +11526,7 @@
 
                 el.addEventListener('click', choose);
                 el.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); }
+                    if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); choose(); }
                 });
             });
 
@@ -11892,7 +11915,7 @@
 
                 joinBtn.addEventListener('click', performJoin);
                 joinInput.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') performJoin();
+                    if (isKey(e, 'Enter')) performJoin();
                 });
             }
 
@@ -12127,7 +12150,7 @@
                 setTimeout(() => this.handleBubbleClick(), 80);
             });
             entry.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); entry.click(); }
+                if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); entry.click(); }
             });
 
             signOut.parentNode.insertBefore(entry, signOut);
@@ -12198,7 +12221,7 @@
                 this.handleBubbleClick();
             });
             entry.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); entry.click(); }
+                if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); entry.click(); }
             });
 
             signOut.parentNode.insertBefore(entry, signOut);
@@ -12294,7 +12317,7 @@
                 this.handleBubbleClick();
             });
             btn.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
+                if (isKey(e, 'Enter') || isKey(e, ' ')) {
                     e.preventDefault();
                     btn.click();
                 }
@@ -13042,7 +13065,7 @@
             // Native <button> fires click on Enter in most browsers, but some TV browsers
             // (notably older Tizen and webOS) skip this for non-focused or injected elements.
             bubble.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') activate(e);
+                if (isKey(e, 'Enter') || isKey(e, ' ')) activate(e);
             });
         },
 
