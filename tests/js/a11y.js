@@ -594,6 +594,33 @@ function tagOf(id) {
         ok('a tag editor names its box after the label', /<input[^>]*aria-labelledby="x-label"/.test(tags), tags);
     }
 
+    // R-1207. Storage that is blocked or full: the master id is written and never comes
+    // back, so every switch had no household to act for and returned without a word.
+    {
+        const e7 = D.loadPlugin(SRC);
+        const P7 = e7.PP;
+        const blocked = { getItem: () => null, setItem: () => { throw new Error('QuotaExceededError'); }, removeItem: () => {} };
+        e7.sandbox.localStorage = blocked;
+        P7.writeMasterState('master-id');
+        const back = P7.readMasterState();
+        ok('a master id the browser would not store is still known to the page', !!back && back.masterUserId === 'master-id', JSON.stringify(back));
+        P7.clearMasterState && P7.clearMasterState();
+        ok('and is forgotten on sign-out', P7.readMasterState() === null);
+
+        let said = null, alerted = null;
+        P7.readMasterState = () => null;
+        P7.showAlert = (title, body) => { alerted = { title, body }; };
+        let sent = 0;
+        e7.sandbox.fetch = () => { sent++; return Promise.reject(new Error('unexpected')); };
+        P7.executeProfileSwitch('kid', '1234', m => { said = m; });
+        await e7.settle();
+        ok('a switch with no household says so on the PIN screen', typeof said === 'string' && said.length > 0, String(said));
+        P7.executeProfileSwitch('kid', null);
+        await e7.settle();
+        ok('and from a tap with no PIN screen, in an alert', alerted !== null, JSON.stringify(alerted));
+        ok('without sending anything', sent === 0);
+    }
+
     // R-1205. The crop view is a tab stop that takes the arrow keys: it needs a role and a
     // name, and a description pointing at the hint that says what the keys do. The canvas
     // inside it is not something a screen reader can read.

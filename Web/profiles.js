@@ -2165,6 +2165,10 @@
             try {
                 stored = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
             } catch (e) { /* unreadable: treat as unknown */ }
+            // Storage that is blocked or full takes the write below and gives nothing back,
+            // which left every switch with no master to act for (R-1207). The page keeps
+            // the last id it was told, for as long as it lives.
+            if ((!stored || !stored.masterUserId) && this._masterIdInMemory) stored = { masterUserId: this._masterIdInMemory };
             if (!stored || !stored.masterUserId) return null;
 
             let token = null;
@@ -2209,7 +2213,16 @@
             return !!current && this.normalizeGuid(current) === this.normalizeGuid(st.masterUserId);
         },
 
+        /// Forgets the master everywhere it is kept: the stored id and the copy the page
+        /// holds in case storage is blocked. Every sign-out path comes through here, or a
+        /// shared device would hand the next person the last household's switcher.
+        clearMasterState: function () {
+            this._masterIdInMemory = null;
+            try { localStorage.removeItem(this.config.masterStorageKey); } catch (e) { /* blocked */ }
+        },
+
         writeMasterState: function (masterUserId) {
+            this._masterIdInMemory = masterUserId;
             try {
                 localStorage.setItem(this.config.masterStorageKey, JSON.stringify({ masterUserId: masterUserId }));
             } catch (e) { /* full or blocked: the next list fetch writes it again */ }
@@ -3626,7 +3639,7 @@
             // machine inherits the switcher.
             document.addEventListener('usersignedout', () => {
                 try {
-                    localStorage.removeItem(this.config.masterStorageKey);
+                    this.clearMasterState();
                     localStorage.removeItem(this.config.activeSessionKey);
                     localStorage.removeItem(this.config.switcherModeKey);
                     this._switcherPrefs = null;
@@ -5126,7 +5139,7 @@
             const hash = window.location.hash || '';
             const path = window.location.pathname || '';
             if (hash.includes('login') || hash.includes('selectserver') || path.includes('login') || path.includes('selectserver')) {
-                localStorage.removeItem(this.config.masterStorageKey);
+                this.clearMasterState();
                 this.clearProfileSession();
                 return;
             }
@@ -5149,7 +5162,7 @@
                 } catch (e) {}
 
                 if (isLoggedOut) {
-                    localStorage.removeItem(this.config.masterStorageKey);
+                    this.clearMasterState();
                     this.clearProfileSession();
                 }
                 return;
@@ -5174,7 +5187,7 @@
 
         handleSessionExpired: function () {
             console.warn("ProfilesPlugin: Master session expired or invalid. Redirecting to login.");
-            localStorage.removeItem(this.config.masterStorageKey);
+            this.clearMasterState();
             try { localStorage.removeItem('jellyfin_profiles_cached_list'); } catch (e) { /* ignore storage errors */ }
             this.clearProfileSession();
 
@@ -8002,7 +8015,13 @@
 
             const apiClient = ApiClient;
             const masterState = this.readMasterState();
-            if (!masterState) return;
+            if (!masterState) {
+                // No household to act for: nothing was sent. Saying nothing left a PIN
+                // screen that took its digits and then did nothing (R-1207).
+                if (typeof onError === 'function') onError(t('switcher.failedBody'));
+                else this.showAlert(t('switcher.failedTitle'), escapeHtml(t('switcher.failedBody')));
+                return;
+            }
 
             this._switchLock = true;
             this.setSwitchBusy(profileId, true);
@@ -12136,7 +12155,7 @@
             if (viewType === 'signin') {
                 if (!this._signInScreenCleared) {
                     this._signInScreenCleared = true;
-                    try { localStorage.removeItem(this.config.masterStorageKey); } catch (e) { /* blocked */ }
+                    try { this.clearMasterState(); } catch (e) { /* blocked */ }
                     this.clearProfileSession();
                     this.invalidateProfileCache();
                     // The previous account's gate and menu-mode choice, and whether it saw
