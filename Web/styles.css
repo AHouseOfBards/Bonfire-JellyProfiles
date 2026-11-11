@@ -604,6 +604,27 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .profiles-announcement-dismiss:hover,
 .profiles-announcement-dismiss:focus { opacity: 1; background: var(--jpf-surface-2); outline: none; box-shadow: 0 0 0 2px var(--jpf-accent); }
+/* Requests for more time, a row above the tiles. Each is a real button, so Enter and a
+   remote's OK open it. Margins and the theme's tokens only; no flex gap, no grid. */
+.profiles-time-requests { width: 100%; max-width: 720px; margin: 0 auto 1.5rem; text-align: left; }
+.profiles-time-request {
+    display: flex; align-items: center; width: 100%; box-sizing: border-box;
+    margin: 0 0 0.6rem; padding: 0.7rem 0.9rem; cursor: pointer; text-align: left;
+    border: none; border-left: 4px solid var(--jpf-accent); border-radius: var(--jpf-r-md);
+    background: var(--jpf-surface-2); color: var(--jpf-text-1);
+    font: inherit; font-size: 1rem; line-height: 1.45;
+}
+.profiles-time-request-avatar {
+    position: relative; overflow: hidden; flex: none; margin-right: 0.8rem;
+    display: flex; align-items: center; justify-content: center;
+    width: 2.5rem; height: 2.5rem; border-radius: 50%; font-weight: 700;
+}
+.profiles-time-request-text { flex: 1 1 auto; min-width: 0; word-wrap: break-word; }
+.profiles-time-request-when { margin-left: 0.5rem; color: var(--jpf-text-2); font-size: 0.9rem; }
+.profiles-time-request-action { flex: none; margin-left: 0.8rem; color: var(--jpf-accent); font-weight: 700; }
+.profiles-time-request:hover,
+.profiles-time-request:focus { outline: none; box-shadow: 0 0 0 2px var(--jpf-accent); }
+.jpf-tv .profiles-time-request:focus { outline: 4px solid var(--jpf-accent); outline-offset: 2px; box-shadow: none; }
 /* Closed for maintenance. A strip on the sign-in screen and for administrators; the
    whole page for anyone else signed in, whose every request is refused. Above the gate. */
 .profiles-maintenance {

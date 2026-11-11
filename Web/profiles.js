@@ -1228,6 +1228,8 @@
         'viewing.alreadyAsked': 'You already asked. Try again in a few minutes.',
         'viewing.giveTitle': 'More time for {name}',
         'viewing.giveBody': 'How long?',
+        'viewing.answer': 'Answer',
+        'viewing.capBody': '{name} has already had the 4 hours of extra time allowed today.',
         'account.devicesHint': 'Each profile chooses which of these it can be opened on.',
         'profileForm.sectionPinSubtitle': 'A PIN to open this profile',
         'profileForm.sectionWatchTitle': 'What they can watch',
@@ -1379,6 +1381,7 @@
         'refused.nameTaken': 'That name is taken. Choose another.',
         'refused.nameInvalid': 'Use letters, numbers and spaces, and keep the name short.',
         'refused.mainProtected': "That can't be done to a main account.",
+        'refused.grantCap': "That's past the 4 hours of extra time allowed today.",
         'refused.bonfireNotOwner': "You don't have a Bonfire group yet. Create a code first.",
         'refused.bonfireNotMember': "You aren't in a Bonfire group. Join one with a code.",
         'refused.bonfireOwn': "That's your own group's code. Enter another one.",
@@ -1434,7 +1437,7 @@
         device_not_allowed: 'refused.deviceNotAllowed', profile_disabled: 'refused.disabled',
         too_many_sessions: 'refused.tooManySessions', sign_in_failed: 'refused.signInFailed',
         profile_limit: 'refused.profileLimit', name_taken: 'refused.nameTaken', name_invalid: 'refused.nameInvalid',
-        main_account_protected: 'refused.mainProtected',
+        main_account_protected: 'refused.mainProtected', grant_cap: 'refused.grantCap',
         bonfire_not_owner: 'refused.bonfireNotOwner', bonfire_not_member: 'refused.bonfireNotMember',
         bonfire_own_group: 'refused.bonfireOwn', bonfire_member_not_found: 'refused.bonfireMember',
         password_required: 'refused.passwordRequired',
@@ -6402,6 +6405,7 @@
                 <div class="profiles-modal-content anim-fade-in${groupKeys.length === 1 ? ' jpf-one-home' : ''}">
                     <h1 class="profiles-title">${title}</h1>
                     ${this.isManageMode ? `<p class="jpf-manage-hint">${t('gate.manageHint')}</p>` : ''}
+                    ${this.isManageMode ? '' : '<div id="profiles-time-requests" class="profiles-time-requests" style="display: none;"></div>'}
                     ${sectionsHtml}
                     <div class="profiles-footer">
                         <button id="profiles-toggle-manage-btn" class="profiles-btn btn-secondary">${manageBtnText}</button>
@@ -6434,6 +6438,102 @@
             this.attachOverlayInteractions(overlay, profiles);
             this.fitGateToScreen(overlay);
             this.showAnnouncements(overlay);
+            this.showTimeRequests(overlay, profiles, localMasterId);
+        },
+
+        /// Profiles waiting for more time, as a row above the tiles. Only for the main
+        /// account's own household, and only when the list the picker just fetched already
+        /// says someone asked: the picker pays for one more call when there is something to
+        /// show, and nothing otherwise. Fetched when the picker is drawn, never from
+        /// checkRoute. The server decides what is pending and how much of the day's four
+        /// hours is left; this only draws it.
+        ///
+        /// A row is a real button, so Enter opens it and the remote can reach it. Opening it
+        /// asks for the main PIN, the prompt the picker already uses for the main account.
+        showTimeRequests: function (overlay, profiles, localMasterId) {
+            const box = overlay.querySelector('#profiles-time-requests');
+            if (!box || !localMasterId) return;
+            const mine = (p) => !p.isMaster && !p.isBonfire && this.normalizeGuid(p.masterUserId) === localMasterId;
+            if (!profiles.some(p => mine(p) && p.viewing && p.viewing.askedUtc)) return;
+            const masterState = this.readMasterState();
+            if (!masterState || this.normalizeGuid(masterState.masterUserId) !== localMasterId) return;
+
+            const refresh = () => {
+                const state = this.readMasterState();
+                if (state) this.fetchAndRenderProfiles(ApiClient, state.masterUserId, state.token, true);
+            };
+            const draw = (requests) => {
+                if (!requests.length) return;
+                box.innerHTML = '';
+                requests.forEach(req => {
+                    const p = profiles.find(x => this.normalizeGuid(x.profileUserId) === this.normalizeGuid(req.profileId));
+                    const row = document.createElement('button');
+                    row.type = 'button';
+                    row.className = 'profiles-time-request focusable';
+                    row.setAttribute('data-id', req.profileId);
+                    row.innerHTML = `
+                        <span class="profiles-time-request-avatar" aria-hidden="true" style="background-color: ${
+                            p && p.profileImage && p.transparentAvatar ? 'transparent' : safeColor(p ? p.avatarColor : '')
+                        }; color: ${onAvatarColor(p ? p.avatarColor : '')};">${
+                            avatarInner(p ? p.profileImage : null, p ? p.avatarInitial : String(req.profileName || '?').charAt(0).toUpperCase(), true)
+                        }</span>
+                        <span class="profiles-time-request-text">${escapeHtml(t('viewing.askedHint', { name: req.profileName }))}
+                            <span class="profiles-time-request-when">${escapeHtml(this.viewingTime(req.askedUtc, req.timeZone))}</span></span>
+                        <span class="profiles-time-request-action">${t('viewing.answer')}</span>`;
+                    row.addEventListener('click', () => {
+                        if (this._switchLock) return;
+                        this.withMainPin(profiles, () => {
+                            // The picker comes back behind the dialog, so cancelling it leaves
+                            // the profiles on screen and not the PIN screen.
+                            refresh();
+                            this.answerTimeRequest(req, refresh);
+                        });
+                    });
+                    box.appendChild(row);
+                });
+                box.style.display = '';
+                this.fitGateToScreen(overlay);
+            };
+
+            fetch(ApiClient.getUrl('plugins/profiles/time-requests'), {
+                headers: this.getAuthHeaders(masterState.token),
+                cache: 'no-store'
+            })
+                .then(res => res.ok ? res.json() : null)
+                .then(data => {
+                    const list = data && (data.requests || data.Requests);
+                    draw(Array.isArray(list) ? list : []);
+                })
+                .catch(() => { /* nothing waiting is the safe reading */ });
+        },
+
+        /// How much more time for a request, or no. The main PIN was just entered. Amounts
+        /// stop at what is left of the day's four hours; with none left, no is the only
+        /// answer. The server holds the same line, so a stale screen cannot give past it.
+        answerTimeRequest: function (req, refresh) {
+            const name = req.profileName;
+            const left = typeof req.grantMinutesLeft === 'number' ? req.grantMinutesLeft : 0;
+            const grant = (minutes) => {
+                this._limitsCall(req.profileId, 'grant', { minutes: minutes, masterPin: this.masterPin })
+                    .then(() => { if (!this.isManageMode) this.masterPin = null; refresh(); })
+                    .catch(err => this.showAlert(t('errors.error'), escapeHtml(err.message), refresh));
+            };
+            const no = { label: t('viewing.decline'), run: () => grant(0) };
+            const cancel = { label: t('common.cancel') };
+            if (left <= 0) {
+                no.primary = true;
+                this.showActionsDialog(t('viewing.giveTitle', { name: name }), t('viewing.capBody', { name: name }), [no, cancel]);
+                return;
+            }
+            const sizes = [15, 30, 60, 120].filter(m => m <= left);
+            if (left < 120 && sizes.indexOf(left) < 0) sizes.push(left);
+            const actions = sizes.map(m => ({
+                label: this.durationText(m),
+                primary: m === 30 || (sizes.indexOf(30) < 0 && m === sizes[0]),
+                run: () => grant(m)
+            }));
+            actions.push(no, cancel);
+            this.showActionsDialog(t('viewing.giveTitle', { name: name }), t('viewing.giveBody'), actions);
         },
 
         /// The administrator's announcements, above the title.
