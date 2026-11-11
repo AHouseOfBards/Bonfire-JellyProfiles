@@ -85,7 +85,7 @@ object Map(Guid profile, Guid master, string pin = null)
 bool Mapped(Guid id) => mappings.Cast<object>().Any(m => (Guid)mapType.GetProperty("ProfileUserId").GetValue(m) == id);
 
 // One call into the real controller, as `caller` (null: nobody signed in) from `ip`.
-(int status, object value) Call(string method, Guid? caller, object body = null, string ip = "203.0.113.7", object[] raw = null)
+(int status, object value) Call(string method, Guid? caller, object body = null, string ip = "203.0.113.7", object[] raw = null, string forwardedFor = null)
 {
     var route = ctrlType.GetMethod(method);
     if (route == null) return (-404, "no route " + method);
@@ -104,6 +104,16 @@ bool Mapped(Guid id) => mappings.Cast<object>().Any(m => (Guid)mapType.GetProper
             : new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("Jellyfin-UserId", caller.Value.ToString()) }, "test")),
     };
     http.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(ip);
+    if (forwardedFor != null)
+    {
+        // A proxy the server trusts, in front of the caller: what Jellyfin's own options say.
+        var fwd = new Microsoft.AspNetCore.Builder.ForwardedHeadersOptions { ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor };
+        fwd.KnownProxies.Add(System.Net.IPAddress.Parse(ip));
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, Microsoft.Extensions.Options.Options.Create(fwd));
+        http.RequestServices = Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(services);
+        http.Request.Headers["X-Forwarded-For"] = forwardedFor;
+    }
     c.ControllerContext = new ControllerContext { HttpContext = http };
     world.LastResponse = http.Response;
 
@@ -192,6 +202,19 @@ Console.WriteLine("── Emergency disable: Panic, SetPanicCode, GetPanicState 
     Ok("after five guesses from one address even the right code is refused (" + Say(limited) + ")", limited.status == 429);
     Ok("and the plugin stays on", !StateSays());
 
+    // R-1165: the code is stored trimmed, so it is checked trimmed. An app that sends what was
+    // typed, spaces and all, must not burn attempts on a code that was right.
+    var padded = Call("Panic", null, new { Code = "  correct horse battery \n" }, ip: "198.51.100.6");
+    Ok("a right code with spaces round it still works (" + Say(padded) + ")", padded.status == 200 && StateSays());
+    PanicOff();
+
+    // R-1166: behind a proxy the server trusts, every guess comes from the proxy's address.
+    // Five from one stranger must not lock out the administrator on another.
+    for (int i = 0; i < 5; i++) Call("Panic", null, new { Code = "guess " + i + " xxxxxxxx" }, ip: "10.9.9.9", forwardedFor: "203.0.113.50");
+    var behindProxy = Call("Panic", null, new { Code = "correct horse battery" }, ip: "10.9.9.9", forwardedFor: "203.0.113.51");
+    Ok("behind a trusted proxy the limit counts the client, not the proxy (" + Say(behindProxy) + ")", behindProxy.status == 200);
+    PanicOff();
+
     var right = Call("Panic", null, new { Code = "correct horse battery" }, ip: "198.51.100.4");
     Ok("the right code from anyone switches it off (" + Say(right) + ")", right.status == 200 && Prop(right.value, "Disabled") is true);
     Ok("and panic-state says so", StateSays());
@@ -262,8 +285,32 @@ Console.WriteLine("── SetProfileLimit ────────────�
     var zero = Call("SetProfileLimit", ADMIN, new { UserId = PARENT, MaxProfiles = (int?)0 });
     var huge = Call("SetProfileLimit", ADMIN, new { UserId = PARENT, MaxProfiles = (int?)2_000_000_000 });
     Ok("out-of-range values are refused (" + Say(zero) + ", " + Say(huge) + ")", zero.status == 400 && huge.status == 400 && Limit(PARENT) == 4);
+    // R-1168: a limit is for an account that exists, and a missing body is a 400, not a 500.
+    var nobody = Call("SetProfileLimit", ADMIN, new { UserId = Guid.NewGuid(), MaxProfiles = (int?)3 });
+    var noBody = Call("SetProfileLimit", ADMIN, null, raw: new object[] { null });
+    Ok("an unknown account or no body is refused (" + Say(nobody) + ", " + Say(noBody) + ")", nobody.status == 400 && noBody.status == 400);
     var remove = Call("SetProfileLimit", ADMIN, new { UserId = PARENT, MaxProfiles = (int?)null });
     Ok("no value removes it", remove.status == 200 && Limit(PARENT) == null);
+}
+
+// ── Bonfire group routes from a profile, and the avatar library's size ──────
+Console.WriteLine();
+Console.WriteLine("── Bonfire leave/delete from a profile, library cap ────────────");
+{
+    // R-1162: only a main account is ever in a group; a profile is refused, not told "none".
+    var leave = Call("LeaveBonfire", KID);
+    var del = Call("DeleteBonfireGroup", KID);
+    Ok("a profile can't leave or delete a Bonfire group (" + Say(leave) + ", " + Say(del) + ")", leave.status == 401 && del.status == 401);
+
+    // R-1171: a library holds a fixed number of pictures.
+    var library = (IList)Cfg("AvatarLibrary");
+    var itemType = library.GetType().GetGenericArguments()[0];
+    while (library.Count < 200) { var it = Activator.CreateInstance(itemType); itemType.GetProperty("Id").SetValue(it, "fill" + library.Count); library.Add(it); }
+    var full = Call("AddLibraryAvatar", ADMIN, new { Image = "data:image/png;base64,AAAA" });
+    Ok("a full avatar library refuses another (" + Say(full) + ")", full.status == 400 && library.Count == 200);
+    var listed = Call("GetAvatarLibrary", PARENT);
+    Ok("and is still listed (" + Say(listed) + ")", listed.status == 200);
+    library.Clear();
 }
 
 // ── SetMaintenance ───────────────────────────────────────────────────────────

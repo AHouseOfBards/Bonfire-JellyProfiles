@@ -2963,6 +2963,11 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
 
+            // Only the main account is ever in a group, so a profile asking is refused the same
+            // way the other group routes refuse it, rather than asked for a PIN or told it is
+            // in none (R-1162).
+            if (IsSubProfile(masterId, config)) return Unauthorized("Only the master profile can manage Bonfire groups.");
+
             if (!ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
 
             bool left = false;
@@ -2998,6 +3003,8 @@ namespace Jellyfin.Profiles.Controllers
             var currentUserIdVal = GetCurrentUserId();
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
+
+            if (IsSubProfile(masterId, config)) return Unauthorized("Only the master profile can manage Bonfire groups.");
 
             if (!ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
 
@@ -4305,7 +4312,10 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
-            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+            // The client's address after Jellyfin's known-proxy rules. Behind a proxy the raw
+            // one is the proxy's, so five wrong guesses from anyone would have locked the
+            // administrator out for an hour too (R-1166).
+            var ip = (Auth.ClientAddress.Of(HttpContext) ?? HttpContext.Connection.RemoteIpAddress)?.ToString() ?? "127.0.0.1";
 
             // Rate limiting comes first, before the configured/not-configured branch below.
             // Checking it afterwards would make an armed server answer 429 on the sixth
@@ -4321,7 +4331,9 @@ namespace Jellyfin.Profiles.Controllers
 
             // Nothing to match against. Answer exactly as a wrong code does, so the response
             // cannot be used to discover whether a server has the feature armed.
-            if (string.IsNullOrEmpty(config.PanicCodeHash) || !VerifyPinHash(request.Code, config.PanicCodeHash))
+            // Trimmed, as SetPanicCode trims it before storing: the web client trims what is
+            // typed, but an app or a script sends it as it is (R-1165).
+            if (string.IsNullOrEmpty(config.PanicCodeHash) || !VerifyPinHash(request?.Code?.Trim(), config.PanicCodeHash))
             {
                 return BadRequest("Incorrect code.");
             }
@@ -5008,6 +5020,11 @@ namespace Jellyfin.Profiles.Controllers
             if (config == null) return BadRequest("Plugin configuration missing.");
             if (GetCurrentUserId() == null) return Unauthorized();
 
+            // A copy, taken under the lock: the list is added to and removed from by the
+            // administrator, and walking it live can throw halfway through (R-1167).
+            List<AvatarLibraryItem> library;
+            lock (ConfigLock) { library = config.AvatarLibrary.ToList(); }
+
             return Ok(new
             {
                 AllowCustomUploads = !config.DisallowCustomAvatarUploads,
@@ -5018,7 +5035,7 @@ namespace Jellyfin.Profiles.Controllers
                 StarterAvatarsEnabled = StarterAvatars.Enabled(config),
                 // The administrator's own first: a household that went to the trouble of
                 // uploading pictures wants those seen before the built-in set.
-                Avatars = config.AvatarLibrary.Select(a => new
+                Avatars = library.Select(a => new
                 {
                     a.Id,
                     a.DisplayName,
@@ -5038,13 +5055,7 @@ namespace Jellyfin.Profiles.Controllers
             });
         }
 
-        /// <summary>
-        /// Serves a library avatar. Unauthenticated for the same reason as
-        /// <see cref="GetProfileImage"/>: it is rendered as an &lt;img src&gt;, and browsers
-        /// do not attach Authorization headers to image requests. These are pictures the
-        /// administrator published to every user on the server, so there is nothing here
-        /// that an authenticated user could not already fetch.
-        /// </summary>
+        /// <summary>What a browser should render a picture at before sending it, and the size limit.</summary>
         private static object DescribeImageSpec(PluginConfiguration config)
         {
             var spec = ImageQualities.For(config.ProfileImageQuality);
@@ -5058,6 +5069,13 @@ namespace Jellyfin.Profiles.Controllers
             };
         }
 
+        /// <summary>
+        /// Serves a library avatar. Unauthenticated for the same reason as
+        /// <see cref="GetProfileImage"/>: it is rendered as an &lt;img src&gt;, and browsers
+        /// do not attach Authorization headers to image requests. These are pictures the
+        /// administrator published to every user on the server, so there is nothing here
+        /// that an authenticated user could not already fetch.
+        /// </summary>
         [HttpGet("avatars/{id}")]
         public ActionResult GetLibraryAvatar(string id, [FromQuery] string? size = null)
         {
@@ -5110,6 +5128,8 @@ namespace Jellyfin.Profiles.Controllers
         /// Adds an image to the shared avatar library. The client supplies both a full-size
         /// and a thumbnail rendering; nothing is resized server-side.
         /// </summary>
+        internal const int MaxLibraryAvatars = 200;
+
         [HttpPost("admin/avatars")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -5124,6 +5144,13 @@ namespace Jellyfin.Profiles.Controllers
 
             if (string.IsNullOrWhiteSpace(request.Image))
                 return BadRequest("No image supplied.");
+
+            // A fixed limit, not a setting: no household wants more than this to scroll
+            // through, and every one is a file on disk and a row in the configuration (R-1171).
+            int libraryCount;
+            lock (ConfigLock) { libraryCount = config.AvatarLibrary.Count; }
+            if (libraryCount >= MaxLibraryAvatars)
+                return BadRequest($"The library is full ({MaxLibraryAvatars} pictures). Remove one first.");
 
             // Hex rather than a raw GUID so the id reads cleanly in a URL and on disk.
             var id = Guid.NewGuid().ToString("N").Substring(0, 12);
@@ -5237,11 +5264,11 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Saves the six server-wide settings the plugin's settings page owns.
+        /// Saves the server-wide settings the plugin's settings page owns.
         /// </summary>
         /// <remarks>
         /// This exists because the settings page used to save through Jellyfin's generic
-        /// plugin-configuration API: GET the entire PluginConfiguration, change six fields on
+        /// plugin-configuration API: GET the entire PluginConfiguration, change a few fields on
         /// the copy in the browser, PUT the whole thing back. Everything else in that document
         /// — every profile mapping, every known device, every Bonfire group, the avatar
         /// library and the emergency-disable hash — went along for the ride. A profile created
@@ -5250,7 +5277,7 @@ namespace Jellyfin.Profiles.Controllers
         ///
         /// It also happened to be the one call that made Jellyfin replace the configuration
         /// instance, which is what orphaned every lock taken on it. Both problems have the
-        /// same cure: send the six fields, mutate in place under ConfigLock.
+        /// same cure: send the fields that changed, mutate in place under ConfigLock.
         /// </remarks>
         [HttpPost("admin/settings")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -5442,6 +5469,8 @@ namespace Jellyfin.Profiles.Controllers
             var adminError = RequireAdministrator("update profile limits");
             if (adminError != null) return adminError;
 
+            if (request == null) return BadRequest("Missing request body.");
+
             // Checked before the lock, and against both bounds. This used to test only
             // `< 1`, so an override of two billion was accepted and then handed to the gate
             // as the number of tiles to lay out.
@@ -5453,6 +5482,11 @@ namespace Jellyfin.Profiles.Controllers
 
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
+
+            // An override is for an account that exists. Removing one is allowed for any id,
+            // so a row left by a deleted account can still be cleared (R-1168).
+            if (request.MaxProfiles.HasValue && _userManager.GetUserById(request.UserId) == null)
+                return BadRequest("That account does not exist.");
 
             lock (ConfigLock)
             {
