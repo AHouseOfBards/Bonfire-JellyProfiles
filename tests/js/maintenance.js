@@ -299,7 +299,16 @@ const notice = env => env.sandbox.document.getElementById('profiles-maintenance'
     console.log('\n── Where it runs ───────────────────────────────────────────────');
     const named = s => src.replace(new RegExp(s + '\\s*:\\s*function'), 'function ' + s);
     ok('checkRoute never asks', L.extractFunction(named('checkRoute'), 'checkRoute').indexOf('checkMaintenance') === -1);
-    ok('init does, once', (L.extractFunction(named('init'), 'init').match(/checkMaintenance\(\)/g) || []).length === 1);
+    // Since R-1186 init hands the once-per-load checks to _startPageChecks, which a
+    // remembered panic that ends can also call; its flag keeps it to one run.
+    const initSrc = L.extractFunction(named('init'), 'init');
+    const startSrc = L.extractFunction(named('_startPageChecks'), '_startPageChecks');
+    ok('init does, once', (initSrc.match(/_startPageChecks\(\)/g) || []).length === 1
+        && (initSrc.match(/checkMaintenance\(\)/g) || []).length === 0
+        && (startSrc.match(/checkMaintenance\(\)/g) || []).length === 1
+        && /if\s*\(this\._pageChecksStarted\)\s*return;/.test(startSrc));
+    ok('and checkRoute never starts the page checks',
+       L.extractFunction(named('checkRoute'), 'checkRoute').indexOf('_startPageChecks') === -1);
 
     finish();
 })().catch(e => { console.error(e); process.exit(1); });

@@ -3037,7 +3037,9 @@
                 // null, not [], when the list could not be read. The edit form rebuilds a
                 // profile's allowed devices from the boxes it draws, so an empty list here
                 // used to save as "any device" and switch the restriction off.
-                fetch(apiClient.getUrl('plugins/profiles/devices'), { headers })
+                // The PIN header too: a profile is handed the household's devices only when
+                // it could manage the household (R-1299).
+                fetch(apiClient.getUrl('plugins/profiles/devices'), { headers: this.manageHeaders(masterState.token, false) })
                     .then(res => res.ok ? res.json() : null)
                     .then(list => Array.isArray(list) ? list : null)
                     .catch(() => null),

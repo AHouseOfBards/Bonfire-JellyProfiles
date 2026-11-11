@@ -349,10 +349,10 @@ function pageOf(map) {
         const page = pageOf({ '#importConfigFile': fileInput, '#backupResult': box });
         const loads = { cfg: 0, map: 0 };
         function FileReader() { this.readAsText = () => { this.result = '{"Mappings":[]}'; this.onload(); }; }
-        const bind = new Function('ApiClient', 'Dashboard', 'FileReader', 'askFirst', 'importSummary', 'loadConfiguration', 'loadMappings', 'escapeHtml', 'URL', 'Blob', 'document', 'setTimeout',
+        const bind = new Function('ApiClient', 'Dashboard', 'FileReader', 'askFirst', 'importSummary', 'importResultHtml', 'loadConfiguration', 'loadMappings', 'escapeHtml', 'URL', 'Blob', 'document', 'setTimeout',
             T + fn('bindBackup') + 'return bindBackup;')(
             { getUrl: u => u, ajax: () => Promise.resolve({}), getJSON: () => Promise.resolve({}) },
-            { showLoadingMsg() {}, hideLoadingMsg() {} }, FileReader, () => Promise.resolve(), () => '', () => { loads.cfg++; }, () => { loads.map++; }, s => String(s), URL, Blob, {}, setTimeout);
+            { showLoadingMsg() {}, hideLoadingMsg() {} }, FileReader, () => Promise.resolve(), () => '', () => '', () => { loads.cfg++; }, () => { loads.map++; }, s => String(s), URL, Blob, {}, setTimeout);
         bind(page); fileInput.fire('change'); await tick(); await tick(); await tick();
         ok('an import reloads the configuration once', loads.cfg === 1, JSON.stringify(loads));
         ok('and does not load the mappings a second time itself', loads.map === 0, JSON.stringify(loads));
