@@ -65,7 +65,9 @@ list follows it. Two exceptions:
 - On a profile not entered since the upgrade, a removal made before its first sign-in
   comes back once. Remove it again.
 
-A profile can never get a library its main account doesn't have.
+A profile can never get a library its main account doesn't have. A library a profile was
+given, and that its main account later loses, is kept in reserve and comes back if the
+main account regains it.
 
 ## I can't use the interface or reach the settings page
 
