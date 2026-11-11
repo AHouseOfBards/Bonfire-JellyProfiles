@@ -85,6 +85,15 @@ object MakePrefMapping(string legacyMode, bool? ask, string location)
 bool Skip(object mapping, bool isLocal, bool isCross, bool household)
     => (bool)canSkip.Invoke(null, new object[] { mapping, isLocal, isCross, household, false });
 
+// Source is matched with every run of whitespace read as one space, on both sides. A needle
+// that must match character for character goes blind to a reformat, and a negative check
+// ("this text is gone") then passes on code that merely moved a space (R-1292).
+static bool SrcHas(string src, string needle)
+{
+    string N(string s) => System.Text.RegularExpressions.Regex.Replace(s, @"\s+", " ");
+    return N(src).Contains(N(needle), StringComparison.Ordinal);
+}
+
 int pass = 0, fail = 0;
 void Check(string name, object actual, object expected)
 {
@@ -479,14 +488,14 @@ if (evalSwitch != null)
 var controllerSrc = System.IO.File.ReadAllText(RepoPath("Controllers", "ProfilesController.cs"))
     .Replace("\r\n", "\n");
 Check("/switch uses it",
-    controllerSrc.Contains("var rules = EvaluateSwitch(config.Mappings, callerMasterUserId, request.ProfileId, linkedMasterIds, isLocal,\n                LinkedAccountsFor(callerMasterUserId, config));\n            if (rules.Unauthorized)\n            {\n                return Unauthorized(\"Unauthorized profile switch attempt.\");"), true);
+    SrcHas(controllerSrc, "var rules = EvaluateSwitch(config.Mappings, callerMasterUserId, request.ProfileId, linkedMasterIds, isLocal,\n                LinkedAccountsFor(callerMasterUserId, config));\n            if (rules.Unauthorized)\n            {\n                return Unauthorized(\"Unauthorized profile switch attempt.\");"), true);
 Check("/verify-pin uses it",
-    controllerSrc.Contains("return Unauthorized(\"Unauthorized profile PIN verification.\");")
+    SrcHas(controllerSrc, "return Unauthorized(\"Unauthorized profile PIN verification.\");")
     && System.Text.RegularExpressions.Regex.Matches(controllerSrc, @"EvaluateSwitch\(").Count >= 3, true);
 Check("/list drops what /switch would refuse",
-    controllerSrc.Contains(".Where(x => !x.Rules.Unauthorized && x.Rules.Refusal == null)"), true);
+    SrcHas(controllerSrc, ".Where(x => !x.Rules.Unauthorized && x.Rules.Refusal == null)"), true);
 Check("/list sends a profile's restrictions to its own master only",
-    controllerSrc.Contains("AllowedDeviceIds = ownerView ? (m.AllowedDeviceIds ?? new List<string>()) : new List<string>(),"), true);
+    SrcHas(controllerSrc, "AllowedDeviceIds = ownerView ? (m.AllowedDeviceIds ?? new List<string>()) : new List<string>(),"), true);
 
 Console.WriteLine();
 Console.WriteLine("── A kick lasts ────────────────────────────────────────────────");
@@ -496,7 +505,7 @@ var kickStart = controllerSrc.IndexOf("KickBonfireMember([FromBody]", StringComp
 var kickEnd = kickStart < 0 ? -1 : controllerSrc.IndexOf("[Http", kickStart, StringComparison.Ordinal);
 var kickBody = kickStart < 0 || kickEnd < 0 ? "" : controllerSrc.Substring(kickStart, kickEnd - kickStart);
 Check("kicking a member replaces the code", kickBody.Contains("group.BonfireCode = GenerateSecureCode();"), true);
-Check("and the owner can replace it on demand", controllerSrc.Contains("[HttpPost(\"bonfire/regenerate-code\")]"), true);
+Check("and the owner can replace it on demand", SrcHas(controllerSrc, "[HttpPost(\"bonfire/regenerate-code\")]"), true);
 
 
 Console.WriteLine();
@@ -569,10 +578,10 @@ if (normIds != null)
     Check("200 devices are taken", Norm(Enumerable.Range(0, 200).Select(i => "d" + i)).Error == null, true);
     Check("201 devices are refused", Norm(Enumerable.Range(0, 201).Select(i => "d" + i)).Error != null, true);
 }
-Check("create checks the rating and the list", controllerSrc.Contains("var ratingError = ValidateRatingScore(request.MaxParentalRating);"), true);
-Check("create stores the cleaned list", controllerSrc.Contains("AllowedDeviceIds = newDeviceIds ?? new List<string>(),"), true);
-Check("update stores the cleaned list", controllerSrc.Contains("mappingEntry.AllowedDeviceIds = newDeviceIds!;"), true);
-Check("the raw list is stored nowhere", controllerSrc.Contains("AllowedDeviceIds = request.AllowedDeviceIds"), false);
+Check("create checks the rating and the list", SrcHas(controllerSrc, "var ratingError = ValidateRatingScore(request.MaxParentalRating);"), true);
+Check("create stores the cleaned list", SrcHas(controllerSrc, "AllowedDeviceIds = newDeviceIds ?? new List<string>(),"), true);
+Check("update stores the cleaned list", SrcHas(controllerSrc, "mappingEntry.AllowedDeviceIds = newDeviceIds!;"), true);
+Check("the raw list is stored nowhere", SrcHas(controllerSrc, "AllowedDeviceIds = request.AllowedDeviceIds"), false);
 
 var validPin = baseType.GetMethod("IsValidPin", Flags);
 Check("PINs are validated in one place", validPin != null, true);
@@ -604,11 +613,11 @@ Console.WriteLine();
 Console.WriteLine("── Smaller things ──────────────────────────────────────────────");
 
 Check("the sessions page survives a duplicated mapping",
-    controllerSrc.Contains(".GroupBy(m => m.ProfileUserId)\n                .ToDictionary(g => g.Key, g => g.First());"), true);
+    SrcHas(controllerSrc, ".GroupBy(m => m.ProfileUserId)\n                .ToDictionary(g => g.Key, g => g.First());"), true);
 Check("profile creation is one at a time, so the limit holds",
-    controllerSrc.Contains("await CreateGate.WaitAsync().ConfigureAwait(false);"), true);
+    SrcHas(controllerSrc, "await CreateGate.WaitAsync().ConfigureAwait(false);"), true);
 Check("every master-PIN check on an edit is limited",
-    !controllerSrc.Contains("VerifyPinAndUpgrade(request.MasterPin"), true);
+    !SrcHas(controllerSrc, "VerifyPinAndUpgrade(request.MasterPin"), true);
 
 
 Console.WriteLine();
@@ -652,11 +661,11 @@ if (iqType != null)
 
 var baseSrc = System.IO.File.ReadAllText(RepoPath("Controllers", "ProfilesBaseController.cs"));
 Check("the save limit is the setting's, not a constant",
-    baseSrc.Contains("=> ImageQualities.For(Plugin.Instance?.Configuration?.ProfileImageQuality).MaxBytes;"), true);
-Check("the avatar list tells the browser what to render", controllerSrc.Contains("Image = DescribeImageSpec(config),"), true);
+    SrcHas(baseSrc, "=> ImageQualities.For(Plugin.Instance?.Configuration?.ProfileImageQuality).MaxBytes;"), true);
+Check("the avatar list tells the browser what to render", SrcHas(controllerSrc, "Image = DescribeImageSpec(config),"), true);
 Check("an unknown tier is refused when an administrator saves it",
-    controllerSrc.Contains("if (request.ProfileImageQuality != null && !ImageQualities.IsKnown(request.ProfileImageQuality))"), true);
-Check("and an import carries it", controllerSrc.Contains("config.ProfileImageQuality = ImageQualities.Normalize(incoming.ProfileImageQuality);"), true);
+    SrcHas(controllerSrc, "if (request.ProfileImageQuality != null && !ImageQualities.IsKnown(request.ProfileImageQuality))"), true);
+Check("and an import carries it", SrcHas(controllerSrc, "config.ProfileImageQuality = ImageQualities.Normalize(incoming.ProfileImageQuality);"), true);
 
 Console.WriteLine();
 Console.WriteLine($"{pass} passed, {fail} failed");

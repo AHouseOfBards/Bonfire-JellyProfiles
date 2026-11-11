@@ -43,6 +43,14 @@ static string RepoRoot()
     return d.FullName;
 }
 
+// Whitespace runs read as one space on both sides, so a reformat cannot hide the text a
+// negative check is looking for (R-1292).
+static bool SrcHas(string src, string needle)
+{
+    string N(string s) => System.Text.RegularExpressions.Regex.Replace(s, @"\s+", " ");
+    return N(src).Contains(N(needle), StringComparison.Ordinal);
+}
+
 int pass = 0;
 var fails = new List<string>();
 void Ok(string name, bool cond)
@@ -206,7 +214,7 @@ Console.WriteLine("── The guard is actually wired into the switch path ─�
 
 // A helper nobody calls reads as coverage while changing nothing.
 Ok("SwitchProfile calls ShouldInheritMasterPolicy",
-    controllerSrc.Contains("ShouldInheritMasterPolicy(mapping, targetUser.Id, callerMasterUserId)"));
+    SrcHas(controllerSrc, "ShouldInheritMasterPolicy(mapping, targetUser.Id, callerMasterUserId)"));
 
 // And the guarded body is the shared sync, not a copy of it.
 {
@@ -214,14 +222,14 @@ Ok("SwitchProfile calls ShouldInheritMasterPolicy",
     var after = guardAt > 0 ? controllerSrc.Substring(guardAt, Math.Min(400, controllerSrc.Length - guardAt)) : "";
     Ok("and what it guards is ProfilePolicySync.ApplyAsync", after.Contains("ProfilePolicySync.ApplyAsync("));
     Ok("which refuses a main account by itself as well",
-        syncSrc.Contains("mapping.ProfileUserId == mapping.MasterUserId) return false;"));
+        SrcHas(syncSrc, "mapping.ProfileUserId == mapping.MasterUserId) return false;"));
     Ok("and every sign-in runs it, not only the web switch",
-        listenerSrc.Contains("ProfilePolicySync.ApplyAsync("));
+        SrcHas(listenerSrc, "ProfilePolicySync.ApplyAsync("));
 }
 
 // And the old condition must not still be guarding the block on its own.
 var oldGuard = "if (masterUser != null && targetUser.Id != callerMasterUserId)";
-Ok("the old unguarded condition is gone", !src.Contains(oldGuard));
+Ok("the old unguarded condition is gone", !SrcHas(src, oldGuard));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Issue #30: entering a profile reverted library access granted in Dashboard →
@@ -325,16 +333,16 @@ Console.WriteLine();
 Console.WriteLine("── The reconciler is wired into the switch path ─────────────────");
 
 Ok("SwitchProfile calls the reconciler",
-    src.Contains("LibraryAccessReconciler.Reconcile("));
+    SrcHas(src, "LibraryAccessReconciler.Reconcile("));
 
 // The stored list must no longer be handed straight through. This is the line the
 // issue is about, and its absence is what makes this assertion a bisect.
 var oldApply = "authorityFolders = mapping.EnabledFolders;";
-Ok("the stored list is no longer applied unconditionally", !src.Contains(oldApply));
+Ok("the stored list is no longer applied unconditionally", !SrcHas(src, oldApply));
 
 // The adopted list has to reach the mapping, or it reverts again on the next entry.
 Ok("an adopted grant is persisted to the mapping",
-    src.Contains("live.EnabledFolders = merged;"));
+    SrcHas(src, "live.EnabledFolders = merged;"));
 
 // Re-resolved inside the lock: Jellyfin replaces the whole configuration object when
 // an administrator saves plugin settings, so the row captured earlier can be orphaned.
@@ -344,7 +352,7 @@ Ok("the mapping row is re-resolved inside the config lock",
 
 // A sub-profile still cannot exceed its master, whatever was adopted.
 Ok("the result is still intersected with the master's accessible folders",
-    src.Contains("authorityFolders = authorityFolders.Where(id => masterAccessible.Contains(id)).ToList();"));
+    SrcHas(src, "authorityFolders = authorityFolders.Where(id => masterAccessible.Contains(id)).ToList();"));
 
 
 Console.WriteLine();
@@ -466,7 +474,7 @@ Ok("the switch path clamps the restored rating",
     && System.Text.RegularExpressions.Regex.IsMatch(ratingSrc,
         @"ClampRating\(\s*own\.Score, own\.SubScore, master\.Score, master\.SubScore\)"));
 Ok("and no longer restores it unchecked",
-    !src.Contains("targetPolicy.MaxParentalRating = childMaxParentalRating;"));
+    !SrcHas(src, "targetPolicy.MaxParentalRating = childMaxParentalRating;"));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The limits that only ever got stricter. Bitrate, session count, forced transcoding,
