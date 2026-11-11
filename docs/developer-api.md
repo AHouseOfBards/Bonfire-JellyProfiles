@@ -1739,7 +1739,8 @@ changed. Profiles' PINs are reset by the main account, not by email.
 }
 ```
 
-The password is never returned.
+The password is never returned. It is stored in plain text in the plugin configuration,
+and appears in the configuration export.
 
 ### `POST /plugins/profiles/admin/email`
 
