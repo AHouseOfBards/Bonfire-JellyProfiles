@@ -8367,17 +8367,20 @@
                             padding:22px; max-width:340px; width:92%; box-shadow:0 10px 30px rgba(0,0,0,0.5); text-align:center;
                             user-select:none; -webkit-user-select:none;">
                     <h2 style="margin:0 0 4px 0; color:var(--jpf-text-1); font-size:1.15rem; font-weight:700;">${t('avatar.positionYourPicture')}</h2>
-                    <p style="color:var(--jpf-text-2); font-size:0.78rem; margin:0 0 14px 0;">
+                    <p id="profiles-crop-hint" style="color:var(--jpf-text-2); font-size:0.78rem; margin:0 0 14px 0;">
                         ${t('avatar.dragOrArrows')}
                     </p>
                     <!-- data-profiles-own-keys marks the arrows as this element's own, so
                          the focus trap leaves them for panning. It is on the view and not
                          the dialog so the buttons below stay reachable by remote. -->
-                    <div id="profiles-crop-view" tabindex="0" data-profiles-own-keys="1" style="
+                    <!-- Named and described, since it is a tab stop that takes the arrow keys;
+                         the canvas inside is a picture of nothing a screen reader can read. -->
+                    <div id="profiles-crop-view" tabindex="0" data-profiles-own-keys="1" role="application"
+                         aria-label="${t('avatar.positionYourPicture')}" aria-describedby="profiles-crop-hint" style="
                         width:${VIEW}px; height:${VIEW}px; margin:0 auto; border-radius:50%;
                         overflow:hidden; position:relative; cursor:grab; touch-action:none;
                         background:#0d0d12; outline-offset:3px;">
-                        <canvas id="profiles-crop-canvas" width="${VIEW}" height="${VIEW}"
+                        <canvas id="profiles-crop-canvas" width="${VIEW}" height="${VIEW}" aria-hidden="true"
                                 style="display:block; width:${VIEW}px; height:${VIEW}px;"></canvas>
                     </div>
                     <input type="range" id="profiles-crop-zoom" min="1" max="4" step="0.01" value="1"

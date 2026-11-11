@@ -594,6 +594,22 @@ function tagOf(id) {
         ok('a tag editor names its box after the label', /<input[^>]*aria-labelledby="x-label"/.test(tags), tags);
     }
 
+    // R-1205. The crop view is a tab stop that takes the arrow keys: it needs a role and a
+    // name, and a description pointing at the hint that says what the keys do. The canvas
+    // inside it is not something a screen reader can read.
+    {
+        const from = SRC.indexOf('showCropDialog: function');
+        const body = from < 0 ? '' : SRC.slice(from, SRC.indexOf('fetchAvatarLibrary: function', from));
+        const tag = id => { const m = new RegExp('<[a-z]+[^>]*\\bid="' + id + '"[^>]*>').exec(body); return m ? m[0] : ''; };
+        const view = tag('profiles-crop-view');
+        ok('the crop view has a role', /\brole="[a-z]+"/.test(view), view);
+        ok('and a name', /\baria-label="\$\{t\('[^']+'\)\}"/.test(view), view);
+        const hint = /aria-describedby="([^"]+)"/.exec(view);
+        ok('and is described by the line that says what the arrow keys do',
+            !!hint && body.indexOf('id="' + hint[1] + '"') !== -1 && /dragOrArrows/.test(tag(hint[1]) + body.slice(body.indexOf('id="' + hint[1] + '"'), body.indexOf('id="' + hint[1] + '"') + 300)), view);
+        ok('the canvas is hidden from a screen reader', /\baria-hidden="true"/.test(tag('profiles-crop-canvas')), tag('profiles-crop-canvas'));
+    }
+
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);
 })();
