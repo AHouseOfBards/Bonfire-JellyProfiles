@@ -1004,6 +1004,10 @@ namespace Jellyfin.Profiles.Controllers
             // Before the session exists: the session listener hears of it inside this call, and
             // must leave the "switched" event to this route, which knows who it came from.
             BonfireCampground.ExpectSwitch(targetUser.Id, authRequest.DeviceId);
+
+            // A switch is not a password sign-in: the session it starts may refresh this
+            // device's record, never make one. The listener reads this note.
+            Auth.RequestDevice.BeginSignIn(byPin: true);
             try
             {
                 session = await _sessionManager.AuthenticateDirect(authRequest).ConfigureAwait(false);

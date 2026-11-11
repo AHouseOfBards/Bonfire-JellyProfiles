@@ -10,7 +10,18 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Profiles.Auth
 {
     /// <summary>
-    /// Remembers which household a device belongs to, every time anyone signs in on it.
+    /// Remembers which household a device belongs to, when somebody signs in on it.
+    ///
+    /// <para><b>Only a password makes a device known.</b> A PIN works only on a device its
+    /// household signed in on with the password, so a session a PIN, an empty box or a switch
+    /// started may refresh a record (last seen, name) and never makes one or adds a household
+    /// to one: otherwise the PIN would vouch for its own device. The sign-in request says
+    /// which it was (<see cref="RequestDevice.SignIn"/>), and Jellyfin raises these events
+    /// through Task.Run, which carries that request's context here. A session that starts
+    /// outside a sign-in request is a token being used, and every token began with a sign-in
+    /// that was checked: that is how a television's later, derived id (Android TV's
+    /// sha1(id + "+" + account), Roku's appended name) joins the record its password
+    /// sign-in made.</para>
     ///
     /// <para><b>Why this exists.</b> <see cref="DeviceRegistry"/> is the store, and it has
     /// existed since the device-restrictions work — but the only two things that ever wrote
@@ -232,12 +243,16 @@ namespace Jellyfin.Profiles.Auth
                     session.DeviceId,
                     previousUserId == Guid.Empty ? null : previousUserId);
 
-                DeviceRegistry.RecordAndSave(
+                // A PIN, an empty box or a switch refreshes, never makes a device known.
+                var mayGrant = RequestDevice.SignIn?.ByPin != true;
+
+                DeviceRegistry.RecordSightingAndSave(
                     session.DeviceId,
                     session.DeviceName,
                     session.Client,
                     master,
-                    _logger);
+                    _logger,
+                    mayGrant);
 
                 // Roku signs in with one id and browses with another: it appends the
                 // account's name to its device id once a session exists, so the id on its
@@ -257,12 +272,13 @@ namespace Jellyfin.Profiles.Auth
                 var bare = DeviceRegistry.BareDeviceIdFor(session.DeviceId, session.UserName);
                 if (bare != null)
                 {
-                    DeviceRegistry.RecordAndSave(
+                    DeviceRegistry.RecordSightingAndSave(
                         bare,
                         session.DeviceName,
                         session.Client,
                         master,
-                        _logger);
+                        _logger,
+                        mayGrant);
 
                     _logger.LogInformation(
                         "ProfilesPlugin: device {DeviceId} carries {User}'s name appended to it, so "

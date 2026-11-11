@@ -193,6 +193,15 @@ namespace Jellyfin.Profiles
                         context.Request.Headers["X-Emby-Authorization"],
                         "Client"),
                     atHome);
+
+                // Every POST here may sign somebody in. The note is started here, in this
+                // method, so it flows down to the PIN provider, which marks a PIN or an empty
+                // box, and to the session listener, which then only refreshes the device's
+                // record. Started in a helper it would not flow back out.
+                if (HttpMethods.IsPost(context.Request.Method))
+                {
+                    Auth.RequestDevice.BeginSignIn();
+                }
             }
 
             // Closed for maintenance: anyone but an administrator is answered here. Before the

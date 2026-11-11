@@ -1188,6 +1188,10 @@ namespace Jellyfin.Profiles.Auth
                 logger.LogWarning(ex, "ProfilesPlugin: could not end {User}'s earlier sessions on this device.", user.Username);
             }
 
+            // Opening a profile from the picker is a switch, not a password sign-in: its
+            // session may refresh this device's record, never make one.
+            RequestDevice.BeginSignIn(byPin: true);
+
             MediaBrowser.Controller.Authentication.AuthenticationResult result;
             try
             {

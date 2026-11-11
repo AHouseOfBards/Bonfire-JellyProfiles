@@ -190,6 +190,37 @@ Console.WriteLine("── What it must not do ───────────�
     Ok("a session left with no account does nothing", !DeviceKnown("tv-out"));
 }
 
+Console.WriteLine();
+Console.WriteLine("── Only a password makes a device known ────────────────────────");
+{
+    // The sign-in request's note, as the middleware starts it and the provider marks it.
+    // Jellyfin raises SessionStarted through Task.Run, which carries that request's
+    // context, so the listener reads the same note. A build without the note has no
+    // BeginSignIn, and then nothing can tell the listener, which is the bug.
+    var rd = asm.GetType("Jellyfin.Profiles.Auth.RequestDevice", true);
+    var begin = rd.GetMethod("BeginSignIn", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+    void Note(bool byPin) => begin?.Invoke(null, new object[] { byPin });
+
+    Note(true);
+    Raise("SessionStarted", Session("s-pin", "pin-tv", KID));
+    Ok("a PIN sign-in on a device nobody signed in on records nothing", !DeviceKnown("pin-tv"));
+
+    // An existing record another household owns: a PIN sign-in must not add this one.
+    Note(false);
+    Raise("SessionStarted", Session("s-other", "shared-tv", OTHER));
+    Note(true);
+    Raise("SessionStarted", Session("s-pin2", "shared-tv", KID));
+    Ok("nor adds its household to a device another household signed in on", !DeviceOwnedBy("shared-tv", MAIN));
+
+    Note(false);
+    Raise("SessionStarted", Session("s-pw", "pw-tv", MAIN));
+    Ok("a password sign-in does record the device", DeviceOwnedBy("pw-tv", MAIN));
+
+    Note(true);
+    Raise("SessionStarted", Session("s-pw2", "pw-tv", KID));
+    Ok("and a PIN sign-in there afterwards keeps it", DeviceOwnedBy("pw-tv", MAIN));
+}
+
 ((Microsoft.Extensions.Hosting.IHostedService)listener).StopAsync(CancellationToken.None).GetAwaiter().GetResult();
 Ok("stopping unsubscribes from both", world.Handlers.Values.All(l => l.Count == 0));
 

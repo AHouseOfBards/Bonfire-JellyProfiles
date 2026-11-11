@@ -40,7 +40,8 @@ These hold in every app and can't be turned off from a browser.
   guessed. A device limit stops normal use on other devices, not someone who copies the
   allowed device's ID. The same goes for PIN-less profiles on other apps' sign-in screens,
   and for PINs typed in other apps, which only work on a device your household has signed
-  in on with a password.
+  in on with a password. A device ID copied from another device passes as that device;
+  Jellyfin shows device IDs only to administrators.
 - **"Your home network".** This is whatever Jellyfin counts as local. Behind a reverse
   proxy that isn't listed under **Dashboard → Networking → Known Proxies**, every visitor
   looks local.

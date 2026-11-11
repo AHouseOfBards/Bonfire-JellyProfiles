@@ -287,7 +287,7 @@ namespace Jellyfin.Profiles.Auth
                         _logger.LogInformation(
                             "ProfilesPlugin: master account {UserId} entered by PIN on a client.",
                             master.MasterUserId);
-                        return Task.FromResult(new ProviderAuthenticationResult { Username = resolvedUser.Username });
+                        return NotByPassword(resolvedUser);
                     }
                 }
 
@@ -421,7 +421,7 @@ namespace Jellyfin.Profiles.Auth
                     "ProfilesPlugin: profile {ProfileId} opened with no PIN on {DeviceId}, a device this "
                     + "household uses.",
                     mapping.ProfileUserId, deviceId);
-                return Task.FromResult(new ProviderAuthenticationResult { Username = resolvedUser.Username });
+                return NotByPassword(resolvedUser);
             }
 
             // Nothing that is not PIN-shaped can match, so it is refused without spending a
@@ -481,7 +481,7 @@ namespace Jellyfin.Profiles.Auth
                 "ProfilesPlugin: profile {ProfileId} entered by PIN on a client.",
                 mapping.ProfileUserId);
 
-            return Task.FromResult(new ProviderAuthenticationResult { Username = resolvedUser.Username });
+            return NotByPassword(resolvedUser);
         }
 
         /// <summary>
@@ -523,6 +523,16 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         private static bool KnownToHousehold(PluginConfiguration? config, string? deviceId, Guid householdId)
             => DeviceRegistry.IsOwnedBy(config, deviceId, householdId);
+
+        /// <summary>
+        /// Success for a sign-in a PIN or an empty box let in, noted as such on the request so
+        /// the session it starts never makes its device known (see BonfireSessionListener).
+        /// </summary>
+        private static Task<ProviderAuthenticationResult> NotByPassword(User user)
+        {
+            RequestDevice.NoteNotByPassword();
+            return Task.FromResult(new ProviderAuthenticationResult { Username = user.Username });
+        }
 
         /// <summary>A PIN as Bonfire accepts one: four to eight digits.</summary>
         private static bool LooksLikePin(string? value)

@@ -1317,12 +1317,15 @@ namespace Jellyfin.Profiles.Controllers
             if (callerId == null || !Auth.DeviceRegistry.IsHousehold(view, callerId.Value)) return;
             var ownerId = Auth.DeviceRegistry.HouseholdOf(view, callerId.Value);
 
-            Auth.DeviceRegistry.RecordAndSave(
+            // Refresh only. A token is not a password: one a PIN sign-in issued reaches here
+            // too, and must not make its device known. A password sign-in made the record.
+            Auth.DeviceRegistry.RecordSightingAndSave(
                 deviceId,
                 GetAuthorizationParameter("Device"),
                 GetAuthorizationParameter("Client"),
                 ownerId,
-                _logger);
+                _logger,
+                mayGrant: false);
         }
 
         // ── Device housekeeping ─────────────────────────────────────────────────────

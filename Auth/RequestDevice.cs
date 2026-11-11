@@ -76,5 +76,51 @@ namespace Jellyfin.Profiles.Auth
             Capture(deviceId, client);
             _local.Value = local;
         }
+
+        private static readonly AsyncLocal<SignInNote?> _signIn = new();
+
+        /// <summary>
+        /// How this request is signing somebody in, or null when it is not a sign-in.
+        /// <para>
+        /// A holder, not a value: an AsyncLocal set inside the provider would not flow back
+        /// out to the middleware that asked, but a field on an object both can see does. The
+        /// session listener sees it too, because Jellyfin raises SessionStarted through
+        /// Task.Run (EventHelper.QueueEventIfNotNull, release-10.11.z), which carries this
+        /// request's execution context.
+        /// </para>
+        /// </summary>
+        public static SignInNote? SignIn => _signIn.Value;
+
+        /// <summary>Starts a sign-in note for the rest of this request.</summary>
+        public static SignInNote BeginSignIn(bool byPin = false)
+        {
+            var note = new SignInNote { ByPin = byPin };
+            _signIn.Value = note;
+            return note;
+        }
+
+        /// <summary>Marks the current sign-in as one a PIN, an empty box or a switch let in.</summary>
+        public static void NoteNotByPassword()
+        {
+            var note = _signIn.Value;
+            if (note != null) note.ByPin = true;
+        }
+    }
+
+    /// <summary>What a sign-in request turned out to be. See <see cref="RequestDevice.SignIn"/>.</summary>
+    public sealed class SignInNote
+    {
+        private volatile bool _byPin;
+
+        /// <summary>
+        /// True when a PIN, a PIN-less profile or a profile switch let this sign-in in rather
+        /// than a password. Such a sign-in may refresh a device's record, never make one or
+        /// make a device known: PINs work only where a password was used.
+        /// </summary>
+        public bool ByPin
+        {
+            get => _byPin;
+            set => _byPin = value;
+        }
     }
 }

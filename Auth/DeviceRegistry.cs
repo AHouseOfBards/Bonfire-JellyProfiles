@@ -603,6 +603,27 @@ namespace Jellyfin.Profiles.Auth
             Guid ownerId,
             DateTime now,
             ILogger? logger)
+            => RecordSighting(config, deviceId, deviceName, client, ownerId, now, logger, mayGrant: true);
+
+        /// <summary>
+        /// <see cref="Record"/>, saying whether this sighting may make the device known.
+        /// <para>
+        /// False for a session a PIN, an empty box or a switch started, and for an
+        /// authenticated Bonfire call: those refresh a record that exists (last seen, name),
+        /// and never make one or add a household to one. A PIN works only on a device
+        /// somebody signed in on with the password, and a record made by a PIN sign-in would
+        /// be a device the PIN had vouched for itself.
+        /// </para>
+        /// </summary>
+        public static bool RecordSighting(
+            PluginConfiguration? config,
+            string? deviceId,
+            string? deviceName,
+            string? client,
+            Guid ownerId,
+            DateTime now,
+            ILogger? logger,
+            bool mayGrant)
         {
             if (config?.KnownDevices == null) return false;
 
@@ -662,7 +683,11 @@ namespace Jellyfin.Profiles.Auth
 
                 // Claim ownership for records written before MasterUserId existed. This is
                 // the one case worth persisting immediately, so it happens exactly once.
-                if (existing.MasterUserId == Guid.Empty && ownerId != Guid.Empty)
+                if (!mayGrant)
+                {
+                    // Refresh only: whose device it is stays as it was.
+                }
+                else if (existing.MasterUserId == Guid.Empty && ownerId != Guid.Empty)
                 {
                     existing.MasterUserId = ownerId;
                     save = true;
@@ -677,6 +702,10 @@ namespace Jellyfin.Profiles.Auth
                     existing.MasterUserId = ownerId;
                     save = true;
                 }
+            }
+            else if (!mayGrant)
+            {
+                return false;
             }
             else
             {
@@ -734,6 +763,16 @@ namespace Jellyfin.Profiles.Auth
             string? client,
             Guid ownerId,
             ILogger? logger)
+            => RecordSightingAndSave(deviceId, deviceName, client, ownerId, logger, mayGrant: true);
+
+        /// <summary><see cref="RecordAndSave"/>; see <see cref="RecordSighting"/> for <paramref name="mayGrant"/>.</summary>
+        public static void RecordSightingAndSave(
+            string? deviceId,
+            string? deviceName,
+            string? client,
+            Guid ownerId,
+            ILogger? logger,
+            bool mayGrant)
         {
             var isNew = false;
             lock (ProfilesBaseController.ConfigLock)
@@ -745,10 +784,10 @@ namespace Jellyfin.Profiles.Auth
                 // (R-1050). A record from before owners existed being claimed is not news.
                 var id = deviceId?.Trim();
                 var row = string.IsNullOrEmpty(id) || config.KnownDevices == null ? null : Row(config.KnownDevices, id);
-                isNew = !string.IsNullOrEmpty(id) && config.KnownDevices != null
+                isNew = mayGrant && !string.IsNullOrEmpty(id) && config.KnownDevices != null
                     && (row == null || (row.MasterUserId != Guid.Empty && !row.OwnedBy(ownerId)));
 
-                if (Record(config, deviceId, deviceName, client, ownerId, DateTime.UtcNow, logger))
+                if (RecordSighting(config, deviceId, deviceName, client, ownerId, DateTime.UtcNow, logger, mayGrant))
                 {
                     Plugin.Instance?.SaveConfiguration();
                 }
