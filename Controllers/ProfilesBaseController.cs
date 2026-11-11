@@ -990,7 +990,33 @@ namespace Jellyfin.Profiles.Controllers
         // Stored in a separate audit_log.json rather than in PluginConfiguration.xml
         // so that a profile switch never causes the entire config to be rewritten.
 
-        protected string GetAuditLogPath()
+        /// <summary>
+        /// How long a switch stays in the log. The entries name accounts, devices and IP
+        /// addresses, and "newest 1000" alone kept a quiet server's for years. A fixed limit,
+        /// not a setting: a household that wants longer can download the log from the
+        /// dashboard first.
+        /// </summary>
+        internal static readonly TimeSpan AuditLogMaxAge = TimeSpan.FromDays(90);
+
+        /// <summary>Drops entries older than <see cref="AuditLogMaxAge"/>. Caller must hold AuditLogLock.</summary>
+        private static void PruneAuditLogByAge(List<AuditLogEntry> logs)
+            => logs.RemoveAll(l => l.Timestamp < DateTime.UtcNow - AuditLogMaxAge);
+
+        /// <summary>
+        /// Empties the log, in memory and on disk, at once. The route behind the
+        /// dashboard's delete button; it checks the caller is an administrator.
+        /// </summary>
+        protected void ClearAuditLog()
+        {
+            lock (AuditLogLock)
+            {
+                _auditCache = new List<AuditLogEntry>();
+                WriteAuditLogs(_auditCache);
+            }
+        }
+
+        /// <summary>The log's file, or null when the plugin has no data folder yet.</summary>
+        protected string? GetAuditLogPath()
         {
             if (AuditLogPath != null) return AuditLogPath;
             lock (AuditLogLock)
@@ -1003,8 +1029,10 @@ namespace Jellyfin.Profiles.Controllers
                 var instance = Plugin.Instance;
                 if (instance == null)
                 {
+                    // Kept in memory only. This once wrote to a file in the system temp folder,
+                    // a second, forgotten copy of usernames and addresses (R-1313).
                     _logger.LogError("ProfilesPlugin: Plugin instance unavailable; audit log will not persist.");
-                    return Path.Combine(Path.GetTempPath(), "bonfire_audit_log_fallback.json"); // harmless fallback — writes silently to temp file
+                    return null;
                 }
 
                 var folder = Path.Combine(instance.AppPaths.DataPath, "plugins", "ProfilesManagement");
@@ -1026,7 +1054,7 @@ namespace Jellyfin.Profiles.Controllers
             try
             {
                 var path = GetAuditLogPath();
-                if (System.IO.File.Exists(path))
+                if (path != null && System.IO.File.Exists(path))
                     return JsonSerializer.Deserialize<List<AuditLogEntry>>(
                         System.IO.File.ReadAllText(path)) ?? new List<AuditLogEntry>();
             }
@@ -1038,7 +1066,7 @@ namespace Jellyfin.Profiles.Controllers
                 try
                 {
                     var path = GetAuditLogPath();
-                    System.IO.File.Move(path, path + ".bad", true);
+                    if (path != null) System.IO.File.Move(path, path + ".bad", true);
                 }
                 catch (Exception moveEx)
                 {
@@ -1054,14 +1082,25 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>Audit entries, loading from disk only on the first call. Caller must hold AuditLogLock.</summary>
         private List<AuditLogEntry> GetAuditLogsLocked()
-            => _auditCache ??= ReadAuditLogs();
+        {
+            if (_auditCache == null)
+            {
+                _auditCache = ReadAuditLogs();
+                PruneAuditLogByAge(_auditCache);
+            }
+            return _auditCache;
+        }
 
         /// <summary>Snapshot of the audit log for read-only callers (the admin dashboard).</summary>
         protected List<AuditLogEntry> GetAuditLogSnapshot()
         {
             lock (AuditLogLock)
             {
-                return new List<AuditLogEntry>(GetAuditLogsLocked());
+                // Pruned here too, not only on load: a server running for months with
+                // nobody switching would otherwise keep showing what has expired.
+                var logs = GetAuditLogsLocked();
+                PruneAuditLogByAge(logs);
+                return new List<AuditLogEntry>(logs);
             }
         }
 
@@ -1069,8 +1108,10 @@ namespace Jellyfin.Profiles.Controllers
         {
             try
             {
+                var path = GetAuditLogPath();
+                if (path == null) return;
                 System.IO.File.WriteAllText(
-                    GetAuditLogPath(),
+                    path,
                     JsonSerializer.Serialize(logs, new JsonSerializerOptions { WriteIndented = false }));
             }
             catch (Exception ex)
@@ -1093,6 +1134,7 @@ namespace Jellyfin.Profiles.Controllers
             lock (AuditLogLock)
             {
                 var logs = GetAuditLogsLocked();
+                PruneAuditLogByAge(logs);
                 logs.Add(new AuditLogEntry
                 {
                     Timestamp = DateTime.UtcNow,

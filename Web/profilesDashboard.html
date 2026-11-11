@@ -1402,7 +1402,7 @@
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.audit.title">Profile switches</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.audit.lede">The last 1,000 switches on this server. Profiles added, PIN lockouts and maintenance are in Dashboard → Activity.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.audit.lede">The last 1,000 switches on this server, kept for 90 days. Profiles added, PIN lockouts and maintenance are in Dashboard → Activity.</div>
                 <div class="jpf-audit-controls">
                     <div class="jpf-audit-field jpf-audit-filter">
                         <label for="auditFilter" data-i18n="admin.audit.filter">Main account or profile</label>
@@ -1421,6 +1421,9 @@
                     </button>
                     <button is="emby-button" type="button" id="auditDownload" class="raised">
                         <span data-i18n="admin.audit.download">Download JSON</span>
+                    </button>
+                    <button is="emby-button" type="button" id="auditDelete" class="raised">
+                        <span data-i18n="admin.audit.deleteAll">Delete the log</span>
                     </button>
                 </div>
                 <div class="fieldDescription" data-i18n="admin.audit.exportNote">The download includes IP addresses.</div>
@@ -1683,6 +1686,9 @@
                 'admin.audit.empty': 'No profile switches yet. They show up here as people switch.',
                 'admin.audit.noMatch': 'No events match this filter. Clear it to see all.',
                 'admin.audit.loadFailed': 'Couldn\'t load the activity.',
+                'admin.audit.deleteTitle': 'Delete the log',
+                'admin.audit.deleteConfirm': 'Delete every switch in the log? This can\'t be undone.',
+                'admin.audit.deleteFailed': 'Couldn\'t delete the log.',
                 'admin.audit.unknown': 'Unknown',
                 'admin.audit.unknownDevice': 'Unknown device',
                 'admin.audit.unknownClient': 'Unknown client',
@@ -3062,6 +3068,19 @@
                 });
                 page.querySelector('#auditDownload').addEventListener('click', function () {
                     downloadAuditLogs(page);
+                });
+                page.querySelector('#auditDelete').addEventListener('click', function () {
+                    askFirst(t('admin.audit.deleteConfirm'), t('admin.audit.deleteTitle')).then(function () {
+                        ApiClient.ajax({
+                            type: 'POST',
+                            url: ApiClient.getUrl('plugins/profiles/admin/audit-logs/clear')
+                        }).then(function () {
+                            auditEntries = [];
+                            renderAuditLogs(page);
+                        }, function () {
+                            Dashboard.alert({ message: t('admin.audit.deleteFailed'), title: t('admin.error') });
+                        });
+                    });
                 });
             }
 

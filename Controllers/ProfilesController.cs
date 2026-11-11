@@ -5728,5 +5728,18 @@ namespace Jellyfin.Profiles.Controllers
             }
         }
 
+        /// <summary>Deletes the whole switch log. Administrators only; there is no undo.</summary>
+        [HttpPost("admin/audit-logs/clear")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult ClearAuditLogs()
+        {
+            var adminError = RequireAdministrator("clear the audit log");
+            if (adminError != null) return adminError;
+
+            ClearAuditLog();
+            return Ok();
+        }
+
     }
 }

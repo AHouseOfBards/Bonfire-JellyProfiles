@@ -122,6 +122,56 @@ try
     pathField.SetValue(null, good);
     read.Invoke(rc, null);
     Ok("a log that parses is left alone", File.Exists(good) && !File.Exists(good + ".bad"));
+
+    Console.WriteLine();
+    Console.WriteLine("── Entries age out, and an administrator can clear the log (R-1313) ──");
+
+    // The log names accounts, devices and addresses. Newest-1000 alone kept a quiet
+    // server's entries for years, so each also expires by age. Every case here starts
+    // from a fresh cache.
+    var snapshot = baseType.GetMethod("GetAuditLogSnapshot", Any);
+    var clear = baseType.GetMethod("ClearAuditLog", Any);
+    var maxAgeField = baseType.GetField("AuditLogMaxAge", Any);
+    Ok("the age limit and the clear method are where the harness expects",
+       snapshot != null && clear != null && maxAgeField != null);
+    var maxAge = maxAgeField != null ? (TimeSpan)maxAgeField.GetValue(null) : TimeSpan.FromDays(90);
+    Ok("the age limit is a quarter, not forever", maxAge >= TimeSpan.FromDays(30) && maxAge <= TimeSpan.FromDays(366));
+
+    string Entry(string who, DateTime at) =>
+        "{\"Timestamp\":\"" + at.ToString("o") + "\",\"MasterUsername\":\"" + who
+        + "\",\"TargetUsername\":\"kid\",\"DeviceName\":\"TV\",\"Client\":\"Web\",\"IpAddress\":\"192.0.2.1\"}";
+    int Shown(ControllerBase c) =>
+        snapshot == null ? -1 : ((System.Collections.IEnumerable)snapshot.Invoke(c, null)).Cast<object>().Count();
+
+    var aged = Path.Combine(dir, "aged.json");
+    File.WriteAllText(aged, "[" + Entry("stale", DateTime.UtcNow - maxAge - TimeSpan.FromDays(10)) + ","
+        + Entry("fresh", DateTime.UtcNow - TimeSpan.FromDays(1)) + "]");
+    pathField.SetValue(null, aged);
+    cacheField.SetValue(null, null);
+    var ac = NewController();
+    Ok("an entry past the age limit is not shown", Shown(ac) == 1);
+
+    // Recording prunes too, so the file itself shrinks, not just the view.
+    record.Invoke(ac, new object[] { "main", "next" });
+    for (var w = 0; w < 100 && Count(aged) != 2; w++) Thread.Sleep(10);
+    Ok("and the file loses it the next time it is written", Count(aged) == 2);
+
+    File.WriteAllText(aged, "[" + Entry("a", DateTime.UtcNow) + "," + Entry("b", DateTime.UtcNow) + "]");
+    cacheField.SetValue(null, null);
+    Shown(ac);
+    if (clear != null) clear.Invoke(ac, null);
+    Ok("clearing empties what the dashboard sees", clear != null && Shown(ac) == 0);
+    Ok("and the file, at once", clear != null && Count(aged) == 0);
+
+    // With no plugin instance there is no data folder. The log used to go to a file in the
+    // system temp folder, a copy of usernames and addresses nobody would think to look for.
+    var fallback = Path.Combine(Path.GetTempPath(), "bonfire_audit_log_fallback.json");
+    try { File.Delete(fallback); } catch { }
+    pathField.SetValue(null, null);
+    cacheField.SetValue(null, null);
+    record.Invoke(NewController(), new object[] { "main", "nowhere" });
+    Thread.Sleep(300);
+    Ok("with no data folder nothing is written to the temp folder", !File.Exists(fallback));
 }
 finally
 {

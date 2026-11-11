@@ -42,7 +42,7 @@ because other people build against it too.
 
 ## All routes
 
-All 107 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 108 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -154,6 +154,7 @@ All 107 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `POST /plugins/profiles/admin/links/remove` | admin | Take it off. |
 | `POST /plugins/profiles/admin/pin-prompts` | admin | Set one household's PIN prompts. |
 | `GET /plugins/profiles/admin/audit-logs` | admin | The switch log. |
+| `POST /plugins/profiles/admin/audit-logs/clear` | admin | Delete the whole switch log. |
 
 ## Authentication
 
@@ -849,12 +850,12 @@ signed in with. The first sign-in on a TV is never refused. A TV name that someo
 every household has also used is never refused either, since two sets of the same model
 look the same.
 
-### Signing in with a PIN
 Bonfire keeps those names itself, as `QuickConnectSharedDeviceNames` in its configuration
 (and so in an export). It adds a name when an account outside every household signs in on an
 Android TV, and keeps the newest 500. It is not a setting: there is nothing to edit, and an
 import brings the list along.
 
+### Signing in with a PIN
 
 - **A profile** opens with its PIN. A profile with no PIN opens with an empty password,
   but only on a device its household has signed in on.
@@ -2618,7 +2619,7 @@ household, or a profile that is not in it. `404` for an unknown user.
 
 **Authorisation:** administrator.
 
-Recent switches.
+Recent switches: the newest 1,000, and none older than 90 days.
 
 ```json
 [{
@@ -2630,3 +2631,9 @@ Recent switches.
   "ipAddress": "192.168.1.50"
 }]
 ```
+
+### `POST /plugins/profiles/admin/audit-logs/clear`
+
+**Authorisation:** administrator.
+
+Deletes the whole switch log, in memory and on disk. No body. There is no undo.
