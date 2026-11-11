@@ -249,7 +249,7 @@ namespace Jellyfin.Profiles.Auth
             // once, and one arriving while the profile's sign-out was in flight found no mark
             // and went through as the main account.
             ChildTokens[session.MasterToken] = session;
-            await LeaveAsync(session, services, logger, signOutMaster: false, keepMark: true).ConfigureAwait(false);
+            await LeaveAsync(session, services, logger, keepMark: true).ConfigureAwait(false);
 
             var signedOut = false;
             try
@@ -352,7 +352,7 @@ namespace Jellyfin.Profiles.Auth
                 // app kept listing profiles, opening the PIN-less ones and streaming as them
                 // until the server restarted (R-1030). Dropped, the next request is the
                 // app's own, and Jellyfin refuses it as it should.
-                await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
+                await LeaveAsync(session, services, logger).ConfigureAwait(false);
                 Sessions.TryRemove(token, out _);
                 return false;
             }
@@ -370,7 +370,7 @@ namespace Jellyfin.Profiles.Auth
                 // In a child's profile it cannot be let go to the main account.
                 if (IsChild(session)) return await SignOutChildAsync(context, session, services, logger).ConfigureAwait(false);
 
-                await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
+                await LeaveAsync(session, services, logger).ConfigureAwait(false);
                 Sessions.TryRemove(token, out _);
                 return false;
             }
@@ -389,7 +389,7 @@ namespace Jellyfin.Profiles.Auth
                     // A child in the profile that was just deleted is no exception.
                     if (IsChild(session)) return await SignOutChildAsync(context, session, services, logger).ConfigureAwait(false);
 
-                    await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
+                    await LeaveAsync(session, services, logger).ConfigureAwait(false);
                     Sessions.TryRemove(token, out _);
                     return false;
                 }
@@ -399,7 +399,7 @@ namespace Jellyfin.Profiles.Auth
             // profile's goes with it, so nothing is left signed in that the app cannot see.
             if (route.Kind == RouteKind.Logout)
             {
-                await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
+                await LeaveAsync(session, services, logger).ConfigureAwait(false);
                 Sessions.TryRemove(token, out _);
                 return false;
             }
@@ -468,7 +468,7 @@ namespace Jellyfin.Profiles.Auth
                 logger.LogInformation(
                     "ProfilesPlugin: closed for maintenance; {Client} on {Device} is back at the picker.",
                     session.Client, session.Device);
-                await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
+                await LeaveAsync(session, services, logger).ConfigureAwait(false);
                 config ??= Controllers.ProfilesBaseController.ReadConfigSnapshot();
                 return await AnswerPickerAsync(context, session, route, config, services, forward).ConfigureAwait(false);
             }
@@ -545,7 +545,7 @@ namespace Jellyfin.Profiles.Auth
             logger.LogInformation(
                 "ProfilesPlugin: the picker's session for profile {ProfileId} was refused by Jellyfin; back to the picker.",
                 acting.ProfileId);
-            await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
+            await LeaveAsync(session, services, logger).ConfigureAwait(false);
         }
 
         // ── Sessions ────────────────────────────────────────────────────────────────
@@ -948,7 +948,7 @@ namespace Jellyfin.Profiles.Auth
                     return ProfileTiles(session, tile.Id, config, services);
 
                 case TileKind.SwitchView:
-                    await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
+                    await LeaveAsync(session, services, logger).ConfigureAwait(false);
                     return ProfileTiles(session, tile.Id, config, services);
 
                 case TileKind.Notice:
@@ -1130,7 +1130,7 @@ namespace Jellyfin.Profiles.Auth
         {
             if (profileId == session.MasterId)
             {
-                await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
+                await LeaveAsync(session, services, logger).ConfigureAwait(false);
                 session.Acting = new ActingAs(profileId, session.MasterToken);
                 return null;
             }
@@ -1217,7 +1217,7 @@ namespace Jellyfin.Profiles.Auth
                 return Say(session, "notice.picker.cantOpen");
             }
 
-            await LeaveAsync(session, services, logger, signOutMaster: false).ConfigureAwait(false);
+            await LeaveAsync(session, services, logger).ConfigureAwait(false);
             session.Acting = new ActingAs(profileId, result.AccessToken);
             ChildTokens[session.MasterToken] = session;
             ChildTokens[result.AccessToken] = session;
@@ -1231,7 +1231,7 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>Back to the picker: the profile's session ends and the live connection is closed.</summary>
-        private static async Task LeaveAsync(ProxySession session, Services services, ILogger logger, bool signOutMaster, bool keepMark = false)
+        private static async Task LeaveAsync(ProxySession session, Services services, ILogger logger, bool keepMark = false)
         {
             var was = session.Acting;
             session.Acting = null;
