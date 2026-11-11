@@ -48,7 +48,11 @@ function run(res, shared) {
         sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
         navigator: { userAgent: 'Mozilla/5.0 (Windows NT 10.0)', language: 'en' },
         setTimeout() { return 1; }, clearTimeout() {}, setInterval() {}, clearInterval() {},
-        fetch: () => Promise.resolve(res),
+        // In the shared-form run only the library list refuses: since R-1228 the other
+        // reads report a 401 too, and this asks about the library list alone.
+        fetch: (url) => (shared && String(url).indexOf('plugins/profiles/libraries') === -1)
+            ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
+            : Promise.resolve(res),
         document: {
             addEventListener() {}, removeEventListener() {},
             querySelector() { return null; }, querySelectorAll() { return []; },

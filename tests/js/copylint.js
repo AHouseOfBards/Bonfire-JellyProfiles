@@ -363,7 +363,10 @@ function tooltipRepeats(src, dict, fname) {
             .replace(/'\s*\+\s*|\s*\+\s*'|escapeHtml\(|[()'"`+]/g, ' ');
         if (!any || /[A-Za-z]{2}/.test(literal)) continue;
         const text = parts.join(' ');
-        if (norm(text) !== '' && norm(text) === norm(label)) {
+        // A placeholder the visible text does not carry ("Remove {name}" on "Remove") is
+        // the label saying more, which is what an aria-label is for.
+        const fills = (label.match(/\{[A-Za-z0-9_]+\}/g) || []).some(p => text.indexOf(p) === -1);
+        if (!fills && norm(text) !== '' && norm(text) === norm(label)) {
             found.push({ where: fname + ':' + lineOf(m.index), key: m[2], text: label, attr: m[1] });
         }
     }
@@ -493,6 +496,10 @@ console.log('\n── Each rule catches what it is for, and passes clean copy �
        [bad.length, badAria.length, badJs.length, badCat.length].join(','));
     ok('6. a tooltip that repeats its label passes an icon-only button and a hint that says more',
        iconOnly.length === 0 && differs.length === 0, iconOnly.length + ',' + differs.length);
+    // "Remove {name}" on a button that says "Remove" names whom it removes: it says more.
+    const named = tooltipRepeats('<button aria-label="${escapeHtml(t(\'a.removeNamed\', { name: n }))}">${t(\'a.remove\')}</button>',
+        { 'a.remove': 'Remove', 'a.removeNamed': 'Remove {name}' }, 'x');
+    ok('6. and passes a label that fills in a name the text leaves out', named.length === 0, String(named.length));
 }
 
 // ── What it found ─────────────────────────────────────────────────────────────
