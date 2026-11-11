@@ -245,6 +245,12 @@ const settle = () => new Promise(r => setImmediate(r));
         let threw = false;
         try { e.P.showAnnouncements(ov); await settle(); } catch (x) { threw = true; }
         ok(label + ' shows nothing and does not throw', !threw && byClass(ov.box, 'profiles-announcement').length === 0);
+        // R-1211: a failed read was cached as [] for a minute, hiding a critical notice
+        // the server would have returned on the next draw.
+        const before = e.calls.length;
+        e.P.showAnnouncements(overlay());
+        await settle();
+        ok(label + ' is not remembered: the next draw asks again', e.calls.length === before + 1);
     }
 
     // Never from the route poll: it runs twice a second on every page.

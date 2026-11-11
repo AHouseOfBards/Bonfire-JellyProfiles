@@ -6687,9 +6687,12 @@
                 headers: this.getAuthHeaders(token),
                 cache: 'no-store'
             })
-                .then(res => res.ok ? res.json() : [])
+                .then(res => res.ok ? res.json() : null)
                 .then(items => {
-                    const list = Array.isArray(items) ? items : [];
+                    // A refusal or a body that is not a list is not remembered: cached as
+                    // [] it hid a critical notice for the next minute.
+                    if (!Array.isArray(items)) return;
+                    const list = items;
                     this._announcementCache = { at: Date.now(), items: list };
                     draw(list);
                 })
@@ -7344,6 +7347,11 @@
                 .then(res => res.ok ? res.json() : null)
                 .catch(() => null);
             this._serverInfo = { at: now, promise: promise };
+            // Only a read that worked is kept. A failed one cached as null read as "no main
+            // PIN required" in withMainPin for the whole minute.
+            promise.then(info => {
+                if (info === null && this._serverInfo && this._serverInfo.promise === promise) this._serverInfo = null;
+            });
             return promise;
         },
 
@@ -7998,7 +8006,9 @@
                         + (this._isLightColour(leavingBg) ? 'light' : 'dark');
                 }
                 this._reloading = true;
-                localStorage.setItem(this.config.switchingKey, '1');
+                // Guarded like every other use of the key: storage that is full or blocked
+                // threw here, into the catch below, after the switch had already succeeded.
+                try { localStorage.setItem(this.config.switchingKey, '1'); } catch (e) { /* the reload still happens */ }
                 this.reloadAtHome();
             })
             .catch(err => {
