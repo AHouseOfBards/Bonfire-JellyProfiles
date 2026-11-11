@@ -144,7 +144,7 @@
     {
       "selector": ".padded-left",
       "status": "upstream",
-      "source": "src/apps/experimental/components/library/ItemsView.tsx"
+      "source": "src/apps/stable/routes/user/userprofile.tsx"
     },
     {
       "selector": ".page",
@@ -155,7 +155,7 @@
     {
       "selector": ".readOnlyContent",
       "status": "upstream",
-      "source": "src/apps/dashboard/controllers/livetvguideprovider.html"
+      "source": "src/apps/stable/routes/user/userprofile.tsx"
     },
     {
       "selector": ".skinHeader",

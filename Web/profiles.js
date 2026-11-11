@@ -1729,8 +1729,11 @@
             const deviceId = typeof apiClient.deviceId === 'function' ? apiClient.deviceId() : (apiClient.deviceId || apiClient._deviceId || '');
             const version = typeof apiClient.appVersion === 'function' ? apiClient.appVersion() : (apiClient.appVersion || apiClient._appVersion || '');
 
+            // No token, no Token field: a null or undefined one used to go out as the text
+            // Token="null", which the server reads as a bad token rather than none (R-1249).
             return {
-                'Authorization': `MediaBrowser Client="${client}", Device="${device}", DeviceId="${deviceId}", Version="${version}", Token="${token}"`
+                'Authorization': `MediaBrowser Client="${client}", Device="${device}", DeviceId="${deviceId}", Version="${version}"` +
+                    (token ? `, Token="${token}"` : '')
             };
         },
 
@@ -10207,7 +10210,7 @@
                     busy = true;
                     this._emailCall('accounts/links/add', { username: name, password: pass.value })
                         .then(reply => { data = reply; draw('#links-username'); say(t('links.added', { name: name })); })
-                        .catch(err => { busy = false; pass.value = ''; say(err.message, true); });
+                        .catch(err => { busy = false; pass.value = ''; say(this._failText(err, t('errors.couldNotSaveThat')), true); });
                 };
                 slot.querySelector('#links-add').addEventListener('click', add);
                 pass.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
@@ -10222,7 +10225,7 @@
                                 { label: cls === 'links-remove' ? t('links.remove') : t('links.leave'), primary: true, run: () => {
                                     this._emailCall('accounts/links/remove', body(id))
                                         .then(reply => { data = reply; draw(cls === 'links-remove' ? '.links-remove' : '.links-leave'); say(t('links.removed')); })
-                                        .catch(err => say(err.message, true));
+                                        .catch(err => say(this._failText(err, t('errors.couldNotSaveThat')), true));
                                 } },
                                 { label: t('common.cancel') }
                             ]);
@@ -10249,7 +10252,7 @@
                             const st = this.readMasterState();
                             if (st) this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.token, true);
                         })
-                        .catch(err => this.showAlert(t('errors.error'), escapeHtml(err.message)));
+                        .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.couldNotSaveThat')))));
                 } },
                 { label: t('common.cancel') }
             ]);
@@ -11803,6 +11806,9 @@
             if (generateBtn) {
                 generateBtn.addEventListener('click', () => {
                     // Disable immediately to prevent double-fire on slow connections
+                    // A disabled button drops focus, and a D-pad has nowhere to start from
+                    // afterwards: give it back when the button is enabled again (R-1249).
+                    const hadFocus = document.activeElement === generateBtn;
                     generateBtn.disabled = true;
                     generateBtn.textContent = t('bonfire.generating');
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/generate'), {
@@ -11816,6 +11822,7 @@
                     .catch(err => {
                         generateBtn.disabled = false;
                         generateBtn.textContent = t('bonfire.generateJoinCode');
+                        if (hadFocus) generateBtn.focus();
                         this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('bonfire.failedGenerateCode'))));
                     });
                 });
@@ -11849,6 +11856,7 @@
                 const submitJoin = (code) => {
                     errDiv.style.display = 'none';
                     // Disable to prevent double-submit; re-enable on all error paths
+                    const hadFocus = document.activeElement === joinBtn;
                     joinBtn.disabled = true;
                     joinBtn.textContent = t('bonfire.joining');
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/join'), {
@@ -11863,6 +11871,7 @@
                             errDiv.style.display = 'block';
                             joinBtn.disabled = false;
                             joinBtn.textContent = t('common.join');
+                            if (hadFocus) joinBtn.focus();
                             return;
                         }
                         if (!res.ok) throw refusalError(res, t('bonfire.failedToJoin'));
@@ -11873,6 +11882,7 @@
                         errDiv.style.display = 'block';
                         joinBtn.disabled = false;
                         joinBtn.textContent = t('common.join');
+                        if (hadFocus) joinBtn.focus();
                     });
                 };
 
@@ -12230,6 +12240,9 @@
         /// Re-checked on every route change because React replaces the view wholesale.
         injectProfilePageSection: function () {
             if (document.getElementById('profiles-userprofile-section')) return;
+            // #/userprofile?userId=… is an administrator editing someone else: the section
+            // switches the signed-in person's profile, so it is not offered there (R-1250).
+            if (/[?&]userId=/i.test(window.location.hash || '')) return;
 
             // The visible page, not a cached off-screen view: Jellyfin keeps previous views
             // in the DOM, and appending to a hidden one puts the section nowhere.
@@ -13089,7 +13102,11 @@
             this._customThemesLoad = fetch(pluginUrl('/plugins/profiles/themes?part=custom'))
                 .then(res => (res.ok ? res.json() : null))
                 .then(answer => { if (answer) this.useCustomThemes(answer, true); })
-                .catch(() => { /* offline or an older server: keep the cached copy */ });
+                .catch(() => {
+                    // Offline: keep the cached copy, and let the next call ask again. The
+                    // failure used to be kept as the answer for the life of the page (R-1251).
+                    this._customThemesLoad = null;
+                });
             return this._customThemesLoad;
         },
 
@@ -13173,6 +13190,12 @@
                 img.src = pluginUrl(logo.image);
                 box.appendChild(img);
             } else {
+                // Neither a picture nor words: nothing to draw, and an empty box on the gate
+                // would only reserve room above the tiles (R-1251).
+                if (!logo.text) {
+                    if (gate.classList) gate.classList.remove('jpf-has-logo');
+                    return;
+                }
                 asText();
             }
             gate.appendChild(box);

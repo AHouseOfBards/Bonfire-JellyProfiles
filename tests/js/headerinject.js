@@ -180,7 +180,7 @@ function matches(node, sel) {
 const hasClass = (n, c) => (' ' + n.className + ' ').indexOf(' ' + c + ' ') !== -1;
 
 let NOW = 1000000;
-function makePlugin(root) {
+function makePlugin(root, hash) {
     const sandbox = {
         console: { log() {}, warn() {}, error() {} },
         localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
@@ -203,7 +203,7 @@ function makePlugin(root) {
         },
         window: {
             innerHeight: 900, innerWidth: 1600,
-            location: { hash: '', pathname: '/web/', href: 'https://x/web/', origin: 'https://x' },
+            location: { hash: hash || '', pathname: '/web/', href: 'https://x/web/', origin: 'https://x' },
             addEventListener() {}, removeEventListener() {}, PointerEvent: function () {}
         },
         history: { pushState() {}, replaceState() {} },
@@ -442,6 +442,19 @@ console.log('── The section on the Jellyfin profile page ──────�
         section ? section.className : 'no section');
     ok('and that class centres it the way .readOnlyContent centres itself',
         /\.jpf-userprofile-section\s*\{[^}]*margin:\s*2em\s+auto/.test(CSS));
+    // R-1250: #/userprofile?userId=... is an administrator editing someone else. Our
+    // section switches the signed-in person's profile, so it does not belong there.
+    const otherPadded = el({ className: 'padded-left padded-right padded-bottom-page', children: [
+        el({ className: 'readOnlyContent' })
+    ] });
+    const otherRoot = el({ children: [el({ id: 'userProfilePage', className: 'page', children: [otherPadded] })] });
+    const OTHER = makePlugin(otherRoot, '#/userprofile?userId=abc123');
+    OTHER.getCachedActiveProfile = () => ({ name: 'Bard', color: '#00A4DC', initial: 'B', profileImage: null });
+    OTHER.injectProfilePageSection();
+    ok('no section on another user\'s profile page (?userId=)',
+        !otherPadded.children.some(c => c.id === 'profiles-userprofile-section'),
+        'section added to the page of someone else');
+
     ok('and caps it at the 54em jellyfin-web caps the siblings at',
         // The cap starts at the sheet's 900px tablet breakpoint rather than upstream's 50em;
         // what this pins is the 54em, and that it is a min-width rule (tests/js/breakpoints.js).

@@ -294,6 +294,12 @@ console.log('\n── The logo ────────────────�
     d.obj.drawLogo(gate);
     ok('a logo removed on the server goes from the gate', !byId('profiles-logo'));
 
+    // R-1251: a logo with neither picture nor words is not drawn as an empty box. The
+    // reader never produces one; this is what the drawing does if one gets through.
+    d.set({ logo: { image: null, text: null, alt: null } });
+    d.obj.drawLogo(gate);
+    ok('a logo with nothing to show leaves no empty box on the gate', !byId('profiles-logo'));
+
     const sheet = require('fs').readFileSync(require('path').join(L.ROOT, 'Web', 'styles.css'), 'utf8');
     const tv = /\.jpf-tv #profiles-logo \{([^}]*)\}/.exec(sheet);
     ok('on a TV it sits 5% in from the top and the right, the safe area the docs promise',
@@ -381,6 +387,22 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
     const pickers = ['renderThemePicker', '_onboardingTheme', 'showThemeSettings'].map(method);
     ok('every picker offers what the server offers, not the built-in list',
         pickers.every(m => m && m.body.indexOf('offeredThemes()') !== -1 && m.body.indexOf('THEMES.map') === -1));
+
+    // R-1251: a request that failed was kept as the answer for the life of the page, so a
+    // server that was down at startup meant no custom themes until the next reload.
+    {
+        let calls = 0;
+        const holder = new Function('fetch', 'pluginUrl',
+            'const obj = { _customThemesLoad: null, useCustomThemes() {}, loadCustomThemes: function (' + method('loadCustomThemes').params + ') {'
+            + method('loadCustomThemes').body + '} };\nreturn obj;')(
+            () => { calls++; return calls === 1 ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve({ ok: true, json: () => Promise.resolve({}) }); },
+            v => v);
+        await holder.loadCustomThemes();
+        await holder.loadCustomThemes();
+        ok('after a failed request the next call asks again', calls === 2, 'asked ' + calls + ' time(s)');
+        await holder.loadCustomThemes();
+        ok('after an answer it is not asked again', calls === 2, 'asked ' + calls + ' time(s)');
+    }
 
     finish();
 })();
