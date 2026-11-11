@@ -428,6 +428,7 @@
   "admin.banner.betaBody": "Hatalar kararlı sürüme göre daha olasıdır. Bir şey yanlış görünüyorsa <a class=\"jpf-link-warn\" href=\"https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues\" target=\"_blank\" rel=\"noopener noreferrer\">GitHub'da bir sorun bildirin</a>.",
   "admin.banner.okTitle": "İstemci betiği kurulu ve güncel.",
   "admin.banner.okBody": "Profil değiştirici herkes için yüklenecek.",
+  "admin.brand.logo": "Bonfire logosu",
   "admin.tab.label": "Bonfire ayar bölümleri",
   "admin.tab.status": "Durum",
   "admin.tab.households": "Haneler",

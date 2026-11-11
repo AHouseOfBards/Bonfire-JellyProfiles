@@ -18,6 +18,9 @@
     var q = new URLSearchParams(location.search);
     var TAB = q.get('tab') || 'status';
     var DEVICE = q.get('device') || 'desktop';
+    // jellyfin-web marks its theme with data-theme on <html> (themeManager.js setTheme);
+    // dark and light are the two the admin page is measured on.
+    document.documentElement.setAttribute('data-theme', q.get('theme') || 'dark');
     var ADMIN = 'aaaaaaaa000000000000000000000001';
     var ALEX = '11111111111111111111111111111111';
     var JO = '66666666666666666666666666666666';

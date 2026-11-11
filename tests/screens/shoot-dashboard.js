@@ -3,7 +3,7 @@
  * grows to the page's height). For reviewing layout, density and words; not a golden,
  * because jellyfin-web's own controls are only approximated (see dashboard.js).
  *
- *   node tests/screens/shoot-dashboard.js --out <dir> [--tab look] [--device desktop,phone]
+ *   node tests/screens/shoot-dashboard.js --out <dir> [--tab look] [--device desktop,phone] [--theme dark|light]
  */
 'use strict';
 
@@ -32,16 +32,17 @@ async function main() {
         const tabs = a.tab ? a.tab.split(',') : await c.evaluate('window.__tabs');
         const devices = a.device ? a.device.split(',') : ['desktop', 'tablet', 'phone'];
         fs.mkdirSync(a.out, { recursive: true });
+        const theme = a.theme || 'dark';
         for (const tab of tabs) {
             for (const device of devices) {
-                const r = await c.open('http://127.0.0.1:' + s.port + '/dashboard?tab=' + tab + '&device=' + device, device);
+                const r = await c.open('http://127.0.0.1:' + s.port + '/dashboard?tab=' + tab + '&device=' + device + '&theme=' + theme, device);
                 const height = await c.evaluate('Math.ceil(document.documentElement.scrollHeight)');
                 const d = chrome.DEVICES[device];
                 await c.page('Emulation.setDeviceMetricsOverride', { width: d.width, height: Math.min(Math.max(height, d.height), 12000), deviceScaleFactor: d.scale, mobile: d.mobile });
                 await c.evaluate('new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(r)})})');
                 const said = [].concat(r.error ? ['error: ' + r.error] : [], r.misses.map(m => 'unanswered: ' + m), r.console);
                 if (said.length) { problems++; console.log('  ' + tab + ' ' + device + '\n    ' + said.join('\n    ')); }
-                fs.writeFileSync(path.join(a.out, 'dashboard-' + tab + '-' + device + '.webp'), await c.shot('webp', 82));
+                fs.writeFileSync(path.join(a.out, 'dashboard-' + tab + '-' + device + (theme === 'dark' ? '' : '-' + theme) + '.webp'), await c.shot('webp', 82));
             }
             console.log(tab);
         }

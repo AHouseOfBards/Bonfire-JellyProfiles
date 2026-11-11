@@ -30,6 +30,13 @@
     button { font: inherit; color: inherit; background: #303030; border: 0; border-radius: 0.2em; padding: 0.9em 1em; cursor: pointer; }
     button.button-submit { background: var(--accent); color: #fff; }
     a { color: var(--accent); }
+    /* jellyfin-web's light theme: src/themes/light/theme.scss and themes.ts `light`. */
+    html[data-theme=light], html[data-theme=light] body { background: #f2f2f2; color: rgba(0, 0, 0, 0.87); }
+    html[data-theme=light] .fieldDescription { color: rgba(0, 0, 0, 0.6); }
+    html[data-theme=light] input[type=text], html[data-theme=light] input[type=number], html[data-theme=light] input[type=email],
+    html[data-theme=light] input[type=password], html[data-theme=light] input[type=url], html[data-theme=light] select,
+    html[data-theme=light] textarea { background: #fff; border-color: #ccc; }
+    html[data-theme=light] button { background: #d8d8d8; }
     * { caret-color: transparent !important; }
 </style>
 </head>

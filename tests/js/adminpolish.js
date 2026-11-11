@@ -39,10 +39,16 @@ console.log('\n── Status colours (P2-309) ───────────�
 const styleEnd = html.indexOf('</style>');
 const css = html.slice(0, styleEnd);
 const body = html.slice(styleEnd);
-const tokenBlock = /--jpf-good:\s*#51cf66;\s*--jpf-bad:\s*#ff6b6b;\s*--jpf-warn:\s*#ff9900;/.test(css);
+// Since the warm theme (dashwarm.js measures them): dark values in the base block, the light
+// themes' in one block after it. Each of the three is declared once per block.
+const STATUS = ['#51cf66', '#ff6b6b', '#ffe066', '#176a29', '#b02020', '#705400'];
+const decl = n => (css.match(new RegExp('--jpf-' + n + ':\\s*#[0-9a-f]{6};', 'g')) || []).length;
+const tokenBlock = decl('good') === 2 && decl('bad') === 2 && decl('warn') === 2
+    && /--jpf-good:\s*#51cf66;/.test(css) && /--jpf-bad:\s*#ff6b6b;/.test(css) && /--jpf-warn:\s*#ffe066;/.test(css);
 ok('the three colours are named once, as tokens', tokenBlock);
 const strip = css.replace(/--jpf-(good|bad|warn):\s*#[0-9a-f]{6};/g, '');
-const literals = (strip.match(/#51cf66|#ff6b6b|#ff9900/gi) || []).length + (body.match(/#51cf66|#ff6b6b|#ff9900/gi) || []).length;
+const litRe = new RegExp(STATUS.join('|'), 'gi');
+const literals = (strip.match(litRe) || []).length + (body.match(litRe) || []).length;
 ok('and written nowhere else, in the stylesheet, the markup or the script', literals === 0, literals + ' left');
 if (has('paintOutcome')) {
     const paint = new Function(L.extractFunction(script, 'paintOutcome') + '; return paintOutcome;')();

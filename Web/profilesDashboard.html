@@ -1,30 +1,83 @@
 <div id="profilesConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="libraryloading,embyrouter,selectmenu,dialogHelper">
 <style>
-    /* Tints of the active theme's accent, with the colours this page shipped
-       with as the floor. See the matching block in profiles.js for why
-       --accent is read rather than a jellyfin-web token: there is no token,
-       only a convention every theme follows. */
+    /* Every colour on this page that is not Jellyfin's own, named once, here.
+       The page wears the warm Bonfire theme (Web/themes/bonfire.json): its ember for
+       buttons, tabs, headings, links and focus rings, and three status colours that stay
+       apart from it. Jellyfin's background, surfaces and text are left alone.
+
+       This used to read the dashboard theme's --accent, which is Jellyfin blue on every
+       theme but one. It no longer does: the colours below do not follow it.
+
+       These are the dark dashboard theme's. bonfire.json's accent (#ffb347) is built for a
+       dark page and is 1.9:1 on white, so the light themes get a darker ember from the
+       same family, in the block below. jellyfin-web marks the theme with a data-theme
+       attribute on <html> (src/scripts/themeManager.js), and appletv is its second light
+       scheme. Tints are plain rgba, not color-mix, so there is one value to read.
+       tests/js/dashwarm.js measures every pair. */
     #profilesConfigurationPage {
-        --jpf-accent: var(--accent, #00a4dc);
-        --jpf-accent-a12: rgba(0, 164, 220, 0.12);
-        --jpf-accent-a35: rgba(0, 164, 220, 0.35);
-        /* The three status colours, named once. They were literals in a dozen rules and in
-           script, all chosen for a dark page; a theme that needs others sets these. */
+        --jpf-accent: #ffb347;          /* text, tab underline, button fill */
+        --jpf-accent-hover: #ffc773;    /* button fill under the pointer or focus */
+        --jpf-accent-ink: #2b1704;      /* the label on an accent fill: bonfire.json onAccent */
+        --jpf-ring: #ffc773;            /* focus rings */
+        --jpf-accent-tint: rgba(255, 179, 71, 0.12);
+        --jpf-accent-line: rgba(255, 179, 71, 0.35);
+        /* Distinct from the accent and from each other. Warn is yellow rather than
+           orange, because #ff9900 was one step from the ember. */
         --jpf-good: #51cf66;
         --jpf-bad: #ff6b6b;
-        --jpf-warn: #ff9900;
+        --jpf-bad-fill: #cc3333;        /* a filled badge, white label */
+        --jpf-warn: #ffe066;
+        --jpf-good-tint: rgba(81, 207, 102, 0.12);
+        --jpf-good-line: rgba(81, 207, 102, 0.35);
+        --jpf-bad-tint: rgba(255, 107, 107, 0.12);
+        --jpf-bad-line: rgba(255, 107, 107, 0.35);
+        --jpf-warn-tint: rgba(255, 224, 102, 0.12);
+        --jpf-warn-line: rgba(255, 224, 102, 0.35);
+    }
+    html[data-theme="light"] #profilesConfigurationPage,
+    html[data-theme="appletv"] #profilesConfigurationPage {
+        --jpf-accent: #8f4400;
+        --jpf-accent-hover: #7a3a00;
+        --jpf-accent-ink: #ffffff;
+        --jpf-ring: #8f4400;
+        --jpf-accent-tint: rgba(143, 68, 0, 0.10);
+        --jpf-accent-line: rgba(143, 68, 0, 0.35);
+        --jpf-good: #176a29;
+        --jpf-bad: #b02020;
+        --jpf-bad-fill: #cc3333;
+        --jpf-warn: #705400;
+        --jpf-good-tint: rgba(23, 106, 41, 0.10);
+        --jpf-good-line: rgba(23, 106, 41, 0.35);
+        --jpf-bad-tint: rgba(176, 32, 32, 0.10);
+        --jpf-bad-line: rgba(176, 32, 32, 0.35);
+        --jpf-warn-tint: rgba(112, 84, 0, 0.10);
+        --jpf-warn-line: rgba(112, 84, 0, 0.35);
     }
     #profilesConfigurationPage .jpf-text-good { color: var(--jpf-good); }
     #profilesConfigurationPage .jpf-text-bad { color: var(--jpf-bad); }
     #profilesConfigurationPage .jpf-text-warn { color: var(--jpf-warn); }
     /* Beside every Save: something it would send has been changed and not sent. */
     #profilesConfigurationPage .jpf-unsaved { margin-left: 12px; font-size: 0.9rem; font-weight: 600; color: var(--jpf-warn); }
-    @supports (color: color-mix(in srgb, red 50%, transparent)) {
-        #profilesConfigurationPage {
-            --jpf-accent-a12: color-mix(in srgb, var(--jpf-accent) 12%, transparent);
-            --jpf-accent-a35: color-mix(in srgb, var(--jpf-accent) 35%, transparent);
-        }
-    }
+
+    /* Jellyfin's own controls, in the ember. Scoped here, so no other page changes. */
+    #profilesConfigurationPage .sectionTitle { color: var(--jpf-accent); }
+    #profilesConfigurationPage a,
+    #profilesConfigurationPage .button-link,
+    #profilesConfigurationPage .inputLabelFocused,
+    #profilesConfigurationPage .selectLabelFocused,
+    #profilesConfigurationPage .textareaLabelFocused { color: var(--jpf-accent); }
+    #profilesConfigurationPage .button-submit { background: var(--jpf-accent); color: var(--jpf-accent-ink); }
+    #profilesConfigurationPage .button-submit:hover,
+    #profilesConfigurationPage .button-submit:focus { background: var(--jpf-accent-hover); color: var(--jpf-accent-ink); }
+    #profilesConfigurationPage .button-submit:focus-visible,
+    #profilesConfigurationPage a:focus-visible,
+    #profilesConfigurationPage .button-link:focus-visible { outline: 2px solid var(--jpf-ring); outline-offset: 2px; }
+
+    /* The header: Bonfire's mark, the campfire glyph the client's switcher uses, and its
+       name. A header, not a banner. */
+    #profilesConfigurationPage .jpf-brand { display: flex; align-items: center; gap: 0.5em; margin: 0 0 1.25em 0; }
+    #profilesConfigurationPage .jpf-brand-mark { font-size: 1.5rem; color: var(--jpf-accent); }
+    #profilesConfigurationPage .jpf-brand-name { font-size: 1.15rem; font-weight: 600; color: var(--jpf-accent); }
 
     /* Five unrelated jobs — limits, pictures, accounts, history, the panic switch —
        used to be one column five screens tall, so finding any of them meant
@@ -56,7 +109,7 @@
         font-weight: 500;
         line-height: 1.4;
         color: inherit;
-        opacity: 0.55;
+        opacity: 0.75;  /* 0.55 was under 4.5:1 on the light themes */
         cursor: pointer;
         white-space: nowrap;
         transition: opacity 0.15s ease, border-color 0.15s ease;
@@ -67,6 +120,7 @@
     #profilesConfigurationPage .jpf-tab.is-active {
         opacity: 1;
         font-weight: 600;
+        color: var(--jpf-accent);
         border-bottom-color: var(--jpf-accent);
     }
     /* The household chevron's turn: here and not in its style attribute, which a media
@@ -81,7 +135,7 @@
         }
     }
     #profilesConfigurationPage .jpf-tab:focus-visible {
-        outline: 2px solid var(--jpf-accent);
+        outline: 2px solid var(--jpf-ring);
         outline-offset: -2px;
     }
     /* Stated rather than left to the user agent: this page sets display on plenty of
@@ -188,7 +242,7 @@
         letter-spacing: 0.04em;
         padding: 2px 6px;
         border-radius: 4px;
-        background: var(--jpf-accent-a12);
+        background: var(--jpf-accent-tint);
         opacity: 0.9;
     }
     #profilesConfigurationPage .jpf-backup-row {
@@ -279,7 +333,7 @@
     #profilesConfigurationPage .jpf-ann-actions { display: flex; gap: 0.75em; flex-wrap: wrap; }
     #profilesConfigurationPage .jpf-ann-list { display: grid; gap: 10px; }
     #profilesConfigurationPage .jpf-ann-item {
-        border-left: 4px solid var(--jpf-accent-a35);
+        border-left: 4px solid var(--jpf-accent-line);
         background: rgba(255, 255, 255, 0.04);
         border-radius: 4px;
         padding: 10px 14px;
@@ -288,8 +342,8 @@
         gap: 4px 12px;
         align-items: start;
     }
-    #profilesConfigurationPage .jpf-ann-item[data-severity="warning"] { border-left-color: #f59f00; }
-    #profilesConfigurationPage .jpf-ann-item[data-severity="critical"] { border-left-color: #e64980; }
+    #profilesConfigurationPage .jpf-ann-item[data-severity="warning"] { border-left-color: var(--jpf-warn); }
+    #profilesConfigurationPage .jpf-ann-item[data-severity="critical"] { border-left-color: var(--jpf-bad); }
     #profilesConfigurationPage .jpf-ann-item.is-off { opacity: 0.6; }
     #profilesConfigurationPage .jpf-ann-msg { white-space: pre-wrap; overflow-wrap: anywhere; }
     #profilesConfigurationPage .jpf-ann-meta { font-size: 0.85rem; opacity: 0.75; grid-column: 1; }
@@ -315,7 +369,7 @@
     #profilesConfigurationPage .jpf-te-sample { font-size: 1.15rem; }
     #profilesConfigurationPage .jpf-te-note { margin: 0 0 0 1em; }
     #profilesConfigurationPage .jpf-te {
-        border: 1px solid var(--jpf-accent-a35);
+        border: 1px solid var(--jpf-accent-line);
         border-radius: 8px;
         padding: 16px 20px;
         margin: 1em 0 2em;
@@ -333,7 +387,7 @@
         font: inherit; font-weight: 500; color: inherit; opacity: 0.6; cursor: pointer;
     }
     #profilesConfigurationPage .jpf-te-mode.is-active { opacity: 1; font-weight: 600; border-bottom-color: var(--jpf-accent); }
-    #profilesConfigurationPage .jpf-te-mode:focus-visible { outline: 2px solid var(--jpf-accent); outline-offset: -2px; }
+    #profilesConfigurationPage .jpf-te-mode:focus-visible { outline: 2px solid var(--jpf-ring); outline-offset: -2px; }
     #profilesConfigurationPage .jpf-te-body { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; }
     #profilesConfigurationPage .jpf-te-fields { flex: 1 1 26em; min-width: 0; }
     #profilesConfigurationPage .jpf-te-side { flex: 0 1 20em; min-width: 14em; position: sticky; top: 1em; }
@@ -378,8 +432,8 @@
 
     /* Notice boxes. One shape, four meanings. */
     #profilesConfigurationPage .jpf-note {
-        border: 1px solid var(--jpf-accent-a35);
-        background: var(--jpf-accent-a12);
+        border: 1px solid var(--jpf-accent-line);
+        background: var(--jpf-accent-tint);
         border-radius: 6px;
         padding: 14px 18px;
         margin-bottom: 2em;
@@ -387,25 +441,25 @@
         line-height: 1.6;
     }
     #profilesConfigurationPage .jpf-note-warn {
-        background: rgba(245, 159, 0, 0.12);
-        border-color: rgba(245, 159, 0, 0.35);
-        color: #ffc078;
+        background: var(--jpf-warn-tint);
+        border-color: var(--jpf-warn-line);
+        color: var(--jpf-warn);
     }
     #profilesConfigurationPage .jpf-note-error {
-        background: rgba(230, 73, 128, 0.12);
-        border-color: rgba(230, 73, 128, 0.35);
+        background: var(--jpf-bad-tint);
+        border-color: var(--jpf-bad-line);
         color: var(--jpf-bad);
     }
     #profilesConfigurationPage .jpf-note-ok {
-        background: rgba(81, 207, 102, 0.12);
-        border-color: rgba(81, 207, 102, 0.35);
+        background: var(--jpf-good-tint);
+        border-color: var(--jpf-good-line);
         color: var(--jpf-good);
     }
     /* Quieter than .jpf-note-warn: used where the box is advisory rather than a
        problem, such as the beta channel notice. */
     #profilesConfigurationPage .jpf-note-soft {
-        background: rgba(245, 159, 0, 0.10);
-        border-color: rgba(245, 159, 0, 0.35);
+        background: var(--jpf-warn-tint);
+        border-color: var(--jpf-warn-line);
         margin-bottom: 1.5em;
         padding: 12px 18px;
         font-size: 0.92rem;
@@ -502,12 +556,12 @@
     #profilesConfigurationPage .jpf-avatar-grid > .fieldDescription { grid-column: 1 / -1; }
     /* The two coloured badges on the version chip: one for a build that will not
        run, one for a build that is merely out of date. */
-    #profilesConfigurationPage .jpf-badge-bad { background: #d23f3f; color: #fff; }
+    #profilesConfigurationPage .jpf-badge-bad { background: var(--jpf-bad-fill); color: #fff; }
     #profilesConfigurationPage .jpf-btn-quiet {
         background: rgba(255, 255, 255, 0.08);
         color: rgba(255, 255, 255, 0.75);
     }
-    #profilesConfigurationPage .jpf-link-warn { color: #ffc078; text-decoration: underline; }
+    #profilesConfigurationPage .jpf-link-warn { color: var(--jpf-warn); text-decoration: underline; }
 
     /* Classes for the rows this page builds in script. Only the repeated ones:
        a structural style that appears once, inside the template of the row it
@@ -541,8 +595,8 @@
         background: rgba(255, 255, 255, 0.04);
         border-radius: 4px;
     }
-    #profilesConfigurationPage .jpf-check[data-level="bad"] { border-left-color: #e64980; }
-    #profilesConfigurationPage .jpf-check[data-level="warn"] { border-left-color: #f59f00; }
+    #profilesConfigurationPage .jpf-check[data-level="bad"] { border-left-color: var(--jpf-bad); }
+    #profilesConfigurationPage .jpf-check[data-level="warn"] { border-left-color: var(--jpf-warn); }
     #profilesConfigurationPage .jpf-check[data-level="ok"] { border-left-color: var(--jpf-good); }
     #profilesConfigurationPage .jpf-check-level {
         font-size: 0.75rem;
@@ -588,6 +642,10 @@
 </style>
     <div data-role="content">
         <div class="content-primary">
+            <div class="jpf-brand">
+                <span class="material-icons jpf-brand-mark" translate="no" role="img" aria-label="Bonfire logo" data-i18n-aria-label="admin.brand.logo">local_fire_department</span>
+                <span class="jpf-brand-name" translate="no">Bonfire</span>
+            </div>
             <!-- Installed or updated while Jellyfin was running. The pipeline hook can only
                  be added at startup, so this build is not serving anything yet — while the
                  previous build usually still is, which is why the switcher keeps working.
@@ -2202,7 +2260,7 @@
                         const isPrerelease = /-(beta|alpha|rc)/i.test(ver);
                         badge.style.background = isPrerelease ? 'rgba(245,159,0,0.18)' : 'rgba(255,255,255,0.08)';
                         badge.style.borderColor = isPrerelease ? 'rgba(245,159,0,0.5)' : 'rgba(255,255,255,0.12)';
-                        badge.style.color = isPrerelease ? '#ffc078' : '';
+                        badge.style.color = isPrerelease ? 'var(--jpf-warn)' : '';
                         badge.title = isPrerelease ? t('admin.version.preTitle') : '';
                     }
                     const betaNotice = page.querySelector('#betaNoticeContainer');
@@ -2679,7 +2737,7 @@
                             '<div class="listItem-group jpf-divider">' +
                             '<div class="listItem" style="display:flex; align-items:flex-start; padding:15px;">' +
                             '<div class="listItemBody jpf-grow">' +
-                            '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:#ffc078;">⚠️ ' + escapeHtml(t('admin.households.unlinkedTitle')) + '</div>' +
+                            '<div class="listItemBodyText" style="font-weight:600; font-size:1.15rem; color:var(--jpf-warn);">⚠️ ' + escapeHtml(t('admin.households.unlinkedTitle')) + '</div>' +
                             '<div class="listItemBodyText secondary" style="font-size:0.9rem; opacity:0.75; margin-top:4px;">' +
                             escapeHtml(t('admin.households.unlinkedBody')) +
                             '</div>' +

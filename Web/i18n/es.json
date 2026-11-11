@@ -417,6 +417,7 @@
   "admin.banner.betaBody": "Los errores son más probables que en una versión estable. Si algo no parece correcto, <a class=\"jpf-link-warn\" href=\"https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues\" target=\"_blank\" rel=\"noopener noreferrer\">abre una incidencia en GitHub</a>.",
   "admin.banner.okTitle": "El script del cliente está instalado y actualizado.",
   "admin.banner.okBody": "El selector se cargará para todos.",
+  "admin.brand.logo": "Logotipo de Bonfire",
   "admin.tab.label": "Secciones de la configuración de Bonfire",
   "admin.tab.status": "Estado",
   "admin.tab.households": "Hogares",
