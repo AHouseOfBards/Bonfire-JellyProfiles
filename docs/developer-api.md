@@ -150,6 +150,7 @@ All 105 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `POST /plugins/profiles/admin/make-profile` | admin | Make an account a profile of another. |
 | `POST /plugins/profiles/admin/links` | admin | Add an account to a switcher. |
 | `POST /plugins/profiles/admin/links/remove` | admin | Take it off. |
+| `POST /plugins/profiles/admin/pin-prompts` | admin | Set one household's PIN prompts. |
 | `GET /plugins/profiles/admin/audit-logs` | admin | The switch log. |
 
 ## Authentication
@@ -2481,6 +2482,23 @@ Adds `userId` to `householdId`'s switcher without its password. Same errors as
 **Authorisation:** administrator.
 
 Same body. Takes it off. `link_not_found` if it isn't there.
+
+### `POST /plugins/profiles/admin/pin-prompts`
+
+**Authorisation:** administrator.
+
+```json
+{ "householdId": "…", "askPinToOpen": false,
+  "profiles": [{ "profileId": "…", "bypassPinOnLocalNetwork": true }] }
+```
+
+Sets one household's PIN prompts: `askPinToOpen` on the main account, and
+`bypassPinOnLocalNetwork` on each profile named. Nothing else of the household changes,
+and no PIN is touched. Both parts are optional, and the household sees the new values the
+next time its screens load. All or nothing: one refused profile changes nothing.
+
+`400` for a `householdId` that is a profile or has none, an administrator's own
+household, or a profile that is not in it. `404` for an unknown user.
 
 ### `GET /plugins/profiles/admin/audit-logs`
 

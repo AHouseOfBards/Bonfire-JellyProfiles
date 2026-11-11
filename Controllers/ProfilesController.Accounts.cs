@@ -196,6 +196,78 @@ namespace Jellyfin.Profiles.Controllers
             return Ok();
         }
 
+        internal const string NotAHouseholdMessage = "That isn't a main account with profiles.";
+        internal const string OwnHouseholdMessage = "An administrator's own PIN prompts stay their own to set.";
+        internal const string NotInHouseholdMessage = "That profile isn't in this household.";
+
+        /// <summary>
+        /// Sets one household's PIN prompts: "Ask PIN to open" on the main account and "No PIN
+        /// on the server's network" on its profiles. Nothing else of the household is touched,
+        /// and never an administrator's own. All or nothing: one bad profile id changes nothing.
+        /// </summary>
+        [HttpPost("admin/pin-prompts")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public ActionResult AdminSetPinPrompts([FromBody] AdminPinPromptsRequest request)
+        {
+            var adminError = RequireAdministrator("change a household's PIN prompts");
+            if (adminError != null) return adminError;
+            if (request == null) return BadRequest("Missing request body.");
+
+            var householdUser = _userManager.GetUserById(request.HouseholdId);
+            if (householdUser == null) return NotFound("User not found.");
+            if (IsAdministratorAccount(householdUser)) return BadRequest(OwnHouseholdMessage);
+
+            var asked = request.Profiles ?? new List<AdminProfilePinPrompt>();
+            if (asked.Any(p => p == null || !p.BypassPinOnLocalNetwork.HasValue))
+                return BadRequest("Each profile needs bypassPinOnLocalNetwork.");
+
+            lock (ConfigLock)
+            {
+                var live = Plugin.Instance?.Configuration;
+                if (live == null) return BadRequest("Plugin configuration missing.");
+
+                var rows = live.Mappings.Where(m => m.MasterUserId == request.HouseholdId).ToList();
+                // A household with profiles may not have a main row yet; it is made on first use.
+                if (rows.Count == 0 || live.Mappings.Any(m => m.ProfileUserId == request.HouseholdId && m.MasterUserId != request.HouseholdId))
+                    return BadRequest(NotAHouseholdMessage);
+
+                var targets = new List<ProfileMapping>();
+                foreach (var p in asked)
+                {
+                    var row = rows.FirstOrDefault(m => m.ProfileUserId == p.ProfileId && m.ProfileUserId != request.HouseholdId);
+                    if (row == null) return BadRequest(NotInHouseholdMessage);
+                    targets.Add(row);
+                }
+
+                if (request.AskPinToOpen.HasValue)
+                {
+                    var main = rows.FirstOrDefault(m => m.ProfileUserId == request.HouseholdId);
+                    if (main == null)
+                    {
+                        main = new ProfileMapping
+                        {
+                            ProfileUserId = request.HouseholdId,
+                            MasterUserId = request.HouseholdId,
+                            ProfileName = householdUser.Username,
+                            IsHidden = false
+                        };
+                        live.Mappings.Add(main);
+                    }
+                    main.AskPinToOpen = request.AskPinToOpen.Value;
+                }
+                for (var i = 0; i < targets.Count; i++)
+                    targets[i].BypassPinOnLocalNetwork = asked[i].BypassPinOnLocalNetwork!.Value;
+
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            LogActivity(CallerName() + " changed " + householdUser.Username + "'s PIN prompts", "PinPromptsChanged", householdUser.Id);
+            return Ok();
+        }
+
         [HttpPost("admin/links/remove")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

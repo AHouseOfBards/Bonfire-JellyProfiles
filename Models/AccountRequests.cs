@@ -22,6 +22,28 @@ namespace Jellyfin.Profiles.Models
         public string? TimeZone { get; set; }
     }
 
+    /// <summary>An administrator setting one household's PIN prompts. Nothing else of the household.</summary>
+    public class AdminPinPromptsRequest
+    {
+        /// <summary>The household's main account.</summary>
+        public System.Guid HouseholdId { get; set; }
+
+        /// <summary>False opens the main account from its own switcher without the PIN. Null leaves it.</summary>
+        public bool? AskPinToOpen { get; set; }
+
+        /// <summary>Profiles in the household to change. Others are left as they are.</summary>
+        public System.Collections.Generic.List<AdminProfilePinPrompt>? Profiles { get; set; }
+    }
+
+    /// <summary>One profile's PIN prompt on the server's own network.</summary>
+    public class AdminProfilePinPrompt
+    {
+        public System.Guid ProfileId { get; set; }
+
+        /// <summary>True opens the profile without its PIN on the server's network.</summary>
+        public bool? BypassPinOnLocalNetwork { get; set; }
+    }
+
     /// <summary>A main PIN to check.</summary>
     public class VerifyAccountPinRequest
     {

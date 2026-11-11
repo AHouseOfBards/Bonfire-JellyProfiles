@@ -1156,7 +1156,9 @@ namespace Jellyfin.Profiles.Controllers
                         MasterUserId = mapping?.MasterUserId ?? Guid.Empty,
                         RequiresPin = mapping != null && !string.IsNullOrEmpty(mapping.PinHash),
                         // Lets the settings page report pictures whose file has gone missing.
-                        ProfileImage = mapping?.ProfileImage
+                        ProfileImage = mapping?.ProfileImage,
+                        // For the administrator's PIN prompts control.
+                        BypassPinOnLocalNetwork = mapping?.BypassPinOnLocalNetwork ?? false
                     });
                 }
                 else
@@ -1178,6 +1180,8 @@ namespace Jellyfin.Profiles.Controllers
                         MaxProfiles = GetMaxProfilesForUser(user.Id, config),
                         LimitOverride = limitOverride,
                         ProfileImage = mapping?.ProfileImage,
+                        // For the administrator's PIN prompts control.
+                        AskPinToOpen = mapping?.AskPinToOpen ?? true,
                         // For "Make it a profile", which refuses both.
                         IsAdministrator = IsAdministratorAccount(user),
                         InBonfire = inBonfire,
