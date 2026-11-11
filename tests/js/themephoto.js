@@ -104,6 +104,32 @@ const BROKEN = '0123456789abcdef'.repeat(2) + '.png';
 
 // Waits for the picture to be marked (or a second to pass), then reads what the page drew.
 const LOOK = `(function () {
+  // A wrapper that draws something of its own: a panel behind the tiles. Bonfire's TV panel
+  // ends a few pixels apart between two loads of the same page (a strip at y 817-836).
+  function paints(el) {
+    var cs = getComputedStyle(el);
+    return (cs.backgroundColor && !/rgba\\([^)]*,\\s*0\\)|transparent/.test(cs.backgroundColor))
+      || cs.backgroundImage !== 'none' || cs.boxShadow !== 'none'
+      || parseFloat(cs.borderTopWidth) > 0 || parseFloat(cs.borderBottomWidth) > 0
+      || (cs.backdropFilter && cs.backdropFilter !== 'none') || (cs.webkitBackdropFilter && cs.webkitBackdropFilter !== 'none');
+  }
+  // Each drawn piece of the content and the logo, one box each: the elements with no element
+  // inside (text, avatars, icons), every focusable one (a tile and its focus ring) and every
+  // wrapper that paints. Not one box around them all: the logo in one corner and the tiles
+  // across the middle would join into most of a TV screen, leaving a fifth of it compared.
+  // The backslashes are doubled because this is a template literal: a single \\b reached
+  // the page as a backspace and matched nothing.
+  function contentBox(gate) {
+    var els = [].slice.call(gate ? gate.querySelectorAll('.profiles-modal-content *, #profiles-logo, #profiles-logo *') : []);
+    var r = devicePixelRatio || 1, out = [];
+    els.forEach(function (el) {
+      if (el.firstElementChild && !/\\bfocusable\\b/.test(el.getAttribute('class') || '') && el.id !== 'profiles-logo' && !paints(el)) return;
+      var k = el.getBoundingClientRect();
+      if (!k.width || !k.height) return;
+      out.push([k.left * r, k.top * r, k.right * r, k.bottom * r]);
+    });
+    return out.length ? out : null;
+  }
   return new Promise(function (done) {
     var n = 0;
     (function tick() {
@@ -118,7 +144,8 @@ const LOOK = `(function () {
             image: gate ? getComputedStyle(gate).backgroundImage : '',
             text1: cs.getPropertyValue('--jpf-text-1').trim(),
             titleColor: title ? getComputedStyle(title).color : null,
-            nameColor: name ? getComputedStyle(name).color : null
+            nameColor: name ? getComputedStyle(name).color : null,
+            content: contentBox(gate)
           });
         }); });
       } else setTimeout(tick, 50);
@@ -211,22 +238,38 @@ async function main() {
                 // second (not an animation SETTLE can hold), so a plain shot taken at once
                 // differed from a broken one taken after LOOK's wait by 50,000 values.
                 await c.open(url(theme.id, device, null), device);
-                await c.evaluate(LOOK);
+                const plainSeen = await c.evaluate(LOOK);
                 const plain = await shot(c);
+                const plainAfter = await c.evaluate(LOOK);
                 await c.open(url(theme.id, device, BROKEN), device);
                 const brokenSeen = await c.evaluate(LOOK);
                 const broken = await shot(c);
-                // Compared exactly, over the background: the outer fifth of the screen on each
-                // side, full height, where the picture would be and no content is. Not the
-                // middle: two loads of the same plain page differ there by a few dozen pixels
-                // on a TV, where focus lands on the first tile a moment after drawing.
-                let diff = 0;
-                if (plain.w !== broken.w || plain.h !== broken.h) diff = -1;
+                const brokenAfter = await c.evaluate(LOOK);
+                // Compared exactly, over the background: every pixel outside the content's
+                // measured boxes, where the picture would be and no content is. Not the content:
+                // two loads of the same plain page differ there by thousands of values on a
+                // TV, where focus lands on the first tile a moment after drawing. A fixed outer
+                // fifth was used until 2.0's layout choices; the TV row of tiles now reaches
+                // into it (x 271 of 1920), and two plain loads failed it on 8 of 9 themes.
+                // The boxes of both loads, measured before and after each shot: focus lands on a
+                // tile a moment after drawing and grows it, and bloom's and snowfall's TV runs
+                // differed by a few hundred values just left of a tile measured before it.
+                const all = [plainSeen, plainAfter, brokenSeen, brokenAfter].map(v => v.content);
+                const boxes = all.every(Boolean) ? [].concat.apply([], all) : null, PAD = 40;
+                // A mask of the content, each box grown by PAD for shadows and focus glows.
+                const mask = new Uint8Array(plain.w * plain.h);
+                (boxes || []).forEach(b => {
+                    const x0 = Math.max(0, Math.floor(b[0] - PAD)), x1 = Math.min(plain.w, Math.ceil(b[2] + PAD));
+                    const y0 = Math.max(0, Math.floor(b[1] - PAD)), y1 = Math.min(plain.h, Math.ceil(b[3] + PAD));
+                    for (let y = y0; y < y1; y++) mask.fill(1, y * plain.w + x0, y * plain.w + x1);
+                });
+                let diff = 0, masked = 0;
+                for (let i = 0; i < mask.length; i++) masked += mask[i];
+                if (plain.w !== broken.w || plain.h !== broken.h || !boxes) diff = -1;
                 else {
-                    const band = Math.floor(plain.w / 5);
                     for (let y = 0; y < plain.h; y++) {
                         for (let x = 0; x < plain.w; x++) {
-                            if (x >= band && x < plain.w - band) continue;
+                            if (mask[y * plain.w + x]) continue;
                             const o = (y * plain.w + x) * 3;
                             // Within 2 of 255: crimson's fine-line pattern rasterises a level
                             // apart between two loads of the very same page. The layer this
@@ -236,6 +279,12 @@ async function main() {
                         }
                     }
                 }
+                // The boxes must leave real background to compare, or the check above is empty.
+                // A quarter: bonfire's TV panel covers most of the middle and leaves 32%; the
+                // fixed outer fifths this replaced compared 40%.
+                const outside = boxes ? 1 - masked / mask.length : 0;
+                ok(at + ': at least a quarter of the screen is compared (' + Math.round(outside * 100) + '%)', outside >= 1 / 4,
+                    (boxes ? boxes.length : 0) + ' content boxes');
                 ok(at + ': a picture that fails leaves the background exactly as with none', !brokenSeen.marked && diff === 0,
                     'marked ' + brokenSeen.marked + ', ' + diff + ' channel values differ');
             }
