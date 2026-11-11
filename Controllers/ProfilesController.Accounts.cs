@@ -509,10 +509,13 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             allLibraries = false;
+            // A library another plugin manages is not copied into the profile's own list: it stays on the
+            // account as it is, and Bonfire does not manage it from here on.
+            var owned = Auth.LibraryOwnership.ManagedByOwnerIds(_libraryManager);
             IEnumerable<Guid> visible = policy.EnableAllFolders
-                ? _libraryManager.GetVirtualFolders().Select(f => Guid.TryParse(f.ItemId, out var id) ? id : Guid.Empty).Where(id => id != Guid.Empty)
+                ? Auth.LibraryOwnership.ManagedFolderIds(_libraryManager)
                 : policy.EnabledFolders ?? Array.Empty<Guid>();
-            return visible.Where(id => !blocked.Contains(id)).Distinct().ToList();
+            return visible.Where(id => !blocked.Contains(id) && !owned.Contains(id)).Distinct().ToList();
         }
     }
 }

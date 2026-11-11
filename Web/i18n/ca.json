@@ -731,6 +731,7 @@
   "admin.help.appsA": "Només les aplicacions que carreguen el client web des del teu servidor mostren el selector. Per a les altres, activa l'inici de sessió amb PIN a Aplicacions. El control parental s'aplica a totes les aplicacions igualment.",
   "admin.help.librariesQ": "L'accés d'un perfil a les biblioteques torna enrere",
   "admin.help.librariesA": "Canvia les biblioteques d'un perfil a «Edita el perfil», no a Tauler → Usuaris. Afegir-ne una allà es manté; treure-la no, perquè sembla el mateix que Jellyfin restablint el compte.",
+  "admin.help.librariesOwned": "Les biblioteques que gestionen altres connectors, com les de FieldGuide, no es mostren ni es canvien.",
   "admin.help.pinQ": "Algú ha oblidat el seu PIN",
   "admin.help.pinA": "Esborra'l a Llars. Després el compte en pot posar un de nou.",
   "admin.help.lockedQ": "Bonfire em fa nosa i no puc entrar",

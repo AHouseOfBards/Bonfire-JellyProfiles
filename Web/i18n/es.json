@@ -731,6 +731,7 @@
   "admin.help.appsA": "Solo las aplicaciones que cargan el cliente web desde tu servidor muestran el selector. Para las demás, activa el inicio de sesión con PIN en Aplicaciones. El control parental se aplica en todas las aplicaciones de todos modos.",
   "admin.help.librariesQ": "El acceso de un perfil a las bibliotecas vuelve atrás",
   "admin.help.librariesA": "Cambia las bibliotecas de un perfil en «Editar perfil», no en Panel → Usuarios. Añadir una ahí se mantiene; quitarla no, porque parece lo mismo que Jellyfin restableciendo la cuenta.",
+  "admin.help.librariesOwned": "Las bibliotecas que gestionan otros complementos, como las de FieldGuide, no se muestran ni se cambian.",
   "admin.help.pinQ": "Alguien ha olvidado su PIN",
   "admin.help.pinA": "Bórralo en Hogares. Después la cuenta puede poner uno nuevo.",
   "admin.help.lockedQ": "Bonfire me estorba y no puedo entrar",

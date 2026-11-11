@@ -108,9 +108,27 @@ namespace Jellyfin.Profiles.Auth
 
             var childMaxParentalRating = targetPolicy.MaxParentalRating;
             var childMaxParentalSubRating = targetPolicy.MaxParentalSubRating;
-            var childBlockedFolders = targetPolicy.BlockedMediaFolders;
+
+            // A library another plugin manages access to (FieldGuide's) is neither granted nor blocked here.
+            // What the account has of one is carried over as it is (keptOwned), and every list below is
+            // worked out without them, so a stored list, "every library" and the main account's own blocks
+            // can neither grant nor block one. Hidden and untouched, never open. With nothing owned this
+            // is all empty and changes nothing.
+            var owned = LibraryOwnership.ManagedByOwnerIds(libraryManager);
+            var keptOwned = LibraryOwnership.KeptAccess(owned, targetPolicy);
+            if (owned.Count > 0)
+            {
+                mapping.EnabledFolders = mapping.EnabledFolders?.Where(id => !owned.Contains(id)).ToList();
+                mapping.LastAppliedFolders = mapping.LastAppliedFolders?.Where(id => !owned.Contains(id)).ToList();
+            }
+
+            var childBlockedFolders = owned.Count > 0
+                ? targetPolicy.BlockedMediaFolders?.Where(id => !owned.Contains(id)).ToArray()
+                : targetPolicy.BlockedMediaFolders;
             var childEnableAllFolders = targetPolicy.EnableAllFolders;
-            var childEnabledFolders = targetPolicy.EnabledFolders;
+            var childEnabledFolders = owned.Count > 0
+                ? targetPolicy.EnabledFolders?.Where(id => !owned.Contains(id)).ToArray()
+                : targetPolicy.EnabledFolders;
             var accountSchedules = (targetPolicy.AccessSchedules ?? Array.Empty<Jellyfin.Database.Implementations.Entities.AccessSchedule>())
                 .Select(ScheduleReconciler.Of).ToList();
             var accountLimits = LimitsOf(targetPolicy);
@@ -258,7 +276,7 @@ namespace Jellyfin.Profiles.Auth
                 // If still empty, derive from BlockedMediaFolders
                 if (legacyEnabled.Count == 0 && childBlockedFolders != null && childBlockedFolders.Length > 0)
                 {
-                    legacyEnabled = AllFolderIds(libraryManager).Where(fid => !childBlockedFolders.Contains(fid)).ToList();
+                    legacyEnabled = AllFolderIds(libraryManager, owned).Where(fid => !childBlockedFolders.Contains(fid)).ToList();
                 }
 
                 authorityFolders = legacyEnabled;
@@ -270,10 +288,10 @@ namespace Jellyfin.Profiles.Auth
 
             // Re-apply the stored library policy (heals resets caused by Jellyfin restarts)
             targetPolicy.EnableAllFolders = false;
-            targetPolicy.EnabledFolders = authorityFolders.ToArray();
-            var reapplyBlocked = AllFolderIds(libraryManager).Where(id => !authorityFolders.Contains(id));
-            var masterBlocked = masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>();
-            targetPolicy.BlockedMediaFolders = reapplyBlocked.Union(masterBlocked).ToArray();
+            targetPolicy.EnabledFolders = authorityFolders.Concat(keptOwned.Enabled).ToArray();
+            var reapplyBlocked = AllFolderIds(libraryManager, owned).Where(id => !authorityFolders.Contains(id));
+            var masterBlocked = (masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>()).Where(id => !owned.Contains(id));
+            targetPolicy.BlockedMediaFolders = reapplyBlocked.Union(masterBlocked).Union(keptOwned.Blocked).ToArray();
 
             // Every sign-in runs this, twice (see BonfireSessionListener), so an account that is
             // already right is left alone rather than rewritten.
@@ -384,10 +402,11 @@ namespace Jellyfin.Profiles.Auth
             BlockUnratedItems = (policy.BlockUnratedItems ?? Array.Empty<Jellyfin.Data.Enums.UnratedItem>()).ToList(),
         };
 
-        private static IEnumerable<Guid> AllFolderIds(ILibraryManager libraryManager) =>
+        // Every library Bonfire manages: the server's, less the ones another plugin manages access to.
+        private static IEnumerable<Guid> AllFolderIds(ILibraryManager libraryManager, HashSet<Guid> owned) =>
             libraryManager.GetVirtualFolders()
                 .Select(f => Guid.TryParse(f.ItemId, out var id) ? id : Guid.Empty)
-                .Where(id => id != Guid.Empty);
+                .Where(id => id != Guid.Empty && !owned.Contains(id));
 
         /// <summary>
         /// The policy as a string, for "did anything change". Access schedules are compared by

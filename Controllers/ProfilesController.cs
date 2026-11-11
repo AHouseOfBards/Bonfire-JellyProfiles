@@ -289,7 +289,10 @@ namespace Jellyfin.Profiles.Controllers
             var caller = _userManager.GetUserById(currentUserId);
             if (caller == null) return NotFound("Calling user not found.");
 
-            var folders = _libraryManager.GetVirtualFolders();
+            // A library another plugin manages access to is not Bonfire's to list: a profile form offering
+            // it would grant or block it, which is the owner's to do.
+            var folders = _libraryManager.GetVirtualFolders()
+                .Where(f => !Auth.LibraryOwnership.ManagedByOwner(_libraryManager, f)).ToList();
 
             // Filter folders by caller's user policy
             var callerDto = _userManager.GetUserDto(caller, string.Empty);
@@ -500,30 +503,14 @@ namespace Jellyfin.Profiles.Controllers
             List<Guid> validatedFolders = new List<Guid>();
             if (request.EnabledFolders != null)
             {
-                var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
-                validatedFolders = (ParseFolderIds(request.EnabledFolders) ?? new List<Guid>()).Where(id => masterAccessible.Contains(id)).ToList();
-
-                targetPolicy.EnableAllFolders = false;
-                targetPolicy.EnabledFolders = validatedFolders.ToArray();
-
-                var allFolders = _libraryManager.GetVirtualFolders();
-                var blockedMediaFolders = allFolders
-                    .Select(f => Guid.TryParse(f.ItemId, out var id) ? id : Guid.Empty)
-                    .Where(id => id != Guid.Empty && !validatedFolders.Contains(id))
-                    .ToArray();
-
-                var masterBlocked = masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>();
-                targetPolicy.BlockedMediaFolders = blockedMediaFolders.Union(masterBlocked).ToArray();
+                // A new account has no access to a library another plugin manages, and gets none.
+                validatedFolders = ApplyListedFolders(
+                    _libraryManager, masterPolicy, ParseFolderIds(request.EnabledFolders) ?? new List<Guid>(), targetPolicy, keepOwned: false);
             }
             else
             {
                 // Inherit blocked libraries and folder accessibility from master user
-                targetPolicy.EnableAllFolders = masterPolicy.EnableAllFolders;
-                targetPolicy.EnabledFolders = masterPolicy.EnabledFolders;
-                targetPolicy.BlockedMediaFolders = masterPolicy.BlockedMediaFolders;
-
-                var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
-                validatedFolders = masterAccessible.ToList();
+                validatedFolders = ApplyInheritedFolders(_libraryManager, masterPolicy, targetPolicy, keepOwned: false);
             }
 
             // Clone general non-admin user configurations
@@ -2098,29 +2085,14 @@ namespace Jellyfin.Profiles.Controllers
                 // client sending only a new name opened every library to a child.
                 if (request.AllLibraries != true && request.EnabledFolders != null)
                 {
-                    var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
-                    validatedFolders = (ParseFolderIds(request.EnabledFolders) ?? new List<Guid>()).Where(id => masterAccessible.Contains(id)).ToList();
-
-                    targetPolicy.EnableAllFolders = false;
-                    targetPolicy.EnabledFolders = validatedFolders.ToArray();
-
-                    var allFolders = _libraryManager.GetVirtualFolders();
-                    var blockedMediaFolders = allFolders
-                        .Select(f => Guid.TryParse(f.ItemId, out var id) ? id : Guid.Empty)
-                        .Where(id => id != Guid.Empty && !validatedFolders.Contains(id))
-                        .ToArray();
-
-                    var masterBlocked = masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>();
-                    targetPolicy.BlockedMediaFolders = blockedMediaFolders.Union(masterBlocked).ToArray();
+                    // A library another plugin manages is not on the form, so it is never in the list:
+                    // what the account already has of one is kept as it is.
+                    validatedFolders = ApplyListedFolders(
+                        _libraryManager, masterPolicy, ParseFolderIds(request.EnabledFolders) ?? new List<Guid>(), targetPolicy, keepOwned: true);
                 }
                 else if (request.AllLibraries == true)
                 {
-                    targetPolicy.EnableAllFolders = masterPolicy.EnableAllFolders;
-                    targetPolicy.EnabledFolders = masterPolicy.EnabledFolders;
-                    targetPolicy.BlockedMediaFolders = masterPolicy.BlockedMediaFolders;
-
-                    var masterAccessible = GetMasterAccessibleFolders(masterPolicy);
-                    validatedFolders = masterAccessible.ToList();
+                    validatedFolders = ApplyInheritedFolders(_libraryManager, masterPolicy, targetPolicy, keepOwned: true);
                 }
 
                 await _userManager.UpdatePolicyAsync(targetUser.Id, targetPolicy).ConfigureAwait(false);

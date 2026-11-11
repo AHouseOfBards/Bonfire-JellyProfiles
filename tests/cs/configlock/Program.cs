@@ -245,6 +245,12 @@ var sharedAllowed = new Dictionary<string, string>(StringComparer.Ordinal)
         = "the registry's injection.state section; writes the owner and its version together",
     ["Campground.Shared/src/Registry/CampgroundRegistry.cs|AppDomain.CurrentDomain"]
         = "the one object every plugin's load context shares; guards creating the registry",
+    ["Campground.Shared/src/Registry/CampgroundLifetime.cs|section"]
+        = "the registry's lifetime section, one dictionary every copy agrees on; guards the generation record",
+    ["Campground.Shared/src/Registry/CampgroundLifetime.cs|CopyGate"]
+        = "static readonly object of this copy; guards its registered host lifetimes",
+    ["Campground.Shared/src/Registry/CampgroundLifetime.cs|lifetime section"]
+        = "the same lifetime section, named in a comment",
     ["Campground.Shared/src/Security/RateLimiter.cs|_gate"]
         = "readonly object per limiter instance, never replaced",
     ["Campground.Shared/src/Storage/AtomicJsonFile.cs|_gate"]

@@ -742,6 +742,7 @@
   "admin.help.appsA": "Profil değiştiriciyi yalnızca web istemcisini sunucunuzdan yükleyen uygulamalar gösterir. Diğer uygulamalar için Uygulamalar altından PIN ile oturum açmayı açın. Ebeveyn denetimi her durumda her uygulamada geçerlidir.",
   "admin.help.librariesQ": "Bir profilin kitaplık erişimi eski haline dönüyor",
   "admin.help.librariesA": "Bir profilin kitaplıklarını Pano → Kullanıcılar'dan değil, \"Profili düzenle\" bölümünden değiştirin. Orada eklenen kalır; kaldırılan kalmaz, çünkü Jellyfin'in hesabı sıfırlamasıyla aynı görünür.",
+  "admin.help.librariesOwned": "FieldGuide gibi başka eklentilerin yönettiği kitaplıklar listelenmez ve değiştirilmez.",
   "admin.help.pinQ": "Biri PIN'ini unuttu",
   "admin.help.pinA": "Haneler altından temizleyin. Hesap ardından yeni bir PIN belirleyebilir.",
   "admin.help.lockedQ": "Bonfire önüme çıkıyor ve giremiyorum",

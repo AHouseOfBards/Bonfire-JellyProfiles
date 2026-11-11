@@ -731,6 +731,7 @@
   "admin.help.appsA": "Przełącznik pokazują tylko aplikacje, które wczytują klienta webowego z Twojego serwera. Dla pozostałych włącz logowanie kodem PIN w zakładce Aplikacje. Kontrola rodzicielska i tak działa w każdej aplikacji.",
   "admin.help.librariesQ": "Dostęp profilu do bibliotek wraca do poprzedniego",
   "admin.help.librariesA": "Zmieniaj biblioteki profilu w „Edytuj profil”, nie w Panel → Użytkownicy. Dodanie biblioteki tam się utrzyma; usunięcie nie, bo wygląda tak samo jak resetowanie konta przez Jellyfin.",
+  "admin.help.librariesOwned": "Biblioteki zarządzane przez inne wtyczki, jak FieldGuide, nie są wyświetlane ani zmieniane.",
   "admin.help.pinQ": "Ktoś zapomniał swojego kodu PIN",
   "admin.help.pinA": "Wyczyść go w zakładce Gospodarstwa. Konto może potem ustawić nowy.",
   "admin.help.lockedQ": "Bonfire przeszkadza i nie mogę wejść",

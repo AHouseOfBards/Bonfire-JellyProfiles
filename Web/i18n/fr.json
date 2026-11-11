@@ -731,6 +731,7 @@
   "admin.help.appsA": "Seules les applications qui chargent le client web depuis votre serveur affichent le sélecteur. Pour les autres, activez la connexion par code PIN dans Applications. Le contrôle parental s'applique de toute façon dans toutes les applications.",
   "admin.help.librariesQ": "L'accès d'un profil aux bibliothèques revient en arrière",
   "admin.help.librariesA": "Modifiez les bibliothèques d'un profil dans « Modifier le profil », pas dans Tableau de bord → Utilisateurs. En ajouter une là-bas tient ; en retirer une non, car cela ressemble à Jellyfin qui réinitialise le compte.",
+  "admin.help.librariesOwned": "Les bibliothèques gérées par d'autres extensions, comme celles de FieldGuide, ne sont ni listées ni modifiées.",
   "admin.help.pinQ": "Quelqu'un a oublié son code PIN",
   "admin.help.pinA": "Effacez-le dans Foyers. Le compte pourra ensuite en définir un nouveau.",
   "admin.help.lockedQ": "Bonfire me bloque et je ne peux pas entrer",

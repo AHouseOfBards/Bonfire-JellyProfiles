@@ -2717,6 +2717,13 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>Static so <see cref="Auth.ProfilePolicySync"/> can use it outside a request.</summary>
         internal static HashSet<Guid> MasterAccessibleFolders(ILibraryManager libraryManager, UserPolicy masterPolicy)
+            => MasterAccessibleFolders(libraryManager, masterPolicy, LibraryOwnership.ManagedByOwnerIds(libraryManager));
+
+        /// <summary>
+        /// What the main account can reach and Bonfire manages: libraries another plugin manages access to
+        /// (<paramref name="owned"/>) are never in it, so a profile set to "every library" is never given one.
+        /// </summary>
+        internal static HashSet<Guid> MasterAccessibleFolders(ILibraryManager libraryManager, UserPolicy masterPolicy, HashSet<Guid> owned)
         {
             HashSet<Guid> masterAccessibleFolders;
             if (masterPolicy.EnableAllFolders)
@@ -2732,7 +2739,61 @@ namespace Jellyfin.Profiles.Controllers
             }
             var masterBlocked = masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>();
             masterAccessibleFolders.ExceptWith(masterBlocked);
+            masterAccessibleFolders.ExceptWith(owned);
             return masterAccessibleFolders;
+        }
+
+        /// <summary>
+        /// Writes a profile's libraries from a list the form sent: the ones the main account can reach, the rest
+        /// blocked. Libraries another plugin manages are left out of both lists. On an edit
+        /// (<paramref name="keepOwned"/>) what the account already has of them is put back as it was; a new
+        /// account has none. Returns the libraries granted.
+        /// </summary>
+        internal static List<Guid> ApplyListedFolders(
+            ILibraryManager libraryManager, UserPolicy masterPolicy, List<Guid> requested, UserPolicy target, bool keepOwned)
+        {
+            var owned = LibraryOwnership.ManagedByOwnerIds(libraryManager);
+            var kept = keepOwned ? LibraryOwnership.KeptAccess(owned, target) : (Enabled: Array.Empty<Guid>(), Blocked: Array.Empty<Guid>());
+            var masterAccessible = MasterAccessibleFolders(libraryManager, masterPolicy, owned);
+            var validated = requested.Where(id => masterAccessible.Contains(id)).ToList();
+
+            target.EnableAllFolders = false;
+            target.EnabledFolders = validated.Concat(kept.Enabled).ToArray();
+
+            var blockedMediaFolders = LibraryOwnership.ManagedFolderIds(libraryManager)
+                .Where(id => !validated.Contains(id))
+                .ToArray();
+            var masterBlocked = (masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>()).Where(id => !owned.Contains(id));
+            target.BlockedMediaFolders = blockedMediaFolders.Union(masterBlocked).Union(kept.Blocked).ToArray();
+            return validated;
+        }
+
+        /// <summary>
+        /// Gives a profile the main account's libraries. With nothing owned by another plugin that is a copy of
+        /// the main account's own settings. With something owned, an explicit list of what Bonfire manages: copying
+        /// "every library" onto the profile would hand it the owned ones too. Returns the libraries granted.
+        /// </summary>
+        internal static List<Guid> ApplyInheritedFolders(
+            ILibraryManager libraryManager, UserPolicy masterPolicy, UserPolicy target, bool keepOwned)
+        {
+            var owned = LibraryOwnership.ManagedByOwnerIds(libraryManager);
+            var masterAccessible = MasterAccessibleFolders(libraryManager, masterPolicy, owned);
+            if (owned.Count == 0)
+            {
+                target.EnableAllFolders = masterPolicy.EnableAllFolders;
+                target.EnabledFolders = masterPolicy.EnabledFolders;
+                target.BlockedMediaFolders = masterPolicy.BlockedMediaFolders;
+            }
+            else
+            {
+                var kept = keepOwned ? LibraryOwnership.KeptAccess(owned, target) : (Enabled: Array.Empty<Guid>(), Blocked: Array.Empty<Guid>());
+                target.EnableAllFolders = false;
+                target.EnabledFolders = masterAccessible.Concat(kept.Enabled).ToArray();
+                target.BlockedMediaFolders = (masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>())
+                    .Where(id => !owned.Contains(id)).Union(kept.Blocked).ToArray();
+            }
+
+            return masterAccessible.ToList();
         }
 
         // ── Tag-based filtering ─────────────────────────────────────────────────────
