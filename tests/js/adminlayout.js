@@ -85,7 +85,7 @@ async function main() {
     try {
         for (const device of ['desktop', 'phone']) {
             const seen = {};
-            for (const tab of ['security', 'apps', 'messages', 'look', 'setup']) {
+            for (const tab of ['security', 'clients', 'messages', 'look', 'setup']) {
                 const r = await c.open('http://127.0.0.1:' + server.port + '/dashboard?tab=' + tab + '&device=' + device, device);
                 const where = tab + ' ' + device;
                 if (r.error) { ok(where + ': the tab draws', false, r.error); continue; }

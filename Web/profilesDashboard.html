@@ -703,7 +703,7 @@
                 <button type="button" class="jpf-tab" role="tab" data-tab="security" id="jpfTabSecurity" aria-controls="jpfPanelSecurity" data-i18n="admin.tab.security">Security</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="look" id="jpfTabLook" aria-controls="jpfPanelLook" data-i18n="admin.tab.look">Theme</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="setup" id="jpfTabSetup" aria-controls="jpfPanelSetup" data-i18n="admin.tab.setup">Setup</button>
-                <button type="button" class="jpf-tab" role="tab" data-tab="apps" id="jpfTabApps" aria-controls="jpfPanelApps" data-i18n="admin.tab.apps">Apps</button>
+                <button type="button" class="jpf-tab" role="tab" data-tab="clients" id="jpfTabClients" aria-controls="jpfPanelClients" data-i18n="admin.tab.clients">Clients</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="messages" id="jpfTabMessages" aria-controls="jpfPanelMessages" data-i18n="admin.tab.messages">Notices</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="activity" id="jpfTabActivity" aria-controls="jpfPanelActivity" data-i18n="admin.tab.activity">Switches</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="troubleshoot" id="jpfTabTroubleshoot" aria-controls="jpfPanelTroubleshoot" data-i18n="admin.tab.troubleshoot">Troubleshoot</button>
@@ -1178,11 +1178,11 @@
             </div><!-- /setup -->
 
             <!-- ── Apps ───────────────────────────────────────────────────────────── -->
-            <div class="jpf-tab-panel" id="jpfPanelApps" data-panel="apps" role="tabpanel" aria-labelledby="jpfTabApps" hidden>
+            <div class="jpf-tab-panel" id="jpfPanelClients" data-panel="clients" role="tabpanel" aria-labelledby="jpfTabClients" hidden>
                 <div class="sectionTitleContainer jpf-section">
-                    <h2 class="sectionTitle" data-i18n="admin.apps.title">Sign-in on other apps</h2>
+                    <h2 class="sectionTitle" data-i18n="admin.apps.title">Sign-in on other clients</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.apps.lede">For apps that never load the web client, like Android TV, Roku and Swiftfin. Set each app to ask for sign-in every time, or a saved profile opens without its PIN.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.apps.lede">For clients that never load the web client, like Android TV, Roku and Swiftfin. Set each client to ask for sign-in every time, or a saved profile opens without its PIN.</div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
                         <input is="emby-checkbox" type="checkbox" id="enableClientPinLogin" />
@@ -1230,7 +1230,7 @@
                 <div class="buttonContainer">
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
                 </div>
-            </div><!-- /apps -->
+            </div><!-- /clients -->
 
             <!-- ── Messages ───────────────────────────────────────────────────────── -->
             <div class="jpf-tab-panel" id="jpfPanelMessages" data-panel="messages" role="tabpanel" aria-labelledby="jpfTabMessages" hidden>
@@ -1406,8 +1406,8 @@
                         <p><button is="emby-button" type="button" class="raised button-mini" id="faqOpenClientScript" data-i18n="admin.help.openClientScript">Check the client script</button></p>
                     </details>
                     <details>
-                        <summary data-i18n="admin.help.appsQ">It works in a browser but not in an app</summary>
-                        <p data-i18n="admin.help.appsA">Only apps that load the web client from your server show the switcher. For other apps, turn on sign-in with a PIN under Apps. Parental controls apply in every app either way.</p>
+                        <summary data-i18n="admin.help.appsQ">It works in a browser but not in a client app</summary>
+                        <p data-i18n="admin.help.appsA">Only apps that load the web client from your server show the switcher. For other clients, turn on sign-in with a PIN under Clients. Parental controls apply in every client either way.</p>
                     </details>
                     <details>
                         <summary data-i18n="admin.help.librariesQ">A profile's library access keeps reverting</summary>
@@ -1644,7 +1644,7 @@
                 'admin.audit.loadFailed': 'Couldn\'t load the activity.',
                 'admin.audit.unknown': 'Unknown',
                 'admin.audit.unknownDevice': 'Unknown device',
-                'admin.audit.unknownClient': 'Unknown app',
+                'admin.audit.unknownClient': 'Unknown client',
                 'admin.audit.unknownIp': 'Unknown IP',
                 'admin.audit.ip': 'IP: {ip}',
                 'admin.audit.switched': '<strong>{master}</strong> switched to <strong>{target}</strong>',
@@ -1746,8 +1746,8 @@
                 'admin.email.needsEmail': 'Needs working email. Set it up under Notices.',
                 'admin.status.emailUntested': "Email is set up but hasn't been tested, so nothing is sent.",
                 'admin.status.sendTest': 'Send a test',
-                'admin.mnt.closedTold': 'Closed. Apps told: {told}.',
-                'admin.mnt.closedStopped': 'Closed. Apps told: {told}. Streams stopped: {stopped}.',
+                'admin.mnt.closedTold': 'Closed. Clients told: {told}.',
+                'admin.mnt.closedStopped': 'Closed. Clients told: {told}. Streams stopped: {stopped}.',
 
                 'admin.panic.offTitle': 'Bonfire is switched off.',
                 'admin.panic.offBody': 'Restart Jellyfin to bring the switcher back.',
@@ -2067,8 +2067,46 @@
                 // Experience was split into Look and Setup in 2.0; a browser that last had
                 // it open still holds its name.
                 if (start === 'experience') start = 'look';
+                // The Apps tab became Clients in 2.0, the same way.
+                if (start === 'apps') start = 'clients';
                 if (names.indexOf(start) < 0) start = names[0];
+
+                // A link into the page: #/configurationpage?name=Bonfire&tab=clients&setting=...
+                // Another plugin builds it, so tab and setting are 2.0 API. Both are looked up
+                // in a known list and never become a selector.
+                // The setting names a link may point at, and the control each one is.
+                const LINKED_SETTINGS = { pinLoginFromAnywhere: 'clientPinLoginFromAnywhere' };
+                // One value from the query part of the address hash, or ''. A malformed
+                // escape is an empty value, not an error.
+                function hashParam(name) {
+                    const hash = typeof location === 'undefined' ? '' : String(location.hash || '');
+                    const q = hash.indexOf('?');
+                    if (q < 0) return '';
+                    const pairs = hash.slice(q + 1).split('&');
+                    for (let i = 0; i < pairs.length; i++) {
+                        const eq = pairs[i].indexOf('=');
+                        if ((eq < 0 ? pairs[i] : pairs[i].slice(0, eq)) !== name) continue;
+                        try { return decodeURIComponent(eq < 0 ? '' : pairs[i].slice(eq + 1)); } catch (e) { return ''; }
+                    }
+                    return '';
+                }
+
+                const wanted = hashParam('tab');
+                if (wanted && names.indexOf(wanted) >= 0) start = wanted;
                 show(start);
+
+                const setting = hashParam('setting');
+                const target = Object.prototype.hasOwnProperty.call(LINKED_SETTINGS, setting)
+                    ? page.querySelector('#' + LINKED_SETTINGS[setting]) : null;
+                if (target) {
+                    // The control may sit in a closed Advanced fold, and nothing inside a
+                    // hidden panel or a closed fold can take focus.
+                    const panel = target.closest ? target.closest('.jpf-tab-panel') : null;
+                    if (panel && panel.hidden) show(panel.getAttribute('data-panel'));
+                    openAdvancedFor(target);
+                    if (target.scrollIntoView) target.scrollIntoView({ block: 'center' });
+                    if (target.focus) target.focus();
+                }
             }
 
             // The form is only a copy of the settings once a read has worked. Until then it

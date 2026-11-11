@@ -154,7 +154,7 @@ has(js, 'Tiles show what is inside a library.',
 has(js, 'class="libart-head"', 'the artwork column is labelled');
 
 // ── The admin page ─────────────────────────────────────────────────────────
-const tabNames = ['status', 'households', 'devices', 'security', 'look', 'setup', 'apps', 'messages', 'activity', 'troubleshoot'];
+const tabNames = ['status', 'households', 'devices', 'security', 'look', 'setup', 'clients', 'messages', 'activity', 'troubleshoot'];
 tabNames.forEach(function (n) {
     ok(count(html, 'data-tab="' + n + '"') === 1, 'one tab button for ' + n);
     ok(count(html, 'data-panel="' + n + '"') === 1, 'one panel for ' + n);

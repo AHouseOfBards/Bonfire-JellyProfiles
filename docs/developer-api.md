@@ -37,6 +37,7 @@ because other people build against it too.
 - [Maintenance](#maintenance)
 - [Emergency disable](#emergency-disable)
 - [For other plugins](#for-other-plugins)
+- [Linking to the settings page](#linking-to-the-settings-page)
 - [Admin](#admin)
 
 ## All routes
@@ -2269,6 +2270,24 @@ Bonfire writes these to **Dashboard → Activity**. `type` is what to filter on.
 
 Switching isn't written there, because Jellyfin already logs the profile's session
 starting. Bonfire's own switch log is in its settings page.
+
+## Linking to the settings page
+
+Another plugin can open Bonfire's settings page on a tab, and on one setting. **Stable** within
+a major version.
+
+```
+/web/#/configurationpage?name=Bonfire&tab=clients&setting=pinLoginFromAnywhere
+```
+
+| Parameter | Values |
+| --- | --- |
+| `tab` | `status`, `households`, `devices`, `security`, `look`, `setup`, `clients`, `messages`, `activity`, `troubleshoot`. A known tab opens instead of the one the browser last had open. |
+| `setting` | `pinLoginFromAnywhere`: opens its Advanced fold, scrolls to it and focuses it. |
+
+Anything else is ignored, and the page opens as usual. A `setting` on a tab other than the
+one in `tab` still works: the page shows the tab the setting is on. New values may be added in
+minor releases.
 
 ## Admin
 

@@ -34,7 +34,7 @@ const tabs = (html.match(/data-tab="(\w+)"/g) || []).map(x => x.slice(10, -1));
 console.log('\n── The strip ───────────────────────────────────────────────────');
 ok('Experience is gone and Look and Setup are in its place',
    tabs.indexOf('experience') === -1 && tabs.indexOf('look') !== -1 && tabs.indexOf('setup') !== -1, tabs.join(','));
-ok('Look comes before Setup, Setup before Apps', tabs.indexOf('look') < tabs.indexOf('setup') && tabs.indexOf('setup') < tabs.indexOf('apps'));
+ok('Look comes before Setup, Setup before Clients', tabs.indexOf('look') < tabs.indexOf('setup') && tabs.indexOf('setup') < tabs.indexOf('clients'));
 ok('every tab has a panel and every panel a tab',
    tabs.length === Object.keys(panels).length && tabs.every(n => panels[n]), tabs.join(',') + ' / ' + Object.keys(panels).join(','));
 
@@ -46,7 +46,7 @@ ok('Look holds the switcher, theme and avatar library',
    has('look', 'defaultAskOnStartup') && has('look', 'defaultTheme') && has('look', 'jpfAvatars'));
 ok('Notices (the messages panel) keeps Announcements and Maintenance, and now holds Email',
    has('messages', 'annMessage') && has('messages', 'jpfMaintenance') && has('messages', 'jpfEmail') && has('messages', 'emailHost'));
-ok('Skip Quick Connect stays in Apps', has('apps', 'skipQuickConnectOnKnownDevices'));
+ok('Skip Quick Connect stays in Clients', has('clients', 'skipQuickConnectOnKnownDevices'));
 ok('no setting was dropped: every control id the page saves is still in exactly one panel',
    ['maxProfiles', 'pinGuessesPerDay', 'requireMainPin', 'enablePinResetByEmail', 'disallowCustomAvatars', 'enableStarterAvatars',
     'defaultAskOnStartup', 'defaultSwitcherLocation', 'defaultTheme', 'allowProfileThemes', 'richThemeMotion', 'defaultTimeZone',
@@ -56,8 +56,8 @@ ok('no setting was dropped: every control id the page saves is still in exactly 
 
 // The Moonfin picker is beta, and says so where it is switched on and where it is described.
 // It stays off by default (an empty ProxyClients list; tests/cs/proxyswitcher).
-const pickerBlock = (panels.apps || '').slice((panels.apps || '').indexOf('data-i18n="admin.apps.pickerTitle"'));
-ok('the Apps tab marks the profile picker as beta, in one short line about native support',
+const pickerBlock = (panels.clients || '').slice((panels.clients || '').indexOf('data-i18n="admin.apps.pickerTitle"'));
+ok('the Clients tab marks the profile picker as beta, in one short line about native support',
    /data-i18n="admin\.apps\.pickerTitle">[^<]*\(beta\)</.test(pickerBlock)
    && /data-i18n="admin\.apps\.pickerBeta">[^<]*native support[^<]*</.test(pickerBlock));
 const fs = require('fs'), path = require('path');

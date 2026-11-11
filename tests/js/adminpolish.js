@@ -160,7 +160,7 @@ console.log('\n── Wording (P2-311) ─────────────�
 ok('"Open." is a sentence', strings['admin.mnt.isOpen'] && strings['admin.mnt.isOpen'].split(/\s+/).length >= 3, strings['admin.mnt.isOpen']);
 ok('"Not set up." says what is not set up', strings['admin.email.notSet'] && /email/i.test(strings['admin.email.notSet']), strings['admin.email.notSet']);
 const lede = strings['admin.apps.lede'] || '';
-ok('the Apps lede is two short sentences, not a list of five apps', lede.split(/[.!?]\s/).length <= 2 && lede.length < 170 && !/Findroid|Wholphin/.test(lede), lede.length + ': ' + lede);
+ok('the Clients lede is two short sentences, not a list of five apps', lede.split(/[.!?]\s/).length <= 2 && lede.length < 170 && !/Findroid|Wholphin/.test(lede), lede.length + ': ' + lede);
 ok('and still says a saved profile opens without its PIN unless the app asks every time', /without its PIN/.test(lede) && /every time/.test(lede));
 // Phase 3: the choices are named "In the header" and "In Jellyfin's user menu", so the hint that
 // repeated them is gone. What this still asks: the two choices say where the button goes.

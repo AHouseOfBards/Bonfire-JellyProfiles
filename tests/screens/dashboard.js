@@ -163,5 +163,5 @@
             }, 600);
         });
     };
-    window.__tabs = ['status', 'households', 'devices', 'security', 'look', 'setup', 'apps', 'messages', 'activity', 'troubleshoot'];
+    window.__tabs = ['status', 'households', 'devices', 'security', 'look', 'setup', 'clients', 'messages', 'activity', 'troubleshoot'];
 })();
