@@ -79,7 +79,15 @@ namespace Campground.Shared.Setup
                 results.Add(new SetupCheck("encoding-config", CheckLevel.Info, "Couldn't read Jellyfin's encoding settings", ex.Message));
             }
 
-            results.Add(Injection(InjectionCoordinator.Health()));
+            var health = InjectionCoordinator.Health();
+            results.Add(Injection(health));
+
+            // Only when the dashboard sent the page's policy (an empty value means the page has none).
+            if (context.Request.Headers.TryGetValue(PagePolicyHeader, out var csp))
+            {
+                results.Add(ScriptPolicy(csp.ToString(), context.Request.Host.Host, InlineNeeded(health, InjectionCoordinator.ActiveTags())));
+            }
+
             return results;
         }
 
@@ -178,6 +186,123 @@ namespace Campground.Shared.Setup
             }
 
             return new SetupCheck("injection", CheckLevel.Ok, "Web scripts are loading", $"index.html owner: {owner}. Served {h.ServedCount} times; plugins: {string.Join(", ", h.RegisteredPlugins)}.");
+        }
+
+        /// <summary>
+        /// The request header a dashboard sends the page's Content-Security-Policy in (0.10.0). A policy is
+        /// usually added by a reverse proxy on the way out, so the server never sees it: the browser does.
+        /// <c>Campground.pagePolicy()</c> reads it from the admin's own page load.
+        /// </summary>
+        internal const string PagePolicyHeader = "X-Campground-Page-CSP";
+
+        /// <summary>
+        /// True when something still has to go into index.html inline: an owner older than 0.10.0 (it inlines the
+        /// runtime and head snippets), or a head snippet that isn't one plain script.
+        /// </summary>
+        internal static bool InlineNeeded(InjectionHealth h, IReadOnlyList<ScriptRegistration> tags)
+            => (h.OwnerVersion != null && InjectionCoordinator.CompareVersions(h.OwnerVersion, "0.10.0") < 0)
+               || tags.Any(t => !string.IsNullOrEmpty(t.HeadSnippet) && IndexHtml.HeadScriptBody(t) == null);
+
+        /// <summary>
+        /// Would the page's Content-Security-Policy stop Campground's scripts? <paramref name="csp"/> is every
+        /// policy on the page, comma-separated as browsers join them; each one is enforced, so one that blocks is
+        /// enough. <paramref name="host"/> is the server's host name, for policies that list hosts.
+        /// </summary>
+        internal static SetupCheck ScriptPolicy(string? csp, string? host, bool inlineNeeded)
+        {
+            var external = true;
+            var inline = true;
+            foreach (var policy in (csp ?? string.Empty).Split(','))
+            {
+                var sources = ScriptSources(policy);
+                if (sources == null)
+                {
+                    continue;
+                }
+
+                var strictDynamic = sources.Contains("'strict-dynamic'");
+                external &= !strictDynamic && sources.Any(s => AllowsServer(s, host));
+                inline &= !strictDynamic && sources.Contains("'unsafe-inline'")
+                    && !sources.Any(s => s.StartsWith("'nonce-", StringComparison.Ordinal) || s.StartsWith("'sha", StringComparison.Ordinal));
+            }
+
+            if (!external)
+            {
+                return new SetupCheck(
+                    "script-policy",
+                    CheckLevel.Problem,
+                    "This page's security policy blocks Campground's scripts",
+                    "Its Content-Security-Policy doesn't allow scripts from this server, so no Campground plugin runs in the browser. Add 'self' to script-src (or default-src) wherever the policy is set, usually your reverse proxy.");
+            }
+
+            if (inlineNeeded && !inline)
+            {
+                return new SetupCheck(
+                    "script-policy",
+                    CheckLevel.Problem,
+                    "This page's security policy blocks inline scripts",
+                    "An older Campground plugin is serving index.html and puts scripts inline, which the policy blocks. Restart Jellyfin so the newest plugin takes over, and update any plugin that's still older.");
+            }
+
+            return new SetupCheck(
+                "script-policy",
+                CheckLevel.Ok,
+                "The page's security policy allows Campground's scripts",
+                string.IsNullOrWhiteSpace(csp) ? "No Content-Security-Policy on this page." : "Scripts from this server are allowed.");
+        }
+
+        // The sources that govern a <script src> element, or null when the policy doesn't restrict scripts.
+        // The first copy of a directive counts (later duplicates are ignored, as browsers do).
+        private static HashSet<string>? ScriptSources(string policy)
+        {
+            var directives = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+            foreach (var part in policy.Split(';'))
+            {
+                var tokens = part.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+                if (tokens.Length > 0 && !directives.ContainsKey(tokens[0].ToLowerInvariant()))
+                {
+                    directives[tokens[0].ToLowerInvariant()] = new HashSet<string>(tokens.Skip(1).Select(t => t.ToLowerInvariant()), StringComparer.Ordinal);
+                }
+            }
+
+            foreach (var name in new[] { "script-src-elem", "script-src", "default-src" })
+            {
+                if (directives.TryGetValue(name, out var sources))
+                {
+                    return sources;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool AllowsServer(string source, string? host)
+        {
+            if (source is "'self'" or "*" or "https:" or "http:")
+            {
+                return true;
+            }
+
+            if (string.IsNullOrEmpty(host) || source.StartsWith('\''))
+            {
+                return false;
+            }
+
+            var s = source;
+            var scheme = s.IndexOf("://", StringComparison.Ordinal);
+            if (scheme != -1)
+            {
+                s = s.Substring(scheme + 3);
+            }
+
+            var end = s.IndexOfAny(new[] { ':', '/' });
+            if (end != -1)
+            {
+                s = s.Substring(0, end);
+            }
+
+            var h = host.ToLowerInvariant();
+            return s == h || (s.StartsWith("*.", StringComparison.Ordinal) && h.EndsWith(s.Substring(1), StringComparison.Ordinal));
         }
 
         private static long? FreeBytes(string path)

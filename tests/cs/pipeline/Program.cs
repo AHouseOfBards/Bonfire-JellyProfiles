@@ -274,7 +274,13 @@ Check("and the Campground coordinator's comes after it",
     filterNames.IndexOf("CampgroundStartupFilter") > 0);
 
 // The browser runtime goes in once, ahead of Bonfire's head script.
-Check("the Campground runtime is inlined once", Count(sent.Body, "id=\"campground-runtime\"") == 1);
+Check("the Campground runtime arrives once", Count(sent.Body, "id=\"campground-runtime\"") == 1);
+// 0.10.0 serves it as a file, so a Content-Security-Policy of script-src 'self' does not drop it,
+// and Bonfire's theme head snippet the same.
+Check("as a file, /Campground/runtime.js, not inline code",
+    Count(sent.Body, "/Campground/runtime.js?v=") == 1 && sent.Body.IndexOf("window.Campground", StringComparison.Ordinal) < 0);
+Check("and Bonfire's theme head snippet arrives as a file too, once",
+    Count(sent.Body, "/Campground/head/jpf-eh.js?v=") == 1);
 Check("ahead of Bonfire's head script",
     sent.Body.IndexOf("id=\"campground-runtime\"", StringComparison.Ordinal) >= 0
     && sent.Body.IndexOf("id=\"campground-runtime\"", StringComparison.Ordinal)

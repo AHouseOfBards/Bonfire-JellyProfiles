@@ -97,6 +97,16 @@ namespace Campground.Shared.Injection
 
         public async Task Invoke(HttpContext context, IServerConfigurationManager serverConfig, IServerApplicationHost appHost)
         {
+            // The runtime and head files (0.10.0). Every copy answers, owner or not, so the first 0.10.0 middleware
+            // in the pipeline serves them; an older copy before it passes the request through.
+            if (IsCampgroundFile(context.Request.Path.Value))
+            {
+                if (await TryServeFile(context, serverConfig).ConfigureAwait(false))
+                {
+                    return;
+                }
+            }
+
             if (!InjectionCoordinator.ClaimOwnership(_pluginId) || !ShouldHandle(context, serverConfig, appHost, out var baseUrl))
             {
                 await _next(context).ConfigureAwait(false);
@@ -167,7 +177,7 @@ namespace Campground.Shared.Injection
             try
             {
                 var document = Encoding.UTF8.GetString(produced);
-                if (!IndexHtml.Apply(document, baseUrl, tags, runtime, out html))
+                if (!IndexHtml.Apply(document, baseUrl, tags, runtime, asFiles: true, out html))
                 {
                     // Nothing changed: either every fragment is already current (healthy: an older on-disk
                     // patch, or File Transformation adding the same tag), or there was nowhere to put them.
@@ -205,6 +215,100 @@ namespace Campground.Shared.Injection
             context.Response.Headers[HeaderNames.Expires] = "0";
             InjectionCoordinator.RecordServed();
             await context.Response.Body.WriteAsync(bytes, context.RequestAborted).ConfigureAwait(false);
+        }
+
+        // Cheap test first: this runs on every request in the server.
+        private static bool IsCampgroundFile(string? path)
+            => path != null
+               && path.EndsWith(".js", StringComparison.OrdinalIgnoreCase)
+               && path.IndexOf("/Campground/", StringComparison.OrdinalIgnoreCase) != -1;
+
+        /// <summary>
+        /// Answers <c>/Campground/runtime.js</c> and <c>/Campground/head/&lt;id&gt;.js</c>, with or without the
+        /// base URL. Returns false (and leaves the request alone) for anything else under /Campground/.
+        /// </summary>
+        private static async Task<bool> TryServeFile(HttpContext context, IServerConfigurationManager serverConfig)
+        {
+            if (!HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method))
+            {
+                return false;
+            }
+
+            var path = context.Request.Path.Value!;
+            var baseUrl = string.Empty;
+            try
+            {
+                baseUrl = JellyfinNetworkSettings.NormalizeBaseUrl(serverConfig.GetNetworkConfiguration().BaseUrl);
+            }
+            catch (Exception)
+            {
+                // Unprefixed match below still covers the default install.
+            }
+
+            var rel = Strip(path, baseUrl) ?? Strip(path, string.Empty);
+            if (rel == null)
+            {
+                return false;
+            }
+
+            string? script = null;
+            var current = false;
+            if (rel.Equals(IndexHtml.RuntimePath, StringComparison.OrdinalIgnoreCase))
+            {
+                // The highest version offered, as the inline form always served (0.5.0). Off under the brake.
+                var runtime = Emergency.EmergencyDisable.IsCampgroundDisabled ? null : InjectionCoordinator.Runtime();
+                if (runtime is { } rt)
+                {
+                    script = rt.Script;
+                    current = string.Equals(context.Request.Query["v"].ToString(), rt.Version, StringComparison.Ordinal);
+                }
+            }
+            else if (rel.StartsWith(IndexHtml.HeadPathPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var id = Uri.UnescapeDataString(rel.Substring(IndexHtml.HeadPathPrefix.Length, rel.Length - IndexHtml.HeadPathPrefix.Length - 3));
+                foreach (var t in InjectionCoordinator.ActiveTags())
+                {
+                    if (string.Equals(t.HeadId, id, StringComparison.Ordinal) && IndexHtml.HeadScriptBody(t) is { } body)
+                    {
+                        script = body;
+                        current = string.Equals(context.Request.Query["v"].ToString(), IndexHtml.ContentVersion(body), StringComparison.Ordinal);
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                return false;
+            }
+
+            if (script == null)
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                context.Response.Headers[HeaderNames.CacheControl] = "no-cache, no-store, must-revalidate";
+                return true;
+            }
+
+            var bytes = Encoding.UTF8.GetBytes(script);
+            context.Response.StatusCode = StatusCodes.Status200OK;
+            context.Response.ContentType = "application/javascript; charset=utf-8";
+            context.Response.ContentLength = bytes.Length;
+            context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+
+            // The URL carries the version, so a matching one can be cached. A stale one (an index.html cached from
+            // before an update) gets today's code and isn't kept.
+            context.Response.Headers[HeaderNames.CacheControl] = current ? "public, max-age=86400" : "no-cache";
+            if (!HttpMethods.IsHead(context.Request.Method))
+            {
+                await context.Response.Body.WriteAsync(bytes, context.RequestAborted).ConfigureAwait(false);
+            }
+
+            return true;
+        }
+
+        private static string? Strip(string path, string baseUrl)
+        {
+            var prefix = baseUrl.TrimEnd('/');
+            return path.StartsWith(prefix + "/Campground/", StringComparison.OrdinalIgnoreCase) ? path.Substring(prefix.Length) : null;
         }
 
         private static bool IsTransformable(HttpResponse r)

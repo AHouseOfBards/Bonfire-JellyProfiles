@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 
@@ -48,7 +49,11 @@ const BindingFlags Flags = BindingFlags.Static | BindingFlags.NonPublic | Bindin
 
 var indexHtml = asm.GetType("Campground.Shared.Injection.IndexHtml", true);
 var regType = asm.GetType("Campground.Shared.Injection.ScriptRegistration", true);
-var applyM = indexHtml.GetMethod("Apply", Flags) ?? throw new Exception("IndexHtml.Apply not found");
+// The overload the middleware calls (0.10.0): runtime and head snippets as files. The five-argument
+// one is the inline form an older owner writes, which no 0.10.0 middleware serves any more.
+var applyM = indexHtml.GetMethods(Flags).FirstOrDefault(m => m.Name == "Apply" && m.GetParameters().Length == 6
+        && m.GetParameters()[4].ParameterType == typeof(bool))
+    ?? throw new Exception("IndexHtml.Apply(..., asFiles, out) not found");
 var removeM = wi.GetMethod("Remove", Flags) ?? throw new Exception("Remove not found");
 var isPathM = mw.GetMethod("IsIndexPath", Flags) ?? throw new Exception("IsIndexPath not found");
 var registration = wi.GetProperty("Registration", Flags)?.GetValue(null)
@@ -60,11 +65,22 @@ string ScriptVersion = (string)wi.GetProperty("ScriptVersion", Flags).GetValue(n
 var tags = Array.CreateInstance(regType, 1);
 tags.SetValue(registration, 0);
 
-(bool Changed, string Html) Inject(string html)
+// The inline form, which is what a file patched on disk by an older Bonfire holds. Remove is the
+// cleanup of those files, so its round trips start from this form, not from what the middleware
+// serves now.
+var applyInlineM = indexHtml.GetMethods(Flags).First(m => m.Name == "Apply" && m.GetParameters().Length == 5);
+string InjectInline(string html)
 {
     var args = new object[] { html, null, tags, null, null };
+    applyInlineM.Invoke(null, args);
+    return (string)args[4];
+}
+
+(bool Changed, string Html) Inject(string html)
+{
+    var args = new object[] { html, null, tags, null, true, null };
     var changed = (bool)applyM.Invoke(null, args);
-    return (changed, (string)args[4]);
+    return (changed, (string)args[5]);
 }
 
 // What WebInjection.IsFullyInjected meant: both fragments there, once, naming this build —
@@ -208,7 +224,7 @@ Console.WriteLine("── Documents we do not understand are left alone ──�
 Console.WriteLine();
 Console.WriteLine("── Remove puts the document back ────────────────────────────");
 {
-    var injected = Inject(Clean).Html;
+    var injected = InjectInline(Clean);
     var (changed, cleaned) = Remove(injected);
     Check("reports a change", changed, true);
     Check("no body tag left", CountScriptTags(cleaned), 0);
@@ -235,7 +251,7 @@ Console.WriteLine("── Remove puts the document back ────────
     Check("an unpatched document reports no change", untouched.Changed, false);
     Check("and comes back byte for byte", untouched.Html, Spaced);
 
-    var spacedRound = Remove(Inject(Spaced).Html);
+    var spacedRound = Remove(InjectInline(Spaced));
     Check("a patched document with blank lines still round-trips", spacedRound.Html, Spaced);
     Check("its blank lines are all still there",
         spacedRound.Html.Split("\n\n").Length, Spaced.Split("\n\n").Length);
@@ -243,7 +259,7 @@ Console.WriteLine("── Remove puts the document back ────────
     // CRLF is what a Windows server writes; the round trip has to hold there too.
     var crlf = Spaced.Replace("\n", "\r\n");
     Check("CRLF: unpatched is untouched", Remove(crlf).Html, crlf);
-    Check("CRLF: patched round-trips", Remove(Inject(crlf).Html).Html, crlf);
+    Check("CRLF: patched round-trips", Remove(InjectInline(crlf)).Html, crlf);
 }
 
 Console.WriteLine();
@@ -255,7 +271,7 @@ Console.WriteLine("── IsFullyInjected is strict about the version ───�
     var wrongVersion = injected.Replace($"?v={ScriptVersion}", "?v=0.0.0.1");
     Check("old version is NOT fully injected", IsFullyInjected(wrongVersion), false);
 
-    var noHead = Regex.Replace(injected, @"<script id=""jpf-eh"">[\s\S]*?</script>", string.Empty);
+    var noHead = Regex.Replace(injected, @"<script id=""jpf-eh""[^>]*>[\s\S]*?</script>", string.Empty);
     Check("missing head script is NOT fully injected", IsFullyInjected(noHead), false);
 }
 

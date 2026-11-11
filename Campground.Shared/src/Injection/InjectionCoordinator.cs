@@ -300,7 +300,8 @@ namespace Campground.Shared.Injection
         }
 
         /// <summary>
-        /// The browser runtime to inline (highest version offered by any plugin), or null.
+        /// The browser runtime to serve (highest version offered by any plugin), or null. A 0.10.0 owner serves it
+        /// as /Campground/runtime.js; an older owner inlines it.
         /// Every plugin offers the copy it compiled, so the newest one wins on a mixed server.
         /// </summary>
         internal static (string Version, string Script)? Runtime()

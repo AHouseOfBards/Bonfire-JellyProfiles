@@ -37,6 +37,15 @@ namespace Campground.Shared.Injection
             IReadOnlyList<ScriptRegistration> tags,
             (string Version, string Script)? runtime,
             out string result)
+            => Apply(html, baseUrl, tags, runtime, RuntimeTag, out result);
+
+        private static bool Apply(
+            string html,
+            string? baseUrl,
+            IReadOnlyList<ScriptRegistration> tags,
+            (string Version, string Script)? runtime,
+            Func<string, string, string> runtimeTag,
+            out string result)
         {
             var original = html;
             var nl = html.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
@@ -44,7 +53,7 @@ namespace Campground.Shared.Injection
             // 1. Runtime first in <head>, so every plugin script can rely on window.Campground.
             if (runtime is { } rt)
             {
-                html = UpsertHead(html, RuntimeId, RuntimeTag(rt.Version, rt.Script), nl, prepend: true);
+                html = UpsertHead(html, RuntimeId, runtimeTag(rt.Version, rt.Script), nl, prepend: true);
             }
 
             // 2. Head snippets.
@@ -87,6 +96,76 @@ namespace Campground.Shared.Injection
         /// True when the document has somewhere to put fragments: a &lt;head&gt; or a &lt;/body&gt;. Tells
         /// "nothing to do" apart from "nowhere to do it" when <see cref="Apply"/> returns false.
         /// </summary>
+        /// <summary>
+        /// Same as <see cref="Apply(string, string?, IReadOnlyList{ScriptRegistration}, ValueTuple{string, string}?, out string)"/>,
+        /// but with <paramref name="asFiles"/> the runtime and every head snippet go in as
+        /// <c>&lt;script src&gt;</c> tags the middleware answers (0.10.0, issue #20 M1). A Content-Security-Policy
+        /// of <c>script-src 'self'</c> drops inline scripts without a word, and with them every plugin's start-up.
+        /// The tags keep their ids, so an older owner's inline form and this one replace each other in place.
+        /// </summary>
+        internal static bool Apply(
+            string html,
+            string? baseUrl,
+            IReadOnlyList<ScriptRegistration> tags,
+            (string Version, string Script)? runtime,
+            bool asFiles,
+            out string result)
+        {
+            if (!asFiles)
+            {
+                return Apply(html, baseUrl, tags, runtime, out result);
+            }
+
+            var files = new List<ScriptRegistration>(tags.Count);
+            foreach (var t in tags)
+            {
+                var body = HeadScriptBody(t);
+                files.Add(body == null ? t : t with { HeadSnippet = HeadFileTag(t.HeadId!, body, baseUrl) });
+            }
+
+            return Apply(html, baseUrl, files, runtime, (version, _) => RuntimeFileTag(version, baseUrl), out result);
+        }
+
+        /// <summary>Where the runtime is served, after the base URL.</summary>
+        internal const string RuntimePath = "/Campground/runtime.js";
+
+        /// <summary>Where head snippets are served, after the base URL: <c>/Campground/head/&lt;HeadId&gt;.js</c>.</summary>
+        internal const string HeadPathPrefix = "/Campground/head/";
+
+        /// <summary>The runtime as a file. No defer: it must run before the head snippets and plugin scripts.</summary>
+        internal static string RuntimeFileTag(string version, string? baseUrl)
+            => $"<script id=\"{RuntimeId}\" data-v=\"{version}\" src=\"{JellyfinNetworkSettings.NormalizeBaseUrl(baseUrl)}{RuntimePath}?v={Uri.EscapeDataString(version)}\"></script>";
+
+        /// <summary>
+        /// The code inside a head snippet, when the snippet is exactly one plain inline
+        /// <c>&lt;script id="HeadId"&gt;</c> and so can be served as a file. Null otherwise (it then stays inline).
+        /// </summary>
+        internal static string? HeadScriptBody(ScriptRegistration reg)
+        {
+            if (string.IsNullOrEmpty(reg.HeadSnippet) || string.IsNullOrEmpty(reg.HeadId))
+            {
+                return null;
+            }
+
+            var m = Regex.Match(
+                reg.HeadSnippet!,
+                "^\\s*<script\\s+id=\"" + Regex.Escape(reg.HeadId!) + "\"\\s*>([\\s\\S]*?)</script>\\s*$",
+                RegexOptions.IgnoreCase);
+            if (!m.Success || m.Groups[1].Value.IndexOf("</script", StringComparison.OrdinalIgnoreCase) != -1)
+            {
+                return null;
+            }
+
+            return m.Groups[1].Value;
+        }
+
+        /// <summary>A short content hash for a head file's cache-buster.</summary>
+        internal static string ContentVersion(string body)
+            => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(body)), 0, 6).ToLowerInvariant();
+
+        private static string HeadFileTag(string headId, string body, string? baseUrl)
+            => $"<script id=\"{headId}\" src=\"{JellyfinNetworkSettings.NormalizeBaseUrl(baseUrl)}{HeadPathPrefix}{Uri.EscapeDataString(headId)}.js?v={ContentVersion(body)}\"></script>";
+
         internal static bool HasAnchors(string html)
             => Regex.IsMatch(html, "<head[^>]*>", RegexOptions.IgnoreCase)
                || html.IndexOf("</body>", StringComparison.OrdinalIgnoreCase) != -1;
