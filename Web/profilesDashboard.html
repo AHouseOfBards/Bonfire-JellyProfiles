@@ -221,6 +221,8 @@
     /* Announcements. Severity is shown by the stripe and the word, never colour alone. */
     #profilesConfigurationPage .jpf-sa-note { margin-bottom: 8px; }
     #profilesConfigurationPage .jpf-sa-label { display: flex; flex-direction: column; font-size: 0.85rem; }
+    /* A switch and its label on one full-width row (the PIN prompts form). */
+    #profilesConfigurationPage .jpf-sa-label.jpf-sa-switch { flex: 0 0 100%; flex-direction: row; align-items: center; gap: 8px; }
     #profilesConfigurationPage .jpf-sa-btn { padding: 6px 12px; }
     /* Under a main account: the other accounts on its screen, and its two forms. */
     #profilesConfigurationPage .jpf-account-extras { padding: 0 15px 10px 15px; }
@@ -2534,14 +2536,14 @@
                         if (field(m, 'isAdministrator') === true) return '';
                         const key = normId(field(m, 'profileUserId'));
                         const rows = (subsByMaster[key] || []).map(function (s) {
-                            return '<label class="jpf-sa-label" style="flex:0 0 100%; flex-direction:row; align-items:center; gap:8px;">' +
+                            return '<label class="jpf-sa-label jpf-sa-switch">' +
                                    '<input is="emby-checkbox" type="checkbox" class="pin-prompt-bypass" data-id="' + escapeHtml(field(s, 'profileUserId') || '') + '"' +
                                    (field(s, 'bypassPinOnLocalNetwork') === true ? ' checked' : '') + ' />' +
                                    '<span>' + escapeHtml(t('admin.pins.profile', { name: field(s, 'profileName') || '' })) + '</span></label>';
                         }).join('');
                         return '<div class="pin-prompts-form jpf-extras-form jpf-hidden">' +
                                '<div class="fieldDescription">' + escapeHtml(t('admin.pins.note')) + '</div>' +
-                               '<label class="jpf-sa-label" style="flex:0 0 100%; flex-direction:row; align-items:center; gap:8px;">' +
+                               '<label class="jpf-sa-label jpf-sa-switch">' +
                                '<input is="emby-checkbox" type="checkbox" class="pin-prompt-ask"' + (field(m, 'askPinToOpen') !== false ? ' checked' : '') + ' />' +
                                '<span>' + escapeHtml(t('admin.pins.ask')) + '</span></label>' +
                                rows +

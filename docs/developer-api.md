@@ -41,7 +41,7 @@ because other people build against it too.
 
 ## All routes
 
-All 105 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 107 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |

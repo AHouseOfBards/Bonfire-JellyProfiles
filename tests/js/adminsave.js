@@ -36,6 +36,8 @@ const source = L.dashboardI18n(script)
     + L.extractFunction(script, 'normalizeTheme') + '\n'
     // Save clears the "unsaved changes" note; it is not what this harness is about.
     + (script.indexOf('function setUnsaved') !== -1 ? L.extractFunction(script, 'setUnsaved') + '\n' : '')
+    // Save reads the trusted-address rows (2.0); before they're drawn it sends what was loaded.
+    + (script.indexOf('function collectTrusted') !== -1 ? L.extractFunction(script, 'collectTrusted') + '\n' : '')
     + L.extractFunction(script, 'saveConfiguration');
 
 // ── the stub server ──────────────────────────────────────────────────────────
@@ -213,7 +215,9 @@ const expected = [
     'skipQuickConnectOnKnownDevices',
     'proxyClients',
     'profileImageQuality',
-    'onboardingEnabled'
+    'onboardingEnabled',
+    // Trusted addresses (2.0, issue #42): address entries with the accounts each is for.
+    'trustedAddressEntries'
 ];
 
 if (body) {

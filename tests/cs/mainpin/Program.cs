@@ -310,7 +310,7 @@ if (hasAccountRoutes)
 }
 
 var canSkip = baseType.GetMethod("CanSkipPin", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
-bool Skip(object row, bool local, bool cross, bool householdLan) => (bool)canSkip.Invoke(null, new[] { row, local, cross, householdLan });
+bool Skip(object row, bool local, bool cross, bool householdLan) => (bool)canSkip.Invoke(null, new[] { row, local, cross, householdLan, (object)false });
 
 var askProp = mapType.GetProperty("AskPinToOpen");
 Ok("main accounts are asked for their PIN by default", askProp != null && (bool)askProp.GetValue(Activator.CreateInstance(mapType)));

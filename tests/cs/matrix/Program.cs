@@ -83,7 +83,7 @@ object MakePrefMapping(string legacyMode, bool? ask, string location)
 }
 
 bool Skip(object mapping, bool isLocal, bool isCross, bool household)
-    => (bool)canSkip.Invoke(null, new object[] { mapping, isLocal, isCross, household });
+    => (bool)canSkip.Invoke(null, new object[] { mapping, isLocal, isCross, household, false });
 
 int pass = 0, fail = 0;
 void Check(string name, object actual, object expected)

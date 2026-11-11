@@ -178,6 +178,8 @@ var byHand = new Dictionary<string, object>
     ["QuickConnectSharedDeviceNames"] = new List<string> { "SHIELD Android TV" },
     ["ProxyClients"] = new List<string> { "moonfin" },
     ["HouseholdsSeenLocally"] = new List<Guid> { MASTER },
+    // Trusted addresses (2.0, #42): a backup that drops them puts the PIN back on Grandma's TV.
+    ["TrustedAddressEntries"] = ListOf(T("TrustedAddressEntry"), Item("TrustedAddressEntry", ("Address", "192.168.1.0/24"), ("UserIds", new List<Guid> { MASTER }))),
     ["AccountEmails"] = ListOf(T("AccountEmail"), Item("AccountEmail", ("UserId", MASTER), ("Address", "bard@example.com"), ("Language", "de"), ("NotifyLimitReached", true))),
     ["Email"] = Item("EmailSettings", ("Host", "smtp.example.com"), ("Port", 2525), ("Username", "mailer"), ("Password", "app-password"),
         ("FromAddress", "bonfire@example.com"), ("Security", "none")),

@@ -39,6 +39,8 @@ const source = L.dashboardI18n(script)
     // Loading clears the "unsaved changes" note; it is not what this harness is about.
     + (script.indexOf('function setUnsaved') !== -1 ? L.extractFunction(script, 'setUnsaved') + '\n' : '')
     + (script.indexOf('function showConfigLoadError') !== -1 ? L.extractFunction(script, 'showConfigLoadError') + '\n' : '')
+    // Save reads the trusted-address rows (2.0); before they're drawn it sends what was loaded.
+    + (script.indexOf('function collectTrusted') !== -1 ? L.extractFunction(script, 'collectTrusted') + '\n' : '')
     + loadSrc + '\n'
     + L.extractFunction(script, 'saveConfiguration');
 

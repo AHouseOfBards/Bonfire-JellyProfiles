@@ -466,7 +466,7 @@ var locked = false;
 for (var i = 0; i < 15 && !locked; i++) locked = Call("GetAccountEmail", MAIN, pinHeader: "9999").status == 429;
 note = Last();
 Ok("guessing the main PIN until it locks", locked);
-Ok("mails the main account, once", Sent() == before + 1 && note.To == "parent@example.com" && note.Subject == "Un code PIN Bonfire a été bloqué",
+Ok("mails the main account, once", Sent() == before + 1 && note.To == "parent@example.com" && note.Subject == "Trop de codes PIN erronés sur Bonfire",
    (Sent() - before) + " " + note?.Subject);
 Call("GetAccountEmail", MAIN, pinHeader: "9999");
 Ok("and not again for the next refusal", Sent() == before + 1);
