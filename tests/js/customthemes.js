@@ -50,7 +50,7 @@ function method(name) {
 }
 
 const FUNCS = ['readCustomThemes', 'offeredThemes', 'offeredChoice', 'themeNameText', 'customFontFaceCss', 'customThemesCss'];
-const METHODS = ['restoreCustomThemes', 'loadCustomThemes', 'useCustomThemes', 'applyCustomThemesCss', 'applyTheme', 'drawLogo'];
+const METHODS = ['restoreCustomThemes', 'loadCustomThemes', 'useCustomThemes', 'applyCustomThemesCss', 'applyTheme', 'drawLogo', 'loadThemePhoto'];
 console.log('\n── The pieces are in the client ──────────────────────────────');
 FUNCS.forEach(n => ok(n + ' is in profiles.js', new RegExp('function\\s+' + n + '\\s*\\(').test(SRC)));
 METHODS.forEach(n => ok(n + ' is a method', !!method(n)));
@@ -402,6 +402,63 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
         ok('after a failed request the next call asks again', calls === 2, 'asked ' + calls + ' time(s)');
         await holder.loadCustomThemes();
         ok('after an answer it is not asked again', calls === 2, 'asked ' + calls + ' time(s)');
+    }
+
+    // 2.0: a custom theme's background picture. Drawn only once it has loaded, so a missing
+    // or failed picture leaves the theme exactly as it is without one.
+    console.log('\n── A background picture ──────────────────────────────────────');
+    {
+        const gen = world({}, {}).helpers;
+        const PIC = 'b'.repeat(32) + '.jpg';
+        const withPic = (file, dim) => custom('photo', 'harvest', {
+            background: Object.assign({}, payload.themes.filter(x => x.id === 'harvest')[0].background, { image: { file: file, dim: dim } })
+        });
+        const plainCss = gen.themeCss(custom('photo'), {});
+        const picCss = gen.themeCss(withPic(PIC, 0.8), {});
+        const ready = 'html[data-jpf-photos~="' + PIC + '"]';
+        ok('the picture is written under a rule that waits for it to load', picCss.indexOf(ready + '[data-jpf-theme="photo"]') !== -1
+            && picCss.indexOf(ready + ' [data-jpf-theme="photo"]') !== -1, picCss.slice(-600));
+        const start = picCss.indexOf(ready);
+        const end = picCss.indexOf('\n}\n', start) + 3;
+        const rule = picCss.slice(start, end);
+        // Apart from that rule, everything is the theme without a picture: what shows while
+        // it loads or when it fails. The accent text included: it is held against the
+        // picture too, but only inside the picture's rule (themephoto.js caught it outside).
+        ok('and everything else is the theme without one', start > 0 && picCss.slice(0, start) + picCss.slice(end) === plainCss);
+        ok('the accent text the picture needs is in its rule', /--jpf-accent-text: #[0-9a-f]{6};/.test(rule), rule.slice(-80));
+        const bgHex = payload.themes.filter(x => x.id === 'harvest')[0].background.fill.slice(0, 7);
+        const k = [1, 3, 5].map(i => parseInt(bgHex.slice(i, i + 2), 16));
+        const veil = 'rgba(' + k.join(', ') + ', 0.8)';
+        ok('over the picture, a layer of the fill at the dim', rule.indexOf('linear-gradient(' + veil + ', ' + veil + ')') !== -1, rule.slice(0, 200));
+        ok('the picture fills the screen', /url\("[^"]*\/plugins\/profiles\/themes\/backgrounds\/b{32}\.jpg"\) center \/ cover no-repeat/.test(rule), rule.slice(0, 300));
+        ok('the theme\'s own background is under it, for a picture with clear parts',
+            rule.indexOf('no-repeat, ' + /--jpf-gate-bg: ([^;]*);/.exec(plainCss)[1] + ';') !== -1);
+        ok('a dim past 0.95 is drawn at 0.95', gen.themeCss(withPic(PIC, 5), {}).indexOf('rgba(' + k.join(', ') + ', 0.95)') !== -1);
+        ['../x.png', 'a.png', 'B'.repeat(32) + '.jpg', 'b'.repeat(32) + '.svg', 'b'.repeat(32) + '.jpg") , url("http://x', 42].forEach(bad => {
+            ok('a name the server could not have stored draws nothing: ' + String(bad).slice(0, 20),
+                gen.themeCss(withPic(bad, 0.8), {}) === plainCss);
+        });
+
+        // The loader: marks <html> only when the picture loads, through pluginUrl.
+        const made = [];
+        global.Image = function () { made.push(this); };
+        const w = world({}, { themes: [withPic(PIC, 0.8)], fonts: [], hidden: [] });
+        w.addSheet();
+        await w.obj.loadCustomThemes();
+        ok('the themes\' pictures are fetched when their CSS goes in', made.length === 1 && made[0].src === '/plugins/profiles/themes/backgrounds/' + PIC, made.map(m => m.src).join());
+        ok('and nothing is marked before it loads', !w.attrs['data-jpf-photos']);
+        made[0].onload();
+        ok('once it loads, <html> names it', w.attrs['data-jpf-photos'] === PIC, w.attrs['data-jpf-photos']);
+        w.obj.applyCustomThemesCss();
+        ok('it is fetched once', made.length === 1);
+        w.obj.loadThemePhoto('c'.repeat(32) + '.png');
+        made[1].onerror();
+        ok('a picture that fails is never marked', w.attrs['data-jpf-photos'] === PIC);
+        w.obj.loadThemePhoto('c'.repeat(32) + '.png');
+        ok('and is tried again the next time', made.length === 3);
+        w.obj.loadThemePhoto('../evil.png');
+        ok('a bad name is never fetched', made.length === 3);
+        delete global.Image;
     }
 
     finish();

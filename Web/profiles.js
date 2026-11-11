@@ -491,6 +491,26 @@
         }).filter(Boolean);
         const gateBg = layers.length ? layers.join(', ') : col(bg.fill, '#101010');
 
+        // A custom theme's picture (2.0, ThemeBackground on the server): drawn over all of
+        // the above, filling the screen, under a layer of the theme's own fill at `dim` so
+        // the text stays readable whatever the picture holds. The server holds every colour
+        // against a white and a black picture under that layer before the theme can be
+        // saved. Only the name is read from the file, and only one the server could have
+        // stored; the address is built here. Written under a rule that needs the picture
+        // to have loaded (loadThemePhoto marks <html>), so while it loads, or when it
+        // fails, the screen is exactly the theme without it, never the dimming layer over
+        // the gradient.
+        const photo = g(bg, 'image');
+        const photoFile = /^[0-9a-f]{32}\.(png|jpg|webp)$/.test(String(g(photo, 'file') || '')) ? String(photo.file) : '';
+        const photoDim = Math.max(0, Math.min(0.95, num(g(photo, 'dim'), 0.95)));
+        const photoFill = hex(bg.fill) ? hex(bg.fill).slice(0, 7) : '#101010';
+        const photoBg = photoFile ? (() => {
+            // pluginUrl is there in the page; a harness that lifts themeCss on its own has none.
+            const path = '/plugins/profiles/themes/backgrounds/' + photoFile, url = String(typeof pluginUrl === 'function' ? pluginUrl(path) : path).replace(/["\\\n\r]/g, '');
+            const veil = tint(photoFill, photoDim);
+            return 'linear-gradient(' + veil + ', ' + veil + '), url("' + url + '") center / cover no-repeat, ' + gateBg;
+        })() : '';
+
         // The accent drawn as small text ("Forgot PIN?", the "current" badge). A brand
         // colour that carries white button text is dark, which is too dim to read on a
         // dark panel, and the two needs cannot be met by one value. So the text gets its
@@ -498,7 +518,7 @@
         // the background (a see-through stop laid over each solid one, as the contrast
         // check does), otherwise the accent moved towards the text colour a step at a
         // time, so it stays the same hue and changes no more than it must.
-        const accentText = (() => {
+        const accentTextOn = withPhoto => {
             const lin = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
             const lumOf = k => 0.2126 * lin(k[0]) + 0.7152 * lin(k[1]) + 0.0722 * lin(k[2]);
             const ratio = (p, q) => {
@@ -520,6 +540,13 @@
             });
             const panelHex = hex(c.panel);
             if (panelHex) backs.push(rgbOf(panelHex));
+            // Under a picture: the two ends of what it could be, a white one and a black
+            // one under the dimming layer, as the server's check holds them. Only in the
+            // picture's own rule: until it loads the screen is the theme without it.
+            if (withPhoto) {
+                const f = rgbOf(photoFill);
+                [255, 0].forEach(end => backs.push(f.map(x => Math.round(x * photoDim + end * (1 - photoDim)))));
+            }
             const readable = k => backs.every(b => ratio(k, b) >= 4.5);
             const from = rgbOf(accent);
             if (!backs.length || readable(from)) return accent.slice(0, 7).toLowerCase();
@@ -529,7 +556,8 @@
                 if (readable(k)) return '#' + k.map(x => (x < 16 ? '0' : '') + x.toString(16)).join('');
             }
             return light ? '#000000' : '#ffffff';
-        })();
+        };
+        const accentText = accentTextOn(false);
 
         const av = shape.avatar || {};
         const avatarR = av.kind === 'circle' ? '50%'
@@ -656,6 +684,14 @@
         // it is what every screen wears before a theme is known.
         const selectors = (id === 'bonfire' ? [':root', 'body'] : []).concat([sel, sel + ' body']);
         let css = selectors.join(',\n') + ' {\n' + vars.map(v => '    ' + v[0] + ': ' + v[1] + ';').join('\n') + '\n}\n';
+
+        // The picture, once it has loaded: on <html> wearing the theme (and its body, which
+        // redeclares the tokens), and on anything inside that wears it, such as a preview.
+        if (photoBg) {
+            const ready = 'html[data-jpf-photos~="' + photoFile + '"]';
+            css += [ready + sel, ready + sel + ' body', ready + ' ' + sel].join(',\n')
+                + ' {\n    --jpf-gate-bg: ' + photoBg + ';\n    --jpf-accent-text: ' + accentTextOn(true) + ';\n}\n';
+        }
 
         // A pattern is drawn behind the screen, and on a phone the content fills the width, so
         // every ornament lands behind a button, a field or a card and shows through its
@@ -13289,6 +13325,26 @@
                 document.head.appendChild(style);
             }
             if (style.textContent !== css) style.textContent = css;
+            CUSTOM_THEMES.themes.forEach(c => this.loadThemePhoto(c && c.background && c.background.image && c.background.image.file));
+        },
+
+        /// Fetches a custom theme's background picture and, once it has loaded, adds its name
+        /// to <html data-jpf-photos>, which is what themeCss's picture rule waits for. Nothing
+        /// is marked for one that fails, so its theme stays as it is without one. Once per
+        /// picture per page; a failed one is tried again the next time the themes change.
+        loadThemePhoto: function (file) {
+            if (typeof file !== 'string' || !/^[0-9a-f]{32}\.(png|jpg|webp)$/.test(file)) return;
+            const asked = this._themePhotos || (this._themePhotos = {});
+            if (asked[file]) return;
+            asked[file] = true;
+            const img = new Image();
+            img.onload = () => {
+                const root = document.documentElement;
+                const have = String(root.getAttribute('data-jpf-photos') || '').split(' ').filter(Boolean);
+                if (have.indexOf(file) === -1) root.setAttribute('data-jpf-photos', have.concat([file]).join(' '));
+            };
+            img.onerror = () => { delete asked[file]; };
+            img.src = pluginUrl('/plugins/profiles/themes/backgrounds/' + file);
         }
     };
 
@@ -13302,6 +13358,9 @@
     if (typeof window !== 'undefined') {
         window.BonfireThemePreview = {
             css: theme => themeCss(theme, BONFIRE_THEMES.patterns || {}),
+            // A background picture the editor's preview names, fetched and marked as the
+            // pickers' are, so the preview shows it exactly when they would.
+            photo: file => ProfilesPlugin.loadThemePhoto(file),
             builtIns: () => JSON.parse(JSON.stringify(Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes : [])),
             refresh: () => {
                 ProfilesPlugin._customThemesLoad = null;
