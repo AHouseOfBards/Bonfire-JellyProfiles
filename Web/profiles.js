@@ -3506,9 +3506,20 @@
 
             this._bindSettingsRefresh();
 
-            // SPA navigation events
-            window.addEventListener('popstate', doCheck);
-            window.addEventListener('hashchange', doCheck);
+            // SPA navigation. With the Campground runtime on the page, route changes come
+            // from its `route` event (it listens for popstate, hashchange and viewshow) and
+            // history is wrapped only through its patch(), so a second copy of this script
+            // does not wrap twice and the brake can undo it. The runtime can be missing —
+            // a Content-Security-Policy blocked /Campground/runtime.js, or the brake is on —
+            // and then Bonfire listens and wraps by itself, as it always did.
+            const cg = window.Campground;
+            const hasRuntime = !!(cg && typeof cg.on === 'function');
+            if (hasRuntime) {
+                cg.on('route', doCheck);
+            } else {
+                window.addEventListener('popstate', doCheck);
+                window.addEventListener('hashchange', doCheck);
+            }
 
             // The corner-pill fallback is placed by geometry, so its position is stale
             // only when the viewport changes — a rotation on a phone, a window resize.
@@ -3517,14 +3528,24 @@
                 window.addEventListener(evt, () => { this._fallbackPosDirty = true; });
             });
 
-            // Intercept history.pushState / replaceState (React-router style navigation)
+            // Intercept history.pushState / replaceState (React-router style navigation).
+            // The runtime's route event does not cover these: 10.11 keeps the route in the
+            // path and navigates by pushState, which fires neither popstate nor hashchange.
+            // When the runtime is there but patch() declines (the brake is on), history is
+            // left alone and the poll below notices the change.
             ['pushState', 'replaceState'].forEach(method => {
-                const orig = history[method];
-                history[method] = function (...args) {
-                    orig.apply(history, args);
+                const wrap = orig => function (...args) {
+                    const result = orig.apply(this, args);
                     // Small delay so the URL is committed before we read it
                     setTimeout(doCheck, 0);
+                    return result;
                 };
+                if (hasRuntime && typeof cg.patch === 'function') {
+                    cg.patch(history, method, wrap, 'bonfire');
+                } else {
+                    // No runtime, or one older than 0.10.0, which has no patch().
+                    history[method] = wrap(history[method]);
+                }
             });
 
             // Clear the cached master token on native Jellyfin sign-out, so it does not
