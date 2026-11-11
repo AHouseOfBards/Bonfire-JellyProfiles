@@ -165,8 +165,11 @@ tabNames.forEach(function (n) {
 const panels = tabNames.length;
 ok(count(html, 'role="tabpanel"') === panels,
    'every panel is announced as one (' + panels + ')');
-ok(count(html, 'jpf-tab-panel') === panels + 3,
-   'one class per panel, plus the three style rules');
+// The markup class, counted exactly. It counted every mention of the name, plus a fixed
+// three for the style rules and initTabs; the settings link added a closest() lookup and
+// the fixed number went stale.
+ok(count(html, 'class="jpf-tab-panel"') === panels,
+   'one panel element per tab (' + panels + ')');
 ok(count(html, ' hidden>') === panels,
    'panels start hidden; show() opens exactly one');
 // aria-controls must name a real element or the strip lies to a screen reader.

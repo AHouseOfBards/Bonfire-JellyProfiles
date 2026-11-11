@@ -3887,8 +3887,12 @@
             }
 
             // Profile accounts stay off Dashboard -> Users. A string compare per tick and
-            // nothing else: the work happens once, when the address changes.
-            if (hash !== this._usersRouteHash) {
+            // nothing else: the work happens once, when the address changes. A failed read
+            // also asks again once its wait is over, for an admin who stays on the page
+            // (tests/js/pollbackoff.js, R-1183); until a read fails that is one field read.
+            if (hash !== this._usersRouteHash
+                || (this._usersRetryDue && Date.now() >= this._usersMappingsRetryAt)) {
+                this._usersRetryDue = false;
                 this._usersRouteHash = hash;
                 this.syncHiddenProfiles(hash);
             }
@@ -4244,6 +4248,7 @@
         /// Called from checkRoute when the address changes, never on a tick that did not.
         _usersRouteHash: null,
         _usersMappingsRetryAt: 0,
+        _usersRetryDue: false,
         /// A user card on that page. Recorded in tests/upstream-selectors.json; the id is
         /// added to the attribute, which is why it must end in `]`.
         USERS_CARD_SELECTOR: '.localUsers [data-userid]',
@@ -4275,6 +4280,7 @@
             })
             .catch(() => {
                 this._usersMappingsRetryAt = Date.now() + this.POLL_RETRY_MS;
+                this._usersRetryDue = true;
             });
         },
 

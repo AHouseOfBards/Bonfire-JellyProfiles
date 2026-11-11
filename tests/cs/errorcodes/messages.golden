@@ -98,7 +98,6 @@ BadRequest|profile_disabled|This profile's account is turned off on the server.
 BadRequest|profile_disabled|This profile's main account is turned off on the server.
 BadRequest|profile_limit|Maximum profile limit of {maxProfiles} reached.
 BadRequest|profile_not_found|Missing profile.
-BadRequest|profile_not_found|Profile not found.
 BadRequest|sign_in_failed|Couldn't sign in to that profile. Check the server log.
 BadRequest|theme_in_use|That's the default theme. Choose another default first.
 BadRequest|theme_invalid|Bonfire can't be hidden.

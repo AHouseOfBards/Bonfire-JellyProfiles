@@ -94,7 +94,7 @@ const ADMIN = {
         basic: ['.raised[button]', 'defaultTimeZone', 'onboardingEnabled', 'onboardingShowAgain'],
         more: []
     },
-    apps: {
+    clients: {
         basic: ['.jpfProxyClient[checkbox]', '.raised[button]', 'enableClientPinLogin', 'enableClientProfileList', 'skipQuickConnectOnKnownDevices'],
         more: ['clientPinLoginFromAnywhere']
     },

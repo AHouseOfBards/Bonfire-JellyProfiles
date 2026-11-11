@@ -206,7 +206,8 @@ function countOutsideHelper(needle) {
     return src.split(needle).length - 1;
 }
 ok('the switch calls reloadAtHome',
-    /localStorage\.setItem\(this\.config\.switchingKey, '1'\);\s*\r?\n\s*this\.reloadAtHome\(\);/.test(src));
+    // The write may sit in its own try (R-1212: blocked storage threw past the reload).
+    /localStorage\.setItem\(this\.config\.switchingKey, '1'\);(?:\s*\}\s*catch\s*\(\w+\)\s*\{[^}]*\})?\s*\r?\n\s*this\.reloadAtHome\(\);/.test(src));
 // There was a second reload site, the revert-to-master path. It is gone with the master
 // token it put back (see tests/js/mastertoken.js), so the switch is the one site left.
 ok('and it is the only reload site left', countOutsideHelper('this.reloadAtHome();') === 1);
