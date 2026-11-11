@@ -11055,7 +11055,7 @@
                     .catch(err => {
                         busy = false;
                         status.classList.add('is-error');
-                        status.textContent = escapeHtml(err.message || t('errors.couldNotSaveThat'));
+                        status.textContent = err.message || t('errors.couldNotSaveThat');
                     });
                 });
             });
