@@ -742,6 +742,82 @@
                 + open + ' .jpf-one-home .profiles-home-header { display: none; }\n';
         }
 
+        // The other four layout choices (2.0): tiles or a list, centred or left, three tile
+        // sizes, the logo's corner. Each default writes nothing, so every built-in and every
+        // theme saved before these existed looks exactly as it did.
+        //
+        // Weights, against the stylesheet (this block comes after it): the size and picture
+        // rules are one id and three classes, under the fitted rules' one id and four, so a
+        // crowded gate still shrinks. The list's own grid and card rules are one id and four,
+        // the fitted rules' weight, and win by coming later: a fitted list stays one column.
+        const lay = theme.layout || {};
+        const asList = lay.profiles === 'list';
+        const toLeft = lay.align === 'left';
+        const k = lay.size === 'small' ? 0.8 : lay.size === 'large' ? 1.25 : 1;
+        const logoAt = ['top-left', 'bottom-left', 'bottom-right'].indexOf(lay.logo) !== -1 ? lay.logo : 'top-right';
+        const px = v => Math.round(v * k) + 'px';
+        const vw = v => Math.round(v * k * 100) / 100;
+        const desk = sel + ':not(.jpf-tv) #profiles-gate-overlay';
+        const tv = sel + '.jpf-tv #profiles-gate-overlay';
+        const pick = sel + ' #profiles-gate-overlay .jpf-picker';
+        if (asList) {
+            // One profile a row, the picture with the name beside it. The pictures are smaller
+            // than tiles (80px, 128px on a television, at medium) so a household of four fits
+            // a screen. Focus is spatial (_moveOverlayFocus), so Up and Down walk the column
+            // with nothing added. Margins stand in for gap on Chromium 53.
+            css += pick + ' .profiles-grid { flex-direction: column; flex-wrap: nowrap; align-items: '
+                    + (toLeft ? 'flex-start' : 'center') + '; gap: 1rem; max-width: none; }\n'
+                + sel + '.jpf-no-flex-gap #profiles-gate-overlay .jpf-picker .profiles-grid > * { margin: 0 0 1rem; }\n'
+                + pick + ' .profiles-grid .profile-card { flex-direction: row; align-items: center; width: 100%; max-width: 30rem; }\n'
+                + desk + ' .profile-avatar-container { width: ' + px(80) + '; height: ' + px(80) + '; margin-top: 0; flex-shrink: 0; }\n'
+                + tv + ' .profile-avatar-container { width: ' + px(128) + '; height: ' + px(128) + '; margin-top: 0; flex-shrink: 0; }\n'
+                + desk + ' .profile-avatar:not(.add-avatar) { font-size: ' + px(31) + '; }\n'
+                + tv + ' .profile-avatar:not(.add-avatar) { font-size: ' + px(49) + '; }\n'
+                + sel + ' #profiles-gate-overlay .profile-name { margin: 0 0 0 1.25rem; align-items: flex-start; text-align: left; min-width: 0; -webkit-box-flex: 1; flex: 1 1 auto; }\n'
+                + pick + ' .profiles-limit-notice { align-self: auto; width: auto; }\n';
+        } else if (k !== 1) {
+            // The tile sizes in the stylesheet, scaled: the plain value first for Chromium 53,
+            // which drops the clamp(). Large's floor is only 10px over medium's: scaled by 1.25
+            // it left one tile a row on a phone, and fitted down they came out smaller than
+            // medium. 150px still puts two a row on a 360px phone.
+            const lo = v => (k < 1 ? Math.round(v * k) : v + 10) + 'px';
+            css += desk + ' .profile-card { width: ' + lo(140) + '; width: clamp(' + lo(140) + ', ' + vw(12) + 'vw, ' + px(210) + '); }\n'
+                + desk + ' .profile-avatar-container { width: ' + lo(130) + '; width: clamp(' + lo(130) + ', ' + vw(11) + 'vw, ' + px(195) + '); '
+                    + 'height: ' + lo(130) + '; height: clamp(' + lo(130) + ', ' + vw(11) + 'vw, ' + px(195) + '); }\n'
+                + tv + ' .profile-card { width: ' + px(300) + '; }\n'
+                + tv + ' .profile-avatar-container { width: ' + px(280) + '; height: ' + px(280) + '; }\n'
+                + sel + ' #profiles-gate-overlay .profile-avatar:not(.add-avatar) { font-size: ' + 3.5 * k + 'rem; }\n';
+        }
+        if (toLeft) {
+            // The picker's column moves to the left, 5% in (the gutter it has when centred on a
+            // phone), and everything in it lines up on that edge.
+            css += pick + ' { align-items: flex-start; text-align: left; margin-left: 5vw; margin-right: auto; }\n'
+                + pick + ' .profiles-grid { justify-content: flex-start; margin-left: 0; }\n'
+                + pick + ' .profiles-home-header { justify-content: flex-start; }\n'
+                + pick + ' .profiles-footer { justify-content: flex-start; }\n';
+        }
+        if (logoAt !== 'top-right') {
+            const onLeft = logoAt === 'top-left' || logoAt === 'bottom-left';
+            const logo = sel + ' #profiles-logo';
+            if (onLeft) css += logo + ' img { margin-left: 0; }\n';
+            if (logoAt === 'top-left') {
+                css += logo + ' { right: auto; left: 1rem; left: calc(1rem + env(safe-area-inset-left)); }\n'
+                    + sel + '.jpf-tv #profiles-logo { right: auto; left: 5vw; }\n';
+            } else {
+                // A logo pinned to the bottom of the first screen would sit on the tiles of a
+                // gate long enough to scroll. So at the bottom it is in the flow instead: the
+                // gate becomes a column, the content keeps its auto margins (centred while it
+                // fits), and the logo comes after it, at the bottom or below the last button.
+                // fitGateToScreen measures it with everything else.
+                css += sel + ' #profiles-gate-overlay.jpf-has-logo { flex-direction: column; }\n'
+                    + sel + ' #profiles-gate-overlay.jpf-has-logo .profiles-modal-content { padding-top: 0; }\n'
+                    + logo + ' { position: relative; top: auto; right: auto; left: auto; flex-shrink: 0; align-self: '
+                        + (onLeft ? 'flex-start' : 'flex-end') + '; margin: 1rem 1rem 0; '
+                        + (onLeft ? 'margin-left: calc(1rem + env(safe-area-inset-left));' : 'margin-right: calc(1rem + env(safe-area-inset-right));') + ' }\n'
+                    + sel + '.jpf-tv #profiles-logo { top: auto; right: auto; margin: 2vh 5vw 0; }\n';
+            }
+        }
+
         // rings: a gradient cannot be a border colour, so each tile's frame is a disc
         // behind it, painted in two layers: the gradient on the border box and the gap
         // colour inside it, which leaves a ring. Opaque inside so a cut-out picture sits
@@ -6720,7 +6796,7 @@
             // to say, or a screen reader does not announce the first change to it.
             overlay.innerHTML = `
                 <div id="jpf-switch-live" class="jpf-sr" role="status" aria-live="polite"></div>
-                <div class="profiles-modal-content anim-fade-in${groupKeys.length === 1 ? ' jpf-one-home' : ''}">
+                <div class="profiles-modal-content jpf-picker anim-fade-in${groupKeys.length === 1 ? ' jpf-one-home' : ''}">
                     <h1 class="profiles-title">${title}</h1>
                     ${this.isManageMode ? `<p class="jpf-manage-hint">${t('gate.manageHint')}</p>` : ''}
                     ${this.isManageMode ? '' : '<div id="profiles-time-requests" class="profiles-time-requests" style="display: none;"></div>'}
@@ -7211,6 +7287,18 @@
             if (!content) return;
             const fits = () => overlay.scrollHeight <= overlay.clientHeight + 1;
 
+            // Once more when the fonts this gate asked for have loaded: measured before, with
+            // the fallback's metrics, a list of four large profiles was fitted as fitting and
+            // then ran 3px off the screen. Once per drawn gate (the flag is on its content),
+            // and only while that gate is still the one on screen.
+            if (!content._jpfFontRefit && typeof document !== 'undefined' && document.fonts && document.fonts.ready
+                && typeof document.fonts.ready.then === 'function') {
+                content._jpfFontRefit = true;
+                document.fonts.ready.then(() => {
+                    if (document.body && document.body.contains(content)) this.fitGateToScreen(overlay);
+                });
+            }
+
             const balance = () => {
                 if (!overlay.querySelectorAll) return;
                 [].slice.call(overlay.querySelectorAll('.profiles-grid')).forEach((g) => this.balanceGateRows(g));
@@ -7236,7 +7324,11 @@
             let lineSize = 0;
             grid.querySelectorAll('.profile-viewing, .profile-current-badge').forEach((e) => { lineSize = Math.max(lineSize, px(e)); });
             const nameFloor = nameSize && lineSize ? Math.min(1, lineSize / nameSize) : 1.1 / 1.75;
-            const floor = Math.min(natural, isTv ? 120 : 88);
+            // A list (layout.profiles, 2.0) is one picture a row: tall, with pictures that start
+            // small and a name beside them rather than under. It may go further down before
+            // it scrolls. Read from the grid as drawn, so nothing here knows the theme.
+            const asList = getComputedStyle(grid).flexDirection === 'column';
+            const floor = Math.min(natural, asList ? (isTv ? 72 : 48) : (isTv ? 120 : 88));
             // The name shrinks with the tile (the stylesheet uses it on a television only), but
             // never below the lines under it (nameFloor): shrunk all the way with a 120px tile it
             // was 20px on a 1080p set, smaller than "Time's up". What still does not fit is cut

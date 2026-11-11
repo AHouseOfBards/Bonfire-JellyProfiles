@@ -64,6 +64,9 @@ const MEASURE = `(function () {
   [].slice.call(root.querySelectorAll('.profile-card')).forEach(function (c, i) {
     if (over(out.box, r(c))) hits.push('tile ' + (i + 1));
   });
+  [].slice.call(root.querySelectorAll('.profiles-btn')).forEach(function (c, i) {
+    if (over(out.box, r(c))) hits.push('button ' + (i + 1));
+  });
   out.hits = hits;
   return out;
 })()`;
@@ -120,6 +123,40 @@ async function main() {
                         ok(where + ': the picture may be half as big again', m.imgMax >= (tv ? m.vh * 0.1 - 0.5 : 72), 'max-height ' + m.imgMax + 'px of ' + m.vh);
                     }
                     ok(where + ': off the title and the tiles', m.hits.length === 0, m.hits.join(', '));
+                }
+            }
+        }
+
+        // The corner is the theme's (layout.logo, 2.0). In each one, with the other layout
+        // choices at their most crowded, and with a household that scrolls: the logo is in
+        // its corner and never on the title, a tile or a button. At the bottom of a gate
+        // that scrolls, its corner is below the last button.
+        const VARIANTS = [{ lay: '', count: 0 }, { lay: ',profiles:list,align:left,size:large', count: 0 },
+            { lay: ',size:large', count: 21 }, { lay: ',profiles:list,size:large', count: 21 }];
+        const BOX = `(function () { var b = document.getElementById('profiles-logo'); var root = document.getElementById('profiles-gate-overlay');
+          var last = 0; [].slice.call(root.querySelectorAll('.profiles-btn, .profile-card')).forEach(function (e) { last = Math.max(last, e.getBoundingClientRect().bottom); });
+          return { last: last, scrolls: root.scrollHeight > root.clientHeight + 1 }; })()`;
+        for (const theme of ['bonfire', 'bloom']) {
+            for (const corner of ['top-left', 'top-right', 'bottom-left', 'bottom-right']) {
+                for (const v of VARIANTS) {
+                    for (const scene of SCENES) {
+                        for (const device of DEVICES) {
+                            const r = await c.open('http://127.0.0.1:' + server.port + '/?theme=' + theme + '&scene=' + scene + '&device=' + device
+                                + '&layout=logo:' + corner + v.lay + (v.count ? '&count=' + v.count : ''), device);
+                            const where = theme + ' ' + corner + v.lay + (v.count ? ' ' + v.count + ' profiles' : '') + ' ' + scene + ' ' + device;
+                            if (r.error) { ok(where + ': the screen draws', false, r.error); continue; }
+                            const m = await c.evaluate(MEASURE);
+                            if (!m.found) { ok(where + ': a logo is drawn', false, 'none'); continue; }
+                            const e = await c.evaluate(BOX);
+                            const left = /left$/.test(corner), top = /^top/.test(corner);
+                            const across = left ? m.box.l < m.vw * 0.1 && m.box.r < m.vw * 0.5 : m.box.r > m.vw * 0.9 && m.box.l > m.vw * 0.5;
+                            const down = top ? m.box.t < 120
+                                : e.scrolls ? m.box.t >= e.last - 1 : m.box.b > m.vh - 120 && m.box.b <= m.vh + 1;
+                            ok(where + ': in its corner', across && down, 'box ' + Math.round(m.box.l) + ',' + Math.round(m.box.t) + '-' + Math.round(m.box.r) + ',' + Math.round(m.box.b)
+                                + ' in ' + m.vw + 'x' + m.vh + (e.scrolls ? ', scrolls, last control ends ' + Math.round(e.last) : ''));
+                            ok(where + ': off the title, the tiles and the buttons', m.hits.length === 0, m.hits.join(', '));
+                        }
+                    }
                 }
             }
         }

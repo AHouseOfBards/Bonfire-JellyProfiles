@@ -42,7 +42,29 @@ function ok(name, cond, detail) {
     }
 }
 
-const css = L.extractCss(L.readProfiles());
+// The layout choices (2.0) write CSS only when a theme makes them, and no built-in does, so
+// copies of Bonfire wearing every value that writes something are generated as well: their
+// rules are held to the same floor as the sheet's.
+const LAYOUTS = [
+    { profiles: 'list', align: 'left', size: 'small', logo: 'top-left' },
+    { profiles: 'tiles', align: 'center', size: 'large', logo: 'bottom-left' },
+    { profiles: 'list', align: 'center', size: 'large', logo: 'bottom-right' },
+    { profiles: 'tiles', align: 'left', size: 'small', logo: 'top-right' }
+];
+const layoutCss = (() => {
+    const gen = L.themeGenerator(L.readProfiles());
+    const bonfire = JSON.parse(require('fs').readFileSync(require('path').join(L.themesDir(), 'bonfire.json'), 'utf8'));
+    return LAYOUTS.map((lay, i) => {
+        const t = JSON.parse(JSON.stringify(bonfire));
+        t.id = 'layout-' + i;
+        Object.assign(t.layout, lay);
+        return gen.themeCss(t, {});
+    }).join('\n');
+})();
+const css = L.extractCss(L.readProfiles()) + '\n' + layoutCss;
+ok('the layout choices write their rules, so they are checked here too',
+    /flex-direction: column/.test(layoutCss) && /#profiles-logo \{[^}]*left:/.test(layoutCss) && /clamp\(/.test(layoutCss),
+    layoutCss.length + ' characters');
 
 /* Comments blanked, newlines kept, so a feature discussed in prose is never mistaken
  * for a use. Two false findings came from not doing this. */

@@ -460,6 +460,29 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
                t => t["aliases"] = new System.Text.Json.Nodes.JsonArray(Enumerable.Range(0, 7000).Select(i => (System.Text.Json.Nodes.JsonNode)("alias-" + i)).ToArray()), "", "size");
         Caught("High contrast held to 7:1 where others need 4.5",
                t => { t["id"] = ThemeValidator.HighContrastId; t["colors"]!["text2"] = "#ffffff99"; }, "colors.text2", "contrast");
+        // The layout choices (2.0): every allowed value passes, anything else is refused at
+        // its own field, and leaving them all out is still a whole theme (Harvest has none).
+        var layoutChoices = new Dictionary<string, string[]>
+        {
+            ["profiles"] = new[] { "tiles", "list" },
+            ["align"] = new[] { "center", "left" },
+            ["size"] = new[] { "small", "medium", "large" },
+            ["logo"] = new[] { "top-left", "top-right", "bottom-left", "bottom-right" },
+        };
+        foreach (var choice in layoutChoices)
+        {
+            foreach (var v in choice.Value)
+            {
+                var good = Harvest();
+                good["layout"]![choice.Key] = v;
+                var got = ThemeCatalog.Validate(good);
+                Ok("layout." + choice.Key + " \"" + v + "\" is accepted", got.Count == 0, string.Join("; ", got.Select(p => p.Path + " " + p.Code)));
+            }
+            Caught("layout." + choice.Key + " with a value it does not have", t => t["layout"]![choice.Key] = "middle", "layout." + choice.Key, "range");
+            Caught("layout." + choice.Key + " as a number", t => t["layout"]![choice.Key] = 2, "layout." + choice.Key, "type");
+        }
+        Caught("a layout field schema 1 does not have", t => t["layout"]!["columns"] = 3, "layout.columns", "unknown");
+
         var notHigh = Harvest();
         notHigh["colors"]!["text2"] = "#ffffff99";
         Ok("and the same text2 passes for any other theme", !ThemeCatalog.Validate(notHigh).Any(p => p.Path == "colors.text2"));

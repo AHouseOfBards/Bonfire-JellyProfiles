@@ -307,8 +307,17 @@ namespace Jellyfin.Profiles.Configuration
                 Depth(t);
                 Focus(t);
                 var parts = Parts(t);
-                var layout = Obj(t["layout"], "layout", true, "households");
-                if (layout != null) OneOf(layout, "layout", "households", true, "panels", "open");
+                // The four choices besides households (2.0) are optional: absent is today's
+                // look (tiles, centred, medium, logo top right), so no saved theme changes.
+                var layout = Obj(t["layout"], "layout", true, "households", "profiles", "align", "size", "logo");
+                if (layout != null)
+                {
+                    OneOf(layout, "layout", "households", true, "panels", "open");
+                    OneOf(layout, "layout", "profiles", false, "tiles", "list");
+                    OneOf(layout, "layout", "align", false, "center", "left");
+                    OneOf(layout, "layout", "size", false, "small", "medium", "large");
+                    OneOf(layout, "layout", "logo", false, "top-left", "top-right", "bottom-left", "bottom-right");
+                }
                 DecorationsSection(t);
 
                 if (colors != null && bg.Count > 0)

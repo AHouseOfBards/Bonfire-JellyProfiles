@@ -14,6 +14,22 @@
     var q = new URLSearchParams(location.search);
     var THEME = q.get('theme') || 'bonfire';
     var SCENE = q.get('scene') || 'picker';
+    // ?layout=profiles:list,align:left,size:large,logo:bottom-left — the theme named by
+    // ?theme, copied as a custom theme with those layout choices, and worn instead of it.
+    // A value of - leaves that field out.
+    var CUSTOM = [];
+    if (q.get('layout')) {
+        var x = new XMLHttpRequest();
+        x.open('GET', '/fixture/themes.json', false);
+        x.send();
+        var base = JSON.parse(x.responseText).themes.filter(function (t) { return t.id === THEME; })[0];
+        var copy = JSON.parse(JSON.stringify(base));
+        copy.id = 'layout-' + THEME;
+        q.get('layout').split(',').forEach(function (kv) { var p = kv.split(':'); if (p[1] === '-') delete copy.layout[p[0]]; else copy.layout[p[0]] = p[1]; });
+        CUSTOM.push(copy);
+        THEME = copy.id;
+    }
+    var withLogo = function (logo) { return { themes: CUSTOM, logo: logo }; };
     var DEVICE = q.get('device') || 'tablet';
 
     var MAIN = '11111111111111111111111111111111';
@@ -201,24 +217,24 @@
         announcement: gate,
         // The server's logo, top right: a picture, then a line of text.
         logo: function (P) {
-            P.useCustomThemes({ logo: { image: '/plugins/profiles/themes/logo/' + '9be1'.repeat(8) + '.jpg', text: null, alt: 'The Hayes House' } }, false);
+            P.useCustomThemes(withLogo({ image: '/plugins/profiles/themes/logo/' + '9be1'.repeat(8) + '.jpg', text: null, alt: 'The Hayes House' }), false);
             return gate(P);
         },
         // A see-through logo: white, near-black, or orange (fixture.js draws them).
         logowhite: function (P) {
-            P.useCustomThemes({ logo: { image: '/plugins/profiles/themes/logo/' + 'ff'.repeat(16) + '.png', text: null, alt: 'The Hayes House' } }, false);
+            P.useCustomThemes(withLogo({ image: '/plugins/profiles/themes/logo/' + 'ff'.repeat(16) + '.png', text: null, alt: 'The Hayes House' }), false);
             return gate(P);
         },
         logodark: function (P) {
-            P.useCustomThemes({ logo: { image: '/plugins/profiles/themes/logo/' + '11'.repeat(16) + '.png', text: null, alt: 'The Hayes House' } }, false);
+            P.useCustomThemes(withLogo({ image: '/plugins/profiles/themes/logo/' + '11'.repeat(16) + '.png', text: null, alt: 'The Hayes House' }), false);
             return gate(P);
         },
         logoorange: function (P) {
-            P.useCustomThemes({ logo: { image: '/plugins/profiles/themes/logo/' + 'e8'.repeat(16) + '.png', text: null, alt: 'The Hayes House' } }, false);
+            P.useCustomThemes(withLogo({ image: '/plugins/profiles/themes/logo/' + 'e8'.repeat(16) + '.png', text: null, alt: 'The Hayes House' }), false);
             return gate(P);
         },
         logotext: function (P) {
-            P.useCustomThemes({ logo: { image: null, text: 'The Hayes House', alt: null } }, false);
+            P.useCustomThemes(withLogo({ image: null, text: 'The Hayes House', alt: null }), false);
             return gate(P);
         },
         manage: function (P) {
@@ -358,6 +374,7 @@
                 THEME = base.id;
             }
             // What loadSwitcherPrefs does with the server's answer: the theme, the fonts.
+            if (CUSTOM.length) P.useCustomThemes(withLogo(null), false);
             P._setThemeSettings({ theme: THEME, defaultTheme: 'bonfire', allowProfileThemes: true });
             var run = SCENES[SCENE];
             if (!run) throw new Error('no scene "' + SCENE + '"; have ' + Object.keys(SCENES).join(', '));
