@@ -762,7 +762,7 @@
   "admin.script.title": "Script client",
   "admin.script.lede": "Si le script de Bonfire arrive bien jusqu'au client web.",
   "admin.backup.title": "Sauvegarde",
-  "admin.backup.lede": "L'export enregistre chaque profil, code PIN, Bonfire, appareil et avatar. L'import remplace tout. Le fichier contient les empreintes des codes PIN : gardez-le en lieu sûr.",
+  "admin.backup.lede": "L'export enregistre chaque profil, code PIN, Bonfire, appareil, avatar et adresse e-mail, mais pas le mot de passe du courrier. L'import remplace tout et garde le mot de passe actuel du courrier. Le fichier contient les empreintes des codes PIN : gardez-le en lieu sûr.",
   "admin.backup.export": "Exporter",
   "admin.backup.import": "Importer",
   "admin.cancel": "Annuler",

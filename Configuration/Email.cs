@@ -30,6 +30,10 @@ namespace Jellyfin.Profiles.Configuration
         public string Security { get; set; } = EmailSecurity.StartTls;
 
         public string Username { get; set; } = string.Empty;
+        // Null only on the copy a configuration export is made from, so the file carries no
+        // password (R-1149); the live value is never null and is saved as before. Written out
+        // whenever it has a value, so the dashboard and the settings file are unchanged.
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public string Password { get; set; } = string.Empty;
         public string FromAddress { get; set; } = string.Empty;
 

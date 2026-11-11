@@ -762,7 +762,7 @@
   "admin.script.title": "Script del cliente",
   "admin.script.lede": "Si el script de Bonfire llega al cliente web.",
   "admin.backup.title": "Copia de seguridad",
-  "admin.backup.lede": "Exportar guarda cada perfil, PIN, Bonfire, dispositivo y avatar. Importar lo reemplaza todo. El archivo contiene los hashes de los PIN, así que guárdalo en un lugar seguro.",
+  "admin.backup.lede": "Exportar guarda cada perfil, PIN, Bonfire, dispositivo, avatar y dirección de correo, pero no la contraseña del correo. Importar lo reemplaza todo y conserva la contraseña actual del correo. El archivo contiene los hashes de los PIN, así que guárdalo en un lugar seguro.",
   "admin.backup.export": "Exportar",
   "admin.backup.import": "Importar",
   "admin.cancel": "Cancelar",

@@ -1628,15 +1628,25 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
+            // The mail server's password is left out. The file is one an administrator can put
+            // somewhere careless, and a password is not a salted hash: it is the credential
+            // itself, in plain text. An import without one keeps the server's own (R-1149,
+            // R-1312). Exported from a copy whose Password is null, which EmailSettings leaves
+            // out of JSON. Not serialised by hand: Jellyfin's own formatter writes the file, as
+            // it always has, so nothing else in it changes.
+            PluginConfiguration configuration;
             lock (ConfigLock)
             {
-                return Ok(new
-                {
-                    exportedUtc = DateTime.UtcNow,
-                    pluginVersion = Plugin.Instance?.Version?.ToString() ?? "unknown",
-                    configuration = config
-                });
+                configuration = config.SnapshotForReading();
+                configuration.Email.Password = null!;
             }
+
+            return Ok(new
+            {
+                exportedUtc = DateTime.UtcNow,
+                pluginVersion = Plugin.Instance?.Version?.ToString() ?? "unknown",
+                configuration
+            });
         }
 
         /// <summary>
@@ -1878,6 +1888,16 @@ namespace Jellyfin.Profiles.Controllers
                     if (property.DeclaringType != typeof(PluginConfiguration) || !property.CanRead || !property.CanWrite) continue;
                     if (ImportHandledAbove.Contains(property.Name) || ImportNotRestored.Contains(property.Name)) continue;
                     if (!TryProperty(root, property.Name, out _)) continue;
+                    if (property.Name == nameof(PluginConfiguration.Email)
+                        && string.IsNullOrEmpty(incoming.Email?.Password))
+                    {
+                        // The export leaves the mail password out; a file without one must not
+                        // blank the server's own. R-1149.
+                        var live = config.Email?.Password;
+                        property.SetValue(config, property.GetValue(incoming));
+                        if (config.Email != null) config.Email.Password = live ?? string.Empty;
+                        continue;
+                    }
                     property.SetValue(config, property.GetValue(incoming));
                 }
 

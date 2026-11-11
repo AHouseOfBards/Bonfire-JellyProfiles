@@ -762,7 +762,7 @@
   "admin.script.title": "Script del client",
   "admin.script.lede": "Si l'script de Bonfire arriba al client web.",
   "admin.backup.title": "Còpia de seguretat",
-  "admin.backup.lede": "Exportar desa cada perfil, PIN, Bonfire, dispositiu i avatar. Importar ho substitueix tot. El fitxer conté els hash dels PIN, així que guarda'l en un lloc segur.",
+  "admin.backup.lede": "Exportar desa cada perfil, PIN, Bonfire, dispositiu, avatar i adreça de correu, però no la contrasenya del correu. Importar ho substitueix tot i conserva la contrasenya actual del correu. El fitxer conté els hash dels PIN, així que guarda'l en un lloc segur.",
   "admin.backup.export": "Exporta",
   "admin.backup.import": "Importa",
   "admin.cancel": "Cancel·la",

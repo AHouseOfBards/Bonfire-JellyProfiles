@@ -773,7 +773,7 @@
   "admin.script.title": "İstemci betiği",
   "admin.script.lede": "Bonfire betiğinin web istemcisine ulaşıp ulaşmadığı.",
   "admin.backup.title": "Yedek",
-  "admin.backup.lede": "Dışa aktarma her profili, PIN'i, Bonfire'ı, cihazı ve avatarı kaydeder. İçe aktarma hepsini değiştirir. Dosya PIN özetlerini içerir, bu yüzden güvenli bir yerde saklayın.",
+  "admin.backup.lede": "Dışa aktarma her profili, PIN'i, Bonfire'ı, cihazı, avatarı ve e-posta adresini kaydeder, ama posta parolasını kaydetmez. İçe aktarma hepsini değiştirir ve mevcut posta parolasını korur. Dosya PIN özetlerini içerir, bu yüzden güvenli bir yerde saklayın.",
   "admin.backup.export": "Dışa aktar",
   "admin.backup.import": "İçe aktar",
   "admin.cancel": "İptal",

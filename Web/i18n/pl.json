@@ -762,7 +762,7 @@
   "admin.script.title": "Skrypt klienta",
   "admin.script.lede": "Czy skrypt Bonfire dociera do klienta webowego.",
   "admin.backup.title": "Kopia zapasowa",
-  "admin.backup.lede": "Eksport zapisuje każdy profil, kod PIN, Bonfire, urządzenie i awatar. Import zastępuje wszystko. Plik zawiera skróty kodów PIN, więc przechowuj go w bezpiecznym miejscu.",
+  "admin.backup.lede": "Eksport zapisuje każdy profil, kod PIN, Bonfire, urządzenie, awatar i adres e-mail, ale nie hasło poczty. Import zastępuje wszystko i zachowuje obecne hasło poczty. Plik zawiera skróty kodów PIN, więc przechowuj go w bezpiecznym miejscu.",
   "admin.backup.export": "Eksportuj",
   "admin.backup.import": "Importuj",
   "admin.cancel": "Anuluj",

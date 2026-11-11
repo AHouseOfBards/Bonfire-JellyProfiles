@@ -142,6 +142,16 @@ IEnumerable<PropertyInfo> Settable() => cfgType.GetProperties(BindingFlags.Publi
 var options = new JsonSerializerOptions();
 string Json(object v) => JsonSerializer.Serialize(v, options);
 
+// The export leaves the SMTP password out (R-1149), so a round trip returns every other
+// email field and never that one. Compared with the password blanked on both sides; what
+// happens to the password itself is asserted on its own below.
+string NoPw(string emailJson)
+{
+    var node = System.Text.Json.Nodes.JsonNode.Parse(emailJson).AsObject();
+    node["Password"] = "";
+    return node.ToJsonString();
+}
+
 object RatedKid()
 {
     var kid = Item("ProfileMapping", ("ProfileUserId", KID), ("MasterUserId", MASTER), ("ProfileName", "Kid"));
@@ -229,6 +239,7 @@ Overwrite(live, changed);
 var exported = (ObjectResult)((OkObjectResult)exportRoute.Invoke(NewController(), null));
 var body = JsonSerializer.SerializeToElement(exported.Value);
 var snapshot = Settable().ToDictionary(p => p.Name, p => Json(p.GetValue(live)));
+snapshot["Email"] = NoPw(snapshot["Email"]);
 
 // The server as it is the day the backup is restored: everything back at its default.
 Overwrite(live, Defaults());
@@ -241,6 +252,7 @@ Console.WriteLine("── Export, then import onto a fresh configuration ──�
 Ok("the import is accepted", status == 200, status.ToString());
 
 var after = Settable().ToDictionary(p => p.Name, p => Json(p.GetValue(live)));
+after["Email"] = NoPw(after["Email"]);
 foreach (var p in Settable().Where(p => !notChanged.ContainsKey(p.Name) && !notRestored.ContainsKey(p.Name)))
 {
     Ok(p.Name + " comes back", after[p.Name] == snapshot[p.Name],
@@ -250,16 +262,64 @@ foreach (var p in Settable().Where(p => !notChanged.ContainsKey(p.Name) && !notR
 foreach (var name in notRestored.Keys)
     Ok(name + " is left as the server has it (" + notRestored[name] + ")", after[name] == Json(cfgType.GetProperty(name).GetValue(defaultsNow)));
 
-// The SMTP password is restored as the export carries it. Whether the export should carry
-// it is R-1312's question, not this one's.
-Ok("the SMTP settings arrive whole", after["Email"] == snapshot["Email"]);
+Ok("the SMTP settings arrive, less the password", after["Email"] == snapshot["Email"]);
 
 // A file that does not mention a setting leaves it alone: a partial or older export.
 Overwrite(live, changed);
 var partial = JsonSerializer.SerializeToElement(new { configuration = new { Mappings = new object[0], MaxProfilesPerUser = 3 } });
 importRoute.Invoke(NewController(), new object[] { partial });
-Ok("a file without a setting leaves the current one", Json(cfgType.GetProperty("Email").GetValue(live)) == snapshot["Email"]
+Ok("a file without a setting leaves the current one", NoPw(Json(cfgType.GetProperty("Email").GetValue(live))) == snapshot["Email"]
    && Json(cfgType.GetProperty("Maintenance").GetValue(live)) == snapshot["Maintenance"]);
+
+// The SMTP password (R-1149, R-1312). A backup file is the thing an administrator puts
+// somewhere careless, so the export leaves the mail password out, and an import that does
+// not carry one keeps the password the server already has.
+Console.WriteLine();
+Console.WriteLine("── The SMTP password ────────────────────────────────────────────");
+{
+    var emailObj = cfgType.GetProperty("Email").GetValue(live);
+    var passwordProp = emailObj.GetType().GetProperty("Password");
+    string LivePassword() => (string)passwordProp.GetValue(cfgType.GetProperty("Email").GetValue(live));
+
+    Overwrite(live, changed);
+    var exportRaw = ((ObjectResult)((OkObjectResult)exportRoute.Invoke(NewController(), null))).Value;
+    var exportJson = JsonSerializer.Serialize(exportRaw);
+    // Serialised now: the route may hand back the live object, which the next line resets.
+    var exportFile = JsonSerializer.SerializeToElement(exportRaw);
+    var exportEl = exportFile.GetProperty("configuration");
+    Ok("the export holds no password for the mail server", !exportJson.Contains("app-password")
+       && !exportEl.GetProperty("Email").EnumerateObject().Any(p => p.Name.Equals("Password", StringComparison.OrdinalIgnoreCase)));
+    Ok("but still the rest of the mail settings", exportEl.GetProperty("Email").GetProperty("Host").GetString() == "smtp.example.com");
+    Ok("exporting did not touch the live password", LivePassword() == "app-password");
+
+    // An import without a password keeps the live one, and still takes everything else.
+    Overwrite(live, Defaults());
+    passwordProp.SetValue(cfgType.GetProperty("Email").GetValue(live), "live-secret");
+    importRoute.Invoke(NewController(), new object[] { exportFile });
+    Ok("an import with no password keeps the one the server has", LivePassword() == "live-secret", LivePassword());
+    Ok("and restores the rest of the mail settings",
+       (string)emailObj.GetType().GetProperty("Host").GetValue(cfgType.GetProperty("Email").GetValue(live)) == "smtp.example.com");
+
+    // An empty one is the same as none: it must not wipe the live password.
+    var emptied = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(exportEl.GetRawText());
+    var emptyEmail = JsonSerializer.Deserialize<Dictionary<string, object>>(exportEl.GetProperty("Email").GetRawText());
+    emptyEmail["Password"] = "";
+    var emptiedObj = new Dictionary<string, object>();
+    foreach (var kv in emptied) emptiedObj[kv.Key] = kv.Value;
+    emptiedObj["Email"] = emptyEmail;
+    importRoute.Invoke(NewController(), new object[] { JsonSerializer.SerializeToElement(new { configuration = emptiedObj }) });
+    Ok("an empty password in the file keeps the live one too", LivePassword() == "live-secret", LivePassword());
+
+    // A backup made before this change still carries a password. It is taken, so restoring
+    // an older file onto a new server does not lose the mail setup.
+    var legacyEmail = JsonSerializer.Deserialize<Dictionary<string, object>>(exportEl.GetProperty("Email").GetRawText());
+    legacyEmail["Password"] = "from-old-backup";
+    var legacyObj = new Dictionary<string, object>();
+    foreach (var kv in emptied) legacyObj[kv.Key] = kv.Value;
+    legacyObj["Email"] = legacyEmail;
+    importRoute.Invoke(NewController(), new object[] { JsonSerializer.SerializeToElement(new { configuration = legacyObj }) });
+    Ok("a file from before the change, with a password, still restores it", LivePassword() == "from-old-backup", LivePassword());
+}
 
 // A backup written by a version that still had a setting that has since been cut. The old
 // field rides along in the file; the import must take everything else and not refuse it.
@@ -311,6 +371,7 @@ Console.WriteLine("── A backup from a version that had settings since cut �
     var olderStatus = olderResult is ObjectResult oo ? (oo.StatusCode ?? 200) : olderResult is StatusCodeResult ss ? ss.StatusCode : -1;
     Ok("the import is accepted", olderStatus == 200, olderStatus.ToString());
     var olderAfter = Settable().ToDictionary(p => p.Name, p => Json(p.GetValue(live)));
+    olderAfter["Email"] = NoPw(olderAfter["Email"]);
     var olderLost = Settable().Where(p => !notChanged.ContainsKey(p.Name) && !notRestored.ContainsKey(p.Name) && olderAfter[p.Name] != snapshot[p.Name]).Select(p => p.Name).ToList();
     Ok("and every other setting comes back", olderLost.Count == 0, string.Join(", ", olderLost));
     foreach (var name in oldFields.Keys)

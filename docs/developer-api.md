@@ -1740,8 +1740,8 @@ changed. Profiles' PINs are reset by the main account, not by email.
 }
 ```
 
-The password is never returned. It is stored in plain text in the plugin configuration,
-and appears in the configuration export.
+The password is never returned. It is stored in plain text in the plugin configuration.
+The configuration export leaves it out.
 
 ### `POST /plugins/profiles/admin/email`
 
@@ -2452,7 +2452,7 @@ The whole configuration, with the version and time.
 ```
 
 It includes every PIN, hashed. A four-digit PIN can be recovered from its hash quickly, so
-keep the file as safe as a password.
+keep the file as safe as a password. It leaves out the mail server password.
 
 ### `POST /plugins/profiles/admin/config/import`
 
@@ -2462,6 +2462,7 @@ The body is the `configuration` object from an export.
 
 - **Sections:** profiles, devices, Bonfires and the avatar library are each replaced
   whole. A section the file doesn't include is left alone.
+- **The mail password** is kept as the server has it when the file has none.
 - **Field names** are matched ignoring case.
 - **Profiles for users this server doesn't have** are dropped and named in the response.
 
