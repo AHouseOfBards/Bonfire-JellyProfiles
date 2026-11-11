@@ -148,6 +148,73 @@ if (plugin != null)
            cfgType.GetProperties()
                .Where(p => p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(List<>))
                .All(p => p.GetValue(afterNulls) != null));
+
+        // R-1290: one int showed the copy ran, not that it copies everything. Every
+        // writable property gets its own value, different from the default, and each is
+        // checked one at a time, so a property the copy skips is named. A list carries one
+        // element. A property this harness cannot make a distinct value for fails by name
+        // rather than being skipped: a new setting of a new type must be taught here.
+        // Different from what the instance in use holds NOW, not from a fresh default:
+        // the plugin's constructor turns RequireMainPin on, so "true" was no change.
+        var fresh = configProp.GetValue(plugin);
+        var full = Activator.CreateInstance(cfgType);
+        var wanted = new List<PropertyInfo>();
+        var noValue = new List<string>();
+        foreach (var p in cfgType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (!(p.CanRead && p.CanWrite) || p.GetIndexParameters().Length != 0) continue;
+            var made = DistinctValue(p.PropertyType, p.GetValue(fresh), p.Name);
+            if (made == null || (made.GetType().IsValueType || made is string) && Equals(made, p.GetValue(fresh)))
+            { noValue.Add(p.Name + " (" + p.PropertyType.Name + ")"); continue; }
+            p.SetValue(full, made);
+            wanted.Add(p);
+        }
+        Ok("a distinct value could be made for every writable property"
+           + (noValue.Count == 0 ? "" : "; not for: " + string.Join(", ", noValue)), noValue.Count == 0);
+        Ok("there are properties to check (" + wanted.Count + ")", wanted.Count >= 30);
+
+        update.Invoke(plugin, new[] { full });
+        var live = configProp.GetValue(plugin);
+        foreach (var p in wanted)
+        {
+            var sent = p.GetValue(full);
+            var got = p.GetValue(live);
+            bool same;
+            if (sent is System.Collections.IList sentList)
+            {
+                var gotList = got as System.Collections.IList;
+                same = gotList != null && gotList.Count == sentList.Count;
+                for (var k = 0; same && k < sentList.Count; k++)
+                    same = sentList[k] is string ? Equals(sentList[k], gotList[k]) : sentList[k] != null && gotList[k] != null;
+            }
+            else same = Equals(sent, got);
+            Ok("UpdateConfiguration carries " + p.Name + " onto the instance in use", same);
+        }
+
+        // R-1290: the two-thread sections lock on an object this harness fetched, so they
+        // prove what `lock` does, and could not go red if the plugin stopped taking it.
+        // This runs the real UpdateConfiguration while the harness holds ConfigLock: it
+        // must wait. If it locked anything else (the configuration, a private object) or
+        // nothing, it walks straight through and this fails.
+        var realLock = baseCtl.GetField("ConfigLock", Any).GetValue(null);
+        var held = new ManualResetEventSlim(false);
+        var letGo = new ManualResetEventSlim(false);
+        var holderThread = new Thread(() => { lock (realLock) { held.Set(); letGo.Wait(10000); } });
+        holderThread.Start();
+        held.Wait(5000);
+        var returned = new ManualResetEventSlim(false);
+        var callerThread = new Thread(() =>
+        {
+            try { update.Invoke(plugin, new[] { Activator.CreateInstance(cfgType) }); } catch { }
+            returned.Set();
+        });
+        callerThread.Start();
+        var wentThrough = returned.Wait(1500);
+        letGo.Set();
+        var finishedAfter = returned.Wait(5000);
+        holderThread.Join(5000); callerThread.Join(5000);
+        Ok("the real UpdateConfiguration waits while ConfigLock is held elsewhere", !wentThrough);
+        Ok("and completes once it is released", finishedAfter);
     }
 }
 
@@ -362,6 +429,47 @@ Ok("the detector finds the unguarded save in a known-bad sample, and only that o
    + "(flagged lines: " + (sampleUnguarded.Count == 0 ? "none" : string.Join(", ", sampleUnguarded)) + ")",
    sampleUnguarded.Count == 1 && sampleUnguarded[0] == 8);
 
+// R-1290: the detector counted braces per line, strings and comments included. A "{" in
+// a string kept a closed lock open (an unguarded save read as guarded); a "}" in one
+// closed an open lock early (a guarded save read as unguarded). Each is pinned by a
+// sample the old counter gets wrong.
+var braceInString = new[]
+{
+    "void A() {",
+    "    lock (ConfigLock) { var s = \"{\"; }",
+    "    Plugin.Instance?.SaveConfiguration();",
+    "}",
+};
+var flaggedOpen = FindUnguardedSaves(braceInString, rx);
+Ok("a \"{\" inside a string does not keep a finished lock open (flagged: "
+   + string.Join(", ", flaggedOpen) + ")", flaggedOpen.Count == 1 && flaggedOpen[0] == 3);
+
+var closeInString = new[]
+{
+    "void B() {",
+    "    lock (ConfigLock) {",
+    "        var s = \"}\"; // } and { here are not code",
+    "        Plugin.Instance?.SaveConfiguration();",
+    "    }",
+    "}",
+};
+var flaggedClose = FindUnguardedSaves(closeInString, rx);
+Ok("a \"}\" inside a string or comment does not end the lock early (flagged: "
+   + (flaggedClose.Count == 0 ? "none" : string.Join(", ", flaggedClose)) + ")", flaggedClose.Count == 0);
+
+var otherLiterals = new[]
+{
+    "void C() {",
+    "    lock (ConfigLock) {",
+    "        var c = '}'; var v = @\"a \"\"}\"\" b\"; var i = $\"{x}}}\";",
+    "        /* } */ Plugin.Instance?.SaveConfiguration();",
+    "    }",
+    "}",
+};
+var flaggedOther = FindUnguardedSaves(otherLiterals, rx);
+Ok("nor do a char literal, a verbatim or interpolated string, or a block comment (flagged: "
+   + (flaggedOther.Count == 0 ? "none" : string.Join(", ", flaggedOther)) + ")", flaggedOther.Count == 0);
+
 var saveSites = 0;
 foreach (var path in sources)
 {
@@ -403,11 +511,14 @@ static List<int> FindUnguardedSaves(IReadOnlyList<string> lines, Regex rx)
     var openLocks = new List<(string Target, int Depth)>();
     (string Target, int Line)? pending = null;
 
+    var inBlockComment = false;
     for (var i = 0; i < lines.Count; i++)
     {
-        var line = lines[i];
+        // The save is looked for in the raw line (a mention in a comment is still reported:
+        // the stricter reading), but braces and the lock keyword are read from code only.
+        var line = StripNonCode(lines[i], ref inBlockComment);
 
-        if (line.Contains("SaveConfiguration()") && !openLocks.Any(l => IsConfigLock(l.Target)))
+        if (lines[i].Contains("SaveConfiguration()") && !openLocks.Any(l => IsConfigLock(l.Target)))
             bad.Add(i + 1);
 
         var m = rx.Match(line);
@@ -425,6 +536,90 @@ static List<int> FindUnguardedSaves(IReadOnlyList<string> lines, Regex rx)
             openLocks.RemoveAt(openLocks.Count - 1);
     }
     return bad;
+}
+
+// A value of this type different from the default, or null when none can be made.
+static object DistinctValue(Type t, object def, string name)
+{
+    var u = Nullable.GetUnderlyingType(t);
+    if (u != null) t = u;
+    if (t == typeof(bool)) return !(def is bool b && b);
+    if (t == typeof(string)) return "saved-" + name;
+    if (t == typeof(int)) return (def is int i ? i : 0) + 7;
+    if (t == typeof(long)) return (def is long l ? l : 0L) + 7;
+    if (t == typeof(double)) return (def is double d ? d : 0d) + 7.5;
+    if (t == typeof(Guid)) return Guid.NewGuid();
+    if (t == typeof(DateTime)) return new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+    if (t.IsEnum)
+    {
+        foreach (var v in Enum.GetValues(t)) if (!Equals(v, def)) return v;
+        return null;
+    }
+    if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(List<>))
+    {
+        var elem = t.GetGenericArguments()[0];
+        var list = (System.Collections.IList)Activator.CreateInstance(t);
+        var item = elem == typeof(string) ? "saved-" + name
+                 : elem == typeof(Guid) ? Guid.NewGuid()
+                 : elem == typeof(int) ? 7
+                 : elem.GetConstructor(Type.EmptyTypes) != null ? Activator.CreateInstance(elem) : null;
+        if (item == null) return null;
+        // One more than the live list holds, so a copy that is skipped shows in the count.
+        var n = (def as System.Collections.IList)?.Count ?? 0;
+        list.Add(item);
+        for (var k = 0; k < n; k++)
+            list.Add(elem == typeof(string) ? "saved-" + name + k
+                   : elem == typeof(Guid) ? Guid.NewGuid()
+                   : elem == typeof(int) ? 8 + k
+                   : Activator.CreateInstance(elem));
+        return list;
+    }
+    // A nested settings object: a new instance is a different reference from the one the
+    // live configuration holds, which is all "it was carried over" needs to tell.
+    if (t.IsClass && t.GetConstructor(Type.EmptyTypes) != null) return Activator.CreateInstance(t);
+    return null;
+}
+
+// A line with its strings (regular, verbatim, interpolated), char literals and comments
+// blanked, so that braces and keywords left are code. Strings that run over several lines
+// are not handled (this codebase has none a brace could hide in); block comments are.
+static string StripNonCode(string line, ref bool inBlockComment)
+{
+    var sb = new System.Text.StringBuilder(line.Length);
+    for (var i = 0; i < line.Length; i++)
+    {
+        var c = line[i];
+        var next = i + 1 < line.Length ? line[i + 1] : '\0';
+        if (inBlockComment)
+        {
+            if (c == '*' && next == '/') { inBlockComment = false; i++; }
+            continue;
+        }
+        if (c == '/' && next == '/') break;
+        if (c == '/' && next == '*') { inBlockComment = true; i++; continue; }
+        if (c == '"' || ((c == '@' || c == '$') && (next == '"' || ((next == '@' || next == '$') && i + 2 < line.Length && line[i + 2] == '"'))))
+        {
+            // Opening: any of  "  @"  $"  @$"  $@"
+            var verbatim = false;
+            while (line[i] != '"') { if (line[i] == '@') verbatim = true; i++; }
+            for (i++; i < line.Length; i++)
+            {
+                if (verbatim) { if (line[i] == '"') { if (i + 1 < line.Length && line[i + 1] == '"') { i++; continue; } break; } }
+                else if (line[i] == '\\') i++;
+                else if (line[i] == '"') break;
+            }
+            sb.Append("\"\"");
+            continue;
+        }
+        if (c == '\'')
+        {
+            for (i++; i < line.Length && line[i] != '\''; i++) if (line[i] == '\\') i++;
+            sb.Append("''");
+            continue;
+        }
+        sb.Append(c);
+    }
+    return sb.ToString();
 }
 
 // Runs the interleaving that breaks instance locking, and reports the greatest
