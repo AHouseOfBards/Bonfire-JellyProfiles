@@ -375,6 +375,10 @@ correct attempt resets the count. A refused request returns `429`.
 A client PIN that hits its limit gets Jellyfin's usual `Invalid username or password`. A
 main account's real password keeps working.
 
+Ten wrong PINs in 15 minutes lock a profile from every address. That is on purpose: it
+stops guessing from many addresses. The cost is that someone signed in can lock a sibling
+out for 15 minutes.
+
 ## Caching
 
 `GET /list`, `GET /announcements`, the client script and translations send an `ETag`.
