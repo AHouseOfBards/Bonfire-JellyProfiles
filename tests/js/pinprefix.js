@@ -117,7 +117,7 @@ const RIGHT = '24681357';
         await env.pause();
         const lockErr = env.content.querySelector(box.input === 'profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
         ok('a 429 shows the wait built from Retry-After, not the server\'s sentence',
-           !!lockErr && lockErr.textContent === 'Too many failed PIN attempts. Try again in 2 minutes.',
+           !!lockErr && lockErr.textContent === 'Too many wrong PINs. Try again in 2 minutes.',
            lockErr ? lockErr.textContent : '');
         for (const [secs, want] of [['30', 'in 30 seconds.'], ['1', 'in a moment.'], ['60', 'in a minute.'], [null, 'in a moment.']]) {
             const e2 = setup();

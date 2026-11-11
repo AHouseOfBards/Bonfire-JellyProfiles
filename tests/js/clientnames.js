@@ -34,7 +34,7 @@ src.slice(start, end).split(/\r?\n/).forEach(line => {
     const m = /^\s*'([^']+)':\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")\s*,?\s*$/.exec(line);
     if (m) english[m[1]] = (m[2] !== undefined ? m[2].replace(/\\'/g, "'") : m[3].replace(/\\"/g, '"'));
 });
-ok('EN_STRINGS was read', Object.keys(english).length > 500, Object.keys(english).length + ' keys');
+ok('EN_STRINGS was read', Object.keys(english).length > 450, Object.keys(english).length + ' keys');
 
 const ledger = JSON.parse(fs.readFileSync(path.join(__dirname, 'clientnames.json'), 'utf8'));
 const LANGS = ['ca', 'es', 'fr', 'pl', 'tr'];

@@ -85,7 +85,7 @@ function run(res) {
     });
     ok('a 500 is not parsed as JSON', jsonCalls === 0);
     ok('and the parse error is not shown', bad.html.indexOf('Unexpected token') === -1);
-    ok('a sentence is shown instead', /Could not load Bonfire/.test(bad.html));
+    ok('a sentence is shown instead', /Couldn't load Bonfire/.test(bad.html));
 
     console.log('\n-- No string takes a raw message --');
     const block = shipped.slice(shipped.indexOf('const EN_STRINGS'));

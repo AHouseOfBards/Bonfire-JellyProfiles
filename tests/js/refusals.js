@@ -157,13 +157,13 @@ PP.handleSessionExpired = () => {};
 (async () => {
     const limits = () => PP._limitsCall('kid', 'x', { a: 1 });
     const known = await attempt('limits known', 400, { 'X-Bonfire-Error': 'limits_invalid' }, limits);
-    ok('a known code is said by its sentence', typeof known === 'string' && /viewing hours and limits/.test(known), known);
+    ok('a known code is said by its sentence', typeof known === 'string' && /viewing limits/.test(known), known);
     const unknown = await attempt('limits unknown', 400, { 'X-Bonfire-Error': 'brand_new_code' }, limits);
-    ok('an unknown code falls back to the action\'s own words', unknown === 'Could not save that.', unknown);
+    ok('an unknown code falls back to the action\'s own words', unknown === "Couldn't save that.", unknown);
     const bare = await attempt('limits none', 400, null, limits);
-    ok('an old server with no code falls back too', bare === 'Could not save that.', bare);
+    ok('an old server with no code falls back too', bare === "Couldn't save that.", bare);
     const generic = await attempt('limits generic', 400, { 'X-Bonfire-Error': 'invalid_request' }, limits);
-    ok('so does invalid_request', generic === 'Could not save that.', generic);
+    ok('so does invalid_request', generic === "Couldn't save that.", generic);
     ok('none of them shows the body', !Object.values(sayings).some(s => /SERVER ENGLISH|Invalid PIN code/.test(String(s))), JSON.stringify(sayings));
 
     const email = () => PP._emailCall('account/email', { address: 'a@b.c' });

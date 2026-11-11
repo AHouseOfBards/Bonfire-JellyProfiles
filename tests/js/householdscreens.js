@@ -145,7 +145,7 @@ PP.handleSessionExpired = () => {};
     innerNode.parentNode = fold;
     PP.revealFold(innerNode);
     ok('revealFold opens the fold a field is in', fold.open === true);
-    ok('Email off says so rather than vanishing', /Email is not set up/.test(EN));
+    ok('Email off says so rather than vanishing', /Email isn't set up/.test(EN));
 
     // ── P2-108 to P2-112: setup and the manage grid ─────────────────────────────────
     console.log('\n── First-time setup, manage grid ───────────────────────────────');

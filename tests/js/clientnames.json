@@ -7,14 +7,6 @@
   "pl": "Pomiń PIN w sieci serwera",
   "tr": "Sunucunun ağında PIN'i atla"
  },
- "profileForm.bypassPinHint": {
-  "en": "No PIN prompt on the server's network.",
-  "ca": "No es demana cap PIN a la xarxa del servidor.",
-  "es": "No se pide PIN en la red del servidor.",
-  "fr": "Aucun code PIN demandé sur le réseau du serveur.",
-  "pl": "Kod PIN nie jest wymagany w sieci serwera.",
-  "tr": "Sunucunun ağında PIN sorulmaz."
- },
  "profileForm.enabledLibraries": {
   "en": "Libraries",
   "ca": "Biblioteques",

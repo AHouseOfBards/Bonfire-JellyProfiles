@@ -910,8 +910,8 @@
         'common.selectAll': 'Select all',
         'common.create': 'Create',
         'common.join': 'Join',
-        'common.submit': 'Submit',
-        'common.unlock': 'Unlock',
+        'common.submit': 'Continue',
+        'common.unlock': 'Open',
         'common.settings': 'Settings',
 
         'gate.whosWatching': "Who's watching?",
@@ -945,10 +945,10 @@
         'pin.enterMasterPin': 'Enter main PIN',
         'pin.incorrectPin': 'Incorrect PIN. Please try again.',
         'pin.incorrectMasterPin': 'Incorrect main PIN. Please try again.',
-        'pin.lockedMoment': 'Too many failed PIN attempts. Try again in a moment.',
-        'pin.lockedSeconds': 'Too many failed PIN attempts. Try again in {count} seconds.',
-        'pin.lockedMinute': 'Too many failed PIN attempts. Try again in a minute.',
-        'pin.lockedMinutes': 'Too many failed PIN attempts. Try again in {count} minutes.',
+        'pin.lockedMoment': 'Too many wrong PINs. Try again in a moment.',
+        'pin.lockedSeconds': 'Too many wrong PINs. Try again in {count} seconds.',
+        'pin.lockedMinute': 'Too many wrong PINs. Try again in a minute.',
+        'pin.lockedMinutes': 'Too many wrong PINs. Try again in {count} minutes.',
 
         'avatar.positionYourPicture': 'Position your avatar',
         'avatar.dragOrArrows': 'Drag or arrows to move, slider to zoom. Press OK when it looks right.',
@@ -968,23 +968,23 @@
 
         'errors.error': 'Error',
         'errors.validationError': "Can't save yet",
-        'errors.failedDeleteDevice': 'Failed to delete device.',
-        'errors.failedRenameDevice': 'Failed to rename device.',
-        'errors.failedMergeDevice': 'Failed to merge devices.',
+        'errors.failedDeleteDevice': "Couldn't delete the device.",
+        'errors.failedRenameDevice': "Couldn't rename the device.",
+        'errors.failedMergeDevice': "Couldn't merge the devices.",
         'errors.generic': 'Something went wrong. Try again.',
-        'errors.savingProfile': 'Could not save the profile.',
-        'errors.loadProfileDetails': 'Could not load the profile.',
-        'errors.failedDeleteProfile': 'Failed to delete profile',
-        'errors.deletingProfile': 'Could not delete the profile.',
-        'errors.couldNotSaveArtwork': 'Could not save the artwork.',
-        'errors.couldNotSaveThat': 'Could not save that.',
-        'errors.heicUnsupported': "HEIC photos aren't supported. Export the photo as JPEG first.",
+        'errors.savingProfile': "Couldn't save the profile.",
+        'errors.loadProfileDetails': "Couldn't load the profile.",
+        'errors.failedDeleteProfile': "Couldn't delete the profile.",
+        'errors.deletingProfile': "Couldn't delete the profile.",
+        'errors.couldNotSaveArtwork': "Couldn't save the artwork.",
+        'errors.couldNotSaveThat': "Couldn't save that.",
+        'errors.heicUnsupported': "HEIC images aren't supported. Export the image as JPEG first.",
         'errors.svgUnsupported': "SVG images aren't supported. Use a JPEG, PNG, WebP or GIF.",
         'errors.imageTooLarge': 'That image is over 25 MB. Use a smaller one.',
-        'errors.fileUnreadable': 'That file could not be read.',
-        'errors.imageEmpty': 'That image appears to be empty.',
+        'errors.fileUnreadable': "Couldn't read that file. Choose another.",
+        'errors.imageEmpty': 'That image is empty. Choose another.',
         'errors.imageFormatUnsupported': "That image format isn't supported. Save it as a JPEG or PNG first.",
-        'errors.imageLoadFailed': 'That image could not be loaded.',
+        'errors.imageLoadFailed': "Couldn't load that image. Choose another.",
 
         'profileForm.profileName': 'Profile name',
         'profileForm.namePlaceholder': 'e.g. Kids',
@@ -1007,10 +1007,9 @@
         'profileForm.pinAdminWarning': 'This account administers the server. Its PIN can sign in on TVs and other apps, so keep it long and private.',
         'profileForm.noPinSetHint': 'No PIN. Anyone can open this profile.',
         'profileForm.bypassPinLan': "Skip the PIN on the server's network",
-        'profileForm.bypassPinHint': "No PIN prompt on the server's network.",
         'profileForm.askPinToOpen': 'Ask for the PIN to open this account',
         'profileForm.askPinToOpenHint': 'Off, it opens without one. The PIN still protects settings.',
-        'profileForm.autoLock': 'Auto-lock after inactivity',
+        'profileForm.autoLock': 'Auto-lock',
         'profileForm.autoLockHintCreate': 'Only applies when this profile has a PIN set.',
         'profileForm.autoLockHintEdit': 'Only applies when a PIN is set on this profile.',
         'profileForm.lockoutNever': 'Never',
@@ -1070,7 +1069,6 @@
         'profileForm.ratingAge': '{labels} ({score}+)',
         'profileForm.theme': 'Theme',
         'profileForm.themeDefault': 'Server default ({name})',
-        'profileForm.themeHint': 'How these screens look for this profile.',
         'profileForm.blockedTags': 'Blocked tags',
         'profileForm.blockedTagsHint': 'Hides anything with these tags. A tag on a series or library covers everything inside it.',
         'profileForm.allowedTags': 'Allowed tags',
@@ -1082,9 +1080,8 @@
         'profileForm.sectionProfileTitle': 'Profile',
         'profileForm.sectionProfileSubtitle': 'Name, color and avatar',
         'profileForm.sectionSecurityTitle': 'Security',
-        'profileForm.sectionSecuritySubtitle': 'PIN protection and automatic locking',
+        'profileForm.sectionSecuritySubtitle': 'PIN and auto-lock',
         'profileForm.sectionRestrictionsTitle': 'Tags',
-        'profileForm.sectionRestrictionsSubtitle': 'Block or allow by tag',
         'profileForm.deleteProfile': 'Delete profile',
         'profileForm.nameRequired': 'Profile name is required.',
         'profileForm.pinMustBeDigits': 'A PIN can only contain digits.',
@@ -1096,7 +1093,7 @@
         'profileForm.deleteDeviceMessage': 'Remove this device? Any access restrictions for it go too.',
 
         'panic.emergencyDisable': 'Emergency disable',
-        'panic.dialogBody': "Enter the code your server administrator set. This turns the profile switcher off until Jellyfin restarts. It does not unlock anyone else's profile.",
+        'panic.dialogBody': "Enter the code your server administrator set. This turns the profile switcher off until Jellyfin restarts. It doesn't open anyone else's profile.",
         'panic.emergencyCodePlaceholder': 'Emergency code',
         'panic.disable': 'Disable',
         'panic.checking': 'Checking…',
@@ -1141,7 +1138,7 @@
         'accountEmail.saved': 'Email saved.',
         'accountEmail.removed': 'Email removed.',
         'accountEmail.resetHint': 'If you forget your PIN, a code can be sent here.',
-        'accountEmail.notifyLockout': 'Email me when a PIN is locked',
+        'accountEmail.notifyLockout': 'Email me after too many wrong PINs',
         'accountEmail.notifyNewDevice': 'Email me when a new device signs in',
         'accountEmail.notifyTimeAsked': 'Email me when a profile asks for more time',
         'accountEmail.notifyLimitReached': 'Email me when a profile reaches its daily limit',
@@ -1165,7 +1162,6 @@
         'settings.themeTitle': 'Theme',
         'settings.themeBody': "How Bonfire's screens look for each profile.",
         'account.signInTitle': 'Sign-in',
-        'account.signInSubtitle': 'How your account opens',
         'account.savePin': 'Save PIN',
         'account.pinLabel': 'Main PIN',
         'account.pinSetHint': 'A PIN is set. Type a new one to change it.',
@@ -1182,7 +1178,7 @@
         'account.layoutTv': 'TV layout',
         'account.layoutStandard': 'Standard layout',
         'account.layoutHint': 'Only this device. Larger, for a TV.',
-        'account.emailOff': 'Email is not set up. Ask your server admin to turn it on in the Bonfire dashboard.',
+        'account.emailOff': "Email isn't set up. Ask your server admin to turn it on in the Bonfire dashboard.",
         'account.devicesSubtitle': 'Rename, merge or forget them',
         'account.zoneTitle': 'Time zone',
         'account.zoneSubtitle': 'For viewing limits',
@@ -1230,9 +1226,7 @@
         'profileForm.sectionPinSubtitle': 'A PIN to open this profile',
         'profileForm.sectionWatchTitle': 'What they can watch',
         'profileForm.sectionWatchSubtitle': 'Rating limit, libraries and devices',
-        'profileForm.sectionLockingTitle': 'Locking',
-        'profileForm.sectionLockingSubtitle': 'When the PIN is asked again',
-        'profileForm.themeSubtitle': "How Bonfire's screens look for this profile",
+        'profileForm.sectionLockingTitle': 'Auto-lock',
         'profileForm.moreTitle': 'More',
         'profileForm.moreSummary': 'Auto-lock, tags and theme',
         'profileForm.kidsPreset': 'Kids profile',
@@ -1271,9 +1265,9 @@
         'switcher.unreachable': "Can't reach the server. Try again.",
         'switcher.listFailed': "Can't load profiles right now.",
         'switcher.failedTitle': "Couldn't switch",
-        'switcher.failedBody': 'That did not work. Try again.',
+        'switcher.failedBody': "That didn't work. Try again.",
         'switcher.notSavedTitle': 'Switch not saved',
-        'switcher.notSavedBody': 'This device could not save the change. You are still signed in as before.',
+        'switcher.notSavedBody': "This device couldn't save the change. You're still signed in as before.",
         'switcher.manageTitle': 'Manage profiles',
         'switcher.manageNeedsMaster': 'Open {name} first, then choose Manage profiles.',
 
@@ -1320,7 +1314,7 @@
         'bonfire.joining': 'Joining…',
         'bonfire.pleaseEnterCode': 'Please enter a 6-character code.',
         'bonfire.tooManyJoinAttempts': 'Too many failed attempts. Try again in 15 minutes.',
-        'bonfire.failedToJoin': 'Could not join the Bonfire.',
+        'bonfire.failedToJoin': "Couldn't join the Bonfire.",
         'bonfire.leaveCurrentTitle': 'Leave your current Bonfire?',
         'bonfire.leaveCurrentBody': 'Joining this Bonfire removes you from your current one.',
         'bonfire.kickConfirmTitle': 'Remove member',
@@ -1328,16 +1322,16 @@
         'bonfire.newCode': 'New code',
         'bonfire.newCodeConfirmTitle': 'Replace code',
         'bonfire.newCodeConfirmBody': 'The old code stops working. Members already in your Bonfire stay in.',
-        'bonfire.failedNewCode': 'Could not replace the code.',
-        'bonfire.failedKick': 'Could not remove the member.',
+        'bonfire.failedNewCode': "Couldn't replace the code.",
+        'bonfire.failedKick': "Couldn't remove the member.",
         'bonfire.deleteGroupConfirmTitle': 'Delete Bonfire',
         'bonfire.deleteGroupConfirmBody': 'Delete your Bonfire? Members drop out of your profile screen.',
-        'bonfire.failedDeleteGroup': 'Could not delete the Bonfire.',
+        'bonfire.failedDeleteGroup': "Couldn't delete the Bonfire.",
         'bonfire.leaveGroupConfirmTitle': 'Leave Bonfire',
         'bonfire.leaveGroupConfirmBody': 'Leave this Bonfire? You will stop sharing profiles.',
-        'bonfire.failedLeaveGroup': 'Could not leave the Bonfire.',
-        'bonfire.failedGenerateCode': 'Could not create the code. Try again.',
-        'bonfire.failedLoadStatus': 'Could not load Bonfire. Try again.',
+        'bonfire.failedLeaveGroup': "Couldn't leave the Bonfire.",
+        'bonfire.failedGenerateCode': "Couldn't create the code. Try again.",
+        'bonfire.failedLoadStatus': "Couldn't load Bonfire. Try again.",
         'bonfire.unknownUser': 'Unknown user',
         'bonfire.hideMine': 'Hide my profiles from others',
         'bonfire.hideMineHint': 'Others see only my main account.',
@@ -1346,9 +1340,9 @@
         'bonfire.moreSummary': "Switching on the server's network",
         'bonfire.lanSwitchLabel': "Let Bonfire members open my account on the server's network",
         'bonfire.lanSwitchHint': "No PIN needed on the server's network, for your account or your profiles. Elsewhere it still is{extra}.",
-        'bonfire.lanSwitchHintExtra': ', and anything without a PIN cannot be opened remotely at all',
+        'bonfire.lanSwitchHintExtra': ", and anything without a PIN can't be opened remotely at all",
         'bonfire.settingsSaved': 'Saved.',
-        'bonfire.settingsSaveFailed': 'Could not save. Nothing was changed.',
+        'bonfire.settingsSaveFailed': "Couldn't save. Nothing was changed.",
         'bonfire.adminAccountWarning': 'This is an admin account.',
         'bonfire.adminAccountWarningBody': 'Whoever switches into it gets your admin rights.',
         'bonfire.allowHouseholdTitle': 'Allow household switching?',
@@ -1399,7 +1393,7 @@
         'refused.emailFailed': "The email couldn't be sent. Try again.",
         'refused.notLimited': 'This profile has no viewing limits to change.',
         'refused.limitsForProfiles': 'Limits are for profiles, not main accounts.',
-        'refused.limitsInvalid': 'Check the viewing hours and limits, then try again.',
+        'refused.limitsInvalid': 'Check the viewing limits, then try again.',
         'refused.timeZone': 'Choose a time zone from the list.',
         'refused.credentials': "That username or password isn't right. Try again.",
         'refused.signsInElsewhere': 'That account signs in another way. Ask an administrator to add it.',
@@ -2737,7 +2731,7 @@
         renderThemeSection: function (prefix, stored) {
             const picker = this.renderThemePicker(prefix, stored);
             return picker
-                ? this.renderSection('palette', t('settings.themeTitle'), t('profileForm.themeSubtitle'), picker)
+                ? this.renderSection('palette', t('settings.themeTitle'), '', picker)
                 : '';
         },
 
@@ -4749,7 +4743,6 @@
                         ${offeredThemes().map(id => `<option value="${id}" ${chosen === id ? 'selected' : ''}>${themeName(id)}</option>`).join('')}
                     </select>
                     ${this.renderThemePreview(shown, prefix + '-theme-preview')}
-                    <div class="form-hint">${t('profileForm.themeHint')}</div>
                 </div>
             `;
         },
@@ -7498,8 +7491,7 @@
                                 <button type="button" id="account-email-change" class="profiles-btn btn-secondary">${t('accountEmail.change')}</button>
                                 <button type="button" id="account-email-remove" class="profiles-btn btn-secondary">${t('accountEmail.remove')}</button>
                             </div>
-                            ${field('pinResetEnabled') === true ? `<div class="form-hint">${t('accountEmail.resetHint')}</div>` : ''}
-                        </div>
+                            ${field('pinResetEnabled') === true ? `<div class="form-hint">${t('accountEmail.resetHint')}</div>` : ''}                        </div>
                         ${this.renderFold('account-email-more', t('accountEmail.moreSummary'), `
                             ${box('account-email-lockout', field('notifyLockout') !== false, t('accountEmail.notifyLockout'))}
                             ${box('account-email-device', field('notifyNewDevice') !== false, t('accountEmail.notifyNewDevice'))}
@@ -8765,7 +8757,6 @@
                             <input type="checkbox" id="create-local-bypass-checkbox" style="cursor: pointer; accent-color: var(--jpf-accent);" />
                             <span>${t('profileForm.bypassPinLan')}</span>
                         </label>
-                        <div class="form-hint">${t('profileForm.bypassPinHint')}</div>
                     </div>` : ''}
                 `;
 
@@ -8821,10 +8812,10 @@
                             <div id="create-viewing-slot"></div>
                         </div>
                         ${this.renderMoreSettings('create', [
-                            this.renderSection('timer', t('profileForm.sectionLockingTitle'), t('profileForm.sectionLockingSubtitle'), createLocking),
+                            this.renderSection('timer', t('profileForm.sectionLockingTitle'), '',createLocking),
                             this.renderThemeSection('create', null)
                         ], [
-                            this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), createRestrictions)
+                            this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), '',createRestrictions)
                         ])}
 
                         <div id="create-error-msg" class="form-error" style="display:none;"></div>
@@ -9150,7 +9141,6 @@
                             <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent);" />
                             <span>${t('profileForm.bypassPinLan')}</span>
                         </label>
-                        <div class="form-hint">${t('profileForm.bypassPinHint')}</div>
                     </div>` : ''}
                 `;
 
@@ -9245,11 +9235,11 @@
                             <div id="edit-viewing-slot"></div>
                         </div>
                         ${this.renderMoreSettings('edit', [
-                            this.renderSection('timer', t('profileForm.sectionLockingTitle'), t('profileForm.sectionLockingSubtitle'), lockingBody),
+                            this.renderSection('timer', t('profileForm.sectionLockingTitle'), '',lockingBody),
                             this.renderThemeSection('edit', profile.theme),
                             artworkSwitch
                         ], [
-                            this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), restrictionsBody)
+                            this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), '',restrictionsBody)
                         ])}` : ''}
 
                         <div class="profile-dialog-actions jpf-actions">
@@ -9762,7 +9752,7 @@
                         <input type="checkbox" id="${id}" ${on ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent);" />
                         <span>${label}</span>
                     </label>
-                    <div class="form-hint">${hint}</div>
+                    ${hint ? `<div class="form-hint">${hint}</div>` : ''}
                 </div>`;
 
             const signIn = `
@@ -9783,7 +9773,7 @@
             const rare = `
                 ${check('account-ask-pin', main.askPinToOpen, t('profileForm.askPinToOpen'), t('profileForm.askPinToOpenHint'))}
                 ${this.showHomeSkip(main.seenOnLocalNetwork, main.bypassPinOnLocalNetwork)
-                    ? check('account-lan-bypass', main.bypassPinOnLocalNetwork, t('profileForm.bypassPinLan'), t('profileForm.bypassPinHint'))
+                    ? check('account-lan-bypass', main.bypassPinOnLocalNetwork, t('profileForm.bypassPinLan'))
                     : ''}
                 <div class="form-group">
                     <label for="account-lockout-select">${t('profileForm.autoLock')}</label>
@@ -9811,7 +9801,7 @@
             content.innerHTML = `
                 <h1 class="profiles-title">${t('settings.accountTitle')}</h1>
                 <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
-                    ${this.renderSection('lock', t('account.signInTitle'), t('account.signInSubtitle'), signIn)}
+                    ${this.renderSection('lock', t('account.signInTitle'), '', signIn)}
                     <div id="account-email-slot"></div>
                     <div id="account-zone-slot"></div>
                     ${this.renderSection('devices', t('account.devicesTitle'), t('account.devicesCountSubtitle'), deviceBody)}
