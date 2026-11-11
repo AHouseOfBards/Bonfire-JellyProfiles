@@ -138,6 +138,7 @@ var services = new ServiceCollection()
     .AddSingleton(sessions)
     .AddSingleton(userManager)
     .AddSingleton(NetworkStub.Create())
+    .AddLogging().AddCors(o => o.AddDefaultPolicy(b => b.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()))
     .BuildServiceProvider();
 
 string seenPath = null, seenBody = null, seenAuth = null;
@@ -168,10 +169,11 @@ var instance = Activator.CreateInstance(mwType, next, Activator.CreateInstance(t
 
 (int status, string body, bool reached, HttpResponse response) Send(
     string pathAndQuery, string token = null, string method = "GET", string body = null, string client = "Jellyfin Web",
-    string deviceId = "dev-1")
+    string deviceId = "dev-1", string origin = null)
 {
     seenPath = seenBody = seenAuth = null;
     var ctx = new DefaultHttpContext { RequestServices = services };
+    if (origin != null) ctx.Request.Headers["Origin"] = origin;
     ctx.Request.Method = method;
     var q = pathAndQuery.IndexOf('?');
     ctx.Request.Path = q < 0 ? pathAndQuery : pathAndQuery[..q];
@@ -231,6 +233,10 @@ Ok("with the administrator's message as plain text",
 var retry = int.TryParse(browse.response.Headers["Retry-After"].ToString(), out var secs) ? secs : -1;
 Ok("and Retry-After counts down to the time given", retry > 2900 && retry <= 3000, retry.ToString());
 Ok("and is not cached", browse.response.Headers["Cache-Control"].ToString() == "no-store");
+// A web client on another origin reads the refusal only if the CORS headers are on it (R-1017).
+var cross = Send("/Users/" + N(MEMBER) + "/Items", MEMBER_TOKEN, origin: "https://app.example.org");
+Ok("the refusal carries the server's CORS headers, so a cross-origin client can read it (R-1017)",
+   Refused(cross) && cross.response.Headers["Access-Control-Allow-Origin"].ToString() != "", Show(cross));
 Close(true, "Back next year.", until: DateTime.UtcNow.AddDays(300));
 var far = Send("/Users/" + N(MEMBER) + "/Items", MEMBER_TOKEN);
 var farRetry = int.TryParse(far.response.Headers["Retry-After"].ToString(), out var farSecs) ? farSecs : -1;

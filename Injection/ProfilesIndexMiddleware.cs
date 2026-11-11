@@ -254,6 +254,7 @@ namespace Jellyfin.Profiles
 
                 // The same status and wording Jellyfin itself returns when Quick Connect is
                 // switched off server-wide, so the client is taking a path it already has.
+                    await Auth.MaintenanceGate.ApplyCorsAsync(context).ConfigureAwait(false);
                     context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                     context.Response.ContentType = "application/json";
                     await context.Response.WriteAsync("\"Quick connect is disabled\"").ConfigureAwait(false);

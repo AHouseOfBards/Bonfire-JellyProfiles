@@ -528,9 +528,36 @@ namespace Jellyfin.Profiles.Auth
             return text + (last == '.' || last == '!' || last == '?' ? " " : ". ") + "Try again later.";
         }
 
+        /// <summary>
+        /// Puts the server's own CORS headers on a response this plugin writes itself. The
+        /// plugin runs in front of Jellyfin's CORS middleware, so a refusal written here would
+        /// otherwise reach a web client on another origin with no CORS headers, and the browser
+        /// would show an opaque network error instead of the message. Never the reason a
+        /// request fails.
+        /// </summary>
+        internal static async Task ApplyCorsAsync(HttpContext context)
+        {
+            try
+            {
+                if (!context.Request.Headers.ContainsKey(HeaderNames.Origin)) return;
+                var provider = context.RequestServices.GetService(typeof(Microsoft.AspNetCore.Cors.Infrastructure.ICorsPolicyProvider))
+                    as Microsoft.AspNetCore.Cors.Infrastructure.ICorsPolicyProvider;
+                var cors = context.RequestServices.GetService(typeof(Microsoft.AspNetCore.Cors.Infrastructure.ICorsService))
+                    as Microsoft.AspNetCore.Cors.Infrastructure.ICorsService;
+                if (provider == null || cors == null) return;
+                var policy = await provider.GetPolicyAsync(context, null).ConfigureAwait(false);
+                if (policy == null) return;
+                cors.ApplyResult(cors.EvaluatePolicy(context, policy), context.Response);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
         /// <summary>503, the message as plain text, the code, and when to try again.</summary>
         internal static async Task WriteRefusalAsync(HttpContext context, MaintenanceMode m)
         {
+            await ApplyCorsAsync(context).ConfigureAwait(false);
             var response = context.Response;
             response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             response.ContentType = "text/plain; charset=utf-8";
