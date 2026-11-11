@@ -913,6 +913,15 @@ if (reconcile != null)
     enableProp.SetValue(config, true);
     reconcile.Invoke(task, null);
 
+    // R-1103: an exception out of the reconciliation at startup aborted Jellyfin's host
+    // start, so a bad row meant a server that would not boot.
+    mappings.Add(null);
+    string startThrew = null;
+    try { ((System.Threading.Tasks.Task)taskType.GetMethod("StartAsync").Invoke(task, new object[] { System.Threading.CancellationToken.None })).GetAwaiter().GetResult(); }
+    catch (Exception e) { startThrew = (e.InnerException ?? e).GetType().Name; }
+    mappings.Remove(null);
+    Ok("a reconciliation that throws does not stop the server starting", startThrew == null, startThrew);
+
     // Out of the fixture again: the end-state checks below expect Jellyfin's own
     // provider everywhere.
     foreach (var id in new[] { LDAPM, LDAPKID })

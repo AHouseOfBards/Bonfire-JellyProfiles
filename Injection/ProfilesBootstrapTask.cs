@@ -502,7 +502,20 @@ namespace Jellyfin.Profiles
                     _logger.LogError("ProfilesPlugin: the configuration file would not read and there was no earlier copy to restore, so Bonfire started empty. The unreadable file is kept at {Path}.", Plugin.RestoredFrom);
             }
 
-            ReconcileAuthProviders();
+            // An exception out of a host's StartAsync stops Jellyfin starting. The same call
+            // after a settings change is already guarded in ReconcileAuthProvidersNow; this
+            // one is not allowed to be the way a bad row takes the server down.
+            // (It still waits on UpdateUserAsync for each account it moves: that happens
+            // once, for the accounts that are wrong, and never on a server already settled.)
+            try
+            {
+                ReconcileAuthProviders();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ProfilesPlugin: could not reconcile authentication providers at startup; the server starts anyway.");
+            }
+
             lock (PatchLock)
             {
                 TryPatchIndex();
