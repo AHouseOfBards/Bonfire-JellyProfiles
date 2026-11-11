@@ -39,7 +39,8 @@
     }
 
     function escapeHtml(str) {
-        if (!str) return '';
+        // 0 is a value, not an absence: a count of none must draw as "0" (R-1176).
+        if (!str && str !== 0) return '';
         return String(str)
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
@@ -1474,9 +1475,10 @@
     function t(key, vars) {
         let str = (activeStrings && activeStrings[key]) || EN_STRINGS[key] || key;
         if (vars) {
-            Object.keys(vars).forEach(k => {
-                str = str.split('{' + k + '}').join(vars[k]);
-            });
+            // One pass over the text. Replacing token by token meant a value that held a
+            // later token (a profile named "{n}") was filled in a second time (R-1174).
+            str = str.replace(/\{([^{}]+)\}/g, (whole, k) =>
+                Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : whole);
         }
         return str;
     }
