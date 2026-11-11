@@ -4545,9 +4545,9 @@
                     <p style="color:var(--jpf-text-2); font-size:0.9rem; line-height:1.5; margin:0 0 16px 0;">
                         ${t('panic.dialogBody')}
                     </p>
-                    <input type="password" id="profiles-panic-input" autocomplete="off" placeholder="${t('panic.emergencyCodePlaceholder')}"
+                    <input type="password" id="profiles-panic-input" autocomplete="off" aria-label="${t('panic.emergencyCodePlaceholder')}" placeholder="${t('panic.emergencyCodePlaceholder')}"
                            style="width:100%; box-sizing:border-box; padding:10px; font-size:1rem; margin-bottom:8px;" />
-                    <div id="profiles-panic-error" style="display:none; color:var(--jpf-danger); font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
+                    <div id="profiles-panic-error" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
                     <div class="jpf-row-gap" style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:12px;">
                         <button id="profiles-panic-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
                         <button id="profiles-panic-submit" class="profiles-btn btn-danger" style="padding:10px 20px; font-weight:600;">${t('panic.disable')}</button>
@@ -4588,11 +4588,17 @@
                         this.showAlert(t('panic.disabledTitle'), t('panic.disabledBody'));
                         return;
                     }
-                    if (res.status === 429) throw new Error(t('panic.tooManyAttempts'));
-                    throw new Error(t('panic.incorrectCode'));
+                    // Only a refusal is "incorrect". A 500 or a dead connection is not the
+                    // person's mistake, and the browser's own words ("Failed to fetch") are
+                    // neither theirs nor translated (R-1185).
+                    const shown = new Error('panic');
+                    if (res.status === 429) shown.panicText = t('panic.tooManyAttempts');
+                    else if (res.status === 400 || res.status === 401 || res.status === 403) shown.panicText = t('panic.incorrectCode');
+                    else shown.panicText = t('switcher.unreachable');
+                    throw shown;
                 })
                 .catch(err => {
-                    errDiv.textContent = err.message || t('panic.incorrectCode');
+                    errDiv.textContent = (err && err.panicText) || t('switcher.unreachable');
                     errDiv.style.display = 'block';
                     submitBtn.disabled = false;
                     submitBtn.textContent = t('panic.disable');
