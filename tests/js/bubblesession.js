@@ -336,6 +336,10 @@ SIGN_IN.forEach(([hash, pathname]) => {
     ok(where + ': and its prefetched list, which would be the next account\'s first grid',
        !(e.p.cachedProfiles && e.p.cachedProfiles.length));
     ok(where + ': and the button is gone, though the client still holds a token', !e.bubble());
+    // R-1246: the next account must not inherit the last one's gate or menu mode.
+    ok(where + ': and its switcher preferences and emergency-link answer (R-1246)',
+       e.p._switcherPrefs === null && e.p._panicLinkAvailable === null,
+       JSON.stringify(e.p._switcherPrefs));
 });
 
 {

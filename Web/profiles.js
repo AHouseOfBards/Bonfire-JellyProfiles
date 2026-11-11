@@ -12039,6 +12039,11 @@
                     try { localStorage.removeItem(this.config.masterStorageKey); } catch (e) { /* blocked */ }
                     this.clearProfileSession();
                     this.invalidateProfileCache();
+                    // The previous account's gate and menu-mode choice, and whether it saw
+                    // the emergency link, are not the next account's. Same pair the
+                    // usersignedout handler clears.
+                    this._switcherPrefs = null;
+                    this._panicLinkAvailable = null;
                 }
                 if (bubble) bubble.remove();
                 return;
