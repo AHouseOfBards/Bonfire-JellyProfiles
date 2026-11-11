@@ -40,12 +40,12 @@ ok('every tab has a panel and every panel a tab',
 
 console.log('\n── Where things live ───────────────────────────────────────────');
 const has = (tab, id) => !!panels[tab] && panels[tab].indexOf('id="' + id + '"') !== -1;
-ok('Setup holds Email, time zone and first-time setup',
-   has('setup', 'jpfEmail') && has('setup', 'emailHost') && has('setup', 'defaultTimeZone') && has('setup', 'jpfOnboarding'));
+ok('Setup holds the time zone and first-time setup, and no longer Email (moved to Notices)',
+   !has('setup', 'jpfEmail') && !has('setup', 'emailHost') && has('setup', 'defaultTimeZone') && has('setup', 'jpfOnboarding'));
 ok('Look holds the switcher, theme and avatar library',
    has('look', 'defaultAskOnStartup') && has('look', 'defaultTheme') && has('look', 'jpfAvatars'));
-ok('Messages keeps Announcements and Maintenance, and no longer holds Email',
-   has('messages', 'annMessage') && has('messages', 'jpfMaintenance') && !has('messages', 'jpfEmail') && !has('messages', 'emailHost'));
+ok('Notices (the messages panel) keeps Announcements and Maintenance, and now holds Email',
+   has('messages', 'annMessage') && has('messages', 'jpfMaintenance') && has('messages', 'jpfEmail') && has('messages', 'emailHost'));
 ok('Skip Quick Connect stays in Apps', has('apps', 'skipQuickConnectOnKnownDevices'));
 ok('no setting was dropped: every control id the page saves is still in exactly one panel',
    ['maxProfiles', 'pinGuessesPerDay', 'requireMainPin', 'enablePinResetByEmail', 'disallowCustomAvatars', 'enableStarterAvatars',

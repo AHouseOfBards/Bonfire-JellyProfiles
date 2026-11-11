@@ -156,7 +156,11 @@ ok('"Not set up." says what is not set up', strings['admin.email.notSet'] && /em
 const lede = strings['admin.apps.lede'] || '';
 ok('the Apps lede is two short sentences, not a list of five apps', lede.split(/[.!?]\s/).length <= 2 && lede.length < 170 && !/Findroid|Wholphin/.test(lede), lede.length + ': ' + lede);
 ok('and still says a saved profile opens without its PIN unless the app asks every time', /without its PIN/.test(lede) && /every time/.test(lede));
-ok('"Where to switch from" says what its two choices are', /data-i18n="admin\.switcher\.locationHint"/.test(html) && !!strings['admin.switcher.locationHint']);
+// Phase 3: the choices are named "In the header" and "In Jellyfin's user menu", so the hint that
+// repeated them is gone. What this still asks: the two choices say where the button goes.
+ok('"Switch button" has two choices that say where it goes, and no hint repeating them',
+   /header/.test(strings['admin.switcher.locationButton'] || '') && /user menu/.test(strings['admin.switcher.locationMenu'] || '')
+   && !/data-i18n="admin\.switcher\.locationHint"/.test(html));
 
 console.log('');
 if (fails.length) {
