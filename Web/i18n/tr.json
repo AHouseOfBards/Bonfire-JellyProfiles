@@ -70,7 +70,7 @@
   "errors.failedMergeDevice": "Cihazlar birleştirilemedi.",
   "errors.generic": "Bir şeyler ters gitti. Tekrar deneyin.",
   "errors.savingProfile": "Profil kaydedilemedi.",
-  "errors.savingHours": "Profil kaydedildi, ancak izleme saatleri kaydedilmedi.",
+  "errors.savingHours": "Profil kaydedildi, ancak izleme sınırları kaydedilmedi.",
   "errors.loadProfileDetails": "Profil yüklenemedi.",
   "errors.failedDeleteProfile": "Profil silinemedi",
   "errors.deletingProfile": "Profil silinemedi.",

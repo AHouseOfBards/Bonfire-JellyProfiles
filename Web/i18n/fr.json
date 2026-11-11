@@ -64,7 +64,7 @@
   "errors.failedDeleteDevice": "Échec de la suppression de l'appareil.",
   "errors.generic": "Un problème est survenu. Réessayez.",
   "errors.savingProfile": "Impossible d'enregistrer le profil.",
-  "errors.savingHours": "Le profil est enregistré, mais pas ses heures de visionnage.",
+  "errors.savingHours": "Le profil est enregistré, mais pas ses limites de visionnage.",
   "errors.loadProfileDetails": "Impossible de charger le profil.",
   "errors.failedDeleteProfile": "Échec de la suppression du profil",
   "errors.deletingProfile": "Impossible de supprimer le profil.",

@@ -64,7 +64,7 @@
   "errors.failedDeleteDevice": "Nie udało się usunąć urządzenia.",
   "errors.generic": "Coś poszło nie tak. Spróbuj ponownie.",
   "errors.savingProfile": "Nie udało się zapisać profilu.",
-  "errors.savingHours": "Profil zapisano, ale nie godziny oglądania.",
+  "errors.savingHours": "Profil zapisano, ale nie jego limity oglądania.",
   "errors.loadProfileDetails": "Nie udało się załadować profilu.",
   "errors.failedDeleteProfile": "Nie udało się usunąć profilu",
   "errors.deletingProfile": "Nie udało się usunąć profilu.",

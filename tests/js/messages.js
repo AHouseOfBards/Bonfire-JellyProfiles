@@ -178,7 +178,7 @@ LANGS.forEach(l => ok(l + ' panic.dialogBody does not say unlock', !unlockWord[l
         ok('hours save ' + (n + 1) + ' words its failure as the hours', after.indexOf('_hoursFailText') !== -1
             && after.indexOf('errors.savingProfile') === -1, after.slice(0, 160).replace(/\s+/g, ' '));
     });
-    ok('the hours message is in English', /saved, but not its viewing hours/.test(english['errors.savingHours'] || ''));
+    ok('the hours message is in English', /saved, but not its viewing limits/.test(english['errors.savingHours'] || ''));
     ['ca', 'es', 'fr', 'pl', 'tr'].forEach(l => ok(l + ' has errors.savingHours',
         typeof files[l]['errors.savingHours'] === 'string' && files[l]['errors.savingHours'].length > 10));
 }

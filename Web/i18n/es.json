@@ -66,7 +66,7 @@
   "errors.failedMergeDevice": "No se pudieron combinar los dispositivos.",
   "errors.generic": "Algo salió mal. Inténtalo de nuevo.",
   "errors.savingProfile": "No se pudo guardar el perfil.",
-  "errors.savingHours": "El perfil se guardó, pero no su horario de visualización.",
+  "errors.savingHours": "El perfil se guardó, pero no sus límites de visualización.",
   "errors.loadProfileDetails": "No se pudo cargar el perfil.",
   "errors.failedDeleteProfile": "No se pudo eliminar el perfil",
   "errors.deletingProfile": "No se pudo eliminar el perfil.",

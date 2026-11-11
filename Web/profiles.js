@@ -985,7 +985,7 @@
         'errors.failedMergeDevice': "Couldn't merge the devices.",
         'errors.generic': 'Something went wrong. Try again.',
         'errors.savingProfile': "Couldn't save the profile.",
-        'errors.savingHours': "The profile was saved, but not its viewing hours.",
+        'errors.savingHours': "The profile was saved, but not its viewing limits.",
         'errors.loadProfileDetails': "Couldn't load the profile.",
         'errors.failedDeleteProfile': "Couldn't delete the profile.",
         'errors.deletingProfile': "Couldn't delete the profile.",
