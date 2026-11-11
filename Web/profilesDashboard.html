@@ -802,6 +802,15 @@
                     <!-- Filled in from the server's own version; no hardcoded literal to go stale. -->
                     <span class="jpf-pill" id="pluginVersionBadge">…</span>
                 </div>
+                <!-- Saved on its own, the moment it changes: it is not one of the fields Save
+                     sends. Off on a new install (the Plugin constructor). No hint line, by
+                     decision: the Status list says "Bonfire is off." while it is. -->
+                <div class="checkboxContainer">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="bonfireOn" />
+                        <span data-i18n="admin.bonfireOn">Turn on Bonfire</span>
+                    </label>
+                </div>
                 <div class="fieldDescription jpf-lede" id="statusSummary" data-i18n="admin.status.checking">Checking…</div>
                 <div class="jpf-checks" id="statusChecks"></div>
                 <!-- Asked once, on a new install: nothing else on this page is off by default
@@ -1645,6 +1654,8 @@
                 'admin.gs.profiles': 'Make a first profile. Households do this from the Jellyfin home screen.',
                 'admin.gs.pins': 'Require a main PIN on every main account.',
                 'admin.gs.zone': 'Choose a default time zone. This server is on UTC.',
+                'admin.gs.bonfireOn': 'Turn on Bonfire.',
+                'admin.status.bonfireOff': 'Bonfire is off.',
                 'admin.saveFailed': 'Couldn\'t save it.',
                 'admin.saveSettingsFailed': 'Couldn\'t save the settings.',
                 'admin.trust.bad': 'An address is invalid, too wide, or has no account.',
@@ -2315,6 +2326,7 @@
                     // failed would save it off without anyone touching it.
                     page.querySelector('#enablePinResetByEmail').checked = !!config.EnablePinResetByEmail;
                     page._config = config;
+                    renderBonfireOn(page);
                     page.querySelector('#disallowCustomAvatars').checked = !!config.DisallowCustomAvatarUploads;
                     // On unless switched off, including on a configuration saved before the setting existed.
                     page.querySelector('#enableStarterAvatars').checked = config.EnableStarterAvatars !== false;
@@ -6648,7 +6660,7 @@
             // Each loader reports its own part as it arrives, so Status costs no requests of
             // its own beyond the orphan scan, and never shows something the tab it links to
             // would disagree with: both are drawn from the same answer.
-            const STATUS_ORDER = ['script', 'panic', 'maintenance', 'email', 'pins', 'orphans', 'avatars', 'beta'];
+            const STATUS_ORDER = ['off', 'script', 'panic', 'maintenance', 'email', 'pins', 'orphans', 'avatars', 'beta'];
             const LEVEL_RANK = { bad: 0, warn: 1, info: 2, ok: 3 };
 
             // Looked up when drawn, so the chips are in the page's language.
@@ -6748,6 +6760,9 @@
                 if (isUtcZone(page._serverZone)) {
                     items.push({ key: 'zone', text: t('admin.gs.zone'), done: !!c.DefaultTimeZone, tab: 'setup', anchor: 'jpfViewing' });
                 }
+                // Last: everything above is worth doing before anyone sees the profile screen.
+                // Absent on a configuration from before 2.0, which is on.
+                items.push({ key: 'bonfireOn', text: t('admin.gs.bonfireOn'), done: c.BonfireOn !== false, tab: 'status', anchor: 'bonfireOn' });
                 return items;
             }
 
@@ -6983,6 +6998,42 @@
                 if (pin && list && anywhere) anywhere.disabled = !pin.checked && !list.checked;
             }
 
+            // "Turn on Bonfire": the toggle, the Status line and the Getting started item, all
+            // from page._config.BonfireOn. Absent on a configuration from before 2.0, which is on.
+            function renderBonfireOn(page) {
+                const on = !page._config || page._config.BonfireOn !== false;
+                const box = page.querySelector('#bonfireOn');
+                if (box) box.checked = on;
+                setStatus(page, 'off', on ? [] : [{ level: 'warn', text: t('admin.status.bonfireOff') }]);
+                renderGettingStarted(page);
+            }
+
+            function bindBonfireOn(page) {
+                const box = page.querySelector('#bonfireOn');
+                if (!box || box.dataset.bound) return;
+                box.dataset.bound = '1';
+                box.addEventListener('change', function () {
+                    const on = box.checked;
+                    Dashboard.showLoadingMsg();
+                    ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('plugins/profiles/admin/settings'),
+                        contentType: 'application/json',
+                        data: JSON.stringify({ bonfireOn: on })
+                    }).then(function () {
+                        Dashboard.hideLoadingMsg();
+                        page._config = page._config || {};
+                        page._config.BonfireOn = on;
+                        renderBonfireOn(page);
+                    }, function () {
+                        Dashboard.hideLoadingMsg();
+                        // Back to what the server still has.
+                        renderBonfireOn(page);
+                        Dashboard.alert({ message: t('admin.saveSettingsFailed'), title: t('admin.error') });
+                    });
+                });
+            }
+
             function bindOnboarding(page) {
                 const again = page.querySelector('#onboardingShowAgain');
                 if (!again || again.dataset.bound) return;
@@ -7196,6 +7247,7 @@
                 bindUnsaved(page);
                 bindReport(page);
                 bindOnboarding(page);
+                bindBonfireOn(page);
                 bindAnnouncements(page);
                 bindThemes(page);
                 bindMaintenance(page);

@@ -140,20 +140,22 @@ ok('no emergency code, though none is set (it bypasses the picker; Security says
 ok('no avatars item, which was done on every install', !row('avatars'));
 ok('no first-time setup item: it is asked once instead', !row('onboarding'));
 ok('no apps item: a choice, not a chore', !row('apps'));
-ok('exactly the profile and the PIN', rows().length === 2, rows().map(r => r.getAttribute('data-gs')).join());
+// 2.0 added "Turn on Bonfire." as the last item; tests/js/adminonoff.js covers it.
+const keys = () => rows().map(r => r.getAttribute('data-gs')).join();
+ok('exactly the profile, the PIN and turning Bonfire on', keys() === 'profiles,pins,bonfireOn', keys());
 
 // The time zone item: only a server on UTC with no default chosen is asked.
 ['Europe/London', 'America/New_York', '', undefined].forEach(function (zone) {
     page._serverZone = zone;
     api.renderGettingStarted(page);
-    ok('a server on ' + JSON.stringify(zone) + ' is not asked for a zone', !row('zone') && rows().length === 2);
+    ok('a server on ' + JSON.stringify(zone) + ' is not asked for a zone', !row('zone') && keys() === 'profiles,pins,bonfireOn', keys());
 });
 ['UTC', 'Etc/UTC'].forEach(function (zone) {
     page._serverZone = zone;
     page._config.DefaultTimeZone = '';
     api.renderGettingStarted(page);
     ok(zone + ' with no default: a to-do that opens the viewing hours',
-       row('zone') && row('zone').getAttribute('data-level') === 'info' && rows().length === 3);
+       row('zone') && row('zone').getAttribute('data-level') === 'info' && keys() === 'profiles,pins,zone,bonfireOn', keys());
     row('zone') && row('zone').children[2] && row('zone').children[2].listeners.click();
     ok('and goes to Setup at the zone', gone.pop() === 'setup#jpfViewing');
     page._config.DefaultTimeZone = 'Europe/Paris';
