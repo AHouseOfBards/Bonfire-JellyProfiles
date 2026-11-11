@@ -2153,7 +2153,10 @@ namespace Jellyfin.Profiles.Controllers
                 imageChanged = true;
             }
 
-            // Renaming logic
+            // The new account name, decided and checked here and written below, after the
+            // policy has been worked out. Written first, a failure in what followed left the
+            // account under the new name and the mapping under the old (R-1147).
+            string? newUsername = null;
             if (request.ProfileId != masterUserId)
             {
                 string systemUsername = $"{masterUser.Username}_{request.ProfileName.Trim().Replace(" ", "")}";
@@ -2164,8 +2167,7 @@ namespace Jellyfin.Profiles.Controllers
                     {
                         return BadRequest("A profile with this name already exists.");
                     }
-                    targetUser.Username = systemUsername;
-                    await _userManager.UpdateUserAsync(targetUser).ConfigureAwait(false);
+                    newUsername = systemUsername;
                 }
             }
 
@@ -2232,7 +2234,35 @@ namespace Jellyfin.Profiles.Controllers
                     validatedFolders = ApplyInheritedFolders(_libraryManager, masterPolicy, targetPolicy, keepOwned: true);
                 }
 
-                await _userManager.UpdatePolicyAsync(targetUser.Id, targetPolicy).ConfigureAwait(false);
+                // Everything above only worked the policy out. The account is written now: the
+                // rename, then the policy, and if the policy write fails the rename is taken
+                // back, so the account is not left under a name the mapping does not have.
+                var previousUsername = targetUser.Username;
+                if (newUsername != null)
+                {
+                    targetUser.Username = newUsername;
+                    await _userManager.UpdateUserAsync(targetUser).ConfigureAwait(false);
+                }
+                try
+                {
+                    await _userManager.UpdatePolicyAsync(targetUser.Id, targetPolicy).ConfigureAwait(false);
+                }
+                catch
+                {
+                    if (newUsername != null)
+                    {
+                        try
+                        {
+                            targetUser.Username = previousUsername;
+                            await _userManager.UpdateUserAsync(targetUser).ConfigureAwait(false);
+                        }
+                        catch (Exception undo)
+                        {
+                            _logger.LogError(undo, "ProfilesPlugin: Could not undo the rename of {Profile} after its policy write failed.", request.ProfileId);
+                        }
+                    }
+                    throw;
+                }
             }
 
             var pinChanged = false;

@@ -240,6 +240,21 @@ r = Call("UpdateProfile", $"{{\"profileId\":\"{KID}\",\"profileName\":\"Kid\",\"
 Ok("a rating that isn't a score is refused (it read as no limit)", r.status == 400, r.status + " " + r.message);
 Ok("and the rating stays", Kid().MaxParentalRating == 14, P(Kid()));
 
+// R-1147: a save that fails partway leaves the account and the mapping agreeing. The
+// rename used to be written to the account before the policy was, and the mapping after both,
+// so a policy write that threw left the account under the new name and the mapping under the old.
+world.FailPolicyWrite = true;
+r = Call("UpdateProfile", $"{{\"profileId\":\"{KID}\",\"profileName\":\"Kiddo\",\"masterPin\":\"{PIN}\"}}");
+world.FailPolicyWrite = false;
+Ok("a save whose policy write fails is reported as failed", r.status == -500, r.status + " " + r.message);
+Ok("and the account keeps the name it had", world.Users[KID].Username == "home_Kid", world.Users[KID].Username);
+Ok("and the mapping keeps the name it had", Row(kidRow, "ProfileName") as string == "Kid", Row(kidRow, "ProfileName") as string);
+r = Call("UpdateProfile", $"{{\"profileId\":\"{KID}\",\"profileName\":\"Kiddo\",\"masterPin\":\"{PIN}\"}}");
+Ok("the same rename then goes through, account and mapping together", r.status == 200
+   && world.Users[KID].Username == "home_Kiddo" && Row(kidRow, "ProfileName") as string == "Kiddo", r.status + " " + world.Users[KID].Username);
+r = Call("UpdateProfile", $"{{\"profileId\":\"{KID}\",\"profileName\":\"Kid\",\"masterPin\":\"{PIN}\"}}");
+Ok("and back", r.status == 200 && world.Users[KID].Username == "home_Kid" && Row(kidRow, "ProfileName") as string == "Kid", r.status + " " + world.Users[KID].Username);
+
 // ── /create ──────────────────────────────────────────────────────────────────
 Console.WriteLine();
 Console.WriteLine("── /create ──────────────────────────────────────────────────────");
@@ -317,6 +332,7 @@ public class World
     public Dictionary<Guid, User> Users = new();
     public Dictionary<Guid, UserPolicy> Policies = new();
     public List<Guid> Libraries = new();
+    public bool FailPolicyWrite;
 
     public void Add(Guid id, string name, UserPolicy policy)
     {
@@ -374,6 +390,7 @@ public class WorldProxy : DispatchProxy
                     Configuration = new UserConfiguration(),
                 };
             case "UpdatePolicyAsync":
+                if (W.FailPolicyWrite) return Task.FromException(new InvalidOperationException("policy write failed"));
                 W.Policies[(Guid)args[0]] = World.Copy((UserPolicy)args[1]);
                 return Task.CompletedTask;
             case "GetVirtualFolders":
