@@ -860,8 +860,9 @@ sends), signed in as a main account that has profiles:
   per profile. Resume, Next Up, Latest and search are empty. Everything else is answered as
   the main account.
 - **Opening a profile's folder** (`GET /Users/{id}/Items?ParentId=…`) signs into it. A
-  profile with a PIN opens a keypad of folders first. The tries count against the same
-  limit as a PIN typed into a sign-in form. While the server is
+  profile with a PIN opens a keypad of folders first. Back on the keypad steps back one
+  key press at a time, because each press is a page in the app. The tries count against
+  the same limit as a PIN typed into a sign-in form. While the server is
   [closed for maintenance](#maintenance), a profile that isn't an administrator's doesn't
   open and the folder shows the administrator's message.
 - **After that**, every request on the main account's token reaches Jellyfin as the
