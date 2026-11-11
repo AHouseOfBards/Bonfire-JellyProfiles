@@ -233,13 +233,15 @@ console.log('\n── The logo ────────────────�
     const IMG = '/plugins/profiles/themes/logo/' + 'c'.repeat(32) + '.png';
     const read = l => h.readCustomThemes({ logo: l }).logo;
     ok('an image at the logo address is read, with its alt', JSON.stringify(read({ image: IMG, text: null, alt: 'The Hayes House' }))
-        === JSON.stringify({ image: IMG, text: null, alt: 'The Hayes House' }));
+        === JSON.stringify({ image: IMG, text: null, alt: 'The Hayes House', corners: 'rounded' }));
     ok('an image anywhere else is not', read({ image: 'https://evil.example/' + 'c'.repeat(32) + '.png' }) === null
         && read({ image: '/plugins/profiles/themes/logo/../../x.png' }) === null
         && read({ image: IMG.replace('.png', '.svg') }) === null);
-    ok('text alone is a logo, trimmed', JSON.stringify(read({ text: '  Hayes  ' })) === JSON.stringify({ image: null, text: 'Hayes', alt: null }));
+    ok('text alone is a logo, trimmed', JSON.stringify(read({ text: '  Hayes  ' })) === JSON.stringify({ image: null, text: 'Hayes', alt: null, corners: 'rounded' }));
     ok('text of two lines, or past forty characters, is not', read({ text: 'a\nb' }) === null && read({ text: 'x'.repeat(41) }) === null);
     ok('an alt past a hundred is dropped, the logo kept', read({ image: IMG, alt: 'y'.repeat(101) }).alt === null);
+    ok('square corners are read, and anything else is rounded', read({ image: IMG, corners: 'square' }).corners === 'square'
+        && ['round', 1, null, undefined].every(v => read({ image: IMG, corners: v }).corners === 'rounded'));
     ok('nothing, or nothing usable, is no logo', read(null) === null && read({ image: null, text: '' }) === null && read('x') === null);
 
     // drawLogo against a DOM just real enough: elements with children, attributes, text.

@@ -133,7 +133,7 @@ All 110 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `PUT /plugins/profiles/admin/themes/hidden` | admin | Choose which built-in themes to hide. |
 | `POST /plugins/profiles/admin/themes/fonts` | admin | Upload a font. |
 | `DELETE /plugins/profiles/admin/themes/fonts/{file}` | admin | Delete one. |
-| `PUT /plugins/profiles/admin/themes/logo` | admin | Set the logo's text and alt text. |
+| `PUT /plugins/profiles/admin/themes/logo` | admin | Set the logo's text, alt text and corners. |
 | `POST /plugins/profiles/admin/themes/logo/image` | admin | Upload the logo image. |
 | `DELETE /plugins/profiles/admin/themes/logo/image` | admin | Remove it. |
 | `POST /plugins/profiles/admin/themes/backgrounds` | admin | Upload a background image for a custom theme. |
@@ -1482,12 +1482,14 @@ the custom themes and uploaded fonts, for a client that already has the built-in
                    "style": "normal", "weight": [400, 400], "unicodeRange": null } ] }
   ],
   "patterns": [ { "name": "leaves", "url": "/plugins/profiles/themes/patterns/leaves" } ],
-  "logo": { "image": "/plugins/profiles/themes/logo/9be1…04.png", "text": null, "alt": "The Hayes House" }
+  "logo": { "image": "/plugins/profiles/themes/logo/9be1…04.png", "text": null, "alt": "The Hayes House", "corners": "rounded" }
 }
 ```
 
-`logo` is shown at the top right of every switcher screen: the `image` when there is one,
-otherwise `text`, otherwise nothing. `alt` is for screen readers.
+`logo` is shown in the corner the theme's `layout.logo` names: the `image` when there is one,
+otherwise `text`, otherwise nothing. `alt` is for screen readers. `corners` is `rounded` or
+`square`: the corners of the image and of the backing behind a see-through one. A server that
+never set it says `rounded`.
 
 Sent with an `ETag`. Send it back as `If-None-Match` and you get `304` until something
 changes, including the server's default theme.
@@ -1608,11 +1610,11 @@ Deletes an uploaded font and its file. `400` while a custom theme uses it.
 **Authorisation:** administrator.
 
 ```json
-{ "text": "The Hayes House", "alt": "The Hayes House" }
+{ "text": "The Hayes House", "alt": "The Hayes House", "corners": "square" }
 ```
 
-A field left out stays as it is. Send `""` or `null` to clear it; anything that is not text is `400`. Each is one line: `text` up to 40
-characters, `alt` up to 100. Returns the logo as [`/themes`](#get-pluginsprofilesthemes) gives it.
+A field left out stays as it is. Send `""` or `null` to clear `text` or `alt`; anything that is not text is `400`. Each is one line: `text` up to 40
+characters, `alt` up to 100. `corners` is `rounded` or `square`; any other value is `400`. Returns the logo as [`/themes`](#get-pluginsprofilesthemes) gives it.
 
 ### `POST /plugins/profiles/admin/themes/logo/image`
 

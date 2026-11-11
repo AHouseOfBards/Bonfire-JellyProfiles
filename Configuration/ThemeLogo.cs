@@ -38,6 +38,12 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>See <see cref="MaxText"/>.</summary>
         public const int MaxAlt = 100;
 
+        public const string Rounded = "rounded";
+        public const string Square = "square";
+
+        /// <summary>The corners a stored value means: "square" or, for anything else, "rounded".</summary>
+        public static string CleanCorners(string? value) => value == Square ? Square : Rounded;
+
         private static readonly System.Text.RegularExpressions.Regex FileName =
             new(@"^[0-9a-f]{32}\.(png|jpg|webp)\z", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 

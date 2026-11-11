@@ -1914,6 +1914,8 @@ namespace Jellyfin.Profiles.Controllers
                     try { config.LogoAlt = ThemeLogo.CleanText(incoming.LogoAlt, ThemeLogo.MaxAlt); }
                     catch (ArgumentException) { config.LogoAlt = null; }
                 }
+                if (TryProperty(root, "LogoCorners", out _))
+                    config.LogoCorners = ThemeLogo.CleanCorners(incoming.LogoCorners);
                 // A default the file also hides stays the default, and comes out of hiding.
                 var importedDefault = TryProperty(root, "DefaultTheme", out _) ? incoming.DefaultTheme : config.DefaultTheme;
                 if (!string.IsNullOrWhiteSpace(importedDefault))
@@ -2011,7 +2013,7 @@ namespace Jellyfin.Profiles.Controllers
             "MaxProfilesPerUser", "PinGuessesPerDay", "RequireMainPin", "Mappings", "KnownDevices", "BonfireGroups",
             "LinkedAccounts", "UserProfileLimitOverrides", "AvatarLibrary", "DisallowCustomAvatarUploads",
             "ProfileImageQuality", "DefaultAskOnStartup", "DefaultSwitcherLocation", "CustomFonts", "CustomThemes",
-            "HiddenThemes", "LogoImage", "LogoText", "LogoAlt", "DefaultTheme", "DefaultTimeZone", "AllowProfileThemes",
+            "HiddenThemes", "LogoImage", "LogoText", "LogoAlt", "LogoCorners", "DefaultTheme", "DefaultTimeZone", "AllowProfileThemes",
             "EnableClientPinLogin", "EnableClientProfileList", "ClientPinLoginFromAnywhere", "PanicCodeHash", "ProxyClients", "TrustedAddressEntries",
             "Announcements", "AccountEmails",
         };

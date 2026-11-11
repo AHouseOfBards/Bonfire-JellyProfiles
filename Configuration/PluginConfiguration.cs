@@ -317,6 +317,12 @@ namespace Jellyfin.Profiles.Configuration
         public string? LogoAlt { get; set; }
 
         /// <summary>
+        /// The logo's corners, and the backing behind a see-through logo: "rounded" (the
+        /// default, and what a configuration saved before this setting reads as) or "square".
+        /// </summary>
+        public string LogoCorners { get; set; } = ThemeLogo.Rounded;
+
+        /// <summary>
         /// The time zone a household's viewing hours are read in until its main account picks
         /// one. Empty is the server's own zone. See <see cref="HouseholdTime"/>.
         /// </summary>

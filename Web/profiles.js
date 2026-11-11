@@ -168,7 +168,7 @@
             ? logo.image : null;
         const text = line(logo.text, 40);
         if (!image && !text) return null;
-        return { image: image, text: text, alt: line(logo.alt, 100) };
+        return { image: image, text: text, alt: line(logo.alt, 100), corners: logo.corners === 'square' ? 'square' : 'rounded' };
     }
 
     /// A ?part=custom answer, or the copy of one cached here, in the shape this script uses.
@@ -808,7 +808,7 @@
             const logo = sel + ' #profiles-logo';
             if (onLeft) css += logo + ' img { margin-left: 0; }\n';
             if (logoAt === 'top-left') {
-                css += logo + ' { right: auto; left: 1rem; left: calc(1rem + env(safe-area-inset-left)); }\n'
+                css += logo + ' { right: auto; left: 2rem; left: calc(2rem + env(safe-area-inset-left)); }\n'
                     + sel + '.jpf-tv #profiles-logo { right: auto; left: 5vw; }\n';
             } else {
                 // A logo pinned to the bottom of the first screen would sit on the tiles of a
@@ -819,8 +819,8 @@
                 css += sel + ' #profiles-gate-overlay.jpf-has-logo { flex-direction: column; }\n'
                     + sel + ' #profiles-gate-overlay.jpf-has-logo .profiles-modal-content { padding-top: 0; }\n'
                     + logo + ' { position: relative; top: auto; right: auto; left: auto; flex-shrink: 0; align-self: '
-                        + (onLeft ? 'flex-start' : 'flex-end') + '; margin: 1rem 1rem 0; '
-                        + (onLeft ? 'margin-left: calc(1rem + env(safe-area-inset-left));' : 'margin-right: calc(1rem + env(safe-area-inset-right));') + ' }\n'
+                        + (onLeft ? 'flex-start' : 'flex-end') + '; margin: 1rem 2rem 2rem; '
+                        + (onLeft ? 'margin-left: calc(2rem + env(safe-area-inset-left));' : 'margin-right: calc(2rem + env(safe-area-inset-right));') + ' }\n'
                     + sel + '.jpf-tv #profiles-logo { top: auto; right: auto; margin: 2vh 5vw 0; }\n';
             }
         }
@@ -13338,7 +13338,7 @@
             const gate = overlay || document.getElementById('profiles-gate-overlay');
             const logo = CUSTOM_THEMES.logo;
             let box = document.getElementById('profiles-logo');
-            const key = logo ? (logo.image || '') + '|' + (logo.text || '') + '|' + (logo.alt || '') : '';
+            const key = logo ? (logo.image || '') + '|' + (logo.text || '') + '|' + (logo.alt || '') + '|' + (logo.corners || '') : '';
             if (box && (!gate || box.parentNode !== gate || box.getAttribute('data-logo') !== key)) {
                 if (box.parentNode) box.parentNode.removeChild(box);
                 box = null;
@@ -13351,6 +13351,7 @@
             box = document.createElement('div');
             box.id = 'profiles-logo';
             box.setAttribute('data-logo', key);
+            box.setAttribute('data-corners', logo.corners === 'square' ? 'square' : 'rounded');
             const asText = () => {
                 while (box.firstChild) box.removeChild(box.firstChild);
                 if (!logo.text) {

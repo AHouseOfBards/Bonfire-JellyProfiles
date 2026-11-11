@@ -212,6 +212,7 @@ var byHand = new Dictionary<string, object>
     ["PanicCodeHash"] = "panic-hash",
     ["LogoText"] = "Hearth",
     ["LogoAlt"] = "The Hearth logo",
+    ["LogoCorners"] = "square",
 };
 
 var changed = Defaults();

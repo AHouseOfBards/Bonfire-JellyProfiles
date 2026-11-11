@@ -40,6 +40,10 @@ function fetchIcons() {
 
 const DEVICES = ['phone', 'phone-land', 'tablet', 'desktop', 'tv720', 'tv'];
 const SCENES = ['logo', 'logotext'];
+// How far in from the screen's edge the logo sits, on a phone, tablet or desktop: 2rem (32px at a 16px root), up
+// from 1rem. The owner found it too close. A TV stays at 5% of the screen (the overscan safe
+// area), which is already further in.
+const EDGE_REM = 2;
 
 const MEASURE = `(function () {
   var root = document.getElementById('profiles-gate-overlay');
@@ -49,7 +53,7 @@ const MEASURE = `(function () {
   var cs = getComputedStyle(box);
   var img = box.querySelector('img');
   var title = root.querySelector('.profiles-title');
-  var out = { found: true, root: parseFloat(getComputedStyle(document.documentElement).fontSize), text: !img, box: r(box), vw: innerWidth, vh: innerHeight,
+  var out = { found: true, st: root.scrollTop, root: parseFloat(getComputedStyle(document.documentElement).fontSize), text: !img, box: r(box), vw: innerWidth, vh: innerHeight,
     pad: parseFloat(cs.paddingTop) + parseFloat(cs.paddingLeft), radius: parseFloat(cs.borderTopLeftRadius) || 0,
     plate: cs.backgroundColor + (cs.backgroundImage !== 'none' ? ' ' + cs.backgroundImage : ''), size: parseFloat(cs.fontSize), color: cs.color, titleColor: title ? getComputedStyle(title).color : '' };
   if (img) { var ic = getComputedStyle(img); out.imgMax = parseFloat(ic.maxHeight); out.imgRadius = parseFloat(ic.borderTopLeftRadius) || 0; out.img = r(img); }
@@ -123,6 +127,33 @@ async function main() {
                         ok(where + ': the picture may be half as big again', m.imgMax >= (tv ? m.vh * 0.1 - 0.5 : 72), 'max-height ' + m.imgMax + 'px of ' + m.vh);
                     }
                     ok(where + ': off the title and the tiles', m.hits.length === 0, m.hits.join(', '));
+                    const top = m.box.t + m.st, side = m.vw - m.box.r;
+                    ok(where + ': ' + (tv ? 'unchanged on a TV: 5% in' : 'at least ' + EDGE_REM + 'rem from the top and the side'),
+                        tv ? Math.abs(side - m.vw * 0.05) < 1 && Math.abs(top - m.vh * 0.05) < 1 : top >= EDGE_REM * m.root - 0.5 && side >= EDGE_REM * m.root - 0.5,
+                        'top ' + top + ', side ' + side);
+                }
+            }
+        }
+
+        // Rounded or square (the Logo corners setting, 2.0): square takes the picture's and the
+        // backing's corners off, rounded is what it always was. The backing is tried by putting
+        // its class on the box, so no particular logo has to fail to read on a theme.
+        const CORNERS = `(function () { var b = document.getElementById('profiles-logo'); var i = b.querySelector('img');
+          var o = { img: i ? parseFloat(getComputedStyle(i).borderTopLeftRadius) || 0 : -1 };
+          ['jpf-logo-back-dark', 'jpf-logo-back-light'].forEach(function (c) { b.classList.add(c);
+            o[c] = parseFloat(getComputedStyle(b).borderTopLeftRadius) || 0; b.classList.remove(c); });
+          return o; })()`;
+        for (const theme of ['bonfire', 'bloom']) {
+            for (const device of ['phone', 'desktop']) {
+                for (const corners of ['rounded', 'square']) {
+                    const where = theme + ' ' + device + ' ' + corners + ' corners';
+                    const r = await c.open('http://127.0.0.1:' + server.port + '/?theme=' + theme + '&scene=logo&device=' + device + '&corners=' + corners, device);
+                    if (r.error) { ok(where + ': the screen draws', false, r.error); continue; }
+                    const k = await c.evaluate(CORNERS);
+                    const want = corners === 'square' ? 0 : RADIUS[theme];
+                    ok(where + ': the picture', k.img === want, k.img + 'px, wanted ' + want);
+                    ok(where + ': the backing behind a see-through logo', k['jpf-logo-back-dark'] === want && k['jpf-logo-back-light'] === want,
+                        k['jpf-logo-back-dark'] + ' / ' + k['jpf-logo-back-light'] + 'px, wanted ' + want);
                 }
             }
         }
@@ -135,7 +166,7 @@ async function main() {
             { lay: ',size:large', count: 21 }, { lay: ',profiles:list,size:large', count: 21 }];
         const BOX = `(function () { var b = document.getElementById('profiles-logo'); var root = document.getElementById('profiles-gate-overlay');
           var last = 0; [].slice.call(root.querySelectorAll('.profiles-btn, .profile-card')).forEach(function (e) { last = Math.max(last, e.getBoundingClientRect().bottom); });
-          return { last: last, scrolls: root.scrollHeight > root.clientHeight + 1 }; })()`;
+          return { last: last, scrolls: root.scrollHeight > root.clientHeight + 1, below: root.scrollHeight - (b.getBoundingClientRect().bottom + root.scrollTop) }; })()`;
         for (const theme of ['bonfire', 'bloom']) {
             for (const corner of ['top-left', 'top-right', 'bottom-left', 'bottom-right']) {
                 for (const v of VARIANTS) {
@@ -155,6 +186,13 @@ async function main() {
                             ok(where + ': in its corner', across && down, 'box ' + Math.round(m.box.l) + ',' + Math.round(m.box.t) + '-' + Math.round(m.box.r) + ',' + Math.round(m.box.b)
                                 + ' in ' + m.vw + 'x' + m.vh + (e.scrolls ? ', scrolls, last control ends ' + Math.round(e.last) : ''));
                             ok(where + ': off the title, the tiles and the buttons', m.hits.length === 0, m.hits.join(', '));
+                            if (!/^tv/.test(device)) {
+                                // From the screen's edge on the side and at the top or bottom it is in; at the
+                                // bottom of a gate that scrolls, from the end of the page.
+                                const sideGap = left ? m.box.l : m.vw - m.box.r;
+                                const vGap = top ? m.box.t + m.st : e.scrolls ? e.below : m.vh - m.box.b;
+                                ok(where + ': at least ' + EDGE_REM + 'rem in from its edges', sideGap >= EDGE_REM * m.root - 0.5 && vGap >= EDGE_REM * m.root - 0.5, 'side ' + sideGap + ', ' + (top ? 'top ' : 'bottom ') + vGap);
+                            }
                         }
                     }
                 }

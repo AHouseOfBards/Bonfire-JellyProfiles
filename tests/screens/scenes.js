@@ -29,7 +29,7 @@
         CUSTOM.push(copy);
         THEME = copy.id;
     }
-    var withLogo = function (logo) { return { themes: CUSTOM, logo: logo }; };
+    var withLogo = function (logo) { if (q.get('corners')) logo.corners = q.get('corners'); return { themes: CUSTOM, logo: logo }; };
     var DEVICE = q.get('device') || 'tablet';
 
     var MAIN = '11111111111111111111111111111111';

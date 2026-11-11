@@ -788,6 +788,19 @@ Ok("a field that is not text is refused, and nothing changes",
    && live.LogoText == null && live.LogoAlt == null);
 Call(As(true), "SetThemeLogo", Json(new JsonObject { ["text"] = "The Hayes House", ["alt"] = "Hayes" }));
 
+// The corners (2.0): rounded until an administrator says square; only those two values.
+Ok("the logo's corners are rounded by default, in the payload too",
+   (string)JsonNode.Parse(ThemeCatalog.PublicPayload(live))!["logo"]!["corners"]! == "rounded");
+Ok("an administrator sets square corners, and GET /themes gives them",
+   Status(Call(As(true), "SetThemeLogo", Json(new JsonObject { ["corners"] = "square" }))) == 200
+   && (string)JsonNode.Parse(ThemeCatalog.PublicPayload(live))!["logo"]!["corners"]! == "square" && live.LogoText == "The Hayes House");
+Ok("any other value is refused, and the corners stay",
+   Status(Call(As(true), "SetThemeLogo", Json(new JsonObject { ["corners"] = "round" }))) == 400
+   && Status(Call(As(true), "SetThemeLogo", Json(new JsonObject { ["corners"] = 1 }))) == 400
+   && Status(Call(As(true), "SetThemeLogo", Json(new JsonObject { ["corners"] = null }))) == 400
+   && (string)JsonNode.Parse(ThemeCatalog.PublicPayload(live))!["logo"]!["corners"]! == "square");
+Call(As(true), "SetThemeLogo", Json(new JsonObject { ["corners"] = "rounded" }));
+
 var firstLogo = Png(400, 120);
 var up1 = Call(As(true, firstLogo), "UploadThemeLogo");
 var firstName = ThemeLogo.FileNameFor(firstLogo, ThemeLogo.Read(firstLogo));

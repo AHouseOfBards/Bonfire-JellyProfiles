@@ -193,7 +193,7 @@ namespace Jellyfin.Profiles.Configuration
             try { text = ThemeLogo.CleanText(config.LogoText, ThemeLogo.MaxText); } catch (ArgumentException) { }
             try { alt = ThemeLogo.CleanText(config.LogoAlt, ThemeLogo.MaxAlt); } catch (ArgumentException) { }
             var image = ThemeLogo.IsFileName(config.LogoImage) ? ThemeLogo.Url(config.LogoImage!) : null;
-            return new JsonObject { ["image"] = image, ["text"] = text, ["alt"] = alt };
+            return new JsonObject { ["image"] = image, ["text"] = text, ["alt"] = alt, ["corners"] = ThemeLogo.CleanCorners(config.LogoCorners) };
         }
 
         /// <summary>A strong validator for <paramref name="payload"/>: its SHA-256, quoted.</summary>

@@ -74,7 +74,7 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Sets the logo's text and alt text. A field the body leaves out stays as it is;
+        /// Sets the logo's text, alt text and corners. A field the body leaves out stays as it is;
         /// send "" or null to clear it. The image is its own route.
         /// </summary>
         [HttpPut("admin/themes/logo")]
@@ -121,12 +121,23 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest("Logo alt text is one line of up to " + ThemeLogo.MaxAlt + " characters.");
             }
 
+            // Only the two values: anything else is refused rather than read as the default.
+            string? corners = null;
+            var hasCorners = Has("corners", out var cornersEl);
+            if (hasCorners)
+            {
+                corners = cornersEl.ValueKind == JsonValueKind.String ? cornersEl.GetString() : null;
+                if (corners != ThemeLogo.Rounded && corners != ThemeLogo.Square)
+                    return BadRequest("Logo corners are \"rounded\" or \"square\".");
+            }
+
             lock (ConfigLock)
             {
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return BadRequest("Plugin configuration missing.");
                 if (hasText) config.LogoText = text;
                 if (hasAlt) config.LogoAlt = alt;
+                if (hasCorners) config.LogoCorners = corners!;
                 Plugin.Instance?.SaveConfiguration();
                 return Ok(JsonNode.Parse(ThemeCatalog.LogoPayload(config).ToJsonString()));
             }
