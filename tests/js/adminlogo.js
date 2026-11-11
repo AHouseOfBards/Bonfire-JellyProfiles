@@ -26,7 +26,7 @@ console.log('\n── Where it is ───────────────�
 
 const look = (/<div class="jpf-tab-panel" id="jpfPanelLook"[\s\S]*?<\/div><!-- \/look -->/.exec(html) || [''])[0];
 const fold = (/<details class="jpf-advanced[\s\S]*?<\/details>/.exec(look) || [''])[0];
-const IDS = ['jpfLogo', 'logoChoose', 'logoRemove', 'logoFile', 'logoText', 'logoAlt', 'logoSave', 'logoResult'];
+const IDS = ['jpfLogo', 'logoChoose', 'logoRemove', 'logoFile', 'logoText', 'logoAlt', 'logoSave', 'logoResult', 'logoCorners'];
 ok('every control is on the Look tab, in its Advanced fold',
     IDS.every(id => fold.indexOf('id="' + id + '"') !== -1), IDS.filter(id => fold.indexOf('id="' + id + '"') === -1).join());
 ok('and none of it is outside the fold', IDS.every(id => look.split('id="' + id + '"').length === 2 && look.indexOf('id="' + id + '"') >= look.indexOf(fold)));
@@ -37,12 +37,18 @@ logoMarkup.replace(/<(button|label|h2|div|span)([^>]*)>([^<]+)<\/\1>/g, (all, ta
     return all;
 });
 ok('every word in the markup is a key', logoMarkup.length > 0 && /data-i18n="admin\.logo\.title"/.test(logoMarkup) && bareWords.length === 0, bareWords.join(' | '));
+// Logo corners: a labelled choice of two, no hint line (the owner's wording), saved at once.
+const cornersMarkup = (/<div class="selectContainer[^>]*>(?:(?!<\/div>)[\s\S])*id="logoCorners"[\s\S]*?<\/div>/.exec(logoMarkup) || [''])[0];
+ok('Logo corners is a select of Rounded and Square, with no hint',
+    /data-i18n="admin\.logo\.corners">Logo corners</.test(cornersMarkup) && /value="rounded"[^>]*>Rounded</.test(cornersMarkup)
+    && /value="square"[^>]*>Square</.test(cornersMarkup) && !/fieldDescription/.test(cornersMarkup), cornersMarkup);
+ok('the lede no longer says top right', !/top right/.test(logoMarkup) && /data-i18n="admin\.logo\.lede"/.test(logoMarkup));
 ok('the ids are in the page once each, so a key can find its element',
     IDS.every(id => html.split('id="' + id + '"').length === 2));
 ok('the image control takes PNG, JPEG and WebP only', /id="logoFile" accept="image\/png,image\/jpeg,image\/webp"/.test(logoMarkup));
 
 const have = n => new RegExp('function ' + n + '\\s*\\(').test(script);
-const names = ['renderLogo', 'saveLogoText', 'uploadLogoImage', 'removeLogoImage', 'bindLogo'];
+const names = ['renderLogo', 'saveLogoText', 'saveLogoCorners', 'uploadLogoImage', 'removeLogoImage', 'bindLogo'];
 if (!names.every(have)) {
     ok('this dashboard has the logo functions', false, names.filter(n => !have(n)).join());
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
@@ -61,7 +67,7 @@ const source = L.dashboardI18n(script) + '\n' + consts + '\n'
 // ── A page, a server and a fetch ─────────────────────────────────────────────
 function node(initial) {
     const n = { value: initial || '', attrs: {}, _hidden: false, dataset: {}, listeners: {},
-        classList: { toggle: (c, on) => { if (c === 'jpf-hidden') n._hidden = !!on; }, add() {}, remove() {} },
+        classes: {}, classList: { toggle: (c, on) => { n.classes[c] = !!on; if (c === 'jpf-hidden') n._hidden = !!on; }, add() {}, remove() {} },
         setAttribute: (k, v) => { n.attrs[k] = v; }, removeAttribute: k => { delete n.attrs[k]; },
         addEventListener: (type, fn) => { n.listeners[type] = fn; }, click() { if (n.listeners.click) n.listeners.click(); },
         files: null };
@@ -70,7 +76,7 @@ function node(initial) {
 function world(data) {
     const state = { sent: [], fetched: [], statuses: [], reloads: 0, refreshes: 0 };
     const els = {};
-    ['#logoCurrent', '#logoCurrentImage', '#logoRemove', '#logoText', '#logoAlt', '#logoChoose', '#logoFile', '#logoSave']
+    ['#logoCurrent', '#logoCurrentImage', '#logoRemove', '#logoText', '#logoAlt', '#logoChoose', '#logoFile', '#logoSave', '#logoCorners']
         .forEach(s => { els[s] = node(); });
     const page = { _themes: { data: data || {} }, querySelector: s => { if (!els[s]) throw new Error('no ' + s); return els[s]; } };
     let reply = () => Promise.resolve({});
@@ -103,6 +109,29 @@ const settle = () => new Promise(r => setImmediate(r)).then(() => new Promise(r 
     w = world({ logo: { image: null, text: null, alt: null } });
     w.api.renderLogo(w.page);
     ok('with no image there is no Remove and nothing drawn', w.els['#logoRemove']._hidden === true && w.els['#logoCurrent']._hidden === true && !w.els['#logoCurrentImage'].attrs.src);
+
+    w = world({ logo: { image: '/plugins/profiles/themes/logo/abc.png', text: null, alt: null, corners: 'square' } });
+    w.api.renderLogo(w.page);
+    ok('square corners are shown in the preview and the select', w.els['#logoCorners'].value === 'square' && w.els['#logoCurrent'].classes['jpf-logo-square'] === true);
+    w = world({ logo: { image: '/plugins/profiles/themes/logo/abc.png', text: null, alt: null } });
+    w.api.renderLogo(w.page);
+    ok('a server that never set it shows rounded', w.els['#logoCorners'].value === 'rounded' && w.els['#logoCurrent'].classes['jpf-logo-square'] === false);
+
+    console.log('\n── Corners ─────────────────────────────────────────────────────');
+    w = world({});
+    w.els['#logoCorners'].value = 'square';
+    w.replyWith(() => Promise.resolve({}));
+    w.api.saveLogoCorners(w.page);
+    await settle();
+    ok('choosing PUTs the corners alone, to the existing route',
+        w.state.sent.length === 1 && w.state.sent[0].type === 'PUT' && w.state.sent[0].url === '/plugins/profiles/admin/themes/logo'
+        && JSON.stringify(w.state.sent[0].body) === '{"corners":"square"}', JSON.stringify(w.state.sent));
+    ok('and says so, then reloads', w.state.statuses[0] && w.state.statuses[0].good === true && w.state.statuses[0].msg === 'Logo corners saved.' && w.state.reloads === 1);
+    w = world({});
+    w.replyWith(() => Promise.reject(refusal(500, '', '')));
+    w.api.saveLogoCorners(w.page);
+    await settle();
+    ok('a refusal is shown', w.state.statuses[0] && w.state.statuses[0].good === false);
 
     console.log('\n── Text and alt text ───────────────────────────────────────────');
     w = world({});
@@ -202,6 +231,7 @@ const settle = () => new Promise(r => setImmediate(r)).then(() => new Promise(r 
     ok('picking a file uploads it at once', w.state.fetched.length === 1);
     w.els['#logoRemove'].click();
     w.els['#logoSave'].click();
+    w.els['#logoCorners'].listeners.change();
     await settle();
     ok('Remove and Save text are wired', w.state.sent.some(s => s.type === 'DELETE') && w.state.sent.some(s => s.type === 'PUT'));
     w.api.bindLogo(w.page);

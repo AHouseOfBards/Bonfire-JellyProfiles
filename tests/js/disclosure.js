@@ -88,7 +88,7 @@ const ADMIN = {
     },
     look: {
         basic: ['.raised[button]', 'allowProfileThemes', 'avatarFolderBtn', 'avatarFolderInput', 'avatarUploadBtn', 'avatarUploadInput', 'defaultAskOnStartup', 'defaultSwitcherLocation', 'defaultTheme', 'disallowCustomAvatars'],
-        more: ['.jpf-te-mode[button]', '.jpf-te-mode[button]', '.raised[button]', 'avatarScanBtn', 'avatarScanPath', 'enableStarterAvatars', 'fontChoose', 'fontFallback', 'fontFamily', 'fontFile', 'fontRights', 'fontUpload', 'logoAlt', 'logoChoose', 'logoFile', 'logoRemove', 'logoSave', 'logoText', 'profileImageQuality', 'richThemeMotion', 'teAccent', 'teAvatar', 'teBase', 'teBg1', 'teBg2', 'teButton', 'teCancel', 'teFont', 'teId', 'teName', 'tePattern', 'teSave', 'teText', 'themeImport', 'themeImportFile', 'themeNew',
+        more: ['.jpf-te-mode[button]', '.jpf-te-mode[button]', '.raised[button]', 'avatarScanBtn', 'avatarScanPath', 'enableStarterAvatars', 'fontChoose', 'fontFallback', 'fontFamily', 'fontFile', 'fontRights', 'fontUpload', 'logoAlt', 'logoChoose', 'logoCorners', 'logoFile', 'logoRemove', 'logoSave', 'logoText', 'profileImageQuality', 'richThemeMotion', 'teAccent', 'teAvatar', 'teBase', 'teBg1', 'teBg2', 'teButton', 'teCancel', 'teFont', 'teId', 'teName', 'tePattern', 'teSave', 'teText', 'themeImport', 'themeImportFile', 'themeNew',
             // 2.0: the four layout choices and the preview's Expand, inside the editor's fold.
             'teAlign', 'teExpand', 'teLogo', 'teProfiles', 'teSize']
     },

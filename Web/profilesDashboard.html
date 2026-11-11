@@ -325,7 +325,8 @@
     #profilesConfigurationPage .jpf-gs-title { margin: 0 0 8px; font-size: 1.05em; font-weight: 600; }
     #profilesConfigurationPage .jpf-ob-steps { margin: 0.5em 0 1.5em; max-width: 40em; }
     #profilesConfigurationPage .jpf-logo-current { margin: 0.5em 0 1em; }
-    #profilesConfigurationPage .jpf-logo-current img { display: block; max-width: 16em; max-height: 5em; }
+    #profilesConfigurationPage .jpf-logo-current img { display: block; max-width: 16em; max-height: 5em; border-radius: 0.5em; }
+    #profilesConfigurationPage .jpf-logo-current.jpf-logo-square img { border-radius: 0; }
     #profilesConfigurationPage .jpf-ob-row {
         display: flex; align-items: center; flex-wrap: wrap;
         padding: 0.55em 0; border-bottom: 1px solid rgba(128, 128, 128, 0.2);
@@ -1073,7 +1074,7 @@
                 <div class="sectionTitleContainer jpf-section" id="jpfLogo">
                     <h2 class="sectionTitle" data-i18n="admin.logo.title">Server logo</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.logo.lede">Shown at the top right of Bonfire's screens: the image, or the text if there's no image.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.logo.lede">Shown in the corner each theme picks: the image, or the text if there's no image.</div>
                 <div class="jpf-logo-current jpf-hidden" id="logoCurrent">
                     <img id="logoCurrentImage" alt="" />
                 </div>
@@ -1083,6 +1084,13 @@
                     <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp" hidden />
                 </div>
                 <div class="fieldDescription" data-i18n="admin.logo.imageHint">PNG, JPEG or WebP, up to 1 MB.</div>
+                <div class="selectContainer jpf-form-narrow">
+                    <label class="selectLabel" for="logoCorners" data-i18n="admin.logo.corners">Logo corners</label>
+                    <select is="emby-select" id="logoCorners">
+                        <option value="rounded" data-i18n="admin.logo.cornersRounded">Rounded</option>
+                        <option value="square" data-i18n="admin.logo.cornersSquare">Square</option>
+                    </select>
+                </div>
                 <div class="inputContainer jpf-form-narrow">
                     <label class="inputLabel" for="logoText" data-i18n="admin.logo.text">Logo text</label>
                     <input is="emby-input" type="text" id="logoText" maxlength="40" autocomplete="off" />
@@ -2015,6 +2023,7 @@
                 'admin.themes.err.fontNotFound': 'That font is gone. Reload the page.',
                 'admin.themes.err.fontFailed': 'Couldn\'t upload the font.',
                 'admin.logo.saved': 'Logo text saved.',
+                'admin.logo.cornersSaved': 'Logo corners saved.',
                 'admin.logo.imageSaved': 'Logo image saved.',
                 'admin.logo.removed': 'Logo image removed.',
                 'admin.logo.err.type': 'Choose a PNG, JPEG or WebP image.',
@@ -5998,7 +6007,11 @@
                     if (image) img.setAttribute('src', ApiClient.getUrl(String(image).replace(/^\//, '')));
                     else img.removeAttribute('src');
                 }
-                if (box) box.classList.toggle('jpf-hidden', !image);
+                if (box) {
+                    box.classList.toggle('jpf-hidden', !image);
+                    box.classList.toggle('jpf-logo-square', logo.corners === 'square');
+                }
+                page.querySelector('#logoCorners').value = logo.corners === 'square' ? 'square' : 'rounded';
                 const remove = page.querySelector('#logoRemove');
                 if (remove) remove.classList.toggle('jpf-hidden', !image);
                 page.querySelector('#logoText').value = logo.text || '';
@@ -6018,6 +6031,22 @@
                     data: JSON.stringify({ text: text, alt: alt })
                 }).then(function () {
                     say(t('admin.logo.saved'), true);
+                    loadThemes(page);
+                    refreshClientThemes();
+                }, function (err) {
+                    readThemeError(err, 'admin.logo.err.save', page._themes && page._themes.data).then(function (e) { say(e.message, false); });
+                });
+            }
+
+            function saveLogoCorners(page) {
+                const say = function (msg, good) { showThemeStatus(page, '#logoResult', msg, good); };
+                ApiClient.ajax({
+                    type: 'PUT',
+                    url: ApiClient.getUrl('plugins/profiles/admin/themes/logo'),
+                    contentType: 'application/json',
+                    data: JSON.stringify({ corners: page.querySelector('#logoCorners').value })
+                }).then(function () {
+                    say(t('admin.logo.cornersSaved'), true);
                     loadThemes(page);
                     refreshClientThemes();
                 }, function (err) {
@@ -6077,6 +6106,7 @@
                 });
                 page.querySelector('#logoRemove').addEventListener('click', function () { removeLogoImage(page); });
                 page.querySelector('#logoSave').addEventListener('click', function () { saveLogoText(page); });
+                page.querySelector('#logoCorners').addEventListener('change', function () { saveLogoCorners(page); });
             }
 
             function bindThemes(page) {
