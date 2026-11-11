@@ -84,7 +84,7 @@ const ADMIN = {
     devices: { basic: ['refreshSessionsBtn'], more: [] },
     security: {
         basic: ['.raised[button]', 'enablePinResetByEmail', 'requireMainPin'],
-        more: ['panicCodeInput', 'pinGuessesPerDay', 'savePanicCode']
+        more: ['panicCodeInput', 'pinGuessesPerDay', 'savePanicCode', 'trustedPinAddresses']
     },
     look: {
         basic: ['.raised[button]', 'allowProfileThemes', 'avatarFolderBtn', 'avatarFolderInput', 'avatarUploadBtn', 'avatarUploadInput', 'defaultAskOnStartup', 'defaultSwitcherLocation', 'defaultTheme', 'disallowCustomAvatars'],

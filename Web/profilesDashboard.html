@@ -748,6 +748,11 @@
                         <input is="emby-input" type="number" id="pinGuessesPerDay" min="1" max="20" />
                         <div class="fieldDescription" data-i18n="admin.households.pinPerDayHint">Wrong tries per account, all apps together. 1 to 20.</div>
                     </div>
+                    <div class="inputContainer jpf-form-narrow">
+                        <label class="inputLabel" for="trustedPinAddresses" data-i18n="admin.security.trusted">Addresses that count as home</label>
+                        <textarea is="emby-textarea" id="trustedPinAddresses" rows="3" autocomplete="off" spellcheck="false"></textarea>
+                        <div class="fieldDescription" data-i18n="admin.security.trustedHint">One per line, up to 10. Ranges allowed.</div>
+                    </div>
 
                     <div class="sectionTitleContainer jpf-section" id="jpfEmergency">
                         <h2 class="sectionTitle" data-i18n="admin.panic.title">Emergency disable code</h2>
@@ -1449,6 +1454,7 @@
                 'admin.gs.zone': 'Choose a default time zone. This server is on UTC.',
                 'admin.saveFailed': 'Couldn\'t save it.',
                 'admin.saveSettingsFailed': 'Couldn\'t save the settings.',
+                'admin.security.trustedBad': 'An address is invalid or too wide.',
                 'admin.saveBlocked': 'The settings didn\'t load, so nothing was saved. Press "Try again".',
                 'admin.readFailed': 'Couldn\'t read the current status.',
                 'admin.version.preTitle': 'Pre-release build. Please report problems on GitHub.',
@@ -2007,6 +2013,7 @@
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     page.querySelector('#maxProfiles').value = config.MaxProfilesPerUser || 5;
                     page.querySelector('#pinGuessesPerDay').value = config.PinGuessesPerDay || 20;
+                    page.querySelector('#trustedPinAddresses').value = (config.TrustedPinAddresses || []).join('\n');
                     page.querySelector('#requireMainPin').checked = !!config.RequireMainPin;
                     page.dataset.requireMainPin = config.RequireMainPin ? '1' : '';
                     // Also set by renderEmail; set here too, or a page whose email read
@@ -5662,6 +5669,7 @@
                 c.ClientPinLoginFromAnywhere = sent.clientPinLoginFromAnywhere;
                 c.ProxyClients = sent.proxyClients;
                 c.DefaultTimeZone = sent.defaultTimeZone;
+                c.TrustedPinAddresses = sent.trustedPinAddresses;
                 c.Onboarding = Object.assign({}, c.Onboarding || {}, { Enabled: sent.onboardingEnabled });
                 page.dataset.requireMainPin = sent.requireMainPin ? '1' : '';
                 renderGettingStarted(page);
@@ -5807,7 +5815,7 @@
             // on, and nothing said which fields had been touched or that anything was waiting.
             // The things that save at once (themes, email, announcements, maintenance) have
             // buttons of their own and are not counted: only what Save sends is.
-            const SAVED_FIELD_IDS = ['maxProfiles', 'pinGuessesPerDay', 'requireMainPin', 'enablePinResetByEmail',
+            const SAVED_FIELD_IDS = ['maxProfiles', 'pinGuessesPerDay', 'trustedPinAddresses', 'requireMainPin', 'enablePinResetByEmail',
                 'disallowCustomAvatars', 'enableStarterAvatars', 'defaultAskOnStartup', 'defaultSwitcherLocation',
                 'defaultTheme', 'allowProfileThemes', 'richThemeMotion', 'defaultTimeZone', 'enableClientPinLogin',
                 'enableClientProfileList', 'clientPinLoginFromAnywhere', 'skipQuickConnectOnKnownDevices',
@@ -5876,6 +5884,9 @@
                 const sent = {
                     maxProfilesPerUser: maxProfiles,
                     pinGuessesPerDay: pinGuessesPerDay,
+                    // One per line; the server refuses a bad, too wide or eleventh entry whole.
+                    trustedPinAddresses: page.querySelector('#trustedPinAddresses').value
+                        .split(/[\s,;]+/).filter(function (a) { return a; }),
                     requireMainPin: page.querySelector('#requireMainPin').checked,
                     enablePinResetByEmail: page.querySelector('#enablePinResetByEmail').checked,
                     disallowCustomAvatarUploads: page.querySelector('#disallowCustomAvatars').checked,
@@ -5920,7 +5931,13 @@
                 }).catch(function (err) {
                     console.error('Failed to save settings:', err);
                     Dashboard.hideLoadingMsg();
-                    Dashboard.alert({ message: t('admin.saveSettingsFailed'), title: t('admin.error') });
+                    // The list is the one field the server refuses for its contents, so a 400
+                    // with a list sent says which to look at.
+                    const badList = err && err.status === 400 && sent.trustedPinAddresses.length > 0;
+                    Dashboard.alert({
+                        message: t(badList ? 'admin.security.trustedBad' : 'admin.saveSettingsFailed'),
+                        title: t('admin.error')
+                    });
                 });
             }
 
