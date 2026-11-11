@@ -796,8 +796,11 @@ namespace Jellyfin.Profiles
         /// crash or a full disk mid-write cannot leave Jellyfin with a truncated index.html
         /// (which would break the entire web client, not just this plugin).
         ///
-        /// Falls back to a direct write if the atomic replace isn't permitted — some
-        /// container mounts allow writing a file but not creating siblings.
+        /// There is deliberately no fallback to writing the file in place. It was there for
+        /// mounts that allow writing a file but not creating a sibling, but an interrupted
+        /// truncate-then-write leaves a broken index.html for everyone. The only caller, the
+        /// one-time cleanup of old script tags, is harmless when it fails: the middleware sees
+        /// the tags already present and steps aside. A failure is thrown to that caller.
         /// </summary>
         private void WriteFileAtomic(string path, string contents)
         {
@@ -820,21 +823,18 @@ namespace Jellyfin.Profiles
             }
 
             // NOTE: the temp file is created alongside index.html, so this path needs write
-            // permission on the *directory*, not just the file. The documented fix commands
-            // only grant permission on index.html itself, so on most Linux/Docker installs the
-            // atomic path fails and the in-place fallback below is what actually runs.
+            // permission on the *directory*, not just the file. On most Linux/Docker installs
+            // it is not granted, and the cleanup then simply does not happen.
             var tempPath = path + ".bonfire.tmp";
             try
             {
                 File.WriteAllText(tempPath, contents);
                 File.Move(tempPath, path, overwrite: true);
             }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+            catch
             {
-                _logger.LogDebug(ex,
-                    "ProfilesPlugin: Atomic replace unavailable for {Path}; writing in place.", path);
                 try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* best effort */ }
-                File.WriteAllText(path, contents);
+                throw;
             }
         }
 
