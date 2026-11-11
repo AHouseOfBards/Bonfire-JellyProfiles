@@ -128,6 +128,26 @@ if (plugin != null)
            ReferenceEquals(before, after));
         Ok("and the saved values were copied onto it",
            (int)cfgType.GetProperty("MaxProfilesPerUser").GetValue(after) == 13);
+
+        // R-1128: a posted body that carries no list (null) copied null over the live one,
+        // and every route that then read Mappings threw.
+        var mappingsProp = cfgType.GetProperty("Mappings");
+        var liveMappings = (System.Collections.IList)mappingsProp.GetValue(after);
+        liveMappings.Add(Activator.CreateInstance(mappingsProp.PropertyType.GetGenericArguments()[0]));
+        var withNulls = Activator.CreateInstance(cfgType);
+        foreach (var p in cfgType.GetProperties())
+            if (p.CanWrite && p.PropertyType.IsGenericType
+                && p.PropertyType.GetGenericTypeDefinition() == typeof(List<>))
+                p.SetValue(withNulls, null);
+        update.Invoke(plugin, new[] { withNulls });
+        var afterNulls = configProp.GetValue(plugin);
+        var stillThere = mappingsProp.GetValue(afterNulls) as System.Collections.IList;
+        Ok("a posted configuration with null lists leaves the live lists alone",
+           stillThere != null && stillThere.Count == 1);
+        Ok("every list on the live configuration is still a list",
+           cfgType.GetProperties()
+               .Where(p => p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(List<>))
+               .All(p => p.GetValue(afterNulls) != null));
     }
 }
 

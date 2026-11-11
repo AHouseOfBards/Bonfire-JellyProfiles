@@ -45,6 +45,15 @@ foreach (var id in expected)
     Ok(id.ToUpperInvariant() + " is known too, and normalises to " + id,
        Themes.IsKnown(id.ToUpperInvariant(), Plain) && Themes.Normalize(id.ToUpperInvariant(), Plain) == id);
 }
+
+// R-1131: the stored side was compared exactly. A hidden or custom theme id saved in
+// another case (a hand-edited file, an import) was neither hidden nor found.
+var Mixed = new PluginConfiguration();
+Mixed.HiddenThemes.Add("Harbor");
+Ok("a hidden theme is hidden whatever case it was stored in", !Themes.IsKnown("harbor", Mixed));
+var Custom = new PluginConfiguration();
+Custom.CustomThemes.Add(new CustomTheme { Id = "My-Theme" });
+Ok("a custom theme is found whatever case it was stored in", Themes.IsKnown("my-theme", Custom));
 foreach (var bad in new[] { null, "", "   ", "default", "neon", "bonfire-dark" })
 {
     Ok("'" + (bad ?? "null") + "' is not a theme, and normalises to bonfire",

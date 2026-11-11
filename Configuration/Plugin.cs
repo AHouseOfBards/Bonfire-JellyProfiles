@@ -135,7 +135,12 @@ namespace Jellyfin.Profiles
             {
                 if (property.CanRead && property.CanWrite && property.GetIndexParameters().Length == 0)
                 {
-                    property.SetValue(to, property.GetValue(from));
+                    var value = property.GetValue(from);
+                    // A body with a list set to null is not a request to null the live one:
+                    // every route that then read it threw. The list keeps what it had. R-1128.
+                    if (value == null && property.PropertyType.IsGenericType
+                        && property.PropertyType.GetGenericTypeDefinition() == typeof(List<>)) continue;
+                    property.SetValue(to, value);
                 }
             }
         }

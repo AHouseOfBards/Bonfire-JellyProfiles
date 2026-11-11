@@ -503,8 +503,12 @@ namespace Jellyfin.Profiles.Configuration
         {
             if (string.IsNullOrWhiteSpace(value)) return false;
             var id = value.Trim().ToLowerInvariant();
-            if (All.Contains(id)) return id == Bonfire || !config.HiddenThemes.Contains(id);
-            return config.CustomThemes.Any(c => c.Id == id);
+            // The stored ids are compared ignoring case too: a hand-edited file or an
+            // import need not have lowercased them. R-1131.
+            if (All.Contains(id))
+                return id == Bonfire
+                       || !config.HiddenThemes.Any(h => string.Equals(h?.Trim(), id, System.StringComparison.OrdinalIgnoreCase));
+            return config.CustomThemes.Any(c => string.Equals(c.Id, id, System.StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>Maps arbitrary input to a theme this server offers, falling back to <see cref="Bonfire"/>.</summary>
