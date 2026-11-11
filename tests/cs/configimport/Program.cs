@@ -70,6 +70,10 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-configimport-" + Guid.Ne
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var live = pluginType.GetProperty("Configuration").GetValue(plugin);
+// The library avatar the round trip below carries has its file here, as on the server the
+// backup was taken from: an import drops a picture whose file is not on this one (R-1150).
+Directory.CreateDirectory(Path.Combine(tempDir, "plugins", "ProfilesManagement", "avatars"));
+File.WriteAllBytes(Path.Combine(tempDir, "plugins", "ProfilesManagement", "avatars", "a1.jpg"), new byte[] { 1 });
 
 var ADMIN = Guid.NewGuid();
 var MASTER = Guid.NewGuid();
@@ -391,6 +395,48 @@ Console.WriteLine("── A backup from a version that had settings since cut �
     Ok("a native row that never chose keeps the menu and no startup prompt",
        mapRows.Count > 0 && mapRows.All(r => Equals(mapT.GetProperty("AskOnStartup").GetValue(r), false) && Equals(mapT.GetProperty("SwitcherLocation").GetValue(r), "menu")));
     Ok("and the old field is not written back", !JsonSerializer.Serialize(mapRows).Contains("SwitcherMode"));
+}
+
+// A backup holds the names of pictures, not the pictures (R-1150): like a font or the logo,
+// a profile picture or a library avatar whose file is not on this server is dropped, and
+// one whose file is there is kept.
+Console.WriteLine();
+Console.WriteLine("── Pictures the backup names ─────────────────────────────────────");
+{
+    var imgFolder = Path.Combine(tempDir, "plugins", "ProfilesManagement");
+    Directory.CreateDirectory(Path.Combine(imgFolder, "avatars"));
+    File.WriteAllBytes(Path.Combine(imgFolder, KID.ToString() + ".jpg"), new byte[] { 1 });
+    File.WriteAllBytes(Path.Combine(imgFolder, "avatars", "a1.jpg"), new byte[] { 1 });
+
+    string Url(Guid id) => "/plugins/profiles/image/" + id + "?v=1";
+    var pics = JsonSerializer.SerializeToElement(new
+    {
+        configuration = new
+        {
+            Mappings = new object[]
+            {
+                new { ProfileUserId = KID, MasterUserId = MASTER, ProfileName = "Kid", ProfileImage = Url(KID) },
+                new { ProfileUserId = OTHER, MasterUserId = MASTER, ProfileName = "Other", ProfileImage = Url(OTHER) },
+            },
+            AvatarLibrary = new object[]
+            {
+                new { Id = "a1", DisplayName = "Fox", Extension = ".jpg" },
+                new { Id = "ghost", DisplayName = "Gone", Extension = ".jpg" },
+                new { Id = "../a1", DisplayName = "Escape", Extension = ".jpg" },
+            },
+        },
+    });
+    Overwrite(live, Defaults());
+    importRoute.Invoke(NewController(), new object[] { pics });
+    var rows = ((IList)cfgType.GetProperty("Mappings").GetValue(live)).Cast<object>().ToList();
+    var mt = T("ProfileMapping");
+    string ImageOf(Guid id) => (string)mt.GetProperty("ProfileImage").GetValue(rows.First(r => (Guid)mt.GetProperty("ProfileUserId").GetValue(r) == id));
+    Ok("both profiles are restored", rows.Count == 2, rows.Count.ToString());
+    Ok("a profile picture whose file is here is kept", ImageOf(KID) == Url(KID), ImageOf(KID));
+    Ok("a profile picture whose file is not here is cleared", string.IsNullOrEmpty(ImageOf(OTHER)), ImageOf(OTHER));
+    var lib = ((IList)cfgType.GetProperty("AvatarLibrary").GetValue(live)).Cast<object>()
+        .Select(i => (string)T("AvatarLibraryItem").GetProperty("Id").GetValue(i)).ToList();
+    Ok("only the library avatar with a file is kept", lib.SequenceEqual(new[] { "a1" }), string.Join(",", lib));
 }
 
 try { Directory.Delete(tempDir, true); } catch { }

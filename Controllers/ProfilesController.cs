@@ -1770,6 +1770,18 @@ namespace Jellyfin.Profiles.Controllers
                     })
                     .ToList();
 
+                // A backup holds the name of a picture, not the picture. One whose file is not in
+                // this server's data folder would be a broken image in the picker, so it is
+                // cleared, as a font or the logo is dropped. The profile itself stays.
+                foreach (var m in mappings)
+                {
+                    if (!string.IsNullOrEmpty(m.ProfileImage)
+                        && FindImageFile(ProfileImageFolder, m.ProfileUserId.ToString(), false) == null)
+                    {
+                        m.ProfileImage = null;
+                    }
+                }
+
                 var groups = (incoming.BonfireGroups ?? new List<BonfireGroup>())
                     .Where(g => Exists(g.OwnerUserId))
                     .ToList();
@@ -1798,7 +1810,17 @@ namespace Jellyfin.Profiles.Controllers
                 }
                 if (hasDevices) config.KnownDevices = incoming.KnownDevices;
                 if (hasLimits) config.UserProfileLimitOverrides = incoming.UserProfileLimitOverrides;
-                if (hasAvatars) config.AvatarLibrary = incoming.AvatarLibrary;
+                // Only entries whose file is here, and whose id is a plain name: the id is joined
+                // onto a folder path.
+                if (hasAvatars)
+                {
+                    config.AvatarLibrary = (incoming.AvatarLibrary ?? new List<AvatarLibraryItem>())
+                        .Where(a => a != null && !string.IsNullOrEmpty(a.Id)
+                            && a.Id.All(c => char.IsAsciiLetterOrDigit(c) || c == '-' || c == '_')
+                            && FindImageFile(AvatarLibraryFolder, a.Id, false) != null)
+                        .GroupBy(a => a.Id, StringComparer.OrdinalIgnoreCase).Select(g => g.First())
+                        .ToList();
+                }
 
                 if (TryProperty(root, "MaxProfilesPerUser", out _))
                     config.MaxProfilesPerUser = incoming.MaxProfilesPerUser;
