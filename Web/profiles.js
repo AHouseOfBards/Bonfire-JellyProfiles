@@ -2136,28 +2136,6 @@
             if (first) first.focus();
         },
 
-        /// Writes a token and user into jellyfin-web's own stored credentials, and returns
-        /// whether it actually managed to.
-        ///
-        /// The return value is the point of this function. Everything else about a switch
-        /// can succeed — the server issues the token, ApiClient takes it, the page
-        /// reloads — and the profile still not be the one that comes back, because this is
-        /// the only part that survives the reload. It used to fail silently in two ways,
-        /// both of which look from outside exactly like "it lets me pick a profile but
-        /// loads my own account anyway", which is issue #16:
-        ///
-        ///   - The server was matched with `server.Id === currentServerId`, a raw string
-        ///     comparison of two GUIDs. Every other id comparison in this file goes
-        ///     through normalizeGuid because casing and dashes vary by where the value
-        ///     came from. With more than one server stored — an address and a hostname for
-        ///     the same box is the common way that happens — a mismatch updated nothing
-        ///     and reported nothing.
-        ///   - Writing to localStorage can be accepted and discarded (a full quota, a
-        ///     television in a private-browsing-like mode). Nothing read it back.
-        ///
-        /// So: match by id, fall back to the address ApiClient is actually talking to,
-        /// fall back to a single stored server, and then read back what was written. The
-        /// caller decides what to do with a false; it must not be a reload.
         /// The household this device belongs to, and the session to act as.
         ///
         /// Only the master account's id is stored. Its TOKEN used to be kept here too, in
@@ -2253,6 +2231,28 @@
             } catch (e) { /* never worth failing over */ }
         },
 
+        /// Writes a token and user into jellyfin-web's own stored credentials, and returns
+        /// whether it actually managed to.
+        ///
+        /// The return value is the point of this function. Everything else about a switch
+        /// can succeed — the server issues the token, ApiClient takes it, the page
+        /// reloads — and the profile still not be the one that comes back, because this is
+        /// the only part that survives the reload. It used to fail silently in two ways,
+        /// both of which look from outside exactly like "it lets me pick a profile but
+        /// loads my own account anyway", which is issue #16:
+        ///
+        ///   - The server was matched with `server.Id === currentServerId`, a raw string
+        ///     comparison of two GUIDs. Every other id comparison in this file goes
+        ///     through normalizeGuid because casing and dashes vary by where the value
+        ///     came from. With more than one server stored — an address and a hostname for
+        ///     the same box is the common way that happens — a mismatch updated nothing
+        ///     and reported nothing.
+        ///   - Writing to localStorage can be accepted and discarded (a full quota, a
+        ///     television in a private-browsing-like mode). Nothing read it back.
+        ///
+        /// So: match by id, fall back to the address ApiClient is actually talking to,
+        /// fall back to a single stored server, and then read back what was written. The
+        /// caller decides what to do with a false; it must not be a reload.
         updateStoredCredentials: function (newToken, newUserId) {
             try {
                 const credsStr = localStorage.getItem('jellyfin_credentials');
@@ -2509,6 +2509,10 @@
                 if (!label.hasAttribute('tabindex')) {
                     label.setAttribute('tabindex', '0');
                 }
+                // The label is the stop (Enter on it ticks the box). Left alone, the box
+                // inside is a second stop for the same control; _overlayFocusables skips it.
+                const inner = label.querySelector('input[type="checkbox"]');
+                if (inner && !inner.hasAttribute('tabindex')) inner.setAttribute('tabindex', '-1');
                 if (label._tvInit) return;
                 label._tvInit = true;
 
@@ -5967,7 +5971,9 @@
         _overlayFocusables: function (root) {
             return Array.prototype.filter.call(
                 root.querySelectorAll('button, input, select, textarea, a[href], [role="radio"], [tabindex]:not([tabindex="-1"])'),
-                el => !el.disabled && el.offsetParent !== null
+                el => !el.disabled && el.offsetParent !== null &&
+                    // a checkbox inside a .library-check-label: the label is its stop
+                    !(el.type === 'checkbox' && el.getAttribute && el.getAttribute('tabindex') === '-1')
             );
         },
 
