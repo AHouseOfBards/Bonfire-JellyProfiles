@@ -1083,6 +1083,12 @@
         'profileForm.sectionSecuritySubtitle': 'PIN and auto-lock',
         'profileForm.sectionRestrictionsTitle': 'Tags',
         'profileForm.deleteProfile': 'Delete profile',
+        'profileForm.copyTitle': 'Copy rules',
+        'profileForm.copyFrom': 'Copy rules from',
+        'profileForm.copyChoose': 'Choose a profile',
+        'profileForm.copyHint': 'Devices, name, picture and PIN stay.',
+        'profileForm.copyButton': 'Copy',
+        'profileForm.copyConfirm': 'Replace the rating limit, tags, libraries and viewing limits of {target} with those of {source}?',
         'profileForm.nameRequired': 'Profile name is required.',
         'profileForm.pinMustBeDigits': 'A PIN can only contain digits.',
         'profileForm.pinLengthCreate': 'PIN must be 4–8 digits.',
@@ -2484,6 +2490,65 @@
                     <div class="profile-section-body">${bodyHtml}</div>
                 </section>
             `;
+        },
+
+        /// "Copy rules from" on a profile's Edit form, under More: the household's other
+        /// profiles in a list, and a button that replaces this one's rating limit, tags,
+        /// libraries and viewing limits with the chosen one's. Nothing at all when there is no
+        /// other profile to copy from. The server decides what may be copied and refuses
+        /// anything outside the household; the list here is only the household's own screen.
+        renderCopyRulesSection: function (profile) {
+            const me = this.normalizeGuid(profile.profileUserId);
+            const others = (this.currentProfiles || []).filter(p =>
+                p && !p.isMaster && !p.isBonfire && !p.isLinked && this.normalizeGuid(p.profileUserId) !== me);
+            if (!others.length) return '';
+            return this.renderSection('content_copy', t('profileForm.copyTitle'), '', `
+                <div class="form-group">
+                    <label for="edit-copy-from">${t('profileForm.copyFrom')}</label>
+                    <select id="edit-copy-from">
+                        <option value="">${t('profileForm.copyChoose')}</option>
+                        ${others.map(p => `<option value="${escapeHtml(p.profileUserId)}">${escapeHtml(p.profileName)}</option>`).join('')}
+                    </select>
+                    <div class="form-hint">${t('profileForm.copyHint')}</div>
+                    <button type="button" id="edit-copy-btn" class="profiles-btn btn-secondary" disabled>${t('profileForm.copyButton')}</button>
+                </div>`);
+        },
+
+        /// Wires the "Copy rules from" control. It asks first, because it replaces what the
+        /// profile has, then returns to the profiles: the form on screen would be showing
+        /// the old rules.
+        bindCopyRules: function (content, profile, apiClient, masterState) {
+            const select = content.querySelector('#edit-copy-from');
+            const btn = content.querySelector('#edit-copy-btn');
+            if (!select || !btn) return;
+            select.addEventListener('change', () => { btn.disabled = !select.value; });
+            btn.addEventListener('click', () => {
+                const sourceId = select.value;
+                if (!sourceId) return;
+                const source = (this.currentProfiles || []).find(p => p.profileUserId === sourceId);
+                this.showConfirmDialog(
+                    t('profileForm.copyTitle'),
+                    t('profileForm.copyConfirm', {
+                        source: escapeHtml(source ? source.profileName : ''),
+                        target: escapeHtml(profile.profileName)
+                    }),
+                    () => {
+                        fetch(apiClient.getUrl('plugins/profiles/copy-rules'), {
+                            method: 'POST',
+                            headers: this.jsonHeaders(masterState.token),
+                            body: JSON.stringify({
+                                sourceProfileId: sourceId,
+                                targetProfileId: profile.profileUserId,
+                                masterPin: this.masterPin
+                            })
+                        })
+                        .then(res => {
+                            if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
+                            this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
+                        })
+                        .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.savingProfile')))));
+                    });
+            });
         },
 
         /// "More settings" under a profile form's Basics: closed until asked for.
@@ -9239,7 +9304,8 @@
                             this.renderThemeSection('edit', profile.theme),
                             artworkSwitch
                         ], [
-                            this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), '',restrictionsBody)
+                            this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), '',restrictionsBody),
+                            this.renderCopyRulesSection(profile)
                         ])}` : ''}
 
                         <div class="profile-dialog-actions jpf-actions">
@@ -9546,6 +9612,7 @@
                 });
                 const artworkEditor = this.initLibraryArtworkEditor(content, profile.profileUserId);
                 const viewingEditor = this.initViewingEditor(content.querySelector('#edit-viewing-slot'), profile);
+                this.bindCopyRules(content, profile, apiClient, masterState);
                 this.bindThemePicker('edit');
                 this.initTVCheckboxes(content);
                 this._focusFirstOnTv(content);
