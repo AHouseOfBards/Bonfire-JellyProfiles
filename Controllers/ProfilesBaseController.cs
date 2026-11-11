@@ -2346,7 +2346,10 @@ namespace Jellyfin.Profiles.Controllers
             => !string.IsNullOrWhiteSpace(value)
                && Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri)
                && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
-               && value.IndexOfAny(new[] { '"', '\'', '<', '>' }) < 0;
+               // ) ; \ space { } are refused as well (R-1110): the URL ends up inside a CSS
+               // url(...) in places, where any of them would end the value or start a rule.
+               // Checked on the trimmed value, which is what gets stored.
+               && value.Trim().IndexOfAny(new[] { '"', '\'', '<', '>', ')', ';', '\\', ' ', '{', '}' }) < 0;
 
         // ── Image storage ───────────────────────────────────────────────────────────
         // Every stored image is written twice: a full-size master and a small thumbnail.

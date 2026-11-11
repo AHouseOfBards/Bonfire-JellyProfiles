@@ -222,6 +222,19 @@ if (helper != null)
 }
 
 Console.WriteLine();
+Console.WriteLine("── An external image URL cannot carry CSS or markup characters (R-1110) ──");
+{
+    var valid = baseType.GetMethod("IsValidImageUrl", Any);
+    bool V(string s) => (bool)valid.Invoke(null, new object[] { s });
+    Ok("a plain https URL is still accepted", V("https://example.com/a/b.png"));
+    Ok("a plain http URL with a query is still accepted", V("http://example.com/a.png?x=1&y=2"));
+    foreach (var c in new[] { ')', ';', '\\', ' ', '{', '}' })
+        Ok("an http URL containing '" + c + "' is refused", !V("https://example.com/a" + c + "b.png"));
+    Ok("an http URL containing a quote is still refused", !V("https://example.com/a\"b.png"));
+    Ok("a non-http scheme is still refused", !V("ftp://example.com/a.png"));
+}
+
+Console.WriteLine();
 if (fails.Count > 0)
 {
     Console.WriteLine("  Failures:");
