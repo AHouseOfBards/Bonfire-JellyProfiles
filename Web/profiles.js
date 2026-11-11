@@ -3570,6 +3570,9 @@
                     // Learned from the same response as the preferences, so it goes with them.
                     this._panicLinkAvailable = null;
                     localStorage.removeItem(this.config.libraryArtKey);
+                    // Names, avatars and the household's tiles: the next person at a shared
+                    // browser must not be able to read them (R-1310).
+                    localStorage.removeItem('jellyfin_profiles_cached_list');
                     this.clearProfileSession();
                 } catch (e) { /* ignore storage errors */ }
             });
@@ -5079,8 +5082,9 @@
         handleSessionExpired: function () {
             console.warn("ProfilesPlugin: Master session expired or invalid. Redirecting to login.");
             localStorage.removeItem(this.config.masterStorageKey);
+            try { localStorage.removeItem('jellyfin_profiles_cached_list'); } catch (e) { /* ignore storage errors */ }
             this.clearProfileSession();
-            
+
             const apiClient = ApiClient;
             if (apiClient) {
                 if (typeof apiClient.clearUser === 'function') {
