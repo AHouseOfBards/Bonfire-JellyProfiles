@@ -224,6 +224,49 @@ Console.WriteLine("── Emergency disable: Panic, SetPanicCode, GetPanicState 
     Ok("an empty code clears it (" + Say(clear) + ")", clear.status == 200 && string.IsNullOrEmpty((string)Cfg("PanicCodeHash")));
     var afterClear = Call("Panic", null, new { Code = "correct horse battery" }, ip: "198.51.100.5");
     Ok("after which the old code does nothing", afterClear.status == 400 && !StateSays());
+
+    // R-1307. The limits above are per raw address; these are what they did not cover.
+    var rlPanic = asm.GetType("Jellyfin.Profiles.Controllers.RateLimiter", true);
+    void ClearPanicLimits()
+    {
+        foreach (var f in rlPanic.GetFields(flags).Where(f => f.IsStatic && f.FieldType == rlPanic && f.Name.StartsWith("Panic")))
+        {
+            var store = rlPanic.GetFields(flags | BindingFlags.Instance).FirstOrDefault(x => !x.IsStatic && typeof(System.Collections.IDictionary).IsAssignableFrom(x.FieldType));
+            (store?.GetValue(f.GetValue(null)) as System.Collections.IDictionary)?.Clear();
+        }
+    }
+    ClearPanicLimits();
+    Call("SetPanicCode", ADMIN, new { Code = "correct horse battery" });
+
+    // One subscriber owns a whole /64. Five guesses from five of its addresses are five guesses.
+    for (int i = 1; i <= 5; i++) Call("Panic", null, new { Code = "guess " + i + " xxxxxxxx" }, ip: "2001:db8:1:2::" + i);
+    var sameBlock = Call("Panic", null, new { Code = "correct horse battery" }, ip: "2001:db8:1:2:ffff::9");
+    Ok("addresses in one IPv6 /64 share a limit (" + Say(sameBlock) + ")", sameBlock.status == 429 && !StateSays());
+    var otherBlock = Call("Panic", null, new { Code = "correct horse battery" }, ip: "2001:db8:1:3::1");
+    Ok("another /64 is not held by it (" + Say(otherBlock) + ")", otherBlock.status == 200);
+    PanicOff();
+
+    // Many addresses: a ceiling on everyone together.
+    ClearPanicLimits();
+    for (int i = 0; i < 200; i++) Call("Panic", null, new { Code = "guess xxxxxxxxxx" }, ip: "192.0.2." + (i + 1));
+    var flood = Call("Panic", null, new { Code = "correct horse battery" }, ip: "198.51.100.77");
+    Ok("once enough guesses have come from anywhere, a fresh address is refused too (" + Say(flood) + ")", flood.status == 429 && !StateSays());
+    ClearPanicLimits();
+
+    // An unarmed server answers as slowly as an armed one: a missing derivation is a tell.
+    long Ms(string code, string ip)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        Call("Panic", null, new { Code = code }, ip: ip);
+        return sw.ElapsedMilliseconds;
+    }
+    Ms("warm up xxxxxxxx", "198.51.100.90");
+    var armedMs = new[] { Ms("guess aaaaaaaa", "198.51.100.91"), Ms("guess bbbbbbbb", "198.51.100.92"), Ms("guess cccccccc", "198.51.100.93") }.Min();
+    Call("SetPanicCode", ADMIN, new { Code = "" });
+    var unarmedMs = new[] { Ms("guess aaaaaaaa", "198.51.100.94"), Ms("guess bbbbbbbb", "198.51.100.95"), Ms("guess cccccccc", "198.51.100.96") }.Min();
+    Ok("an unarmed server takes about as long as an armed one (unarmed " + unarmedMs + " ms, armed " + armedMs + " ms)",
+       armedMs >= 5 && unarmedMs * 2 >= armedMs);
+    ClearPanicLimits();
 }
 
 // ── VerifyPin ────────────────────────────────────────────────────────────────

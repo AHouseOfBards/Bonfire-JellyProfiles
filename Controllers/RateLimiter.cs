@@ -29,6 +29,34 @@ namespace Jellyfin.Profiles.Controllers
         internal static readonly RateLimiter Panic = new(maxAttempts: 5, windowMinutes: 60);
 
         /// <summary>
+        /// All callers of the emergency code together, 200 an hour. The per-address limit
+        /// above is walked around by anyone with many addresses, and each guess costs a
+        /// PBKDF2 derivation and a map entry that lives for an hour. This bounds both. The
+        /// price is that a flood can hold the code shut for the hour; the answer to that is
+        /// the same as to a forgotten code, restart Jellyfin.
+        /// </summary>
+        internal static readonly RateLimiter PanicAll = new(maxAttempts: 200, windowMinutes: 60);
+
+        /// <summary>
+        /// The key to count an address under: an IPv6 address as its /64, because a single
+        /// subscriber is routinely handed the whole of one and can use any address in it.
+        /// An IPv4 address, or anything that does not parse, is returned as it is.
+        /// </summary>
+        internal static string AddressKey(string ip)
+        {
+            if (!System.Net.IPAddress.TryParse(ip, out var address)
+                || address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetworkV6
+                || address.IsIPv4MappedToIPv6)
+            {
+                return ip;
+            }
+
+            var bytes = address.GetAddressBytes();
+            Array.Clear(bytes, 8, 8);
+            return new System.Net.IPAddress(bytes) + "/64";
+        }
+
+        /// <summary>
         /// Per account, across every address and every door: the quarter-hour half of
         /// <see cref="PinBudget"/>. Keyed on the account, not the address, because a caller
         /// with more than one address (any IPv6 host has billions) walks around an address

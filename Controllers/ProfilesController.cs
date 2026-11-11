@@ -4442,6 +4442,12 @@ namespace Jellyfin.Profiles.Controllers
         // Hence: off by default, hashed like a PIN, validated only here, rate limited hard,
         // and logged loudly.
 
+        /// <summary>A real hash of a random value nobody holds, for <see cref="Panic"/> to verify against when no code is set.</summary>
+        private static class DummyPanicHash
+        {
+            public static readonly string Value = Auth.PinHasher.Hash("unarmed-" + Guid.NewGuid());
+        }
+
         /// <summary>
         /// Validates an emergency disable code and, if it matches, disables the plugin's
         /// client script until the server restarts.
@@ -4470,7 +4476,11 @@ namespace Jellyfin.Profiles.Controllers
             // Checking it afterwards would make an armed server answer 429 on the sixth
             // attempt while an unarmed one kept answering 400 — the very oracle the matching
             // error messages exist to close.
-            if (!RateLimiter.Panic.TryBegin(ip))
+            // Counted per /64 for IPv6 (one subscriber owns billions of addresses), and under a
+            // ceiling for everyone together, so many addresses cannot buy unlimited guesses,
+            // CPU, or map entries (R-1307).
+            ip = RateLimiter.AddressKey(ip);
+            if (!RateLimiter.PanicAll.TryBegin("all") || !RateLimiter.Panic.TryBegin(ip))
             {
                 _logger.LogWarning(
                     "ProfilesPlugin: Emergency disable code rate limit hit from {Ip}. Someone is guessing.", ip);
@@ -4482,7 +4492,11 @@ namespace Jellyfin.Profiles.Controllers
             // cannot be used to discover whether a server has the feature armed.
             // Trimmed, as SetPanicCode trims it before storing: the web client trims what is
             // typed, but an app or a script sends it as it is (R-1165).
-            if (string.IsNullOrEmpty(config.PanicCodeHash) || !VerifyPinHash(request?.Code?.Trim(), config.PanicCodeHash))
+            // An unarmed server still does the derivation, against a hash nothing matches, or
+            // the armed one answers tens of milliseconds slower and that tells (R-1307).
+            var armed = !string.IsNullOrEmpty(config.PanicCodeHash);
+            var matched = VerifyPinHash(request?.Code?.Trim(), armed ? config.PanicCodeHash : DummyPanicHash.Value);
+            if (!armed || !matched)
             {
                 return BadRequest("Incorrect code.");
             }
