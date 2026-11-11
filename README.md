@@ -82,3 +82,7 @@ MIT. See [LICENSE](LICENSE).
 Starter avatars are [Fluent Emoji](https://github.com/microsoft/fluentui-emoji) by
 Microsoft, under the MIT License
 ([notice](Web/starter-avatars/LICENSE.txt)).
+
+The theme fonts are Atkinson Hyperlegible Next, DM Sans, Inter, Lora, Montserrat, Noto Sans,
+Nunito, Outfit, Playfair Display and Quicksand, under the SIL Open Font License. Each licence
+text is in [Web/themes/fonts](Web/themes/fonts).
