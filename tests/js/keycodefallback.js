@@ -73,6 +73,24 @@ if (block) {
     ok('a missing event is nothing', api.keyName(null) === '');
 }
 
+console.log('\n── The admin page does the same ───');
+// The dashboard's inline script cannot share the client's helper, so it carries its own
+// fallback. Only keyboard names are looked for: b.key === 'b:bonfire' is a theme key.
+{
+    const fs = require('fs');
+    const path = require('path');
+    const dash = fs.readFileSync(path.join(__dirname, '..', '..', 'Web', 'profilesDashboard.html'), 'utf8');
+    const KEYS = /\b\w+\.key\s*[!=]==?\s*'(Enter|Escape|Esc| |Tab|Backspace|Home|End|Arrow\w+)'/g;
+    let found = 0;
+    dash.split('\n').forEach((line, i) => {
+        let m;
+        while ((m = KEYS.exec(line))) { found++; ok('dashboard line ' + (i + 1) + ' falls back to keyCode', false, m[0]); }
+    });
+    ok('no dashboard key name is compared to e.key alone', found === 0, found + ' found');
+    ok('the dashboard tab keys map keyCodes 35, 36, 37 and 39',
+       /35\s*:\s*'End'/.test(dash) && /36\s*:\s*'Home'/.test(dash) && /37\s*:\s*'ArrowLeft'/.test(dash) && /39\s*:\s*'ArrowRight'/.test(dash));
+}
+
 console.log('');
 if (fails.length) {
     console.log(pass + ' passed, ' + fails.length + ' failed');

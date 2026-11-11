@@ -2091,10 +2091,12 @@
                         t.addEventListener('click', function () { show(t.getAttribute('data-tab')); });
                         t.addEventListener('keydown', function (e) {
                             let next = -1;
-                            if (e.key === 'ArrowRight') next = (i + 1) % tabs.length;
-                            if (e.key === 'ArrowLeft') next = (i - 1 + tabs.length) % tabs.length;
-                            if (e.key === 'Home') next = 0;
-                            if (e.key === 'End') next = tabs.length - 1;
+                            // keyCode too, as every handler in profiles.js does: e.key is Chromium 51.
+                            const key = e.key || ({ 35: 'End', 36: 'Home', 37: 'ArrowLeft', 39: 'ArrowRight' })[e.keyCode] || '';
+                            if (key === 'ArrowRight') next = (i + 1) % tabs.length;
+                            if (key === 'ArrowLeft') next = (i - 1 + tabs.length) % tabs.length;
+                            if (key === 'Home') next = 0;
+                            if (key === 'End') next = tabs.length - 1;
                             if (next < 0) return;
                             e.preventDefault();
                             show(tabs[next].getAttribute('data-tab'));
