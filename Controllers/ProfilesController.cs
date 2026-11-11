@@ -1457,6 +1457,11 @@ namespace Jellyfin.Profiles.Controllers
                 // First-time setup's "has seen it" rows for accounts that no longer exist (R-1075).
                 config.Onboarding?.Seen?.RemoveAll(s => !Exists(s.UserId));
 
+                // A confirmed address and a profile-limit override are kept per account and are
+                // personal data in the export; neither goes when Jellyfin deletes the account (R-1311).
+                config.AccountEmails?.RemoveAll(a => !Exists(a.UserId));
+                config.UserProfileLimitOverrides?.RemoveAll(o => !Exists(o.UserId));
+
                 // Devices are NOT touched here. A device outliving the profile that used it is
                 // normal — the hardware is still in the house — and dropping one that some
                 // other profile still names would empty that whitelist, which means "any

@@ -398,7 +398,29 @@ Console.WriteLine("── CleanupOrphans ─────────────
     bool SeenKept(Guid id) => ((IEnumerable)onboarding.GetType().GetProperty("Seen").GetValue(onboarding))
         .Cast<object>().Any(r => (Guid)Prop(r, "UserId") == id);
 
+    // A confirmed address and a profile-limit override are kept per account, and an account
+    // deleted in Jellyfin left both behind (R-1311).
+    object AddRow(string listName, Type rowType, Guid uid)
+    {
+        var row = Activator.CreateInstance(rowType);
+        rowType.GetProperty("UserId").SetValue(row, uid);
+        ((IList)cfgType.GetProperty(listName).GetValue(config)).Add(row);
+        return row;
+    }
+    var emailType = asm.GetType("Jellyfin.Profiles.Configuration.AccountEmail", true);
+    var overrideType = asm.GetType("Jellyfin.Profiles.Configuration.UserProfileLimitOverride", true);
+    foreach (var uid in new[] { GONE_MASTER, PARENT })
+    {
+        AddRow("AccountEmails", emailType, uid);
+        AddRow("UserProfileLimitOverrides", overrideType, uid);
+    }
+    bool RowKept(string listName, Guid id) => ((IEnumerable)cfgType.GetProperty(listName).GetValue(config))
+        .Cast<object>().Any(r => (Guid)Prop(r, "UserId") == id);
+
     var applied = Call("CleanupOrphans", ADMIN, raw: new object[] { true });
+    Ok("a deleted account's saved address and profile-limit override go, a live one's stay",
+        !RowKept("AccountEmails", GONE_MASTER) && !RowKept("UserProfileLimitOverrides", GONE_MASTER)
+        && RowKept("AccountEmails", PARENT) && RowKept("UserProfileLimitOverrides", PARENT));
     Ok("a deleted account's first-time setup record goes, a live one's stays", !SeenKept(GONE_MASTER) && SeenKept(PARENT));
     Ok("applying removes them (" + Say(applied) + ")", applied.status == 200 && !Mapped(GONE) && !Mapped(LEFT));
     Ok("and keeps every live profile", Mapped(KID) && Mapped(OPEN_KID) && Mapped(PARENT) && Mapped(ADMIN) && Mapped(STRANGER));
