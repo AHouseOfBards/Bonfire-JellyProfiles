@@ -87,7 +87,7 @@ console.log('\n── The audit log, which loads with the page ─────�
 
 console.log('\n── The signed-in sessions list ─────────────────────────────────');
 {
-    const rows = dashboardFns(['escapeHtml', 'sessionRowsHtml'], 'sessionRowsHtml(arg1)');
+    const rows = dashboardFns(['escapeHtml', 'namedAria', 'sessionRowsHtml'], 'sessionRowsHtml(arg1)');
     ok('the rows are built by a function a test can run', rows !== null);
     if (rows) {
         const hostile = {

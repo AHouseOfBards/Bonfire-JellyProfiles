@@ -7,6 +7,12 @@
  *   R-1258  Post announcement could be pressed twice
  *   R-1259  an avatar refusal lost the server's reason; the display name was not trimmed
  *   R-1264  Save: the server's reason was dropped, and a throw after saving reported failure
+ *   R-1254  household buttons and the limit box carried no account name for a screen reader
+ *   R-1255  open households folded after every action; import loaded mappings twice;
+ *           "Invalid Date" in the audit list; the audit download said nothing of IP addresses
+ *   R-1260  repeated Sign out / Edit / Delete / Remove buttons carried no item name
+ *   R-1261  Simple theme view showed an empty font box and a blank pattern
+ *   R-1262  a deleted default-theme selection fell back to Bonfire without a word
  *
  * Runs the real functions against stubs. Red against the dashboard before the fix:
  *
@@ -26,12 +32,17 @@ function ok(name, cond, detail) {
 const script = L.dashboardScript(L.readDashboard());
 const has = n => new RegExp('function ' + n + '\\s*\\(').test(script);
 const fn = n => L.extractFunction(script, n) + '\n';
+// A function the old code lacks: absent, so the section runs and its assertions go red
+// instead of the whole harness stopping.
+const opt = n => (has(n) ? fn(n) : '');
 // A throw in a success handler is now an unhandled rejection, which a browser logs. Here
 // that is the behaviour under test, not a crash.
 process.on('unhandledRejection', () => {});
 const tick = () => new Promise(r => setTimeout(r, 0));
 
 const T = 'const t = function (k) { return k; };\n';
+// Like T, but shows the values it was given, so a label that names someone can be read.
+const TV = 'const t = function (k, v) { return v ? k + "|" + Object.keys(v).map(function (x) { return v[x]; }).join("|") : k; };\n';
 const baseGlobals = T + fn('field');
 
 function el() {
@@ -210,6 +221,201 @@ function pageOf(map) {
         } catch (e) {
             ok('saveConfiguration ran under the stub', false, e.message);
         }
+    }
+
+    // ── R-1254, R-1255, R-1260 ──────────────────────────────────────────────
+    // Plumbing for the sections below: a small document, and the household list drawn by
+    // the real loadMappings.
+    function fakeEl() {
+        const e = el();
+        e.attrs = {}; e.children = [];
+        e.setAttribute = (k, v) => { e.attrs[k] = String(v); };
+        e.getAttribute = k => (k in e.attrs ? e.attrs[k] : null);
+        e.appendChild = c => { e.children.push(c); return c; };
+        e.insertBefore = c => { e.children.unshift(c); return c; };
+        e.click = () => e.fire('click');
+        return e;
+    }
+    const fakeDoc = { createElement: () => fakeEl() };
+    const tagsOf = (html, re) => (html.match(/<(button|input)\b[^>]*>/g) || []).filter(x => re.test(x));
+    const labelOf = tag => { const m = /aria-label="([^"]*)"/.exec(tag); return m ? m[1] : null; };
+
+    console.log('\n-- Household buttons say whose they are (R-1254) --');
+    const data = {
+        masterUsers: [
+            { profileUserId: 'aaaa', profileName: 'Alice', requiresPin: true, maxProfiles: 5, limitOverride: 3 },
+            { profileUserId: 'bbbb', profileName: 'Bob', requiresPin: true, maxProfiles: 5 }
+        ],
+        subProfiles: [
+            { profileUserId: 'cccc', masterUserId: 'aaaa', profileName: 'Kid One', requiresPin: true },
+            { profileUserId: 'dddd', masterUserId: 'bbbb', profileName: 'Kid Two', requiresPin: true }
+        ]
+    };
+    async function drawHouseholds(openMasters) {
+        const container = fakeEl();
+        const toggles = ['aaaa', 'bbbb'].map(id => {
+            const b = fakeEl(); b.attrs['data-master'] = id;
+            b.attrs['aria-expanded'] = openMasters.indexOf(id) !== -1 ? 'true' : 'false';
+            return b;
+        });
+        const panels = {};
+        const page = {
+            dataset: {}, _mappings: null,
+            querySelector: sel => {
+                if (sel === '#masterUsersList') return container;
+                const m = /^\.sub-profile-panel\[data-master="(.*)"\]$/.exec(sel);
+                if (m) return panels[m[1]] || (panels[m[1]] = Object.assign(fakeEl(), { style: { display: 'none' } }));
+                return fakeEl();
+            },
+            querySelectorAll: sel => sel === '.sub-profile-toggle' ? toggles : []
+        };
+        const calls = [];
+        const src = TV + fn('field') + fn('escapeHtml') + fn('normId') + opt('namedAria') + fn('loadMappings') + 'return loadMappings;';
+        const load = new Function('ApiClient', 'renderTrusted', 'renderGettingStarted', 'renderInjectionStatus', 'setStatus', 'pinStatusRows',
+            'askFirst', 'Dashboard', 'loadConfiguration', 'document', 'window', 'bindStandaloneForms', 'bindPinPrompts', 'bindAccountExtras',
+            src)(
+            { getUrl: u => u, getJSON: () => Promise.resolve(data), serverVersion: () => '10.11.0' },
+            () => {}, () => {}, () => {}, () => {}, () => [], () => new Promise(() => {}), { alert() {}, hideLoadingMsg() {} }, () => {}, fakeDoc, {}, () => {}, () => {}, () => {});
+        load(page); await tick(); await tick();
+        return { html: container.innerHTML, toggles, panels };
+    }
+    {
+        const r = await drawHouseholds([]);
+        const buttons = {
+            'Reset PIN': tagsOf(r.html, /reset-pin-btn/),
+            'Set': tagsOf(r.html, /save-limit-btn/),
+            'Reset': tagsOf(r.html, /clear-limit-btn/),
+            'Make own account': tagsOf(r.html, /standalone-btn/),
+            'the limit box': tagsOf(r.html, /user-limit-input/)
+        };
+        // Four Reset PIN (2 mains, 2 profiles), two Set, one Reset, two Make own account, two boxes.
+        const want = { 'Reset PIN': 4, 'Set': 2, 'Reset': 1, 'Make own account': 2, 'the limit box': 2 };
+        Object.keys(buttons).forEach(k => {
+            ok(k + ': found ' + want[k], buttons[k].length === want[k], buttons[k].length + ' found');
+            ok(k + ': every one carries its own name',
+                buttons[k].length > 0 && buttons[k].every(tag => /Alice|Bob|Kid One|Kid Two/.test(labelOf(tag) || '')),
+                JSON.stringify(buttons[k].map(labelOf)));
+            ok(k + ': no two share a label', new Set(buttons[k].map(labelOf)).size === buttons[k].length, JSON.stringify(buttons[k].map(labelOf)));
+        });
+    }
+
+    console.log('\n-- Other repeated buttons say which item (R-1260) --');
+    {
+        const src = TV + fn('field') + fn('escapeHtml') + opt('namedAria');
+        const mk = (names, body) => new Function('t2', src + body);
+        const sessions = mk(0, fn('sessionRowsHtml') + 'return sessionRowsHtml;')()([
+            { userId: 'u1', deviceId: 'd1', username: 'Alice', deviceName: 'Living room TV', client: 'x' },
+            { userId: 'u2', deviceId: 'd2', username: 'Bob', deviceName: 'Phone', client: 'x' }]);
+        const so = tagsOf(sessions, /jpf-signout-btn/);
+        ok('sign out: each names the person and the device',
+            so.length === 2 && /Alice/.test(labelOf(so[0]) || '') && /Living room TV/.test(labelOf(so[0]) || '') && /Bob/.test(labelOf(so[1]) || ''),
+            JSON.stringify(so.map(labelOf)));
+
+        const themeData = { custom: [{ id: 'one', theme: { name: { text: 'First' } } }, { id: 'two', theme: { name: { text: 'Second' } } }], 'default': 'bonfire',
+            fonts: [{ file: 'a.woff2', family: 'Fraunces', weightMin: 400, weightMax: 400, fallback: 'serif', usedBy: [] }, { file: 'b.woff2', family: 'Lora', weightMin: 400, weightMax: 400, fallback: 'serif', usedBy: [] }] };
+        const themeFns = fn('getThemePath') + fn('themeDisplayName') + fn('customThemeRowsHtml') + fn('fontRowsHtml') + fn('themeFontCssName');
+        const rows = mk(0, themeFns + 'return [customThemeRowsHtml, fontRowsHtml];')();
+        const th = tagsOf(rows[0](themeData), /jpf-te-act/);
+        ok('theme Edit / Duplicate / Export / Delete name the theme',
+            th.length === 8 && th.every(x => /First|Second/.test(labelOf(x) || '')), JSON.stringify(th.map(labelOf)));
+        ok('no two theme buttons share a label', new Set(th.map(labelOf)).size === th.length);
+        const fd = tagsOf(rows[1](themeData), /jpf-te-font-delete/);
+        ok('font Delete names the font', fd.length === 2 && /Fraunces/.test(labelOf(fd[0]) || '') && /Lora/.test(labelOf(fd[1]) || ''), JSON.stringify(fd.map(labelOf)));
+
+        // Announcements are built node by node.
+        const list = fakeEl();
+        const page = { dataset: {}, querySelector: () => list, querySelectorAll: () => [] };
+        const mkAnn = new Function('document', 'ApiClient', 'announcementSchedule', 'isoToLocalInput', 'openAdvancedFor', 'askFirst', 'loadAnnouncements',
+            TV + fn('field') + fn('escapeHtml') + opt('namedAria') + fn('renderAnnouncements') + 'return renderAnnouncements;')(
+            fakeDoc, { getUrl: u => u, ajax: () => Promise.resolve({}) }, () => '', () => '', () => {}, () => new Promise(() => {}), () => {});
+        mkAnn(page, [{ id: 'a1', message: 'Maintenance tonight', severity: 'info', showing: true }, { id: 'a2', message: 'New profiles', severity: 'info', showing: true }]);
+        const labels = [];
+        (function walk(n) { (n.children || []).forEach(c => { if (c.attrs && c.attrs['aria-label']) labels.push(c.attrs['aria-label']); walk(c); }); })(list);
+        ok('announcement Edit and Delete name the announcement',
+            labels.length === 4 && labels.filter(x => /Maintenance/.test(x)).length === 2 && labels.filter(x => /New profiles/.test(x)).length === 2, JSON.stringify(labels));
+    }
+
+    console.log('\n-- Things the list does after an action (R-1255) --');
+    {
+        const r = await drawHouseholds(['bbbb']);
+        ok('a household that was open is open again after the list is redrawn',
+            r.toggles[1].attrs['aria-expanded'] === 'true' && r.panels.bbbb && r.panels.bbbb.style.display === 'block',
+            JSON.stringify(r.toggles.map(b => b.attrs['aria-expanded'])));
+        ok('one that was closed stays closed', r.toggles[0].attrs['aria-expanded'] === 'false');
+
+        // Import: loadConfiguration already loads the mappings, so a second call loads them twice.
+        const box = el();
+        const fileInput = el(); fileInput.files = [{}];
+        const page = pageOf({ '#importConfigFile': fileInput, '#backupResult': box });
+        const loads = { cfg: 0, map: 0 };
+        function FileReader() { this.readAsText = () => { this.result = '{"Mappings":[]}'; this.onload(); }; }
+        const bind = new Function('ApiClient', 'Dashboard', 'FileReader', 'askFirst', 'importSummary', 'loadConfiguration', 'loadMappings', 'escapeHtml', 'URL', 'Blob', 'document', 'setTimeout',
+            T + fn('bindBackup') + 'return bindBackup;')(
+            { getUrl: u => u, ajax: () => Promise.resolve({}), getJSON: () => Promise.resolve({}) },
+            { showLoadingMsg() {}, hideLoadingMsg() {} }, FileReader, () => Promise.resolve(), () => '', () => { loads.cfg++; }, () => { loads.map++; }, s => String(s), URL, Blob, {}, setTimeout);
+        bind(page); fileInput.fire('change'); await tick(); await tick(); await tick();
+        ok('an import reloads the configuration once', loads.cfg === 1, JSON.stringify(loads));
+        ok('and does not load the mappings a second time itself', loads.map === 0, JSON.stringify(loads));
+
+        // The audit list.
+        const logs = [{ Timestamp: 'not a date', MasterUsername: 'Alice', TargetUsername: 'Kid' }, { Timestamp: '2026-01-02T03:04:05Z', MasterUsername: 'Bob', TargetUsername: 'Kid' }];
+        const list = el();
+        const ap = { querySelector: s => s === '#auditLogsList' ? list : (s === '#auditCount' ? el() : Object.assign(el(), { value: '' })) };
+        const draw = new Function('auditEntries', 'auditField', 'auditVisible', 'escapeHtml',
+            T + fn('renderAuditLogs') + 'return renderAuditLogs;')(
+            logs, (l, k) => l[k], () => ({ filtered: false, rows: logs }), s => String(s));
+        draw(ap);
+        ok('an entry with no readable time does not say "Invalid Date"', list.innerHTML.indexOf('Invalid Date') === -1, list.innerHTML.slice(0, 200));
+        ok('a good time is still shown', /2026|1\/2|2\/1/.test(list.innerHTML));
+        ok('the audit download says it holds IP addresses', /id="auditDownload"[\s\S]{0,400}<\/div>\s*<div class="fieldDescription" data-i18n="admin\.audit\.exportNote"/.test(L.readDashboard()),
+            'no note after the audit controls');
+    }
+
+    console.log('\n-- Simple theme view and the default select (R-1261, R-1262) --');
+    {
+        const mkSel = opts => {
+            const s = fakeEl();
+            s.options = (opts || []).map(v => ({ value: v, textContent: v }));
+            s.appendChild = c => { s.options.push(c); return c; };
+            s.insertBefore = c => { s.options.unshift(c); return c; };
+            return s;
+        };
+        function fill(draftFont, draftPattern) {
+            const sels = { '#teFont': mkSel(['Fraunces']), '#tePattern': mkSel(['', 'leaves']), '#teAvatar': mkSel(), '#teButton': mkSel(), '#teAccent': mkSel(), '#teBg1': mkSel(), '#teBg2': mkSel(), '#teText': mkSel() };
+            const page = { _themeEditor: { view: 'simple', draft: {} }, querySelector: s => sels[s] || mkSel(), querySelectorAll: () => [] };
+            const f = new Function('document', 'simpleThemeValues', 'themeFonts', T + fn('fillThemeEditor') + 'return fillThemeEditor;')(
+                { createElement: () => ({}) }, () => ({ accent: '#000000', bg1: '#000000', bg2: '#000000', text: '#ffffff', font: draftFont, avatar: 'circle', button: 'pill', pattern: draftPattern }), () => []);
+            f(page);
+            return sels;
+        }
+        const noFont = fill('', '');
+        ok('no font of its own: the box says so, not blank',
+            noFont['#teFont'].options.some(o => o.value === '' && o.textContent === 'admin.themes.fontUnset'), JSON.stringify(noFont['#teFont'].options.map(o => o.textContent)));
+        const odd = fill('Fraunces', 'confetti');
+        ok('a pattern the list does not carry is shown by name, not as None',
+            odd['#tePattern'].options.some(o => o.value === 'confetti') && odd['#tePattern'].value === 'confetti', odd['#tePattern'].value);
+        const known = fill('Fraunces', 'leaves');
+        ok('a listed pattern adds nothing', known['#tePattern'].options.length === 2);
+
+        // Default theme select.
+        function drawSelect(chosen) {
+            const select = fakeEl(); select.value = chosen; select.options = [];
+            select.appendChild = c => { select.options.push(c); return c; };
+            Object.defineProperty(select, 'innerHTML', { get: () => '', set: () => { select.options = []; } });
+            const unsaved = [];
+            const page = { _themes: { data: { builtIn: [{ id: 'bonfire' }], custom: [] } }, _themeStaticOptions: [{ value: 'bonfire' }], querySelector: () => select };
+            const f = new Function('document', 'themeOfferedIds', 'themeDisplayName', 'normalizeTheme', 'setUnsaved',
+                T + fn('renderDefaultThemeOptions') + 'return renderDefaultThemeOptions;')(
+                fakeDoc, () => ['bonfire'], () => '', (v, o) => (o.indexOf(v) !== -1 ? v : 'bonfire'), (p, on) => unsaved.push(on));
+            f(page);              // first draw
+            const first = unsaved.length;
+            select.value = 'mine'; // the administrator picks a custom theme, which is then deleted
+            f(page);
+            return { first, unsaved };
+        }
+        const d = drawSelect('bonfire');
+        ok('a selection that is deleted marks the page unsaved', d.unsaved.length === 1 && d.unsaved[0] === true, JSON.stringify(d));
+        ok('a first draw does not', d.first === 0);
     }
 
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');

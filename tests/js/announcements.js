@@ -279,7 +279,7 @@ const settle = () => new Promise(r => setImmediate(r));
     const script = L.dashboardScript(html);
     let render = null;
     try {
-        const fns = L.dashboardI18n(script) + ['field', 'formatWhen', 'announcementSchedule', 'isoToLocalInput', 'errorText',
+        const fns = L.dashboardI18n(script) + ['field', 'namedAria', 'formatWhen', 'announcementSchedule', 'isoToLocalInput', 'errorText',
                      'resetAnnouncementForm', 'showAnnouncementResult', 'showOutcome', 'paintOutcome', 'openAdvancedFor', 'loadAnnouncements', 'renderAnnouncements']
             .map(n => L.extractFunction(script, n)).join('\n');
         render = new Function('document', 'Dashboard', 'ApiClient', fns + '\nreturn renderAnnouncements;');

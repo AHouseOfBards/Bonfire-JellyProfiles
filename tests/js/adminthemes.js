@@ -200,7 +200,7 @@ const DATA = {
 // ── 3. Nothing typed becomes markup ───────────────────────────────────────────
 console.log('\n── Names an administrator typed are text ───────────────────────');
 {
-    const fns = lift(['escapeHtml', 'getThemePath', 'themeDisplayName', 'builtInThemeNames', 'builtInThemeRowsHtml', 'customThemeRowsHtml',
+    const fns = lift(['escapeHtml', 'namedAria', 'getThemePath', 'themeDisplayName', 'builtInThemeNames', 'builtInThemeRowsHtml', 'customThemeRowsHtml',
         'themeFontCssName', 'fontRowsHtml', 'themeProblemText', 'themeProblemsHtml']);
     ok('the lists are built by functions a test can run', !!fns);
     if (fns) {

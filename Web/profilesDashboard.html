@@ -1387,6 +1387,7 @@
                         <span data-i18n="admin.audit.download">Download JSON</span>
                     </button>
                 </div>
+                <div class="fieldDescription" data-i18n="admin.audit.exportNote">The download includes IP addresses.</div>
                 <div class="jpf-audit-count" id="auditCount"></div>
                 <div class="paperList jpf-block-end jpf-scroll-list" id="auditLogsList">
                     <!-- Audit logs dynamically loaded here -->
@@ -1586,6 +1587,8 @@
                 'admin.households.unlinkedBody': 'These profiles point at a main account that no longer exists.',
                 'admin.links.alsoHere': 'Also on this screen:',
                 'admin.links.removeAria': 'Take {name} off this screen',
+                'admin.aria.named': '{action}: {name}',
+                'admin.themes.fontUnset': 'Not set',
                 'admin.links.add': 'Show another account',
                 'admin.links.account': 'Account',
                 'admin.links.go': 'Show',
@@ -1925,6 +1928,12 @@
                     });
                 }
                 return str;
+            }
+
+            /// The name a screen reader gives a button or field whose visible text is the same on
+            /// every row ("Reset PIN", "Remove"): the action, then whose it is (R-1254, R-1260).
+            function namedAria(action, name) {
+                return t('admin.aria.named', { action: action, name: name || '' });
             }
 
             /// Asks, and resolves only on OK; Cancel leaves it pending, so what hangs off it
@@ -2527,6 +2536,7 @@
                     del.type = 'button';
                     del.className = 'raised jpf-trust-del';
                     del.textContent = t('admin.trust.remove');
+                    del.setAttribute('aria-label', namedAria(t('admin.trust.remove'), entry.address));
                     del.addEventListener('click', function () {
                         page._trusted = collectTrusted(page);
                         page._trusted.splice(Array.prototype.indexOf.call(list.children, row), 1);
@@ -2561,6 +2571,14 @@
                     renderInjectionStatus(page, result);
 
                     const masterContainer = page.querySelector('#masterUsersList');
+
+                    // The list is drawn again after every action (reset a PIN, set a limit),
+                    // so note which sub-profile panels are open now and open them again
+                    // below (R-1255). Otherwise each action folds the household away.
+                    const wasOpen = [];
+                    page.querySelectorAll('.sub-profile-toggle').forEach(function (b) {
+                        if (b.getAttribute('aria-expanded') === 'true') wasOpen.push(b.getAttribute('data-master'));
+                    });
 
                     const masterUsers = result.MasterUsers || result.masterUsers || [];
                     const subProfiles = result.SubProfiles || result.subProfiles || [];
@@ -2597,6 +2615,7 @@
                     function resetPinBtnHtml(pId, reqPin, name) {
                         if (!reqPin) return '';
                         return '<button type="button" class="raised button-accent button-mini reset-pin-btn" data-id="' + escapeHtml(pId) + '" data-name="' + escapeHtml(name || '') +
+                               '" aria-label="' + escapeHtml(namedAria(t('admin.households.resetPin'), name)) +
                                '" style="margin-left:auto; background:#d23f3f; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">' +
                                escapeHtml(t('admin.households.resetPin')) + '</button>';
                     }
@@ -2628,7 +2647,7 @@
                                '<a class="raised button-mini open-user-link" href="' + escapeHtml(jellyfinUserPageUrl(pId)) +
                                '" style="margin-left:8px; padding:5px 12px; border-radius:4px; font-weight:600; align-self:center; text-decoration:none;">' + escapeHtml(t('admin.households.openUser')) + '</a>' +
                                '<button type="button" class="raised button-mini standalone-btn" data-id="' + escapeHtml(pId) +
-                               '" style="margin-left:8px; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">' + escapeHtml(t('admin.households.makeAccount')) + '</button>' +
+                               '" aria-label="' + escapeHtml(namedAria(t('admin.households.makeAccount'), field(s, 'profileName'))) + '" style="margin-left:8px; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">' + escapeHtml(t('admin.households.makeAccount')) + '</button>' +
                                '</div>' +
                                standaloneFormHtml(pId);
                     }
@@ -2743,10 +2762,10 @@
                             const overrideControl =
                                 '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
                                 '<span style="font-size:0.85rem; opacity:0.6;">' + escapeHtml(t('admin.households.limit')) + '</span>' +
-                                '<input is="emby-input" type="number" class="user-limit-input" data-id="' + pId + '" min="1" max="20" value="' + maxProfiles + '" />' +
-                                '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + pId + '" style="padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">' + escapeHtml(t('admin.households.set')) + '</button>' +
+                                '<input is="emby-input" type="number" class="user-limit-input" data-id="' + pId + '" aria-label="' + escapeHtml(namedAria(t('admin.households.limit'), field(m, 'profileName'))) + '" min="1" max="20" value="' + maxProfiles + '" />' +
+                                '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + pId + '" aria-label="' + escapeHtml(namedAria(t('admin.households.set'), field(m, 'profileName'))) + '" style="padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">' + escapeHtml(t('admin.households.set')) + '</button>' +
                                 (limitOverride !== null && limitOverride !== undefined
-                                    ? '<button type="button" class="raised button-mini clear-limit-btn" data-id="' + pId + '" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.15); padding:3px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer;">' + escapeHtml(t('admin.households.reset')) + '</button>'
+                                    ? '<button type="button" class="raised button-mini clear-limit-btn" data-id="' + pId + '" aria-label="' + escapeHtml(namedAria(t('admin.households.reset'), field(m, 'profileName'))) + '" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.15); padding:3px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer;">' + escapeHtml(t('admin.households.reset')) + '</button>'
                                     : '') +
                                 '</div>';
 
@@ -2823,6 +2842,7 @@
                             const chevron = btn.querySelector('.toggle-chevron');
                             if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
                         });
+                        if (wasOpen.indexOf(btn.getAttribute('data-master')) !== -1) btn.click();
                     });
 
                     // Attach reset PIN event handlers
@@ -2939,7 +2959,9 @@
                 // were escaped, a device named <img onerror=…> ran as the administrator the
                 // moment this page loaded.
                 container.innerHTML = view.rows.map(function (log) {
-                    const dateStr = escapeHtml(new Date(auditField(log, 'Timestamp')).toLocaleString());
+                    const stamp = new Date(auditField(log, 'Timestamp'));
+                    // An entry with no readable time says so instead of "Invalid Date" (R-1255).
+                    const dateStr = escapeHtml(isNaN(stamp.getTime()) ? t('admin.audit.unknown') : stamp.toLocaleString());
                     const master = escapeHtml(auditField(log, 'MasterUsername') || t('admin.audit.unknown'));
                     const target = escapeHtml(auditField(log, 'TargetUsername') || t('admin.audit.unknown'));
                     const device = escapeHtml(auditField(log, 'DeviceName') || t('admin.audit.unknownDevice'));
@@ -3024,7 +3046,8 @@
                            '</div></div>' +
                            '<button is="emby-button" type="button" class="raised jpf-signout-btn"' +
                            ' data-user="' + escapeHtml(s.userId) + '" data-device="' + escapeHtml(s.deviceId) + '"' +
-                           ' data-name="' + escapeHtml(s.username) + '"><span>' + escapeHtml(t('admin.devices.signOut')) + '</span></button>' +
+                           ' data-name="' + escapeHtml(s.username) + '"' +
+                           ' aria-label="' + escapeHtml(namedAria(t('admin.devices.signOut'), (s.username || '') + ', ' + (s.deviceName || t('admin.audit.unknownDevice')))) + '"><span>' + escapeHtml(t('admin.devices.signOut')) + '</span></button>' +
                            '</div>';
                 }).join('');
             }
@@ -3162,8 +3185,8 @@
                             }).then(function (res) {
                                 Dashboard.hideLoadingMsg();
                                 box.innerHTML = '<span class="jpf-dim">' + escapeHtml(importSummary(res)) + '</span>';
+                                // loadConfiguration loads the mappings too (R-1255).
                                 loadConfiguration(page);
-                                loadMappings(page);
                             }, function () {
                                 Dashboard.hideLoadingMsg();
                                 box.innerHTML = '<span class="jpf-error">' + escapeHtml(t('admin.backup.importFailed')) + '</span>';
@@ -3341,7 +3364,7 @@
                             '<div style="font-size:0.8rem; margin-top:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(name) + '</div>' +
                             (builtIn
                                 ? '<div class="fieldDescription" style="margin-top:4px; font-size:0.75rem;">' + escapeHtml(t('admin.avatars.builtIn')) + '</div>'
-                                : '<button is="emby-button" type="button" class="raised avatarDeleteBtn" data-id="' + escapeHtml(id) + '" ' +
+                                : '<button is="emby-button" type="button" class="raised avatarDeleteBtn" data-id="' + escapeHtml(id) + '" aria-label="' + escapeHtml(namedAria(t('admin.avatars.remove'), name)) + '" ' +
                                   'style="margin-top:4px; padding:2px 10px; font-size:0.75rem;">' + escapeHtml(t('admin.avatars.remove')) + '</button>') +
                             '</div>';
                     }).join('');
@@ -3793,6 +3816,7 @@
                     edit.setAttribute('is', 'emby-button');
                     edit.className = 'raised';
                     edit.textContent = t('admin.ann.edit');
+                    edit.setAttribute('aria-label', namedAria(t('admin.ann.edit'), (field(a, 'message') || '').slice(0, 40)));
                     edit.addEventListener('click', function () {
                         page.dataset.annEditing = field(a, 'id');
                         page.querySelector('#annMessage').value = field(a, 'message') || '';
@@ -3813,6 +3837,7 @@
                     del.setAttribute('is', 'emby-button');
                     del.className = 'raised';
                     del.textContent = t('admin.ann.delete');
+                    del.setAttribute('aria-label', namedAria(t('admin.ann.delete'), (field(a, 'message') || '').slice(0, 40)));
                     del.addEventListener('click', function () {
                         askFirst(t('admin.ann.deleteConfirm'), t('admin.ann.deleteTitle')).then(function () {
                             ApiClient.ajax({
@@ -4261,9 +4286,9 @@
             function customThemeRowsHtml(data) {
                 const list = (data && data.custom) || [];
                 if (!list.length) return '<div class="fieldDescription">' + escapeHtml(t('admin.themes.none')) + '</div>';
-                const action = function (act, id, key) {
+                const action = function (act, id, key, who) {
                     return '<button is="emby-button" type="button" class="raised jpf-te-act" data-act="' + act + '" data-id="' +
-                           escapeHtml(id) + '"><span>' + escapeHtml(t(key)) + '</span></button>';
+                           escapeHtml(id) + '" aria-label="' + escapeHtml(namedAria(t(key), who)) + '"><span>' + escapeHtml(t(key)) + '</span></button>';
                 };
                 return list.map(function (c) {
                     // A colour from the file goes into a style attribute only in the one shape
@@ -4281,8 +4306,10 @@
                            (bad ? '<div class="jpf-te-item-bad">' + escapeHtml(t('admin.themes.notOffered')) + '</div>' : '') +
                            '</div>' +
                            '<div class="jpf-te-buttons">' +
-                           action('edit', c.id, 'admin.themes.edit') + action('duplicate', c.id, 'admin.themes.duplicate') +
-                           action('export', c.id, 'admin.themes.export') + action('delete', c.id, 'admin.themes.delete') +
+                           action('edit', c.id, 'admin.themes.edit', themeDisplayName(data, c.id)) +
+                           action('duplicate', c.id, 'admin.themes.duplicate', themeDisplayName(data, c.id)) +
+                           action('export', c.id, 'admin.themes.export', themeDisplayName(data, c.id)) +
+                           action('delete', c.id, 'admin.themes.delete', themeDisplayName(data, c.id)) +
                            '</div></div>';
                 }).join('') +
                     '<div class="fieldDescription">' + escapeHtml(t('admin.themes.count', { n: list.length, max: data.maxCustomThemes || 40 })) + '</div>';
@@ -4333,7 +4360,7 @@
                            '<div class="jpf-te-item-meta">' + escapeHtml(meta.join(' · ')) + '</div>' +
                            '</div>' +
                            '<div class="jpf-te-buttons"><button is="emby-button" type="button" class="raised jpf-te-font-delete" data-file="' +
-                           escapeHtml(f.file) + '"' + (used.length ? ' disabled title="' + escapeHtml(t('admin.themes.fontInUseHint')) + '"' : '') +
+                           escapeHtml(f.file) + '" aria-label="' + escapeHtml(namedAria(t('admin.themes.delete'), f.family)) + '"' + (used.length ? ' disabled title="' + escapeHtml(t('admin.themes.fontInUseHint')) + '"' : '') +
                            '><span>' + escapeHtml(t('admin.themes.delete')) + '</span></button></div>' +
                            '</div>';
                 }).join('') +
@@ -4481,6 +4508,11 @@
                     select.appendChild(option);
                 });
                 select.value = normalizeTheme(current, offered);
+                // A theme chosen here and then deleted drops back to Bonfire. Say so by
+                // marking the page unsaved, so Save is lit and the change is not a surprise
+                // (R-1262). Not on the first draw: the saved value is what it is.
+                if (page._themeSelectDrawn && select.value !== current) setUnsaved(page, true);
+                page._themeSelectDrawn = true;
             }
 
             /// Built-ins to start from: the catalogue's, and from the client script the ones
@@ -4650,10 +4682,26 @@
                         option.textContent = v.font;
                         font.appendChild(option);
                     }
+                    // A theme with no font of its own, or a pattern the list does not carry,
+                    // shows that instead of an empty box (R-1261). Choosing one of the others
+                    // is what changes the theme; showing these changes nothing.
+                    if (!v.font && !Array.prototype.some.call(font.options, function (o) { return o.value === ''; })) {
+                        const none = document.createElement('option');
+                        none.value = '';
+                        none.textContent = t('admin.themes.fontUnset');
+                        font.insertBefore(none, font.firstChild);
+                    }
                     font.value = v.font;
                     page.querySelector('#teAvatar').value = v.avatar;
                     page.querySelector('#teButton').value = v.button;
-                    page.querySelector('#tePattern').value = v.pattern;
+                    const pattern = page.querySelector('#tePattern');
+                    if (v.pattern && !Array.prototype.some.call(pattern.options, function (o) { return o.value === v.pattern; })) {
+                        const extra = document.createElement('option');
+                        extra.value = v.pattern;
+                        extra.textContent = v.pattern;
+                        pattern.appendChild(extra);
+                    }
+                    pattern.value = v.pattern;
                     return;
                 }
                 const fonts = themeFonts(page);

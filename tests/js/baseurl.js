@@ -78,7 +78,7 @@ function optional(name) {
     const healthPage = {};
     let reported = null;
 
-    const names = ['escapeHtml', 'field', 'loadAvatarLibrary', 'loadAvatarHealth'];
+    const names = ['escapeHtml', 'namedAria', 'field', 'loadAvatarLibrary', 'loadAvatarHealth'];
     const body = L.dashboardI18n(script)
         + optional('pluginAsset') + '\n'
         + names.map(n => L.extractFunction(script, n)).join('\n')
