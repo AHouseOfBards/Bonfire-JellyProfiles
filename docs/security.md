@@ -36,7 +36,8 @@ These hold in every app and can't be turned off from a browser.
   works instead of its password, and a saved sign-in opens it with neither. Profiles on
   that device can reach it. Set the app to ask every time.
 - **Device limits.** A device is identified by the ID its app sends, and an app can send
-  any ID. A device limit stops normal use on other devices, not someone who copies the
+  any ID. A browser's ID is its user agent and first-use time, encoded, so it can be
+  guessed. A device limit stops normal use on other devices, not someone who copies the
   allowed device's ID. The same goes for PIN-less profiles on other apps' sign-in screens,
   and for PINs typed in other apps, which only work on a device your household has signed
   in on with a password.
@@ -45,6 +46,10 @@ These hold in every app and can't be turned off from a browser.
   looks local.
 - **The profile screen.** It's a screen, not a lock. Anyone at the browser can do what
   the signed-in profile can do.
+- **What anyone can read.** Without signing in, anyone who can reach the server can read
+  the Bonfire version, which server-wide features are on, which apps get the proxy picker,
+  and the maintenance message, because an app needs them before it shows a sign-in screen.
+  Nothing there belongs to a household.
 - **Profile names in other apps.** With *Show profiles on the sign-in screen* on, a device your household has used
   shows your profile names on its sign-in screen.
 

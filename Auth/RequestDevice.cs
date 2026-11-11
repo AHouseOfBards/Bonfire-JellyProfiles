@@ -22,8 +22,11 @@ namespace Jellyfin.Profiles.Auth
     /// <para><b>This is not a credential.</b> A device id is client-supplied and can be
     /// forged by anyone who knows one. It raises entering a PIN-less profile from "know the
     /// username", which is guessable and which Bonfire itself publishes, to "know a device
-    /// id this household has signed in on", which is an ANDROID_ID or a browser's random
-    /// token. A PIN is the only thing here that is a secret.</para>
+    /// id this household has signed in on". On Android that is an ANDROID_ID. In a browser it
+    /// is NOT random: jellyfin-web (release-10.11.z and master, apphost.js generateDeviceId)
+    /// makes it <c>btoa(userAgent + "|" + Date.now())</c>, so anyone who knows the browser
+    /// and roughly when it was first used can enumerate candidates. Treat it as unlisted,
+    /// not secret. A PIN is the only thing here that is a secret.</para>
     /// </summary>
     public static class RequestDevice
     {

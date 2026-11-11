@@ -449,14 +449,14 @@ Every profile the caller can switch to: their own household, then any linked Bon
 | `hasPin` | boolean | A PIN is set. Use this, not `requiresPin`, to show PIN state in a form. |
 | `isMaster` | boolean | This is the main account. |
 | `askPinToOpen` | boolean | The main account, to its owner only. Off, the account opens without its PIN; the PIN still guards changes. |
-| `isAdministrator` | boolean | Main accounts only. The account is a Jellyfin administrator. For warnings, not for access checks. |
+| `isAdministrator` | boolean | Main accounts only, and only the caller's own household; false on another's. The account is a Jellyfin administrator. For warnings, not for access checks. |
 | `lockoutMinutes` | integer | Minutes of inactivity before the profile locks. `0` is never. |
-| `maxSubProfiles` | integer | Main accounts only. How many profiles it may have. |
+| `maxSubProfiles` | integer | Main accounts only, and only the caller's own household; null on another's. How many profiles it may have. |
 | `enabledFolders` | GUID[] | Profiles only. The libraries it was given. |
 | `allLibraries` | boolean | Profiles only. It was given every library, so it follows the main account's, including ones added later. |
 | `blockedTags` | string[] | The profile's own blocked tags. The main account's are added when it's opened. |
 | `allowedTags` | string[] | The profile's own allowed tags. Empty means no allow-list. |
-| `bypassPinOnLocalNetwork` | boolean | Skip the PIN on the home network. |
+| `bypassPinOnLocalNetwork` | boolean | Skip the PIN on the home network. False on another household's entries. |
 | `seenOnLocalNetwork` | boolean | The caller's own household has made a request from the server's network. Set once, never cleared. Screens offer `bypassPinOnLocalNetwork` only where this or that is true. False on another household's entries. |
 | `allowedDeviceIds` | string[] | Devices it may be opened on. Empty means any. The device id is the one the app sends, as Jellyfin trusts it everywhere. This is a household setting, not a lock against someone who sets their own device id. |
 | `isBonfire` | boolean | Belongs to another household in the caller's Bonfire, or is an [added account](#other-accounts). |
@@ -780,7 +780,9 @@ Unlike `/Localization/ParentalRatings`, this doesn't add Jellyfin's generic ages
 ### How restrictions reach a profile
 
 A profile is a hidden Jellyfin account. Every time it's opened, through the switcher or by
-signing in on another app, Bonfire writes its policy from the main account's:
+signing in on another app, Bonfire writes its policy from the main account's. A change made
+to the main account in Dashboard → Users reaches a profile the next time it's opened; a
+session already running keeps what it had until then.
 
 - **Copied:** libraries, rating, tags, remote access, playback, downloads, Live TV,
   channels, allowed devices and schedules.
@@ -2297,6 +2299,46 @@ a major version.
 Anything else is ignored, and the page opens as usual. A `setting` on a tab other than the
 one in `tab` still works: the page shows the tab the setting is on. New values may be added in
 minor releases.
+
+## What Bonfire keeps in the browser
+
+All of this is **internal**: it can change in any release, and nothing outside Bonfire
+should read or write it. It's listed so a support answer, or a browser's storage panel,
+doesn't have to guess. The one exception is `window.BonfireThemePreview`.
+
+Local storage:
+
+| Key | Holds |
+| --- | --- |
+| `jellyfin_profiles_master_state`, `jellyfin_profiles_active_token` | Who the browser is signed in as, and the profile session in use. Cleared on sign-out. |
+| `jellyfin_profiles_active_info` | The active profile's name and picture, for the menu. Kept in session storage and mirrored to local storage. |
+| `jellyfin_profiles_cached_list` | The last profile list, so the screen draws before the server answers. |
+| `jellyfin_profiles_switcher_mode` | The account's switcher choice, so the first page load knows whether to raise the screen. |
+| `jellyfin_profiles_theme`, `jellyfin_profiles_custom_themes` | The last theme this browser was told for the account, for the first paint. |
+| `jellyfin_profiles_library_art` | The account's library artwork rules, applied before the server answers. |
+| `jellyfin_profiles_layout` | This device's TV layout choice. Absent is automatic. |
+| `jellyfin_profiles_disabled` | Set after the emergency disable, so a cached copy of the script stays off. |
+| `jellyfin_profiles_settings_epoch` | A timestamp the admin page writes when settings are saved; other tabs' scripts see the change and reload their preferences. |
+| `jellyfin_profiles_device_gate` | Retired. Removed on load. |
+| `jpf-sw`, `jpf-bg` | Set just before a switch reloads the page, so the next load can hide the flash and match the colour being left. |
+| `jpf-dismissed-announcements` | Announcements this browser has closed. |
+| `bonfire-admin-tab` | The admin page's last tab. |
+
+Window globals: `__jpLoaded` is set when the script has run, `__jpSwitching` and
+`__jpReveal` belong to the switch reload, and `__jpCoverT` is the timer on the gate's cover.
+The `jpf-settings-changed` window event does the same job as `jellyfin_profiles_settings_epoch`,
+inside one tab.
+
+### `window.BonfireThemePreview`
+
+Used by the admin page's theme editor, which loads after the script. Without it the editor
+works but shows no preview.
+
+| Member | Does |
+| --- | --- |
+| `css(theme)` | The CSS for a theme object, from the same generator the profile screens use. Writes nothing. |
+| `builtIns()` | A copy of the built-in themes, hidden ones included. |
+| `refresh()` | Fetches the theme list again, so a theme just saved reaches this window's pickers. Returns a promise. |
 
 ## Admin
 
