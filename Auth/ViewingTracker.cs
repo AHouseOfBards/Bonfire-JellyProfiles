@@ -84,6 +84,13 @@ namespace Jellyfin.Profiles.Auth
         private static readonly Dictionary<Guid, Entry> Entries = new();
         private static Dictionary<Guid, Limited> _index = new();
         private static DateTime _indexUntil = DateTime.MinValue;
+
+        // Bumped by Invalidate. A rebuild that started before a bump read the rules before
+        // the save it was told about, so it may use what it built but must not stamp it fresh.
+        private static int _indexGeneration;
+
+        /// <summary>For the harness: runs after a rebuild has read the rules and before it publishes them.</summary>
+        internal static Action? AfterBuild = null;
         private static bool _loaded;
         private static bool _dirty;
 
@@ -98,6 +105,8 @@ namespace Jellyfin.Profiles.Auth
                 if (now < _indexUntil) return _index;
             }
 
+            int generation;
+            lock (UsageLock) generation = _indexGeneration;
             var built = new Dictionary<Guid, Limited>();
             if (!Plugin.IsPanicDisabled)
             {
@@ -124,10 +133,13 @@ namespace Jellyfin.Profiles.Auth
                 }
             }
 
+            AfterBuild?.Invoke();
             lock (UsageLock)
             {
                 _index = built;
-                _indexUntil = now + IndexLife;
+                // Not marked fresh if a rule was saved while this was being built: the next
+                // read rebuilds, instead of serving the old rules for the rest of the 30 seconds.
+                _indexUntil = generation == _indexGeneration ? now + IndexLife : DateTime.MinValue;
                 return _index;
             }
         }
@@ -135,7 +147,11 @@ namespace Jellyfin.Profiles.Auth
         /// <summary>Re-read the rules on the next request. Called when a rule or a zone is saved.</summary>
         internal static void Invalidate()
         {
-            lock (UsageLock) _indexUntil = DateTime.MinValue;
+            lock (UsageLock)
+            {
+                _indexGeneration++;
+                _indexUntil = DateTime.MinValue;
+            }
         }
 
         // ── Where a profile stands ──────────────────────────────────────────────────

@@ -488,6 +488,26 @@ Ok("and more is added on to the end, not from now", (int?)Get(r.value, "MinutesL
    && (DateTime?)Get(r.value, "ExtraUntilUtc") == Utc(2026, 11, 4, 21, 45), Show(r.value));
 clockNow = Utc(2026, 11, 4, 21, 46); Fresh();
 Ok("then it runs out", Get(Static(tracker, "State", KID, clockNow), "Allowed") is false);
+// A rule saved while the index is being rebuilt must not be overwritten by the rebuild (R-1026).
+Fresh();
+Static(tracker, "Index");
+var rebuildHook = tracker.GetField("AfterBuild", Any);
+Ok("the tracker has a seam to save a rule mid-rebuild", rebuildHook != null);
+if (rebuildHook != null)
+{
+    var savedRules = StoredRules(KID);
+    rebuildHook.SetValue(null, (Action)(() =>
+    {
+        rebuildHook.SetValue(null, null);
+        rulesType.GetProperty("DailyMinutes").SetValue(savedRules, 7);
+        Static(tracker, "Invalidate");
+    }));
+    Fresh();
+    Static(tracker, "Index");
+    var after = (IDictionary)Static(tracker, "Index");
+    var seen = Get(Get(after[KID], "Rules"), "DailyMinutes");
+    Ok("the next read after that save sees the new rule, not 30 seconds of the old one", (int?)seen == 7, seen + "");
+}
 var oKidNoPin = Call("SetViewingLimits", ADMIN, B(("DailyMinutes", 30)), OKID);
 r = Call("GrantViewingTime", OKID, B(("Minutes", 30)), OKID);
 Ok("a child cannot give itself time when the main account has no PIN", r.status == 400, r.status + " " + r.value);
