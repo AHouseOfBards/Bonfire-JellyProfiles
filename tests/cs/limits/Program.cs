@@ -201,6 +201,73 @@ d1 = Ask(KID);
 Ok("the emergency disable means allowed", Allowed(d1) && offered, Show(d1));
 panic.SetValue(null, false); Fresh();
 
+// ── Maintenance ──────────────────────────────────────────────────────────────
+// Maintenance refuses everyone but administrators. Whether a user is one is not a call Jellyfin
+// can answer quickly (UserManager.GetUserById is a database query), so the provider keeps the
+// ids of the administrators and refreshes them off the call; the call reads memory only.
+Section("Maintenance");
+
+var ADMIN = Guid.NewGuid();
+var hasSetAdmins = provider != null && provider.GetMethod("SetAdmins", Any) != null;
+var hasForgetAdmins = provider != null && provider.GetMethod("ForgetAdmins", Any) != null;
+Ok("the provider keeps a set of administrator ids it can be handed", hasSetAdmins && hasForgetAdmins);
+void SetAdmins(params Guid[] ids) { if (hasSetAdmins) Static(provider, "SetAdmins", ids.AsEnumerable(), DateTime.UtcNow); }
+
+var mmType = asm.GetType("Jellyfin.Profiles.Configuration.MaintenanceMode", true);
+void Maintenance(bool on, DateTime? until = null, bool auto = false)
+{
+    var m = Activator.CreateInstance(mmType);
+    mmType.GetProperty("Enabled").SetValue(m, on);
+    mmType.GetProperty("UntilUtc").SetValue(m, until);
+    mmType.GetProperty("ReopenAutomatically").SetValue(m, auto);
+    cfgType.GetProperty("Maintenance").SetValue(config, m);
+}
+
+clockNow = Utc(2026, 11, 4, 16); Fresh();
+SetAdmins(ADMIN);
+Maintenance(false);
+d1 = Ask(FREE);
+Ok("maintenance off: a profile is allowed", Allowed(d1), Show(d1));
+
+Maintenance(true);
+d1 = Ask(FREE);
+Ok("maintenance on: a non-administrator is refused with the reason",
+   d1 != null && !Allowed(d1) && (string)Get(d1, "Reason") == "maintenance", Show(d1));
+Ok("with no end set, there is no Until", d1 != null && Get(d1, "Until") == null, Show(d1));
+Ok("a running activity gets Bonfire's five minutes", d1 != null && (int)Get(d1, "GraceSeconds") == 300, Show(d1));
+d1 = Ask(ADMIN);
+Ok("an administrator is allowed", Allowed(d1), Show(d1));
+d1 = Ask(STRANGER);
+Ok("a user Bonfire has never heard of is refused too", d1 != null && !Allowed(d1) && (string)Get(d1, "Reason") == "maintenance", Show(d1));
+d1 = Ask(KID);
+Ok("maintenance is said before viewing hours", d1 != null && (string)Get(d1, "Reason") == "maintenance", Show(d1));
+
+Maintenance(true, clockNow.AddHours(2), true);
+d1 = Ask(FREE);
+Ok("with an end set: Until is when the server reopens",
+   d1 != null && (string)Get(d1, "Reason") == "maintenance" && (DateTimeOffset?)Get(d1, "Until") == new DateTimeOffset(clockNow.AddHours(2)), Show(d1));
+
+Maintenance(true, clockNow.AddMinutes(-1), true);
+d1 = Ask(FREE);
+Ok("a closure set to reopen by itself, and past its time, is not on", Allowed(d1), Show(d1));
+
+Maintenance(true, clockNow.AddMinutes(-1), false);
+d1 = Ask(FREE);
+Ok("an end time that has passed, with no automatic reopening, is not offered as Until",
+   d1 != null && !Allowed(d1) && Get(d1, "Until") == null, Show(d1));
+
+Maintenance(true);
+if (hasForgetAdmins) Static(provider, "ForgetAdmins");
+d1 = Ask(FREE);
+Ok("before the administrators are known the answer is allowed, not a guess", hasForgetAdmins && Allowed(d1), Show(d1));
+SetAdmins(ADMIN);
+
+panic.SetValue(null, true); Fresh();
+d1 = Ask(FREE);
+Ok("the emergency disable means allowed", Allowed(d1) && offered, Show(d1));
+panic.SetValue(null, false); Fresh();
+Maintenance(false);
+
 // ── The timer ────────────────────────────────────────────────────────────────
 Section("The timer");
 

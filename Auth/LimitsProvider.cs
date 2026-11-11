@@ -1,10 +1,14 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Campground.Shared.Contracts;
 using Campground.Shared.Registry;
 using Jellyfin.Profiles.Configuration;
+using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Jellyfin.Profiles.Auth
 {
@@ -27,8 +31,9 @@ namespace Jellyfin.Profiles.Auth
     /// <para><b>Never waits.</b> The call can arrive on any thread. It reads the rules from memory
     /// and takes only the short locks the playback gate takes; it asks Jellyfin nothing.</para>
     ///
-    /// <para><b>Maintenance</b> is not answered here: it needs to know whether the user is an
-    /// administrator, which is a Jellyfin lookup (see the report on #32).</para>
+    /// <para><b>Maintenance</b> refuses everyone but administrators, with <c>Until</c> when the
+    /// administrator set an end. Whether a user is an administrator is a database query in
+    /// Jellyfin, so the call reads a set of administrator ids that is refreshed off it.</para>
     /// </summary>
     internal static class LimitsProvider
     {
@@ -39,11 +44,98 @@ namespace Jellyfin.Profiles.Auth
         /// Offers the capability. Safe to call more than once. Not before the Campground generation
         /// is open, or the offer is swept: see <see cref="LimitsStartupFilter"/>.
         /// </summary>
-        internal static void Register()
-            => Limits.Provide(PluginIds.Bonfire, Minor, (userId, _, _) => Task.FromResult(Decide(userId, ViewingTracker.Now())));
+        internal static void Register() => Register(null);
+
+        internal static void Register(IUserManager? users)
+        {
+            if (users != null) _users = users;
+            Limits.Provide(PluginIds.Bonfire, Minor, (userId, _, _) => Task.FromResult(Decide(userId, ViewingTracker.Now())));
+            RefreshAdmins();
+        }
+
+        // ── Maintenance ─────────────────────────────────────────────────────────────
+
+        // Jellyfin's UserManager.GetUserById is a database query (release-10.11.z opens a
+        // context and runs FirstOrDefault), so the answer cannot ask it. The ids of the
+        // administrators are kept here instead and refreshed off the call: on startup, and
+        // whenever a call during maintenance finds the set older than a minute. Until the first
+        // refresh lands the set is null and maintenance reads as "allowed", the contract's
+        // fail-open, rather than refusing an administrator on a guess.
+        private static readonly TimeSpan AdminsFresh = TimeSpan.FromSeconds(60);
+        private static volatile HashSet<Guid>? _admins;
+        private static long _adminsAtTicks;
+        private static int _refreshing;
+        private static IUserManager? _users;
+
+        /// <summary>Replaces the administrator set. For the refresh, and for tests.</summary>
+        internal static void SetAdmins(IEnumerable<Guid> ids, DateTime atUtc)
+        {
+            _admins = new HashSet<Guid>(ids);
+            Interlocked.Exchange(ref _adminsAtTicks, atUtc.Ticks);
+        }
+
+        /// <summary>Forgets the set, so maintenance reads as allowed until the next refresh. For tests.</summary>
+        internal static void ForgetAdmins()
+        {
+            _admins = null;
+            Interlocked.Exchange(ref _adminsAtTicks, 0);
+        }
+
+        /// <summary>Starts a refresh on the thread pool, if there is a user manager and none is running.</summary>
+        private static void RefreshAdmins()
+        {
+            var users = _users;
+            if (users == null || Interlocked.CompareExchange(ref _refreshing, 1, 0) != 0) return;
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    var ids = new List<Guid>();
+                    foreach (var user in users.Users)
+                    {
+                        if (Jellyfin.Data.UserEntityExtensions.HasPermission(user, Jellyfin.Database.Implementations.Enums.PermissionKind.IsAdministrator))
+                        {
+                            ids.Add(user.Id);
+                        }
+                    }
+
+                    SetAdmins(ids, DateTime.UtcNow);
+                }
+                catch (Exception)
+                {
+                    // Keeps the old set, or none. Tried again by the next call that finds it stale.
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _refreshing, 0);
+                }
+            });
+        }
+
+        /// <summary>
+        /// The refusal for a non-administrator while maintenance is on, or null when it does not
+        /// apply: maintenance is off or has lapsed, the emergency disable is on, the user is an
+        /// administrator, or the administrators are not known yet. Reads memory only.
+        /// </summary>
+        private static LimitsDecision? Maintenance(Guid userId, DateTime nowUtc)
+        {
+            if (Plugin.IsPanicDisabled) return null;
+            var m = Plugin.Instance?.Configuration?.Maintenance;
+            if (m == null || !m.Enabled || m.HasLapsed(nowUtc)) return null;
+
+            if (new DateTime(Interlocked.Read(ref _adminsAtTicks), DateTimeKind.Utc) + AdminsFresh < DateTime.UtcNow) RefreshAdmins();
+            var admins = _admins;
+            if (admins == null || admins.Contains(userId)) return null;
+
+            var until = m.UntilUtc.HasValue && m.UntilUtc.Value > nowUtc ? Utc(m.UntilUtc.Value) : (DateTimeOffset?)null;
+            return new LimitsDecision(false, Limits.Reasons.Maintenance, until, ViewingTracker.GraceMinutes * 60);
+        }
 
         internal static LimitsDecision Decide(Guid userId, DateTime nowUtc)
         {
+            var closed = Maintenance(userId, nowUtc);
+            if (closed != null) return closed;
+
             var index = ViewingTracker.Index();
             if (!index.TryGetValue(userId, out var limited)) return Limits.Allowed;
 
@@ -79,7 +171,7 @@ namespace Jellyfin.Profiles.Auth
         public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
             => app =>
             {
-                try { LimitsProvider.Register(); }
+                try { LimitsProvider.Register(app.ApplicationServices.GetService<IUserManager>()); }
                 catch (Exception) { /* Never the reason Jellyfin fails to start: callers treat no provider as allowed. */ }
                 next(app);
             };
