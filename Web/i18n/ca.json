@@ -231,6 +231,7 @@
   "viewing.title": "Límits de visualització",
   "viewing.subtitle": "Quan i quant de temps pot mirar aquest perfil",
   "viewing.hoursEnabled": "Només en aquestes hores",
+  "viewing.noDays": "Cap dia marcat, així que no es permet cap temps.",
   "viewing.fromAria": "{day} des de",
   "viewing.toAria": "{day} fins a",
   "viewing.midnight": "Mitjanit",

@@ -1195,6 +1195,7 @@
         'viewing.title': 'Viewing limits',
         'viewing.subtitle': 'When and how long this profile can watch',
         'viewing.hoursEnabled': 'Only at these times',
+        'viewing.noDays': 'No days ticked, so no time is allowed.',
         'viewing.fromAria': '{day} from',
         'viewing.toAria': '{day} until',
         'viewing.midnight': 'Midnight',
@@ -2387,16 +2388,18 @@
         viewingTime: function (iso, zone) {
             const d = new Date(iso);
             if (isNaN(d.getTime())) return '';
-            const locale = activeLocale || [];
             const opts = (extra) => Object.assign(zone ? { timeZone: zone } : {}, extra);
-            try {
+            const format = (locale) => {
                 const day = (x) => x.toLocaleDateString(locale, opts({ year: 'numeric', month: 'numeric', day: 'numeric' }));
                 const time = d.toLocaleTimeString(locale, opts({ hour: '2-digit', minute: '2-digit' }));
                 if (day(d) === day(new Date())) return time;
                 return d.toLocaleDateString(locale, opts({ weekday: 'short' })) + ' ' + time;
-            } catch (e) {
-                return zone ? this.viewingTime(iso, null) : d.toLocaleTimeString();
-            }
+            };
+            // A locale tag the browser rejects must not cost the household's zone: try the
+            // browser's own language with the zone before giving the zone up.
+            try { return format(activeLocale || []); } catch (e) { /* next */ }
+            try { return format([]); } catch (e) { /* the zone itself is unknown */ }
+            return zone ? this.viewingTime(iso, null) : d.toLocaleTimeString();
         },
 
         /// The line under a limited profile's name on the gate: "Until 20:00", "45 min
@@ -2730,6 +2733,7 @@
                             <span>${t('viewing.hoursEnabled')}</span>
                         </label>
                         <div class="jpf-viewing-days" id="viewing-days">${rows}</div>
+                        <div class="form-hint jpf-viewing-nodays" id="viewing-nodays" role="status" style="display: none; color: var(--jpf-danger);">${t('viewing.noDays')}</div>
                     </div>
                 `);
 
@@ -2740,7 +2744,8 @@
                 const daily = slot.querySelector('#viewing-daily');
                 const weekendSel = slot.querySelector('#viewing-weekend');
                 const weekendGroup = slot.querySelector('#viewing-weekend-group');
-                const syncDays = () => { days.style.display = hours.checked ? '' : 'none'; };
+                const syncDays = () => { days.style.display = hours.checked ? '' : 'none'; this._syncNoDays(slot, ORDER); };
+                ORDER.forEach(d => slot.querySelector('#viewing-day-' + d).addEventListener('change', syncDays));
                 const syncWeekend = () => {
                     const none = daily.value === '0' && weekendSel.value === '';
                     weekendGroup.style.display = none ? 'none' : '';
@@ -2806,6 +2811,16 @@
             return editor;
         },
 
+        /// Warns when "only at these times" is on and no day is ticked: the server then
+        /// allows no time at all. Saving is still allowed, so this is only a hint.
+        _syncNoDays: function (slot, order) {
+            const warn = slot.querySelector('#viewing-nodays');
+            const hours = slot.querySelector('#viewing-hours');
+            if (!warn || !hours) return;
+            const any = order.some(d => slot.querySelector('#viewing-day-' + d).checked);
+            warn.style.display = hours.checked && !any ? '' : 'none';
+        },
+
         /// Puts the form back as it was being edited after a redraw from the server.
         _restoreViewingForm: function (slot, state, order) {
             const q = (s) => slot.querySelector(s);
@@ -2819,6 +2834,7 @@
             q('#viewing-daily').value = String(state.dailyMinutes);
             q('#viewing-weekend').value = state.weekendMinutes === null ? '' : String(state.weekendMinutes);
             q('#viewing-days').style.display = state.hoursEnabled ? '' : 'none';
+            this._syncNoDays(slot, order);
             q('#viewing-weekend-group').style.display = (state.dailyMinutes === 0 && state.weekendMinutes === null) ? 'none' : '';
         },
 
@@ -3529,6 +3545,17 @@
             // Before validateSessionState, which can trigger a reload of its own.
             this._step('checkPersistedPanic', () => this.checkPersistedPanic());
             if (this._panicDisabled) return;
+            this._startPageChecks();
+        },
+
+        /// What runs once per page load once the interface is known to be on. Init calls
+        /// it, or checkPersistedPanic does when the server says a remembered panic is
+        /// over: without that, a page that started disabled and came back never had its
+        /// maintenance check, stale-session revert or lockout timer (R-1186).
+        _pageChecksStarted: false,
+        _startPageChecks: function () {
+            if (this._pageChecksStarted) return;
+            this._pageChecksStarted = true;
             // Once per page load, never from checkRoute.
             this._step('checkMaintenance', () => this.checkMaintenance());
             this._step('validateSessionState', () => this.validateSessionState());
@@ -4541,6 +4568,7 @@
                     // The teardown above released the focus trap. Coming back to life has to
                     // put it back, or issue #16 returns for the rest of this page load.
                     this._bindOverlayFocusTrap();
+                    this._startPageChecks();
                     this.checkRoute();
                 })
                 .catch(() => {
@@ -4963,12 +4991,23 @@
             if (typeof ApiClient === 'undefined' || !ApiClient || !ApiClient.accessToken()) return;
 
             this._switcherPrefsLoading = true;
-            fetch(ApiClient.getUrl('plugins/profiles/preferences'), {
-                cache: 'no-store',
-                headers: this.getAuthHeaders(ApiClient.accessToken())
-            })
-            .then(res => res.ok ? res.json() : Promise.reject(new Error('preferences unavailable')))
+            // A hung request must not leave the flag set for the life of the page, and
+            // AbortController is Chromium 58, so the wait is raced rather than cancelled.
+            // The first answer to arrive, reply or timeout, is the one that counts.
+            let settled = false;
+            const timeout = new Promise((resolve, reject) => {
+                setTimeout(() => reject(new Error('preferences timed out')), this.config.prefsTimeoutMs || 10000);
+            });
+            Promise.race([
+                fetch(ApiClient.getUrl('plugins/profiles/preferences'), {
+                    cache: 'no-store',
+                    headers: this.getAuthHeaders(ApiClient.accessToken())
+                }).then(res => res.ok ? res.json() : Promise.reject(new Error('preferences unavailable'))),
+                timeout
+            ])
             .then(prefs => {
+                settled = true;
+                this._switcherPrefsGuessed = false;
                 const askRaw = prefs.askOnStartup !== undefined ? prefs.askOnStartup : prefs.AskOnStartup;
                 const locRaw = prefs.switcherLocation || prefs.SwitcherLocation;
                 const master = prefs.masterUserId || prefs.MasterUserId;
@@ -5003,9 +5042,21 @@
             })
             .catch(() => {
                 this._switcherPrefsLoading = false;
+                // A throw from the reply handler lands here too, after it settled.
+                if (settled) return;
+                settled = true;
                 // Server unreachable or an older plugin build: fall back to the historical
                 // behaviour rather than leaving the gate permanently suppressed.
-                if (!this._switcherPrefs) this._switcherPrefs = { askOnStartup: true, location: 'button' };
+                if (!this._switcherPrefs) {
+                    this._switcherPrefs = { askOnStartup: true, location: 'button' };
+                    this._switcherPrefsGuessed = true;
+                }
+                // The fallback is a guess, and a blip should not fix it for the page: ask
+                // again a few times, well apart. Not from checkRoute; a timer of its own.
+                this._switcherPrefsRetries = (this._switcherPrefsRetries || 0) + 1;
+                if (this._switcherPrefsGuessed && this._switcherPrefsRetries <= 3) {
+                    setTimeout(() => this.loadSwitcherPrefs(), 15000 * this._switcherPrefsRetries);
+                }
                 // Settle this too. Leaving it unknown would have the route check re-request
                 // on every poll, and an emergency link we cannot vouch for stays hidden.
                 if (this._panicLinkAvailable === null) this._panicLinkAvailable = false;

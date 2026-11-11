@@ -245,6 +245,7 @@
   "viewing.title": "Límites de visualización",
   "viewing.subtitle": "Cuándo y cuánto puede ver este perfil",
   "viewing.hoursEnabled": "Solo en estas horas",
+  "viewing.noDays": "No hay días marcados, así que no se permite ningún tiempo.",
   "viewing.fromAria": "{day} desde",
   "viewing.toAria": "{day} hasta",
   "viewing.midnight": "Medianoche",

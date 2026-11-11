@@ -252,6 +252,7 @@
   "viewing.title": "İzleme sınırları",
   "viewing.subtitle": "Bu profil ne zaman ve ne kadar izleyebilir",
   "viewing.hoursEnabled": "Yalnızca bu saatlerde",
+  "viewing.noDays": "Hiçbir gün işaretlenmedi, bu yüzden hiç süreye izin verilmez.",
   "viewing.fromAria": "{day} başlangıç",
   "viewing.toAria": "{day} bitiş",
   "viewing.midnight": "Gece yarısı",

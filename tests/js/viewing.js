@@ -99,6 +99,26 @@ const last = url => sent(url).pop();
     ok('times are read in the household zone', london !== '' && london === tokyo && london !== newYork, [london, tokyo, newYork].join(' | '));
     ok('a zone the browser does not know falls back to the device clock', PP.viewingTime('2030-01-09T20:00:00Z', 'Not/AZone') !== '');
 
+    // R-1182: when the first formatting attempt throws (a locale tag the browser rejects
+    // does this), the household's zone must survive; falling to the device's clock showed
+    // the wrong time as the household's. The throw is simulated once, on the first call.
+    {
+        // The plugin runs in its own vm realm, so patch that realm's Date, not ours.
+        const proto = PP.viewingTime.constructor('return Date')().prototype, realDate = proto.toLocaleDateString;
+        let thrown = false;
+        proto.toLocaleDateString = function () {
+            if (!thrown) { thrown = true; throw new RangeError('Incorrect locale information provided'); }
+            return realDate.apply(this, arguments);
+        };
+        let a, b;
+        try {
+            a = PP.viewingTime('2030-01-09T20:00:00Z', 'Europe/London');
+            thrown = false;
+            b = PP.viewingTime('2030-01-09T11:00:00Z', 'Asia/Tokyo');
+        } finally { proto.toLocaleDateString = realDate; }
+        ok('a failed first attempt still reads in the household zone', a !== '' && a === b, a + ' | ' + b);
+    }
+
     // ── Choosing a profile that is out of time ──────────────────────────────
     console.log('\n── Choosing a profile that is out of time ──────────────────────');
 

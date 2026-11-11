@@ -108,7 +108,15 @@ PP.handleSessionExpired = () => {};
         hoursBox.checked = true; hoursBox.fire('change');
         ok('and shown once it is', days.style.display === '');
     }
+    // R-1182: hours on with no day ticked allows no time at all, so the form says so.
+    const noDays = slot.querySelector('#viewing-nodays');
+    const dayBox = slot.querySelector('#viewing-day-1');
+    ok('hours on and no day ticked shows the warning', !!noDays && noDays.style.display === '');
+    if (dayBox) { dayBox.checked = true; dayBox.fire('change'); }
+    ok('ticking a day clears it', !!noDays && noDays.style.display === 'none');
+    if (dayBox) { dayBox.checked = false; dayBox.fire('change'); }
     if (hoursBox) { hoursBox.checked = false; hoursBox.fire('change'); }
+    ok('hours off hides it', !!noDays && noDays.style.display === 'none');
     posts.length = 0;
     await editor.save('new-id');
     ok('an untouched form saves no rules', posts.length === 0);

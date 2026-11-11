@@ -231,6 +231,7 @@
   "viewing.title": "Limites de visionnage",
   "viewing.subtitle": "Quand et combien de temps ce profil peut regarder",
   "viewing.hoursEnabled": "Seulement à ces heures",
+  "viewing.noDays": "Aucun jour coché, donc aucun temps n’est autorisé.",
   "viewing.fromAria": "{day} de",
   "viewing.toAria": "{day} jusqu'à",
   "viewing.midnight": "Minuit",
