@@ -20,6 +20,12 @@ namespace Campground.Shared.Contracts
     /// <summary>
     /// Something a plugin is doing that uses the server but isn't Jellyfin playback — a GameTent game
     /// (WebRTC), a download, a sync job. Lets CleanStream's upload budget and every dashboard see it.
+    /// <para>
+    /// <see cref="Paused"/> arrived in shared 0.9.0, a minor of <c>campground.sessions.v1</c>. It means the activity
+    /// is suspended and nothing is running, like paused video; a game sitting in its own pause menu is not paused.
+    /// An older copy's activity has no such property and reads as not paused; an older reader ignores it.
+    /// Bonfire counts an activity's elapsed time against the daily limit unless it is paused (see <see cref="Limits"/>).
+    /// </para>
     /// </summary>
     internal sealed record Activity(
         string Id,
@@ -32,7 +38,8 @@ namespace Campground.Shared.Contracts
         DateTime UpdatedUtc,
         long? UploadBitsPerSecond,
         bool Remote,
-        IReadOnlyDictionary<string, string>? Extra = null);
+        IReadOnlyDictionary<string, string>? Extra = null,
+        bool Paused = false);
 
     /// <summary>
     /// CleanStream's per-session health (read-only for others). <see cref="Level"/> is one of
@@ -120,8 +127,8 @@ namespace Campground.Shared.Contracts
     /// <summary>§3.7 <c>campground.sessions.v1</c>: session tags, non-playback activities, and health.</summary>
     internal static class Sessions
     {
-        private const string TagsSection = "sessions.tags";
-        private const string ActivitiesSection = "sessions.activities";
+        internal const string TagsSection = "sessions.tags";
+        internal const string ActivitiesSection = "sessions.activities";
         internal const string GetHealthOp = "getHealth";
         internal const string ListHealthOp = "listHealth";
         internal const string GetConnectionOp = "getConnection";
@@ -159,14 +166,40 @@ namespace Campground.Shared.Contracts
 
         /// <summary>Marks a Jellyfin session as this plugin's.</summary>
         internal static void Tag(string sessionId, string pluginId, string kind)
-            => CampgroundRegistry.Section(TagsSection)[sessionId] = CampgroundRegistry.ToJson(new SessionTag(sessionId, pluginId, kind, DateTime.UtcNow));
+        {
+            // Boxed once, so the generation stamp and the stored value are the same object.
+            object stored = CampgroundRegistry.ToJson(new SessionTag(sessionId, pluginId, kind, DateTime.UtcNow));
+            CampgroundLifetime.Stamp(stored);
+            CampgroundRegistry.Section(TagsSection)[sessionId] = stored;
+        }
 
         /// <summary>Removes a tag.</summary>
         internal static void Untag(string sessionId) => CampgroundRegistry.Section(TagsSection).TryRemove(sessionId, out _);
 
-        /// <summary>The tag on a session, if any. Rule 3: a session tagged by another plugin is left alone.</summary>
+        /// <summary>
+        /// Drops every tag a plugin put on a session (on <c>ApplicationStopping</c>). The sessions belong to the host
+        /// that is stopping, and the copy that tagged them won't remember them; the new copy tags again.
+        /// </summary>
+        internal static void WithdrawTags(string pluginId)
+        {
+            var section = CampgroundRegistry.Section(TagsSection);
+            foreach (var pair in section)
+            {
+                if (pair.Value is JsonElement e && CampgroundRegistry.FromJson<SessionTag>(e) is { } tag
+                    && string.Equals(tag.PluginId, pluginId, StringComparison.Ordinal))
+                {
+                    section.TryRemove(pair);
+                }
+            }
+        }
+
+        /// <summary>
+        /// The tag on a session, if any. Rule 3: a session tagged by another plugin is left alone. A tag from an
+        /// older host generation isn't one: the copy that wrote it is gone.
+        /// </summary>
         internal static SessionTag? GetTag(string sessionId)
             => CampgroundRegistry.Section(TagsSection).TryGetValue(sessionId, out var v) && v is JsonElement e
+                && !CampgroundLifetime.IsStale(v)
                 ? CampgroundRegistry.FromJson<SessionTag>(e)
                 : null;
 
@@ -181,7 +214,11 @@ namespace Campground.Shared.Contracts
         {
             var section = CampgroundRegistry.Section(ActivitiesSection);
             var isNew = !section.ContainsKey(activity.Id);
-            section[activity.Id] = CampgroundRegistry.ToJson(activity with { UpdatedUtc = DateTime.UtcNow });
+
+            // Boxed once, so the generation stamp and the stored value are the same object.
+            object stored = CampgroundRegistry.ToJson(activity with { UpdatedUtc = DateTime.UtcNow });
+            CampgroundLifetime.Stamp(stored);
+            section[activity.Id] = stored;
             if (isNew)
             {
                 CampgroundEvents.Publish(EventNames.ActivityStarted, activity);
@@ -199,6 +236,23 @@ namespace Campground.Shared.Contracts
         }
 
         /// <summary>
+        /// Drops every activity a plugin published, without an ended event (on <c>ApplicationStopping</c>: the
+        /// host is going away and the subscribers with it).
+        /// </summary>
+        internal static void WithdrawActivities(string pluginId)
+        {
+            var section = CampgroundRegistry.Section(ActivitiesSection);
+            foreach (var pair in section)
+            {
+                if (pair.Value is JsonElement e && CampgroundRegistry.FromJson<Activity>(e) is { } a
+                    && string.Equals(a.PluginId, pluginId, StringComparison.Ordinal))
+                {
+                    section.TryRemove(pair);
+                }
+            }
+        }
+
+        /// <summary>
         /// Current activities. Entries not updated for <paramref name="staleAfter"/> (default 2 min) are dropped,
         /// so a plugin that crashed mid-activity doesn't leave a ghost.
         /// </summary>
@@ -211,9 +265,9 @@ namespace Campground.Shared.Contracts
             {
                 if (pair.Value is JsonElement e && CampgroundRegistry.FromJson<Activity>(e) is { } a)
                 {
-                    if (a.UpdatedUtc < cutoff)
+                    if (a.UpdatedUtc < cutoff || CampgroundLifetime.IsStale(pair.Value))
                     {
-                        section.TryRemove(pair.Key, out _);
+                        section.TryRemove(pair);
                         continue;
                     }
 

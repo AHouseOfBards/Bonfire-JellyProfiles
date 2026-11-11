@@ -19,6 +19,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
@@ -54,6 +55,12 @@ namespace Campground.Shared.Injection
             => app =>
             {
                 app.UseMiddleware<CampgroundIndexMiddleware>(_pluginId);
+
+                // Joins this host's generation first, so the candidacy below is recorded under it (issue #33).
+                if (app.ApplicationServices.GetService<IHostApplicationLifetime>() is { } lifetime)
+                {
+                    CampgroundLifetime.Register(_pluginId, lifetime);
+                }
 
                 // Candidacy is recorded only once the middleware is really in the pipeline (issue #5).
                 InjectionCoordinator.RecordCandidate(_pluginId, CampgroundShared.Version);

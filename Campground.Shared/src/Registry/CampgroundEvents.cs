@@ -30,15 +30,33 @@ namespace Campground.Shared.Registry
     /// </summary>
     internal static class CampgroundEvents
     {
-        private const string SectionName = "events";
+        internal const string SectionName = "events";
+
+        // This copy's live subscriptions, so CampgroundLifetime can withdraw them on ApplicationStopping.
+        // Statics are per load context, so this is one plugin's. ConcurrentDictionary: no lock needed.
+        private static readonly ConcurrentDictionary<Subscription, byte> Mine = new();
 
         /// <summary>Subscribes; dispose the result to unsubscribe.</summary>
         internal static IDisposable Subscribe(string eventName, Action<JsonElement> handler)
         {
             var subscribers = SubscribersOf(eventName);
             var id = Guid.NewGuid().ToString("N");
+
+            // Stored as the bare Action, the shape a 0.5.0 copy reads; the generation goes in the side table.
+            CampgroundLifetime.Stamp(handler);
             subscribers[id] = handler;
-            return new Subscription(subscribers, id);
+            var subscription = new Subscription(subscribers, id);
+            Mine[subscription] = 0;
+            return subscription;
+        }
+
+        /// <summary>Removes every subscription this copy made (on <c>ApplicationStopping</c>).</summary>
+        internal static void WithdrawThisCopy()
+        {
+            foreach (var subscription in Mine.Keys)
+            {
+                subscription.Dispose();
+            }
         }
 
         /// <summary>Publishes to every subscriber in every plugin.</summary>
@@ -47,7 +65,8 @@ namespace Campground.Shared.Registry
             var json = CampgroundRegistry.ToJson(payload);
             foreach (var value in SubscribersOf(eventName).Values)
             {
-                if (value is Action<JsonElement> handler)
+                // A handler from an older host generation would run against disposed services.
+                if (value is Action<JsonElement> handler && !CampgroundLifetime.IsStale(handler))
                 {
                     try
                     {
@@ -79,7 +98,11 @@ namespace Campground.Shared.Registry
                 _id = id;
             }
 
-            public void Dispose() => _owner.TryRemove(_id, out _);
+            public void Dispose()
+            {
+                _owner.TryRemove(_id, out _);
+                Mine.TryRemove(this, out _);
+            }
         }
     }
 }

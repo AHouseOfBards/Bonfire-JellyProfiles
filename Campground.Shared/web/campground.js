@@ -18,7 +18,7 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '0.5.0';
+  var VERSION = '0.9.0';
   if (root.Campground && root.Campground.version && compare(root.Campground.version, VERSION) >= 0) {
     return;
   }

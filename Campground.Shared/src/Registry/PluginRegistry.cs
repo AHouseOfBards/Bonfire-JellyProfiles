@@ -28,7 +28,7 @@ namespace Campground.Shared.Registry
     /// </summary>
     internal static class PluginRegistry
     {
-        private const string SectionName = "plugins";
+        internal const string SectionName = "plugins";
 
         /// <summary>
         /// Announces this plugin. Call once at startup (the plugin constructor or service registrator).
@@ -37,7 +37,11 @@ namespace Campground.Shared.Registry
         internal static void Announce(string id, string name, string version, IEnumerable<string> capabilities, Func<PluginStatus> status)
         {
             var caps = capabilities.ToArray();
-            CampgroundRegistry.Section(SectionName)[id] = new Dictionary<string, object?>(StringComparer.Ordinal)
+
+            // The record keeps the 0.5.0 shape; the host generation goes in CampgroundLifetime's side table, stamped
+            // before the record is visible. Announcing from the constructor comes before Register, so that first
+            // record goes unstamped and stays until the host it was written in stops (issue #33).
+            var record = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["id"] = id,
                 ["name"] = name,
@@ -46,7 +50,15 @@ namespace Campground.Shared.Registry
                 ["capabilities"] = caps,
                 ["status"] = (Func<JsonElement>)(() => CampgroundRegistry.ToJson(SafeStatus(status))),
             };
+            CampgroundLifetime.Stamp(record);
+            CampgroundRegistry.Section(SectionName)[id] = record;
         }
+
+        /// <summary>
+        /// Takes this plugin's announcement down (on <c>ApplicationStopping</c>). The status delegate points into this
+        /// copy, so leaving it would keep the copy loaded and list a plugin that may not come back.
+        /// </summary>
+        internal static void Withdraw(string id) => CampgroundRegistry.Section(SectionName).TryRemove(id, out _);
 
         /// <summary>Every announced plugin, this one included. Never throws.</summary>
         internal static IReadOnlyList<CampgroundPlugin> List()
@@ -54,7 +66,8 @@ namespace Campground.Shared.Registry
             var list = new List<CampgroundPlugin>();
             foreach (var value in CampgroundRegistry.Section(SectionName).Values)
             {
-                if (value is not IReadOnlyDictionary<string, object?> r)
+                // Announced in an older host generation: that copy is gone, and its status delegate with it.
+                if (value is not IReadOnlyDictionary<string, object?> r || CampgroundLifetime.IsStale(r))
                 {
                     continue;
                 }
@@ -83,7 +96,8 @@ namespace Campground.Shared.Registry
         }
 
         /// <summary>Whether a plugin is installed and announced (enabled or not).</summary>
-        internal static bool IsInstalled(string id) => CampgroundRegistry.Section(SectionName).ContainsKey(id);
+        internal static bool IsInstalled(string id)
+            => CampgroundRegistry.Section(SectionName).TryGetValue(id, out var value) && !CampgroundLifetime.IsStale(value);
 
         private static PluginStatus SafeStatus(Func<PluginStatus> status)
         {
@@ -112,6 +126,6 @@ namespace Campground.Shared.Registry
     internal static class CampgroundShared
     {
         /// <summary>Kept equal to the package version by CI (shared-release.yml checks the tag).</summary>
-        internal const string Version = "0.5.0";
+        internal const string Version = "0.9.0";
     }
 }

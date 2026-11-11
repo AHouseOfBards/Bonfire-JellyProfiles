@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using Campground.Shared.Registry;
 
 namespace Campground.Shared.Injection
@@ -46,7 +47,8 @@ namespace Campground.Shared.Injection
     {
         /// <summary>
         /// A candidate newer than the owner. Only possible when a plugin joined after the election (a hot
-        /// reload); a process restart hands index.html to it.
+        /// reload). A restart hands index.html to it: a process restart always, and Jellyfin 12's in-process restart
+        /// once any plugin carries 0.7.0 or later (issue #33).
         /// </summary>
         internal InjectionCandidate? NewerThanOwner =>
             OwnerVersion == null || Candidates == null
@@ -61,28 +63,56 @@ namespace Campground.Shared.Injection
     /// <para>
     /// The owner is the plugin carrying the <b>newest library version</b> (ties: plugin id, ordinal), chosen on
     /// the first request among the plugins whose middleware actually joined the pipeline
-    /// (<see cref="RecordCandidate"/>, called from the startup filter), then fixed for the life of the process.
+    /// (<see cref="RecordCandidate"/>, called from the startup filter), then fixed for the life of the host.
     /// All startup filters run before Kestrel serves anything, so the set is complete by then (issue #5).
+    /// </para>
+    /// <para>
+    /// "The host", not "the process": Jellyfin 12 restarts inside one process, and the registry outlives that. The
+    /// election is cleared when the host stops, and an election from an older host generation is held again
+    /// (issue #33, <see cref="CampgroundLifetime"/>).
     /// </para>
     /// </summary>
     internal static class InjectionCoordinator
     {
-        private const string TagsSection = "injection.tags";
-        private const string RuntimeSection = "injection.runtime";
+        internal const string TagsSection = "injection.tags";
+        internal const string RuntimeSection = "injection.runtime";
+
+        // Set once this copy has offered its runtime, so CampgroundLifetime.Register offers it again under the new
+        // generation (issue #33). Per copy (a static). Written and read with Volatile.
+        private static int _runtimeOffered;
         private const string StateSection = "injection.state";
         private const string KilledSection = "injection.killed";
         private const string CandidatesSection = "injection.candidates";
+
+        // Candidate -> host generation that recorded it (0.7.0+). A side section, because a 0.5.0 copy reads the
+        // candidates section as pluginId -> version string. ConcurrentDictionary; no lock needed.
+        private const string CandidateGenerationSection = "injection.candidates.generation";
 
         /// <summary>
         /// Records that this plugin's middleware is in the pipeline. Called by <see cref="CampgroundStartupFilter"/>
         /// at the moment it adds the middleware, so a plugin that failed earlier in start-up never becomes owner.
         /// </summary>
         internal static void RecordCandidate(string pluginId, string version)
-            => CampgroundRegistry.Section(CandidatesSection)[pluginId] = version;
+        {
+            var generations = CampgroundRegistry.Section(CandidateGenerationSection);
+            var generation = CampgroundLifetime.CopyGeneration;
+            if (generation == null)
+            {
+                generations.TryRemove(pluginId, out _);
+            }
+            else
+            {
+                generations[pluginId] = generation;
+            }
 
-        /// <summary>Candidates, newest first.</summary>
+            CampgroundRegistry.Section(CandidatesSection)[pluginId] = version;
+        }
+
+        /// <summary>Candidates, newest first. A candidate recorded under an older host generation isn't one.</summary>
         internal static IReadOnlyList<InjectionCandidate> Candidates()
             => CampgroundRegistry.Section(CandidatesSection)
+                .Where(p => !(CampgroundRegistry.Section(CandidateGenerationSection).TryGetValue(p.Key, out var g)
+                    && CampgroundLifetime.IsStaleGeneration(g as string)))
                 .Select(p => new InjectionCandidate(p.Key, p.Value as string ?? "0"))
                 .OrderByDescending(c => c, Comparer<InjectionCandidate>.Create((a, b) =>
                 {
@@ -109,12 +139,58 @@ namespace Campground.Shared.Injection
         {
             CampgroundRegistry.Section(StateSection).Clear();
             CampgroundRegistry.Section(CandidatesSection).Clear();
+            CampgroundRegistry.Section(CandidateGenerationSection).Clear();
+        }
+
+        /// <summary>
+        /// Forgets the election and the candidates. Called when the host stops: the next host records its own
+        /// candidates from its startup filters. Under lock (state), the lock every copy elects under.
+        /// </summary>
+        internal static void ResetElection()
+        {
+            var state = CampgroundRegistry.Section(StateSection);
+            lock (state)
+            {
+                state.TryRemove("owner", out _);
+                state.TryRemove("ownerVersion", out _);
+                state.TryRemove("ownerGeneration", out _);
+                CampgroundRegistry.Section(CandidatesSection).Clear();
+                CampgroundRegistry.Section(CandidateGenerationSection).Clear();
+            }
+        }
+
+        /// <summary>
+        /// Called when a new host generation opens: an owner elected under another generation (or by a copy that
+        /// doesn't stamp one) is forgotten, so a 0.5.0 copy in the new host doesn't act on it either.
+        /// </summary>
+        internal static void DropStaleElection()
+        {
+            var state = CampgroundRegistry.Section(StateSection);
+            lock (state)
+            {
+                if (!OwnerIsCurrent(state, CampgroundLifetime.CurrentGeneration))
+                {
+                    state.TryRemove("owner", out _);
+                    state.TryRemove("ownerVersion", out _);
+                    state.TryRemove("ownerGeneration", out _);
+                }
+            }
+
+            var generations = CampgroundRegistry.Section(CandidateGenerationSection);
+            foreach (var pair in generations)
+            {
+                if (CampgroundLifetime.IsStaleGeneration(pair.Value as string))
+                {
+                    CampgroundRegistry.Section(CandidatesSection).TryRemove(pair.Key, out _);
+                    generations.TryRemove(pair);
+                }
+            }
         }
 
         /// <summary>Registers (or updates) a plugin's script.</summary>
         internal static void Register(ScriptRegistration registration)
         {
-            CampgroundRegistry.Section(TagsSection)[registration.PluginId + "|" + registration.Path] = new Dictionary<string, object?>(StringComparer.Ordinal)
+            var record = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["pluginId"] = registration.PluginId,
                 ["path"] = registration.Path,
@@ -123,6 +199,8 @@ namespace Campground.Shared.Injection
                 ["headSnippet"] = registration.HeadSnippet,
                 ["headId"] = registration.HeadId,
             };
+            CampgroundLifetime.Stamp(record);
+            CampgroundRegistry.Section(TagsSection)[registration.PluginId + "|" + registration.Path] = record;
 
             OfferRuntime();
         }
@@ -154,30 +232,46 @@ namespace Campground.Shared.Injection
         /// <summary>
         /// True when <paramref name="pluginId"/> owns index.html. The first call elects the owner (newest
         /// candidate; the caller itself if no candidate was recorded, as with a library older than 0.5.0 or a
-        /// test) and the result is fixed for the life of the process.
+        /// test) and the result is fixed for the life of the host. An owner from an older host generation, or one
+        /// a pre-0.7.0 copy elected without a generation, is elected again.
         /// </summary>
         internal static bool ClaimOwnership(string pluginId)
         {
             var state = CampgroundRegistry.Section(StateSection);
-            if (state.TryGetValue("owner", out var existing))
+            var generation = CampgroundLifetime.CurrentGeneration;
+            if (state.TryGetValue("owner", out var existing) && OwnerIsCurrent(state, generation))
             {
                 return string.Equals(existing as string, pluginId, StringComparison.Ordinal);
             }
 
-            var elected = Candidates().FirstOrDefault() ?? new InjectionCandidate(pluginId, CampgroundShared.Version);
-
-            // Owner and its version are written together under one lock, so a reader never sees one without the other.
+            // Owner, its version and its generation are written together under one lock (state, the same lock a
+            // 0.5.0 copy elects under), so a reader never sees one without the others.
             lock (state)
             {
-                if (!state.ContainsKey("owner"))
+                if (!state.ContainsKey("owner") || !OwnerIsCurrent(state, generation))
                 {
+                    var elected = Candidates().FirstOrDefault() ?? new InjectionCandidate(pluginId, CampgroundShared.Version);
                     state["ownerVersion"] = elected.Version;
+                    if (generation == null)
+                    {
+                        state.TryRemove("ownerGeneration", out _);
+                    }
+                    else
+                    {
+                        state["ownerGeneration"] = generation;
+                    }
+
                     state["owner"] = elected.PluginId;
                 }
-            }
 
-            return string.Equals(state["owner"] as string, pluginId, StringComparison.Ordinal);
+                return string.Equals(state["owner"] as string, pluginId, StringComparison.Ordinal);
+            }
         }
+
+        // No generation yet (no 0.7.0 copy registered): the election stands, as before 0.7.0.
+        private static bool OwnerIsCurrent(System.Collections.Concurrent.ConcurrentDictionary<string, object> state, string? generation)
+            => generation == null
+                || (state.TryGetValue("ownerGeneration", out var g) && string.Equals(g as string, generation, StringComparison.Ordinal));
 
         /// <summary>The owning plugin id, or null before the first request.</summary>
         internal static string? Owner => CampgroundRegistry.Section(StateSection).TryGetValue("owner", out var v) ? v as string : null;
@@ -191,6 +285,7 @@ namespace Campground.Shared.Injection
             var killed = CampgroundRegistry.Section(KilledSection);
             return CampgroundRegistry.Section(TagsSection).Values
                 .OfType<IReadOnlyDictionary<string, object?>>()
+                .Where(r => !CampgroundLifetime.IsStale(r))
                 .Select(r => new ScriptRegistration(
                     CampgroundRegistry.Get<string>(r, "pluginId") ?? "?",
                     CampgroundRegistry.Get<string>(r, "path") ?? "/",
@@ -214,7 +309,9 @@ namespace Campground.Shared.Injection
             Version? bestVersion = null;
             foreach (var pair in CampgroundRegistry.Section(RuntimeSection))
             {
-                if (pair.Value is not string script || !System.Version.TryParse(pair.Key, out var v))
+                // An offer from an older host generation: a plugin that may have been removed in the restart.
+                if (pair.Value is not string script || !System.Version.TryParse(pair.Key, out var v)
+                    || CampgroundLifetime.IsStale(script))
                 {
                     continue;
                 }
@@ -257,18 +354,66 @@ namespace Campground.Shared.Injection
                 s.TryGetValue("lastServedUtc", out var t) && t is DateTime d ? d : null,
                 s.TryGetValue("lastError", out var e) ? e as string : null,
                 CampgroundRegistry.Section(TagsSection).Values.OfType<IReadOnlyDictionary<string, object?>>()
+                    .Where(r => !CampgroundLifetime.IsStale(r))
                     .Select(r => CampgroundRegistry.Get<string>(r, "pluginId") ?? "?").Distinct().OrderBy(x => x).ToList(),
                 CampgroundRegistry.Section(KilledSection).Keys.OrderBy(x => x).ToList(),
                 OwnerVersion,
                 Candidates());
         }
 
+        /// <summary>
+        /// Offers this copy's runtime again, if it offered one before. Called by <see cref="CampgroundLifetime.Register"/>
+        /// once the generation is open: an offer made earlier in start-up may have lost to the old host's entry for
+        /// the same version, which the new generation then swept.
+        /// </summary>
+        internal static void OfferRuntimeAgain()
+        {
+            if (Volatile.Read(ref _runtimeOffered) == 1)
+            {
+                OfferRuntime();
+            }
+        }
+
+        /// <summary>
+        /// Takes this copy's runtime offer down (on <c>ApplicationStopping</c>). Only the exact string this copy
+        /// stored: another copy's offer of the same version is that copy's to withdraw.
+        /// </summary>
+        internal static void WithdrawRuntime()
+        {
+            var script = CampgroundRuntimeScript.Text;
+            var section = CampgroundRegistry.Section(RuntimeSection);
+            if (script != null && section.TryGetValue(CampgroundShared.Version, out var stored) && ReferenceEquals(stored, script))
+            {
+                section.TryRemove(new KeyValuePair<string, object>(CampgroundShared.Version, stored));
+            }
+        }
+
+        // One string per version: the first offer wins, as in 0.5.0. Since 0.7.0 it is stamped with the copy's host
+        // generation, and an offer from an older generation gives way. An unstamped one (0.5.0, 0.6.0) never does,
+        // because a 0.5.0 copy offers only once and would be left with nothing (issue #33).
         private static void OfferRuntime()
         {
             var script = CampgroundRuntimeScript.Text;
-            if (script != null)
+            if (script == null)
             {
-                CampgroundRegistry.Section(RuntimeSection).TryAdd(CampgroundShared.Version, script);
+                return;
+            }
+
+            Volatile.Write(ref _runtimeOffered, 1);
+            CampgroundLifetime.Stamp(script);
+            var section = CampgroundRegistry.Section(RuntimeSection);
+            while (!section.TryAdd(CampgroundShared.Version, script))
+            {
+                if (!section.TryGetValue(CampgroundShared.Version, out var existing))
+                {
+                    continue;
+                }
+
+                if (ReferenceEquals(existing, script) || !CampgroundLifetime.IsStale(existing)
+                    || section.TryUpdate(CampgroundShared.Version, script, existing))
+                {
+                    return;
+                }
             }
         }
     }

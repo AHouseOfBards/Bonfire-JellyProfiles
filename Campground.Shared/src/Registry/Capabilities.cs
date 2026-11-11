@@ -23,6 +23,7 @@ namespace Campground.Shared.Registry
         internal const string Ports = "campground.ports.v1";
         internal const string Https = "campground.https.v1";
         internal const string Accounts = "campground.accounts.v1";
+        internal const string Limits = "campground.limits.v1";
     }
 
     /// <summary>
@@ -30,7 +31,7 @@ namespace Campground.Shared.Registry
     /// </summary>
     internal static class Capabilities
     {
-        private const string SectionName = "capabilities";
+        internal const string SectionName = "capabilities";
 
         /// <summary>Default time a caller waits for another plugin before carrying on alone.</summary>
         internal static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(2);
@@ -46,7 +47,10 @@ namespace Campground.Shared.Registry
             Func<string, JsonElement, CancellationToken, Task<JsonElement>> handler)
         {
             var providers = ProvidersOf(name);
-            providers[pluginId] = new Dictionary<string, object?>(StringComparer.Ordinal)
+
+            // The record keeps the 0.5.0 shape, which every copy reads. The generation goes in a side table
+            // (CampgroundLifetime.Stamp), stamped before the record is visible.
+            var record = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["name"] = name,
                 ["pluginId"] = pluginId,
@@ -54,10 +58,24 @@ namespace Campground.Shared.Registry
                 ["invoke"] = handler,
                 ["registeredUtc"] = DateTime.UtcNow,
             };
+            CampgroundLifetime.Stamp(record);
+            providers[pluginId] = record;
         }
 
         /// <summary>Withdraws a capability this plugin offered.</summary>
         internal static void Withdraw(string name, string pluginId) => ProvidersOf(name).TryRemove(pluginId, out _);
+
+        /// <summary>Withdraws every capability this plugin offered (on <c>ApplicationStopping</c>).</summary>
+        internal static void WithdrawAll(string pluginId)
+        {
+            foreach (var value in CampgroundRegistry.Section(SectionName).Values)
+            {
+                if (value is ConcurrentDictionary<string, object> providers)
+                {
+                    providers.TryRemove(pluginId, out _);
+                }
+            }
+        }
 
         /// <summary>Whether anyone offers <paramref name="name"/> at <paramref name="minMinor"/> or later.</summary>
         internal static bool IsAvailable(string name, int minMinor = 0) => Resolve(name, minMinor) != null;
@@ -128,7 +146,7 @@ namespace Campground.Shared.Registry
                     continue;
                 }
 
-                foreach (var p in providers.Values.OfType<IReadOnlyDictionary<string, object?>>())
+                foreach (var p in providers.Values.OfType<IReadOnlyDictionary<string, object?>>().Where(p => !CampgroundLifetime.IsStale(p)))
                 {
                     list.Add((pair.Key, CampgroundRegistry.Get<string>(p, "pluginId") ?? "?", CampgroundRegistry.Get<int>(p, "minor")));
                 }
@@ -150,6 +168,12 @@ namespace Campground.Shared.Registry
             var bestMinor = int.MinValue;
             foreach (var p in ProvidersOf(name).Values.OfType<IReadOnlyDictionary<string, object?>>())
             {
+                // Written by a copy from an older host generation: its services are gone.
+                if (CampgroundLifetime.IsStale(p))
+                {
+                    continue;
+                }
+
                 var minor = CampgroundRegistry.Get<int>(p, "minor");
                 if (minor >= minMinor && minor > bestMinor)
                 {

@@ -13,6 +13,10 @@ using Campground.Shared.Registry;
 namespace Campground.Shared.Contracts
 {
     /// <summary>One reserved hardware-encoder session.</summary>
+    /// <param name="LastSeenUtc">When the owner last renewed it (<see cref="EncoderLedger.Heartbeat"/>). Default means
+    /// never renewed, and <paramref name="StartedUtc"/> is used instead.</param>
+    /// <param name="CopyId">Which loaded copy of the plugin made it. A plugin's copy after an in-process restart has a
+    /// new id, so its heartbeat can't keep the old copy's leases alive.</param>
     internal sealed record EncoderLease(
         string Id,
         string PluginId,
@@ -20,19 +24,37 @@ namespace Campground.Shared.Contracts
         string Kind,
         int Gpu,
         Guid? UserId,
-        DateTime StartedUtc);
+        DateTime StartedUtc,
+        DateTime LastSeenUtc = default,
+        string? CopyId = null);
 
     /// <summary>
     /// <c>campground.encoder.v1</c> — one ledger of hardware encoder sessions (NVENC, AMF, QSV, VAAPI,
     /// VideoToolbox). GameTent tents and transcodes reserve here, so neither starves the other (consumer
     /// NVIDIA cards allow 8 sessions per system on current drivers).
     /// <para>No provider: the ledger lives in the shared registry, guarded by one lock every plugin agrees on.</para>
+    /// <para>Jellyfin 12 restarts inside the same process and the registry outlives it (issue #33), so a lease or
+    /// reporter whose owner stopped renewing it is dropped after <see cref="Ttl"/>. Otherwise a copy that died
+    /// without releasing would hold encoder sessions that no longer exist, and real streams would be refused.
+    /// Owners: call <see cref="Heartbeat"/> at least every minute, and <see cref="WithdrawExternal"/> on
+    /// <c>ApplicationStopping</c>. A plugin whose encoders die with Jellyfin (CleanStream's ffmpeg) also calls
+    /// <see cref="ReleaseAll"/> then; one whose encoders outlive the restart (GameTent's Tentpole) keeps its leases
+    /// for its next copy to adopt. At start, a plugin whose encoders die with Jellyfin
+    /// (CleanStream's ffmpeg) calls <see cref="ReleaseAll"/>. One whose encoders outlive the restart (GameTent's
+    /// Tentpole) calls <see cref="Adopt"/> before it accepts new work, then releases any lease it can't match.</para>
     /// </summary>
     internal static class EncoderLedger
     {
         private const string LeasesSection = "encoder.leases";
         private const string LimitsSection = "encoder.limits";
         private const string ExternalSection = "encoder.external";
+        private const string ExternalSeenSection = "encoder.external.seen";
+
+        /// <summary>How long a lease or reporter counts without a heartbeat. The same as stale activities.</summary>
+        internal static readonly TimeSpan Ttl = TimeSpan.FromMinutes(2);
+
+        // Statics are per load context, so each loaded copy of a plugin gets its own id.
+        private static readonly string ThisCopy = Guid.NewGuid().ToString("N");
 
         /// <summary>Encoder kinds.</summary>
         internal static class Kinds
@@ -72,10 +94,47 @@ namespace Campground.Shared.Contracts
 
         /// <summary>
         /// Lets a plugin report sessions it can see but doesn't reserve (e.g. CleanStream counting Jellyfin's
-        /// own ffmpeg transcodes). Called on every count.
+        /// own ffmpeg transcodes). Called on every count, while the reporter keeps up its <see cref="Heartbeat"/>.
         /// </summary>
         internal static void ReportExternal(string pluginId, Func<string, int, int> countFor)
-            => CampgroundRegistry.Section(ExternalSection)[pluginId] = countFor;
+        {
+            CampgroundRegistry.Section(ExternalSection)[pluginId] = countFor;
+            CampgroundRegistry.Section(ExternalSeenSection)[pluginId] = DateTime.UtcNow.Ticks;
+        }
+
+        /// <summary>Removes a plugin's reporter (idempotent). Call on shutdown.</summary>
+        internal static void WithdrawExternal(string pluginId)
+        {
+            CampgroundRegistry.Section(ExternalSection).TryRemove(pluginId, out _);
+            CampgroundRegistry.Section(ExternalSeenSection).TryRemove(pluginId, out _);
+        }
+
+        /// <summary>
+        /// Renews this copy's leases for <paramref name="pluginId"/> and its reporter, if any. Leases made by an
+        /// earlier copy of the same plugin aren't renewed, so they age out.
+        /// </summary>
+        internal static void Heartbeat(string pluginId)
+        {
+            var now = DateTime.UtcNow;
+            var leases = CampgroundRegistry.Section(LeasesSection);
+            lock (leases)
+            {
+                foreach (var pair in leases)
+                {
+                    if (pair.Value is JsonElement e && CampgroundRegistry.FromJson<EncoderLease>(e) is { } lease
+                        && lease.PluginId == pluginId && lease.CopyId == ThisCopy)
+                    {
+                        leases[pair.Key] = CampgroundRegistry.ToJson(lease with { LastSeenUtc = now });
+                    }
+                }
+            }
+
+            var seen = CampgroundRegistry.Section(ExternalSeenSection);
+            if (CampgroundRegistry.Section(ExternalSection).ContainsKey(pluginId))
+            {
+                seen[pluginId] = now.Ticks;
+            }
+        }
 
         /// <summary>
         /// Reserves a session. Returns null when the encoder is at its limit and <paramref name="reserveFloor"/>
@@ -86,13 +145,15 @@ namespace Campground.Shared.Contracts
             var leases = CampgroundRegistry.Section(LeasesSection);
             lock (leases)
             {
+                PruneUnlocked(leases);
                 var limit = GetLimit(kind, gpu);
                 if (limit is not null && InUseUnlocked(kind, gpu) + 1 + reserveFloor > limit.Value)
                 {
                     return null;
                 }
 
-                var lease = new EncoderLease(Guid.NewGuid().ToString("N"), pluginId, purpose, kind, gpu, userId, DateTime.UtcNow);
+                var now = DateTime.UtcNow;
+                var lease = new EncoderLease(Guid.NewGuid().ToString("N"), pluginId, purpose, kind, gpu, userId, now, now, ThisCopy);
                 leases[lease.Id] = CampgroundRegistry.ToJson(lease);
                 return lease;
             }
@@ -110,12 +171,42 @@ namespace Campground.Shared.Contracts
             }
         }
 
+        /// <summary>
+        /// Takes over the live leases an earlier copy of <paramref name="pluginId"/> made, for work that kept running
+        /// through an in-process restart. They become this copy's and are renewed now, so the count never changes.
+        /// Re-reserving instead would count each session twice until the old lease aged out, and on a capped card
+        /// the re-reserve itself could be refused.
+        /// </summary>
+        internal static IReadOnlyList<EncoderLease> Adopt(string pluginId)
+        {
+            var now = DateTime.UtcNow;
+            var adopted = new List<EncoderLease>();
+            var leases = CampgroundRegistry.Section(LeasesSection);
+            lock (leases)
+            {
+                PruneUnlocked(leases);
+                foreach (var pair in leases)
+                {
+                    if (pair.Value is JsonElement e && CampgroundRegistry.FromJson<EncoderLease>(e) is { } lease
+                        && lease.PluginId == pluginId)
+                    {
+                        var mine = lease with { LastSeenUtc = now, CopyId = ThisCopy };
+                        leases[pair.Key] = CampgroundRegistry.ToJson(mine);
+                        adopted.Add(mine);
+                    }
+                }
+            }
+
+            return adopted;
+        }
+
         /// <summary>Sessions in use: leases plus externally reported ones.</summary>
         internal static int InUse(string kind, int gpu)
         {
             var leases = CampgroundRegistry.Section(LeasesSection);
             lock (leases)
             {
+                PruneUnlocked(leases);
                 return InUseUnlocked(kind, gpu);
             }
         }
@@ -124,22 +215,62 @@ namespace Campground.Shared.Contracts
         internal static int? Free(string kind, int gpu)
             => GetLimit(kind, gpu) is int limit ? Math.Max(0, limit - InUse(kind, gpu)) : null;
 
-        /// <summary>All leases.</summary>
+        /// <summary>All live leases (renewed within <see cref="Ttl"/>).</summary>
         internal static IReadOnlyList<EncoderLease> Snapshot()
-            => CampgroundRegistry.Section(LeasesSection).Values
+        {
+            var now = DateTime.UtcNow;
+            return CampgroundRegistry.Section(LeasesSection).Values
                 .OfType<JsonElement>()
                 .Select(e => CampgroundRegistry.FromJson<EncoderLease>(e))
-                .Where(l => l != null)
+                .Where(l => l != null && IsLive(l, now))
                 .Select(l => l!)
                 .OrderBy(l => l.StartedUtc)
                 .ToList();
+        }
+
+        private static bool IsLive(EncoderLease lease, DateTime now)
+            => now - (lease.LastSeenUtc == default ? lease.StartedUtc : lease.LastSeenUtc) <= Ttl;
+
+        // Drops dead leases and reporters for good, so a removed plugin's delegate stops pinning its load context.
+        private static void PruneUnlocked(System.Collections.Concurrent.ConcurrentDictionary<string, object> leases)
+        {
+            var now = DateTime.UtcNow;
+            foreach (var pair in leases)
+            {
+                if (pair.Value is JsonElement e && CampgroundRegistry.FromJson<EncoderLease>(e) is { } lease && !IsLive(lease, now))
+                {
+                    leases.TryRemove(pair.Key, out _);
+                }
+            }
+
+            var external = CampgroundRegistry.Section(ExternalSection);
+            foreach (var pluginId in external.Keys)
+            {
+                if (!ReporterIsLive(pluginId, now))
+                {
+                    WithdrawExternal(pluginId);
+                }
+            }
+        }
+
+        // A reporter with no stamp came from a copy older than 0.6.0. No plugin shipped a reporter on 0.5.0, so it
+        // is treated as dead rather than trusted forever.
+        private static bool ReporterIsLive(string pluginId, DateTime now)
+            => CampgroundRegistry.Section(ExternalSeenSection).TryGetValue(pluginId, out var v) && v is long ticks
+               && now - new DateTime(ticks, DateTimeKind.Utc) <= Ttl;
 
         private static int InUseUnlocked(string kind, int gpu)
         {
             var reserved = Snapshot().Count(l => l.Kind == kind && l.Gpu == gpu);
             var external = 0;
-            foreach (var f in CampgroundRegistry.Section(ExternalSection).Values.OfType<Func<string, int, int>>())
+            var now = DateTime.UtcNow;
+            foreach (var pair in CampgroundRegistry.Section(ExternalSection))
             {
+                if (pair.Value is not Func<string, int, int> f || !ReporterIsLive(pair.Key, now))
+                {
+                    continue;
+                }
+
                 try
                 {
                     external += Math.Max(0, f(kind, gpu));
