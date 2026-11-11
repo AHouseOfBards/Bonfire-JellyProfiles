@@ -206,7 +206,7 @@ foreach (var (method, body) in profileRoutes)
 foreach (var (method, body, raw) in household)
 {
     var r = Call(method, LOCKED, body, headerPin: "1234", raw: raw);
-    Ok(method + " goes ahead with the PIN in the header", !PinRefusal(r) && r.status != -404, r.status + " " + r.message);
+    Ok(method + " goes ahead with the PIN in the header", !PinRefusal(r) && r.status > 0 && r.status < 500, r.status + " " + r.message);
 }
 
 var wrong = Call("UpdatePreferences", LOCKED, new() { ["AskOnStartup"] = (bool?)false }, headerPin: "9999");
