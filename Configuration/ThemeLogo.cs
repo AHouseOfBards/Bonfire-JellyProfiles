@@ -74,6 +74,19 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public static LogoImageInfo Read(byte[] bytes)
         {
+            var info = Sniff(bytes);
+            if (info.Width < MinSide || info.Height < MinSide || info.Width > MaxSide || info.Height > MaxSide)
+                throw new InvalidDataException("A logo is " + MinSide + " to " + MaxSide + " pixels on each side.");
+            return info;
+        }
+
+        /// <summary>
+        /// The format and size of <paramref name="bytes"/>, with no limit on the size: the
+        /// check the logo and a theme's background image (<see cref="ThemeBackground"/>) share.
+        /// Throws <see cref="InvalidDataException"/> with an English reason for anything else.
+        /// </summary>
+        public static LogoImageInfo Sniff(byte[] bytes)
+        {
             // The size is read from the file's own header and not checked against its data
             // (R-1080). A file that claims one size and holds another is the administrator's
             // own upload, and the browser draws what the data holds; nothing here allocates
@@ -89,8 +102,6 @@ namespace Jellyfin.Profiles.Configuration
             }
 
             if (info == null) throw new InvalidDataException("Use a PNG, JPEG or WebP image.");
-            if (info.Width < MinSide || info.Height < MinSide || info.Width > MaxSide || info.Height > MaxSide)
-                throw new InvalidDataException("A logo is " + MinSide + " to " + MaxSide + " pixels on each side.");
             return info;
         }
 

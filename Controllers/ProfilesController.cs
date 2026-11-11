@@ -1431,6 +1431,7 @@ namespace Jellyfin.Profiles.Controllers
             var orphansRemoved = new List<Guid>();
             var orphanEvents = new List<(Guid Main, Guid Profile, string Name)>();
             (int Mappings, int Groups, int Members) removed;
+            var removedImages = 0;
             lock (ConfigLock)
             {
                 var orphans = config.Mappings
@@ -1461,9 +1462,19 @@ namespace Jellyfin.Profiles.Controllers
                         .Select(id => new { groupId = g.GroupId, userId = id }))
                     .ToList();
 
+                // Theme background images no custom theme names: uploaded in an editor that was
+                // closed without saving. Under the lock, so a save cannot name one meanwhile.
+                var unusedImages = ThemeBackground.Unused(config);
+
                 if (!apply)
                 {
-                    return Ok(new { applied = false, orphans, deadGroups, deadMembers });
+                    return Ok(new { applied = false, orphans, deadGroups, deadMembers, unusedImages = unusedImages.Count });
+                }
+
+                foreach (var file in unusedImages)
+                {
+                    if (ThemeBackground.DeleteIfUnused(file, config)) removedImages++;
+                    else _logger.LogWarning("ProfilesPlugin: could not delete the unused background image {File}.", file);
                 }
 
                 var orphanIds = orphans.Select(o => o.profileUserId).ToHashSet();
@@ -1523,7 +1534,8 @@ namespace Jellyfin.Profiles.Controllers
                 applied = true,
                 removedMappings = removed.Mappings,
                 removedGroups = removed.Groups,
-                removedMembers = removed.Members
+                removedMembers = removed.Members,
+                removedImages
             });
         }
 
@@ -1871,6 +1883,9 @@ namespace Jellyfin.Profiles.Controllers
                         try { node = JsonNode.Parse(c.Json ?? string.Empty); }
                         catch (JsonException) { continue; }
                         if (node?["id"] is not JsonValue idv || !idv.TryGetValue<string>(out var nodeId) || nodeId != c.Id) continue;
+                        // A backup holds a background image's name, not its file, as with the
+                        // logo: one that is not on this server is dropped and the theme kept.
+                        ThemeBackground.DropMissing(node);
                         if (ThemeCatalog.ValidateCustom(node, config).Count == 0)
                             keep.Add(new CustomTheme { Id = c.Id, Json = node.ToJsonString() });
                     }

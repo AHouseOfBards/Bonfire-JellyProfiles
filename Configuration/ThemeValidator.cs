@@ -12,7 +12,7 @@ namespace Jellyfin.Profiles.Configuration
     /// <param name="Path">The value at fault, as a JSON path: <c>colors.text2</c>.</param>
     /// <param name="Code">
     /// <c>missing</c>, <c>type</c>, <c>range</c>, <c>unknown</c>, <c>contrast</c>, <c>hue</c>,
-    /// <c>font</c>, <c>pattern</c>, <c>address</c> or <c>size</c>.
+    /// <c>font</c>, <c>pattern</c>, <c>address</c>, <c>size</c> or <c>image</c> (a background image this server does not have).
     /// </param>
     /// <param name="Detail">English, for the log and the settings page's fallback.</param>
     public sealed record ThemeProblem(string Path, string Code, string Detail);
@@ -395,13 +395,32 @@ namespace Jellyfin.Profiles.Configuration
             private List<(string Path, Rgba Color)> Background(JsonObject t)
             {
                 var stops = new List<(string, Rgba)>();
-                var o = Obj(t["background"], "background", true, "fill", "layers");
+                var o = Obj(t["background"], "background", true, "fill", "layers", "image");
                 if (o == null) return stops;
                 var fill = Color(o, "background", "fill", true);
                 if (fill == null) return stops;
                 var ground = fill.Value with { A = 1 };
                 if (fill.Value.A < 1) Add("background.fill", "range", "Must not be see-through.");
                 stops.Add(("background.fill", ground));
+
+                // A picture (ThemeBackground), drawn under the fill at `dim`. What it holds is
+                // not known here, so the text is held against the two ends of what it could
+                // be: a white picture and a black one, each under that layer. Every colour
+                // in between is lighter than the one and darker than the other, so a pair
+                // that passes on both passes on any picture.
+                var image = Obj(o["image"], "background.image", false, "file", "dim");
+                if (image != null)
+                {
+                    var file = Str(image, "background.image", "file", true);
+                    if (file != null && !ThemeLogo.IsFileName(file)) Add("background.image.file", "range", "Not an image Bonfire stored.");
+                    var dim = Num(image, "background.image", "dim", true, 0, ThemeBackground.MaxDim);
+                    if (dim != null)
+                    {
+                        var layer = ground with { A = dim.Value };
+                        stops.Add(("background.image", Over(layer, new Rgba(255, 255, 255, 1))));
+                        stops.Add(("background.image", Over(layer, new Rgba(0, 0, 0, 1))));
+                    }
+                }
 
                 var n = o["layers"];
                 if (n == null) return stops;

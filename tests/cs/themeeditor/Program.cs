@@ -820,6 +820,123 @@ live.LogoText = null;
 live.LogoImage = null;
 
 Console.WriteLine();
+Console.WriteLine("── A custom theme's background image ────────────────────────────");
+
+// The file and the theme that names it. The validator holds the text against a white and a
+// black picture under the theme's fill at `dim`: no dim at all must fail on a dark theme,
+// and the strongest must pass wherever the theme passes without a picture.
+JsonObject WithImage(string id, string file, double dim)
+{
+    var t = Custom(id);
+    t["background"]!["image"] = new JsonObject { ["file"] = file, ["dim"] = dim };
+    t.Remove("revision");   // the server takes the next, so one test's saves never conflict
+    return t;
+}
+JsonObject Plain(string id) { var t = Custom(id); t.Remove("revision"); return t; }
+List<ThemeProblem> Problems(JsonNode t)
+{
+    var copy = t.DeepClone().AsObject();
+    copy["revision"] = 1;
+    return ThemeCatalog.ValidateCustom(copy, live).ToList();
+}
+string Paths(List<ThemeProblem> p) => string.Join(", ", p.Select(x => x.Path + " " + x.Code + " " + x.Detail));
+var hash = new string('a', 32) + ".jpg";
+Ok("a theme with no picture still passes", Problems(Custom("plain")).Count == 0, Paths(Problems(Custom("plain"))));
+var strong = Problems(WithImage("strong", hash, ThemeBackground.MaxDim));
+Ok("a picture under the strongest dim passes", strong.Count == 0, Paths(strong));
+var none = Problems(WithImage("none", hash, 0));
+Ok("a picture with no dim fails on the text, against background.image",
+   none.Any(p => p.Code == "contrast" && p.Path == "colors.text1" && p.Detail.Contains("background.image")), Paths(none));
+Ok("a dim above " + ThemeBackground.MaxDim + " is refused", Problems(WithImage("over", hash, 1)).Any(p => p.Path == "background.image.dim"));
+Ok("a name that is not a stored picture's is refused", Problems(WithImage("path", "../evil.png", 0.9)).Any(p => p.Path == "background.image.file" && p.Code == "range"));
+Ok("an address is refused", Problems(WithImage("addr", "https://example.com/a.jpg", 0.9)).Any(p => p.Code == "address" || p.Path == "background.image.file"));
+var extra = WithImage("extra", hash, 0.9);
+extra["background"]!["image"]!["size"] = "contain";
+Ok("an unknown field in it is refused", Problems(extra).Any(p => p.Path == "background.image.size" && p.Code == "unknown"));
+var noDim = Custom("nodim");
+noDim["background"]!["image"] = new JsonObject { ["file"] = hash };
+Ok("dim is required", Problems(noDim).Any(p => p.Path == "background.image.dim" && p.Code == "missing"));
+
+// The routes: the same refusals as the logo's.
+foreach (var (method, verb, template) in new[]
+{
+    ("UploadThemeBackground", "HttpPostAttribute", "admin/themes/backgrounds"),
+    ("GetThemeBackground", "HttpGetAttribute", "themes/backgrounds/{file}"),
+})
+{
+    var m = ctrlType.GetMethod(method);
+    var attr = m?.GetCustomAttributes().FirstOrDefault(a => a.GetType().Name == verb);
+    Ok(method + " at " + verb.Replace("Attribute", "").Replace("Http", "").ToUpperInvariant() + " /" + template,
+       (string)attr?.GetType().GetProperty("Template")?.GetValue(attr) == template);
+}
+var anonUp = ctrlType.GetMethod("UploadThemeBackground") == null ? null : Call(As(false, Png(1920, 1080)), "UploadThemeBackground");
+Ok("an upload with no token is refused, and stores nothing", Status(anonUp) == 401
+   && (!Directory.Exists(ThemeBackground.Folder) || Directory.GetFiles(ThemeBackground.Folder).Length == 0), Status(anonUp).ToString());
+Ok("an SVG is refused", Status(Call(As(true, Encoding.UTF8.GetBytes("<svg onload=alert(1)>")), "UploadThemeBackground")) == 400);
+Ok("a picture too small to fill a screen is refused", Status(Call(As(true, Png(200, 120)), "UploadThemeBackground")) == 400);
+Ok("an animated WebP is refused", Status(Call(As(true, AnimatedWebP(1280, 720)), "UploadThemeBackground")) == 400);
+Ok("a file over 2 MB is refused", Status(Call(As(true, new byte[ThemeBackground.MaxBytes + 1]), "UploadThemeBackground")) == 400);
+
+var pic1 = Png(1920, 1080);
+var bgUp = Call(As(true, pic1), "UploadThemeBackground");
+var bg1 = (string)Body(bgUp)?["file"];
+Ok("an administrator uploads one, stored under its hash and not yet named by any theme",
+   Status(bgUp) == 200 && bg1 == ThemeLogo.FileNameFor(pic1, ThemeLogo.Sniff(pic1))
+   && File.ReadAllBytes(Path.Combine(ThemeBackground.Folder, bg1)).SequenceEqual(pic1)
+   && (string)Body(bgUp)?["url"] == "/plugins/profiles/themes/backgrounds/" + bg1, Body(bgUp)?.ToJsonString());
+var servedBg = Call(As(false), "GetThemeBackground", bg1);
+Ok("served to anyone, as image/png", servedBg is PhysicalFileResult bpf && bpf.ContentType == "image/png");
+Ok("a name that is not a hash is a 404", Status(Call(As(false), "GetThemeBackground", "../PluginConfiguration.xml")) == 404);
+Ok("a hash with no file is a 404", Status(Call(As(false), "GetThemeBackground", new string('b', 32) + ".png")) == 404);
+
+var missingSave = Call(As(true), "SaveCustomTheme", "photo", Json(WithImage("photo", new string('c', 32) + ".png", 0.9)));
+Ok("a theme naming a picture this server does not have is refused, and says so",
+   Status(missingSave) == 400 && Body(missingSave)?["problems"]?.AsArray().Any(p => (string)p!["path"] == "background.image.file" && (string)p!["code"] == "image") == true,
+   Body(missingSave)?.ToJsonString());
+Ok("a theme naming the upload saves", Status(Call(As(true), "SaveCustomTheme", "photo", Json(WithImage("photo", bg1, 0.9)))) == 200);
+Ok("GET /themes carries it", JsonNode.Parse(((ContentResult)Call(As(false), "GetThemes", "custom")).Content)!["themes"]!.AsArray()
+   .Any(t => (string)t!["id"]! == "photo" && (string)t!["background"]!["image"]!["file"]! == bg1));
+
+var pic2 = Jpeg(1280, 720);
+var bg2 = (string)Body(Call(As(true, pic2), "UploadThemeBackground"))?["file"];
+var photo2 = WithImage("photo", bg2, 0.9);
+Call(As(true), "SaveCustomTheme", "photo", Json(photo2));
+Ok("replacing the picture removes the old file", bg2 != null && File.Exists(Path.Combine(ThemeBackground.Folder, bg2))
+   && !File.Exists(Path.Combine(ThemeBackground.Folder, bg1)));
+
+Call(As(true), "SaveCustomTheme", "photo-two", Json(WithImage("photo-two", bg2, 0.9)));
+var plainAgain = Plain("photo");
+Call(As(true), "SaveCustomTheme", "photo", Json(plainAgain));
+Ok("taking it out keeps a file another theme still names", File.Exists(Path.Combine(ThemeBackground.Folder, bg2)));
+Ok("deleting the last theme naming it removes the file", Status(Call(As(true), "DeleteCustomTheme", "photo-two")) == 204
+   && !File.Exists(Path.Combine(ThemeBackground.Folder, bg2)));
+
+// A save that throws keeps the picture the configuration still names.
+var bg3 = (string)Body(Call(As(true, Png(1024, 768)), "UploadThemeBackground"))?["file"];
+Call(As(true), "SaveCustomTheme", "photo", Json(WithImage("photo", bg3, 0.9)));
+StubXml.Fail = true;
+try { Call(As(true), "SaveCustomTheme", "photo", Json(Plain("photo"))); } catch (Exception) { }
+StubXml.Fail = false;
+Ok("a save that throws leaves the named picture's file", File.Exists(Path.Combine(ThemeBackground.Folder, bg3)));
+// The route does not put the old text back after a failed save; name it again for what follows.
+Call(As(true), "SaveCustomTheme", "photo", Json(WithImage("photo", bg3, 0.9)));
+
+// An upload never saved is left for the orphan cleanup, which names it first.
+var stray = (string)Body(Call(As(true, Png(800, 600)), "UploadThemeBackground"))?["file"];
+var preview = Call(As(true), "CleanupOrphans", false);
+Ok("the orphan cleanup counts an image no theme names", (int?)Body(preview)?["unusedImages"] == 1, Body(preview)?.ToJsonString());
+try { Call(As(true), "CleanupOrphans", true); } catch (Exception) { /* the reconcile after it needs a server */ }
+Ok("and deletes it, leaving the named one", !File.Exists(Path.Combine(ThemeBackground.Folder, stray))
+   && File.Exists(Path.Combine(ThemeBackground.Folder, bg3)));
+
+var carried = WithImage("carried", new string('d', 32) + ".png", 0.9);
+Ok("a theme from elsewhere loses a picture this server does not have", ThemeBackground.DropMissing(carried)
+   && carried["background"]!["image"] == null && Problems(carried).Count == 0);
+var kept = WithImage("kept", bg3, 0.9);
+Ok("and keeps one it has", !ThemeBackground.DropMissing(kept) && kept["background"]!["image"] != null);
+live.CustomThemes.RemoveAll(c => c.Id == "photo" || c.Id == "photo-two");
+
+Console.WriteLine();
 Console.WriteLine("── Error codes ──────────────────────────────────────────────────");
 var codes = asm.GetType("Jellyfin.Profiles.Controllers.ErrorCodes", true).GetMethod("For");
 string Code(int status, string msg) => (string)codes.Invoke(null, new object[] { status, msg });

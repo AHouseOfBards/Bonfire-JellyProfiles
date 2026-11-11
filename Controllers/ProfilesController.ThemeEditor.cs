@@ -241,6 +241,71 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
+        /// Uploads a background image for a custom theme. The body is the file: PNG, JPEG or
+        /// WebP, up to 2 MB. Only stored: the theme names it when it is saved, and a file no
+        /// theme names goes on the next save that drops it, or with the orphan cleanup.
+        /// </summary>
+        [HttpPost("admin/themes/backgrounds")]
+        [RequestSizeLimit(ThemeBackground.MaxBytes + 4096)]
+        [Produces("application/json")]
+        public async Task<ActionResult> UploadThemeBackground()
+        {
+            var adminError = RequireAdministrator("manage themes");
+            if (adminError != null) return adminError;
+
+            if (Request.ContentLength > ThemeBackground.MaxBytes) return BadRequest("That image is larger than 2 MB.");
+            // Read to a cap rather than trusting Content-Length, which a chunked upload omits.
+            byte[] bytes;
+            using (var copy = new MemoryStream())
+            {
+                var buffer = new byte[81920];
+                int read;
+                while ((read = await Request.Body.ReadAsync(buffer.AsMemory(0, buffer.Length)).ConfigureAwait(false)) > 0)
+                {
+                    copy.Write(buffer, 0, read);
+                    if (copy.Length > ThemeBackground.MaxBytes) return BadRequest("That image is larger than 2 MB.");
+                }
+
+                bytes = copy.ToArray();
+            }
+
+            if (bytes.Length == 0) return BadRequest("Choose an image.");
+
+            LogoImageInfo info;
+            try
+            {
+                info = ThemeBackground.Read(bytes);
+            }
+            catch (InvalidDataException e)
+            {
+                Response.Headers[ErrorCodes.Header] = "image_invalid";
+                return BadRequest(e.Message);
+            }
+
+            var file = ThemeLogo.FileNameFor(bytes, info);
+            // Under the lock, as every deletion of an unnamed file is, so a save dropping the
+            // same picture cannot delete it between this write and the editor's save.
+            lock (ConfigLock)
+            {
+                Directory.CreateDirectory(ThemeBackground.Folder);
+                System.IO.File.WriteAllBytes(Path.Combine(ThemeBackground.Folder, file), bytes);
+            }
+
+            return Ok(new { file, url = ThemeBackground.Url(file), width = info.Width, height = info.Height });
+        }
+
+        /// <summary>
+        /// Deletes the stored background images no custom theme names, after
+        /// <paramref name="before"/> was replaced or removed. Called under ConfigLock, after
+        /// the save that stopped naming them.
+        /// </summary>
+        private void DropUnusedBackground(string? before, PluginConfiguration config)
+        {
+            if (before != null && !ThemeBackground.DeleteIfUnused(before, config))
+                _logger.LogWarning("ProfilesPlugin: could not delete the unused background image {File}.", before);
+        }
+
+        /// <summary>
         /// Checks a theme without saving it, for the editor's live warnings. Contrast is
         /// computed here rather than in the page so there is one implementation of the rules.
         /// </summary>
@@ -304,6 +369,11 @@ namespace Jellyfin.Profiles.Controllers
                 var bodyId = node?["id"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
                 if (problems.Count == 0 && bodyId != id)
                     problems.Add(new ThemeProblem("id", "range", "The id must match the address."));
+                // A name the validator accepts may still be a picture this server does not
+                // have: a file brought from another server, or one the cleanup took.
+                var image = ThemeBackground.FileOf(node);
+                if (problems.Count == 0 && image != null && !ThemeBackground.Exists(image))
+                    problems.Add(new ThemeProblem("background.image.file", "image", "Upload the image again."));
                 if (problems.Count > 0)
                 {
                     // A list, not a sentence, so the code is set here: the filter only reads
@@ -327,9 +397,13 @@ namespace Jellyfin.Profiles.Controllers
                 // Stored as compact JSON of the parsed file, not the text that arrived: what is
                 // kept is exactly what was checked, without the whitespace.
                 var json = node!.ToJsonString();
+                var before = ThemeBackground.FileOf(existing?.Json);
                 if (existing != null) existing.Json = json;
                 else config.CustomThemes.Add(new CustomTheme { Id = id, Json = json });
                 Plugin.Instance?.SaveConfiguration();
+                // After the save, so a save that throws leaves the old picture where the
+                // configuration still names it.
+                if (before != image) DropUnusedBackground(before, config);
                 return Ok(new { id, created = existing == null });
             }
         }
@@ -355,6 +429,7 @@ namespace Jellyfin.Profiles.Controllers
                 // theme is gone, and a theme saved again under the same id gives it back.
                 config.CustomThemes.Remove(existing);
                 Plugin.Instance?.SaveConfiguration();
+                DropUnusedBackground(ThemeBackground.FileOf(existing.Json), config);
             }
 
             return NoContent();

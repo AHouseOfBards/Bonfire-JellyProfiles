@@ -42,7 +42,7 @@ because other people build against it too.
 
 ## All routes
 
-All 108 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 110 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -103,6 +103,7 @@ All 108 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `GET /plugins/profiles/themes/patterns/{name}` | anon | One pattern picture. |
 | `GET /plugins/profiles/themes/fonts/{file}` | anon | One font file, or its licence. |
 | `GET /plugins/profiles/themes/logo/{file}` | anon | The server's logo image. |
+| `GET /plugins/profiles/themes/backgrounds/{file}` | anon | A custom theme's background image. |
 | `GET /plugins/profiles/onboarding` | user | First-time setup for this account. |
 | `POST /plugins/profiles/onboarding/done` | user | Record that it was seen. |
 | `GET /plugins/profiles/avatars` | user | The avatar library. |
@@ -135,6 +136,7 @@ All 108 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `PUT /plugins/profiles/admin/themes/logo` | admin | Set the logo's text and alt text. |
 | `POST /plugins/profiles/admin/themes/logo/image` | admin | Upload the logo image. |
 | `DELETE /plugins/profiles/admin/themes/logo/image` | admin | Remove it. |
+| `POST /plugins/profiles/admin/themes/backgrounds` | admin | Upload a background image for a custom theme. |
 | `GET /plugins/profiles/admin/email` | admin | Outgoing mail settings and confirmed addresses. |
 | `POST /plugins/profiles/admin/email` | admin | Save the outgoing mail settings. |
 | `POST /plugins/profiles/admin/email/test` | admin | Send a test message, which makes email available. |
@@ -169,7 +171,7 @@ Authorization: MediaBrowser Client="<Client>", Device="<Device>", DeviceId="<Dev
 token. A key has no user, so routes for a household (`/list`, `/me`, `/create` and the
 rest) refuse one.
 
-Twelve routes are reachable without a token, because they're needed before anyone signs in.
+Thirteen routes are reachable without a token, because they're needed before anyone signs in.
 
 | Endpoint | Why it is anonymous |
 | --- | --- |
@@ -185,6 +187,7 @@ Twelve routes are reachable without a token, because they're needed before anyon
 | `GET /themes/patterns/{name}` | Pictures those themes use. Built-in files only. |
 | `GET /themes/fonts/{file}` | Fonts those themes use, and their licences. Built-in files, and fonts the administrator uploaded. |
 | `GET /themes/logo/{file}` | The logo on the switcher, shown before sign-in. Only the current one. |
+| `GET /themes/backgrounds/{file}` | Background pictures custom themes use. Only images the administrator uploaded. |
 
 The image routes can be reached by anyone who knows the id. Ids are GUIDs, so they can't
 be guessed.
@@ -1629,6 +1632,26 @@ Removes the image. The text shows instead, if there is one.
 The logo image. The address changes whenever the image does, so it can be cached for good.
 `404` for anything but the current logo.
 
+### `POST /plugins/profiles/admin/themes/backgrounds`
+
+**Authorisation:** administrator.
+
+The body is the image: PNG, JPEG or WebP, up to 2 MB, 320 to 4096 pixels on each side. Not
+SVG, GIF or an animated WebP. Only stores it: a custom theme names it in
+`background.image.file` when it is saved ([docs/themes.md](themes.md#background-image)).
+Returns `{ "file": "9be1…04.jpg", "url": "/plugins/profiles/themes/backgrounds/9be1…04.jpg", "width": 1920, "height": 1080 }`.
+
+Saving a theme with another image or none, or deleting it, deletes the old file once no
+custom theme names it. An upload that is never saved is removed by
+[`cleanup-orphans`](#post-pluginsprofilesadmincleanup-orphans).
+
+### `GET /plugins/profiles/themes/backgrounds/{file}`
+
+**Authorisation:** anonymous.
+
+A background image, by the name `background.image.file` gives. Named by its contents, so it
+can be cached for good. `404` for any name that is not one an upload stored.
+
 ---
 
 ## Email
@@ -2448,12 +2471,15 @@ against the profile limit. `?apply=false`, the default, only reports:
   "applied": false,
   "orphans": [{ "profileUserId": "a90f11cb-…", "masterUserId": "5f2c8a11-…", "profileName": "Sam", "reason": "the profile's Jellyfin user was deleted" }],
   "deadGroups": [],
-  "deadMembers": []
+  "deadMembers": [],
+  "unusedImages": 0
 }
 ```
 
 `?apply=true` removes them and returns
-`{ "applied": true, "removedMappings": 1, "removedGroups": 0, "removedMembers": 0 }`.
+`{ "applied": true, "removedMappings": 1, "removedGroups": 0, "removedMembers": 0, "removedImages": 0 }`.
+`unusedImages` in the report, and `removedImages` here, count theme background images no
+custom theme names (uploaded in an editor that was closed without saving).
 There's no undo. Devices are never removed by this.
 
 ### `GET /plugins/profiles/admin/sessions`

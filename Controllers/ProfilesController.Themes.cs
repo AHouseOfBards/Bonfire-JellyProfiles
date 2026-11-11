@@ -114,6 +114,29 @@ namespace Jellyfin.Profiles.Controllers
             return PhysicalFile(path, type);
         }
 
+        /// <summary>
+        /// A custom theme's background image, by the name its file gives. Anonymous for the
+        /// same reason as the logo: the picker draws before anyone signs in.
+        /// </summary>
+        [HttpGet("themes/backgrounds/{file}")]
+        public ActionResult GetThemeBackground(string file)
+        {
+            // Only a name that can be a hash and an extension, so the join below cannot leave
+            // the folder, and only a file Bonfire's upload wrote there. Not only the ones a
+            // saved theme names: the editor shows a picture before the theme is saved.
+            if (!ThemeLogo.IsFileName(file)) return NotFound();
+            var path = Path.Combine(ThemeBackground.Folder, file);
+            if (!System.IO.File.Exists(path)) return NotFound();
+
+            Response.Headers["X-Content-Type-Options"] = "nosniff";
+            // Named by its contents: a new picture is a new address, so this one never changes.
+            Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
+            Response.Headers["Access-Control-Allow-Origin"] = "*";
+            var type = file.EndsWith(".png", StringComparison.Ordinal) ? "image/png"
+                : file.EndsWith(".webp", StringComparison.Ordinal) ? "image/webp" : "image/jpeg";
+            return PhysicalFile(path, type);
+        }
+
         /// <summary>One pattern picture, by the name a theme's decoration gives.</summary>
         [HttpGet("themes/patterns/{name}")]
         public ActionResult GetThemePattern(string name)
