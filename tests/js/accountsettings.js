@@ -175,6 +175,8 @@ function freshAccount() {
             sent.length === 1 && sent[0].body.pin === '1357' && sent[0].body.masterPin === '2468',
             JSON.stringify(sent.map(p => p.body)));
         ok('and is the one sent from now on', PP.masterPin === '1357');
+        ok('and the page says it, on the status line now on screen (R-1224)', content.querySelector('#account-status').textContent === 'PIN saved.',
+            content.querySelector('#account-status').textContent);
 
         posts.length = 0;
         respond = () => ({ status: 200, body: { hasPin: false } });
@@ -183,6 +185,8 @@ function freshAccount() {
         sent = accountPosts();
         ok('Clear sends an empty PIN', sent.length === 1 && sent[0].body.pin === '' && sent[0].body.masterPin === '1357');
         ok('and nothing is sent as the PIN after it', PP.masterPin === null);
+        ok('and says it was removed, on the status line now on screen (R-1224)', content.querySelector('#account-status').textContent === 'PIN removed.',
+            content.querySelector('#account-status').textContent);
         ok('the page redraws with no Clear button', !/id="account-pin-clear"/.test(content.innerHTML));
 
         // ── 4. Devices ────────────────────────────────────────────────────────────

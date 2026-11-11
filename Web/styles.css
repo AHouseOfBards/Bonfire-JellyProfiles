@@ -1282,7 +1282,7 @@ body.profiles-no-scroll [id*="spinner"] {
     background-repeat: no-repeat;
     background-position: calc(50% - 39px) 50%, calc(50% - 13px) 50%, calc(50% + 13px) 50%, calc(50% + 39px) 50%;
 }
-#create-pin-input, #edit-pin-input {
+#create-pin-input, #edit-pin-input, #account-pin-input {
     -webkit-text-security: disc;
 }
 #profile-pin-input:focus, #master-pin-input:focus, #main-pin-new:focus, #pin-reset-new:focus, #pin-reset-code:focus {

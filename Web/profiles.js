@@ -10126,8 +10126,11 @@
         /// through /account, so there is no Save button to miss.
         _bindAccountScreen: function (content, main, devices, masterState) {
             const apiClient = ApiClient;
-            const status = content.querySelector('#account-status');
+            // Looked up on every call: a PIN save redraws the page, which replaces this
+            // element, and a reference taken once wrote "PIN saved" into the detached old one.
             const say = (text, bad) => {
+                const status = content.querySelector('#account-status');
+                if (!status) return;
                 status.textContent = text || '';
                 status.style.color = bad ? 'var(--jpf-danger)' : '';
             };
@@ -10168,6 +10171,8 @@
                     main.hasPin = true;
                     rerender();
                     say(t('account.pinSaved'));
+                    const again = content.querySelector('#account-pin-input');
+                    if (again && again.focus) again.focus();
                 });
             };
             content.querySelector('#account-pin-save').addEventListener('click', savePin);
@@ -10182,6 +10187,8 @@
                         main.hasPin = false;
                         rerender();
                         say(t('account.pinCleared'));
+                        const again = content.querySelector('#account-pin-input');
+                        if (again && again.focus) again.focus();
                     });
                 });
             }
