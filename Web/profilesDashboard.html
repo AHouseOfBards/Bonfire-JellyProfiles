@@ -1448,7 +1448,7 @@
                     <div class="sectionTitleContainer jpf-section">
                         <h2 class="sectionTitle" data-i18n="admin.backup.title">Backup</h2>
                     </div>
-                    <div class="fieldDescription jpf-lede" data-i18n="admin.backup.lede">Export saves every profile, PIN, Bonfire, device, avatar and email address, but not the mail password. Import replaces all of it and keeps the current mail password. The file holds PIN hashes, so keep it somewhere safe.</div>
+                    <div class="fieldDescription jpf-lede" data-i18n="admin.backup.lede">Export saves every profile, PIN, Bonfire, device, avatar and email address, but not the mail password or emergency code. Import replaces all of it and keeps the current mail password and emergency code. The file holds PIN hashes, so keep it somewhere safe.</div>
                     <div class="jpf-backup-row">
                         <button is="emby-button" type="button" id="exportConfigBtn" class="raised">
                             <span data-i18n="admin.backup.export">Export</span>
@@ -1666,6 +1666,8 @@
 
                 'admin.backup.imported': 'Imported. Profiles: {profiles}. Devices: {devices}. Bonfires: {bonfires}.',
                 'admin.backup.skipped': 'Skipped {count} profiles naming Jellyfin users this server doesn\'t have: {names}.',
+                'admin.backup.panicKept': 'Backups leave out the emergency code, so this server kept its own.',
+                'admin.backup.panicMissing': 'Backups leave out the emergency code. Set it again if you use one.',
                 'admin.backup.exported': 'Exported. Keep it somewhere you\'d keep a password.',
                 'admin.backup.exportFailed': 'Export failed.',
                 'admin.backup.notJson': 'That file isn\'t valid JSON.',
@@ -3068,6 +3070,10 @@
                     msg += ' ' + t('admin.backup.skipped', {
                         count: res.droppedMappings.length, names: res.droppedMappings.join(', ')
                     });
+                }
+                // Exports leave the emergency code out. An older file may still carry one.
+                if (res.emergencyCodeIncluded === false) {
+                    msg += ' ' + t(res.emergencyCodeSet ? 'admin.backup.panicKept' : 'admin.backup.panicMissing');
                 }
                 return msg;
             }

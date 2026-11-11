@@ -1666,11 +1666,17 @@ namespace Jellyfin.Profiles.Controllers
             // R-1312). Exported from a copy whose Password is null, which EmailSettings leaves
             // out of JSON. Not serialised by hand: Jellyfin's own formatter writes the file, as
             // it always has, so nothing else in it changes.
+            //
+            // So is the emergency code. It is hashed like a PIN, and a short code is recovered
+            // from its hash in seconds, so the file would hand the code that switches Bonfire
+            // off to whoever reads it. An import without one keeps the server's own and says
+            // so, so the administrator knows to set it.
             PluginConfiguration configuration;
             lock (ConfigLock)
             {
                 configuration = config.SnapshotForReading();
                 configuration.Email.Password = null!;
+                configuration.PanicCodeHash = null;
             }
 
             return Ok(new
@@ -1756,6 +1762,7 @@ namespace Jellyfin.Profiles.Controllers
             bool Exists(Guid id) => id != Guid.Empty && _userManager.GetUserById(id) != null;
 
             var droppedMappings = new List<string>();
+            var emergencyCodeSet = false;
 
             lock (ConfigLock)
             {
@@ -1904,8 +1911,11 @@ namespace Jellyfin.Profiles.Controllers
                     config.EnableClientProfileList = incoming.EnableClientProfileList;
                 if (TryProperty(root, "ClientPinLoginFromAnywhere", out _))
                     config.ClientPinLoginFromAnywhere = incoming.ClientPinLoginFromAnywhere;
-                if (TryProperty(root, "PanicCodeHash", out _))
+                // The export leaves the emergency code out, so a file without one keeps the
+                // server's own. A file from before that still carries it, and it is taken.
+                if (!string.IsNullOrEmpty(incoming.PanicCodeHash))
                     config.PanicCodeHash = incoming.PanicCodeHash;
+                emergencyCodeSet = !string.IsNullOrEmpty(config.PanicCodeHash);
                 if (TryProperty(root, "ProxyClients", out _))
                     config.ProxyClients = Auth.ProxyClients.Normalize(incoming.ProxyClients);
                 // Only ever within the limits: a file cannot widen what the settings route refuses.
@@ -1968,7 +1978,11 @@ namespace Jellyfin.Profiles.Controllers
                 mappings = (incoming.Mappings ?? new List<ProfileMapping>()).Count - droppedMappings.Count,
                 droppedMappings,
                 devices = (incoming.KnownDevices ?? new List<KnownDevice>()).Count,
-                bonfires = (incoming.BonfireGroups ?? new List<BonfireGroup>()).Count
+                bonfires = (incoming.BonfireGroups ?? new List<BonfireGroup>()).Count,
+                // Whether the file carried the emergency code, and whether the server has one
+                // now, so the page can say to set it.
+                emergencyCodeIncluded = !string.IsNullOrEmpty(incoming.PanicCodeHash),
+                emergencyCodeSet
             });
         }
 

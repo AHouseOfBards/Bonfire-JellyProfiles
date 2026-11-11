@@ -240,6 +240,16 @@ console.log('\n── The import summary ─────────────
     if (summary) {
         const text = summary({ mappings: 1, devices: 0, bonfires: 0, droppedMappings: [EVIL] });
         ok('it names the skipped profiles', text.indexOf(EVIL) !== -1);
+        // The export leaves the emergency code out. The summary says which of the two
+        // happened: the server kept its own, or there is none and it needs setting.
+        const base = { mappings: 1, devices: 0, bonfires: 0, droppedMappings: [] };
+        const kept = summary(Object.assign({}, base, { emergencyCodeIncluded: false, emergencyCodeSet: true }));
+        const unset = summary(Object.assign({}, base, { emergencyCodeIncluded: false, emergencyCodeSet: false }));
+        const had = summary(Object.assign({}, base, { emergencyCodeIncluded: true, emergencyCodeSet: true }));
+        ok('a file without the emergency code says the server kept its own',
+           /emergency code/i.test(kept) && /kept/i.test(kept), kept);
+        ok('and with none on the server, says to set it', /emergency code/i.test(unset) && /set it/i.test(unset), unset);
+        ok('a file with the code says nothing about it', !/emergency code/i.test(had), had);
     }
     // R-1280: was a regex over the source for one spelling of the call. The markup the page
     // writes is built by a function now, and this runs it.

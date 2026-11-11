@@ -124,6 +124,12 @@ var notChanged = new Dictionary<string, string>
     ["LogoImage"] = "dropped when the file is not on this server",
     ["CrossHouseholdEntries"] = "see notRestored",
 };
+// Not in the export at all, so a round trip cannot bring it back: an import keeps the
+// server's own. Each has its own section below.
+var leftOut = new Dictionary<string, string>
+{
+    ["PanicCodeHash"] = "the emergency code: a short code is recovered from its hash in seconds",
+};
 
 object New(string typeName) => Activator.CreateInstance(T(typeName));
 void P(object o, string name, object value) => o.GetType().GetProperty(name).SetValue(o, value);
@@ -257,7 +263,7 @@ Ok("the import is accepted", status == 200, status.ToString());
 
 var after = Settable().ToDictionary(p => p.Name, p => Json(p.GetValue(live)));
 after["Email"] = NoPw(after["Email"]);
-foreach (var p in Settable().Where(p => !notChanged.ContainsKey(p.Name) && !notRestored.ContainsKey(p.Name)))
+foreach (var p in Settable().Where(p => !notChanged.ContainsKey(p.Name) && !notRestored.ContainsKey(p.Name) && !leftOut.ContainsKey(p.Name)))
 {
     Ok(p.Name + " comes back", after[p.Name] == snapshot[p.Name],
        "was " + Trunc(snapshot[p.Name]) + " , now " + Trunc(after[p.Name]));
@@ -325,6 +331,59 @@ Console.WriteLine("── The SMTP password ────────────
     Ok("a file from before the change, with a password, still restores it", LivePassword() == "from-old-backup", LivePassword());
 }
 
+// The emergency code. Its hash is a PIN hash of a short code, so the file would hand the
+// code to anyone who reads it. Left out like the mail password; an import without one keeps
+// the server's own, and the result says so, so the administrator knows to set it.
+Console.WriteLine();
+Console.WriteLine("── The emergency code ───────────────────────────────────────────");
+{
+    var panicProp = cfgType.GetProperty("PanicCodeHash");
+    string LivePanic() => (string)panicProp.GetValue(live);
+    JsonElement ResultOf(object r) => JsonSerializer.SerializeToElement(((ObjectResult)r).Value);
+    bool Flag(JsonElement r, string name) => r.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
+    bool HasFlag(JsonElement r, string name) => r.TryGetProperty(name, out var v) && (v.ValueKind == JsonValueKind.True || v.ValueKind == JsonValueKind.False);
+
+    Overwrite(live, changed);
+    var raw = ((ObjectResult)((OkObjectResult)exportRoute.Invoke(NewController(), null))).Value;
+    var panicFile = JsonSerializer.SerializeToElement(raw);
+    var inner = panicFile.GetProperty("configuration");
+    Ok("the export holds no emergency code", !JsonSerializer.Serialize(raw).Contains("panic-hash")
+       && (!inner.TryGetProperty("PanicCodeHash", out var ph) || ph.ValueKind == JsonValueKind.Null));
+    Ok("exporting did not touch the live code", LivePanic() == "panic-hash", LivePanic());
+
+    Overwrite(live, Defaults());
+    panicProp.SetValue(live, "live-panic");
+    var kept = ResultOf(importRoute.Invoke(NewController(), new object[] { panicFile }));
+    Ok("an import with no code keeps the one the server has", LivePanic() == "live-panic", LivePanic());
+    Ok("and says the file had none", HasFlag(kept, "emergencyCodeIncluded") && !Flag(kept, "emergencyCodeIncluded"), kept.GetRawText());
+    Ok("and that the server still has one", Flag(kept, "emergencyCodeSet"), kept.GetRawText());
+
+    Overwrite(live, Defaults());
+    var none = ResultOf(importRoute.Invoke(NewController(), new object[] { panicFile }));
+    Ok("onto a server with no code, there is still none", string.IsNullOrEmpty(LivePanic()), LivePanic());
+    Ok("and the result says so, so the administrator sets one", HasFlag(none, "emergencyCodeSet") && !Flag(none, "emergencyCodeSet")
+       && HasFlag(none, "emergencyCodeIncluded") && !Flag(none, "emergencyCodeIncluded"), none.GetRawText());
+
+    // An empty one is the same as none.
+    var fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(inner.GetRawText());
+    var emptyObj = new Dictionary<string, object>();
+    foreach (var kv in fields) emptyObj[kv.Key] = kv.Value;
+    emptyObj["PanicCodeHash"] = "";
+    Overwrite(live, Defaults());
+    panicProp.SetValue(live, "live-panic");
+    importRoute.Invoke(NewController(), new object[] { JsonSerializer.SerializeToElement(new { configuration = emptyObj }) });
+    Ok("an empty code in the file keeps the live one too", LivePanic() == "live-panic", LivePanic());
+
+    // A backup from before this change carries the hash, and restoring it still works.
+    var olderObj = new Dictionary<string, object>();
+    foreach (var kv in fields) olderObj[kv.Key] = kv.Value;
+    olderObj["PanicCodeHash"] = "from-old-backup";
+    Overwrite(live, Defaults());
+    var olderR = ResultOf(importRoute.Invoke(NewController(), new object[] { JsonSerializer.SerializeToElement(new { configuration = olderObj }) }));
+    Ok("a file from before the change, with a code, still restores it", LivePanic() == "from-old-backup", LivePanic());
+    Ok("and says it was included", Flag(olderR, "emergencyCodeIncluded") && Flag(olderR, "emergencyCodeSet"), olderR.GetRawText());
+}
+
 // A backup written by a version that still had a setting that has since been cut. The old
 // field rides along in the file; the import must take everything else and not refuse it.
 // Each cut adds its field to this one list.
@@ -376,7 +435,7 @@ Console.WriteLine("── A backup from a version that had settings since cut �
     Ok("the import is accepted", olderStatus == 200, olderStatus.ToString());
     var olderAfter = Settable().ToDictionary(p => p.Name, p => Json(p.GetValue(live)));
     olderAfter["Email"] = NoPw(olderAfter["Email"]);
-    var olderLost = Settable().Where(p => !notChanged.ContainsKey(p.Name) && !notRestored.ContainsKey(p.Name) && olderAfter[p.Name] != snapshot[p.Name]).Select(p => p.Name).ToList();
+    var olderLost = Settable().Where(p => !notChanged.ContainsKey(p.Name) && !notRestored.ContainsKey(p.Name) && !leftOut.ContainsKey(p.Name) && olderAfter[p.Name] != snapshot[p.Name]).Select(p => p.Name).ToList();
     Ok("and every other setting comes back", olderLost.Count == 0, string.Join(", ", olderLost));
     foreach (var name in oldFields.Keys)
         Ok(name + " is not a setting any more", cfgType.GetProperty(name) == null);

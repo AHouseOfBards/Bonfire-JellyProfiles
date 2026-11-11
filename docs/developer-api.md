@@ -2500,7 +2500,8 @@ The whole configuration, with the version and time.
 ```
 
 It includes every PIN, hashed. A four-digit PIN can be recovered from its hash quickly, so
-keep the file as safe as a password. It leaves out the mail server password.
+keep the file as safe as a password. It leaves out the mail server password and the emergency
+code.
 
 ### `POST /plugins/profiles/admin/config/import`
 
@@ -2510,12 +2511,14 @@ The body is the `configuration` object from an export.
 
 - **Sections:** profiles, devices, Bonfires and the avatar library are each replaced
   whole. A section the file doesn't include is left alone.
-- **The mail password** is kept as the server has it when the file has none.
+- **The mail password and the emergency code** are kept as the server has them when the
+  file has none. `emergencyCodeIncluded` says whether the file had the code, and
+  `emergencyCodeSet` whether the server has one now.
 - **Field names** are matched ignoring case.
 - **Profiles for users this server doesn't have** are dropped and named in the response.
 
 ```json
-{ "mappings": 4, "droppedMappings": ["Sam"], "devices": 7, "bonfires": 1 }
+{ "mappings": 4, "droppedMappings": ["Sam"], "devices": 7, "bonfires": 1, "emergencyCodeIncluded": false, "emergencyCodeSet": true }
 ```
 
 `400` if the body isn't a Bonfire configuration. Nothing is changed then.
