@@ -2139,6 +2139,28 @@ the type by name, `Jellyfin.Profiles.IBonfireProfiles`.
 Each call reads the current configuration and never waits on Jellyfin. It's read-only:
 make changes through the HTTP routes.
 
+### Viewing limits (`campground.limits.v1`)
+
+Bonfire offers `campground.limits.v1` through the Campground registry. A plugin that
+carries Campground.Shared asks it whether a user may start something now:
+`Limits.CanPlayNowAsync(userId)` returns `LimitsDecision(Allowed, Reason, Until, GraceSeconds)`.
+
+| Answer | When |
+| --- | --- |
+| `Allowed` | No rule, a main account, an administrator, a user Bonfire doesn't know, or the emergency disable is on. `Until` is when the viewing hours end, if they end first. |
+| `outside_viewing_hours` | Refused. `Until` is when the hours open. |
+| `daily_limit_reached` | Refused. `Until` is when the limit starts over. |
+
+A refusal's `GraceSeconds` is how long something already running may carry on: what is
+left of the grace Bonfire gave a video, or five minutes. The answer is a question, not
+a gate; the caller decides what to do. Bonfire counts the time of every activity with a
+`UserId` (`Sessions.ListActivities`) that is not `Paused` against the daily limit, once
+however many things the user is doing at once. Maintenance is not part of the answer.
+
+When Bonfire is not installed, or the call fails or takes over two seconds, the shared
+helper answers allowed. Check `Capabilities.IsAvailable` to tell "allowed" from "nobody
+asked".
+
 ### Activity log
 
 Bonfire writes these to **Dashboard → Activity**. `type` is what to filter on.

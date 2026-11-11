@@ -63,6 +63,10 @@ namespace Jellyfin.Profiles
             // tests/cs/pipeline builds the pipeline from these registrations, in this order.
             serviceCollection.AddCampgroundInjection(PluginIds.Bonfire, WebInjection.Registration);
 
+            // Offers campground.limits.v1 to other Campground plugins. After the coordinator's
+            // filter so the Campground generation is open when it runs (see LimitsStartupFilter).
+            serviceCollection.AddSingleton<IStartupFilter, LimitsStartupFilter>();
+
             // Lets a sub-profile be entered with its PIN from a client that has no
             // switcher — a television, mostly. UserManager takes
             // IEnumerable<IAuthenticationProvider> in its constructor, so registering here
