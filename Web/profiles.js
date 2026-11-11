@@ -1,6 +1,16 @@
 (function () {
     'use strict';
 
+    // A second evaluation in the same page (a tag left in index.html next to the injected
+    // one, a client that loads the script as well as the server) would start everything
+    // twice: the route poll, the listeners, the history wrap, the gate. The first copy
+    // is the one that runs; the second does nothing (R-1245). Before the flag below, so
+    // the head script still sees one load.
+    try {
+        if (window.__jpBooted) return;
+        window.__jpBooted = 1;
+    } catch (e) { /* no window: reading the file, not running it */ }
+
     // Told to the inline head script, which is the only other piece of the plugin that
     // runs on a page load. This tag is deferred, so it has finished evaluating before
     // DOMContentLoaded — meaning the absence of this flag at that point is proof the
@@ -1851,7 +1861,7 @@
             `;
 
             const choices = options.map(o =>
-                `<option value="${escapeHtml(o.id)}">${escapeHtml(o.name)}</option>`).join('');
+                `<option value="${escapeHtml(o.id)}">${escapeHtml(o.label || o.name)}</option>`).join('');
 
             dialog.innerHTML = `
                 <div class="select-dialog-content" style="
@@ -2586,6 +2596,7 @@
                             })
                         })
                         .then(res => {
+                            this.checked(res);
                             if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
                             this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
                         })
@@ -3503,6 +3514,24 @@
             else this.applyDeviceClasses();
         },
 
+        /// loadLocale, then take down the switcher entries already in the page if the
+        /// language actually changed. The header button, the user-menu row, the Settings
+        /// row and the profile-page section are built once and read t() once: built
+        /// before the language file arrived (or before the language was changed), they
+        /// kept saying "Switch profile" in English for good (R-1244). The route poll puts
+        /// them back, and it is the poll that rebuilds them, so nothing is added to it.
+        _loadLocaleAndRelabel: function () {
+            const before = activeLocale;
+            return loadLocale().then(() => {
+                if (activeLocale === before) return;
+                ['profiles-floating-bubble', 'profiles-user-menu-item',
+                 'profiles-preferences-menu-item', 'profiles-userprofile-section'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.remove();
+                });
+            });
+        },
+
         init: function () {
             if (typeof ApiClient === 'undefined') {
                 // If ApiClient is not defined yet, wait for it
@@ -3517,14 +3546,14 @@
             // translated string — fetchAndRenderProfiles awaits it just before drawing
             // the gate for the first time, which is the only render early enough to
             // matter.
-            this._step('loadLocale', () => { this._i18nReady = loadLocale(); });
+            this._step('loadLocale', () => { this._i18nReady = this._loadLocaleAndRelabel(); });
             // fetchAndRenderProfiles awaits this before the first gate render, so it has to
             // be a promise even if the step above failed.
             if (!this._i18nReady) this._i18nReady = Promise.resolve();
             // Follows Jellyfin's Display language when it changes without a reload. Screens
             // drawn after that are in the new language; one already open keeps its text.
             this._step('watchJellyfinLanguage', () => watchJellyfinLanguage(() => {
-                this._i18nReady = loadLocale();
+                this._i18nReady = this._loadLocaleAndRelabel();
             }));
 
             this._step('bindEvents', () => this.bindEvents());
@@ -5204,6 +5233,16 @@
             
             window.location.hash = '#/login';
             window.location.reload();
+        },
+
+        /// First line of the handler for any request the person made on purpose. A 401
+        /// means the main session has ended; without this the screen showed a refusal
+        /// sentence, or a JSON error, for a sign-in that had expired (R-1228). Returns
+        /// the response so it can sit in a chain. Anything other than 401 is left to the
+        /// caller, which knows its own failure wording.
+        checked: function (res) {
+            if (res && res.status === 401) this.handleSessionExpired();
+            return res;
         },
 
         interceptHomeAndShowProfiles: function () {
@@ -9411,6 +9450,7 @@
                         })
                     })
                     .then(res => {
+                        this.checked(res);
                         if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
                         return res.json();
                     })
@@ -9926,6 +9966,7 @@
                         })
                     })
                     .then(res => {
+                        this.checked(res);
                         if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
                         // Artwork is stored per library, so it is saved after the profile
                         // itself rather than folded into that one request.
@@ -10266,7 +10307,7 @@
                 const seenStr = (seenDate && seenDate.getFullYear() > 1)
                     ? seenDate.toLocaleDateString() : t('profileForm.unknown');
                 return `
-                    <div class="device-dropdown-item" data-device-id="${escapeHtml(id)}">
+                    <div class="device-dropdown-item" data-device-id="${escapeHtml(id)}" data-device-detail="${escapeHtml(t('profileForm.deviceLastSeen', { client: client, date: seenStr }))}">
                         <span style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
                             <span class="device-row-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(name)}</span>
                             <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: seenStr })}</span>
@@ -10467,6 +10508,7 @@
 
                 fetch(apiClient.getUrl('plugins/profiles/devices/' + path), init)
                 .then(res => {
+                    this.checked(res);
                     if (res.ok) {
                         // The device list is part of the account-wide cache the profile
                         // forms share; left, the next form would list what was just changed.
@@ -10516,11 +10558,19 @@
                 btn.addEventListener('click', (e) => {
                     e.preventDefault();
                     const fromId = btn.getAttribute('data-id');
+                    // The picker exists for rows that look alike, so each choice carries the
+                    // client and last-seen date the list shows: the name alone told
+                    // four identical rows apart by nothing (R-1230).
                     const others = Array.from(content.querySelectorAll('.device-dropdown-item'))
-                        .map(row => ({
-                            id: row.getAttribute('data-device-id'),
-                            name: (row.querySelector('.device-row-name') || {}).textContent || ''
-                        }))
+                        .map(row => {
+                            const name = (row.querySelector('.device-row-name') || {}).textContent || '';
+                            const detail = row.getAttribute('data-device-detail') || '';
+                            return {
+                                id: row.getAttribute('data-device-id'),
+                                name: name,
+                                label: detail ? name + ' (' + detail + ')' : name
+                            };
+                        })
                         .filter(d => d.id && d.id !== fromId);
                     if (others.length === 0) return;
                     this.showSelectDialog(
@@ -10545,7 +10595,11 @@
                         method: 'POST',
                         headers: this.manageHeaders(masterState.token)
                     })
-                    .then(res => res.json())
+                    .then(res => {
+                        this.checked(res);
+                        if (!res.ok) throw refusalError(res, t('errors.generic'));
+                        return res.json();
+                    })
                     .then(data => {
                         const count = (data.groups || [])
                             .reduce((n, g) => n + (g.merge ? g.merge.length : 0), 0);
@@ -10818,7 +10872,7 @@
                         headers: this.jsonHeaders(masterState ? masterState.token : ApiClient.accessToken()),
                         body: JSON.stringify({ profileName: name, avatarColor: this.nextAvatarColor(), masterPin: this.masterPin })
                     })
-                    .then(res => { if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); })
+                    .then(res => { this.checked(res); if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); })
                     .then(() => { this.invalidateProfileCache(); next(); })
                     .catch(err => {
                         busy = false;
@@ -10895,7 +10949,7 @@
                         headers: this.manageHeaders(masterState ? masterState.token : ApiClient.accessToken()),
                         body: JSON.stringify({ askOnStartup: ask, switcherLocation: location })
                     })
-                    .then(res => { if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); return res.json(); })
+                    .then(res => { this.checked(res); if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); return res.json(); })
                     .then(saved => {
                         const savedAsk = (saved.askOnStartup !== undefined ? saved.askOnStartup : saved.AskOnStartup) === true;
                         const savedLoc = (saved.switcherLocation || saved.SwitcherLocation) === 'menu' ? 'menu' : 'button';
@@ -10964,7 +11018,7 @@
                             masterPin: this.masterPin
                         })
                     })
-                    .then(res => { if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); return res.json(); })
+                    .then(res => { this.checked(res); if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); return res.json(); })
                     .then(saved => {
                         main.theme = (saved.stored !== undefined ? saved.stored : saved.Stored) || null;
                         if (this.normalizeGuid(main.profileUserId) === this.normalizeGuid(ApiClient.getCurrentUserId())) {
@@ -11182,7 +11236,7 @@
                         headers: this.jsonHeaders(masterState.token),
                         body: JSON.stringify({ profileId: person.profileUserId, theme: value, masterPin: this.masterPin })
                     })
-                    .then(res => { if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); return res.json(); })
+                    .then(res => { this.checked(res); if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); return res.json(); })
                     .then(saved => {
                         const shownNow = normalizeTheme(saved.theme || saved.Theme);
                         const keep = saved.stored !== undefined ? saved.stored : saved.Stored;
@@ -11322,9 +11376,9 @@
                     headers: this.manageHeaders(masterState.token),
                     body: JSON.stringify({ askOnStartup: askOnStartup, switcherLocation: location })
                 })
-                .then(res => res.ok ? res.json() : Promise.reject(new Error(t('errors.couldNotSaveThat'))))
+                .then(res => this.checked(res).ok ? res.json() : Promise.reject(new Error(t('errors.couldNotSaveThat'))))
                 .then(saved => {
-                    const ask = (saved.askOnStartup !== undefined ? saved.askOnStartup : saved.AskOnStartup) === true;
+                    const ask =(saved.askOnStartup !== undefined ? saved.askOnStartup : saved.AskOnStartup) === true;
                     const loc = (saved.switcherLocation || saved.SwitcherLocation) === 'menu' ? 'menu' : 'button';
                     this._cacheSwitcherPrefs(ask, loc, masterState.masterUserId);
                     return { askOnStartup: ask, location: loc };
@@ -11399,6 +11453,7 @@
                 })
             })
             .then(res => {
+                this.checked(res);
                 if (!res.ok) throw new Error(t('errors.failedDeleteProfile'));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
             })
@@ -11599,7 +11654,7 @@
                             body: JSON.stringify({ memberId: mId })
                         })
                         .then(res => {
-                            if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
+                            if (this.checked(res).ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedKick'));
                         })
                         .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.generic')))));
@@ -11619,7 +11674,7 @@
                             headers: this.manageHeaders(masterToken)
                         })
                         .then(res => {
-                            if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
+                            if (this.checked(res).ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedNewCode'));
                         })
                         .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.generic')))));
@@ -11637,7 +11692,7 @@
                             headers: this.manageHeaders(masterToken, false)
                         })
                         .then(res => {
-                            if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
+                            if (this.checked(res).ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedDeleteGroup'));
                         })
                         .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.generic')))));
@@ -11655,7 +11710,7 @@
                             headers: this.manageHeaders(masterToken, false)
                         })
                         .then(res => {
-                            if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
+                            if (this.checked(res).ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedLeaveGroup'));
                         })
                         .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.generic')))));
@@ -11675,7 +11730,7 @@
                         headers: masterToken ? this.manageHeaders(masterToken, false) : {}
                     })
                     .then(res => {
-                        if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
+                        if (this.checked(res).ok) this.loadBonfireStatus(content, apiClient, masterToken);
                         else throw refusalError(res, t('errors.couldNotSaveThat'));
                     })
                     .catch(err => {
@@ -11722,6 +11777,7 @@
                         body: JSON.stringify({ code: code })
                     })
                     .then(res => {
+                        this.checked(res);
                         if (res.status === 429) {
                             errDiv.textContent = t('bonfire.tooManyJoinAttempts');
                             errDiv.style.display = 'block';
@@ -11818,6 +11874,7 @@
                         body: JSON.stringify(body)
                     })
                     .then(res => {
+                        this.checked(res);
                         if (!res.ok) throw new Error('HTTP ' + res.status);
                         lastSaved.hideMine = hideMineVal;
                         lastSaved.hideOthers = hideOthersVal;
