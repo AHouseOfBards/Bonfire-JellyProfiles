@@ -247,7 +247,9 @@ function titleCaseRuns(text) {
     return hits;
 }
 
-const NEGATIVES = /\b(?:could not|cannot|do not|does not|is not|was not|will not|are not)\b/gi;
+// The owner asked for contractions everywhere, security texts included (2026-11-10). "must
+// not" and "need not" are left out: "mustn't" and "needn't" read as stiffer, not plainer.
+const NEGATIVES = /\b(?:could not|cannot|do not|does not|did not|is not|was not|were not|will not|would not|should not|are not|has not|have not|had not)\b/gi;
 // Whether one of these is a reason to keep the long form in a legal or security text is
 // the owner's call, not this file's. They are all flagged; the report lists any that sit in
 // a terms, privacy or warning text so he can decide.
@@ -264,6 +266,17 @@ const OLD_NAMES = [
     // owner's to tell apart; every one is listed.
     ['"home network"', /\bhome network\b/i],
 ];
+
+// Strings where an old name is the right word, by key, each with the owner's reason. A key
+// listed here is excused from that one name only, never from the other rules.
+const OLD_NAME_KEYS = {
+    '"picture" for an avatar': {
+        // Library artwork's "Picture" mode puts an image behind a library. It isn't an
+        // avatar, and the owner kept the word (2026-11-10).
+        'profileForm.artworkPicture': 'library artwork mode, not an avatar',
+        'profileForm.artworkExplainer': 'explains that mode',
+    },
+};
 
 // writing.md's lists, as written there. Nothing here is from memory: the "What to cut"
 // section's words, plus the two taglines and the button names it gives by name.
@@ -296,9 +309,13 @@ const RULES = [
     ['1. British spellings', t => find(BRITISH, t)],
     ['2. Title Case', t => titleCaseRuns(t)],
     ['3. uncontracted negatives', t => find(NEGATIVES, t)],
-    ['4. old names the owner replaced', t => {
+    ['4. old names the owner replaced', (t, key) => {
         const out = [];
-        OLD_NAMES.forEach(o => { if (find(o[1], t).length) out.push(o[0]); });
+        OLD_NAMES.forEach(o => {
+            const excused = OLD_NAME_KEYS[o[0]];
+            if (key && excused && excused[key]) return;
+            if (find(o[1], t).length) out.push(o[0]);
+        });
         return out;
     }],
     ['5. wording writing.md bans', t => {
@@ -376,7 +393,7 @@ console.log('\n── The writing rules ─────────────�
 RULES.forEach(rule => {
     const items = [];
     ENTRIES.forEach(e => {
-        const detail = rule[1](e.text);
+        const detail = rule[1](e.text, e.key);
         if (detail.length) items.push({ source: e.source, key: e.key, text: e.text, detail: detail.join(', ') });
     });
     report.push({ name: rule[0], items });
@@ -440,7 +457,9 @@ console.log('\n── Each rule catches what it is for, and passes clean copy �
             'MIT licence', 'Organise profiles', 'Normalised name', 'Grey text'], ['Pick a color', 'Request canceled', 'Authorize the app', 'Advise your server administrator']],
         ['2. Title Case', ['Switch Profile', "Who's Watching?", 'Edit Your Profile'], ['Switch profile', 'Open Jellyfin', 'Quick Connect code', 'Set the PIN', 'OK', 'Pick a profile. Then Bonfire opens.']],
         ['3. uncontracted negatives', ['It could not be saved', 'You cannot do this', 'We do not store it', 'It does not work',
-            'This is not allowed', 'It was not found', 'It will not open', 'They are not set'], ["It couldn't be saved", "Can't do this", "Doesn't work", 'Do this now']],
+            'This is not allowed', 'It was not found', 'It will not open', 'They are not set', 'It did not load',
+            'They were not saved', 'It would not open', 'You should not see this', 'It has not started',
+            'You have not set one', 'It had not finished'], ["It couldn't be saved", "Can't do this", "Doesn't work", 'Do this now']],
         ['4. old names the owner replaced', ['Look', 'Open the Look tab', 'Name and picture', 'Viewing hours',
             'Enabled Libraries', 'Profile sign-in', 'On your home network'], ['Theme', 'Look for it', 'Avatar', 'Allowed times', 'Libraries']],
         ['5. wording writing.md bans', ["Don't worry about it", 'Nothing is broken', "It's worth noting that", 'Simply pick one',
@@ -454,6 +473,13 @@ console.log('\n── Each rule catches what it is for, and passes clean copy �
         const wrong = p[2].filter(s => rule[1](s).length !== 0);
         ok(p[0] + ' passes clean copy', wrong.length === 0, 'flagged: ' + wrong.join(' | '));
     });
+    // An excused key is excused from its one name and nothing else.
+    {
+        const rule4 = RULES.filter(r => r[0] === '4. old names the owner replaced')[0][1];
+        ok('4. the artwork key may say "picture"', rule4('Picture', 'profileForm.artworkPicture').length === 0);
+        ok('4. but not another old name', rule4('Picture on the home network', 'profileForm.artworkPicture').length === 1);
+        ok('4. and another key still may not say "picture"', rule4('Picture', 'avatar.usePicture').length === 1);
+    }
     // 6 on source text: the same label as title and as text is caught; an icon button, and a hint that says more, are not.
     const dict = { 'a.save': 'Save', 'a.hint': 'Saves the profile' };
     const bad = tooltipRepeats('<button title="${t(\'a.save\')}">${t(\'a.save\')}</button>', dict, 'x');
