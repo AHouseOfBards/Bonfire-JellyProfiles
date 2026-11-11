@@ -5103,12 +5103,11 @@
                 const locRaw = prefs.switcherLocation || prefs.SwitcherLocation;
                 const master = prefs.masterUserId || prefs.MasterUserId;
 
-                // A server older than this build answers with switcherMode only.
-                const legacyNative = (prefs.switcherMode || prefs.SwitcherMode) === 'native';
-                const ask = typeof askRaw === 'boolean' ? askRaw : !legacyNative;
-                const location = locRaw === 'menu' || locRaw === 'button'
-                    ? locRaw
-                    : (legacyNative ? 'menu' : 'button');
+                // The 1.3.1-beta switcherMode answer is not read any more: the field was
+                // removed from the server before 2.0, and a server old enough to send only
+                // it is older than anything that serves this script.
+                const ask = typeof askRaw === 'boolean' ? askRaw : true;
+                const location = locRaw === 'menu' || locRaw === 'button' ? locRaw : 'button';
 
                 const emergency = (prefs.emergencyCodeConfigured !== undefined
                     ? prefs.emergencyCodeConfigured

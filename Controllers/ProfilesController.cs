@@ -3256,10 +3256,6 @@ namespace Jellyfin.Profiles.Controllers
             {
                 AskOnStartup = askOnStartup,
                 SwitcherLocation = location,
-                // Derived, for any client still reading the 1.3.1-beta field. It cannot
-                // express "ask on startup + menu", which is the whole point of the split, so
-                // such a client sees the nearest equivalent rather than something incoherent.
-                SwitcherMode = askOnStartup ? SwitcherModes.Gate : SwitcherModes.Native,
                 // The client caches these in localStorage to decide whether to raise the gate
                 // before this call returns. Echoing the account they belong to lets it throw
                 // the cache away when a different user signs in on the same browser.
@@ -3497,16 +3493,6 @@ namespace Jellyfin.Profiles.Controllers
                     config.Mappings.Add(masterMapping);
                 }
 
-                // A cached 1.3.1-beta script posts only switcherMode. Expand it, but let the
-                // newer fields win when both arrive, so a client that knows about the split
-                // is never overruled by a legacy value it sent for compatibility.
-                if (request.SwitcherMode != null)
-                {
-                    bool native = SwitcherModes.Normalize(request.SwitcherMode) == SwitcherModes.Native;
-                    masterMapping.AskOnStartup = !native;
-                    masterMapping.SwitcherLocation = native ? SwitcherLocations.Menu : SwitcherLocations.Button;
-                }
-
                 if (request.AskOnStartup.HasValue)
                     masterMapping.AskOnStartup = request.AskOnStartup.Value;
 
@@ -3520,8 +3506,7 @@ namespace Jellyfin.Profiles.Controllers
             return Ok(new
             {
                 AskOnStartup = askOnStartup,
-                SwitcherLocation = location,
-                SwitcherMode = askOnStartup ? SwitcherModes.Gate : SwitcherModes.Native
+                SwitcherLocation = location
             });
         }
 

@@ -13,12 +13,5 @@ namespace Jellyfin.Profiles.Models
         /// unchanged.
         /// </summary>
         public string? SwitcherLocation { get; set; }
-
-        /// <summary>
-        /// Legacy 1.3.1-beta field: "gate" or "native". Accepted so a cached copy of the older
-        /// profiles.js keeps working, and expanded into the two fields above. When both arrive
-        /// the newer fields win — see UpdatePreferences.
-        /// </summary>
-        public string? SwitcherMode { get; set; }
     }
 }

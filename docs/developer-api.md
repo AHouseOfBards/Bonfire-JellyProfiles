@@ -850,6 +850,11 @@ every household has also used is never refused either, since two sets of the sam
 look the same.
 
 ### Signing in with a PIN
+Bonfire keeps those names itself, as `QuickConnectSharedDeviceNames` in its configuration
+(and so in an export). It adds a name when an account outside every household signs in on an
+Android TV, and keeps the newest 500. It is not a setting: there is nothing to edit, and an
+import brings the list along.
+
 
 - **A profile** opens with its PIN. A profile with no PIN opens with an empty password,
   but only on a device its household has signed in on.
@@ -1303,7 +1308,6 @@ main account can change them.
 {
   "askOnStartup": true,
   "switcherLocation": "button",
-  "switcherMode": "gate",
   "masterUserId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a",
   "emergencyCodeConfigured": false,
   "theme": "crimson",
@@ -1318,7 +1322,6 @@ main account can change them.
 | --- | --- |
 | `askOnStartup` | Show "Who's watching?" once per browser session. |
 | `switcherLocation` | `button`: a Bonfire button in the header. `menu`: a **Switch Profile** entry in Jellyfin's user menu. |
-| `switcherMode` | Deprecated. `gate` is `askOnStartup: true` with `button`; `native` is `false` with `menu`. |
 | `masterUserId` | The account these belong to, for caching. |
 | `emergencyCodeConfigured` | An administrator has set an emergency code. Only then offer the emergency option. |
 | `theme` | The [theme](#themes) to show **this** account, from its own choice or the server default. Unlike the fields above, it isn't the main account's. |

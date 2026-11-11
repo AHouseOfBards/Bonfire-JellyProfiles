@@ -457,8 +457,9 @@ namespace Jellyfin.Profiles.Configuration
     /// <summary>
     /// Legacy single-setting switcher modes, superseded by the independent
     /// <see cref="ProfileMapping.AskOnStartup"/> and <see cref="ProfileMapping.SwitcherLocation"/>
-    /// pair. Retained only so 1.3.1-beta installs — and any cached copy of profiles.js still
-    /// posting this field — migrate instead of resetting to the default.
+    /// pair. Retained only so a saved or imported 1.3.1-beta value migrates on load
+    /// (<see cref="ProfileMapping.LegacySwitcherMode"/>) instead of resetting to the default.
+    /// The preferences route no longer accepts or sends it (R-1333).
     /// </summary>
     public static class SwitcherModes
     {

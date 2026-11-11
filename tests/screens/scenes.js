@@ -101,7 +101,7 @@
                 isAdministrator: true, hasPin: true };
         },
         'preferences': function () {
-            return { askOnStartup: true, switcherLocation: 'button', switcherMode: 'gate', masterUserId: MAIN,
+            return { askOnStartup: true, switcherLocation: 'button', masterUserId: MAIN,
                 emergencyCodeConfigured: false, theme: THEME, defaultTheme: 'bonfire', allowProfileThemes: true, onboardingPending: false };
         }
     };
