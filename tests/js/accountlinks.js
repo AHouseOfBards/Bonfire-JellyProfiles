@@ -103,13 +103,13 @@ const last = url => sent(url).pop();
     };
     ok('the added account has a tile', cardOf('gran') !== '');
     ok('marked as an added account, not a Bonfire profile', cardOf('gran').indexOf('title="Added account"') !== -1
-       && cardOf('gran').indexOf('title="Bonfire Profile"') === -1);
+       && cardOf('gran').indexOf('title="Bonfire profile"') === -1);
     ok('with the link mark, not the fire', /material-icons[^>]*>link</.test(cardOf('gran')));
     ok('no crown on any tile', cardOf('gran').indexOf('crown') === -1 && cardOf('main').indexOf('crown') === -1,
        cardOf('gran').slice(0, 400));
     ok("it sits with this household's tiles", sectionOf('gran') === sectionOf('kid') && sectionOf('gran') !== sectionOf('smithmain'),
        [sectionOf('main'), sectionOf('kid'), sectionOf('gran'), sectionOf('smithmain')].join(','));
-    ok('the Bonfire profile is still a Bonfire profile', cardOf('smithmain').indexOf('title="Bonfire Profile"') !== -1);
+    ok('the Bonfire profile is still a Bonfire profile', cardOf('smithmain').indexOf('title="Bonfire profile"') !== -1);
 
     // ── Choosing it ─────────────────────────────────────────────────────────
     console.log('\n── Choosing it ─────────────────────────────────────────────────');
@@ -135,7 +135,7 @@ const last = url => sent(url).pop();
     PP.isManageMode = true;
     wire(profiles[2]).click();
     ok("in Manage Profiles it isn't edited", edited === null);
-    ok('it offers to take it off', dialog && dialog.title === 'Gran' && dialog.message === "Gran's own account, added to this screen."
+    ok('it offers to take it off', dialog && dialog.title === 'Gran' && dialog.message === "Gran's own account, added to the profile screen."
        && dialog.actions.map(a => a.label).join('|') === 'Remove|Cancel', dialog && JSON.stringify(dialog.message));
     wire(profiles[1]).click();
     ok('a profile of this household is still edited', edited && edited.profileUserId === 'kid');
@@ -158,7 +158,7 @@ const last = url => sent(url).pop();
     ok('read from GET accounts/links', !!last('plugins/profiles/accounts/links') && !last('plugins/profiles/accounts/links').init.method);
     ok('the added accounts are listed, names as text', slot.innerHTML.indexOf('Gran &lt;3') !== -1 && slot.innerHTML.indexOf('Gran <3') === -1);
     ok('each says whether it asks for a PIN', slot.innerHTML.indexOf('Opens with their PIN') !== -1 && slot.innerHTML.indexOf('Opens without a PIN') !== -1);
-    ok('and the screens this account is on', slot.innerHTML.indexOf('Your account on other screens') !== -1
+    ok('and the screens this account is on', slot.innerHTML.indexOf('Your account on other profile screens') !== -1
        && slot.querySelectorAll('.links-leave').length === 1);
     ok('one remove button each', slot.querySelectorAll('.links-remove').length === 2);
 
@@ -205,7 +205,7 @@ const last = url => sent(url).pop();
 
     dialog = null;
     slot.querySelectorAll('.links-leave')[0].click();
-    ok('leaving another screen asks first', dialog && dialog.title === "Leave Smiths's screen?");
+    ok('leaving another screen asks first', dialog && dialog.title === "Leave Smiths's profile screen?");
     dialog.actions[0].run();
     await settle();
     const left = last('plugins/profiles/accounts/links/remove');

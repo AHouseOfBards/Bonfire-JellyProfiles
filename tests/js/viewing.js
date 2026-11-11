@@ -183,7 +183,7 @@ const last = url => sent(url).pop();
     const q = sel => slot.querySelector(sel);
     let editor = PP.initViewingEditor(slot, { profileUserId: 'kid', profileName: 'Kid', isMaster: false });
     await settle();
-    ok('drawn from GET /limits', slot.innerHTML.indexOf('Viewing hours') !== -1);
+    ok('drawn from GET /limits', slot.innerHTML.indexOf('Viewing limits') !== -1);
     ok('weekdays ticked, the weekend not', [1, 2, 3, 4, 5].every(d => q('#viewing-day-' + d).checked)
        && !q('#viewing-day-0').checked && !q('#viewing-day-6').checked);
     ok('with their hours', q('#viewing-from-3').value === '15:00' && q('#viewing-to-3').value === '20:00');

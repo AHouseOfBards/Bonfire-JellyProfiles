@@ -1,0 +1,344 @@
+{
+ "gate.whosWatching": {
+  "en": "Who's watching?"
+ },
+ "gate.manageProfiles": {
+  "en": "Manage profiles"
+ },
+ "gate.pinProtected": {
+  "en": "PIN protected"
+ },
+ "gate.ownProfile": {
+  "en": "Name and avatar",
+  "ca": "Nom i avatar",
+  "es": "Nombre y avatar",
+  "fr": "Nom et avatar",
+  "pl": "Nazwa i awatar",
+  "tr": "Ad ve avatar"
+ },
+ "ownProfile.title": {
+  "en": "Your name and avatar",
+  "ca": "El teu nom i el teu avatar",
+  "es": "Tu nombre y tu avatar",
+  "fr": "Votre nom et votre avatar",
+  "pl": "Twoja nazwa i awatar",
+  "tr": "Adınız ve avatarınız"
+ },
+ "gate.addProfile": {
+  "en": "Add profile"
+ },
+ "gate.bonfireProfile": {
+  "en": "Bonfire profile"
+ },
+ "pin.enterProfilePin": {
+  "en": "Enter profile PIN"
+ },
+ "avatar.positionYourPicture": {
+  "en": "Position your avatar",
+  "ca": "Posiciona el teu avatar",
+  "es": "Coloca tu avatar",
+  "fr": "Positionnez votre avatar",
+  "pl": "Dopasuj swój awatar",
+  "tr": "Avatarınızı konumlandırın"
+ },
+ "avatar.usePicture": {
+  "en": "Use avatar",
+  "ca": "Usa aquest avatar",
+  "es": "Usar este avatar",
+  "fr": "Utiliser cet avatar",
+  "pl": "Użyj tego awatara",
+  "tr": "Avatarı kullan"
+ },
+ "avatar.uploadPicture": {
+  "en": "Upload an avatar",
+  "ca": "Puja un avatar",
+  "es": "Subir un avatar",
+  "fr": "Importer un avatar",
+  "pl": "Prześlij awatar",
+  "tr": "Avatar yükle"
+ },
+ "avatar.adminLimited": {
+  "en": "Your server administrator has limited avatars to the set above.",
+  "ca": "L'administrador del servidor ha limitat els avatars als d'aquí dalt.",
+  "es": "El administrador del servidor ha limitado los avatares a los de arriba.",
+  "fr": "Votre administrateur serveur a limité les avatars à ceux ci-dessus.",
+  "pl": "Administrator serwera ograniczył awatary do powyższych.",
+  "tr": "Sunucu yöneticiniz avatarları yukarıdaki seçeneklerle sınırladı."
+ },
+ "avatar.profilePicture": {
+  "en": "Avatar",
+  "ca": "Avatar",
+  "es": "Avatar",
+  "fr": "Avatar",
+  "pl": "Awatar",
+  "tr": "Avatar"
+ },
+ "avatar.changePicture": {
+  "en": "Change avatar",
+  "ca": "Canvia l'avatar",
+  "es": "Cambiar avatar",
+  "fr": "Changer l'avatar",
+  "pl": "Zmień awatar",
+  "tr": "Avatarı değiştir"
+ },
+ "avatar.choosePicture": {
+  "en": "Choose an avatar",
+  "ca": "Tria un avatar",
+  "es": "Elegir un avatar",
+  "fr": "Choisir un avatar",
+  "pl": "Wybierz awatar",
+  "tr": "Avatar seç"
+ },
+ "avatar.chooseFirst": {
+  "en": "Choose an avatar first.",
+  "ca": "Tria primer un avatar.",
+  "es": "Elige primero un avatar.",
+  "fr": "Choisissez d'abord un avatar.",
+  "pl": "Najpierw wybierz awatar.",
+  "tr": "Önce bir avatar seçin."
+ },
+ "profileForm.profileName": {
+  "en": "Profile name"
+ },
+ "profileForm.avatarColor": {
+  "en": "Avatar color"
+ },
+ "profileForm.colorHintNoPicture": {
+  "en": "Used as the avatar background when no avatar is set.",
+  "ca": "S'usa com a fons de l'avatar mentre no n'hi hagi cap.",
+  "es": "Se usa como fondo del avatar mientras no haya ninguno.",
+  "fr": "Utilisée comme fond de l'avatar tant qu'aucun n'est défini.",
+  "pl": "Używany jako tło awatara, dopóki nie zostanie ustawiony.",
+  "tr": "Avatar ayarlanmadığında arka plan olarak kullanılır."
+ },
+ "profileForm.colorHintHasPicture": {
+  "en": "Shows behind the avatar, wherever it is transparent.",
+  "ca": "Es veu darrere de l'avatar, allà on és transparent.",
+  "es": "Se ve detrás del avatar, donde sea transparente.",
+  "fr": "Visible derrière l'avatar, partout où celui-ci est transparent.",
+  "pl": "Widoczny za awatarem, tam gdzie jest przezroczysty.",
+  "tr": "Avatarın şeffaf alanlarının arkasında görünür."
+ },
+ "profileForm.noBackgroundHint": {
+  "en": "For avatars that are cut out rather than rectangular. Leaves the corners clear instead of filling them with the avatar color. Set automatically when an avatar is chosen.",
+  "ca": "Per a avatars retallats en lloc de rectangulars. Deixa les cantonades transparents en lloc d'omplir-les amb el color de l'avatar. S'activa automàticament en triar un avatar.",
+  "es": "Para avatares recortados en lugar de rectangulares. Deja las esquinas transparentes en vez de rellenarlas con el color del avatar. Se activa solo al elegir un avatar.",
+  "fr": "Pour les avatars détourés plutôt que rectangulaires. Laisse les coins transparents au lieu de les remplir avec la couleur de l'avatar. Défini automatiquement lors du choix d'un avatar.",
+  "pl": "Dla awatarów z wycięciem zamiast prostokątnych. Pozostawia przezroczyste rogi zamiast wypełniać je kolorem awatara. Ustawiane automatycznie przy wyborze awatara.",
+  "tr": "Dikdörtgen olmayan, arka planı kaldırılmış avatarlar içindir. Köşeleri avatar rengiyle doldurmak yerine boş bırakır. Avatar seçildiğinde otomatik ayarlanır."
+ },
+ "profileForm.allowedDevices": {
+  "en": "Allowed devices"
+ },
+ "profileForm.allDevicesAllowed": {
+  "en": "All devices allowed"
+ },
+ "profileForm.oneDeviceAllowed": {
+  "en": "1 device allowed"
+ },
+ "profileForm.devicesAllowed": {
+  "en": "{count} devices allowed"
+ },
+ "profileForm.unknownDevice": {
+  "en": "Unknown device"
+ },
+ "profileForm.unknownClient": {
+  "en": "Unknown client"
+ },
+ "profileForm.createTitle": {
+  "en": "Create profile"
+ },
+ "profileForm.editTitle": {
+  "en": "Edit profile"
+ },
+ "profileForm.sectionProfileSubtitle": {
+  "en": "Name, color and avatar",
+  "ca": "Nom, color i avatar",
+  "es": "Nombre, color y avatar",
+  "fr": "Nom, couleur et avatar",
+  "pl": "Nazwa, kolor i awatar",
+  "tr": "Ad, renk ve avatar"
+ },
+ "profileForm.deleteProfile": {
+  "en": "Delete profile"
+ },
+ "profileForm.deleteDeviceTitle": {
+  "en": "Delete device history"
+ },
+ "mainPin.setTitle": {
+  "en": "Set a main PIN",
+  "ca": "Posa un PIN principal",
+  "es": "Pon un PIN principal",
+  "fr": "Définissez un code PIN principal",
+  "pl": "Ustaw główny PIN",
+  "tr": "Bir ana PIN belirleyin"
+ },
+ "mainPin.setBody": {
+  "en": "Without one, anyone at the profile screen can change your profiles.",
+  "ca": "Sense PIN, qualsevol persona davant la pantalla de perfils pot canviar els teus perfils.",
+  "es": "Sin PIN, cualquiera frente a la pantalla de perfiles puede cambiar tus perfiles.",
+  "fr": "Sans code, n'importe qui devant l'écran des profils peut modifier vos profils.",
+  "pl": "Bez PIN-u każdy przy ekranie profili może zmienić Twoje profile.",
+  "tr": "PIN olmadan profil ekranındaki herkes profillerinizi değiştirebilir."
+ },
+ "mainPin.limitsBody": {
+  "en": "Viewing limits need a main PIN.",
+  "ca": "Els límits de visualització necessiten un PIN principal.",
+  "es": "Los límites de visualización necesitan un PIN principal.",
+  "fr": "Les limites de visionnage demandent un code PIN principal.",
+  "pl": "Limity oglądania wymagają głównego PIN-u.",
+  "tr": "İzleme sınırları için bir ana PIN gerekir."
+ },
+ "onboarding.themeTitle": {
+  "en": "Pick a theme",
+  "ca": "Tria un tema",
+  "es": "Elige un tema",
+  "fr": "Choisir un thème",
+  "pl": "Wybierz motyw",
+  "tr": "Bir tema seçin"
+ },
+ "settings.switcherStyleBody": {
+  "en": "Where the profile screen opens from, and whether it opens on startup.",
+  "ca": "On s'obre la pantalla de perfils, i si s'obre en iniciar.",
+  "es": "Desde dónde se abre la pantalla de perfiles y si se abre al iniciar.",
+  "fr": "D'où s'ouvre l'écran des profils, et s'il s'ouvre au démarrage.",
+  "pl": "Skąd otwiera się ekran profili i czy otwiera się przy starcie.",
+  "tr": "Profil ekranının nereden açılacağı ve başlangıçta açılıp açılmayacağı."
+ },
+ "settings.lookTitle": {
+  "en": "Theme",
+  "ca": "Tema",
+  "es": "Tema",
+  "fr": "Thème",
+  "pl": "Motyw",
+  "tr": "Tema"
+ },
+ "account.zoneSubtitle": {
+  "en": "For viewing limits",
+  "ca": "Per als límits de visualització",
+  "es": "Para los límites de visualización",
+  "fr": "Pour les limites de visionnage",
+  "pl": "Dla limitów oglądania",
+  "tr": "İzleme sınırları için"
+ },
+ "viewing.title": {
+  "en": "Viewing limits",
+  "ca": "Límits de visualització",
+  "es": "Límites de visualización",
+  "fr": "Limites de visionnage",
+  "pl": "Limity oglądania",
+  "tr": "İzleme sınırları"
+ },
+ "theme.jellyfin-dark": {
+  "en": "Jellyfin dark",
+  "tr": "Jellyfin koyu"
+ },
+ "theme.jellyfin-light": {
+  "en": "Jellyfin light",
+  "tr": "Jellyfin açık"
+ },
+ "switcher.intro": {
+  "en": "How you reach the profile screen, for everyone using your account.",
+  "ca": "Com arribes a la pantalla de perfils, per a tothom qui usa el teu compte.",
+  "es": "Cómo llegas a la pantalla de perfiles, para todos los que usan tu cuenta.",
+  "fr": "Comment vous accédez à l'écran des profils, pour tous ceux qui utilisent votre compte.",
+  "pl": "Określa sposób dostępu do ekranu profili, dla wszystkich osób korzystających z Twojego konta.",
+  "tr": "Hesabınızı kullanan herkes için profil ekranına nasıl erişileceğini belirler."
+ },
+ "switcher.menuBody": {
+  "en": "Adds \"Switch profile\" above Sign out in Jellyfin's own menu, and to your profile page. Removes the second header icon."
+ },
+ "switcher.switchProfile": {
+  "en": "Switch profile"
+ },
+ "switcher.manageTitle": {
+  "en": "Manage profiles"
+ },
+ "switcher.manageNeedsMaster": {
+  "en": "Open {name} first, then choose Manage profiles."
+ },
+ "links.title": {
+  "en": "Other accounts on the profile screen",
+  "ca": "Altres comptes a la pantalla de perfils",
+  "es": "Otras cuentas en la pantalla de perfiles",
+  "fr": "Autres comptes sur l'écran des profils",
+  "pl": "Inne konta na ekranie profili",
+  "tr": "Profil ekranındaki diğer hesaplar"
+ },
+ "links.removeBody": {
+  "en": "Their tile leaves the profile screen. Adding it again needs their password.",
+  "ca": "La seva icona surt de la pantalla de perfils. Per tornar-lo a afegir cal la seva contrasenya.",
+  "es": "Su icono sale de la pantalla de perfiles. Para volver a añadirla hace falta su contraseña.",
+  "fr": "Sa vignette quitte l'écran des profils. Pour l'ajouter à nouveau, il faudra son mot de passe.",
+  "pl": "Kafelek zniknie z ekranu profili. Ponowne dodanie wymaga hasła.",
+  "tr": "Kutucuğu profil ekranından çıkar. Yeniden eklemek için parolası gerekir."
+ },
+ "links.shownTitle": {
+  "en": "Your account on other profile screens",
+  "ca": "El teu compte en altres pantalles de perfils",
+  "es": "Tu cuenta en otras pantallas de perfiles",
+  "fr": "Votre compte sur d'autres écrans des profils",
+  "pl": "Twoje konto na innych ekranach profili",
+  "tr": "Hesabın diğer profil ekranlarında"
+ },
+ "links.leaveAria": {
+  "en": "Leave {name}'s profile screen",
+  "ca": "Surt de la pantalla de perfils de {name}",
+  "es": "Salir de la pantalla de perfiles de {name}",
+  "fr": "Quitter l'écran des profils de {name}",
+  "pl": "Opuść ekran profili {name}",
+  "tr": "{name} profil ekranından ayrıl"
+ },
+ "links.leaveTitle": {
+  "en": "Leave {name}'s profile screen?",
+  "ca": "Vols sortir de la pantalla de perfils de {name}?",
+  "es": "¿Salir de la pantalla de perfiles de {name}?",
+  "fr": "Quitter l'écran des profils de {name} ?",
+  "pl": "Opuścić ekran profili {name}?",
+  "tr": "{name} profil ekranından ayrılınsın mı?"
+ },
+ "links.leaveBody": {
+  "en": "Your tile leaves their profile screen.",
+  "ca": "La teva icona surt de la seva pantalla de perfils.",
+  "es": "Tu icono sale de su pantalla de perfiles.",
+  "fr": "Votre vignette quitte son écran des profils.",
+  "pl": "Twój kafelek zniknie z jego ekranu profili.",
+  "tr": "Kutucuğun onların profil ekranından çıkar."
+ },
+ "links.manageBody": {
+  "en": "{name}'s own account, added to the profile screen.",
+  "ca": "El compte propi de {name}, afegit a la pantalla de perfils.",
+  "es": "La cuenta propia de {name}, añadida a la pantalla de perfiles.",
+  "fr": "Le compte de {name}, ajouté à l'écran des profils.",
+  "pl": "Własne konto {name}, dodane do ekranu profili.",
+  "tr": "{name} kişisinin kendi hesabı, profil ekranına eklendi."
+ },
+ "bonfire.accessEachOther": {
+  "en": "You can open each other's profiles from the profile screen.",
+  "ca": "Podeu obrir els perfils dels altres des de la pantalla de perfils.",
+  "es": "Podéis abrir los perfiles de los demás desde la pantalla de perfiles.",
+  "fr": "Vous pouvez ouvrir les profils des autres depuis l'écran des profils.",
+  "pl": "Możecie otwierać nawzajem swoje profile z ekranu profili.",
+  "tr": "Birbirinizin profillerini profil ekranından açabilirsiniz."
+ },
+ "bonfire.newCodeConfirmTitle": {
+  "en": "Replace code"
+ },
+ "bonfire.deleteGroupConfirmBody": {
+  "en": "Delete your Bonfire? Members drop out of your profile screen.",
+  "ca": "Vols eliminar el teu Bonfire? Els membres desapareixen de la teva pantalla de perfils.",
+  "es": "¿Eliminar tu Bonfire? Los miembros desaparecen de tu pantalla de perfiles.",
+  "fr": "Supprimer votre Bonfire ? Les membres disparaissent de votre écran des profils.",
+  "pl": "Usunąć Twój Bonfire? Członkowie znikną z Twojego ekranu profili.",
+  "tr": "Bonfire'ınız silinsin mi? Üyeler profil ekranınızdan çıkar."
+ },
+ "bonfire.unknownUser": {
+  "en": "Unknown user"
+ },
+ "profilePage.title": {
+  "en": "Bonfire profiles"
+ },
+ "onboarding.themeBody": {
+  "fr": "Vous pourrez le changer plus tard dans Réglages."
+ }
+}

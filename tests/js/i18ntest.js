@@ -116,7 +116,7 @@ ok('the i18n layer exists', I && typeof I.t === 'function');
 ok('English is inline, not fetched', Object.keys(I.en).length > 100);
 ok('nothing is fetched for an English browser', base.fetched.length === 0);
 
-ok('a known key resolves', I.t('gate.whosWatching') === "Who's Watching?");
+ok('a known key resolves', I.t('gate.whosWatching') === "Who's watching?");
 ok('an unknown key degrades to the key itself, never to blank',
     I.t('nope.not.here') === 'nope.not.here');
 
