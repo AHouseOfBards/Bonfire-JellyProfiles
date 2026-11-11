@@ -350,6 +350,18 @@ if (merge != null)
     Ok("merging two devices a profile both allowed leaves one entry",
        allowed2.Count == 1 && allowed2[0] == "b");
 
+    // A name the administrator typed survives a merge into a record with an auto name (R-1055).
+    var cfg3 = Activator.CreateInstance(cfgType);
+    var known3 = (IList)cfgType.GetProperty("KnownDevices").GetValue(cfg3);
+    var typed = Device("c", "Grandma's TV", "Web", master);
+    deviceType.GetProperty("NameIsCustom").SetValue(typed, true);
+    known3.Add(typed);
+    known3.Add(Device("d", "Chrome", "Web", master));
+    merge.Invoke(null, new object[] { cfg3, "c", "d" });
+    Ok("a typed device name survives a merge, and stays typed",
+       (string)deviceType.GetProperty("DeviceName").GetValue(known3[0]) == "Grandma's TV"
+       && (bool)deviceType.GetProperty("NameIsCustom").GetValue(known3[0]));
+
     Ok("a device cannot be merged into itself",
        !(bool)merge.Invoke(null, new object[] { cfg2, "b", "b" }));
     Ok("merging an unknown device is refused",

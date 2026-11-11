@@ -1639,7 +1639,13 @@ namespace Jellyfin.Profiles.Controllers
             // The surviving record keeps whichever details are better: the more recent sighting,
             // and a real name over a placeholder.
             if (source.LastSeen > target.LastSeen) target.LastSeen = source.LastSeen;
-            if (IsPlaceholderDeviceName(target.DeviceName) && !IsPlaceholderDeviceName(source.DeviceName))
+            // A name an administrator typed outranks one a client reported (R-1055).
+            if (source.NameIsCustom && !target.NameIsCustom)
+            {
+                target.DeviceName = source.DeviceName;
+                target.NameIsCustom = true;
+            }
+            else if (IsPlaceholderDeviceName(target.DeviceName) && !IsPlaceholderDeviceName(source.DeviceName))
                 target.DeviceName = source.DeviceName;
             if (string.IsNullOrWhiteSpace(target.Client) && !string.IsNullOrWhiteSpace(source.Client))
                 target.Client = source.Client;
