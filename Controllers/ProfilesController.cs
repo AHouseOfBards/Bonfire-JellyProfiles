@@ -2682,18 +2682,25 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterUserId = currentUserIdVal.Value;
 
+            // Read under the lock, like every other walk of the lists (R-1152), and a group
+            // saved with no member list is an empty one, not a crash (R-1153).
+            lock (ConfigLock)
+            {
             var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
             Guid masterId = currentMapping != null ? currentMapping.MasterUserId : masterUserId;
+            // The join code and who is in the group are the main account's to see, as the
+            // routes that change them already are: a profile gets neither (R-1148).
+            bool isProfile = masterId != masterUserId;
 
             var ownedGroup = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterId);
-            var joinedGroup = config.BonfireGroups.FirstOrDefault(g => g.MemberUserIds.Contains(masterId));
+            var joinedGroup = config.BonfireGroups.FirstOrDefault(g => g.MemberUserIds != null && g.MemberUserIds.Contains(masterId));
             var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
 
             return Ok(new
             {
                 IsOwner = ownedGroup != null,
-                OwnedCode = ownedGroup?.BonfireCode,
-                OwnedMembers = ownedGroup != null ? GetBonfireGroupMembers(ownedGroup, config) : null,
+                OwnedCode = isProfile ? null : ownedGroup?.BonfireCode,
+                OwnedMembers = ownedGroup != null && !isProfile ? GetBonfireGroupMembers(ownedGroup, config) : null,
                 IsMember = joinedGroup != null,
                 JoinedOwnerName = joinedGroup != null ? (_userManager.GetUserById(joinedGroup.OwnerUserId)?.Username ?? "Unknown") : null,
                 JoinedOwnerId = joinedGroup?.OwnerUserId,
@@ -2706,6 +2713,7 @@ namespace Jellyfin.Profiles.Controllers
                 IsAdministrator = IsUserAdministrator(masterId),
                 HasPin = !string.IsNullOrEmpty(masterMapping?.PinHash)
             });
+            }
         }
 
         [HttpPost("bonfire/generate")]

@@ -3072,7 +3072,7 @@ namespace Jellyfin.Profiles.Controllers
 
         protected List<object> GetBonfireGroupMembers(BonfireGroup group, PluginConfiguration config)
         {
-            return group.MemberUserIds.Select(id => (object)new
+            return (group.MemberUserIds ?? new List<Guid>()).Select(id => (object)new
             {
                 UserId = id,
                 Username = _userManager.GetUserById(id)?.Username ?? "Unknown User"

@@ -513,6 +513,22 @@ r = Call("JoinBonfire", DAD, B(("Code", "WRONG9")), ip: "10.0.0.2");
 Ok("a locked-out household doesn't use up the shared address for its neighbours", r.status == 400, Text(r));
 ResetLimits();
 
+// R-1148, R-1153: the join code and the member list are the main account's to see, and a
+// group saved with no member list is not a crash.
+var home1 = Activator.CreateInstance(groupType);
+groupType.GetProperty("OwnerUserId").SetValue(home1, HOME);
+groupType.GetProperty("BonfireCode").SetValue(home1, "HOMEC1");
+var nomembers = Activator.CreateInstance(groupType);
+groupType.GetProperty("OwnerUserId").SetValue(nomembers, OTHER);
+groupType.GetProperty("BonfireCode").SetValue(nomembers, "NOLIST");
+groupType.GetProperty("MemberUserIds").SetValue(nomembers, null);
+fires.Add(home1); fires.Add(nomembers);
+r = Call("GetBonfireStatus", HOME);
+Ok("the main account sees its own join code", r.status == 200 && r.value.ToString().Contains("HOMEC1"), Text(r));
+r = Call("GetBonfireStatus", KID);
+Ok("a profile of it does not", r.status == 200 && !r.value.ToString().Contains("HOMEC1"), Text(r));
+fires.Remove(home1); fires.Remove(nomembers);
+
 // ── The administrator ────────────────────────────────────────────────────────
 Section("The administrator");
 
