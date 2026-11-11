@@ -79,7 +79,7 @@ const HOUSEHOLD = {
 // The admin tabs: `basic` is outside any closed fold, `more` is inside one (Advanced, or a
 // FAQ item that is closed until clicked). Every tab in the markup must be listed.
 const ADMIN = {
-    status: { basic: ['onboardingAskNo', 'onboardingAskYes'], more: [] },
+    status: { basic: ['bonfireOn', 'onboardingAskNo', 'onboardingAskYes'], more: [] },
     households: { basic: ['.raised[button]', 'maxProfiles', 'scanOrphansBtn'], more: [] },
     devices: { basic: ['refreshSessionsBtn'], more: [] },
     security: {

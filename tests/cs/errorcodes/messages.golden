@@ -48,6 +48,7 @@ BadRequest|invalid_request|Each profile needs bypassPinOnLocalNetwork.
 BadRequest|invalid_request|Enter a folder path.
 BadRequest|invalid_request|Invalid file name.
 BadRequest|invalid_request|Jellyfin cannot read that folder.
+BadRequest|invalid_request|Logo corners are \"rounded\" or \"square\".
 BadRequest|invalid_request|Missing file.
 BadRequest|invalid_request|Missing library.
 BadRequest|invalid_request|Missing request body.

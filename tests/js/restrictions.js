@@ -186,7 +186,10 @@ console.log('── 6. a legacy all-libraries profile ────────�
     // Either the controller's helper, or the value it computed once for the whole sync.
     const reachable = legacy && (/GetMasterAccessibleFolders\s*\(\s*masterPolicy\s*\)/.test(legacy[1])
         || (/^\s*masterAccessible\.ToList\(\)\s*$/.test(legacy[1])
-            && /var\s+masterAccessible\s*=\s*ProfilesBaseController\.MasterAccessibleFolders\(\s*libraryManager,\s*masterPolicy\s*\)/.test(sync)));
+            && (/var\s+masterAccessible\s*=\s*ProfilesBaseController\.MasterAccessibleFolders\(\s*libraryManager,\s*masterPolicy\s*\)/.test(sync)
+                // 2.0: one pass over every profile reads it once (ProfilePolicySync.Pass).
+                || (/var\s+masterAccessible\s*=\s*pass\.MasterReach\(\s*masterUser\.Id,\s*masterPolicy\s*\)/.test(sync)
+                    && /HashSet<Guid>\s+MasterReach\([^)]*\)\s*\{[^}]*ProfilesBaseController\.MasterAccessibleFolders\(\s*masterPolicy\b/.test(sync)))));
     ok('it takes what the master can reach, not the master\'s EnabledFolders', !!reachable,
         legacy ? legacy[1].trim() : '');
 }
