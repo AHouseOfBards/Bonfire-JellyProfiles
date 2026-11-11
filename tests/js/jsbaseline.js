@@ -31,6 +31,23 @@ function ok(name, cond, detail) {
     else { fails.push(name); console.log('  FAIL  ' + name + (detail ? '\n          ' + detail : '')); }
 }
 
+/// True when a '/' here opens a regex literal, not a division: what came before it is an
+/// operator, an opening bracket, the start of the file, or a keyword that takes a value.
+function regexAllowedAfter(out) {
+    let k = out.length - 1;
+    while (k >= 0 && /\s/.test(out[k])) k--;
+    if (k < 0) return true;
+    const ch = out[k];
+    if (/[\w$]/.test(ch)) {
+        let b = k;
+        while (b >= 0 && /[\w$]/.test(out[b])) b--;
+        return /^(return|typeof|case|in|of|delete|void|throw|else|do|new)$/.test(out.slice(b + 1, k + 1));
+    }
+    if (ch === ')' || ch === ']') return false;
+    if (ch === '"' && out.slice(k - 3, k + 1) === ' "" ') return false;
+    return true;
+}
+
 /// Comments and string bodies come out first. Prose says "you can use ?. here" and a
 /// template literal carries a stylesheet; both have produced false positives in every
 /// hand-rolled scan of this file. `${...}` is kept, because that is real code.
@@ -45,6 +62,25 @@ function stripCommentsAndStrings(s) {
             i += 2;
             while (i < n && !(s[i] === '*' && s[i + 1] === '/')) i++;
             i += 2;
+            continue;
+        }
+        if (c === '/' && regexAllowedAfter(out)) {
+            // A regex literal. /"/g and /'/g are all it takes to open a string that never
+            // closes and hide hundreds of lines (R-1277). Only a lookbehind or a named
+            // group is kept from the body, because those are real features.
+            let j = i + 1;
+            let inClass = false;
+            while (j < n && s[j] !== '\n' && (inClass || s[j] !== '/')) {
+                if (s[j] === '\\') { j += 2; continue; }
+                if (s[j] === '[') inClass = true;
+                else if (s[j] === ']') inClass = false;
+                j++;
+            }
+            const body = s.slice(i + 1, j);
+            j++;
+            while (j < n && /[a-z]/i.test(s[j])) j++;
+            out += ' RX ' + (body.match(/\(\?<[=!A-Za-z]/g) || []).join(' ') + ' ';
+            i = j;
             continue;
         }
         if (c === '"' || c === "'" || c === '`') {
@@ -163,6 +199,13 @@ console.log('── The detector itself ─────────────�
     ok('replaceAll is detected in code', hit('String.replaceAll') === 1);
     ok('and none of the three is counted inside a comment or a string',
         hit('optional chaining  ?.') === 1 && hit('nullish coalescing  ??') === 1);
+    const chainHits = src => (stripCommentsAndStrings(src).match(/[\w)\]]\?\./g) || []).length;
+    ok('a regex literal holding a quote does not hide what follows it (R-1277)',
+        chainHits("x.replace(/\"/g,'a'); y = a?.b;") === 1);
+    ok('a regex with a slash inside a class is skipped whole (R-1277)',
+        chainHits("x.split(/[/\"]/); y = a?.b;") === 1);
+    ok('a division is not taken for a regex (R-1277)',
+        chainHits("var r = a / b; var q = c / d; z = e?.f;") === 1);
     ok('object spread is detected, and array and call spread are not',
         objectSpreads(stripCommentsAndStrings(
             'const f = { a: 1, ...b }; const g = [...b]; h(...b); const { x, ...rest } = f;')) === 2);
