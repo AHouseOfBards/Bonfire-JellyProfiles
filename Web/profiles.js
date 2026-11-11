@@ -4876,8 +4876,8 @@
         /// nothing until the app was restarted. Three signals now re-read it:
         ///   - 'jpf-settings-changed' on this window, which the admin page dispatches after
         ///     a save — it runs inside jellyfin-web, in the same window as this script;
-        ///   - a write to SETTINGS_EPOCH_KEY from another tab, which the admin page also
-        ///     makes, and which arrives here as a 'storage' event;
+        ///   - a write to the 'jellyfin_profiles_settings_epoch' key from another tab, which
+        ///     the admin page also makes, and which arrives here as a 'storage' event;
         ///   - the page becoming visible again, at most once a minute.
         /// None of these is on the route poll, which must not grow (see checkRoute).
         _bindSettingsRefresh: function () {
@@ -6107,7 +6107,7 @@
         // Called on page load when an active profile session already exists.
         // Fetches /list (using the master token) to find the active profile's
         // lockout setting, then arms the inactivity timer.
-        initLockoutTimer: function () {
+        initLockoutTimer: function (retry) {
             if (!this.isProfileSessionActive()) return;
 
             const masterState = this.readMasterState();
@@ -6120,10 +6120,7 @@
                 ? apiClient.getCurrentUserId() : null;
             if (!currentUserId) return;
 
-            const url = apiClient.getUrl('plugins/profiles/list');
-            fetch(url, { headers: this.getAuthHeaders(masterState.token) })
-            .then(res => { if (!res.ok) throw new Error('fail'); return res.json(); })
-            .then(profiles => {
+            const arm = (profiles) => {
                 const active = (profiles || []).find(p => {
                     const id = p.profileUserId || p.ProfileUserId;
                     return this.normalizeGuid(id) === this.normalizeGuid(currentUserId);
@@ -6134,8 +6131,19 @@
                 const minutes = active.lockoutMinutes !== undefined ? active.lockoutMinutes
                     : (active.LockoutMinutes !== undefined ? active.LockoutMinutes : 5);
                 if (minutes > 0) this.startInactivityTimer(minutes);
-            })
-            .catch(() => { /* silent — lockout timer is best-effort */ });
+            };
+
+            const url = apiClient.getUrl('plugins/profiles/list');
+            fetch(url, { headers: this.getAuthHeaders(masterState.token) })
+            .then(res => { if (!res.ok) throw new Error('fail'); return res.json(); })
+            .then(profiles => arm(profiles))
+            .catch(() => {
+                // One failed fetch used to leave the page without a lock for good (R-1193).
+                // Use the list the picker already holds; failing that, ask once more later.
+                if (this.cachedProfiles && this.cachedProfiles.length) { arm(this.cachedProfiles); return; }
+                if (retry) return;
+                setTimeout(() => this.initLockoutTimer(true), 30000);
+            });
         },
 
         isMediaPlaying: function () {
@@ -6161,6 +6169,14 @@
                 'pointermove', 'pointerdown'  // covers LG Magic Remote and pointer-based TV inputs
             ];
 
+            // Activity only writes a timestamp. It used to clear and re-arm a timeout on
+            // every event, about 60 times a second on a magic remote (R-1202). The one
+            // timeout looks at the stamp when it fires and sleeps the rest if the page
+            // was used meanwhile. The stamp is also what a suspended TV or a throttled
+            // tab is judged by when it wakes: a timer only counts time it was running,
+            // so without it the lock came hours late (R-1192).
+            let lastActivity = Date.now();
+
             const checkAndLock = () => {
                 if (this.isMediaPlaying()) {
                     // Defer lockout by 1 minute if media is actively playing
@@ -6170,22 +6186,35 @@
                 }
             };
 
-            const resetTimer = () => {
-                clearTimeout(this.inactivityTimer);
-                this.inactivityTimer = setTimeout(checkAndLock, ms);
+            const onTimer = () => {
+                const remaining = ms - (Date.now() - lastActivity);
+                if (remaining > 1000) this.inactivityTimer = setTimeout(onTimer, remaining);
+                else checkAndLock();
+            };
+
+            const resetTimer = () => { lastActivity = Date.now(); };
+
+            const onVisible = () => {
+                if (document.visibilityState === 'hidden') return;
+                if (Date.now() - lastActivity >= ms) {
+                    clearTimeout(this.inactivityTimer);
+                    checkAndLock();
+                }
             };
 
             events.forEach(ev => document.addEventListener(ev, resetTimer, { passive: true }));
-            this.inactivityEventHandlers = { resetTimer, events };
-            resetTimer(); // Arm immediately
+            document.addEventListener('visibilitychange', onVisible);
+            this.inactivityEventHandlers = { resetTimer, events, onVisible };
+            this.inactivityTimer = setTimeout(onTimer, ms); // Arm immediately
         },
 
         stopInactivityTimer: function () {
             clearTimeout(this.inactivityTimer);
             this.inactivityTimer = null;
             if (this.inactivityEventHandlers) {
-                const { resetTimer, events } = this.inactivityEventHandlers;
+                const { resetTimer, events, onVisible } = this.inactivityEventHandlers;
                 events.forEach(ev => document.removeEventListener(ev, resetTimer));
+                document.removeEventListener('visibilitychange', onVisible);
                 this.inactivityEventHandlers = null;
             }
         },
