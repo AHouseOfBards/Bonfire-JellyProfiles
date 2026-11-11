@@ -18,7 +18,10 @@ namespace Jellyfin.Profiles.Auth
     ///
     /// <para><b>Every 30 seconds</b> it looks at Jellyfin's sessions. A limited profile playing
     /// video, not paused, has the time since the last look added to today. Two televisions at
-    /// once count once: it is the child's time, not the screens'.</para>
+    /// once count once: it is the child's time, not the screens'. So does a game: every
+    /// Campground activity with a user that is not paused (<c>Sessions.ListActivities</c>)
+    /// counts the same, and a video and a game together are one count. When time runs out the
+    /// other plugin finds out by asking <see cref="LimitsProvider"/>; nothing is sent to it.</para>
     ///
     /// <para><b>Ending it.</b> Five minutes before the end, each app playing gets a message.
     /// At the end it stops. If the end came with no warning (the rules changed, the extra time
@@ -186,6 +189,25 @@ namespace Jellyfin.Profiles.Auth
                 if (!playing.TryGetValue(s.UserId, out var list)) playing[s.UserId] = list = new List<SessionInfo>();
                 list.Add(s);
                 if (s.PlayState == null || !s.PlayState.IsPaused) counting.Add(s.UserId);
+            }
+
+            // What other Campground plugins are doing for a limited profile (a game in GameTent).
+            // Into the same set as video, so a child watching and playing at once is billed once.
+            // Bonfire's own activities are skipped: it publishes none, and one it did would be
+            // the video already counted above.
+            try
+            {
+                foreach (var a in Campground.Shared.Contracts.Sessions.ListActivities())
+                {
+                    if (a.Paused || a.UserId is not Guid user || user == Guid.Empty) continue;
+                    if (string.Equals(a.PluginId, Campground.Shared.Registry.PluginIds.Bonfire, StringComparison.Ordinal)) continue;
+                    if (index.ContainsKey(user)) counting.Add(user);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Another plugin's entry must never stop video being counted.
+                logger.LogDebug(ex, "ProfilesPlugin: could not read other plugins' activities.");
             }
 
             foreach (var id in counting)

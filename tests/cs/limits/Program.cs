@@ -20,7 +20,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 //    admin or a non-profile is allowed; outside hours or over the day's time is refused,
 //    with when it opens again and how long a running activity may carry on; the emergency
 //    disable means allowed.
-//  - (The timer cases arrive with the timer.)
+//  - The timer adds every activity that has a UserId and is not paused, once per tick
+//    however many things the user is doing at once.
 //
 // Against 3af7a5e nothing offers the capability and the timer reads only Jellyfin's
 // sessions, so every assertion below the first two fails.
@@ -200,6 +201,71 @@ d1 = Ask(KID);
 Ok("the emergency disable means allowed", Allowed(d1) && offered, Show(d1));
 panic.SetValue(null, false); Fresh();
 
+// ── The timer ────────────────────────────────────────────────────────────────
+Section("The timer");
+
+void Publish(string id, Guid? user, bool paused, string plugin = "gametent")
+{
+    var a = Activator.CreateInstance(activityType, id, plugin, "game", user, null, "A game",
+        DateTime.UtcNow, DateTime.UtcNow, (long?)null, false, null, paused);
+    Static(sessionsType, "PublishActivity", a);
+}
+void ClearActivities()
+{
+    var all = (IEnumerable)Static(sessionsType, "ListActivities", (object)null);
+    foreach (var a in all.Cast<object>().ToList()) Static(sessionsType, "EndActivity", (string)Get(a, "Id"));
+}
+void Minutes(int ticks) { for (var i = 0; i < ticks; i++) { clockNow = clockNow.AddSeconds(30); Tick(); } }
+void Restart()
+{
+    ClearActivities();
+    stub.Sessions.Clear();
+    clockNow = Utc(2026, 11, 5, 16); Fresh();
+    lastTick.SetValue(null, null);
+    Tick();
+}
+
+Restart();
+Publish("g1", KID, false);
+Minutes(8);
+Ok("a game running adds four minutes in four minutes", Used(KID) == 4, Used(KID).ToString());
+
+Restart();
+Publish("g1", KID, true);
+Minutes(8);
+Ok("a paused game adds nothing", Used(KID) == 0, Used(KID).ToString());
+Publish("g1", KID, false);
+Minutes(4);
+Ok("and counts again once it runs", Used(KID) == 2, Used(KID).ToString());
+
+Restart();
+Publish("dl", null, false);
+Minutes(8);
+Ok("an activity with no user counts against nobody", Used(KID) == 0, Used(KID).ToString());
+
+Restart();
+Publish("g1", KID, false);
+stub.Sessions.Add(SessionStub.Make("kid-tv", KID, Guid.NewGuid()));
+Minutes(8);
+Ok("a video and a game at once count once, not twice", Used(KID) == 4, Used(KID).ToString());
+
+Restart();
+Publish("g1", KID, false);
+Publish("g2", KID, false);
+Minutes(8);
+Ok("two games at once count once", Used(KID) == 4, Used(KID).ToString());
+
+Restart();
+Publish("own", KID, false, "bonfire");
+Minutes(8);
+Ok("an activity Bonfire published itself is not counted a second time", Used(KID) == 0, Used(KID).ToString());
+
+Restart();
+Publish("g1", FREE, false);
+Minutes(8);
+Ok("a game for a profile with no rule is not tracked", Static(tracker, "State", FREE, clockNow) == null);
+
+ClearActivities();
 return Finish();
 
 public class SessionStub : DispatchProxy
