@@ -153,12 +153,98 @@ function tagOf(id) {
                 // 18. An empty name is refused out loud.
                 const box = d.querySelector('#profiles-prompt-input');
                 box.value = '  ';
-                d.fire('keydown', { key: 'Enter' });
+                d.fire('keydown', { key: 'Enter', target: box });
                 ok('a prompt refused for an empty name marks the box invalid', box.attrs['aria-invalid'] === 'true', JSON.stringify(box.attrs));
             }
             if (d) d.remove();
             ok(dr[0] + ': closing hands focus back to what opened it', opener.focused === 1, 'focused ' + opener.focused);
         }
+    }
+
+    // 5b. Dialog keys and double taps (R-1172, R-1173).
+    {
+        const env5 = D.loadPlugin(SRC);
+        const PP5 = env5.PP;
+        const sb = env5.sandbox;
+        const made = [];
+        sb.document.createElement = () => {
+            const n = D.makeContent();
+            n.remove = () => {};
+            const own = n.querySelector;
+            n.querySelector = sel => {
+                if (/^h1, h2, h3$/.test(sel)) return { id: '' };
+                const r = own(sel);
+                if (r && !r.select) r.select = () => {};
+                return r;
+            };
+            made.push(n);
+            return n;
+        };
+        sb.document.body.contains = () => true;
+        sb.setTimeout = fn => { fn(); return 0; };
+
+        const saved = [];
+        PP5.showPromptDialog('T', 'L', '', v => saved.push(v));
+        const d = made[0];
+        const box = d.querySelector('#profiles-prompt-input');
+        const cancel = d.querySelector('#prompt-cancel-btn');
+        box.value = 'Sam';
+        d.fire('keydown', { key: 'Enter', target: cancel });
+        ok('Enter on Cancel does not save', saved.length === 0, JSON.stringify(saved));
+        d.fire('keydown', { key: 'Enter', keyCode: 229, target: box });
+        ok('Enter that ends an IME composition does not save', saved.length === 0, JSON.stringify(saved));
+        d.fire('keydown', { key: 'Enter', isComposing: true, target: box });
+        ok('Enter during a composition does not save', saved.length === 0, JSON.stringify(saved));
+        d.fire('keydown', { key: 'Enter', target: box });
+        d.fire('keydown', { key: 'Enter', target: box });
+        ok('Enter in the box saves, once', saved.length === 1, JSON.stringify(saved));
+
+        let yes = 0;
+        made.length = 0;
+        PP5.showConfirmDialog('T', 'M', () => { yes++; });
+        const go = made[0].querySelector('#dialog-confirm-btn');
+        go.click(); go.click();
+        ok('a double tap on Confirm confirms once', yes === 1, 'confirmed ' + yes);
+
+        let picked = 0;
+        made.length = 0;
+        PP5.showSelectDialog('T', 'M', [{ id: 'a', name: 'A' }], () => { picked++; });
+        const sd = made[0];
+        sd.querySelector('#profiles-select-input').value = 'a';
+        sd.querySelector('#select-confirm-btn').click();
+        sd.querySelector('#select-confirm-btn').click();
+        ok('a double tap on OK picks once', picked === 1, 'picked ' + picked);
+    }
+
+    // 5c. Taking a tag chip away leaves focus somewhere (R-1179).
+    {
+        const env6 = D.loadPlugin(SRC);
+        const PP6 = env6.PP;
+        const focused = [];
+        const chips = [];
+        const mkChip = name => {
+            const ch = { name: name, btn: { focus() { focused.push(name); } } };
+            ch.remove = () => { chips.splice(chips.indexOf(ch), 1); };
+            ch.querySelector = () => ch.btn;
+            chips.push(ch);
+            return ch;
+        };
+        const chipA = mkChip('A');
+        const chipB = mkChip('B');
+        const input = D.makeNode({});
+        input.focus = () => focused.push('input');
+        const chipList = D.makeNode({});
+        chipList.querySelector = sel => (sel === '.tag-chip' ? chips[0] || null : null);
+        chipList.querySelectorAll = sel => (sel === '.tag-chip' ? chips : []);
+        const editor = D.makeNode({});
+        editor.querySelector = sel => ({ '.tag-chip-list': chipList, '.tag-input': input, '.tag-add-btn': D.makeNode({}) })[sel] || null;
+        PP6.initTagEditors({ querySelectorAll: () => [editor] });
+        const tgt = ch => ({ closest: sel => (/remove/.test(sel) ? { closest: () => ch } : null) });
+        chipList.fire('click', { target: tgt(chipA) });
+        ok('removing a chip puts focus on the next chip, not the page', focused.length === 1 && focused[0] === 'B', JSON.stringify(focused));
+        focused.length = 0;
+        chipList.fire('click', { target: tgt(chipB) });
+        ok('removing the last chip puts focus on the tag box', focused.length === 1 && focused[0] === 'input', JSON.stringify(focused));
     }
 
     // 6. A profile tile is a button, and says what it will ask for.

@@ -1793,11 +1793,16 @@
             };
 
             const input = dialog.querySelector('#profiles-prompt-input');
+            let submitted = false;
             const submit = () => {
                 const value = (input.value || '').trim();
                 // Said, not swallowed: a screen reader hears the box is invalid and focus
                 // goes back to it, where before Save and Enter did nothing at all.
                 if (!value) { input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
+                // Once: the dialog stays up for the 160 ms fade, and a second Enter or tap
+                // in that time called onSubmit again.
+                if (submitted) return;
+                submitted = true;
                 close();
                 if (typeof onSubmit === 'function') onSubmit(value);
             };
@@ -1808,7 +1813,14 @@
 
             dialog.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') { e.preventDefault(); close(); }
-                else if (e.key === 'Enter') { e.preventDefault(); submit(); }
+                else if (e.key === 'Enter') {
+                    // Enter on a button is that button's own press (a remote's OK on
+                    // Cancel must cancel), and Enter that ends an IME composition is not
+                    // a request to save (keyCode 229 on old Chromium).
+                    if (e.target !== input || e.isComposing || e.keyCode === 229) return;
+                    e.preventDefault();
+                    submit();
+                }
             });
 
             input.focus();
@@ -1873,8 +1885,11 @@
 
             const select = dialog.querySelector('#profiles-select-input');
             dialog.querySelector('#select-cancel-btn').addEventListener('click', close);
+            let picked = false;
             dialog.querySelector('#select-confirm-btn').addEventListener('click', () => {
                 const value = select.value;
+                if (picked) return;
+                picked = true;
                 close();
                 if (value && typeof onSubmit === 'function') onSubmit(value);
             });
@@ -1938,12 +1953,17 @@
             const confirmBtn = dialog.querySelector('#dialog-confirm-btn');
             const cancelBtn = dialog.querySelector('#dialog-cancel-btn');
 
+            let answered = false;
             confirmBtn.addEventListener('click', () => {
+                if (answered) return;
+                answered = true;
                 closeDialog();
                 if (typeof onConfirm === 'function') onConfirm();
             });
 
             cancelBtn.addEventListener('click', () => {
+                if (answered) return;
+                answered = true;
                 closeDialog();
                 if (typeof onCancel === 'function') onCancel();
             });
@@ -2746,6 +2766,11 @@
                                 this._restoreViewingForm(slot, pending, ORDER);
                                 const after = slot.querySelector('#viewing-grant-status');
                                 if (after) after.textContent = minutes ? t('viewing.given', { duration: this.durationText(minutes) }) : t('viewing.declined');
+                                // The pressed button was redrawn away; put focus on its
+                                // twin (Decline is gone after it is used, so the first).
+                                const again = slot.querySelector('.viewing-grant[data-minutes="' + minutes + '"]')
+                                    || slot.querySelector('.viewing-grant');
+                                if (again) again.focus();
                             })
                             .catch(err => { if (status) { status.textContent = this._failText(err, err.message); status.style.color = 'var(--jpf-danger)'; } });
                     });
@@ -3232,20 +3257,31 @@
                 // Committing on blur means a typed-but-not-added tag isn't silently lost on save.
                 input.addEventListener('blur', () => addTag());
 
+                // The button being pressed is the thing removed, so focus would fall to the
+                // page and a remote would restart from the top of the form. It goes to the
+                // chip that takes its place, else the one before, else the tag box.
+                const removeChip = (removeBtn) => {
+                    const chip = removeBtn.closest('.tag-chip');
+                    const all = Array.prototype.slice.call(chipList.querySelectorAll('.tag-chip'));
+                    const at = all.indexOf(chip);
+                    const next = all[at + 1] || all[at - 1];
+                    chip.remove();
+                    syncEmpty();
+                    const nextBtn = next && next.querySelector('.tag-chip-remove');
+                    if (nextBtn) nextBtn.focus(); else input.focus();
+                };
                 chipList.addEventListener('click', (e) => {
                     const removeBtn = e.target.closest('.tag-chip-remove');
                     if (!removeBtn) return;
                     e.preventDefault();
-                    removeBtn.closest('.tag-chip').remove();
-                    syncEmpty();
+                    removeChip(removeBtn);
                 });
                 chipList.addEventListener('keydown', (e) => {
                     if (e.key !== 'Enter' && e.key !== ' ') return;
                     const removeBtn = e.target.closest('.tag-chip-remove');
                     if (!removeBtn) return;
                     e.preventDefault();
-                    removeBtn.closest('.tag-chip').remove();
-                    syncEmpty();
+                    removeChip(removeBtn);
                 });
             });
         },
