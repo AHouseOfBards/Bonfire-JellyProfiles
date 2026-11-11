@@ -123,7 +123,7 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         private static LimitsDecision? Maintenance(Guid userId, DateTime nowUtc)
         {
-            if (Plugin.IsPanicDisabled) return null;
+            if (Plugin.IsOff) return null;
             var m = Plugin.Instance?.Configuration?.Maintenance;
             if (m == null || !m.Enabled || m.HasLapsed(nowUtc)) return null;
 

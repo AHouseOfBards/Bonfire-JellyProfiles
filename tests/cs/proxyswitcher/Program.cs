@@ -76,6 +76,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-proxyswitcher-" + Guid.N
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
+// A new install starts with Bonfire off (2.0); this harness is about a server where it is on.
+config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 void Set(string prop, object value) => cfgType.GetProperty(prop)?.SetValue(config, value);
 
 // ── The household ──────────────────────────────────────────────────────────
@@ -457,6 +459,28 @@ if (panicField != null)
     }
     finally { panicField.SetValue(null, false); }
 }
+// Turned off on the Status tab (2.0): the same, at ProxySwitcher and QuickConnectAuthorize.
+Set("BonfireOn", false);
+try
+{
+    var turnedOff = Get("/UserViews");
+    Ok("turned off, it is off too", turnedOff.reachedJellyfin && seenAuth.Contains(MOON_TOKEN), seenAuth);
+}
+finally { Set("BonfireOn", true); }
+{
+    // With an app ticked, a profile's Quick Connect code from a device nobody knows is
+    // refused, because some rule could have refused it.
+    var qc = asm.GetType("Jellyfin.Profiles.Auth.QuickConnectAuthorize", true).GetMethod("Refusal");
+    string Refused() => (string)qc.Invoke(null, new object[] { config, KIDS, "no-such-code" });
+    Ok("(set-up) Quick Connect for a profile is refused with an app ticked", Refused() != null);
+    panicField.SetValue(null, true);
+    try { Ok("the emergency code lets it through", Refused() == null, Refused()); }
+    finally { panicField.SetValue(null, false); }
+    Set("BonfireOn", false);
+    try { Ok("turned off lets it through", Refused() == null, Refused()); }
+    finally { Set("BonfireOn", true); }
+    Ok("turned back on, it is refused again", Refused() != null);
+}
 
 // Back in Kids, as the rest of this file expects.
 void ToKids()
@@ -501,6 +525,20 @@ if (panicField != null)
         Ok("and the profile's session and the main account's token are both signed out", SignedOut(before), string.Join(",", sessionLog.LoggedOut.Skip(before)));
     }
     finally { panicField.SetValue(null, false); }
+}
+{
+    Child();
+    var before = sessionLog.LoggedOut.Count;
+    Set("BonfireOn", false);
+    try
+    {
+        var r = Get("/UserViews");
+        Ok("turned off: a TV in a child's profile does not reach Jellyfin as the main account",
+           !r.reachedJellyfin && !(seenAuth ?? "").Contains(MOON_TOKEN), "Jellyfin saw " + seenAuth);
+        Ok("turned off: it is refused with a 401", r.status == 401, r.status.ToString());
+        Ok("turned off: and both are signed out", SignedOut(before), string.Join(",", sessionLog.LoggedOut.Skip(before)));
+    }
+    finally { Set("BonfireOn", true); }
 }
 
 Child();

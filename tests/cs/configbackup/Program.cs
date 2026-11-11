@@ -128,6 +128,57 @@ File.Delete(saver.ConfigurationFilePath);
 var recovered = new Plugin(new StubPaths(recovering), new RealXml());
 Ok("a missing file with a good copy beside it is not a new install", !recovered.Configuration.RequireMainPin);
 
+// Jellyfin's LoadConfiguration saves the plain defaults the moment it finds no file, so a
+// value the constructor set only in memory after that was gone at the next restart.
+var restartedNew = new Plugin(new StubPaths(brandNew), new RealXml());
+Ok("a new install that restarts before anything is saved still requires a main PIN",
+   restartedNew.Configuration.RequireMainPin);
+
+Console.WriteLine();
+Console.WriteLine("── Bonfire is off on a new install only ────────────────────────");
+
+var offDir = NewDir();
+var offServer = new Plugin(new StubPaths(offDir), new RealXml());
+Ok("a new install starts with Bonfire off", !offServer.Configuration.BonfireOn);
+Ok("and everything that stops for the emergency code stops", Plugin.IsOff);
+var offRestart = new Plugin(new StubPaths(offDir), new RealXml());
+Ok("it is still off after a restart with nothing saved", !offRestart.Configuration.BonfireOn);
+Ok("the file says so", File.ReadAllText(offRestart.ConfigurationFilePath).Contains("<BonfireOn>false</BonfireOn>"));
+
+// BonfireOn arrived in 2.0, so a server that last saved under 1.7 has no element.
+var olderOn = NewDir();
+var olderWriter = new Plugin(new StubPaths(olderOn), new RealXml());
+olderWriter.Configuration.BonfireOn = false;
+olderWriter.SaveConfiguration();
+File.Delete(olderWriter.ConfigurationFilePath + ".lastgood");
+var onText = File.ReadAllText(olderWriter.ConfigurationFilePath);
+var noOnElement = System.Text.RegularExpressions.Regex.Replace(onText, @"\s*<BonfireOn>[^<]*</BonfireOn>", "");
+Ok("the older file really has no BonfireOn element", noOnElement != onText && !noOnElement.Contains("BonfireOn"));
+File.WriteAllText(olderWriter.ConfigurationFilePath, noOnElement);
+var upgradedOn = new Plugin(new StubPaths(olderOn), new RealXml());
+Ok("a server upgrading from a file without the setting stays on", upgradedOn.Configuration.BonfireOn);
+Ok("and nothing reads it as off", !Plugin.IsOff);
+
+var adminOff = NewDir();
+var offAdmin = new Plugin(new StubPaths(adminOff), new RealXml());
+offAdmin.Configuration.BonfireOn = true;
+offAdmin.SaveConfiguration();
+Ok("an administrator who turned it on is not overruled at the next start",
+   new Plugin(new StubPaths(adminOff), new RealXml()).Configuration.BonfireOn);
+offAdmin = new Plugin(new StubPaths(adminOff), new RealXml());
+offAdmin.Configuration.BonfireOn = false;
+offAdmin.SaveConfiguration();
+Ok("nor one who turned it off again",
+   !new Plugin(new StubPaths(adminOff), new RealXml()).Configuration.BonfireOn);
+
+var recoveringOn = NewDir();
+var onSaver = new Plugin(new StubPaths(recoveringOn), new RealXml());
+onSaver.Configuration.BonfireOn = true;
+onSaver.SaveConfiguration();
+File.Delete(onSaver.ConfigurationFilePath);
+Ok("a missing file with a good copy beside it keeps Bonfire on",
+   new Plugin(new StubPaths(recoveringOn), new RealXml()).Configuration.BonfireOn);
+
 Console.WriteLine();
 Console.WriteLine("── A different version starts: the file is copied first (R-1319) ──");
 

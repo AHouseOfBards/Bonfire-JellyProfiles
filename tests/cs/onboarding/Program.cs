@@ -371,6 +371,30 @@ Ok("but not raise it past twenty", raised.status == 400 && (int)(triesProp?.GetV
 Ok("nor set it to nothing", Admin(new() { ["PinGuessesPerDay"] = (int?)0 }).status == 400);
 Ok("and only an administrator", Admin(new() { ["PinGuessesPerDay"] = (int?)1 }, OLD).status != 200 && (int)(triesProp?.GetValue(config) ?? 0) == 5);
 
+// "Turn on Bonfire" (2.0): admin/settings, administrators only. Refused is 401 or 403
+// (401 vs 403 is being settled on another branch); either way nothing changes.
+Console.WriteLine();
+Console.WriteLine("── Turn on Bonfire ─────────────────────────────────────────────");
+var onProp = cfgType.GetProperty("BonfireOn");
+bool IsOn() => onProp != null && (bool)onProp.GetValue(config);
+bool Refused(int status) => status == 401 || status == 403;
+var plugIsOff = pluginType.GetProperty("IsOff");
+bool Off() => plugIsOff != null && (bool)plugIsOff.GetValue(null);
+onProp?.SetValue(config, false);
+var notAdminOn = Admin(new() { ["BonfireOn"] = (bool?)true }, OLD);
+Ok("a main account cannot turn it on", Refused(notAdminOn.status) && !IsOn() && Off(), notAdminOn.status + " " + notAdminOn.value);
+var keyOn = Admin(new() { ["BonfireOn"] = (bool?)true }, Guid.Empty);
+Ok("nor can a call with no user", Refused(keyOn.status) && !IsOn(), keyOn.status + " " + keyOn.value);
+var turnOn = Admin(new() { ["BonfireOn"] = (bool?)true });
+Ok("an administrator can, and it is on at once", turnOn.status == 200 && IsOn() && !Off(), turnOn.status + " " + turnOn.value);
+var notAdminOff = Admin(new() { ["BonfireOn"] = (bool?)false }, OLD);
+Ok("a main account cannot turn it off", Refused(notAdminOff.status) && IsOn() && !Off(), notAdminOff.status + " " + notAdminOff.value);
+var turnOff = Admin(new() { ["BonfireOn"] = (bool?)false });
+Ok("an administrator can, and it is off at once", turnOff.status == 200 && !IsOn() && Off(), turnOff.status + " " + turnOff.value);
+var other = Admin(new() { ["PinGuessesPerDay"] = (int?)4 });
+Ok("a save that does not name it leaves it alone", other.status == 200 && !IsOn(), other.status + " " + other.value);
+onProp?.SetValue(config, true);
+
 try { Directory.Delete(tempDir, true); } catch { }
 Console.WriteLine();
 if (fails.Count > 0)

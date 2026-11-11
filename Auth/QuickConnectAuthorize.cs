@@ -116,7 +116,7 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         public static string? Refusal(PluginConfiguration? config, Guid userId, string? code)
         {
-            if (Plugin.IsPanicDisabled || config?.Mappings == null) return null;
+            if (Plugin.IsOff || config?.Mappings == null) return null;
             var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == userId && m.MasterUserId != m.ProfileUserId);
             if (mapping == null) return null;
 

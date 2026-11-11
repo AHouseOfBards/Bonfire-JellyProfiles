@@ -508,7 +508,7 @@ namespace Jellyfin.Profiles
         /// </summary>
         private static bool IsPublicUsersRequest(HttpContext context)
         {
-            if (Plugin.IsPanicDisabled) return false;
+            if (Plugin.IsOff) return false;
             if (!HttpMethods.IsGet(context.Request.Method)) return false;
 
             var path = context.Request.Path.Value;
@@ -610,7 +610,7 @@ namespace Jellyfin.Profiles
             // beside it. If one of those is what has gone wrong, an inert script recovers
             // nothing — and the switch an administrator reaches for in an emergency would
             // not have turned off the thing that needed turning off.
-            if (Plugin.IsPanicDisabled) return false;
+            if (Plugin.IsOff) return false;
 
             if (Plugin.Instance?.Configuration?.EnableClientProfileList != true) return false;
 
@@ -792,7 +792,7 @@ namespace Jellyfin.Profiles
         private static bool IsQuickConnectInitiatePath(HttpContext context)
         {
             // Emergency disable reaches this too. See IsOwnUserPath.
-            if (Plugin.IsPanicDisabled) return false;
+            if (Plugin.IsOff) return false;
 
             if (!HttpMethods.IsPost(context.Request.Method) && !HttpMethods.IsGet(context.Request.Method))
             {

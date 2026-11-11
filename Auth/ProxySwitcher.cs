@@ -99,7 +99,7 @@ namespace Jellyfin.Profiles.Auth
             // and a list count. While one is in a child's profile its token is not the
             // child's to use, so a request on it is answered here instead of passed on as the
             // main account, which is where the app would otherwise land (see SignOutChildAsync).
-            if (Plugin.IsPanicDisabled || !ProxyClients.AnyEnabled(Plugin.Instance?.Configuration))
+            if (Plugin.IsOff || !ProxyClients.AnyEnabled(Plugin.Instance?.Configuration))
             {
                 // PickerMarks.Any: a TV that was in a child's profile before a restart is no
                 // longer in ChildTokens, and is exactly the one this must not let through.

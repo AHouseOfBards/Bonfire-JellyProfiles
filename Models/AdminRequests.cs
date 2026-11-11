@@ -46,6 +46,8 @@ namespace Jellyfin.Profiles.Models
         /// <summary>Wrong PIN tries an account may have in a day, 1 to 20. Null leaves it alone.</summary>
         public int? PinGuessesPerDay { get; set; }
         public bool? RequireMainPin { get; set; }
+        /// <summary>The Status tab's "Turn on Bonfire". Null leaves it alone.</summary>
+        public bool? BonfireOn { get; set; }
         public bool? DisallowCustomAvatarUploads { get; set; }
         public bool? EnableStarterAvatars { get; set; }
         public bool? DefaultAskOnStartup { get; set; }

@@ -27,6 +27,20 @@ namespace Jellyfin.Profiles.Configuration
         /// leaves all of that open to anyone who can reach its switcher.
         /// </summary>
         public bool RequireMainPin { get; set; }
+
+        /// <summary>
+        /// Whether Bonfire does anything at all: the Status tab's "Turn on Bonfire". Off does
+        /// what the emergency code does (see <see cref="Plugin.IsOff"/>), but takes effect
+        /// without a restart, both ways. Jellyfin's own parental controls are unaffected.
+        /// <para>
+        /// Off for a new install, so "Who's watching?" does not appear on every device before
+        /// there are any profiles; the Plugin constructor sets it, like RequireMainPin. The
+        /// default here is true because it is what a file saved before 2.0 loads as: it has no
+        /// element for this, and a server that already used Bonfire must stay on.
+        /// </para>
+        /// </summary>
+        public bool BonfireOn { get; set; } = true;
+
         public List<ProfileMapping> Mappings { get; set; } = new List<ProfileMapping>();
         public List<KnownDevice> KnownDevices { get; set; } = new List<KnownDevice>();
         public List<BonfireGroup> BonfireGroups { get; set; } = new List<BonfireGroup>();

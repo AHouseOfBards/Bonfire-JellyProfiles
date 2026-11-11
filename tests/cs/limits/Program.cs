@@ -98,6 +98,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-limits-" + Guid.NewGuid(
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
+// A new install starts with Bonfire off (2.0); this harness is about a server where it is on.
+config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 cfgType.GetProperty("DefaultTimeZone").SetValue(config, "Europe/London");
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 
@@ -196,10 +198,24 @@ Ok("a grace left over from an earlier day is not read as 'now'", d1 != null && (
 graceField.SetValue(entry, null);
 
 var panic = pluginType.GetField("_panicDisabled", Any);
+// Fresh() resets the day's usage too, so it is put back each time: without it KID was
+// allowed whether or not anything honoured the disable.
 panic.SetValue(null, true); Fresh();
+Static(tracker, "AddSeconds", KID, "2026-11-04", 3600.0);
 d1 = Ask(KID);
 Ok("the emergency disable means allowed", Allowed(d1) && offered, Show(d1));
 panic.SetValue(null, false); Fresh();
+
+// Turned off on the Status tab (2.0): the same, at the viewing limits (ViewingTracker).
+var bonfireOn = cfgType.GetProperty("BonfireOn");
+void BonfireOff(bool off) { bonfireOn.SetValue(config, !off); Fresh(); Static(tracker, "AddSeconds", KID, "2026-11-04", 3600.0); }
+BonfireOff(false);
+Ok("(set-up) the limit applies with Bonfire on", !Allowed(Ask(KID)), Show(Ask(KID)));
+BonfireOff(true);
+d1 = Ask(KID);
+Ok("turned off means allowed", Allowed(d1) && offered, Show(d1));
+BonfireOff(false);
+Ok("turned back on, without a restart, the limit applies again", !Allowed(Ask(KID)), Show(Ask(KID)));
 
 // ── Maintenance ──────────────────────────────────────────────────────────────
 // Maintenance refuses everyone but administrators. Whether a user is one is not a call Jellyfin
@@ -266,6 +282,14 @@ panic.SetValue(null, true); Fresh();
 d1 = Ask(FREE);
 Ok("the emergency disable means allowed", Allowed(d1) && offered, Show(d1));
 panic.SetValue(null, false); Fresh();
+
+// And at maintenance in the same provider (LimitsProvider).
+Ok("(set-up) maintenance refuses with Bonfire on", !Allowed(Ask(FREE)), Show(Ask(FREE)));
+BonfireOff(true);
+d1 = Ask(FREE);
+Ok("turned off, maintenance means allowed", Allowed(d1) && offered, Show(d1));
+BonfireOff(false);
+Ok("turned back on, maintenance refuses again", !Allowed(Ask(FREE)), Show(Ask(FREE)));
 Maintenance(false);
 
 // ── The timer ────────────────────────────────────────────────────────────────

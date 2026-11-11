@@ -389,6 +389,13 @@
     // reading the raw file always yields English and never a broken fetch.
     let SUPPORTED_LOCALES = []; // __BONFIRE_LOCALES__
 
+    // True when an administrator has turned Bonfire off (the Status tab). The server
+    // rewrites this exact line as it serves the script (PublishOff); a copy read straight
+    // off disk is on. Off, init() takes down whatever an earlier copy left and stops, but
+    // window.BonfireThemePreview is still defined below, so the settings page keeps its
+    // theme preview. This is not the inert script the emergency code serves for that reason.
+    const BONFIRE_OFF = false; // __BONFIRE_OFF__
+
     /*
      * The stylesheet, spliced in by the server from Web/styles.css.
      *
@@ -3692,6 +3699,18 @@
         },
 
         init: function () {
+            // Turned off: the same teardown as the emergency code, without remembering it,
+            // so the next page load after it is turned back on starts as normal. Before the
+            // ApiClient wait, because nothing here needs it and the head script's cover
+            // should come down at once.
+            if (BONFIRE_OFF) {
+                this._step('applyPanicDisable', () => this.applyPanicDisable(/* persist */ false));
+                // The head script raises its startup cover from this cache. Left in place,
+                // every page load while off would flash the cover until this script ran.
+                // Turned back on, loadSwitcherPrefs writes it again.
+                try { localStorage.removeItem(this.config.switcherModeKey); } catch (e) { /* blocked */ }
+                return;
+            }
             if (typeof ApiClient === 'undefined') {
                 // If ApiClient is not defined yet, wait for it
                 setTimeout(() => this.init(), 100);

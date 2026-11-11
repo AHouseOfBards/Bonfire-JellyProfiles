@@ -104,6 +104,8 @@ Ok("the plugin can be constructed against stub paths", plugin != null);
 
 var configProp = pluginType.GetProperty("Configuration", Any);
 var config = configProp.GetValue(plugin);
+// A new install starts with Bonfire off (2.0); this harness is about a server where it is on.
+config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var enableProp = cfgType.GetProperty("EnableClientPinLogin", Any);
 Ok("the configuration has an EnableClientPinLogin flag", enableProp != null);
 Ok("and it is OFF by default — this changes how the server authenticates",
@@ -771,6 +773,26 @@ finally
 {
     panicField.SetValue(null, false);
 }
+ForgetAttempts(MASTER);
+ForgetAttempts(KID);
+
+// Turned off on the Status tab (2.0): the same as the emergency code, at the PIN provider.
+var bonfireOn = config.GetType().GetProperty("BonfireOn");
+Ok("(the PINs open again with Bonfire on)", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+bonfireOn.SetValue(config, false);
+try
+{
+    Ok("turned off: the provider stays enabled", (bool)isEnabled.GetValue(provider));
+    Ok("turned off: a bound master's password still works",
+       Try(BoundUser(MASTER, "bard"), DefaultAuthenticationProvider.ThePassword) == "bard");
+    Ok("turned off: but its PIN does not", Try(BoundUser(MASTER, "bard"), "9999") == "!AuthenticationException");
+    Ok("turned off: and no sub-profile opens with its PIN", Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
+}
+finally
+{
+    bonfireOn.SetValue(config, true);
+}
+Ok("turned back on, without a restart, the PINs open", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
 ForgetAttempts(MASTER);
 ForgetAttempts(KID);
 

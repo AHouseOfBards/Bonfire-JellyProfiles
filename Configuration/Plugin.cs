@@ -35,6 +35,15 @@ namespace Jellyfin.Profiles
         /// </summary>
         public static bool IsPanicDisabled => _panicDisabled;
 
+        /// <summary>
+        /// True while Bonfire does nothing: the emergency code has been entered, or an
+        /// administrator has turned it off (<see cref="PluginConfiguration.BonfireOn"/>).
+        /// Everything that stops for the emergency code asks this, so the two behave the
+        /// same. Only what reports the code itself asks <see cref="IsPanicDisabled"/>:
+        /// <c>panic-state</c> and <c>admin/panic-status</c>.
+        /// </summary>
+        public static bool IsOff => _panicDisabled || Instance?.Configuration?.BonfireOn == false;
+
         /// <summary>Trips the emergency disable. There is no code path that clears it.</summary>
         internal static void TripPanicDisable() => _panicDisabled = true;
 
@@ -69,14 +78,27 @@ namespace Jellyfin.Profiles
             // first use, and the first save is what overwrites the file.
             BackUpIfVersionChanged(runningVersion);
 
-            // A new install requires a main PIN (P2-703). This is done here and not as the
-            // property's default because a file saved before 1.7.2 has no element for it,
-            // and a default of true would turn it on for that server at the next start.
-            // In memory only: the first real save writes it, and a file with a good copy
-            // beside it is being recovered, not created.
+            // A new install requires a main PIN (P2-703) and starts with Bonfire off. This is
+            // done here and not as the properties' defaults because a file saved by an older
+            // version has no element for either, and XmlSerializer leaves a missing element at
+            // the constructor's value: a default of true for RequireMainPin would turn it on
+            // for that server, and a default of false for BonfireOn would turn Bonfire off.
+            // A file with a good copy beside it is being recovered, not created.
+            //
+            // Saved here, not left in memory. Reading Configuration with no file runs
+            // Jellyfin's LoadConfiguration, which saves the plain defaults straight away; a
+            // value set only in memory after that was gone at the next restart, so a new
+            // install that restarted before its first save came back on (and without the
+            // main PIN rule).
             if (!System.IO.File.Exists(ConfigurationFilePath) && !System.IO.File.Exists(LastGoodPath))
             {
-                Configuration.RequireMainPin = true;
+                lock (ProfilesBaseController.ConfigLock)
+                {
+                    var fresh = Configuration;
+                    fresh.RequireMainPin = true;
+                    fresh.BonfireOn = false;
+                    SaveConfiguration();
+                }
             }
         }
 

@@ -69,6 +69,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-household-" + Guid.NewGu
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
+// A new install starts with Bonfire off (2.0); this harness is about a server where it is on.
+config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 var groups = (IList)cfgType.GetProperty("BonfireGroups").GetValue(config);
 var devices = (IList)cfgType.GetProperty("KnownDevices").GetValue(config);
@@ -222,6 +224,17 @@ try
 }
 finally { panicField.SetValue(null, false); }
 Ok("restarting Bonfire restores the answer", offered && !IsNull(GetDevice("dev-B", "Jellyfin Web", "Chrome", MAIN)));
+
+// Turned off on the Status tab (2.0): the same as the emergency code, at getDevice.
+var bonfireOn = config.GetType().GetProperty("BonfireOn");
+bonfireOn.SetValue(config, false);
+try
+{
+    Ok("turned off: a device is not answered either, so the library's fallback key applies",
+       offered && IsNull(GetDevice("dev-B", "Jellyfin Web", "Chrome", MAIN)));
+}
+finally { bonfireOn.SetValue(config, true); }
+Ok("turned back on, without a restart, the answer is back", offered && !IsNull(GetDevice("dev-B", "Jellyfin Web", "Chrome", MAIN)));
 
 Console.WriteLine();
 Console.WriteLine($"{pass} passed, {fails.Count} failed");

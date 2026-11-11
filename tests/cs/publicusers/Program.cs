@@ -289,6 +289,8 @@ if (resolve != null)
     var config = pluginType.GetProperty("Configuration", BindingFlags.Public | BindingFlags.Instance)
         .GetValue(plugin);
     cfgType.GetProperty("EnableClientProfileList").SetValue(config, true);
+    // A new install starts with Bonfire off (2.0); this harness is about a server where it is on.
+    cfgType.GetProperty("BonfireOn").SetValue(config, true);
 
     var MASTER = Guid.NewGuid();
     var KID = Guid.NewGuid();
@@ -1060,6 +1062,7 @@ if (rewrite != null)
     var plugin2 = Activator.CreateInstance(pluginType2, new StubPaths(dir2), new StubXml());
     var cfg2 = pluginType2.GetProperty("Configuration").GetValue(plugin2);
     cfgType2.GetProperty("EnableClientProfileList").SetValue(cfg2, true);
+    cfgType2.GetProperty("BonfireOn").SetValue(cfg2, true);
 
     var OWNER = Guid.NewGuid();
     var CHILD = Guid.NewGuid();
@@ -1195,6 +1198,36 @@ if (panicField != null && ownUser != null && publicUsers != null)
 
     Ok("and clearing it puts them all back",
        Path(publicUsers, "GET", "/Users/Public") && Path(ownUser, "GET", "/Users/Me"));
+
+    // Turned off on the Status tab (2.0): the same, at all three of the middleware's
+    // predicates. Plugin.Instance is the second plugin made above, so that is the one switched.
+    var qcInitiate = mw.GetMethod("IsQuickConnectInitiatePath", BindingFlags.Static | BindingFlags.NonPublic);
+    var liveCfg = pluginT.GetProperty("Configuration").GetValue(pluginT.GetProperty("Instance").GetValue(null));
+    var onProp = liveCfg.GetType().GetProperty("BonfireOn");
+    Ok("(set-up) Quick Connect matching is ours with Bonfire on", (bool)qcInitiate.Invoke(null, new object[] { QcContext() }));
+    onProp.SetValue(liveCfg, false);
+    try
+    {
+        Ok("turned off stops the sign-in user list", !Path(publicUsers, "GET", "/Users/Public"));
+        Ok("turned off stops the own-user rewrite", !Path(ownUser, "GET", "/Users/Me"));
+        Ok("turned off stops the authentication rewrite", !Path(ownUser, "POST", "/Users/AuthenticateByName"));
+        Ok("turned off stops Quick Connect matching", !(bool)qcInitiate.Invoke(null, new object[] { QcContext() }));
+    }
+    finally
+    {
+        onProp.SetValue(liveCfg, true);
+    }
+    Ok("turned back on, without a restart, they are all back",
+       Path(publicUsers, "GET", "/Users/Public") && Path(ownUser, "GET", "/Users/Me")
+       && (bool)qcInitiate.Invoke(null, new object[] { QcContext() }));
+
+    Microsoft.AspNetCore.Http.DefaultHttpContext QcContext()
+    {
+        var ctx = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        ctx.Request.Method = "POST";
+        ctx.Request.Path = "/QuickConnect/Initiate";
+        return ctx;
+    }
 }
 
 Console.WriteLine();

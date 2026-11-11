@@ -108,7 +108,7 @@ namespace Jellyfin.Profiles.Auth
             int generation;
             lock (UsageLock) generation = _indexGeneration;
             var built = new Dictionary<Guid, Limited>();
-            if (!Plugin.IsPanicDisabled)
+            if (!Plugin.IsOff)
             {
                 lock (ProfilesBaseController.ConfigLock)
                 {

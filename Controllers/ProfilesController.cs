@@ -2513,17 +2513,39 @@ namespace Jellyfin.Profiles.Controllers
             // Tagging the response with the plugin version and asking for revalidation means a
             // stale URL still picks up new code on its own within max-age, while unchanged
             // content costs only a 304.
-            var etag = "\"" + GetPluginVersion() + "\"";
+            //
+            // Turned off (the Status tab), it is the same script told to stay off, not the
+            // inert one: the settings page's theme preview runs on window.BonfireThemePreview
+            // from this script, and the dashboard must keep working while Bonfire is off. The
+            // tag carries the state, and every load asks (no-cache, not max-age=300), so a
+            // browser holding the other copy gets this one on its next page load in either
+            // direction instead of up to five minutes later.
+            var off = Plugin.IsOff;
+            var etag = "\"" + GetPluginVersion() + (off ? "-off" : "") + "\"";
             Response.Headers["ETag"] = etag;
-            Response.Headers["Cache-Control"] = "public, max-age=300, must-revalidate";
+            Response.Headers["Cache-Control"] = "public, no-cache";
 
             if (IfNoneMatchHas(etag))
             {
                 return StatusCode(StatusCodes.Status304NotModified);
             }
 
-            return Content(CachedProfilesJs, "application/javascript");
+            if (!off) return Content(CachedProfilesJs, "application/javascript");
+            var offJs = CachedOffProfilesJs ??= PublishOff(CachedProfilesJs);
+            return Content(offJs, "application/javascript");
         }
+
+        /// <summary>The served script with Bonfire turned off, made once from <see cref="ProfilesBaseController.CachedProfilesJs"/>.</summary>
+        private static string? CachedOffProfilesJs;
+
+        /// <summary>
+        /// Tells the script that Bonfire is turned off: it then takes down anything an earlier
+        /// copy left, and draws nothing. An exact literal, like <see cref="PublishLocales"/>;
+        /// tests/js/onoff.js fails if the marker is not in profiles.js.
+        /// </summary>
+        internal static string PublishOff(string js)
+            => js.Replace("const BONFIRE_OFF = false; // __BONFIRE_OFF__",
+                          "const BONFIRE_OFF = true; // __BONFIRE_OFF__", StringComparison.Ordinal);
 
         /// <summary>
         /// Fills in the client's list of available translations as the script is served.
@@ -4433,7 +4455,7 @@ namespace Jellyfin.Profiles.Controllers
         // What it does NOT do is widen anyone's access to content. Library access, parental
         // ratings and tag filters are all enforced in Jellyfin's own user policy server-side,
         // and /switch still demands the target profile's PIN. It DOES turn off what Bonfire
-        // itself adds on top (IsPanicDisabled is read by LimitsProvider, MaintenanceGate,
+        // itself adds on top (through Plugin.IsOff, read by LimitsProvider, MaintenanceGate,
         // ProxySwitcher, ViewingTracker, QuickConnectAuthorize and the PIN sign-in provider):
         // viewing limits stop applying, the maintenance cover lifts, the proxy picker stops
         // being served, and PIN sign-in is declined. Anyone who knows the code can also skip
@@ -5094,7 +5116,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 Version = GetPluginVersion(),
                 ApiVersion = 1,
-                Disabled = Plugin.IsPanicDisabled,
+                Disabled = Plugin.IsOff,
                 Features = new InfoFeatures
                 {
                     ClientPinLogin = config?.EnableClientPinLogin == true,
@@ -5598,6 +5620,9 @@ namespace Jellyfin.Profiles.Controllers
                     config.PinGuessesPerDay = request.PinGuessesPerDay.Value;
                 if (request.RequireMainPin.HasValue)
                     config.RequireMainPin = request.RequireMainPin.Value;
+                // Plugin.IsOff reads it on every request, so it takes effect at once, both ways.
+                if (request.BonfireOn.HasValue)
+                    config.BonfireOn = request.BonfireOn.Value;
                 if (request.DisallowCustomAvatarUploads.HasValue)
                     config.DisallowCustomAvatarUploads = request.DisallowCustomAvatarUploads.Value;
                 if (request.EnableStarterAvatars.HasValue)
@@ -5656,6 +5681,15 @@ namespace Jellyfin.Profiles.Controllers
             // a few minutes. Ticking it must take effect on the next request, not after that.
             if (request.ProxyClients != null)
             {
+                Auth.ProxySwitcher.ForgetUnproxied();
+            }
+
+            // Turning Bonfire off or on reaches every reader through Plugin.IsOff at once,
+            // except what they have cached: the viewing-limits index (30 seconds) and the
+            // tokens the proxy switcher has put down as not ours.
+            if (request.BonfireOn.HasValue)
+            {
+                Auth.ViewingTracker.Invalidate();
                 Auth.ProxySwitcher.ForgetUnproxied();
             }
 

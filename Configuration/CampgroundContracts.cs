@@ -40,7 +40,7 @@ namespace Jellyfin.Profiles
     /// caller on any thread never holds the lock while Jellyfin is asked for a name, and a slow
     /// caller cannot hold up a save.</para>
     /// <para>
-    /// <b>While Bonfire is emergency-disabled</b> (<see cref="Plugin.IsPanicDisabled"/>) it answers
+    /// <b>While Bonfire is off or emergency-disabled</b> (<see cref="Plugin.IsOff"/>) it answers
     /// nothing and raises nothing. For <c>getHousehold</c> that is the household of one the contract
     /// already defines for a user Bonfire doesn't know, for <c>getDevice</c> the library's own
     /// fallback key, and for <c>getSignInPolicy</c> a caller that fails open. The safe answer is the
@@ -70,12 +70,12 @@ namespace Jellyfin.Profiles
             var household = new CapabilityHost()
                 .On<HouseholdQuery, Household?>(
                     HouseholdClient.GetHouseholdOp,
-                    (q, ct) => Task.FromResult(Plugin.IsPanicDisabled
+                    (q, ct) => Task.FromResult(Plugin.IsOff
                         ? null
                         : BuildHousehold(ProfilesBaseController.ReadConfigSnapshot(), q.UserId, nameOf)))
                 .On<SignInPolicyQuery, SignInPolicy?>(
                     GetSignInPolicyOp,
-                    (q, ct) => Task.FromResult(Plugin.IsPanicDisabled
+                    (q, ct) => Task.FromResult(Plugin.IsOff
                         ? null
                         : BuildSignInPolicy(ProfilesBaseController.ReadConfigSnapshot())));
             Capabilities.Provide(CapabilityNames.Household, PluginIds.Bonfire, HouseholdMinor, household.Build());
@@ -83,7 +83,7 @@ namespace Jellyfin.Profiles
             DeviceClient.Provide(
                 PluginIds.Bonfire,
                 DeviceMinor,
-                (q, ct) => Task.FromResult(Plugin.IsPanicDisabled
+                (q, ct) => Task.FromResult(Plugin.IsOff
                     ? null
                     : BuildDevice(ProfilesBaseController.ReadConfigSnapshot(), q)));
         }
@@ -243,7 +243,7 @@ namespace Jellyfin.Profiles
 
         private static void Publish(string eventName, ProfileEvent payload)
         {
-            if (Plugin.IsPanicDisabled) return;
+            if (Plugin.IsOff) return;
             try
             {
                 CampgroundEvents.Publish(eventName, payload);

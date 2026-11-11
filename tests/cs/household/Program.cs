@@ -71,6 +71,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-household-" + Guid.NewGu
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
+// A new install starts with Bonfire off (2.0); this harness is about a server where it is on.
+config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 var groups = (IList)cfgType.GetProperty("BonfireGroups").GetValue(config);
 var devices = (IList)cfgType.GetProperty("KnownDevices").GetValue(config);
@@ -329,6 +331,28 @@ finally
 }
 Ok("restarting Bonfire restores every answer",
    offered && !IsNull(GetHousehold(KID, 1)));
+
+// Turned off on the Status tab (2.0): the same as the emergency code, at every contract.
+var bonfireOn = config.GetType().GetProperty("BonfireOn");
+var beforeOff = seen["ProfileSwitched"].Count + seen["ProfileCreated"].Count;
+bonfireOn.SetValue(config, false);
+try
+{
+    Ok("turned off: a profile answers as a household of one (no answer)",
+       offered && IsNull(GetHousehold(KID, 1)) && IsNull(GetHousehold(MAIN, 1)));
+    Ok("turned off: the sign-in policy is not answered, so a caller fails open",
+       offered && IsNull(SignInPolicy(MAIN)));
+    Raise("RaiseCreated", MAIN, OTHERKID, "x");
+    Raise("RaiseSwitchedFromSession", MAIN, KID, "Kids", "dev-Z", (Guid?)null);
+    Ok("turned off: and no event is raised",
+       offered && seen["ProfileSwitched"].Count + seen["ProfileCreated"].Count == beforeOff);
+}
+finally
+{
+    bonfireOn.SetValue(config, true);
+}
+Ok("turned back on, without a restart, every answer is back",
+   offered && !IsNull(GetHousehold(KID, 1)) && !IsNull(SignInPolicy(MAIN)));
 
 foreach (var s in subs) s.Dispose();
 

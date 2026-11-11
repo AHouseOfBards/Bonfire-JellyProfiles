@@ -164,7 +164,7 @@ namespace Jellyfin.Profiles.Auth
             if (config?.Mappings == null || !config.EnableClientPinLogin) throw Decline();
 
             // Only ever reaches a sub-profile, and the emergency disable turns PIN entry off.
-            if (Plugin.IsPanicDisabled) throw Decline();
+            if (Plugin.IsOff) throw Decline();
 
             // The id this sign-in came from, resolved to the television's recorded one when
             // the app derived it from the name typed. See DeviceRegistry.ResolveSignInDevice.
@@ -261,7 +261,7 @@ namespace Jellyfin.Profiles.Auth
                 // (R-1344). This branch had no device check at all, so an administrator's four
                 // digits opened the server from any address on the internet. Elsewhere the
                 // PIN is skipped, not refused: the password below still works there.
-                if (master != null && !Plugin.IsPanicDisabled && LooksLikePin(password)
+                if (master != null && !Plugin.IsOff && LooksLikePin(password)
                     && !KnownToHousehold(config, deviceId, resolvedUser.Id))
                 {
                     _logger.LogInformation(
@@ -270,7 +270,7 @@ namespace Jellyfin.Profiles.Auth
                         resolvedUser.Id,
                         string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId);
                 }
-                else if (master != null && !Plugin.IsPanicDisabled && LooksLikePin(password))
+                else if (master != null && !Plugin.IsOff && LooksLikePin(password))
                 {
                     if (!BeginPinAttempt(resolvedUser.Id))
                     {
@@ -303,7 +303,7 @@ namespace Jellyfin.Profiles.Auth
 
             // Every PIN below belongs to a sub-profile, and the emergency disable turns PIN
             // entry off. A sub-profile has no password of its own to fall back to.
-            if (Plugin.IsPanicDisabled) throw Decline();
+            if (Plugin.IsOff) throw Decline();
 
             // A main account turned off in Dashboard -> Users shuts its profiles too (R-1135).
             // Jellyfin checks the account being signed into, which is the profile's and was

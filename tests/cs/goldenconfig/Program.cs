@@ -146,6 +146,11 @@ foreach (var file in files)
     Ok("today's build reads it", a != null, readError);
     if (a == null) continue;
 
+    // A server that used Bonfire before 2.0 has no BonfireOn element, and must stay on.
+    var onProp = a.GetType().GetProperty("BonfireOn");
+    Ok("it has no BonfireOn element, so it is a real upgrade", !golden.Contains("BonfireOn"));
+    Ok("and it loads with Bonfire on", onProp != null && (bool)onProp.GetValue(a));
+
     var xml1 = Write(a);
     var have = Leaves(xml1);
     var want = Leaves(golden);

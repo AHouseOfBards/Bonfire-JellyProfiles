@@ -67,6 +67,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-savedsignins-" + Guid.Ne
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
+// A new install starts with Bonfire off (2.0); this harness is about a server where it is on.
+config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 
 // ── The household ──────────────────────────────────────────────────────────
 var MASTER = Guid.NewGuid();

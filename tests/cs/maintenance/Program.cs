@@ -87,6 +87,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-maintenance-" + Guid.New
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
+// A new install starts with Bonfire off (2.0); this harness is about a server where it is on.
+config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 void Set(string prop, object value) => cfgType.GetProperty(prop).SetValue(config, value);
 void Forget() => gateType.GetMethod("Forget").Invoke(null, null);
 
@@ -473,6 +475,12 @@ Ok("turns the gate off", Through(Send("/Users/" + N(MEMBER) + "/Items", MEMBER_T
 panicField.SetValue(null, false);
 Ok("(and it is back after a restart)", Refused(Send("/Users/" + N(MEMBER) + "/Items", MEMBER_TOKEN)));
 
+// Turned off on the Status tab (2.0): the same, at MaintenanceGate.
+Set("BonfireOn", false);
+Ok("turned off, the gate is off", Through(Send("/Users/" + N(MEMBER) + "/Items", MEMBER_TOKEN)));
+Set("BonfireOn", true);
+Ok("turned back on, without a restart, the gate is back", Refused(Send("/Users/" + N(MEMBER) + "/Items", MEMBER_TOKEN)));
+
 Console.WriteLine();
 Console.WriteLine("── Who is asking is Jellyfin's to say ──────────────────────────");
 
@@ -543,6 +551,25 @@ Ok("says it is closed, with the message and the time, to anyone",
 Close(false);
 info = JsonNode.Parse(Info());
 Ok("and null once open", info is JsonObject o && o.ContainsKey("Maintenance") && o["Maintenance"] == null, info?.ToJsonString());
+
+// /info's Disabled tells an app to show no Bonfire screens: true for the emergency code and
+// for turned off alike. panic-state reports the code only, so it stays false when turned off.
+string PanicState()
+{
+    var c = (ControllerBase)ctor.Invoke(ctorArgs);
+    c.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+    var r = ctrlType.GetMethod("GetPanicState").Invoke(c, null);
+    return JsonSerializer.Serialize((r.GetType().GetProperty("Result")?.GetValue(r) as ObjectResult)?.Value);
+}
+Ok("on: /info says not disabled", (bool?)JsonNode.Parse(Info())?["Disabled"] == false);
+Set("BonfireOn", false);
+Ok("turned off: /info says disabled", (bool?)JsonNode.Parse(Info())?["Disabled"] == true, Info());
+Ok("turned off: panic-state still says the code was not used", (bool?)JsonNode.Parse(PanicState())?["Disabled"] == false, PanicState());
+Set("BonfireOn", true);
+panicField.SetValue(null, true);
+Ok("the emergency code: /info says disabled", (bool?)JsonNode.Parse(Info())?["Disabled"] == true);
+Ok("and so does panic-state", (bool?)JsonNode.Parse(PanicState())?["Disabled"] == true);
+panicField.SetValue(null, false);
 
 Console.WriteLine();
 Console.WriteLine("── Reopening by itself ─────────────────────────────────────────");

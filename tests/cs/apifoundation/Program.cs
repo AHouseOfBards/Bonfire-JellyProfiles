@@ -199,6 +199,38 @@ foreach (var route in new[] { "GetProfilesJs", "GetThemes" })
     Ok(route + ": another tag gets the body", Call(route, UserPrincipal(MAIN), rargs, new() { ["If-None-Match"] = "\"0000\"" }).status == 200);
 }
 
+// Turned off on the Status tab (2.0), profiles.js is the same script told to stay off (so the
+// settings page keeps its theme preview), under its own tag, and every load asks again so the
+// change reaches a browser on its next page load in either direction.
+{
+    var onProp = cfgType.GetProperty("BonfireOn");
+    string Body((int status, object value, HttpContext http) r) => (r.value as ContentResult)?.Content ?? r.value as string;
+    onProp.SetValue(config, true);
+    var on = Call("GetProfilesJs", UserPrincipal(MAIN));
+    var onTag = on.http?.Response.Headers["ETag"].ToString();
+    Ok("on: the script says it is on", (Body(on) ?? "").Contains("const BONFIRE_OFF = false; // __BONFIRE_OFF__"),
+       on.status + " " + on.value?.GetType().Name);
+    Ok("on: every load asks again", on.http?.Response.Headers["Cache-Control"].ToString() == "public, no-cache",
+       on.http?.Response.Headers["Cache-Control"].ToString());
+    onProp.SetValue(config, false);
+    var off = Call("GetProfilesJs", UserPrincipal(MAIN), null, new() { ["If-None-Match"] = onTag ?? "" });
+    var offTag = off.http?.Response.Headers["ETag"].ToString();
+    Ok("off: a browser holding the on copy gets the off one, not a 304", off.status == 200, off.status.ToString());
+    Ok("off: under a tag of its own", !string.IsNullOrEmpty(offTag) && offTag != onTag, onTag + " / " + offTag);
+    var offBody = Body(off) ?? "";
+    Ok("off: the script says it is off", offBody.Contains("const BONFIRE_OFF = true; // __BONFIRE_OFF__")
+       && !offBody.Contains("const BONFIRE_OFF = false;"));
+    Ok("off: and it is the whole script, not the inert one, so the theme preview is there",
+       offBody.Contains("window.BonfireThemePreview") && !offBody.Contains("emergency disable active"));
+    Ok("off: every load asks again", off.http?.Response.Headers["Cache-Control"].ToString() == "public, no-cache");
+    Ok("off: its own tag gets 304", Call("GetProfilesJs", UserPrincipal(MAIN), null, new() { ["If-None-Match"] = offTag ?? "" }).status == 304);
+    onProp.SetValue(config, true);
+    var back = Call("GetProfilesJs", UserPrincipal(MAIN), null, new() { ["If-None-Match"] = offTag ?? "" });
+    Ok("turned back on: a browser holding the off copy gets the on one", back.status == 200
+       && (Body(back) ?? "").Contains("const BONFIRE_OFF = false; // __BONFIRE_OFF__"), back.status.ToString());
+    Ok("under the on tag again", back.http?.Response.Headers["ETag"].ToString() == onTag);
+}
+
 var before = Call("GetAnnouncements", UserPrincipal(MAIN)).http?.Response.Headers["ETag"].ToString();
 var ann = Activator.CreateInstance(annType);
 annType.GetProperty("Id").SetValue(ann, Guid.NewGuid());

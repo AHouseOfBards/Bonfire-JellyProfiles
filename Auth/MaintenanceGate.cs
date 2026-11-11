@@ -77,7 +77,7 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         public static MaintenanceMode? Active()
         {
-            if (Plugin.IsPanicDisabled) return null;
+            if (Plugin.IsOff) return null;
             var m = Plugin.Instance?.Configuration?.Maintenance;
             return m != null && m.Enabled && !m.HasLapsed(DateTime.UtcNow) ? m : null;
         }
