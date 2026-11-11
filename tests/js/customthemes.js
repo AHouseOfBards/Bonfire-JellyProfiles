@@ -186,6 +186,20 @@ console.log('\n── Its font ────────────────�
         && srcs.every(x => /^src: url\("[^"\\]*"\) format\("woff2"\);$/.test(x)), srcs.join(' | '));
 }
 
+console.log('\n── An accent with an alpha byte ────────────────────────────────');
+{
+    // webOS 4.5 (Chromium 53) drops #RRGGBBAA. The hover colour falls back to the accent when
+    // the theme has no accentFocus, and handed it over as written.
+    const w = world();
+    const t = JSON.parse(JSON.stringify(payload.themes.filter(x => x.id === 'nightfall')[0]));
+    t.colors.accent = '#FF8A3DC6';
+    delete t.colors.accentFocus;
+    const css = w.helpers.themeCss(t, {});
+    const eight = css.match(/#[0-9a-fA-F]{8}\b/g) || [];
+    ok('no 8-digit hex reaches the stylesheet (' + eight.join(', ') + ')', eight.length === 0);
+    ok('the hover colour is the accent without its alpha', /--jpf-accent-hover: #ff8a3d;/i.test(css));
+}
+
 console.log('\n── Preview rings come from the file ──────────────────────────');
 {
     // styles.css carried Nightfall's three preview colours by hand, so a custom theme with

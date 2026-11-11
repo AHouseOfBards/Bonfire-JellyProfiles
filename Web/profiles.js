@@ -548,7 +548,7 @@
             ['--jpf-accent', accent.slice(0, 7)],
             ['--jpf-accent-rgb', ac.join(', ')],
             ['--jpf-accent-text', accentText],
-            ['--jpf-accent-hover', col(c.accentFocus, accent)],
+            ['--jpf-accent-hover', col(c.accentFocus, accent.slice(0, 7))],
             ['--jpf-on-accent', col(c.onAccent, '#fff')],
             ['--jpf-accent-a08', tint(accent, 0.08)], ['--jpf-accent-a18', tint(accent, 0.18)],
             ['--jpf-accent-a30', tint(accent, 0.3)], ['--jpf-accent-a40', tint(accent, 0.4)],
@@ -985,6 +985,7 @@
         'errors.failedMergeDevice': "Couldn't merge the devices.",
         'errors.generic': 'Something went wrong. Try again.',
         'errors.savingProfile': "Couldn't save the profile.",
+        'errors.savingHours': "The profile was saved, but not its viewing hours.",
         'errors.loadProfileDetails': "Couldn't load the profile.",
         'errors.failedDeleteProfile': "Couldn't delete the profile.",
         'errors.deletingProfile': "Couldn't delete the profile.",
@@ -8078,6 +8079,13 @@
             return fallback;
         },
 
+        /// The profile saved and its viewing hours did not. Said apart, so it does not read as
+        /// a profile that was lost; the server's reason, when it gave one, follows.
+        _hoursFailText: function (err) {
+            const why = this._failText(err, '');
+            return t('errors.savingHours') + (why ? ' ' + why : '');
+        },
+
         executeProfileSwitch: function (profileId, pin, onError) {
             if (this._switchLock) return;
 
@@ -9462,7 +9470,7 @@
                         // its id. A failure here must not look like a failed create.
                         const id = created && (created.profileUserId || created.ProfileUserId);
                         const saveLimits = () => viewingEditor.save(id).catch(err => {
-                            this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.savingProfile'))));
+                            this.showAlert(t('errors.error'), escapeHtml(this._hoursFailText(err)));
                         });
                         // The first profile is when a main PIN starts to matter: from now on
                         // the main account is the way past that profile's restrictions.
@@ -9985,7 +9993,10 @@
                             });
                         }
                         return artworkEditor.save(profile.profileUserId)
-                            .then(() => viewingEditor.save())
+                            // The profile is saved by now: a failure here is the hours only.
+                            .then(() => viewingEditor.save().catch(err => {
+                                this.showAlert(t('errors.error'), escapeHtml(this._hoursFailText(err)));
+                            }))
                             .then(() => {
                                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
                             });

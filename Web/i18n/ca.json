@@ -64,6 +64,7 @@
   "errors.failedDeleteDevice": "No s'ha pogut eliminar el dispositiu.",
   "errors.generic": "Alguna cosa ha fallat. Torna-ho a provar.",
   "errors.savingProfile": "No s'ha pogut desar el perfil.",
+  "errors.savingHours": "El perfil s'ha desat, però no l'horari de visualització.",
   "errors.loadProfileDetails": "No s'ha pogut carregar el perfil.",
   "errors.failedDeleteProfile": "No s'ha pogut eliminar el perfil",
   "errors.deletingProfile": "No s'ha pogut eliminar el perfil.",

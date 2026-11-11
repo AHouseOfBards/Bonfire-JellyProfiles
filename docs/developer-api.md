@@ -244,6 +244,12 @@ means an administrator has switched it off: show no Bonfire screens.
 true once outgoing mail is set up and tested; `pinResetByEmail` is true when that and the
 administrator's switch are both on. A feature is only ever reported available when
 everything it needs is too.
+
+This is public on purpose. A television's app and the sign-in page need `proxyClients`,
+`requireMainPin`, `clientPinLogin` and `maintenance` before anyone can sign in, and the
+sign-in page already carries the version in its script address. It never names an
+account, a profile or a PIN.
+
 `maintenance` is null, or `{ "message": "…", "untilUtc": "…" }` while the server is closed:
 see [Maintenance](#maintenance). Sent with
 `no-store`.

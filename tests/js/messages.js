@@ -167,5 +167,21 @@ LANGS.forEach(l => Object.keys(TR[l]).forEach(k => ok(l + ' ' + k, files[l][k] =
 const unlockWord = { ca: /desbloqu/i, es: /desbloque/i, fr: /déverrouill/i, pl: /odblok/i, tr: /kilidini/i };
 LANGS.forEach(l => ok(l + ' panic.dialogBody does not say unlock', !unlockWord[l].test(files[l]['panic.dialogBody']), files[l]['panic.dialogBody']));
 
+// R-1178: the profile is saved before its viewing hours are, so a failure of the hours
+// must not say the profile was not saved (and must not show the server's text alone).
+{
+    const calls = [];
+    for (let i = src.indexOf('viewingEditor.save('); i !== -1; i = src.indexOf('viewingEditor.save(', i + 1)) calls.push(i);
+    ok('the profile form saves its viewing hours in two places', calls.length === 2, String(calls.length));
+    calls.forEach((i, n) => {
+        const after = src.slice(i, i + 400);
+        ok('hours save ' + (n + 1) + ' words its failure as the hours', after.indexOf('_hoursFailText') !== -1
+            && after.indexOf('errors.savingProfile') === -1, after.slice(0, 160).replace(/\s+/g, ' '));
+    });
+    ok('the hours message is in English', /saved, but not its viewing hours/.test(english['errors.savingHours'] || ''));
+    ['ca', 'es', 'fr', 'pl', 'tr'].forEach(l => ok(l + ' has errors.savingHours',
+        typeof files[l]['errors.savingHours'] === 'string' && files[l]['errors.savingHours'].length > 10));
+}
+
 if (fails.length) { console.log('\n' + pass + ' passed, ' + fails.length + ' failed'); process.exit(1); }
 console.log(pass + ' passed, 0 failed');
