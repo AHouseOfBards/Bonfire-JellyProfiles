@@ -802,27 +802,37 @@ namespace Jellyfin.Profiles.Controllers
         private static readonly ConcurrentDictionary<Type, System.Reflection.MethodInfo?> ChangePasswordCache = new();
 
         protected IEnumerable<Jellyfin.Database.Implementations.Entities.User> GetAllUsers()
+            => AllUsersOf(_userManager, _logger);
+
+        /// <summary>
+        /// Every account, from whichever of <c>GetUsers()</c> or <c>Users</c> this Jellyfin has.
+        /// For code outside a controller: <c>userManager.Users</c> compiles against our reference
+        /// package and throws MissingMethodException on 10.11.7 and later, inside whatever lambda
+        /// holds it, before its own try block runs (tests/binchk.sh found one in LimitsProvider).
+        /// </summary>
+        internal static IEnumerable<Jellyfin.Database.Implementations.Entities.User> AllUsersOf(
+            IUserManager userManager, ILogger? logger = null)
         {
-            var type = _userManager.GetType();
+            var type = userManager.GetType();
 
             var method = GetUsersMethodCache.GetOrAdd(type, t => t.GetMethod("GetUsers", PublicInstance));
             if (method != null)
             {
                 try
                 {
-                    return (IEnumerable<Jellyfin.Database.Implementations.Entities.User>)method.Invoke(_userManager, null)!;
+                    return (IEnumerable<Jellyfin.Database.Implementations.Entities.User>)method.Invoke(userManager, null)!;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "ProfilesPlugin: GetUsers() reflection failed, falling back.");
+                    logger?.LogWarning(ex, "ProfilesPlugin: GetUsers() reflection failed, falling back.");
                 }
             }
 
             var prop = UsersPropertyCache.GetOrAdd(type, t => t.GetProperty("Users", PublicInstance));
             if (prop != null)
-                return (IEnumerable<Jellyfin.Database.Implementations.Entities.User>)prop.GetValue(_userManager)!;
+                return (IEnumerable<Jellyfin.Database.Implementations.Entities.User>)prop.GetValue(userManager)!;
 
-            _logger.LogError("ProfilesPlugin: Could not resolve user list from IUserManager.");
+            logger?.LogError("ProfilesPlugin: Could not resolve user list from IUserManager.");
             return Enumerable.Empty<Jellyfin.Database.Implementations.Entities.User>();
         }
 

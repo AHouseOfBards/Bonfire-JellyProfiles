@@ -969,9 +969,17 @@ if (resolve != null)
        && listenerSrc.Split(new[] { "StartAsync" }, StringSplitOptions.None)[1]
                      .Split(new[] { "StopAsync" }, StringSplitOptions.None)[0]
                      .Contains("LogInformation"));
+    // Per call, not "no LogDebug in the file": the sign-in of an account outside any household
+    // is Debug on purpose (R-1018), since every other account on the server signs in there.
+    // What must stay loud is each line that says something was recorded.
+    var logCalls = System.Text.RegularExpressions.Regex.Matches(listenerSrc, @"_logger\.(Log\w+)\(\s*""([^""]*)""");
+    string LevelOf(string phrase) => logCalls.Cast<System.Text.RegularExpressions.Match>()
+        .Where(m => m.Groups[2].Value.Contains(phrase)).Select(m => m.Groups[1].Value).FirstOrDefault() ?? "missing";
+    var recordedLines = new[] { "{User} signed in on device {DeviceId} ({Client}); household", "{User} took over an open session", "carries {User}'s name appended" };
+    var quiet = recordedLines.Where(p => LevelOf(p) != "LogInformation").ToList();
     Ok("and reports what it recorded at Information, not Debug",
-       listenerSrc.Contains("noted, so its profiles can be offered")
-       && !listenerSrc.Contains("LogDebug"));
+       listenerSrc.Contains("noted, so its profiles can be offered") && quiet.Count == 0,
+       string.Join(", ", quiet.Select(p => p + " = " + LevelOf(p))));
 
     devicesList.Clear();
 }

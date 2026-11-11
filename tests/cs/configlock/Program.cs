@@ -226,6 +226,7 @@ var allowed = new Dictionary<string, string>(StringComparer.Ordinal)
     ["UsageLock"]    = "static readonly in Auth.ViewingTracker; guards viewing time, extra time and requests",
     ["PickerFileLock"] = "static readonly in Auth.PickerMarks; reading and writing proxy_picker.json, which TVs are in a child's profile",
     ["SaveLock"]     ="static readonly in Auth.ViewingTracker; one write of viewing_usage.json at a time, taken before UsageLock",
+    ["BudgetLock"]   = "static readonly in Mail.Notifications; guards the per-account new-device notice budget (R-1056)",
     ["ViewingTracker.UsageLock"]
                      = "the same static readonly field, qualified from the timer and the gate",
     ["list"]         = "a List<DateTime> held in a ConcurrentDictionary in RateLimiter — the "

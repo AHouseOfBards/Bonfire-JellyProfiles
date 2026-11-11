@@ -86,12 +86,16 @@ namespace Jellyfin.Profiles.Auth
         {
             var users = _users;
             if (users == null || Interlocked.CompareExchange(ref _refreshing, 1, 0) != 0) return;
-            _ = Task.Run(() =>
+            // BackgroundWork, not Task.Run, so a server stop does not leave this running
+            // (tests/cs/shutdown). The user list goes through AllUsersOf: users.Users is not on
+            // 10.11.7 and later, and its MissingMethodException fired before this try block,
+            // leaving _refreshing set for good.
+            _ = BackgroundWork.Run(_ =>
             {
                 try
                 {
                     var ids = new List<Guid>();
-                    foreach (var user in users.Users)
+                    foreach (var user in Controllers.ProfilesBaseController.AllUsersOf(users))
                     {
                         if (Jellyfin.Data.UserEntityExtensions.HasPermission(user, Jellyfin.Database.Implementations.Enums.PermissionKind.IsAdministrator))
                         {
