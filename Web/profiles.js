@@ -13445,14 +13445,17 @@
     /// what the theme will look like rather than a second copy's guess. css() returns text
     /// and writes nothing; builtIns() is a copy, so the editor can start from a hidden
     /// built-in, which GET /themes leaves out; refresh() is the startup fetch again, so a
-    /// theme just saved reaches this window's pickers without a reload. The page works
-    /// without this, minus the preview, when the script was not injected.
+    /// theme just saved reaches this window's pickers without a reload. fit() sizes and
+    /// balances a copy of the picker (the editor's expanded preview) the way the real one is,
+    /// so a phone shows two tiles a row there too. The page works without this, minus the
+    /// preview, when the script was not injected.
     if (typeof window !== 'undefined') {
         window.BonfireThemePreview = {
             css: theme => themeCss(theme, BONFIRE_THEMES.patterns || {}),
             // A background picture the editor's preview names, fetched and marked as the
             // pickers' are, so the preview shows it exactly when they would.
             photo: file => ProfilesPlugin.loadThemePhoto(file),
+            fit: el => ProfilesPlugin.fitGateToScreen(el),
             builtIns: () => JSON.parse(JSON.stringify(Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes : [])),
             refresh: () => {
                 ProfilesPlugin._customThemesLoad = null;

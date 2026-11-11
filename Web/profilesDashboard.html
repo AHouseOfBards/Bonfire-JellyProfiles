@@ -5213,8 +5213,47 @@
             /// Writes the editor's sheet for the view. Called with the text renderThemeDraftPreview
             /// just made, so the card and the view cannot disagree.
             function paintThemeExpanded(page, css) {
-                if (!page._themeExpand) return;
-                page._themeExpand.style.textContent = String(css || '').replace(/#profiles-gate-overlay/g, '#teExpandGate');
+                const x = page._themeExpand;
+                if (!x) return;
+                if (x.gateCss === undefined) x.gateCss = gateRulesForExpanded();
+                x.style.textContent = x.gateCss + String(css || '').replace(/#profiles-gate-overlay/g, '#teExpandGate');
+                fitThemeExpanded(page);
+            }
+
+            /// Bonfire's own stylesheet rules for the real picker, written for the view. Most of
+            /// how the picker lays out (two tiles a row on a phone, the grid's width and gaps,
+            /// the fitted sizes) is keyed to #profiles-gate-overlay in styles.css, so with only the
+            /// generator's sheet copied the view showed one huge tile a row on a phone. Read
+            /// from the client's own sheet (#jpf-styles), so the view follows any change to it.
+            function gateRulesForExpanded() {
+                const el = document.getElementById('jpf-styles');
+                let rules;
+                try { rules = el && el.sheet ? el.sheet.cssRules : null; } catch (e) { rules = null; }
+                if (!rules) return '';
+                const pick = function (list) {
+                    let out = '';
+                    for (let i = 0; i < list.length; i++) {
+                        const r = list[i];
+                        if (r.cssRules && r.media) {
+                            const inner = pick(r.cssRules);
+                            if (inner) out += '@media ' + r.media.mediaText + ' {\n' + inner + '}\n';
+                        } else if (r.cssText && r.cssText.indexOf('#profiles-gate-overlay') !== -1) {
+                            out += r.cssText + '\n';
+                        }
+                    }
+                    return out;
+                };
+                return pick(rules).replace(/#profiles-gate-overlay/g, '#teExpandGate');
+            }
+
+            /// The real picker sizes its tiles to the screen and balances its rows by script
+            /// (fitGateToScreen); the view runs the same function, through the preview API.
+            function fitThemeExpanded(page) {
+                const x = page._themeExpand;
+                const api = window.BonfireThemePreview;
+                if (!x || !api || typeof api.fit !== 'function') return;
+                const gate = x.wrap.querySelector('#teExpandGate');
+                if (gate) api.fit(gate);
             }
 
             function closeThemeExpanded(page, restoreFocus) {
@@ -5259,7 +5298,7 @@
                 x.onMove = function () {
                     if (x.queued) return;
                     x.queued = true;
-                    (window.requestAnimationFrame || window.setTimeout)(function () { x.queued = false; positionThemeExpanded(page); });
+                    (window.requestAnimationFrame || window.setTimeout)(function () { x.queued = false; positionThemeExpanded(page); fitThemeExpanded(page); });
                 };
                 document.addEventListener('keydown', x.onKey, true);
                 window.addEventListener('scroll', x.onMove, true);
