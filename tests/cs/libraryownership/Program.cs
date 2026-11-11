@@ -317,6 +317,16 @@ Console.WriteLine("── The library screens and create ───────�
     Ok("GET libraries lists a library its owner leaves to the admin (GameTent's Shelf)", ids.Contains(Id(GT)));
     Unregister();
 
+    // R-1136: a create that fails after the account exists takes the account away again, or
+    // every retry says "already exists" about an account no profile owns.
+    world.FailPolicyWrite = true;
+    var failed = Call("CreateProfile", $"{{\"profileName\":\"Rollback\",\"masterPin\":\"{PIN}\"}}");
+    world.FailPolicyWrite = false;
+    Ok("setup: a create that fails part way reports it", failed.status != 200, failed.status + " " + failed.value);
+    Ok("and does not leave its account behind", world.Deleted.Contains(world.LastCreated) && !world.Users.ContainsKey(world.LastCreated), "deleted " + world.Deleted.Count);
+    var retry = Call("CreateProfile", $"{{\"profileName\":\"Rollback\",\"masterPin\":\"{PIN}\"}}");
+    Ok("so the same name can be tried again", retry.status == 200, retry.status + " " + retry.value);
+
     // CreateProfile: nothing owned is copied from the main account or from the request.
     UserPolicy Created() => world.Policies[world.LastCreated];
     var r = Call("CreateProfile", $"{{\"profileName\":\"Allbooks\",\"masterPin\":\"{PIN}\"}}");
@@ -396,6 +406,8 @@ public class World
     public Dictionary<Guid, string> Names = new();
     public Dictionary<Guid, string> FolderPaths = new();
     public Guid LastCreated;
+    public bool FailPolicyWrite;
+    public List<Guid> Deleted = new();
 
     public Guid MasterOf(Guid id) => Masters.TryGetValue(id, out var m) ? m : Guid.Empty;
 
@@ -455,7 +467,12 @@ public class WorldProxy : DispatchProxy
                 W.AddUser(id, (string)args[0], new UserPolicy { AuthenticationProviderId = "x", PasswordResetProviderId = "x", EnableAllFolders = true });
                 W.LastCreated = id;
                 return Task.FromResult(W.Users[id]);
+            case "DeleteUserAsync":
+                W.Deleted.Add((Guid)args[0]);
+                W.Users.Remove((Guid)args[0]);
+                return Task.CompletedTask;
             case "UpdatePolicyAsync":
+                if (W.FailPolicyWrite) throw new InvalidOperationException("disk full");
                 W.Policies[(Guid)args[0]] = World.Copy((UserPolicy)args[1]);
                 return Task.CompletedTask;
             case "GetVirtualFolders":

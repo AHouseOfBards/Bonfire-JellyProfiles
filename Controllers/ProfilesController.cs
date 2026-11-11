@@ -462,6 +462,11 @@ namespace Jellyfin.Profiles.Controllers
             // Create system user
             var targetUser = await _userManager.CreateUserAsync(systemUsername).ConfigureAwait(false);
 
+            // Everything from here to the saved mapping either completes or takes the account
+            // away again. A throw part way used to leave an account no profile owned, and
+            // every retry then said the name already existed (R-1136).
+            try
+            {
             // Set high-entropy random password to prevent direct password-based bypass logins
             string securePassword = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
             await ChangePasswordCompat(targetUser, securePassword).ConfigureAwait(false);
@@ -576,6 +581,20 @@ namespace Jellyfin.Profiles.Controllers
                 });
 
                 Plugin.Instance?.SaveConfiguration();
+            }
+            }
+            catch
+            {
+                lock (ConfigLock)
+                {
+                    config.Mappings.RemoveAll(m => m.ProfileUserId == targetUser.Id);
+                }
+                try { await _userManager.DeleteUserAsync(targetUser.Id).ConfigureAwait(false); }
+                catch (Exception cleanup)
+                {
+                    _logger.LogWarning(cleanup, "ProfilesPlugin: could not remove the account {User} left by a failed profile create.", systemUsername);
+                }
+                throw;
             }
 
             LogActivity(_userManager.GetUserById(masterUserId)?.Username + " added the profile " + profileName,
