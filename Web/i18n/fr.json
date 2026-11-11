@@ -1044,6 +1044,8 @@
   "email.reset.body": "Votre code est {code}.\n\nSaisissez-le dans Bonfire pour définir un nouveau code PIN pour {account}. Il reste valable 15 minutes.\n\nSi vous n'avez rien demandé, ignorez cet e-mail. Votre code PIN n'a pas changé.",
   "email.resetDone.subject": "Votre code PIN Bonfire a été changé",
   "email.resetDone.body": "Le code PIN de {account} a été réinitialisé avec un code envoyé à cette adresse.\n\nSi ce n'était pas vous, prévenez l'administrateur du serveur.",
+  "email.changed.subject": "Votre adresse e-mail Bonfire a été changée",
+  "email.changed.body": "L'adresse e-mail de {account} est maintenant {address}. Cette adresse ne recevra plus de codes ni d'avis.\n\nSi ce n'était pas vous, prévenez l'administrateur du serveur.",
   "email.lockout.subject": "Trop de codes PIN erronés sur Bonfire",
   "email.lockout.body": "Quelqu'un a saisi trop de fois un code PIN erroné pour {name}. Un nouvel essai sera possible dans 15 minutes.\n\nVous pouvez désactiver ces e-mails dans Bonfire : Paramètres, Votre compte.",
   "email.newDevice.subject": "Nouvel appareil connecté à Bonfire",

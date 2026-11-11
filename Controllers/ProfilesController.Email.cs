@@ -25,6 +25,9 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>Codes sent by the whole server, against an account mailing strangers.</summary>
         internal static readonly RateLimiter EmailPerServer = RateLimiter.Create(maxAttempts: 60, windowMinutes: 60);
 
+        /// <summary>PIN-reset codes sent by the whole server. Separate from the above (R-1063).</summary>
+        internal static readonly RateLimiter EmailResetPerServer = RateLimiter.Create(maxAttempts: 60, windowMinutes: 60);
+
         private const string EmailUnavailable = "Email isn't set up on this server.";
 
         /// <summary>Whether this main account could reset its PIN by email right now.</summary>
@@ -109,7 +112,9 @@ namespace Jellyfin.Profiles.Controllers
                 var security = request.Security != null ? EmailSecurity.Normalize(request.Security) : EmailSecurity.Normalize(e.Security);
                 // See SmtpMailSender: 465 is TLS from the first byte, which SmtpClient can't
                 // speak, and a test against it hangs for the whole timeout.
-                if (port == 465 && security == EmailSecurity.StartTls)
+                // Whatever the security setting says: 465 is TLS from the first byte, so
+                // "none" hangs for the whole timeout just the same (R-1067).
+                if (port == 465)
                     return BadRequest("Port 465 isn't supported. Use 587 with STARTTLS; every common provider offers it.");
 
                 if (request.Host != null) e.Host = request.Host.Trim();
@@ -297,6 +302,8 @@ namespace Jellyfin.Profiles.Controllers
             if (result != EmailCodes.Result.Ok) return BadRequest(CodeRefusal(result));
 
             PluginConfiguration? saved;
+            string? replacedAddress = null;
+            string? oldLanguage = null;
             lock (ConfigLock)
             {
                 var live = Plugin.Instance?.Configuration;
@@ -307,11 +314,45 @@ namespace Jellyfin.Profiles.Controllers
                     row = new AccountEmail { UserId = mainId };
                     live.AccountEmails.Add(row);
                 }
+                replacedAddress = row.Address;
+                oldLanguage = row.Language;
                 row.Address = address;
                 row.ConfirmedUtc = DateTime.UtcNow;
                 row.Language = EmailText.CleanLanguage(request.Language);
                 Plugin.Instance?.SaveConfiguration();
                 saved = live.SnapshotForReading();
+            }
+
+            if (!string.IsNullOrEmpty(replacedAddress)
+                && !string.Equals(replacedAddress, address, StringComparison.OrdinalIgnoreCase))
+            {
+                // R-1060: a reset code mailed to the old address would still finish a reset
+                // for up to 15 minutes. Remove forgets it; a change has to as well.
+                EmailCodes.Forget(EmailCodes.ResetPin, mainId);
+                // R-1061: and the old address hears about it, in case it wasn't them.
+                var name = saved.Mappings.FirstOrDefault(m => m.ProfileUserId == mainId)?.ProfileName
+                           ?? _userManager.GetUserById(mainId)?.Username ?? string.Empty;
+                var values = new Dictionary<string, string>
+                {
+                    ["account"] = name,
+                    ["address"] = Mailer.Mask(address),
+                };
+                var settings = saved.Email;
+                var oldTo = replacedAddress;
+                var lang = oldLanguage;
+                var logger = _logger;
+                Notifications.Pending.Enqueue(BackgroundWork.Run(async _ =>
+                {
+                    try
+                    {
+                        await Mailer.SendAsync(settings, oldTo, EmailText.Get("email.changed.subject", lang, values),
+                            EmailText.Get("email.changed.body", lang, values)).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning("ProfilesPlugin: Couldn't send the address-changed note: {Reason}", Mailer.Describe(ex));
+                    }
+                }));
             }
             return Ok(AccountEmailView(mainId, saved));
         }
@@ -494,13 +535,17 @@ namespace Jellyfin.Profiles.Controllers
             var accountKey = purpose + ":" + mainId.ToString("N");
             if (!EmailPerAccount.TryBegin(accountKey))
                 return TooManyAttempts(EmailPerAccount, accountKey, "Too many codes sent.");
-            if (!EmailPerServer.TryBegin("server"))
-                return TooManyAttempts(EmailPerServer, "server", "Too many codes sent from this server.");
+            // R-1063: confirmation mail goes to any address a main account types, so it has its
+            // own server cap. A PIN-reset code goes only to an address already confirmed, and
+            // must not be starved by someone mailing strangers.
+            var serverLimit = purpose == EmailCodes.ResetPin ? EmailResetPerServer : EmailPerServer;
+            if (!serverLimit.TryBegin("server"))
+                return TooManyAttempts(serverLimit, "server", "Too many codes sent from this server.");
 
             var name = snapshot.Mappings.FirstOrDefault(m => m.ProfileUserId == mainId)?.ProfileName
                        ?? _userManager.GetUserById(mainId)?.Username
                        ?? string.Empty;
-            var code = EmailCodes.Issue(purpose, mainId, address);
+            var code = EmailCodes.Issue(purpose, mainId, address, out var undo);
             var values = new Dictionary<string, string> { ["code"] = code, ["account"] = name };
             var lang = EmailText.CleanLanguage(language);
             try
@@ -511,7 +556,7 @@ namespace Jellyfin.Profiles.Controllers
             }
             catch (Exception ex)
             {
-                EmailCodes.Forget(purpose, mainId);
+                undo();   // R-1062: only the code this send made; one already in the inbox stays good
                 _logger.LogWarning("ProfilesPlugin: Couldn't send a code: {Reason}", Mailer.Describe(ex));
                 return BadRequest("The email couldn't be sent. Ask your server's administrator to check the email settings.");
             }

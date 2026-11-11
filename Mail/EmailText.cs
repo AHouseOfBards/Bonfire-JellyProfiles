@@ -38,6 +38,8 @@ namespace Jellyfin.Profiles.Mail
             ["email.reset.body"] = "Your code is {code}. It expires in 15 minutes.\n\nEnter it in Bonfire to set a new PIN for {account}.\n\nIf you didn't ask for this, ignore this email. Your PIN hasn't changed.",
             ["email.resetDone.subject"] = "Your Bonfire PIN was changed",
             ["email.resetDone.body"] = "The PIN for {account} was reset with a code sent to this address.\n\nIf this wasn't you, tell your server's administrator.",
+            ["email.changed.subject"] = "Your Bonfire email address was changed",
+            ["email.changed.body"] = "The email address for {account} was changed to {address}. This address will no longer get codes or notices.\n\nIf this wasn't you, tell your server's administrator.",
             ["email.lockout.subject"] = "Too many wrong PINs on Bonfire",
             ["email.lockout.body"] = "Someone entered {name}'s PIN wrong too many times. They can try again in 15 minutes.\n\nTurn these emails off in Bonfire: Settings, Your account.",
             ["email.newDevice.subject"] = "New device signed in to Bonfire",
@@ -88,13 +90,17 @@ namespace Jellyfin.Profiles.Mail
             if (string.IsNullOrWhiteSpace(language)) return null;
             foreach (var code in Candidates(language.Trim()))
             {
-                var table = Loaded.GetOrAdd(code, c =>
+                // Only a language that exists is kept. Caching the null for a tag that doesn't
+                // let anyone fill the table with made-up ones (R-1066).
+                if (!Loaded.TryGetValue(code, out var table))
                 {
-                    var json = ProfilesController.ReadLocaleJson(c);
-                    if (json == null) return null;
-                    try { return JsonNode.Parse(json) as JsonObject; }
-                    catch (System.Text.Json.JsonException) { return null; }
-                });
+                    var json = ProfilesController.ReadLocaleJson(code);
+                    if (json == null) continue;
+                    try { table = JsonNode.Parse(json) as JsonObject; }
+                    catch (System.Text.Json.JsonException) { continue; }
+                    if (table == null) continue;
+                    Loaded[code] = table;
+                }
                 if (table != null && table[key] is JsonValue v && v.TryGetValue<string>(out var s) && !string.IsNullOrWhiteSpace(s))
                     return s;
             }

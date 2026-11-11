@@ -59,7 +59,14 @@ namespace Jellyfin.Profiles.Mail
 
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeoutMs);
-            await client.SendMailAsync(message, timeout.Token).ConfigureAwait(false);
+            try
+            {
+                await client.SendMailAsync(message, timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException("The mail server didn't answer in time.");
+            }
         }
     }
 
@@ -88,7 +95,13 @@ namespace Jellyfin.Profiles.Mail
 
             return ex switch
             {
-                OperationCanceledException => "The mail server didn't answer in time. Check the server and port.",
+                // The sender turns its own 20 s timeout into a TimeoutException, so a plain
+                // cancel is the request being dropped, not a slow server (R-1065).
+                TimeoutException => "The mail server didn't answer in time. Check the server and port.",
+                OperationCanceledException => "The request was cancelled before the email was sent.",
+                SmtpException s when (s.Message ?? string.Empty).Contains("not support", StringComparison.OrdinalIgnoreCase)
+                                     && (s.Message ?? string.Empty).Contains("secure", StringComparison.OrdinalIgnoreCase)
+                    => "The mail server doesn't offer STARTTLS. Choose no encryption only for a relay you trust.",
                 SmtpFailedRecipientException => "The mail server refused that address.",
                 SmtpException s when s.StatusCode == SmtpStatusCode.MustIssueStartTlsFirst
                     => "The mail server wants an encrypted connection. Choose STARTTLS.",

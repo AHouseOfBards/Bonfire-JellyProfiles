@@ -217,6 +217,8 @@ void FreshLimits(params Guid[] ids)
         foreach (var purpose in new[] { "confirm", "reset" })
             reset.Invoke(perAccount, new object[] { purpose + ":" + id.ToString("N") });
     reset.Invoke(perServer, new object[] { "server" });
+    var resetServer = ctrlType.GetField("EmailResetPerServer", Any)?.GetValue(null);   // R-1063
+    if (resetServer != null) reset.Invoke(resetServer, new object[] { "server" });
 }
 
 var ADMIN = Guid.NewGuid(); world.Add(ADMIN, "Admin", admin: true);
@@ -599,6 +601,77 @@ r = Call("RemoveAccountEmail", MAIN, B(("MasterPin", "0000")));
 Ok("an account needs its PIN to remove its own", r.status == 400 && StoredAddress(MAIN) != null);
 r = Call("RemoveAccountEmail", MAIN, B(("MasterPin", "2468")));
 Ok("and with it, it is gone", r.status == 200 && StoredAddress(MAIN) == null && !MePinReset(MAIN));
+
+// ── An address that changes ──────────────────────────────────────────────────
+Section("An address that changes, a send that fails, a full server");
+
+// R-1060 / R-1061: a reset code sent to the old address must not outlive the address,
+// and the old address is told.
+FreshLimits(MAIN);
+Call("SetAccountEmail", MAIN, B(("Address", "old@example.com"), ("MasterPin", "2468")));
+Call("ConfirmAccountEmail", MAIN, B(("Code", CodeIn(Last())), ("MasterPin", "2468")));
+Ok("(set up: the old address is confirmed)", StoredAddress(MAIN) == "old@example.com", StoredAddress(MAIN));
+Call("SendPinReset", MAIN, B(("Language", "en")));
+var oldReset = CodeIn(Last());
+Call("SetAccountEmail", MAIN, B(("Address", "new@example.com"), ("MasterPin", "2468")));
+Call("ConfirmAccountEmail", MAIN, B(("Code", CodeIn(Last())), ("MasterPin", "2468")));
+Ok("(set up: the address changed)", StoredAddress(MAIN) == "new@example.com", StoredAddress(MAIN));
+r = Call("ResetPinByEmail", MAIN, B(("Code", oldReset), ("NewPin", "9753")));
+Ok("a reset code sent to the old address does not work after the address changes",
+   r.status == 400 && PinIs(MAIN, "2468"), r.status + " " + r.value);
+Sent();
+Mail told;
+lock (sent) told = sent.LastOrDefault(m => m.To == "old@example.com" && m.Subject.Contains("address"));
+Ok("the old address is told it was replaced", told != null && told.Body.Contains("n•••@example.com") && !Regex.IsMatch(told.Body, @"\b\d{6}\b"),
+   told == null ? "no mail" : told.Body);
+
+// R-1062: a send that fails must not wipe the code already in the inbox.
+FreshLimits(MAIN);
+Call("SetAccountEmail", MAIN, B(("Address", "keep@example.com"), ("MasterPin", "2468")));
+var kept = CodeIn(Last());
+onSend = _ => new System.Net.Mail.SmtpException("Service not available");
+r = Call("SetAccountEmail", MAIN, B(("Address", "keep@example.com"), ("MasterPin", "2468")));
+onSend = null;
+Ok("(a resend that fails says so)", r.status == 400, r.status.ToString());
+r = Call("ConfirmAccountEmail", MAIN, B(("Code", kept), ("MasterPin", "2468")));
+Ok("a failed resend leaves the code already received working", r.status == 200 && StoredAddress(MAIN) == "keep@example.com", r.status + " " + r.value);
+
+// R-1063: confirmation mail to strangers must not use up the server's cap on reset mail.
+FreshLimits(MAIN);
+var flooded = false; var flood = 0;
+while (!flooded && flood < 80)
+{
+    flood++;
+    var f = Guid.NewGuid(); world.Add(f, "f" + flood); Map(f, f, "f" + flood);
+    flooded = Call("SetAccountEmail", f, B(("Address", "f" + flood + "@example.com"))).status == 429;
+}
+Ok("(the server's cap for confirmation mail is reached)", flooded, "flood=" + flood);
+r = Call("SendPinReset", MAIN, B(("Language", "en")));
+Ok("and a PIN-reset code still goes out", r.status == 200, r.status + " " + r.value);
+FreshLimits(MAIN);
+
+// R-1065: what a person is told.
+object Desc(Exception e) => mailerType.GetMethod("Describe", Any).Invoke(null, new object[] { e });
+var starttls = (string)Desc(new System.Net.Mail.SmtpException("Server does not support secure connections."));
+Ok("a server without STARTTLS is not 'refused the message'", starttls.Contains("STARTTLS") && !starttls.Contains("refused the message"), starttls);
+var cancelled = (string)Desc(new OperationCanceledException());
+Ok("a cancelled request is not 'didn't answer in time'", !cancelled.Contains("didn't answer"), cancelled);
+Ok("a real timeout still is", ((string)Desc(new TimeoutException())).Contains("didn't answer in time"));
+
+// R-1066: a made-up language tag must not stay in memory.
+var emailTextType = asm.GetType("Jellyfin.Profiles.Mail.EmailText");
+var loaded = (System.Collections.IDictionary)emailTextType.GetField("Loaded", Any).GetValue(null);
+var loadedBefore = loaded.Count;
+var textGet = emailTextType.GetMethod("Get", Any);
+for (var i = 0; i < 40; i++) textGet.Invoke(null, new object[] { "email.test.subject", "zq" + i, null });
+Ok("40 languages that don't exist leave nothing cached", loaded.Count == loadedBefore, loadedBefore + " -> " + loaded.Count);
+
+// R-1067: 465 speaks TLS from the first byte whatever the security setting says.
+r = Admin("UpdateEmailSettings", B(("Host", "smtp.example.com"), ("Port", (int?)465), ("Security", "none")));
+Ok("port 465 is refused with security none too", r.status == 400 && (int)Get(Email(), "Port") != 465, r.status + " " + Get(Email(), "Port"));
+
+// Back to where the next section expects MAIN: no confirmed address.
+Call("RemoveAccountEmail", MAIN, B(("MasterPin", "2468")));
 
 // ── Stored and served ────────────────────────────────────────────────────────
 Section("Stored and served");

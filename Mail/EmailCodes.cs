@@ -18,6 +18,14 @@ namespace Jellyfin.Profiles.Mail
     ///
     /// <para>Five wrong tries spend the code: a million possibilities against five
     /// guesses per code, and sending a new code is rate-limited separately.</para>
+    ///
+    /// <para><b>The worst case, written down (R-1064).</b> A signed-in main account that
+    /// knows its own PIN can send five codes an hour and try five guesses on each: 25 guesses
+    /// an hour, about 220,000 a year, which is roughly a 22% chance of hitting one code if
+    /// someone guessed nonstop for twelve months from a signed-in session. The owner is
+    /// mailed whenever the PIN is reset or the address changes, so it would not go unseen.
+    /// Accepted rather than tightened: eight digits are harder to read off a phone and type
+    /// with a remote, and a lower send limit would lock out a real typo or two.</para>
     /// </summary>
     internal static class EmailCodes
     {
@@ -50,7 +58,16 @@ namespace Jellyfin.Profiles.Mail
         private static byte[] HashOf(string code) => SHA256.HashData(Encoding.UTF8.GetBytes(code));
 
         /// <summary>A fresh code for this account and purpose, replacing any before it.</summary>
-        internal static string Issue(string purpose, Guid userId, string address)
+        internal static string Issue(string purpose, Guid userId, string address) =>
+            Issue(purpose, userId, address, out _);
+
+        /// <summary>
+        /// Like the above, and hands back a way to take the new code out again if the mail
+        /// never left (R-1062). The code it replaced comes back, because the person may
+        /// already have it in their inbox; only a code nobody was sent is dropped. A newer
+        /// code issued meanwhile is left alone.
+        /// </summary>
+        internal static string Issue(string purpose, Guid userId, string address, out Action undo)
         {
             var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
             var entry = new Entry
@@ -59,7 +76,22 @@ namespace Jellyfin.Profiles.Mail
                 Address = address,
                 ExpiresUtc = Now() + Lifetime,
             };
-            lock (CodesLock) Codes[Key(purpose, userId)] = entry;
+            var key = Key(purpose, userId);
+            Entry? replaced;
+            lock (CodesLock)
+            {
+                Codes.TryGetValue(key, out replaced);
+                Codes[key] = entry;
+            }
+            undo = () =>
+            {
+                lock (CodesLock)
+                {
+                    if (!Codes.TryGetValue(key, out var current) || !ReferenceEquals(current, entry)) return;
+                    if (replaced != null && replaced.ExpiresUtc > Now() && replaced.Tries < MaxTries) Codes[key] = replaced;
+                    else Codes.Remove(key);
+                }
+            };
             return code;
         }
 

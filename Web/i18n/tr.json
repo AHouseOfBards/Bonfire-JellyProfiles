@@ -1056,6 +1056,8 @@
   "email.reset.body": "Kodunuz: {code}.\n\n{account} için yeni bir PIN belirlemek üzere kodu Bonfire'a girin. Kod 15 dakika geçerlidir.\n\nBunu siz istemediyseniz bu e-postayı yok sayın. PIN'iniz değişmedi.",
   "email.resetDone.subject": "Bonfire PIN'iniz değiştirildi",
   "email.resetDone.body": "{account} hesabının PIN'i bu adrese gönderilen bir kodla sıfırlandı.\n\nBu siz değilseniz sunucu yöneticisine haber verin.",
+  "email.changed.subject": "Bonfire e-posta adresiniz değiştirildi",
+  "email.changed.body": "{account} hesabının e-posta adresi {address} olarak değiştirildi. Bu adres artık kod veya bildirim almayacak.\n\nBu siz değilseniz sunucu yöneticisine haber verin.",
   "email.lockout.subject": "Bonfire'da çok fazla yanlış PIN",
   "email.lockout.body": "{name} profilinin PIN'i çok kez yanlış girildi. 15 dakika sonra yeniden denenebilir.\n\nBu e-postaları Bonfire'da kapatabilirsiniz: Ayarlar, Hesabınız.",
   "email.newDevice.subject": "Bonfire'a yeni bir cihazdan giriş yapıldı",

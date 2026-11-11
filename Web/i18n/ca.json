@@ -1044,6 +1044,8 @@
   "email.reset.body": "El teu codi és {code}.\n\nIntrodueix-lo a Bonfire per posar un PIN nou a {account}. Funciona durant 15 minuts.\n\nSi no ho has demanat, ignora aquest correu. El teu PIN no ha canviat.",
   "email.resetDone.subject": "S'ha canviat el teu PIN de Bonfire",
   "email.resetDone.body": "El PIN de {account} s'ha restablert amb un codi enviat a aquesta adreça.\n\nSi no has estat tu, avisa l'administrador del servidor.",
+  "email.changed.subject": "S'ha canviat l'adreça de correu de Bonfire",
+  "email.changed.body": "L'adreça de correu de {account} s'ha canviat a {address}. Aquesta adreça ja no rebrà codis ni avisos.\n\nSi no has estat tu, avisa l'administrador del servidor.",
   "email.lockout.subject": "Massa PIN incorrectes a Bonfire",
   "email.lockout.body": "Algú ha introduït malament el PIN de {name} massa vegades. Ho podrà tornar a provar d'aquí a 15 minuts.\n\nPots desactivar aquests correus a Bonfire: Configuració, El teu compte.",
   "email.newDevice.subject": "Un dispositiu nou ha entrat a Bonfire",
