@@ -1771,7 +1771,8 @@ daily limit, optionally different at weekends. Main accounts are never limited. 
 a main account turns it on.
 
 Only video counts. Music, books and photos are never limited, and browsing is always
-allowed. Paused time doesn't count.
+allowed. Paused time doesn't count. Audio is not gated by type, so a film's soundtrack
+asked for through the audio route (`/Audio/{id}/stream`) is not held back.
 
 **Time zone.** Hours and the daily reset follow the household's zone, set on the main
 account (`timeZone` on [`POST /account`](#post-pluginsprofilesaccount)). If it has none,

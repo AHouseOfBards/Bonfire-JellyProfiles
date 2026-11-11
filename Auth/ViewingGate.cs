@@ -44,7 +44,9 @@ namespace Jellyfin.Profiles.Auth
 
         internal enum Kind
         {
-            /// <summary>Not playback, or audio: never refused here.</summary>
+            /// <summary>Not playback, or audio: never refused here. That includes a film's
+            /// soundtrack asked for as <c>/Audio/{id}/stream</c> (R-1028); documented, not gated,
+            /// because audio is not what the limits are for.</summary>
             None,
 
             /// <summary><c>/Items/{id}/PlaybackInfo</c>.</summary>
