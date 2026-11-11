@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Profiles.Configuration;
 using Jellyfin.Profiles.Controllers;
 using MediaBrowser.Controller.Library;
@@ -70,13 +71,22 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>Applies the master's policy to <paramref name="profileUserId"/>. False when it is not a sub-profile.</summary>
-        public static async Task<bool> ApplyAsync(
+        public static Task<bool> ApplyAsync(
             IUserManager userManager, ILibraryManager libraryManager, ILogger logger, Guid profileUserId)
+            => ApplyInPassAsync(userManager, libraryManager, logger, profileUserId, new Pass(userManager, libraryManager));
+
+        /// <summary>
+        /// <see cref="ApplyAsync"/> for one profile of a loop over several, sharing what they have in
+        /// common (<see cref="Pass"/>). A separate name, not an optional parameter: the harnesses
+        /// find ApplyAsync by reflection with four arguments.
+        /// </summary>
+        internal static async Task<bool> ApplyInPassAsync(
+            IUserManager userManager, ILibraryManager libraryManager, ILogger logger, Guid profileUserId, Pass pass)
         {
             await Gate.WaitAsync().ConfigureAwait(false);
             try
             {
-                return await ApplyCoreAsync(userManager, libraryManager, logger, profileUserId).ConfigureAwait(false);
+                return await ApplyCoreAsync(userManager, libraryManager, logger, profileUserId, pass).ConfigureAwait(false);
             }
             finally
             {
@@ -84,8 +94,83 @@ namespace Jellyfin.Profiles.Auth
             }
         }
 
+        /// <summary>
+        /// What is the same for every profile of one pass over a household: the server's library
+        /// list, the libraries another plugin manages, and the main account's policy and reach.
+        /// Each profile used to read all of it again, so saving a main account with six profiles
+        /// listed the libraries (and walked them for owners) about twenty times. A pass is made
+        /// by whoever loops over the profiles and dropped when the loop ends, so nothing in it
+        /// outlives the change that started it. Not shared between passes, and not thread safe:
+        /// one loop at a time, under <see cref="Gate"/>.
+        /// </summary>
+        internal sealed class Pass
+        {
+            private readonly IUserManager _users;
+            private readonly ILibraryManager _libraries;
+            private List<Guid>? _allIds;
+            private HashSet<Guid>? _owned;
+            private List<Guid>? _managedIds;
+            private readonly Dictionary<Guid, UserPolicy> _masterPolicies = new();
+            private readonly Dictionary<Guid, HashSet<Guid>> _masterReach = new();
+
+            internal Pass(IUserManager users, ILibraryManager libraries)
+            {
+                _users = users;
+                _libraries = libraries;
+            }
+
+            private void ReadFolders()
+            {
+                var all = new List<Guid>();
+                var owned = new HashSet<Guid>();
+                foreach (var f in _libraries.GetVirtualFolders())
+                {
+                    if (!Guid.TryParse(f.ItemId, out var id) || id == Guid.Empty) continue;
+                    all.Add(id);
+                    if (LibraryOwnership.ManagedByOwner(_libraries, f)) owned.Add(id);
+                }
+
+                _allIds = all;
+                _owned = owned;
+                _managedIds = all.Where(id => !owned.Contains(id)).ToList();
+            }
+
+            /// <summary>Every library on the server.</summary>
+            internal List<Guid> AllIds { get { if (_allIds == null) ReadFolders(); return _allIds!; } }
+
+            /// <summary>The libraries another plugin manages access to.</summary>
+            internal HashSet<Guid> Owned { get { if (_owned == null) ReadFolders(); return _owned!; } }
+
+            /// <summary>Every library Bonfire manages: all of them but the owned ones.</summary>
+            internal List<Guid> ManagedIds { get { if (_managedIds == null) ReadFolders(); return _managedIds!; } }
+
+            /// <summary>The main account's policy, as Jellyfin builds it. Read-only for the callers.</summary>
+            internal UserPolicy MasterPolicy(User master)
+            {
+                if (!_masterPolicies.TryGetValue(master.Id, out var policy))
+                {
+                    policy = _users.GetUserDto(master, string.Empty).Policy;
+                    _masterPolicies[master.Id] = policy;
+                }
+
+                return policy;
+            }
+
+            /// <summary>What the main account can reach and Bonfire manages. Read-only for the callers.</summary>
+            internal HashSet<Guid> MasterReach(Guid masterId, UserPolicy masterPolicy)
+            {
+                if (!_masterReach.TryGetValue(masterId, out var reach))
+                {
+                    reach = ProfilesBaseController.MasterAccessibleFolders(masterPolicy, Owned, () => AllIds);
+                    _masterReach[masterId] = reach;
+                }
+
+                return reach;
+            }
+        }
+
         private static async Task<bool> ApplyCoreAsync(
-            IUserManager userManager, ILibraryManager libraryManager, ILogger logger, Guid profileUserId)
+            IUserManager userManager, ILibraryManager libraryManager, ILogger logger, Guid profileUserId, Pass pass)
         {
             ProfileMapping? mapping;
             lock (ProfilesBaseController.ConfigLock)
@@ -102,7 +187,7 @@ namespace Jellyfin.Profiles.Auth
             if (targetUser == null || masterUser == null) return false;
 
             // Inherit/synchronize streaming policies and configurations from master user
-            var masterPolicy = userManager.GetUserDto(masterUser, string.Empty).Policy;
+            var masterPolicy = pass.MasterPolicy(masterUser);
             var targetPolicy = userManager.GetUserDto(targetUser, string.Empty).Policy;
             var before = Fingerprint(targetPolicy);
 
@@ -114,7 +199,7 @@ namespace Jellyfin.Profiles.Auth
             // worked out without them, so a stored list, "every library" and the main account's own blocks
             // can neither grant nor block one. Hidden and untouched, never open. With nothing owned this
             // is all empty and changes nothing.
-            var owned = LibraryOwnership.ManagedByOwnerIds(libraryManager);
+            var owned = pass.Owned;
             var keptOwned = LibraryOwnership.KeptAccess(owned, targetPolicy);
             if (owned.Count > 0)
             {
@@ -188,7 +273,7 @@ namespace Jellyfin.Profiles.Auth
                 .Select(w => new Jellyfin.Database.Implementations.Entities.AccessSchedule(w.Day, w.Start, w.End, targetUser.Id))
                 .ToArray();
 
-            var masterAccessible = ProfilesBaseController.MasterAccessibleFolders(libraryManager, masterPolicy);
+            var masterAccessible = pass.MasterReach(masterUser.Id, masterPolicy);
 
             // Determine the authoritative enabled-folder list:
             //  - "Every library": whatever the master can reach now, so one added since is included.
@@ -276,7 +361,7 @@ namespace Jellyfin.Profiles.Auth
                 // If still empty, derive from BlockedMediaFolders
                 if (legacyEnabled.Count == 0 && childBlockedFolders != null && childBlockedFolders.Length > 0)
                 {
-                    legacyEnabled = AllFolderIds(libraryManager, owned).Where(fid => !childBlockedFolders.Contains(fid)).ToList();
+                    legacyEnabled = pass.ManagedIds.Where(fid => !childBlockedFolders.Contains(fid)).ToList();
                 }
 
                 authorityFolders = legacyEnabled;
@@ -289,7 +374,7 @@ namespace Jellyfin.Profiles.Auth
             // Re-apply the stored library policy (heals resets caused by Jellyfin restarts)
             targetPolicy.EnableAllFolders = false;
             targetPolicy.EnabledFolders = authorityFolders.Concat(keptOwned.Enabled).ToArray();
-            var reapplyBlocked = AllFolderIds(libraryManager, owned).Where(id => !authorityFolders.Contains(id));
+            var reapplyBlocked = pass.ManagedIds.Where(id => !authorityFolders.Contains(id));
             var masterBlocked = (masterPolicy.BlockedMediaFolders ?? Array.Empty<Guid>()).Where(id => !owned.Contains(id));
             targetPolicy.BlockedMediaFolders = reapplyBlocked.Union(masterBlocked).Union(keptOwned.Blocked).ToArray();
 
@@ -401,12 +486,6 @@ namespace Jellyfin.Profiles.Auth
             SyncPlayAccess = policy.SyncPlayAccess,
             BlockUnratedItems = (policy.BlockUnratedItems ?? Array.Empty<Jellyfin.Data.Enums.UnratedItem>()).ToList(),
         };
-
-        // Every library Bonfire manages: the server's, less the ones another plugin manages access to.
-        private static IEnumerable<Guid> AllFolderIds(ILibraryManager libraryManager, HashSet<Guid> owned) =>
-            libraryManager.GetVirtualFolders()
-                .Select(f => Guid.TryParse(f.ItemId, out var id) ? id : Guid.Empty)
-                .Where(id => id != Guid.Empty && !owned.Contains(id));
 
         /// <summary>
         /// The policy as a string, for "did anything change". Access schedules are compared by

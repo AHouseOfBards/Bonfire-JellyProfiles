@@ -117,6 +117,23 @@ Console.WriteLine("── A change to a main account reaches its profiles ──
 }
 
 Console.WriteLine();
+Console.WriteLine("── One pass over the profiles reads what they share once ────────");
+{
+    // Each profile used to list the server's libraries three or four times and ask for the main
+    // account's policy again: a save of a main account with N profiles cost about 4N and 2N reads.
+    Reset();
+    world.FolderReads = 0; world.Dtos.Clear();
+    Raise(MAIN);
+    Settle();
+    Ok("both profiles were synced (" + Reads(KID) + ", " + Reads(TEEN) + ")", Reads(KID) >= 1 && Reads(TEEN) >= 1);
+    Ok("the server's library list is read once for two profiles (read " + world.FolderReads + ")", world.FolderReads == 1);
+    Ok("the main account's policy is built once for two profiles (built " + world.Dtos.Count(x => x == MAIN) + ")",
+        world.Dtos.Count(x => x == MAIN) == 1);
+    Ok("each profile's own policy is still read (" + world.Dtos.Count(x => x == KID) + ", " + world.Dtos.Count(x => x == TEEN) + ")",
+        world.Dtos.Count(x => x == KID) == 1 && world.Dtos.Count(x => x == TEEN) == 1);
+}
+
+Console.WriteLine();
 Console.WriteLine("── Changes that are not a main account's do nothing ────────────");
 {
     Reset();
@@ -205,6 +222,8 @@ public class World
     public Dictionary<string, List<Delegate>> Handlers = new();
     public ConcurrentBag<Guid> Lookups = new();
     public Action<Guid> OnLookup;
+    public int FolderReads;
+    public ConcurrentBag<Guid> Dtos = new();
 
     public void Add(Guid id)
     {
@@ -256,6 +275,7 @@ public class WorldProxy : DispatchProxy
                 return W.Users.TryGetValue(id, out var u) ? u : null;
             case "GetUserDto":
                 var user = (User)args[0];
+                W.Dtos.Add(user.Id);
                 return new UserDto
                 {
                     Id = user.Id,
@@ -264,6 +284,7 @@ public class WorldProxy : DispatchProxy
                     Configuration = new UserConfiguration(),
                 };
             case "GetVirtualFolders":
+                System.Threading.Interlocked.Increment(ref W.FolderReads);
                 return new List<MediaBrowser.Model.Entities.VirtualFolderInfo>();
         }
 

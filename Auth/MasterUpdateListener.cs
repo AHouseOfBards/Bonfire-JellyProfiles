@@ -133,12 +133,16 @@ namespace Jellyfin.Profiles.Auth
 
             while (true)
             {
+                // The library list and the main account's policy are the same for every profile
+                // of this pass, so they are read once. A new pass (the "again" below) reads them
+                // anew, since that is only asked for when something changed.
+                var pass = new ProfilePolicySync.Pass(_userManager, libraryManager);
                 foreach (var profile in ProfilesOf(master))
                 {
                     // One profile failing must not leave the rest on the old limits.
                     try
                     {
-                        await ProfilePolicySync.ApplyAsync(_userManager, libraryManager, _logger, profile).ConfigureAwait(false);
+                        await ProfilePolicySync.ApplyInPassAsync(_userManager, libraryManager, _logger, profile, pass).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException)
                     {

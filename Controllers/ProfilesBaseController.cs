@@ -3037,14 +3037,24 @@ namespace Jellyfin.Profiles.Controllers
         /// (<paramref name="owned"/>) are never in it, so a profile set to "every library" is never given one.
         /// </summary>
         internal static HashSet<Guid> MasterAccessibleFolders(ILibraryManager libraryManager, UserPolicy masterPolicy, HashSet<Guid> owned)
+            => MasterAccessibleFolders(
+                masterPolicy,
+                owned,
+                () => libraryManager.GetVirtualFolders()
+                    .Select(f => Guid.TryParse(f.ItemId, out var id) ? id : Guid.Empty)
+                    .Where(id => id != Guid.Empty));
+
+        /// <summary>
+        /// The same, for a caller that already holds the server's library ids (a policy pass over every
+        /// profile reads them once). <paramref name="allFolderIds"/> is asked only for "every library".
+        /// </summary>
+        internal static HashSet<Guid> MasterAccessibleFolders(
+            UserPolicy masterPolicy, HashSet<Guid> owned, Func<IEnumerable<Guid>> allFolderIds)
         {
             HashSet<Guid> masterAccessibleFolders;
             if (masterPolicy.EnableAllFolders)
             {
-                masterAccessibleFolders = libraryManager.GetVirtualFolders()
-                    .Select(f => Guid.TryParse(f.ItemId, out var id) ? id : Guid.Empty)
-                    .Where(id => id != Guid.Empty)
-                    .ToHashSet();
+                masterAccessibleFolders = allFolderIds().ToHashSet();
             }
             else
             {
