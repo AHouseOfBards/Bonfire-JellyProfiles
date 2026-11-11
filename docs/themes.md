@@ -120,6 +120,29 @@ The ground behind the switcher.
   the screen.
 - `stops[].at` is a percent along the gradient.
 
+### Background image
+
+A custom theme can have one picture behind the switcher. Built-in themes don't.
+
+```json
+"background": {
+  "fill": "#121521",
+  "image": { "file": "9be1…04.jpg", "dim": 0.8 }
+}
+```
+
+- `file` is a picture the administrator uploaded to this server, at
+  `/plugins/profiles/themes/backgrounds/<file>`. PNG, JPEG or WebP.
+- `dim` is 0 to 0.95. Draw the picture over the fill and layers so it covers the screen,
+  then `fill` over it at this opacity.
+- Until the picture has loaded, or if it fails, draw the theme as if it had none.
+- The text has to read on any picture: the validator checks every pair below against a
+  white picture and a black one, each under `fill` at `dim`. A `dim` too low for the
+  theme's colours can't be saved.
+- An exported theme file leaves the picture out, because the file is on this server, not
+  in the theme. Importing one never brings a picture; replacing a theme keeps the one it
+  had. A configuration backup restored on another server drops it too.
+
 ## Shape
 
 ```json
@@ -290,8 +313,9 @@ fails isn't saved, and the settings page names the value at fault.
 
 - **Every required value is present, and every value has the right type.** Nothing that
   isn't in this document is kept.
-- **Text can be read.** "The background" means `background.fill` and every stop of every
-  layer, each one checked on its own: a gradient that is fine at one end and unreadable at
+- **Text can be read.** "The background" means `background.fill`, every stop of every
+  layer and, with a [background image](#background-image), a white and a black picture
+  under the fill at `dim`, each one checked on its own: a gradient that is fine at one end and unreadable at
   the other fails. See-through colours are mixed onto what is behind them first. Each pair
   is checked separately:
 
