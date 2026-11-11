@@ -1042,7 +1042,8 @@ The stored picture for a `custom` choice. `?size=thumb` for the small one.
 **Authorisation:** signed-in user.
 
 The devices the caller's household has used, for the allowed-devices picker. A profile
-calling this gets its main account's devices.
+calling this gets its main account's devices, but only if the main account is open or the
+request carries its PIN in the `X-Bonfire-Master-Pin` header. Otherwise the list is empty.
 
 ```json
 [{

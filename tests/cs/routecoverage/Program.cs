@@ -427,6 +427,54 @@ Console.WriteLine("── CleanupOrphans ─────────────
     Ok("their viewing time is forgotten, and a live profile's is not", !WatchTimeKept(GONE) && !WatchTimeKept(LEFT) && WatchTimeKept(KID));
 }
 
+// ── GetDevices (R-1299) ──────────────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── GetDevices ──────────────────────────────────────────────────");
+{
+    // The household's device ids are what a sibling's device whitelist and the known-device
+    // sign-in are matched against, so a profile that only holds its own PIN must not be handed them.
+    var knownType = asm.GetType("Jellyfin.Profiles.Configuration.KnownDevice", true);
+    var known = (IList)cfgType.GetProperty("KnownDevices").GetValue(config);
+    var d = Activator.CreateInstance(knownType);
+    knownType.GetProperty("DeviceId").SetValue(d, "lounge-tv");
+    knownType.GetProperty("DeviceName").SetValue(d, "Lounge");
+    knownType.GetProperty("MasterUserId").SetValue(d, PARENT);
+    knownType.GetProperty("LastSeen").SetValue(d, DateTime.UtcNow);
+    known.Add(d);
+    var requireProp = cfgType.GetProperty("RequireMainPin");
+    int Count((int status, object value) r) => r.value is IEnumerable e ? e.Cast<object>().Count() : -1;
+
+    requireProp.SetValue(config, false);
+    var byMain = Call("GetDevices", PARENT);
+    Ok("the main account gets its household's devices (" + Say(byMain) + ")", byMain.status == 200 && Count(byMain) == 1);
+    var byOpenKid = Call("GetDevices", OPEN_KID);
+    Ok("a profile whose main account is open still gets them (" + Say(byOpenKid) + ")", byOpenKid.status == 200 && Count(byOpenKid) == 1);
+
+    // A main account with a PIN: the profile has to bring it, as it must to manage anything else.
+    var LOCKED = Guid.NewGuid(); world.Add(LOCKED, "Locked");
+    var LOCKED_KID = Guid.NewGuid(); world.Add(LOCKED_KID, "Locked_kid");
+    Map(LOCKED, LOCKED, pin: "2468");
+    Map(LOCKED_KID, LOCKED);
+    var d2 = Activator.CreateInstance(knownType);
+    knownType.GetProperty("DeviceId").SetValue(d2, "locked-tv");
+    knownType.GetProperty("MasterUserId").SetValue(d2, LOCKED);
+    knownType.GetProperty("LastSeen").SetValue(d2, DateTime.UtcNow);
+    known.Add(d2);
+    var kidNoPin = Call("GetDevices", LOCKED_KID);
+    Ok("a profile without the main PIN gets an empty list, not an error (" + Say(kidNoPin) + ")", kidNoPin.status == 200 && Count(kidNoPin) == 0);
+    var mainNoPin = Call("GetDevices", LOCKED);
+    Ok("the main account is not asked for its PIN (" + Say(mainNoPin) + ")", mainNoPin.status == 200 && Count(mainNoPin) == 1);
+
+    // With "require main PINs" on and no PIN set, a profile cannot manage anything either.
+    requireProp.SetValue(config, true);
+    var kidRequired = Call("GetDevices", OPEN_KID);
+    Ok("a profile of a main account that must set a PIN first gets an empty list (" + Say(kidRequired) + ")", kidRequired.status == 200 && Count(kidRequired) == 0);
+    requireProp.SetValue(config, false);
+
+    var nobody = Call("GetDevices", null);
+    Ok("nobody signed in is refused (" + Say(nobody) + ")", nobody.status == 401);
+}
+
 try { Directory.Delete(tempDir, true); } catch { }
 Console.WriteLine();
 if (fails.Count > 0)

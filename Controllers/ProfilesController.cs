@@ -3912,6 +3912,17 @@ namespace Jellyfin.Profiles.Controllers
             var currentMapping = view.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
 
+            // The household's device ids are what a sibling's device whitelist and the known-device
+            // sign-in are matched against, so a profile gets them only when it could manage the
+            // household anyway: the main account always, a profile only if the main account is open
+            // or the PIN came with the request. Everyone else gets an empty list, not an error, so
+            // the picker still draws. R-1299.
+            if (masterUserId != currentUserId
+                && !ManagementAllowed(masterUserId, config, null, out _))
+            {
+                return Ok(new List<KnownDevice>());
+            }
+
             // Every device already whitelisted on one of this account's profiles MUST appear in
             // the picker, whether or not it is currently switched on. The edit form rebuilds
             // AllowedDeviceIds from the checkboxes it rendered, so any whitelisted device that
