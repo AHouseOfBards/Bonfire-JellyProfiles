@@ -94,12 +94,6 @@
       "source": "src/apps/stable/routes/user/settings/index.tsx"
     },
     {
-      "selector": ".card",
-      "status": "upstream",
-      "source": "src/components/cardbuilder/card.scss",
-      "note": "Was recorded against src/apps/dashboard/components/BaseCard.tsx, which contains only the cardbuilder import path. Real definition is \".card {\"."
-    },
-    {
       "selector": ".headerButton:not(#profiles-floating-bubble)",
       "status": "upstream",
       "source": "src/scripts/libraryMenu.js",
@@ -131,11 +125,6 @@
       "selector": ".jpf-trap-surface",
       "status": "ours",
       "note": "Added to every dialog Bonfire builds. Replaced [id^=\"profiles-\"][id$=\"-dialog\"] in TRAP_SURFACE_SELECTOR: two unqualified attribute selectors that walked the whole document on every keydown and focusin anywhere in Jellyfin. A class keeps the property that made the id pattern attractive — it travels with the element, so there is no lifecycle bookkeeping to get wrong."
-    },
-    {
-      "selector": ".listItem",
-      "status": "upstream",
-      "source": "src/apps/stable/routes/user/settings/index.tsx"
     },
     {
       "selector": ".listItemBodyText",
@@ -212,8 +201,10 @@
       "note": "Same, for skins using a topBar naming."
     },
     {
-      "selector": "[data-id]",
-      "status": "generic"
+      "selector": ".localUsers [data-userid]",
+      "status": "upstream",
+      "source": "src/apps/dashboard/routes/users/index.tsx",
+      "note": "Dashboard -> Users. The list is div.localUsers (users/index.tsx, release-10.11.z and master); each card carries data-userid (src/components/dashboard/users/UserCardBox.tsx, both branches). Written into a stylesheet by _applyHiddenProfiles with the id added to the attribute."
     },
     {
       "selector": "[data-testid=\"LogoutIcon\"]",

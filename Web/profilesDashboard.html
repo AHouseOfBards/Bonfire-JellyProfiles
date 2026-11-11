@@ -1574,6 +1574,7 @@
                 'admin.households.resetConfirm': 'Clear this profile\'s PIN?',
                 'admin.households.resetFailed': 'Couldn\'t reset the PIN. The server log has details.',
                 'admin.households.makeAccount': 'Make own account',
+                'admin.households.openUser': 'User page',
                 'admin.households.limit': 'Limit',
                 'admin.households.set': 'Set',
                 'admin.households.reset': 'Reset',
@@ -2589,6 +2590,18 @@
                                escapeHtml(t('admin.households.resetPin')) + '</button>';
                     }
 
+                    // Profiles are not listed on Jellyfin's Dashboard -> Users page, so this is the
+                    // way to a profile's own user page (to disable it, or fix its libraries).
+                    // jellyfin-web moved that page's address in 12.0: 10.11 is
+                    // users/profile?userId=ID, 12.0 is users/ID/profile (routes/_asyncRoutes.ts).
+                    function jellyfinUserPageUrl(id) {
+                        let major = 10;
+                        try { major = parseInt(String(ApiClient.serverVersion()).split('.')[0], 10) || 10; } catch (e) { /* older address */ }
+                        return major >= 12
+                            ? '#/dashboard/users/' + encodeURIComponent(id) + '/profile'
+                            : '#/dashboard/users/profile?userId=' + encodeURIComponent(id);
+                    }
+
                     // One sub-profile row, rendered inside its master's collapsible panel.
                     function subProfileRowHtml(s) {
                         const pName = escapeHtml(field(s, 'profileName') || '');
@@ -2601,6 +2614,8 @@
                                '<div class="listItemBodyText secondary" style="font-size:0.85rem; opacity:0.75; margin-top:2px;">' + t('admin.households.status', { pin: pinStatusHtml(reqPin) }) + '</div>' +
                                '</div>' +
                                resetPinBtnHtml(pId, reqPin) +
+                               '<a class="raised button-mini open-user-link" href="' + escapeHtml(jellyfinUserPageUrl(pId)) +
+                               '" style="margin-left:8px; padding:5px 12px; border-radius:4px; font-weight:600; align-self:center; text-decoration:none;">' + escapeHtml(t('admin.households.openUser')) + '</a>' +
                                '<button type="button" class="raised button-mini standalone-btn" data-id="' + escapeHtml(pId) +
                                '" style="margin-left:8px; padding:5px 12px; border-radius:4px; font-weight:600; cursor:pointer; align-self:center;">' + escapeHtml(t('admin.households.makeAccount')) + '</button>' +
                                '</div>' +

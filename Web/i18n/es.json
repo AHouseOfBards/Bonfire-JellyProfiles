@@ -817,6 +817,7 @@
   "admin.households.resetConfirm": "¿Borrar el PIN de este perfil?",
   "admin.households.resetFailed": "No se ha podido restablecer el PIN. El registro del servidor tiene los detalles.",
   "admin.households.makeAccount": "Convertir en cuenta propia",
+  "admin.households.openUser": "Página de usuario",
   "admin.households.limit": "Límite",
   "admin.households.set": "Fijar",
   "admin.households.reset": "Restablecer",

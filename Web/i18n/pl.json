@@ -817,6 +817,7 @@
   "admin.households.resetConfirm": "Wyczyścić kod PIN tego profilu?",
   "admin.households.resetFailed": "Nie udało się zresetować kodu PIN. Szczegóły są w dzienniku serwera.",
   "admin.households.makeAccount": "Zrób z niego osobne konto",
+  "admin.households.openUser": "Strona użytkownika",
   "admin.households.limit": "Limit",
   "admin.households.set": "Ustaw",
   "admin.households.reset": "Resetuj",

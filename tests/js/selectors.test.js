@@ -35,8 +35,8 @@ const INJECTION_FNS = [
     'syncUserMenuEntry', 'syncPreferencesMenuEntry',
     'injectProfilePageSection', '_findHeaderContainer', '_searchForHeaderContainer',
     '_findGeometricHeaderAnchor',
-    '_insertBeforeUserBtn', 'closeUserMenu', 'monitorAndHideShadowProfiles',
-    'applyUsersHide',
+    '_insertBeforeUserBtn', 'closeUserMenu', 'syncHiddenProfiles',
+    '_applyHiddenProfiles',
     // checkRoute was missed when this list was written, on the reading that it only
     // classifies the route. It also runs the playback-OSD query — four selectors aimed
     // squarely at jellyfin-web, in the hottest path in the client, with nothing tracking
@@ -140,7 +140,7 @@ for (const fn of INJECTION_FNS) {
     });
 }
 // Selector constants used by the same code.
-const constRe = /(?:USER_MENU_SELECTOR|TRAP_SURFACE_SELECTOR):\s*(['"])([\s\S]*?)\1/g;
+const constRe = /(?:USER_MENU_SELECTOR|TRAP_SURFACE_SELECTOR|USERS_CARD_SELECTOR):\s*(['"])([\s\S]*?)\1/g;
 let cm;
 while ((cm = constRe.exec(src)) !== null) {
     splitSelectorList(cm[2]).forEach(s => note(s, 'selector constant'));

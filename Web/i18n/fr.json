@@ -817,6 +817,7 @@
   "admin.households.resetConfirm": "Effacer le code PIN de ce profil ?",
   "admin.households.resetFailed": "Impossible de réinitialiser le code PIN. Le journal du serveur donne les détails.",
   "admin.households.makeAccount": "En faire un compte",
+  "admin.households.openUser": "Page de l'utilisateur",
   "admin.households.limit": "Limite",
   "admin.households.set": "Définir",
   "admin.households.reset": "Réinitialiser",

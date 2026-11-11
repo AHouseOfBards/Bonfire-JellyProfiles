@@ -828,6 +828,7 @@
   "admin.households.resetConfirm": "Bu profilin PIN'i temizlensin mi?",
   "admin.households.resetFailed": "PIN sıfırlanamadı. Ayrıntılar sunucu günlüğünde.",
   "admin.households.makeAccount": "Ayrı hesap yap",
+  "admin.households.openUser": "Kullanıcı sayfası",
   "admin.households.limit": "Sınır",
   "admin.households.set": "Ayarla",
   "admin.households.reset": "Sıfırla",

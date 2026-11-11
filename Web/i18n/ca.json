@@ -817,6 +817,7 @@
   "admin.households.resetConfirm": "Vols esborrar el PIN d'aquest perfil?",
   "admin.households.resetFailed": "No s'ha pogut restablir el PIN. El registre del servidor té els detalls.",
   "admin.households.makeAccount": "Converteix en compte propi",
+  "admin.households.openUser": "Pàgina d'usuari",
   "admin.households.limit": "Límit",
   "admin.households.set": "Fixa",
   "admin.households.reset": "Restableix",

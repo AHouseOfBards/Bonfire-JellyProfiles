@@ -3877,17 +3877,11 @@
                 }
             }
 
-            // Monitor and hide shadow profiles from admin user management list
-            const isUsersPage = hash.includes('users') || path.includes('users');
-            if (isUsersPage) {
-                this.monitorAndHideShadowProfiles();
-            } else {
-                if (this.usersObserver) {
-                    this.usersObserver.disconnect();
-                    this.usersObserver = null;
-                }
-                this.isMonitoringUsers = false;
-                this.subProfileIdsToHide = null;
+            // Profile accounts stay off Dashboard -> Users. A string compare per tick and
+            // nothing else: the work happens once, when the address changes.
+            if (hash !== this._usersRouteHash) {
+                this._usersRouteHash = hash;
+                this.syncHiddenProfiles(hash);
             }
 
             // ── Active player: URL-based detection ──────────────────────────────
@@ -4221,92 +4215,80 @@
             }, 220);
         },
 
-        isMonitoringUsers: false,
+        /// Profile accounts are Bonfire's, not people to list beside real ones, so the
+        /// administrator's Dashboard -> Users page does not show them (owner decision,
+        /// 2026-11-11). Main accounts and accounts outside Bonfire still appear.
+        ///
+        /// A stylesheet rule per profile id, not a script walking the cards. jellyfin-web
+        /// renders each user as <div class="card" data-userid=ID> inside div.localUsers
+        /// (src/apps/dashboard/routes/users/index.tsx, components/dashboard/users/UserCardBox.tsx,
+        /// the same on release-10.11.z and master), and the browser applies a rule to cards that
+        /// React draws now or later with no observer and no query on the 500 ms poll. The
+        /// previous version read data-id and the card's link: it matched on 10.11 only because
+        /// that link carried ?userId=, 12.0 moved the id into the path, and it walked the whole
+        /// document on every tick and every DOM mutation. data-userid is the same on both.
+        ///
+        /// Never filtered out of the server's /Users answer: apps and other plugins read it.
+        /// The ids come from admin/mappings, which the server answers for an administrator
+        /// only, so anyone else gets a refusal and the page never holds the list.
+        ///
+        /// Called from checkRoute when the address changes, never on a tick that did not.
+        _usersRouteHash: null,
         _usersMappingsRetryAt: 0,
-        subProfileIdsToHide: null,
-        usersObserver: null,
+        /// A user card on that page. Recorded in tests/upstream-selectors.json; the id is
+        /// added to the attribute, which is why it must end in `]`.
+        USERS_CARD_SELECTOR: '.localUsers [data-userid]',
 
-        monitorAndHideShadowProfiles: function () {
-            const apiClient = ApiClient;
+        syncHiddenProfiles: function (hash) {
+            // The list route only. "users/profile" and "users/<id>/profile" are the pages an
+            // administrator reaches from Bonfire's own admin page and must not start a request.
+            if (!/dashboard\/users\/?(\?|$)/i.test(hash || '')) return;
+            const apiClient = typeof ApiClient !== 'undefined' ? ApiClient : null;
             if (!apiClient) return;
-
-            // Fetch only once per page visit
-            if (this.isMonitoringUsers) {
-                this.applyUsersHide();
-                return;
-            }
-            // A failed fetch settles for POLL_RETRY_MS before it is asked again. The catch
-            // below used to just reset isMonitoringUsers, and checkRoute calls this on every
-            // 500 ms tick, so a server that answered 403 (a non-admin on this page) or was
-            // down got a request twice a second for as long as the page stayed open. Kept
-            // across navigation on purpose: leaving and coming back is not news to a server
-            // that just failed.
+            // A refusal (403, anyone but an administrator) or a dead server waits out
+            // POLL_RETRY_MS before it is asked again, across navigation.
             if (this._usersMappingsRetryAt && Date.now() < this._usersMappingsRetryAt) return;
-            this.isMonitoringUsers = true;
 
             const masterState = this.readMasterState();
             const token = masterState ? masterState.token : apiClient.accessToken();
             if (!token) return;
 
-            const url = apiClient.getUrl('plugins/profiles/admin/mappings');
-            fetch(url, {
+            fetch(apiClient.getUrl('plugins/profiles/admin/mappings'), {
                 headers: this.getAuthHeaders(token)
             })
             .then(res => {
-                if (!res.ok) throw new Error("Could not load mappings");
+                if (!res.ok) throw new Error('Could not load mappings');
                 return res.json();
             })
             .then(data => {
-                const subProfiles = data.SubProfiles || [];
-                this.subProfileIdsToHide = subProfiles.map(p => this.normalizeGuid(p.ProfileUserId));
-                
-                // Start a MutationObserver to hide cards as they are rendered dynamically
-                if (this.usersObserver) {
-                    this.usersObserver.disconnect();
-                }
-
-                this.usersObserver = new MutationObserver(() => this.applyUsersHide());
-                this.usersObserver.observe(document.body, { childList: true, subtree: true });
-                this.applyUsersHide();
+                const subs = (data && (data.SubProfiles || data.subProfiles)) || [];
+                this._applyHiddenProfiles(subs.map(p => p.ProfileUserId || p.profileUserId));
             })
-            .catch(err => {
-                console.error("ProfilesPlugin: Error fetching admin mappings for hide logic:", err);
+            .catch(() => {
                 this._usersMappingsRetryAt = Date.now() + this.POLL_RETRY_MS;
-                this.isMonitoringUsers = false;
             });
         },
 
-        applyUsersHide: function () {
-            if (!this.subProfileIdsToHide || this.subProfileIdsToHide.length === 0) return;
-
-            // Find all cards, list items, or elements with data-id or containing useredit links
-            const cards = document.querySelectorAll('.card, .listItem, [data-id]');
-            cards.forEach(card => {
-                let id = card.getAttribute('data-id');
-                if (id) {
-                    id = this.normalizeGuid(id);
-                    if (this.subProfileIdsToHide.includes(id)) {
-                        card.style.display = 'none';
-                        return;
-                    }
-                }
-
-                // Check for links inside (e.g. useredit.html?userId=...)
-                const links = card.querySelectorAll('a');
-                for (let i = 0; i < links.length; i++) {
-                    const href = links[i].getAttribute('href') || '';
-                    if (href.includes('userId=')) {
-                        const match = href.match(/userId=([^&]+)/);
-                        if (match) {
-                            const normalizedId = this.normalizeGuid(match[1]);
-                            if (this.subProfileIdsToHide.includes(normalizedId)) {
-                                card.style.display = 'none';
-                                break;
-                            }
-                        }
-                    }
-                }
+        /// Both spellings of each id, because jellyfin-web writes the id the way the server
+        /// serialised it and the two are not guaranteed to agree: 32 hex, or dashed. The `i`
+        /// flag is Chromium 49; the dashboard is not a television page in any case.
+        _applyHiddenProfiles: function (ids) {
+            const sels = [];
+            ids.forEach(raw => {
+                const hex = this.normalizeGuid(raw);
+                if (!/^[0-9a-f]{32}$/.test(hex)) return;
+                const dashed = hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+                [hex, dashed].forEach(form => {
+                    sels.push(this.USERS_CARD_SELECTOR.replace(/\]$/, '="' + form + '" i]'));
+                });
             });
+            let style = document.getElementById('jpf-hide-profiles');
+            if (!style) {
+                style = document.createElement('style');
+                style.id = 'jpf-hide-profiles';
+                document.head.appendChild(style);
+            }
+            style.textContent = sels.length ? sels.join(',\n') + ' { display: none !important; }' : '';
         },
 
         // ── Active-profile session storage ────────────────────────────────────────
