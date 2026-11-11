@@ -39,6 +39,14 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>The side of every tile, in pixels: square, as the picker's aspect ratio says.</summary>
         public const int Size = 256;
 
+        /// <summary>
+        /// The version of the drawing code, part of every tag. Apps cache a tile for a day by
+        /// its tag, so a change to how a glyph or a gradient is drawn must change the tag too,
+        /// or a household keeps the old picture until the cache runs out. Raise it with any
+        /// change to the drawing; the pixel check in tests/cs/tileimages fails until you do.
+        /// </summary>
+        public const int DrawingVersion = 1;
+
         private static readonly ConcurrentDictionary<string, byte[]> Cache = new(StringComparer.Ordinal);
 
         /// <summary>
@@ -48,7 +56,7 @@ namespace Jellyfin.Profiles.Configuration
         public static string Tag(JsonObject theme, TileGlyph glyph)
         {
             var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(
-                ((int)glyph).ToString(CultureInfo.InvariantCulture) + "|" + Key(theme)));
+                DrawingVersion.ToString(CultureInfo.InvariantCulture) + "|" + ((int)glyph).ToString(CultureInfo.InvariantCulture) + "|" + Key(theme)));
             return "b" + Convert.ToHexString(hash, 0, 12).ToLowerInvariant();
         }
 
@@ -181,7 +189,9 @@ namespace Jellyfin.Profiles.Configuration
             }
 
             if (stops.Count == 0) return new Rgba(0, 0, 0, 0);
-            stops.Sort((a, b) => a.At.CompareTo(b.At));
+            // OrderBy is stable, so two stops at one position keep the order they were written
+            // in, as CSS does; List.Sort makes no such promise.
+            stops = stops.OrderBy(x => x.At).ToList();
 
             double t;
             if ((string?)layer["type"] == "radial")
@@ -235,7 +245,7 @@ namespace Jellyfin.Profiles.Configuration
         private static Rgba? Colour(JsonNode? node)
         {
             if (node is not JsonValue v || !v.TryGetValue<string>(out var s)) return null;
-            if (!System.Text.RegularExpressions.Regex.IsMatch(s, "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$")) return null;
+            if (!System.Text.RegularExpressions.Regex.IsMatch(s, "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?\\z")) return null;
             int H(int i) => int.Parse(s.AsSpan(i, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
             return new Rgba(H(1), H(3), H(5), s.Length == 9 ? H(7) / 255.0 : 1);
         }

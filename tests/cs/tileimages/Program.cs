@@ -206,6 +206,23 @@ string threw = null;
 try { Decode(TileImage.Png(broken, TileGlyph.Person)); } catch (Exception e) { threw = e.GetType().Name; }
 Ok("a theme with nonsense in it still draws, in Bonfire's colours", threw == null && Decode(TileImage.Png(broken, TileGlyph.Person)).Pixels != null, threw);
 
+// R-1087: "$" matches before a final newline, so "#aabbcc\n" was read as a colour.
+var trailing = Flat("#aabbcc\n", "#ffcc00");
+var (trailPx, _) = Decode(TileImage.Png(trailing, TileGlyph.Person));
+Ok("a colour with a trailing newline is not a colour: the corner falls back to Bonfire's ground",
+   Hex(trailPx, 0.02, 0.02) == "#121521", Hex(trailPx, 0.02, 0.02));
+
+// R-1085: a tile is cached a day by its tag, so a change to the drawing must change the tag.
+// The pixels of one tile are pinned with the drawing version. Draw differently and this
+// fails until DrawingVersion is raised and the hash below is updated with it.
+var (pinPx, _) = Decode(TileImage.Png(bonfire, TileGlyph.Person));
+var flatPx = new byte[256 * 256 * 3];
+Buffer.BlockCopy(pinPx, 0, flatPx, 0, flatPx.Length);
+var pinned = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(flatPx)).Substring(0, 16).ToLowerInvariant();
+Ok("the drawing is version " + TileImage.DrawingVersion + ": its pixels hash to " + pinned
+   + " (raise DrawingVersion and update this when the drawing changes)",
+   TileImage.DrawingVersion == 1 && pinned == "37159e0e581a2ddd");
+
 Console.WriteLine();
 if (fails.Count > 0)
 {
