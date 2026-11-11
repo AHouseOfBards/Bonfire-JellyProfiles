@@ -57,7 +57,7 @@
   "avatar.avatarLabel": "Avatar",
   "avatar.zoom": "Zoom",
   "avatar.chooseFirst": "Tria primer un avatar.",
-  "avatar.loadFailed": "No s'han pogut carregar les imatges.",
+  "avatar.loadFailed": "No es poden carregar els avatars.",
   "avatar.libraryArtworkTitle": "Imatge de la biblioteca",
   "errors.error": "Error",
   "errors.validationError": "No es pot desar encara",

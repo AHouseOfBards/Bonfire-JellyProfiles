@@ -965,7 +965,7 @@
         'avatar.avatarLabel': 'Avatar',
         'avatar.zoom': 'Zoom',
         'avatar.chooseFirst': 'Choose an avatar first.',
-        'avatar.loadFailed': 'Could not load the pictures.',
+        'avatar.loadFailed': "Can't load the avatars.",
         'avatar.libraryArtworkTitle': 'Library artwork',
 
         'errors.error': 'Error',

@@ -60,7 +60,7 @@
   "avatar.avatarLabel": "Avatar",
   "avatar.zoom": "Yakınlaştır",
   "avatar.chooseFirst": "Önce bir avatar seçin.",
-  "avatar.loadFailed": "Görseller yüklenemedi.",
+  "avatar.loadFailed": "Avatarlar yüklenemedi.",
   "avatar.libraryArtworkTitle": "Kütüphane görseli",
 
   "errors.error": "Hata",
