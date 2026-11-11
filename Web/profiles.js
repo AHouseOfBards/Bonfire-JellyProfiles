@@ -2957,8 +2957,15 @@
 
             const headers = this.getAuthHeaders(masterState.token);
             this._sharedForm = Promise.all([
+                // Checked like the others. Reading a 401's empty body as JSON showed
+                // "Unexpected end of JSON input" and never told the page the session
+                // had ended (R-1177).
                 fetch(apiClient.getUrl('plugins/profiles/libraries'), { headers })
-                    .then(res => res.json()),
+                    .then(res => {
+                        if (res.status === 401) this.handleSessionExpired();
+                        if (!res.ok) throw new Error(t('errors.generic'));
+                        return res.json();
+                    }),
                 // null, not [], when the list could not be read. The edit form rebuilds a
                 // profile's allowed devices from the boxes it draws, so an empty list here
                 // used to save as "any device" and switch the restriction off.

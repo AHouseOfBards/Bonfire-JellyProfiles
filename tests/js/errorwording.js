@@ -41,7 +41,7 @@ function makeEl() {
     return el;
 }
 
-function run(res) {
+function run(res, shared) {
     const sandbox = {
         console: { log() {}, warn() {}, error() {} },
         localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
@@ -66,8 +66,16 @@ function run(res) {
     new vm.Script(src, { filename: 'profiles.js' }).runInContext(sandbox);
     const plugin = sandbox.__PROFILES;
     plugin.getAuthHeaders = () => ({});
-    plugin.handleSessionExpired = () => {};
+    let expired = 0;
+    plugin.handleSessionExpired = () => { expired++; };
     plugin.navIsCurrent = () => true;
+    if (shared) {
+        // R-1177: the library list is read like the others, so a refusal is a refusal.
+        let rejected = '';
+        return plugin.fetchSharedFormData({ getUrl: u => '/' + u }, { token: 't', masterUserId: 'm' })
+            .catch(e => { rejected = String(e && e.message); })
+            .then(() => ({ expired, rejected }));
+    }
     let html = '';
     const container = { set innerHTML(v) { html = v; }, get innerHTML() { return html; } };
     const content = { querySelector: () => container };
@@ -86,6 +94,14 @@ function run(res) {
     ok('a 500 is not parsed as JSON', jsonCalls === 0);
     ok('and the parse error is not shown', bad.html.indexOf('Unexpected token') === -1);
     ok('a sentence is shown instead', /Couldn't load Bonfire/.test(bad.html));
+
+    console.log('\n-- The form data is checked before it is read (R-1177) --');
+    const refused = await run({
+        ok: false, status: 401,
+        json: () => Promise.reject(new SyntaxError('Unexpected end of JSON input'))
+    }, true);
+    ok('a 401 on the library list is a session that has ended', refused.expired === 1, 'expired ' + refused.expired);
+    ok('and the parse error is not what is reported', refused.rejected.indexOf('JSON') === -1, refused.rejected);
 
     console.log('\n-- No string takes a raw message --');
     const block = shipped.slice(shipped.indexOf('const EN_STRINGS'));
