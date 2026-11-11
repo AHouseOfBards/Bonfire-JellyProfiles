@@ -103,7 +103,7 @@ const RIGHT = '24681357';
            + (env.posts.length - before) + ' more requests, ' + env.switches.length + ' switches)',
            env.posts.length === before && env.switches.length === 0);
         const err = env.content.querySelector(box.input === 'profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
-        ok('and says it was wrong', !!err && err.style.display === 'block' && /Incorrect/.test(err.textContent),
+        ok('and says it was wrong', !!err && err.style.display === 'block' && /^Wrong (main )?PIN\. Try again\.$/.test(err.textContent),
            err ? err.textContent : 'no error node');
 
         // 3. A 429 stops the box from checking by itself.

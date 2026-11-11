@@ -146,7 +146,7 @@ async function draw(profiles, manage) {
     if (pinAsked) { PP.masterPin = '1234'; pinAsked.cb(); }
     ok('then it asks how much', dialog && dialog.title === 'More time for Kid' && dialog.message === 'How long?', dialog && dialog.title);
     const labels = dialog ? dialog.actions.map(a => a.label) : [];
-    ok('15 minutes, 30, 1 hour, 2 hours, no, and cancel', labels.join('|') === '15 min|30 min|1 h|2 h|Say no|Cancel', labels.join('|'));
+    ok('15 minutes, 30, 1 hour, 2 hours, no, and cancel', labels.join('|') === '15 min|30 min|1 h|2 h|Decline|Cancel', labels.join('|'));
     ok('Cancel has nothing to run, so Back closes the dialog', dialog && dialog.actions[dialog.actions.length - 1].run === undefined
        && dialog.actions.slice(0, -1).every(a => typeof a.run === 'function'));
     ok('and the picker is drawn again behind it', refreshed >= 1);
@@ -166,19 +166,19 @@ async function draw(profiles, manage) {
     dialog.actions[dialog.actions.length - 2].run();
     await settle();
     const no = posts.filter(p => /grant$/.test(p.url)).pop();
-    ok('Say no sends 0 minutes', no && no.body.minutes === 0 && no.body.masterPin === '1234', JSON.stringify(no && no.body));
+    ok('Decline sends 0 minutes', no && no.body.minutes === 0 && no.body.masterPin === '1234', JSON.stringify(no && no.body));
 
     // Less than the list's top amount is left.
     PP.masterPin = '1234';
     PP.answerTimeRequest(request('kid', 'Kid', 100), () => {});
-    ok('with 100 minutes left, nothing over 100 is offered, and 100 is', dialog.actions.map(a => a.label).join('|') === '15 min|30 min|1 h|1 h 40 min|Say no|Cancel',
+    ok('with 100 minutes left, nothing over 100 is offered, and 100 is', dialog.actions.map(a => a.label).join('|') === '15 min|30 min|1 h|1 h 40 min|Decline|Cancel',
        dialog.actions.map(a => a.label).join('|'));
     PP.answerTimeRequest(request('kid', 'Kid', 10), () => {});
-    ok('with 10 left, only 10', dialog.actions.map(a => a.label).join('|') === '10 min|Say no|Cancel', dialog.actions.map(a => a.label).join('|'));
+    ok('with 10 left, only 10', dialog.actions.map(a => a.label).join('|') === '10 min|Decline|Cancel', dialog.actions.map(a => a.label).join('|'));
 
     // At the cap: plainly, and only no.
     PP.answerTimeRequest(request('kid', 'Kid', 0), () => {});
-    ok('at the daily cap it offers only no, and cancel', dialog.actions.map(a => a.label).join('|') === 'Say no|Cancel', dialog.actions.map(a => a.label).join('|'));
+    ok('at the daily cap it offers only no, and cancel', dialog.actions.map(a => a.label).join('|') === 'Decline|Cancel', dialog.actions.map(a => a.label).join('|'));
     ok('and says why, plainly', /4 hours/.test(dialog.message) && /Kid/.test(dialog.message), dialog.message);
 
     // The server refusing a grant (cap reached since the screen was drawn) is shown.
