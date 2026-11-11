@@ -56,6 +56,9 @@ const banned = [
     [/colour/i, 'US spelling: color'],
     [/\bviewing hours\b/i, 'Viewing limits'],
     [/\bLook\b/, 'Theme'],
+    [/\bhome network\b/i, "the server's network"],
+    [/\bEnabled Libraries\b/, 'Libraries'],
+    [/\bSwitcher Style\b/, 'Switch button'],
 ];
 // A picture here is artwork on a library tile, not a profile's avatar.
 const exceptions = { 'profileForm.artworkPicture': 1, 'profileForm.artworkExplainer': 1 };
