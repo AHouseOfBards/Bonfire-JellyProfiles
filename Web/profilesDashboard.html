@@ -1532,6 +1532,13 @@
                 'admin.links.none': 'No other accounts to show. Create another user first.',
                 'admin.links.failed': 'Couldn\'t show the account.',
                 'admin.links.removeFailed': 'Couldn\'t take it off.',
+                'admin.pins.button': 'PIN prompts',
+                'admin.pins.ask': 'Ask for the PIN to open this account',
+                'admin.pins.profile': '{name}: skip the PIN on the server\'s network',
+                'admin.pins.note': 'The household sees these in its own settings.',
+                'admin.pins.save': 'Save',
+                'admin.pins.saved': 'Saved.',
+                'admin.pins.failed': 'Couldn\'t save the PIN prompts.',
                 'admin.toProfile.button': 'Make it a profile',
                 'admin.toProfile.note': 'It keeps its watch history, libraries and tags. Its password stops working.',
                 'admin.toProfile.household': 'Profile of',
@@ -2519,6 +2526,29 @@
                                '</div>';
                     }
 
+                    // An administrator sets a household's PIN prompts for it: "Ask PIN to open" on
+                    // the main account, "No PIN on the server's network" on each profile. Those
+                    // two and nothing else. Not offered on an administrator's own household,
+                    // which the server refuses. Hidden until asked for.
+                    function pinPromptsFormHtml(m) {
+                        if (field(m, 'isAdministrator') === true) return '';
+                        const key = normId(field(m, 'profileUserId'));
+                        const rows = (subsByMaster[key] || []).map(function (s) {
+                            return '<label class="jpf-sa-label" style="flex:0 0 100%; flex-direction:row; align-items:center; gap:8px;">' +
+                                   '<input is="emby-checkbox" type="checkbox" class="pin-prompt-bypass" data-id="' + escapeHtml(field(s, 'profileUserId') || '') + '"' +
+                                   (field(s, 'bypassPinOnLocalNetwork') === true ? ' checked' : '') + ' />' +
+                                   '<span>' + escapeHtml(t('admin.pins.profile', { name: field(s, 'profileName') || '' })) + '</span></label>';
+                        }).join('');
+                        return '<div class="pin-prompts-form jpf-extras-form jpf-hidden">' +
+                               '<div class="fieldDescription">' + escapeHtml(t('admin.pins.note')) + '</div>' +
+                               '<label class="jpf-sa-label" style="flex:0 0 100%; flex-direction:row; align-items:center; gap:8px;">' +
+                               '<input is="emby-checkbox" type="checkbox" class="pin-prompt-ask"' + (field(m, 'askPinToOpen') !== false ? ' checked' : '') + ' />' +
+                               '<span>' + escapeHtml(t('admin.pins.ask')) + '</span></label>' +
+                               rows +
+                               '<button type="button" class="raised button-submit button-mini pin-prompts-go jpf-sa-btn">' + escapeHtml(t('admin.pins.save')) + '</button>' +
+                               '</div>';
+                    }
+
                     // Under each main account: the other accounts on its screen (issue #39),
                     // with "Add an account", and "Make it a profile" for an account that can
                     // be one. Both forms stay hidden until asked for.
@@ -2550,6 +2580,7 @@
                                '<div class="jpf-extras-actions">' +
                                '<button type="button" class="raised button-mini extras-toggle" data-form="link-form">' + escapeHtml(t('admin.links.add')) + '</button>' +
                                (canBeProfile ? '<button type="button" class="raised button-mini extras-toggle" data-form="to-profile-form">' + escapeHtml(t('admin.toProfile.button')) + '</button>' : '') +
+                               (field(m, 'isAdministrator') !== true ? '<button type="button" class="raised button-mini extras-toggle" data-form="pin-prompts-form">' + escapeHtml(t('admin.pins.button')) + '</button>' : '') +
                                '</div>' +
                                '<div class="link-form jpf-extras-form jpf-hidden">' +
                                '<div class="fieldDescription">' + escapeHtml(t('admin.links.note')) + '</div>' +
@@ -2568,6 +2599,7 @@
                                      '<button type="button" class="raised button-submit button-mini to-profile-go jpf-sa-btn">' + escapeHtml(t('admin.toProfile.go')) + '</button>' +
                                      '</div>'
                                    : '') +
+                               pinPromptsFormHtml(m) +
                                '<div class="jpf-status extras-result jpf-hidden"></div>' +
                                '</div>';
                     }
@@ -5196,6 +5228,28 @@
                                 });
                         });
                     });
+
+                    // Posts the two kinds of field the form shows, and nothing else.
+                    const pinGo = box.querySelector('.pin-prompts-go');
+                    if (pinGo) {
+                        pinGo.addEventListener('click', function () {
+                            const profiles = [];
+                            box.querySelectorAll('.pin-prompt-bypass').forEach(function (c) {
+                                profiles.push({ profileId: c.getAttribute('data-id'), bypassPinOnLocalNetwork: c.checked === true });
+                            });
+                            post('admin/pin-prompts', {
+                                householdId: accountId,
+                                askPinToOpen: box.querySelector('.pin-prompt-ask').checked === true,
+                                profiles: profiles
+                            }).then(function () {
+                                // No reload: it would redraw the form and the message with it,
+                                // and what the form shows is what was just saved.
+                                show(t('admin.pins.saved'), true);
+                            }, function (err) {
+                                errorText(err, t('admin.pins.failed')).then(function (msg) { show(msg, false); });
+                            });
+                        });
+                    }
 
                     const toProfile = box.querySelector('.to-profile-go');
                     if (toProfile) {
