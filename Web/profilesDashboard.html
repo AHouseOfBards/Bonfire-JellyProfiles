@@ -1785,8 +1785,8 @@
                 'admin.orphans.deadGroup': 'Bonfire {code}: its owner was deleted',
                 'admin.orphans.deadMembersOne': '1 Bonfire membership naming a deleted account',
                 'admin.orphans.deadMembersMany': '{count} Bonfire memberships naming deleted accounts',
-                'admin.orphans.imagesOne': '1 theme background image no theme uses',
-                'admin.orphans.imagesMany': '{count} theme background images no theme uses',
+                'admin.orphans.imagesOne': '1 background image no theme uses',
+                'admin.orphans.imagesMany': '{count} background images no theme uses',
                 'admin.orphans.removeOne': 'Remove this record',
                 'admin.orphans.removeMany': 'Remove these {count} records',
                 'admin.orphans.removed': 'Removed. Profile records: {profiles}. Bonfires: {groups}. Memberships: {members}. Devices were left alone.',
@@ -2091,7 +2091,7 @@
                 'admin.themes.photoDim': 'Dim',
                 'admin.themes.photoUploading': 'Uploading…',
                 'admin.themes.photoFailed': 'The image didn\'t upload.',
-                'admin.themes.photoFaint': 'Text is hard to read on it. Dim it more.',
+                'admin.themes.photoFaint': 'Text is hard to read on this image. Dim it more.',
                 'admin.themes.importedNoPhoto': '{name} imported. Theme files don\'t carry the background image; upload it in the editor.',
                 'admin.themes.p.size': 'Too large. A theme is at most 64 KB.',
                 'admin.themes.p.taken': 'A built-in theme uses this id.',
@@ -7034,7 +7034,7 @@
                 const on = !page._config || page._config.BonfireOn !== false;
                 const box = page.querySelector('#bonfireOn');
                 if (box) box.checked = on;
-                setStatus(page, 'off', on ? [] : [{ level: 'warn', text: t('admin.status.bonfireOff') }]);
+                setStatus(page, 'off', on ? [] : [{ level: 'info', text: t('admin.status.bonfireOff') }]);
                 renderGettingStarted(page);
             }
 
