@@ -539,6 +539,41 @@ if (validateName != null)
     Check("thirty-three characters", Accepts(new string('a', 33)), false);
 }
 
+// A rating below zero was stored as asked when the main account has no limit (R-1141), and a
+// device list was stored as sent: untrimmed, with blanks and repeats, and with no cap (R-1155).
+var checkRating = baseType.GetMethod("ValidateRatingScore", Flags);
+Check("a rating is validated in one place", checkRating != null, true);
+if (checkRating != null)
+{
+    bool RatingOk(string v) => checkRating.Invoke(null, new object[] { v }) == null;
+    Check("no rating is no limit", RatingOk(""), true);
+    Check("a score", RatingOk("10"), true);
+    Check("zero", RatingOk("0"), true);
+    Check("minus one", RatingOk("-1"), false);
+    Check("not a number", RatingOk("PG"), false);
+}
+
+var normIds = baseType.GetMethod("NormalizeAllowedDeviceIds", Flags);
+Check("device lists are normalised in one place", normIds != null, true);
+if (normIds != null)
+{
+    (System.Collections.Generic.List<string> Ids, string Error) Norm(System.Collections.Generic.IEnumerable<string> l)
+    {
+        var r = normIds.Invoke(null, new object[] { l });
+        return ((System.Collections.Generic.List<string>)r.GetType().GetField("Item1").GetValue(r), (string)r.GetType().GetField("Item2").GetValue(r));
+    }
+    var trimmed = Norm(new[] { " tv-1 ", "tv-1", "", "  ", "phone" });
+    Check("ids are trimmed and repeats and blanks dropped", string.Join("|", trimmed.Ids ?? new System.Collections.Generic.List<string>()), "tv-1|phone");
+    Check("no list stays none", Norm(null).Ids == null, true);
+    Check("an id over 128 characters is refused", Norm(new[] { new string('a', 129) }).Error != null, true);
+    Check("200 devices are taken", Norm(Enumerable.Range(0, 200).Select(i => "d" + i)).Error == null, true);
+    Check("201 devices are refused", Norm(Enumerable.Range(0, 201).Select(i => "d" + i)).Error != null, true);
+}
+Check("create checks the rating and the list", controllerSrc.Contains("var ratingError = ValidateRatingScore(request.MaxParentalRating);"), true);
+Check("create stores the cleaned list", controllerSrc.Contains("AllowedDeviceIds = newDeviceIds ?? new List<string>(),"), true);
+Check("update stores the cleaned list", controllerSrc.Contains("mappingEntry.AllowedDeviceIds = newDeviceIds!;"), true);
+Check("the raw list is stored nowhere", controllerSrc.Contains("AllowedDeviceIds = request.AllowedDeviceIds"), false);
+
 var validPin = baseType.GetMethod("IsValidPin", Flags);
 Check("PINs are validated in one place", validPin != null, true);
 if (validPin != null)

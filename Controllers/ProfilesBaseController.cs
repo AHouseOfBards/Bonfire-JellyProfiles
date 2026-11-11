@@ -692,6 +692,46 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>/update and /create given both allLibraries: true and a library list (R-1144).</summary>
         internal const string LibrariesTwiceMessage = "Send enabledFolders or allLibraries, not both.";
 
+        /// <summary>A negative maxParentalRating. No rating has a score below zero; with no limit on the main account it was stored as asked (R-1141).</summary>
+        internal const string RatingNegativeMessage = "maxParentalRating cannot be below zero.";
+
+        /// <summary>
+        /// The most devices one profile's list may name: the most a household may have on record
+        /// (<see cref="Auth.DeviceRegistry.MaxDevicesPerHousehold"/>). A fixed limit, not a
+        /// setting: a list can only name devices the household has been seen on, so no household
+        /// needs a longer one (R-1155).
+        /// </summary>
+        internal const int MaxAllowedDevicesPerProfile = Auth.DeviceRegistry.MaxDevicesPerHousehold;
+
+        /// <summary>Why <paramref name="value"/> is not a usable maxParentalRating, or null. "" is no limit.</summary>
+        internal static string? ValidateRatingScore(string? value)
+        {
+            if (string.IsNullOrEmpty(value)) return null;
+            if (!int.TryParse(value, out var score)) return RatingNotScoreMessage;
+            return score < 0 ? RatingNegativeMessage : null;
+        }
+
+        /// <summary>
+        /// A device list as it is stored: each id trimmed, blanks and repeats dropped. The ids
+        /// are compared ordinally in several places, so " tv-1" was a device nobody has. Refused
+        /// when too long or too many (R-1155). Null in is null out.
+        /// </summary>
+        internal static (List<string>? Ids, string? Error) NormalizeAllowedDeviceIds(IEnumerable<string>? ids)
+        {
+            if (ids == null) return (null, null);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var result = new List<string>();
+            foreach (var raw in ids)
+            {
+                var id = raw?.Trim();
+                if (string.IsNullOrEmpty(id)) continue;
+                if (id.Length > Auth.DeviceRegistry.MaxDeviceIdLength) return (null, "A device id is too long.");
+                if (seen.Add(id)) result.Add(id);
+                if (result.Count > MaxAllowedDevicesPerProfile) return (null, "Too many devices in the list.");
+            }
+            return (result, null);
+        }
+
         /// <summary>A maxParentalRating that isn't a score. It used to be read as no limit (R-1144).</summary>
         internal const string RatingNotScoreMessage = "maxParentalRating must be a rating score, or \"\" for no limit.";
 

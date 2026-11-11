@@ -433,8 +433,10 @@ namespace Jellyfin.Profiles.Controllers
             // rating that isn't a score was quietly read as no limit here too.
             if (request.AllLibraries == true && request.EnabledFolders != null)
                 return BadRequest(LibrariesTwiceMessage);
-            if (!string.IsNullOrEmpty(request.MaxParentalRating) && !int.TryParse(request.MaxParentalRating, out _))
-                return BadRequest(RatingNotScoreMessage);
+            var ratingError = ValidateRatingScore(request.MaxParentalRating);
+            if (ratingError != null) return BadRequest(ratingError);
+            var (newDeviceIds, deviceIdsError) = NormalizeAllowedDeviceIds(request.AllowedDeviceIds);
+            if (deviceIdsError != null) return BadRequest(deviceIdsError);
 
             // Reject an allow-list that shares no tags with the master's, which would leave the
             // profile with an empty library. Checked before the user is created so we don't
@@ -579,7 +581,7 @@ namespace Jellyfin.Profiles.Controllers
                     BlockedTags = profileBlockedTags,
                     AllowedTags = profileAllowedTags,
                     BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork ?? false,
-                    AllowedDeviceIds = request.AllowedDeviceIds ?? new List<string>(),
+                    AllowedDeviceIds = newDeviceIds ?? new List<string>(),
                     ProfileImage = !string.IsNullOrEmpty(request.AvatarLibraryId)
                         ? CopyLibraryAvatarToProfile(targetUser.Id, request.AvatarLibraryId).Url
                         : SaveProfileImage(targetUser.Id, request.ProfileImage, request.ProfileImageThumb).Url
@@ -2038,9 +2040,12 @@ namespace Jellyfin.Profiles.Controllers
             int? requestedRating = null;
             if (!string.IsNullOrEmpty(request.MaxParentalRating))
             {
-                if (!int.TryParse(request.MaxParentalRating, out var rating)) return BadRequest(RatingNotScoreMessage);
-                requestedRating = rating;
+                var ratingError = ValidateRatingScore(request.MaxParentalRating);
+                if (ratingError != null) return BadRequest(ratingError);
+                requestedRating = int.Parse(request.MaxParentalRating);
             }
+            var (newDeviceIds, deviceIdsError) = NormalizeAllowedDeviceIds(request.AllowedDeviceIds);
+            if (deviceIdsError != null) return BadRequest(deviceIdsError);
 
             var targetUser = _userManager.GetUserById(request.ProfileId);
             if (targetUser == null) return NotFound("Target user not found.");
@@ -2312,7 +2317,7 @@ namespace Jellyfin.Profiles.Controllers
 
                     if (request.AllowedDeviceIds != null)
                     {
-                        mappingEntry.AllowedDeviceIds = request.AllowedDeviceIds;
+                        mappingEntry.AllowedDeviceIds = newDeviceIds!;
                     }
                 }
 
