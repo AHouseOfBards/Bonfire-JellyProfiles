@@ -2762,10 +2762,10 @@
                             const overrideControl =
                                 '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
                                 '<span style="font-size:0.85rem; opacity:0.6;">' + escapeHtml(t('admin.households.limit')) + '</span>' +
-                                '<input is="emby-input" type="number" class="user-limit-input" data-id="' + pId + '" aria-label="' + escapeHtml(namedAria(t('admin.households.limit'), field(m, 'profileName'))) + '" min="1" max="20" value="' + maxProfiles + '" />' +
-                                '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + pId + '" aria-label="' + escapeHtml(namedAria(t('admin.households.set'), field(m, 'profileName'))) + '" style="padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">' + escapeHtml(t('admin.households.set')) + '</button>' +
+                                '<input is="emby-input" type="number" class="user-limit-input" data-id="' + escapeHtml(pId) + '" aria-label="' + escapeHtml(namedAria(t('admin.households.limit'), field(m, 'profileName'))) + '" min="1" max="20" value="' + maxProfiles + '" />' +
+                                '<button type="button" class="raised button-accent button-mini save-limit-btn" data-id="' + escapeHtml(pId) + '" aria-label="' + escapeHtml(namedAria(t('admin.households.set'), field(m, 'profileName'))) + '" style="padding:4px 10px; border-radius:4px; font-size:0.8rem; font-weight:600; cursor:pointer;">' + escapeHtml(t('admin.households.set')) + '</button>' +
                                 (limitOverride !== null && limitOverride !== undefined
-                                    ? '<button type="button" class="raised button-mini clear-limit-btn" data-id="' + pId + '" aria-label="' + escapeHtml(namedAria(t('admin.households.reset'), field(m, 'profileName'))) + '" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.15); padding:3px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer;">' + escapeHtml(t('admin.households.reset')) + '</button>'
+                                    ? '<button type="button" class="raised button-mini clear-limit-btn" data-id="' + escapeHtml(pId) + '" aria-label="' + escapeHtml(namedAria(t('admin.households.reset'), field(m, 'profileName'))) + '" style="background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.15); padding:3px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer;">' + escapeHtml(t('admin.households.reset')) + '</button>'
                                     : '') +
                                 '</div>';
 
@@ -3054,6 +3054,12 @@
 
             // Plain text. The skipped names are profile names out of the imported file, which
             // is exactly as trustworthy as wherever that file has been.
+            /// The import result as the markup shown under the button. A function, so the
+            /// escaping is something a test can run rather than a line it has to find.
+            function importResultHtml(res) {
+                return '<span class="jpf-dim">' + escapeHtml(importSummary(res)) + '</span>';
+            }
+
             function importSummary(res) {
                 let msg = t('admin.backup.imported', { profiles: res.mappings, devices: res.devices, bonfires: res.bonfires });
                 if (res.droppedMappings && res.droppedMappings.length) {
@@ -3184,7 +3190,7 @@
                                 dataType: 'json'
                             }).then(function (res) {
                                 Dashboard.hideLoadingMsg();
-                                box.innerHTML = '<span class="jpf-dim">' + escapeHtml(importSummary(res)) + '</span>';
+                                box.innerHTML = importResultHtml(res);
                                 // loadConfiguration loads the mappings too (R-1255).
                                 loadConfiguration(page);
                             }, function () {

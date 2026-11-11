@@ -46,14 +46,27 @@ function live(html) {
 const script = L.dashboardScript(L.readDashboard());
 
 /** Builds one callable out of the named dashboard functions, or null if any is missing. */
-function dashboardFns(names, entry) {
+function dashboardFns(names, entry, pre) {
     let src;
     try {
         src = L.dashboardI18n(script) + names.map(n => L.extractFunction(script, n)).join('\n');
     } catch (e) {
         return null;
     }
-    return new Function('arg1', 'arg2', 'let auditEntries = arg2 || [];\n' + src + '\nreturn ' + entry + ';');
+    return new Function('arg1', 'arg2', 'let auditEntries = arg2 || [];\n' + (pre || '') + src + '\nreturn ' + entry + ';');
+}
+
+/** A stand-in element: records the markup written to it, ignores everything else. */
+function fakeEl() {
+    const el = {
+        innerHTML: '', textContent: '', value: '', style: {}, dataset: {}, checked: false,
+        classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+        addEventListener() {}, setAttribute() {}, getAttribute: () => null,
+        appendChild() {}, remove() {}, focus() {},
+        insertAdjacentHTML(where, h) { el.innerHTML += h; },
+        querySelector: () => fakeEl(), querySelectorAll: () => []
+    };
+    return el;
 }
 
 function fakePage(extra) {
@@ -124,6 +137,102 @@ console.log('\n── The orphan scan ──────────────
     }
 }
 
+// R-1280: the household list, the avatar grid and the theme rows are built from names the
+// server hands back — a profile's name, an avatar's file name, a theme's name — and had no
+// hostile-value run. The household and avatar renderers live inside a fetch callback, so the
+// real function is run against a fake ApiClient that answers with the payload.
+console.log('\n── The household list ──────────────────────────────────────────');
+{
+    // Stubs only for what is not markup: the status rows, the first-run checklist, the
+    // trusted-address editor and the injection status. Every HTML builder is the real one.
+    const pre = 'var __result = null, __ajax = null;\n'
+        + 'var Dashboard = { showLoadingMsg() {}, hideLoadingMsg() {}, alert() {}, confirm() {} };\n'
+        + 'var ApiClient = { getUrl: function (u) { return "/" + u; },\n'
+        + '  serverVersion: function () { return "10.11.0"; },\n'
+        + '  getJSON: function () { return { then: function (f) { f(__result); return { catch: function () {} }; } }; } };\n'
+        + 'function setStatus() {} function pinStatusRows() { return []; } function renderGettingStarted() {}\n'
+        + 'function renderTrusted() {} function renderInjectionStatus() {}\n'
+        + 'function bindStandaloneForms() {} function bindAccountExtras() {}\n'
+        + 'function pluginAsset(u) { return "/" + u; }\n';
+    const make = dashboardFns(['escapeHtml', 'namedAria', 'field', 'normId', 'loadMappings'],
+        '(function (res, page) { __result = res; loadMappings(page); })', pre);
+    ok('loadMappings can be run against a fake server', make !== null);
+    if (make) {
+        const run = make();
+        const master = { profileName: EVIL, profileUserId: EVIL_ATTR, requiresPin: true,
+                         maxProfiles: 5, limitOverride: 3 };
+        const sub = { profileName: EVIL, profileUserId: EVIL_ATTR, masterUserId: EVIL_ATTR,
+                      requiresPin: true };
+        const orphan = { profileName: EVIL, profileUserId: EVIL_ATTR, masterUserId: 'nobody',
+                         requiresPin: true };
+        const list = fakeEl();
+        const page = fakeEl();
+        page.dataset = {};
+        page.querySelector = s => s === '#masterUsersList' ? list : fakeEl();
+        let threw = null;
+        try { run({ MasterUsers: [master], SubProfiles: [sub, orphan] }, page); }
+        catch (e) { threw = e; }
+        ok('it renders without throwing' + (threw ? ' — ' + threw.message : ''), threw === null);
+        ok('the list has rows, with the hostile name shown as text',
+           list.innerHTML.indexOf('&lt;img src=x') !== -1);
+        ok('no part of the household list is markup (names, ids, reasons)', !live(list.innerHTML));
+    }
+}
+
+console.log('\n── The avatar library ──────────────────────────────────────────');
+{
+    const pre = 'var ApiClient = { getUrl: function (u) { return "/" + u; },\n'
+        + '  ajax: function () { return { then: function (f) { f(__data); return { catch: function () {} }; } }; } };\n'
+        + 'var __data = null; function pluginAsset(u) { return "/" + u; }\n';
+    const make = dashboardFns(['escapeHtml', 'namedAria', 'field', 'loadAvatarLibrary'],
+        '(function (d, page) { __data = d; loadAvatarLibrary(page); })', pre);
+    ok('loadAvatarLibrary can be run against a fake server', make !== null);
+    if (make) {
+        const grid = fakeEl();
+        const page = fakeEl();
+        page.querySelector = s => s === '#avatarLibraryGrid' ? grid : fakeEl();
+        let threw = null;
+        try {
+            make()({ avatars: [{ id: EVIL_ATTR, displayName: EVIL, thumbUrl: EVIL_ATTR, isStarter: false }] },
+                   page);
+        } catch (e) { threw = e; }
+        ok('it renders without throwing' + (threw ? ' — ' + threw.message : ''), threw === null);
+        ok('the avatar name is shown as text', grid.innerHTML.indexOf('&lt;img src=x') !== -1);
+        ok('no part of the avatar grid is markup (name, id, thumbnail)', !live(grid.innerHTML));
+    }
+}
+
+console.log('\n── The theme rows ──────────────────────────────────────────────');
+{
+    const build = (fn, a, b) => {
+        const f = dashboardFns(['escapeHtml', 'namedAria', 'themePreviewCardHtml', 'themeShortName', 'getThemePath',
+                                'themeDisplayName', 'themeFontCssName', fn], fn + '(arg1, arg2)');
+        return f ? f(a, b) : null;
+    };
+    // The shapes the server sends: a built-in is { id, hidden }, a custom theme carries its
+    // own name in theme.name.text, a font is { family, file, usedBy, weights, fallback }.
+    const data = {
+        'default': EVIL_ATTR,
+        builtIn: [{ id: EVIL_ATTR, hidden: false }, { id: EVIL, hidden: true }],
+        builtInNames: { [EVIL_ATTR]: EVIL, [EVIL]: EVIL },
+        custom: [{ id: EVIL_ATTR, problems: [{ code: EVIL }], theme: { name: { text: EVIL } } }],
+        fonts: [{ family: EVIL, file: EVIL_ATTR, usedBy: [EVIL_ATTR], weightMin: 400, weightMax: 700,
+                  fallback: 'serif' }]
+    };
+    const previews = { [EVIL_ATTR]: EVIL_ATTR, [EVIL]: EVIL };
+    [['builtInThemeRowsHtml', data, previews], ['customThemeRowsHtml', data],
+     ['fontRowsHtml', data]].forEach(args => {
+        let html = null, threw = null;
+        try { html = build(args[0], args[1], args[2]); } catch (e) { threw = e; }
+        ok(args[0] + ' runs' + (threw ? ' — ' + threw.message : ''), threw === null && typeof html === 'string');
+        if (typeof html === 'string') {
+            ok(args[0] + ' shows the hostile name as text', html.indexOf('&lt;img src=x') !== -1
+               || html.indexOf('&quot; onmouseover') !== -1);
+            ok(args[0] + ' renders nothing as markup', !live(html));
+        }
+    });
+}
+
 console.log('\n── The import summary ──────────────────────────────────────────');
 {
     const summary = dashboardFns(['importSummary'], 'importSummary(arg1)');
@@ -132,8 +241,16 @@ console.log('\n── The import summary ─────────────
         const text = summary({ mappings: 1, devices: 0, bonfires: 0, droppedMappings: [EVIL] });
         ok('it names the skipped profiles', text.indexOf(EVIL) !== -1);
     }
-    ok('and the page escapes that text before it becomes markup',
-       /innerHTML\s*=\s*'<span class="jpf-dim">'\s*\+\s*escapeHtml\(importSummary\(res\)\)/.test(script));
+    // R-1280: was a regex over the source for one spelling of the call. The markup the page
+    // writes is built by a function now, and this runs it.
+    const markup = dashboardFns(['escapeHtml', 'importSummary', 'importResultHtml'], 'importResultHtml(arg1)');
+    ok('the markup under the import button is built by a function a test can run', markup !== null);
+    if (markup) {
+        const html = markup({ mappings: 1, devices: 0, bonfires: 0, droppedMappings: [EVIL] });
+        ok('and the skipped profile is text in it, not markup', html.indexOf('&lt;img src=x') !== -1 && !live(html));
+    }
+    ok('and the page writes that function\'s result, nothing else, to the box',
+       script.indexOf('box.innerHTML = importResultHtml(res);') !== -1);
 }
 
 console.log('\n── escapeHtml itself ───────────────────────────────────────────');
@@ -145,6 +262,7 @@ console.log('\n── escapeHtml itself ─────────────�
 
 // ── The client ───────────────────────────────────────────────────────────────
 
+let pending = null;
 console.log('\n── The Bonfire panel names other people ────────────────────────');
 {
     let src = fs.readFileSync(L.profilesPath(), 'utf8');
@@ -200,9 +318,38 @@ console.log('\n── The Bonfire panel names other people ───────
 
     // showAlert renders its message as markup because translations carry tags. What goes
     // into it from a server response must therefore be escaped at the call site.
-    const client = fs.readFileSync(L.profilesPath(), 'utf8');
-    ok('no server error message is interpolated raw', client.indexOf('{ message: err.message }') === -1);
+    //
+    // R-1280: this used to look for one spelling of the mistake in the source, which a
+    // different spelling walks past. The three screens that show a refusal from the time-limit
+    // routes are driven instead: the server's answer is a hostile message, and what reaches
+    // showAlert is what is checked.
+    const alerts = [];
+    plugin.showAlert = function (title, message) { alerts.push(String(message)); };
+    plugin._limitsCall = function () { return Promise.reject(new Error(EVIL)); };
+    const dialogs = [];
+    plugin.showActionsDialog = function (title, body, actions) { dialogs.push(actions); };
+    plugin.showSelectDialog = function (title, body, options, cb) { cb('15'); };
+    const kid = { profileName: 'Kid', profileUserId: 'u1', profileId: 'u1', viewing: { reason: 'limit' } };
+    const none = function () {};
+    function drive(fn) {
+        const before = dialogs.length;
+        try { fn(); } catch (e) { /* only what reaches showAlert matters */ }
+        dialogs.slice(before).forEach(function (actions) {
+            actions.forEach(function (a) { try { if (a.run) a.run(); } catch (e) { /* ditto */ } });
+        });
+    }
+    drive(() => plugin.showTimeUp(kid, none));
+    drive(() => plugin.chooseMoreTime(kid, none));
+    drive(() => plugin.answerTimeRequest({ profileName: 'Kid', profileId: 'u1', grantMinutesLeft: 60 }, none));
+    pending = new Promise(r => setTimeout(r, 20)).then(() => {
+        ok('the three time-limit screens each showed the refusal (' + alerts.length + ' alerts)',
+           alerts.length >= 3);
+        ok('a refusal from the server is shown as text, never as markup',
+           alerts.length > 0 && alerts.every(a => !live(a)) && alerts.some(a => a.indexOf('&lt;img') !== -1));
+    });
 }
 
-console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
-if (fails.length) process.exit(1);
+Promise.resolve(pending).then(function () {
+    console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
+    if (fails.length) process.exit(1);
+});
