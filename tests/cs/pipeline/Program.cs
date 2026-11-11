@@ -620,6 +620,24 @@ Check("AuthenticateByName: Jellyfin's body reaches the client",
 Check("QuickConnect/Initiate: Jellyfin's body reaches the client",
     await RunPrivate("RememberQuickConnectAsync", "/QuickConnect/Initiate", "POST", Started(UserJson, "application/json")) == UserJson);
 
+Console.WriteLine();
+Console.WriteLine("── The on-disk cleanup waits for a page that was served (R-1101) ──");
+
+// The old tags come out of index.html once the middleware is known to work. That used to
+// be on the first index request, before it was answered: a request that then failed left
+// neither the file nor the middleware supplying the script.
+var cleanedFlag = typeof(ProfilesBootstrapTask).GetField("_cleanedForMiddleware",
+    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+Check("the cleanup's one-shot flag is where this harness looks", cleanedFlag != null);
+if (cleanedFlag != null)
+{
+    cleanedFlag.SetValue(null, 0);
+    await Run("/web/index.html", async ctx => { ctx.Response.StatusCode = 500; await ctx.Response.WriteAsync("broken"); });
+    Check("a failed index request does not trigger it", (int)cleanedFlag.GetValue(null) == 0);
+    await Run("/web/index.html", WriteBody(PlainIndex));
+    Check("a served one does", (int)cleanedFlag.GetValue(null) == 1);
+}
+
 try { Directory.Delete(tempDir, true); } catch { /* best effort */ }
 
 Console.WriteLine();

@@ -311,7 +311,10 @@ namespace Jellyfin.Profiles
             // Safe to do from here rather than from the middleware that now adds the tags:
             // PluginServiceRegistrator adds that one in the same call that adds this, so
             // one cannot be in the pipeline without the other.
-            ProfilesBootstrapTask.CleanIndexOnceMiddlewareIsLive();
+            //
+            // After the page is answered, not before (R-1101): a first request that failed, or
+            // that nothing could add the tags to, would otherwise have taken them off the disk
+            // copy with nothing supplying them in their place.
 
             // The document itself is the Campground coordinator's (Campground.Shared,
             // Injection/IndexMiddleware.cs), which sits inside this middleware and adds every
@@ -322,6 +325,16 @@ namespace Jellyfin.Profiles
             // negotiation suspend, the pass-through rules and the cache headers all moved
             // there unchanged, and tests/cs/pipeline drives the two together.
             await _next(context).ConfigureAwait(false);
+
+            // Served: a 200 document the coordinator could handle, and no error recorded for
+            // this page. A document it passed through (encoded, not HTML) never got the tags.
+            if (context.Response.StatusCode == StatusCodes.Status200OK
+                && !context.Response.Headers.ContainsKey(HeaderNames.ContentEncoding)
+                && (context.Response.ContentType?.StartsWith("text/html", StringComparison.OrdinalIgnoreCase) ?? false)
+                && LastError == null)
+            {
+                ProfilesBootstrapTask.CleanIndexOnceMiddlewareIsLive();
+            }
         }
 
         /// <summary>
