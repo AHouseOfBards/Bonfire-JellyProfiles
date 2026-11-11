@@ -1011,8 +1011,25 @@ namespace Jellyfin.Profiles.Auth
             if (mapping == null || string.IsNullOrEmpty(mapping.PinHash)) return false;
 
             // Only the household's own tiles are on the picker, so never a cross-household entry.
+            // A trusted address (TrustedAddresses) counts for a profile and never for the main
+            // account's row; CanSkipPin holds that line, as for the web switcher.
             return !Controllers.ProfilesBaseController.CanSkipPin(
-                mapping, IsLocal(context, services), isCrossAccountMasterSwitch: false, householdLanBypass: false);
+                mapping, IsLocal(context, services), isCrossAccountMasterSwitch: false, householdLanBypass: false,
+                isTrusted: IsTrusted(context, config));
+        }
+
+        /// <summary>Whether the request comes from a listed address: the one Jellyfin resolved, never a header read here.</summary>
+        private static bool IsTrusted(HttpContext context, PluginConfiguration? config)
+        {
+            if (config?.TrustedPinAddresses == null || config.TrustedPinAddresses.Count == 0) return false;
+            try
+            {
+                return TrustedAddresses.Contains(config, ClientAddress.Of(context));
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         private static List<Tile> Keypad(ProxySession session, Guid profileId, string entered, Guid parentId, string? notice = null)

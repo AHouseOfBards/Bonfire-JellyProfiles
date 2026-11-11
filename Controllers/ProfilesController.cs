@@ -180,7 +180,8 @@ namespace Jellyfin.Profiles.Controllers
                         .Select(x => {
                             var m = x.Row;
                             bool requiresPin = !string.IsNullOrEmpty(m.PinHash)
-                                && !CanSkipPin(m, isLocal, x.Rules.CrossHousehold, x.Rules.HouseholdLanBypass);
+                                && !CanSkipPin(m, isLocal, x.Rules.CrossHousehold, x.Rules.HouseholdLanBypass,
+                                    isTrusted: IsTrustedFor(m, remoteIp, config));
                             return new
                             {
                                 m.ProfileUserId,
@@ -849,7 +850,8 @@ namespace Jellyfin.Profiles.Controllers
             var pinHashToCheck = mapping?.PinHash;
             if (!string.IsNullOrEmpty(pinHashToCheck))
             {
-                bool bypass = CanSkipPin(mapping, isLocal, isCrossAccountMasterSwitch, householdLanBypass);
+                bool bypass = CanSkipPin(mapping, isLocal, isCrossAccountMasterSwitch, householdLanBypass,
+                    isTrusted: IsTrustedFor(mapping, remoteIp, config));
 
                 if (bypass)
                 {
@@ -862,7 +864,7 @@ namespace Jellyfin.Profiles.Controllers
                     {
                         _logger.LogInformation(
                             "ProfilesPlugin: PIN skipped for profile {Profile} — client {Ip} was classified " +
-                            "as local by Jellyfin's network settings.",
+                            "as local by Jellyfin's network settings, or is a trusted address.",
                             request.ProfileId, ip);
                     }
                 }
@@ -1101,7 +1103,8 @@ namespace Jellyfin.Profiles.Controllers
 
             var target = rules.Target;
             if (target != null && !string.IsNullOrEmpty(target.PinHash)
-                && !CanSkipPin(target, isLocal, rules.CrossHousehold, rules.HouseholdLanBypass))
+                && !CanSkipPin(target, isLocal, rules.CrossHousehold, rules.HouseholdLanBypass,
+                    isTrusted: IsTrustedFor(target, remoteIp, config)))
             {
                 var limited = BeginPinAttempt(rateLimitKey, request.ProfileId);
                 if (limited != null) return limited;
@@ -1805,6 +1808,9 @@ namespace Jellyfin.Profiles.Controllers
                     config.PanicCodeHash = incoming.PanicCodeHash;
                 if (TryProperty(root, "ProxyClients", out _))
                     config.ProxyClients = Auth.ProxyClients.Normalize(incoming.ProxyClients);
+                // Only ever within the limits: a file cannot widen what the settings route refuses.
+                if (TryProperty(root, "TrustedPinAddresses", out _))
+                    config.TrustedPinAddresses = Auth.TrustedAddresses.Normalize(incoming.TrustedPinAddresses);
                 // Through the same rules as the route, so a hand-edited file cannot store
                 // an announcement the settings page would refuse.
                 if (TryProperty(root, "Announcements", out _))
@@ -1863,7 +1869,7 @@ namespace Jellyfin.Profiles.Controllers
             "LinkedAccounts", "UserProfileLimitOverrides", "AvatarLibrary", "DisallowCustomAvatarUploads",
             "ProfileImageQuality", "DefaultAskOnStartup", "DefaultSwitcherLocation", "CustomFonts", "CustomThemes",
             "HiddenThemes", "LogoImage", "LogoText", "LogoAlt", "DefaultTheme", "DefaultTimeZone", "AllowProfileThemes",
-            "EnableClientPinLogin", "EnableClientProfileList", "ClientPinLoginFromAnywhere", "PanicCodeHash", "ProxyClients",
+            "EnableClientPinLogin", "EnableClientProfileList", "ClientPinLoginFromAnywhere", "PanicCodeHash", "ProxyClients", "TrustedPinAddresses",
             "Announcements", "AccountEmails",
         };
 
@@ -5251,6 +5257,11 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest($"Switcher location must be '{SwitcherLocations.Button}' or '{SwitcherLocations.Menu}'.");
             }
 
+            // Fixed limits (Auth/TrustedAddresses.cs), refused rather than trimmed: a list
+            // that quietly loses an entry looks saved.
+            var trustedError = Auth.TrustedAddresses.Validate(request.TrustedPinAddresses);
+            if (trustedError != null) return BadRequest(trustedError);
+
             if (!string.IsNullOrEmpty(request.DefaultTimeZone) && !HouseholdTime.TryFind(request.DefaultTimeZone, out _))
             {
                 return BadRequest("That time zone isn't known to this server.");
@@ -5348,6 +5359,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.ProxyClients = Auth.ProxyClients.Normalize(request.ProxyClients);
                 if (request.EnablePinResetByEmail.HasValue)
                     config.EnablePinResetByEmail = request.EnablePinResetByEmail.Value;
+                if (request.TrustedPinAddresses != null)
+                    config.TrustedPinAddresses = Auth.TrustedAddresses.Normalize(request.TrustedPinAddresses);
 
                 config.Onboarding ??= new OnboardingSettings();
                 var onboarding = config.Onboarding;

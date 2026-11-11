@@ -2269,6 +2269,7 @@ anything added since you read it.
 | `onboardingAsked` | boolean | The dashboard's new-install question about first-time setup has been answered, yes or no. Changes nothing else. |
 | `enablePinResetByEmail` | boolean | Main accounts may [reset a forgotten PIN by email](#email). `400` turning it on while email isn't working; one already on stays on. |
 | `defaultTimeZone` | string | The time zone for [viewing hours](#viewing-hours) in households that haven't chosen one. An IANA id, or `""` for the server's own. |
+| `trustedPinAddresses` | array of strings | Addresses and ranges that count as the server's network for a profile's "No PIN on the server's network": `"203.0.113.7"`, `"203.0.113.0/24"`, `"2001:db8:abcd::/48"`. `[]` turns it off. At most 10; no range wider than `/16` (IPv4) or `/48` (IPv6); IPv4 as dotted decimal only. `400` if any entry is malformed or too wide, and then nothing is changed. It never skips a main account's PIN, an administrator's, or the PIN for another household's account. The address is the one Jellyfin resolves after its Known proxies. |
 
 `400` if any field is out of range, and then nothing is changed.
 

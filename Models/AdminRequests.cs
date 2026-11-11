@@ -69,6 +69,9 @@ namespace Jellyfin.Profiles.Models
         /// <summary>Keys from <c>ProxyClients.Catalogue</c>. Unknown keys are dropped. Null leaves it alone.</summary>
         public System.Collections.Generic.List<string>? ProxyClients { get; set; }
 
+        /// <summary>Addresses and ranges that count as the server's network for a profile's PIN skip: at most 10, nothing wider than /16 or /48. Empty turns it off. Null leaves it alone; anything invalid refuses the whole save.</summary>
+        public System.Collections.Generic.List<string>? TrustedPinAddresses { get; set; }
+
         /// <summary>See <c>ImageQualities</c>: standard, high or maximum. Null leaves it alone.</summary>
         public string? ProfileImageQuality { get; set; }
 

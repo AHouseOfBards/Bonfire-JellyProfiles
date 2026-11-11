@@ -520,10 +520,12 @@ namespace Jellyfin.Profiles
 
             // Unknown counts as not local: the cost of being wrong is one more PIN.
             bool isLocal;
+            System.Net.IPAddress? clientAddress = null;
             try
             {
                 // Through Jellyfin's known proxies: this runs before its forwarding (R-1029).
                 var remoteIp = Auth.ClientAddress.Of(context);
+                clientAddress = remoteIp;
                 isLocal = remoteIp != null && networkManager != null && networkManager.IsInLocalNetwork(remoteIp);
             }
             catch (Exception ex)
@@ -536,6 +538,7 @@ namespace Jellyfin.Profiles
                 Controllers.ProfilesBaseController.ParseAuthorizationParameter(auth, emby, "DeviceId"),
                 carriesToken,
                 isLocal,
+                clientAddress,
                 config,
                 deviceManager,
                 sessionManager,

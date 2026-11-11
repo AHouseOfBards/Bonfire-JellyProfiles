@@ -523,14 +523,38 @@ namespace Jellyfin.Profiles.Controllers
         /// itself (<see cref="ManagementAllowed"/>), so a skipped prompt here is never proof of
         /// the PIN anywhere else.
         /// </para>
+        /// <para>
+        /// <paramref name="isTrusted"/> is an address the administrator listed
+        /// (<see cref="Auth.TrustedAddresses"/>): it counts as home for a <b>profile's</b> skip and
+        /// nowhere else. Never a main account's row, which keeps the PIN that guards
+        /// its household and, often, the server; never across a link. A caller that can also
+        /// see the account's rights keeps an administrator out too (<see cref="IsTrustedFor"/>).
+        /// </para>
         /// </summary>
         protected internal static bool CanSkipPin(
-            ProfileMapping? mapping, bool isLocal, bool isCrossAccountMasterSwitch, bool householdLanBypass)
+            ProfileMapping? mapping, bool isLocal, bool isCrossAccountMasterSwitch, bool householdLanBypass,
+            bool isTrusted = false)
         {
             if (isCrossAccountMasterSwitch) return householdLanBypass;
             if (mapping == null) return false;
             if (IsMainRow(mapping) && !mapping.AskPinToOpen) return true;
-            return mapping.BypassPinOnLocalNetwork && isLocal;
+            if (!mapping.BypassPinOnLocalNetwork) return false;
+            return isLocal || (isTrusted && !IsMainRow(mapping));
+        }
+
+        /// <summary>
+        /// Whether <paramref name="address"/> is a listed address that may skip <paramref name="mapping"/>'s PIN:
+        /// listed, and the row is neither a main account nor an administrator. Computed only
+        /// when the list is not empty, so it costs nothing while the feature is off.
+        /// </summary>
+        protected bool IsTrustedFor(ProfileMapping? mapping, System.Net.IPAddress? address, PluginConfiguration? config)
+        {
+            if (mapping == null || IsMainRow(mapping)) return false;
+            if (config?.TrustedPinAddresses == null || config.TrustedPinAddresses.Count == 0) return false;
+            if (!Auth.TrustedAddresses.Contains(config, address)) return false;
+            // Cannot be made a profile, but could have been promoted since: an administrator's
+            // PIN is never skipped from an address, whatever the row says.
+            return !IsUserAdministrator(mapping.ProfileUserId);
         }
 
         /// <summary>

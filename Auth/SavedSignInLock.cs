@@ -76,7 +76,8 @@ namespace Jellyfin.Profiles.Auth
             PluginConfiguration? config,
             string? deviceId,
             bool isLocal,
-            Func<Guid, string?> usernameOf)
+            Func<Guid, string?> usernameOf,
+            System.Net.IPAddress? address = null)
         {
             var none = Array.Empty<LockTarget>();
             var bare = deviceId?.Trim();
@@ -88,6 +89,7 @@ namespace Jellyfin.Profiles.Auth
             if (master == Guid.Empty) return none;
 
             var mappings = config.Mappings.ToList();
+            var trusted = TrustedAddresses.Contains(config, address);
             var hasProfiles = mappings.Any(m => m.MasterUserId == master && m.ProfileUserId != master);
 
             var targets = new List<LockTarget>();
@@ -99,8 +101,9 @@ namespace Jellyfin.Profiles.Auth
                 // rule the provider uses before it will open a master by PIN.
                 if (m.ProfileUserId == master && !hasProfiles) continue;
 
-                // The web switcher skips this PIN on the home network; so does this.
-                if (m.BypassPinOnLocalNetwork && isLocal) continue;
+                // The web switcher skips this PIN on the home network, or from a trusted
+                // address, never the master's own row; so does this.
+                if (m.BypassPinOnLocalNetwork && (isLocal || (trusted && m.ProfileUserId != master))) continue;
 
                 var names = new List<string>();
                 if (m.ProfileUserId != master && !string.IsNullOrWhiteSpace(m.ProfileName)) names.Add(m.ProfileName);
@@ -129,6 +132,7 @@ namespace Jellyfin.Profiles.Auth
             string? deviceId,
             bool requestCarriesToken,
             bool isLocal,
+            System.Net.IPAddress? address,
             PluginConfiguration? config,
             IDeviceManager deviceManager,
             ISessionManager sessionManager,
@@ -141,7 +145,7 @@ namespace Jellyfin.Profiles.Auth
             var revoked = 0;
             try
             {
-                var targets = Targets(config, deviceId, isLocal, id => userManager.GetUserById(id)?.Username);
+                var targets = Targets(config, deviceId, isLocal, id => userManager.GetUserById(id)?.Username, address);
 
                 foreach (var target in targets)
                 {
