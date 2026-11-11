@@ -168,9 +168,13 @@ namespace Jellyfin.Profiles.Controllers
                 old = config.LogoImage;
                 config.LogoImage = file;
                 Plugin.Instance?.SaveConfiguration();
+
+                // Deleted here, not after the lock: two uploads at once, the second sending
+                // the first one's old bytes, could otherwise have the first delete a file
+                // the second had just made current, leaving LogoImage naming nothing (R-1083).
+                if (old != null && old != file) DeleteLogoFile(old);
             }
 
-            if (old != null && old != file) DeleteLogoFile(old);
             return Ok(new { image = ThemeLogo.Url(file), width = info.Width, height = info.Height });
         }
 
@@ -189,9 +193,9 @@ namespace Jellyfin.Profiles.Controllers
                 old = config.LogoImage;
                 config.LogoImage = null;
                 Plugin.Instance?.SaveConfiguration();
+                if (old != null) DeleteLogoFile(old);   // under the lock, as the upload does (R-1083)
             }
 
-            if (old != null) DeleteLogoFile(old);
             return NoContent();
         }
 
