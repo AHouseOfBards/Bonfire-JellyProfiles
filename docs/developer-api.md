@@ -337,7 +337,7 @@ Invalid PIN code.
 | `code_expired`, `code_missing` | The email code has expired, or none was sent. |
 | `email_send_failed` | The mail server refused the message. |
 | `credentials_wrong` | The username or password for the account being added is wrong. |
-| `admin_must_add` | The account signs in through LDAP, SSO or similar. Only an administrator can add it. |
+| `admin_must_add` | Retired, never sent. An account that signs in through LDAP, SSO or similar gets `credentials_wrong`, so a username cannot be probed. |
 | `not_linkable` | That account can't be added: it's the caller's own, or it's a profile. |
 | `already_linked` | That account is already on the switcher. |
 | `link_limit` | The switcher already shows 10 other accounts. |
@@ -1256,7 +1256,7 @@ These routes are for main accounts, and take the main account's PIN (see
 Returns the `GET` shape. A wrong password counts against the same limits as a wrong PIN,
 but not against Jellyfin's lockout for that account, so nobody can get an account turned
 off this way. An account that signs in through LDAP, SSO or similar can only be added by an
-administrator. Errors: `credentials_wrong`, `admin_must_add`, `not_linkable`,
+administrator. Errors: `credentials_wrong`, `not_linkable`,
 `already_linked`, `link_limit`, `admin_pin_required`, `429`.
 
 ### `POST /plugins/profiles/accounts/links/remove`

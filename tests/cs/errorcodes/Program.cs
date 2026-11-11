@@ -101,6 +101,17 @@ Ok("a 429 is rate_limited", limited == (429, "rate_limited"), limited.ToString()
 var own = Run(new ObjectResult("Back at 3.") { StatusCode = 503 }, preset: "maintenance");
 Ok("a code the route set is kept", own == (503, "maintenance"), own.ToString());
 
+// ASP.NET's own 400 for an unbindable body ([ApiController]) is a ProblemDetails object with
+// no message: it still carries a code. And a server error is its own code (R-1130).
+var auto = Run(new BadRequestObjectResult(new ValidationProblemDetails()));
+Ok("an automatic 400 is invalid_request", auto == (400, "invalid_request"), auto.ToString());
+var boom = Run(new ObjectResult("Something broke.") { StatusCode = 500 });
+Ok("a 500 is server_error", boom == (500, "server_error"), boom.ToString());
+var boomPlain = Run(new StatusCodeResult(500));
+Ok("a bare 500 is server_error", boomPlain == (500, "server_error"), boomPlain.ToString());
+var okContent = Run(new ContentResult { Content = "{}", StatusCode = 200 });
+Ok("a 200 Content() carries no error code", okContent.code == "", okContent.ToString());
+
 var fine = Run(new OkObjectResult("done"));
 Ok("a success carries no error code", fine.code == "" && fine.status == 200, fine.ToString());
 
@@ -121,6 +132,73 @@ foreach (var file in Directory.GetFiles(Path.Combine(root, "Controllers"), "*.cs
 }
 
 Ok("the controllers were read", seen.Count > 60, seen.Count + " messages");
+
+// ── Pinned: what each message is coded as, and the rule table itself ──────────────────
+// Codes are derived from message text, so rewording a message silently recodes it (R-1129).
+// Every literal message and every rule is written down in messages.golden / rules.golden.
+// Rewording a message, or adding, removing or recoding a rule, fails here until the golden
+// is regenerated on purpose: BONFIRE_UPDATE_GOLDEN=1 dotnet run -c Release
+{
+    var here = Path.Combine(root, "tests", "cs", "errorcodes");
+    var update = Environment.GetEnvironmentVariable("BONFIRE_UPDATE_GOLDEN") == "1";
+    int StatusOf(string kind) => kind == "Unauthorized" ? 403 : kind == "NotFound" ? 404 : kind == "TooManyAttempts" ? 429 : 400;
+
+    var messageLines = seen
+        .Select(s => s.kind + "|" + For(StatusOf(s.kind), s.text) + "|" + s.text)
+        .Distinct().OrderBy(l => l, StringComparer.Ordinal).ToList();
+
+    var rulesField = codes.GetField("Rules", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+    var ruleLines = new List<string>();
+    foreach (var r in (System.Collections.IEnumerable)rulesField.GetValue(null))
+    {
+        var rt = r.GetType();
+        ruleLines.Add(rt.GetField("Item2").GetValue(r) + "|" + rt.GetField("Item1").GetValue(r));
+    }
+
+    void Pin(string label, string file, List<string> now)
+    {
+        var path = Path.Combine(here, file);
+        if (update) File.WriteAllText(path, string.Join("\n", now) + "\n");
+        if (!File.Exists(path)) { Ok(label + ": " + file + " exists", false, "run with BONFIRE_UPDATE_GOLDEN=1"); return; }
+        var pinned = File.ReadAllLines(path).Where(l => l.Length > 0).ToList();
+        var changed = now.Except(pinned).Concat(pinned.Except(now).Select(p => "gone: " + p)).ToList();
+        Ok(label + ": nothing recoded, reworded, added or removed since it was pinned",
+           changed.Count == 0, changed.Count + " differ: " + string.Join(" || ", changed.Take(6)));
+    }
+    // The messages above are only the ones written inside a BadRequest(...) call. Many are
+    // built elsewhere (Announcements.Validate, the base controller) and handed in as a
+    // variable, so the pin cannot see them. Closing that gap: every rule must still match a
+    // string literal somewhere in the plugin's own source. A reworded message leaves its rule
+    // with nothing to match, and the message silently falls to the code for its status.
+    var sourceText = new System.Text.StringBuilder();
+    foreach (var f in Directory.GetFiles(root, "*.cs", SearchOption.AllDirectories))
+    {
+        var rel = Path.GetRelativePath(root, f).Replace('\\', '/');
+        if (rel.StartsWith("tests/") || rel.StartsWith("obj/") || rel.StartsWith("bin/") || rel.StartsWith(".scratch")
+            || rel.Contains("/obj/") || rel.Contains("/bin/") || rel == "Controllers/ErrorCodes.cs") continue;
+        // Join "a" + "b" so a message written over two lines is one literal.
+        var joined = Regex.Replace(File.ReadAllText(f), @"""\s*\+\s*\$?""", "");
+        // Line by line, comments skipped: one stray quote in a comment would otherwise pair
+        // every literal after it the wrong way round for the rest of the file.
+        foreach (var line in joined.Split('\n'))
+        {
+            if (line.TrimStart().StartsWith("//")) continue;
+            foreach (Match l in literal.Matches(line)) sourceText.Append(l.Groups[1].Value.Replace("\\'", "'")).Append('\n');
+        }
+    }
+    var allLiterals = sourceText.ToString();
+    var deadRules = new List<string>();
+    foreach (var r in (System.Collections.IEnumerable)rulesField.GetValue(null))
+    {
+        var rt = r.GetType();
+        var contains = (string)rt.GetField("Item1").GetValue(r);
+        if (allLiterals.IndexOf(contains, StringComparison.OrdinalIgnoreCase) < 0) deadRules.Add(contains);
+    }
+    Ok("every rule still matches a message in the source", deadRules.Count == 0, deadRules.Count + " dead: " + string.Join(" | ", deadRules));
+
+    Pin("every literal message and its code", "messages.golden", messageLines);
+    Pin("every rule and its code", "rules.golden", ruleLines);
+}
 
 // A message refusing a signed-in caller must never be coded as a dead token.
 var badForbidden = seen.Where(s => s.kind == "Unauthorized" && For(401, s.text) == "unauthenticated").ToList();

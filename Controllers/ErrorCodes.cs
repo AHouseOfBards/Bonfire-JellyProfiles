@@ -111,6 +111,7 @@ namespace Jellyfin.Profiles.Controllers
             ("No image supplied", "image_invalid"),
             ("Choose a picture first", "image_invalid"),
             ("only allows pictures from the avatar library", "image_invalid"),
+            ("Only pictures from the avatar library can be used", "image_invalid"),
 
             ("Plugin configuration missing", "not_configured"),
 
@@ -131,7 +132,6 @@ namespace Jellyfin.Profiles.Controllers
             ("Security must be 'starttls'", "email_settings_invalid"),
             ("That server name isn't valid", "email_settings_invalid"),
             ("The From address isn't valid", "email_settings_invalid"),
-            ("The From name can be at most", "email_settings_invalid"),
             ("Fill in the server and the From address", "email_settings_invalid"),
 
             // Viewing hours and limits (1.7.2). The refusals of playback itself are written
@@ -147,7 +147,8 @@ namespace Jellyfin.Profiles.Controllers
 
             // Other accounts in a switcher, and an account made a profile (1.7.2).
             ("That username or password isn't right", "credentials_wrong"),
-            ("That account signs in another way", "admin_must_add"),
+            // admin_must_add is retired, not reused: an account that signs in elsewhere now gets
+            // the wrong-password refusal, so a household cannot learn which usernames exist.
             ("That account is turned off in Jellyfin", "not_linkable"),
             ("That's your own account", "not_linkable"),
             ("That's a profile. Add its main account", "not_linkable"),
@@ -202,6 +203,8 @@ namespace Jellyfin.Profiles.Controllers
 
             return status switch
             {
+                // A 401 with a message never reaches here through the filter, which has already
+                // made it a 403; the "forbidden" arm is for a caller of this method directly.
                 StatusCodes.Status401Unauthorized => string.IsNullOrEmpty(message) ? "unauthenticated" : "forbidden",
                 StatusCodes.Status403Forbidden => "forbidden",
                 StatusCodes.Status404NotFound => "not_found",

@@ -1,0 +1,119 @@
+not_main_account|Only the master profile can
+admin_only|Only administrators can
+not_your_profile|Unauthorized profile
+not_your_profile|That profile does not belong
+themes_locked|does not let profiles choose a theme
+main_pin_required|Set a PIN for your account first
+pin_missing|Enter your account's PIN
+pin_wrong|Invalid PIN
+pin_wrong|Invalid Master PIN
+pin_format|PIN code must be
+pin_needed_for_bonfire|has no PIN, so it cannot be opened from a shared Bonfire
+bonfire_code_wrong|Invalid Bonfire Code
+bonfire_code_wrong|Invalid code format
+code_wrong|Incorrect code
+device_not_allowed|not allowed on this device
+device_not_allowed|isn't allowed on this device
+device_not_allowed|did not identify itself
+device_not_allowed|allowed devices are known
+profile_disabled|account is turned off
+too_many_sessions|too many active sessions
+sign_in_failed|Couldn't sign in to that profile
+device_in_use|This is the only device allowed for
+profile_limit|Maximum profile limit
+name_taken|already exists
+name_invalid|Enter a name for the profile
+name_invalid|A profile name can
+main_account_protected|Cannot delete the master profile
+bonfire_not_owner|You do not own a Bonfire group
+bonfire_not_member|You are not in any Bonfire group
+bonfire_own_group|You cannot join your own Bonfire group
+bonfire_member_not_found|Member not found in your Bonfire group
+announcement_invalid|Enter a message for the announcement
+announcement_invalid|An announcement can be at most
+announcement_invalid|Announcement severity must be
+announcement_invalid|An announcement must end after it starts
+announcement_limit|Delete an announcement first
+announcement_not_found|No such announcement
+name_invalid|A username can use letters
+main_account_protected|A main account is already its own
+password_required|Set a password for the new account
+maintenance_invalid|maintenance message can be at most
+maintenance_invalid|time maintenance ends must be
+profile_not_found|Profile not found
+profile_not_found|Profile mapping not found
+profile_not_found|Missing profile
+user_not_found|Master user not found
+user_not_found|Target user not found
+user_not_found|Calling user not found
+user_not_found|Underlying system user missing
+library_not_found|That library no longer exists
+image_not_found|No such avatar
+image_not_found|That picture is no longer available
+image_invalid|Not a supported image
+image_invalid|That image could not be read
+image_invalid|That image is too large
+image_invalid|No image supplied
+image_invalid|Choose a picture first
+image_invalid|only allows pictures from the avatar library
+image_invalid|Only pictures from the avatar library can be used
+not_configured|Plugin configuration missing
+not_main_account|Only the main account can do that
+email_unavailable|Email isn't set up on this server
+email_unavailable|Set up email and send a test first
+pin_reset_unavailable|PIN reset by email isn't available
+email_invalid|That email address isn't valid
+email_invalid|Enter an address to send the test to
+email_missing|Add an email address first
+code_wrong|That code isn't right
+code_expired|That code has expired
+code_missing|Send a code first
+email_send_failed|The email couldn't be sent
+email_settings_invalid|Port 465 isn't supported
+email_settings_invalid|The port must be between
+email_settings_invalid|Security must be 'starttls'
+email_settings_invalid|That server name isn't valid
+email_settings_invalid|The From address isn't valid
+email_settings_invalid|Fill in the server and the From address
+not_limited|This profile has no viewing limits
+limits_for_profiles|Limits are for profiles, not main accounts
+limits_invalid|Too many viewing windows
+limits_invalid|A viewing window isn't valid
+limits_invalid|A daily limit is between
+limits_invalid|More time is between
+grant_cap|That's past the 4 hours of extra time
+time_zone_invalid|That time zone isn't known
+credentials_wrong|That username or password isn't right
+not_linkable|That's your own account
+not_linkable|That's a profile. Add its main account
+already_linked|That account is already here
+link_limit|A household can show up to
+admin_pin_required|An administrator account needs a PIN
+link_not_found|That account isn't shown there
+user_not_found|User not found
+not_convertible|An administrator can't be made a profile
+not_convertible|That account is already a profile
+not_convertible|Choose a main account, not a profile
+not_convertible|Choose another account's household
+not_convertible|It has profiles of its own
+not_convertible|It's in a Bonfire. Leave it first
+theme_limit|Delete a custom theme first
+theme_not_found|No such theme
+theme_in_use|That's the default theme. Choose another default first
+theme_invalid|Only built-in themes can be hidden
+theme_invalid|Bonfire can't be hidden
+theme_invalid|Send the list of themes to hide
+font_rights|Confirm you have the right to use this font
+font_invalid|A font falls back to
+font_invalid|A font name can use
+font_invalid|That font is larger than
+font_invalid|Choose a WOFF2 font file
+font_taken|Bonfire already has a font called
+font_limit|Delete a font first
+font_not_found|No such font
+font_in_use|A theme uses that font
+logo_invalid|Logo text is one line
+logo_invalid|Logo alt text is one line
+logo_invalid|Send the logo's text
+image_invalid|That logo is larger than
+image_invalid|Choose a logo image

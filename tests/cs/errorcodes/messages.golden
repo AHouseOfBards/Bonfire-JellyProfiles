@@ -1,0 +1,145 @@
+BadRequest|announcement_limit|Delete an announcement first. At most {Configuration.Announcements.MaxCount} are kept.
+BadRequest|bonfire_code_wrong|Invalid Bonfire Code.
+BadRequest|bonfire_code_wrong|Invalid code format.
+BadRequest|bonfire_not_member|You are not in any Bonfire group.
+BadRequest|bonfire_not_owner|You do not own a Bonfire group.
+BadRequest|bonfire_own_group|You cannot join your own Bonfire group.
+BadRequest|code_wrong|Incorrect code.
+BadRequest|device_in_use|This is the only device allowed for , . Allow another device for those profiles first, or clear their device list.
+BadRequest|email_invalid|Enter an address to send the test to.
+BadRequest|email_invalid|That email address isn't valid.
+BadRequest|email_missing|Add an email address first.
+BadRequest|email_send_failed|The email couldn't be sent. Ask your server's administrator to check the email settings.
+BadRequest|email_settings_invalid|Fill in the server and the From address first.
+BadRequest|email_settings_invalid|Port 465 isn't supported. Use 587 with STARTTLS; every common provider offers it.
+BadRequest|email_settings_invalid|Security must be 'starttls' or 'none'.
+BadRequest|email_settings_invalid|That server name isn't valid.
+BadRequest|email_settings_invalid|The From address isn't valid.
+BadRequest|email_settings_invalid|The port must be between 1 and 65535.
+BadRequest|email_unavailable|Set up email and send a test first.
+BadRequest|font_in_use|A theme uses that font. Change or delete the theme first.
+BadRequest|font_invalid|A font falls back to sans-serif or serif.
+BadRequest|font_invalid|A font name can use letters, digits, spaces, - _ and . only.
+BadRequest|font_invalid|Choose a WOFF2 font file.
+BadRequest|font_invalid|That font is larger than 2 MB.
+BadRequest|font_limit|Delete a font first. A server can keep up to .
+BadRequest|font_rights|Confirm you have the right to use this font.
+BadRequest|font_taken|Bonfire already has a font called .
+BadRequest|font_taken|Bonfire already has a font called . Delete it first.
+BadRequest|image_invalid|Choose a logo image.
+BadRequest|image_invalid|Choose a picture first.
+BadRequest|image_invalid|No image supplied.
+BadRequest|image_invalid|Not a supported image.
+BadRequest|image_invalid|Only pictures from the avatar library can be used.
+BadRequest|image_invalid|That image could not be read, or it is larger than the {MaxProfileImageBytes / (1024 * 1024)} MB limit.
+BadRequest|image_invalid|That image is too large to import.
+BadRequest|image_invalid|That logo is larger than 1 MB.
+BadRequest|image_not_found|That picture is no longer available.
+BadRequest|invalid_request|A name is required.
+BadRequest|invalid_request|Both devices are required.
+BadRequest|invalid_request|Both devices must be ones this account has used.
+BadRequest|invalid_request|Both userId and deviceId are required.
+BadRequest|invalid_request|Could not save that image. Check the Jellyfin log for details.
+BadRequest|invalid_request|Default theme must be one of: , .
+BadRequest|invalid_request|DeviceId is required.
+BadRequest|invalid_request|Each profile needs bypassPinOnLocalNetwork.
+BadRequest|invalid_request|Enter a folder path.
+BadRequest|invalid_request|Invalid file name.
+BadRequest|invalid_request|Jellyfin cannot read that folder.
+BadRequest|invalid_request|Missing file.
+BadRequest|invalid_request|Missing library.
+BadRequest|invalid_request|Missing request body.
+BadRequest|invalid_request|No account was named.
+BadRequest|invalid_request|No configuration in the request body.
+BadRequest|invalid_request|No folder there. Check the path as the server sees it.
+BadRequest|invalid_request|No settings were sent.
+BadRequest|invalid_request|No such session.
+BadRequest|invalid_request|PIN tries a day must be 1 to {PinBudget.DailyLimit}.
+BadRequest|invalid_request|Pick two different profiles.
+BadRequest|invalid_request|Picture quality must be '{ImageQualities.Standard}', '{ImageQualities.High}', '{ImageQualities.Maximum}' or '{ImageQualities.Ultra}'.
+BadRequest|invalid_request|Switcher location must be '{SwitcherLocations.Button}' or '{SwitcherLocations.Menu}'.
+BadRequest|invalid_request|That file does not look like a Bonfire configuration — it has none of the expected sections. Nothing was changed.
+BadRequest|invalid_request|That folder could not be read: 
+BadRequest|invalid_request|That image could not be saved.
+BadRequest|invalid_request|That path is not valid.
+BadRequest|invalid_request|That theme isn't valid.
+BadRequest|invalid_request|The code is too long.
+BadRequest|invalid_request|The code must be at least {MinPanicCodeLength} characters.
+BadRequest|invalid_request|Those devices could not be merged.
+BadRequest|invalid_request|Unknown device.
+BadRequest|library_not_found|That library no longer exists.
+BadRequest|limits_invalid|A daily limit is between 0 and 1440 minutes.
+BadRequest|limits_invalid|A viewing window isn't valid. Times are HH:mm.
+BadRequest|limits_invalid|More time is between 1 and 240 minutes.
+BadRequest|limits_invalid|Too many viewing windows.
+BadRequest|logo_invalid|Logo alt text is one line of up to  characters.
+BadRequest|logo_invalid|Logo text is one line of up to  characters.
+BadRequest|logo_invalid|Send the logo's text and alt text.
+BadRequest|main_account_protected|A main account is already its own account.
+BadRequest|main_account_protected|Cannot delete the master profile.
+BadRequest|maintenance_invalid|A maintenance message can be at most {MaintenanceMode.MaxMessageLength} characters.
+BadRequest|maintenance_invalid|The time maintenance ends must be in the future.
+BadRequest|maintenance_invalid|The time maintenance ends must be set for it to reopen by itself.
+BadRequest|name_invalid|A username can use letters, numbers, spaces and - _ . ' @ +.
+BadRequest|name_taken|A profile with this name already exists.
+BadRequest|name_taken|An account with that username already exists.
+BadRequest|not_configured|Plugin configuration missing.
+BadRequest|not_convertible|An administrator can't be made a profile.
+BadRequest|not_convertible|Choose another account's household.
+BadRequest|password_required|Set a password for the new account.
+BadRequest|pin_format|PIN code must be a numeric value between 4 and 8 digits.
+BadRequest|pin_reset_unavailable|PIN reset by email isn't available for this account.
+BadRequest|pin_wrong|Invalid Master PIN code.
+BadRequest|pin_wrong|Invalid PIN code.
+BadRequest|pin_wrong|Invalid PIN.
+BadRequest|profile_disabled|This profile's account is turned off on the server.
+BadRequest|profile_disabled|This profile's main account is turned off on the server.
+BadRequest|profile_limit|Maximum profile limit of {maxProfiles} reached.
+BadRequest|profile_not_found|Missing profile.
+BadRequest|profile_not_found|Profile not found.
+BadRequest|sign_in_failed|Couldn't sign in to that profile. Check the server log.
+BadRequest|theme_in_use|That's the default theme. Choose another default first.
+BadRequest|theme_invalid|Bonfire can't be hidden.
+BadRequest|theme_invalid|Only built-in themes can be hidden.
+BadRequest|theme_invalid|Send the list of themes to hide.
+BadRequest|theme_limit|Delete a custom theme first. A server can keep up to .
+BadRequest|time_zone_invalid|That time zone isn't known to this server.
+NotFound|announcement_not_found|No such announcement.
+NotFound|bonfire_member_not_found|Member not found in your Bonfire group.
+NotFound|font_not_found|No such font.
+NotFound|image_not_found|No such avatar.
+NotFound|profile_not_found|Profile mapping not found.
+NotFound|profile_not_found|Profile not found.
+NotFound|theme_not_found|No such theme.
+NotFound|user_not_found|Calling user not found.
+NotFound|user_not_found|Master user not found.
+NotFound|user_not_found|Target user not found.
+NotFound|user_not_found|Underlying system user missing.
+NotFound|user_not_found|User not found.
+StatusCode|invalid_request| Please try again .
+StatusCode|invalid_request|Its password couldn't be changed, so it wasn't made a profile. See the server log.
+StatusCode|invalid_request|Profile could not be fully deleted. The account has been disabled. Retry deletion after restarting Jellyfin.
+StatusCode|invalid_request|This server can't rename accounts from here. Leave the name blank and rename it in Dashboard → Users.
+StatusCode|invalid_request|Too many attempts. Try again in an hour, or restart Jellyfin.
+StatusCode|themes_locked|This server does not let profiles choose a theme.
+TooManyAttempts|rate_limited|Retry-After
+TooManyAttempts|rate_limited|Too many codes sent.
+TooManyAttempts|rate_limited|Too many failed PIN attempts.
+TooManyAttempts|rate_limited|Too many failed attempts.
+TooManyAttempts|rate_limited|serverToo many codes sent from this server.
+Unauthorized|admin_only|Only administrators can {action}.
+Unauthorized|forbidden|Only a profile can change its own name and picture.
+Unauthorized|not_main_account|Only the main account can do that.
+Unauthorized|not_main_account|Only the master profile can change switcher preferences.
+Unauthorized|not_main_account|Only the master profile can delete devices.
+Unauthorized|not_main_account|Only the master profile can join Bonfire groups.
+Unauthorized|not_main_account|Only the master profile can manage Bonfire groups.
+Unauthorized|not_main_account|Only the master profile can manage profiles.
+Unauthorized|not_main_account|Only the master profile can merge devices.
+Unauthorized|not_main_account|Only the master profile can rename devices.
+Unauthorized|not_main_account|Only the master profile can update Bonfire settings.
+Unauthorized|not_your_profile|That profile does not belong to this account.
+Unauthorized|not_your_profile|Unauthorized profile PIN verification.
+Unauthorized|not_your_profile|Unauthorized profile deletion attempt.
+Unauthorized|not_your_profile|Unauthorized profile switch attempt.
+Unauthorized|not_your_profile|Unauthorized profile update attempt.
