@@ -2222,10 +2222,12 @@
         },
 
         writeMasterState: function (masterUserId) {
-            this._masterIdInMemory = masterUserId;
+            // Held only when the browser refused it. When storage works it is the one
+            // truth, so another tab signing out is respected here too.
+            this._masterIdInMemory = null;
             try {
                 localStorage.setItem(this.config.masterStorageKey, JSON.stringify({ masterUserId: masterUserId }));
-            } catch (e) { /* full or blocked: the next list fetch writes it again */ }
+            } catch (e) { this._masterIdInMemory = masterUserId; }
         },
 
         /// Signs one session out on the server. Best-effort and silent: the token has
