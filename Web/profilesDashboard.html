@@ -425,10 +425,53 @@
         gap: 10px 16px; margin-bottom: 1.5em;
     }
     #profilesConfigurationPage .jpf-te-color { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; cursor: pointer; }
-    #profilesConfigurationPage .jpf-te input[type="color"] {
-        width: 42px; height: 32px; padding: 0; flex-shrink: 0; cursor: pointer;
-        border: 1px solid rgba(128, 128, 128, 0.5); border-radius: 6px; background: none;
+    /* The colour squares are buttons that open the popup below, not input type=color: that
+       opens a different native dialog in every browser. */
+    #profilesConfigurationPage .jpf-te .jpf-te-sw {
+        -webkit-appearance: none; appearance: none;
+        width: 42px; height: 32px; padding: 0; margin: 0; flex-shrink: 0; cursor: pointer;
+        border: 1px solid rgba(128, 128, 128, 0.5); border-radius: 6px; background: #000;
     }
+    #profilesConfigurationPage .jpf-te .jpf-te-sw:focus { outline: 2px solid var(--jpf-ring); outline-offset: 2px; }
+    #profilesConfigurationPage .jpf-te { position: relative; }
+    /* Drawn inside the editor and placed by script (positionColorPopup), which keeps it off
+       the preview card. Opaque and above the sticky card (z-index 2). */
+    #profilesConfigurationPage .jpf-te-pop {
+        position: absolute; z-index: 5; box-sizing: border-box; width: 17.5em; max-width: calc(100% - 8px);
+        padding: 10px; border-radius: 8px; border: 1px solid var(--jpf-accent-line);
+        background: #1d1d1f; color: #f2f2f2; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+    }
+    #profilesConfigurationPage .jpf-te-pop.jpf-hidden { display: none; }
+    #profilesConfigurationPage .jpf-te-pop-presets { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-bottom: 10px; }
+    #profilesConfigurationPage .jpf-te-pre {
+        -webkit-appearance: none; appearance: none; box-sizing: border-box; min-width: 0; width: 100%; height: 0; padding: 0 0 100%;
+        border: 1px solid rgba(128, 128, 128, 0.7); border-radius: 4px; cursor: pointer; background: #000;
+    }
+    #profilesConfigurationPage .jpf-te-pre:focus { outline: 2px solid var(--jpf-ring); outline-offset: 1px; }
+    #profilesConfigurationPage .jpf-te-pre.is-on { box-shadow: inset 0 0 0 2px #eee; }
+    #profilesConfigurationPage .jpf-te-sv, #profilesConfigurationPage .jpf-te-hue {
+        position: relative; box-sizing: border-box; border-radius: 4px; cursor: crosshair;
+        -ms-touch-action: none; touch-action: none; -webkit-user-select: none; user-select: none;
+    }
+    #profilesConfigurationPage .jpf-te-sv {
+        height: 9em; margin-bottom: 10px;
+        background-image: linear-gradient(to bottom, transparent, var(--jpf-sv-dark)), linear-gradient(to right, var(--jpf-sv-light), transparent);
+    }
+    #profilesConfigurationPage .jpf-te-hue {
+        height: 1.1em; margin-bottom: 10px;
+        background-image: linear-gradient(to right, var(--jpf-hue-stops));
+    }
+    #profilesConfigurationPage .jpf-te-sv:focus, #profilesConfigurationPage .jpf-te-hue:focus { outline: 2px solid var(--jpf-ring); outline-offset: 2px; }
+    #profilesConfigurationPage .jpf-te-knob {
+        position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; box-sizing: border-box;
+        border-radius: 50%; border: 2px solid #eee; box-shadow: 0 0 0 1px #000; pointer-events: none;
+    }
+    #profilesConfigurationPage .jpf-te-hue .jpf-te-knob { top: 50%; }
+    #profilesConfigurationPage .jpf-te-pop .jpf-te-hex {
+        width: 100%; box-sizing: border-box; margin: 0; padding: 6px 8px; font: inherit; font-family: monospace;
+        color: #f2f2f2; background: #2b2b2e; border: 1px solid rgba(128, 128, 128, 0.7); border-radius: 4px;
+    }
+    #profilesConfigurationPage .jpf-te-pop .jpf-te-hex[aria-invalid="true"] { border-color: var(--jpf-bad); }
     #profilesConfigurationPage .jpf-te-bad > label,
     #profilesConfigurationPage .jpf-te-bad > span,
     #profilesConfigurationPage .jpf-te-bad .jpf-te-adv-label { color: var(--jpf-bad); }
@@ -1087,19 +1130,19 @@
                             <div class="jpf-te-simple" id="teSimple">
                                 <div class="jpf-te-colors">
                                     <label class="jpf-te-color jpf-te-field" data-paths="colors.accent colors.accentFocus colors.onAccent colors.ring parts.button2.focus">
-                                        <input type="color" id="teAccent" data-simple="accent" />
+                                        <button type="button" class="jpf-te-sw" id="teAccent" data-simple="accent" aria-haspopup="dialog"></button>
                                         <span data-i18n="admin.themes.accent">Accent</span>
                                     </label>
                                     <label class="jpf-te-color jpf-te-field" data-paths="background.fill colors.panel scheme">
-                                        <input type="color" id="teBg1" data-simple="bg1" />
+                                        <button type="button" class="jpf-te-sw" id="teBg1" data-simple="bg1" aria-haspopup="dialog"></button>
                                         <span data-i18n="admin.themes.bgTop">Background, top</span>
                                     </label>
                                     <label class="jpf-te-color jpf-te-field" data-paths="background.layers">
-                                        <input type="color" id="teBg2" data-simple="bg2" />
+                                        <button type="button" class="jpf-te-sw" id="teBg2" data-simple="bg2" aria-haspopup="dialog"></button>
                                         <span data-i18n="admin.themes.bgBottom">Background, bottom</span>
                                     </label>
                                     <label class="jpf-te-color jpf-te-field" data-paths="colors.text1 colors.text2 colors.text3 colors.name colors.nameFocus parts.button2.text parts.addTile.text">
-                                        <input type="color" id="teText" data-simple="text" />
+                                        <button type="button" class="jpf-te-sw" id="teText" data-simple="text" aria-haspopup="dialog"></button>
                                         <span data-i18n="admin.themes.text">Text</span>
                                     </label>
                                 </div>
@@ -1895,6 +1938,13 @@
                 'admin.themes.previewPrimary': 'Continue',
                 'admin.themes.previewSecondary': 'Cancel',
                 'admin.themes.noPreview': 'No preview. Bonfire\'s script isn\'t loaded here; see Troubleshoot.',
+                'admin.themes.pickDialog': 'Pick a color',
+                'admin.themes.pickFor': 'Pick a color for {name}',
+                'admin.themes.pickPresets': 'Preset colors',
+                'admin.themes.pickShade': 'Shade',
+                'admin.themes.pickShadeValue': 'Saturation {s}%, brightness {v}%',
+                'admin.themes.pickHue': 'Hue',
+                'admin.themes.pickHex': 'Hex color',
                 'admin.themes.noProblems': 'No problems.',
                 'admin.themes.checkFailed': 'Couldn\'t check the theme.',
                 'admin.themes.fixFirst': 'Fix the problems first.',
@@ -4789,10 +4839,308 @@
             function closeThemeEditor(page) {
                 const ed = page._themeEditor;
                 if (ed) clearTimeout(ed.timer);
+                closeColorPopup(page, false);
                 page._themeEditor = null;
                 page.querySelector('#themeEditor').classList.add('jpf-hidden');
                 const style = document.getElementById('jpfThemeEditorCss');
                 if (style) style.textContent = '';
+            }
+
+            // ── The colour picker ─────────────────────────────────────────────────
+            // Bonfire draws its own: input type=color opens a different native dialog in
+            // every browser, and nothing here may behave differently by platform. Every
+            // colour control is a swatch button (.jpf-te-sw) that opens one popup.
+
+            /// The preset colours, the one place they are written. Each set is 24: three rows
+            /// of eight. Which set a control gets is COLOR_KIND_OF, just below.
+            const COLOR_PRESETS = {
+                // What is drawn on the background and has to stand out from it: the accent and
+                // the colours built from it, the focus ring, and the two status colours.
+                // Saturated, and spread round the wheel so a household finds its own.
+                accent: [
+                    'e5484d', 'ff6b35', 'f59e0b', 'facc15', 'a3d94a', '3fb37f', '14b8a6', '22c3ee',
+                    '3b82f6', '5b8def', '6366f1', '8b5cf6', 'a855f7', 'd946ef', 'ec4899', 'f43f5e',
+                    'd9534f', 'e8590c', 'c2410c', 'b45309', '0f766e', '1d4ed8', '7e22ce', 'be185d'
+                ],
+                // Backgrounds, panels, surfaces, borders and fills: dark grounds, near black
+                // through deep blue, green, plum and warm brown, because a profile picker is a
+                // dark room far more often than not.
+                ground: [
+                    '000000', '0a0a0a', '111111', '1a1a1a', '222831', '2b2d42', '1e293b', '0f172a',
+                    '0b132b', '12263a', '102a43', '0b3d3a', '123524', '1b2e1f', '2d1b2e', '2a1233',
+                    '3b1219', '3d1f14', '2e2013', '3a2e1a', '1f2a36', '2a3b4d', '3f3f46', '4a4e69'
+                ],
+                // Text on a dark theme: white and the soft off-whites and pastels that read on
+                // a dark ground.
+                textOnDark: [
+                    'ffffff', 'f8f8f8', 'f1f5f9', 'e5e7eb', 'd1d5db', 'fef3c7', 'ffedd5', 'fde68a',
+                    'fecaca', 'fbcfe8', 'e9d5ff', 'c7d2fe', 'bfdbfe', 'a5f3fc', 'bbf7d0', 'd9f99d',
+                    'fff7ed', 'fdf2f8', 'f0fdf4', 'ecfeff', 'eff6ff', 'faf5ff', 'fafaf9', 'e2e8f0'
+                ],
+                // Text on a light theme: black and the dark greys and deep tints that read on
+                // a light ground.
+                textOnLight: [
+                    '000000', '0a0a0a', '111827', '1f2937', '262626', '374151', '3f3f46', '4b5563',
+                    '1e293b', '0f172a', '172554', '1e3a8a', '14532d', '064e3b', '134e4a', '164e63',
+                    '3b0764', '4c1d95', '500724', '7f1d1d', '431407', '451a03', '422006', '292524'
+                ]
+            };
+            /// Which set a control offers, by the theme path it edits; the first match wins.
+            /// 'text' becomes textOnDark or textOnLight by the draft's scheme.
+            const COLOR_KIND_OF = [
+                [/^colors\.(accent|accentFocus|ring|danger|warning)$/, 'accent'],
+                [/^colors\.(text[123]|name|nameFocus|onAccent)$|\.text$/, 'text'],
+                [/./, 'ground']
+            ];
+            const COLOR_SIMPLE_KIND = { accent: 'accent', bg1: 'ground', bg2: 'ground', text: 'text' };
+
+            function colorPresetsFor(page, btn) {
+                let kind = COLOR_SIMPLE_KIND[btn.getAttribute('data-simple')];
+                if (!kind) {
+                    const path = btn.getAttribute('data-pick') || '';
+                    kind = COLOR_KIND_OF.filter(function (k) { return k[0].test(path); })[0][1];
+                }
+                if (kind === 'text') {
+                    const ed = page._themeEditor;
+                    kind = ed && ed.draft.scheme === 'light' ? 'textOnLight' : 'textOnDark';
+                }
+                // Written without the #, so they are data and not colours the page is drawn in.
+                return COLOR_PRESETS[kind].map(function (h) { return '#' + h; });
+            }
+
+            /// A swatch shows its colour and keeps it as its value, the way the input did.
+            function setSwatch(btn, hex) {
+                btn.value = hex;
+                btn.style.background = hex;
+            }
+
+            function hexToHsv(hex) {
+                const c = themeRgb(hex);
+                if (!c) return null;
+                const r = c[0] / 255, g = c[1] / 255, b = c[2] / 255;
+                const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+                let h = 0;
+                if (d) {
+                    h = max === r ? ((g - b) / d) % 6 : (max === g ? (b - r) / d + 2 : (r - g) / d + 4);
+                    h = (h * 60 + 360) % 360;
+                }
+                return { h: h, s: max ? d / max : 0, v: max };
+            }
+
+            function hsvToHex(h, s, v) {
+                const k = function (n) { return (n + h / 60) % 6; };
+                const f = function (n) {
+                    const x = v - v * s * Math.max(0, Math.min(k(n), 4 - k(n), 1));
+                    return ('0' + Math.round(x * 255).toString(16)).slice(-2);
+                };
+                return '#' + f(5) + f(3) + f(1);
+            }
+
+            /// Where the popup goes: below its square, or above, or beside it, whichever
+            /// stays inside the editor and off the preview card, and inside the window if one
+            /// does. The card is sticky, so this runs again on every scroll.
+            function positionColorPopup(page) {
+                const st = page._picker;
+                if (!st) return;
+                const editor = page.querySelector('#themeEditor');
+                const er = editor.getBoundingClientRect();
+                const b = st.btn.getBoundingClientRect();
+                const pw = st.pop.offsetWidth, ph = st.pop.offsetHeight;
+                const card = editor.querySelector('#tePreview .jpf-theme-preview');
+                const cr = card ? card.getBoundingClientRect() : null;
+                const gap = 6;
+                const spots = [
+                    [b.left, b.bottom + gap], [b.left, b.top - ph - gap],
+                    [b.right - pw, b.bottom + gap], [b.right - pw, b.top - ph - gap],
+                    [b.right + gap, b.top], [b.left - pw - gap, b.top]
+                ].map(function (s) {
+                    const l = Math.max(er.left + 4, Math.min(s[0], er.right - pw - 4));
+                    return { l: l, t: s[1], hitsCard: !!cr && l < cr.right && l + pw > cr.left && s[1] < cr.bottom && s[1] + ph > cr.top,
+                             inWindow: s[1] >= 0 && s[1] + ph <= window.innerHeight };
+                });
+                const best = spots.filter(function (s) { return !s.hitsCard && s.inWindow; })[0]
+                    || spots.filter(function (s) { return !s.hitsCard; })[0] || spots[0];
+                st.pop.style.left = Math.round(best.l - er.left - editor.clientLeft) + 'px';
+                st.pop.style.top = Math.round(best.t - er.top - editor.clientTop) + 'px';
+            }
+
+            /// Closes the popup. `restoreFocus`: back to the square, unless the person has
+            /// already moved on to another control.
+            function closeColorPopup(page, restoreFocus) {
+                const st = page._picker;
+                if (!st) return;
+                page._picker = null;
+                document.removeEventListener('mousedown', st.onOutside, true);
+                document.removeEventListener('touchstart', st.onOutside, true);
+                document.removeEventListener('keydown', st.onKey, true);
+                window.removeEventListener('scroll', st.onMove, true);
+                window.removeEventListener('resize', st.onMove);
+                const active = document.activeElement;
+                const wasInside = !active || active === document.body || st.pop.contains(active);
+                if (st.pop.parentNode) st.pop.parentNode.removeChild(st.pop);
+                if (restoreFocus && wasInside) st.btn.focus();
+            }
+
+            function openColorPopup(page, btn) {
+                if (page._picker && page._picker.btn === btn) { closeColorPopup(page, true); return; }
+                closeColorPopup(page, false);
+                const editor = page.querySelector('#themeEditor');
+                const presets = colorPresetsFor(page, btn);
+                const start = hexToHsv(btn.value) || { h: 0, s: 0, v: 0 };
+                const st = { btn: btn, pop: document.createElement('div'), h: start.h, s: start.s, v: start.v };
+                const pop = st.pop;
+                pop.className = 'jpf-te-pop';
+                pop.setAttribute('role', 'dialog');
+                pop.setAttribute('aria-label', t('admin.themes.pickDialog'));
+                pop.innerHTML = '<div class="jpf-te-pop-presets" role="group" aria-label="' + escapeHtml(t('admin.themes.pickPresets')) + '">' +
+                    presets.map(function (h) {
+                        return '<button type="button" class="jpf-te-pre" tabindex="-1" data-hex="' + h + '" aria-label="' + h + '" title="' + h +
+                            '" style="background:' + h + '"></button>';
+                    }).join('') + '</div>' +
+                    '<div class="jpf-te-sv" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-label="' + escapeHtml(t('admin.themes.pickShade')) +
+                    '"><span class="jpf-te-knob"></span></div>' +
+                    '<div class="jpf-te-hue" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="360" aria-label="' + escapeHtml(t('admin.themes.pickHue')) +
+                    '"><span class="jpf-te-knob"></span></div>' +
+                    '<input type="text" class="jpf-te-hex" maxlength="7" spellcheck="false" autocomplete="off" aria-label="' + escapeHtml(t('admin.themes.pickHex')) + '" />';
+                editor.appendChild(pop);
+                const sv = pop.querySelector('.jpf-te-sv'), hue = pop.querySelector('.jpf-te-hue'), box = pop.querySelector('.jpf-te-hex');
+                const swatches = Array.prototype.slice.call(pop.querySelectorAll('.jpf-te-pre'));
+
+                // The two gradients are the colour model itself, not the page's theme, so
+                // they are computed here and not written as colours in the stylesheet.
+                sv.style.setProperty('--jpf-sv-light', hsvToHex(0, 0, 1));
+                sv.style.setProperty('--jpf-sv-dark', hsvToHex(0, 0, 0));
+                hue.style.setProperty('--jpf-hue-stops', [0, 60, 120, 180, 240, 300, 360].map(function (h) { return hsvToHex(h % 360, 1, 1); }).join(', '));
+                // Everything on show from h, s and v: the knobs, the strip's colour, the
+                // preset that is the current one, the hex box (unless it is being typed in).
+                // `exact` is a colour that was picked or typed as itself (a preset, the box),
+                // so it is written as given and not as what h, s and v round back to.
+                const paint = function (skipBox, exact) {
+                    const hex = exact || hsvToHex(st.h, st.s, st.v);
+                    sv.style.backgroundColor = hsvToHex(st.h, 1, 1);
+                    sv.querySelector('.jpf-te-knob').style.left = (st.s * 100) + '%';
+                    sv.querySelector('.jpf-te-knob').style.top = ((1 - st.v) * 100) + '%';
+                    hue.querySelector('.jpf-te-knob').style.left = (st.h / 360 * 100) + '%';
+                    hue.setAttribute('aria-valuenow', String(Math.round(st.h)));
+                    sv.setAttribute('aria-valuenow', String(Math.round(st.s * 100)));
+                    sv.setAttribute('aria-valuetext', t('admin.themes.pickShadeValue', { s: Math.round(st.s * 100), v: Math.round(st.v * 100) }));
+                    swatches.forEach(function (p) { p.classList.toggle('is-on', p.getAttribute('data-hex') === hex); });
+                    if (!skipBox) box.value = hex;
+                    return hex;
+                };
+                const commit = function (skipBox, exact) {
+                    const hex = paint(skipBox, exact);
+                    setSwatch(btn, hex);
+                    btn.dispatchEvent(new Event('input', { bubbles: true }));
+                };
+                // One tab stop among the presets; the arrow keys move it.
+                const rove = function (i) {
+                    swatches.forEach(function (p, n) { p.setAttribute('tabindex', n === i ? '0' : '-1'); });
+                    swatches[i].focus();
+                };
+                const current = swatches.map(function (p) { return p.getAttribute('data-hex'); }).indexOf(String(btn.value).toLowerCase());
+                swatches[Math.max(0, current)].setAttribute('tabindex', '0');
+                paint(false);
+
+                pop.addEventListener('click', function (e) {
+                    const p = e.target.closest ? e.target.closest('.jpf-te-pre') : null;
+                    if (!p) return;
+                    const hsv = hexToHsv(p.getAttribute('data-hex'));
+                    st.h = hsv.s > 0 && hsv.v > 0 ? hsv.h : st.h;
+                    st.s = hsv.s; st.v = hsv.v;
+                    commit(false, p.getAttribute('data-hex'));
+                    swatches.forEach(function (q) { q.setAttribute('tabindex', q === p ? '0' : '-1'); });
+                });
+                box.addEventListener('input', function () {
+                    const m = /^#?([0-9a-fA-F]{6})$/.exec(box.value.trim());
+                    box.setAttribute('aria-invalid', m || !box.value.trim() ? 'false' : 'true');
+                    if (!m) return;
+                    const hsv = hexToHsv('#' + m[1]);
+                    if (hsv.s > 0 && hsv.v > 0) st.h = hsv.h;
+                    st.s = hsv.s; st.v = hsv.v;
+                    commit(true, '#' + m[1].toLowerCase());
+                });
+                box.addEventListener('blur', function () { box.value = hsvToHex(st.h, st.s, st.v); box.setAttribute('aria-invalid', 'false'); });
+
+                // The shade square and the hue strip: mouse, touch and keys.
+                const drag = function (el, set) {
+                    const at = function (cx, cy) {
+                        const r = el.getBoundingClientRect();
+                        set(Math.max(0, Math.min(1, (cx - r.left) / (r.width || 1))), Math.max(0, Math.min(1, (cy - r.top) / (r.height || 1))));
+                        commit(false);
+                    };
+                    el.addEventListener('mousedown', function (e) {
+                        e.preventDefault();
+                        el.focus();
+                        at(e.clientX, e.clientY);
+                        const move = function (m) { at(m.clientX, m.clientY); };
+                        const up = function () { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
+                        document.addEventListener('mousemove', move);
+                        document.addEventListener('mouseup', up);
+                    });
+                    el.addEventListener('touchstart', function (e) { e.preventDefault(); el.focus(); at(e.touches[0].clientX, e.touches[0].clientY); });
+                    el.addEventListener('touchmove', function (e) { e.preventDefault(); at(e.touches[0].clientX, e.touches[0].clientY); });
+                };
+                drag(sv, function (x, y) { st.s = x; st.v = 1 - y; });
+                drag(hue, function (x) { st.h = x * 360; if (st.h >= 360) st.h = 359.99; });
+                const arrows = function (e) {
+                    const step = e.shiftKey ? 10 : 1;
+                    const dx = { ArrowRight: 1, ArrowLeft: -1 }[e.key] || 0;
+                    const dy = { ArrowUp: 1, ArrowDown: -1 }[e.key] || 0;
+                    if (!dx && !dy) return null;
+                    e.preventDefault();
+                    return { dx: dx * step, dy: dy * step };
+                };
+                sv.addEventListener('keydown', function (e) {
+                    const d = arrows(e);
+                    if (!d) return;
+                    st.s = Math.max(0, Math.min(1, st.s + d.dx / 100));
+                    st.v = Math.max(0, Math.min(1, st.v + d.dy / 100));
+                    commit(false);
+                });
+                hue.addEventListener('keydown', function (e) {
+                    const d = arrows(e);
+                    if (!d) return;
+                    st.h = Math.max(0, Math.min(359.99, st.h + d.dx + d.dy));
+                    commit(false);
+                });
+                pop.addEventListener('keydown', function (e) {
+                    const i = swatches.indexOf(e.target);
+                    if (i !== -1) {
+                        const to = { ArrowRight: i + 1, ArrowLeft: i - 1, ArrowDown: i + 8, ArrowUp: i - 8 }[e.key];
+                        if (to !== undefined && to >= 0 && to < swatches.length) { e.preventDefault(); rove(to); }
+                    }
+                    if (e.keyCode !== 9) return; // Tab; key codes, so no word of English sits in the script
+                    // Tab stays inside the popup until it is closed.
+                    const stops = [pop.querySelector('.jpf-te-pre[tabindex="0"]'), sv, hue, box];
+                    const first = stops[0], last = stops[stops.length - 1];
+                    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+                });
+
+                st.onOutside = function (e) {
+                    if (pop.contains(e.target) || btn.contains(e.target)) return;
+                    closeColorPopup(page, true);
+                };
+                st.onKey = function (e) {
+                    if (e.keyCode !== 27) return; // Escape
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeColorPopup(page, true);
+                };
+                st.onMove = function () {
+                    if (st.queued) return;
+                    st.queued = true;
+                    (window.requestAnimationFrame || window.setTimeout)(function () { st.queued = false; positionColorPopup(page); });
+                };
+                page._picker = st;
+                document.addEventListener('mousedown', st.onOutside, true);
+                document.addEventListener('touchstart', st.onOutside, true);
+                document.addEventListener('keydown', st.onKey, true);
+                window.addEventListener('scroll', st.onMove, true);
+                window.addEventListener('resize', st.onMove);
+                positionColorPopup(page);
+                rove(Math.max(0, current));
             }
 
             /// Advanced's fields, built once: they are the same for every theme.
@@ -4813,7 +5161,7 @@
                             const attrs = ' id="' + id + '" data-path="' + path + '" data-kind="' + kind + '"';
                             let control;
                             if (kind === 'color') {
-                                control = '<span class="jpf-te-pair"><input type="color" class="jpf-te-pick" data-pick="' + path + '" tabindex="-1" aria-hidden="true" />' +
+                                control = '<span class="jpf-te-pair"><button type="button" class="jpf-te-sw jpf-te-pick" data-pick="' + path + '" aria-haspopup="dialog" aria-label="' + escapeHtml(t('admin.themes.pickFor', { name: path })) + '"></button>' +
                                     '<input type="text" class="emby-input jpf-te-input"' + attrs + ' spellcheck="false" maxlength="9" /></span>';
                             } else if (kind === 'number') {
                                 control = '<input type="number" class="emby-input jpf-te-input"' + attrs +
@@ -4838,10 +5186,10 @@
                 syncThemePhoto(page);
                 if (ed.view === 'simple') {
                     const v = simpleThemeValues(draft);
-                    page.querySelector('#teAccent').value = v.accent;
-                    page.querySelector('#teBg1').value = v.bg1;
-                    page.querySelector('#teBg2').value = v.bg2;
-                    page.querySelector('#teText').value = v.text;
+                    setSwatch(page.querySelector('#teAccent'), v.accent);
+                    setSwatch(page.querySelector('#teBg1'), v.bg1);
+                    setSwatch(page.querySelector('#teBg2'), v.bg2);
+                    setSwatch(page.querySelector('#teText'), v.text);
                     const font = page.querySelector('#teFont');
                     if (v.font && !Array.prototype.some.call(font.options, function (o) { return o.value === v.font; })) {
                         const option = document.createElement('option');
@@ -4895,7 +5243,7 @@
                     if (kind === 'color') {
                         const pick = el.parentNode.querySelector('.jpf-te-pick');
                         const six = String(value || '').slice(0, 7);
-                        pick.value = themeRgb(six) ? six.toLowerCase() : '#000000';
+                        setSwatch(pick, themeRgb(six) ? six.toLowerCase() : '#000000');
                     }
                 });
                 ed.jsonErrors = {};
@@ -4904,6 +5252,7 @@
             function setThemeEditorView(page, view) {
                 const ed = page._themeEditor;
                 if (!ed) return;
+                closeColorPopup(page, false);
                 ed.view = view === 'advanced' ? 'advanced' : 'simple';
                 page.querySelector('#teSimple').classList.toggle('jpf-hidden', ed.view !== 'simple');
                 page.querySelector('#teAdvanced').classList.toggle('jpf-hidden', ed.view !== 'advanced');
@@ -4972,7 +5321,7 @@
                     } else {
                         setThemePath(draft, path, raw === '' ? undefined : raw);
                         if (kind === 'color' && themeRgb(raw.slice(0, 7)) && (raw.length === 7 || raw.length === 9)) {
-                            el.parentNode.querySelector('.jpf-te-pick').value = raw.slice(0, 7).toLowerCase();
+                            setSwatch(el.parentNode.querySelector('.jpf-te-pick'), raw.slice(0, 7).toLowerCase());
                         }
                     }
                 } else {
@@ -5596,6 +5945,8 @@
                 editor.addEventListener('input', edited);
                 editor.addEventListener('change', edited);
                 editor.addEventListener('click', function (e) {
+                    const swatch = e.target.closest ? e.target.closest('.jpf-te-sw') : null;
+                    if (swatch) { openColorPopup(page, swatch); return; }
                     const act = e.target.closest && e.target.closest('[data-photo-act]');
                     if (!act || !page._themeEditor) return;
                     if (act.getAttribute('data-photo-act') === 'remove') {
