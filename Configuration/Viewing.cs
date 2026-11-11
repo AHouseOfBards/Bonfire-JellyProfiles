@@ -204,6 +204,11 @@ namespace Jellyfin.Profiles.Configuration
             if (windows != null)
             {
                 hoursEnd = RunEnd(windows, local);
+                // The clock goes back and an hour of the wall happens twice. A window ends at
+                // the first time the wall reaches its end; once that has passed, the second
+                // 01:10 is not inside a window that ended at 01:30.
+                if (hoursEnd != null && zone.IsAmbiguousTime(hoursEnd.Value) && FirstUtc(zone, hoursEnd.Value) <= nowUtc)
+                    hoursEnd = null;
                 hoursOk = hoursEnd != null;
             }
 
@@ -219,7 +224,7 @@ namespace Jellyfin.Profiles.Configuration
             {
                 if (hoursEnd != null)
                 {
-                    var endUtc = ToUtc(zone, hoursEnd.Value);
+                    var endUtc = zone.IsAmbiguousTime(hoursEnd.Value) ? FirstUtc(zone, hoursEnd.Value) : ToUtc(zone, hoursEnd.Value);
                     normalLeft = CeilMinutes(endUtc - nowUtc);
                     binding = Hours;
                     until = endUtc;
@@ -337,6 +342,15 @@ namespace Jellyfin.Profiles.Configuration
                 }
             }
             return best;
+        }
+
+        /// <summary>A wall time the clock shows twice, as the first of the two instants.
+        /// ConvertTimeToUtc would pick the later one.</summary>
+        private static DateTime FirstUtc(TimeZoneInfo zone, DateTime local)
+        {
+            local = DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
+            var first = zone.GetAmbiguousTimeOffsets(local).Max();
+            return DateTime.SpecifyKind(local - first, DateTimeKind.Utc);
         }
 
         /// <summary>A wall-clock time to UTC. One that a clock change skips is moved past the gap.</summary>

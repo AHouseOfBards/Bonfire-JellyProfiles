@@ -210,6 +210,25 @@ s1 = Eval(evening, london, 0, null, Utc(2026, 3, 29, 19, 30));
 Ok("after it, 19:30 UTC is 20:30 on the wall: refused", !Bool(s1, "Allowed"), Show(s1));
 s1 = Eval(evening, london, 0, null, Utc(2026, 3, 29, 18, 30));
 Ok("and bedtime is 19:00 UTC", Bool(s1, "Allowed") && (DateTime?)Get(s1, "UntilUtc") == Utc(2026, 3, 29, 19), Show(s1));
+// R-1027: the clock goes back. New York leaves EDT at 06:00 UTC on 2026-11-01, so 01:00 to 02:00
+// on the wall happens twice (05:00-06:00 UTC, then 06:00-07:00 UTC). A window that ends at 01:30
+// ends at the first 01:30; it must not be read as the second, and must not reopen after it.
+var nightOwl = Rules(true, 0, null, Window(EveryDay, "20:00", "01:30"));
+s1 = Eval(nightOwl, newYork, 0, null, Utc(2026, 11, 1, 5, 10));
+Ok("the clock goes back: 01:10 the first time is 20 minutes from 01:30, not 80",
+   Bool(s1, "Allowed") && (int?)Get(s1, "MinutesLeft") == 20 && (DateTime?)Get(s1, "UntilUtc") == Utc(2026, 11, 1, 5, 30), Show(s1));
+s1 = Eval(nightOwl, newYork, 0, null, Utc(2026, 11, 1, 6, 10));
+Ok("and 01:10 the second time is after the window ended, so it stays closed",
+   !Bool(s1, "Allowed") && (string)Get(s1, "Reason") == "hours"
+   && (DateTime?)Get(s1, "NextStartUtc") == Utc(2026, 11, 2, 1), Show(s1));
+s1 = Eval(nightOwl, newYork, 0, null, Utc(2026, 11, 1, 4, 10));
+Ok("an hour earlier it is not in the repeated hour and is untouched: 80 minutes",
+   Bool(s1, "Allowed") && (int?)Get(s1, "MinutesLeft") == 80, Show(s1));
+// A window that runs on past the repeated hour is not cut short by it.
+var nightLong = Rules(true, 0, null, Window(EveryDay, "20:00", "03:00"));
+s1 = Eval(nightLong, newYork, 0, null, Utc(2026, 11, 1, 6, 10));
+Ok("a window ending at 03:00 is still open the second time round, until 03:00 EST",
+   Bool(s1, "Allowed") && (DateTime?)Get(s1, "UntilUtc") == Utc(2026, 11, 1, 8), Show(s1));
 // A window starting in the hour the change skips opens when the clock comes back.
 var skipped = Rules(true, 0, null, Window(Sun, "01:30", "03:00"));
 s1 = Eval(skipped, london, 0, null, Utc(2026, 3, 29, 0, 30));
