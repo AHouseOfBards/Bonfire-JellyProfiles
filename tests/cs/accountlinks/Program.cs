@@ -505,6 +505,14 @@ Ok("and doesn't clear the count of wrong ones", r.status == 429, Text(r));
 fires.Remove(camp);
 ResetLimits();
 
+// R-1161: a household that has used up its own guesses must not go on spending the
+// address's, or everyone behind the same router is locked out with it.
+for (int g = 0; g < 3; g++) Call("JoinBonfire", HOME, B(("Code", "WRONG" + g)), pinHeader: "1234", ip: "10.0.0.1");
+for (int g = 0; g < 3; g++) Call("JoinBonfire", HOME, B(("Code", "AGAIN" + g)), pinHeader: "1234", ip: "10.0.0.2");
+r = Call("JoinBonfire", DAD, B(("Code", "WRONG9")), ip: "10.0.0.2");
+Ok("a locked-out household doesn't use up the shared address for its neighbours", r.status == 400, Text(r));
+ResetLimits();
+
 // ── The administrator ────────────────────────────────────────────────────────
 Section("The administrator");
 

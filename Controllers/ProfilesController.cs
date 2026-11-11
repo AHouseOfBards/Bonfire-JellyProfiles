@@ -2787,10 +2787,13 @@ namespace Jellyfin.Profiles.Controllers
             // parallel requests nor a second address buy extra guesses.
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
             var accountKey = "account:" + masterId.ToString("N");
-            if (!RateLimiter.Bonfire.TryBegin(ip))
-                return TooManyAttempts(RateLimiter.Bonfire, ip, "Too many failed attempts.");
+            // The account first. A household that has used up its own guesses is refused
+            // before it is charged to the address, so it cannot go on spending the budget
+            // every other household behind the same router shares (R-1161).
             if (!RateLimiter.Bonfire.TryBegin(accountKey))
                 return TooManyAttempts(RateLimiter.Bonfire, accountKey, "Too many failed attempts.");
+            if (!RateLimiter.Bonfire.TryBegin(ip))
+                return TooManyAttempts(RateLimiter.Bonfire, ip, "Too many failed attempts.");
 
             var code = request.Code?.Trim().ToUpperInvariant();
             if (string.IsNullOrEmpty(code) || code.Length != 6)
