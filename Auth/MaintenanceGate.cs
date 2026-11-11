@@ -345,19 +345,6 @@ namespace Jellyfin.Profiles.Auth
             return null;
         }
 
-        /// <summary>
-        /// True when <paramref name="name"/> is the name a profile is shown by. A sign-in
-        /// screen that lists profiles sends that name, not the account's username, so
-        /// <c>GetUserByName</c> finds nothing and Bonfire's provider resolves it later. A
-        /// profile is never an administrator, so it is refused here.
-        /// </summary>
-        private static bool IsProfileName(string name)
-        {
-            var config = Controllers.ProfilesBaseController.ReadConfigSnapshot();
-            return config?.Mappings?.Any(m => m.ProfileUserId != m.MasterUserId
-                && string.Equals(m.ProfileName, name, StringComparison.OrdinalIgnoreCase)) == true;
-        }
-
         // ── The middleware's entry point ────────────────────────────────────────────
 
         /// <summary>
@@ -401,18 +388,16 @@ namespace Jellyfin.Profiles.Auth
                             return true;
                         }
 
+                        // Only an administrator's name goes on to Jellyfin. Every other name, an
+                        // account's, a profile's shown name or one nobody has, gets the same
+                        // closed answer: telling them apart (503 for one that exists, a passed
+                        // request for one that does not) let a stranger list the household's
+                        // usernames and profile names (R-1306). The lookup is the same for all
+                        // of them, so the answer does not take longer for a name that exists.
                         var user = string.IsNullOrEmpty(name) ? null : users.GetUserByName(name);
-                        if (user == null)
-                        {
-                            // A profile's shown name, which only Bonfire's provider resolves.
-                            if (string.IsNullOrEmpty(name) || !IsProfileName(name)) return false;
-                        }
-                        else if (IsAdmin(users, user.Id))
-                        {
-                            return false;
-                        }
+                        if (user != null && IsAdmin(users, user.Id)) return false;
 
-                        logger.LogInformation("ProfilesPlugin: sign-in by {User} refused: closed for maintenance.", user?.Username ?? name);
+                        logger.LogInformation("ProfilesPlugin: a sign-in was refused: closed for maintenance.");
                         await WriteRefusalAsync(context, m).ConfigureAwait(false);
                         return true;
                     }
@@ -420,7 +405,9 @@ namespace Jellyfin.Profiles.Auth
                     case PathKind.SignInById:
                     {
                         var id = SignInId(path);
-                        if (id == null || users.GetUserById(id.Value) == null || IsAdmin(users, id.Value)) return false;
+                        // As for a name: only an administrator's id goes on, an unknown one is
+                        // refused like any other (R-1306).
+                        if (id != null && users.GetUserById(id.Value) != null && IsAdmin(users, id.Value)) return false;
                         await WriteRefusalAsync(context, m).ConfigureAwait(false);
                         return true;
                     }

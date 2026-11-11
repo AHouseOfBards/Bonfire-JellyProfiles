@@ -281,8 +281,27 @@ var signIn = Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Gu
 Ok("signing in by name is refused, before the password is checked", Refused(signIn), Show(signIn));
 Ok("whatever case the name's field is in", Refused(Send("/Users/AuthenticateByName", null, "POST", "{\"username\":\"Guest\",\"pw\":\"x\"}")));
 Ok("and by id", Refused(Send("/Users/" + N(MEMBER) + "/Authenticate?pw=x", null, "POST", "")));
-Ok("a name nobody has is left to Jellyfin", Through(Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Nobody\",\"Pw\":\"x\"}")));
-Ok("so is a body that is not JSON", Through(Send("/Users/AuthenticateByName", null, "POST", "Username=Guest")));
+// R-1306: only an administrator's name goes on to Jellyfin. Every other name gets the same
+// closed answer, so a stranger cannot learn which usernames or profile names exist.
+Ok("a name nobody has gets the closed answer too", Refused(Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Nobody\",\"Pw\":\"x\"}")));
+Ok("so does a body that is not JSON", Refused(Send("/Users/AuthenticateByName", null, "POST", "Username=Guest")));
+Ok("and a body with no name", Refused(Send("/Users/AuthenticateByName", null, "POST", "{\"Pw\":\"x\"}")));
+Ok("and an id nobody has", Refused(Send("/Users/" + N(Guid.NewGuid()) + "/Authenticate?pw=x", null, "POST", "")));
+Ok("an administrator's id is left to Jellyfin", Through(Send("/Users/" + N(ADMIN) + "/Authenticate?pw=x", null, "POST", "")));
+
+// Same status, same body, same headers (but for the clock) whatever the name was.
+string Signature((int status, string body, bool reached, HttpResponse response) r)
+    => r.status + "|" + r.body + "|" + string.Join(";", r.response.Headers
+        .Where(h => !string.Equals(h.Key, "Retry-After", StringComparison.OrdinalIgnoreCase) && !string.Equals(h.Key, "Date", StringComparison.OrdinalIgnoreCase))
+        .OrderBy(h => h.Key, StringComparer.OrdinalIgnoreCase).Select(h => h.Key + "=" + h.Value));
+{
+    var real = Signature(Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Guest\",\"Pw\":\"x\"}"));
+    var madeUp = Signature(Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Nobody\",\"Pw\":\"x\"}"));
+    var byRealId = Signature(Send("/Users/" + N(MEMBER) + "/Authenticate?pw=x", null, "POST", ""));
+    var byMadeUpId = Signature(Send("/Users/" + N(Guid.NewGuid()) + "/Authenticate?pw=x", null, "POST", ""));
+    Ok("a real username and a made-up one are answered identically", real == madeUp, real + " / " + madeUp);
+    Ok("and so are a real id and a made-up one", byRealId == byMadeUpId && byRealId == real, byRealId + " / " + byMadeUpId);
+}
 Ok("Quick Connect is left alone (the account is not known yet)", Through(Send("/QuickConnect/Initiate", null, "POST", "")));
 
 Console.WriteLine();
@@ -346,6 +365,8 @@ Moon("/Items/" + FILM + "/PlaybackInfo");   // the kid starts the film while it 
 Close(true);
 var signInByShownName = Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Kid\",\"Pw\":\"1234\"}");
 Ok("signing in by a profile's shown name, which no account has, is refused too", Refused(signInByShownName), Show(signInByShownName));
+Ok("and answered exactly as a real username is (R-1306)",
+   Signature(signInByShownName) == Signature(Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Guest\",\"Pw\":\"x\"}")));
 
 sessionLog.Sessions.Clear();
 sessionLog.Sessions.Add(SessionManagerStub.Make("s-kid", KID, playing: true, item: FILM));
@@ -601,7 +622,7 @@ var twiceAdmin = Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":
 Ok("and an administrator named last is let through", Through(twiceAdmin), Show(twiceAdmin));
 var huge = Send("/Users/AuthenticateByName", null, "POST", "{\"Username\":\"Bard\",\"Pw\":\"" + new string('x', 70000) + "\"}");
 Ok("a sign-in body too large to read is refused rather than passed", Refused(huge), Show(huge));
-Ok("a body that is not JSON is still left to Jellyfin", Through(Send("/Users/AuthenticateByName", null, "POST", "Username=Guest")));
+Ok("a body that is not JSON gets the closed answer (R-1306)", Refused(Send("/Users/AuthenticateByName", null, "POST", "Username=Guest")));
 Close(true);
 
 Console.WriteLine();
