@@ -12206,7 +12206,10 @@
 
         // ── Bubble visibility helpers ──────────────────────────────────────────
         _bubbleHide: function (bubble) {
-            if (!bubble || bubble.dataset.profilesHiding === '1') return;
+            // Already hidden, or on its way: nothing to do. Without the display check the
+            // 160 ms timer below cleared the flag, and the next route tick (twice a second
+            // on a page that stays hidden) added the class and a timer all over again.
+            if (!bubble || bubble.dataset.profilesHiding === '1' || bubble.style.display === 'none') return;
             bubble.dataset.profilesHiding = '1';
             bubble.classList.add('profiles-bubble-hiding');
             setTimeout(() => {
@@ -12220,6 +12223,10 @@
         },
         _bubbleShow: function (bubble) {
             if (!bubble) return;
+            // Already showing: this runs on every route tick, and a requestAnimationFrame
+            // twice a second for a button that is not changing is pure cost.
+            if (bubble.dataset.profilesHiding !== '1' && bubble.style.display !== 'none'
+                && !bubble.classList.contains('profiles-bubble-hiding')) return;
             delete bubble.dataset.profilesHiding;
             bubble.style.display = '';
             // Tick so the browser has a chance to paint display:'' before removing

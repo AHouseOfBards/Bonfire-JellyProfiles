@@ -48,9 +48,18 @@ function isFullWalk(sel) {
 
 function build(opts) {
     opts = opts || {};
+    // R-1279: counted from the element as well as the document. A query on an element the
+    // tick already holds costs the same as one on the document, and so does a layout read
+    // (getBoundingClientRect, getClientRects, getComputedStyle) or a requestAnimationFrame
+    // callback; none of them used to be seen, so the harness could not go red on them.
     const counts = { querySelector: 0, querySelectorAll: 0, getElementById: 0,
-                     storageReads: 0, jsonParse: 0, offsetParent: 0 };
+                     storageReads: 0, jsonParse: 0, offsetParent: 0,
+                     elementQueries: 0, getElementsBy: 0, layoutReads: 0, rafCalls: 0 };
     const selectors = [];
+    const elSelectors = [];
+    // Elements the page already has, by selector. Without these every query answers null
+    // and a path that only runs when a header or button exists is never measured.
+    const present = opts.present || {};
     const storageKeys = [];
     const timers = [];
 
@@ -80,18 +89,23 @@ function build(opts) {
                 String(v || '').split(/\s+/).filter(Boolean).forEach(c => classes.add(c));
             },
             addEventListener() {}, removeEventListener() {},
-            appendChild() {}, remove() {}, click() {}, focus() {},
+            appendChild: c => adopt(c), remove() {}, click() {}, focus() {},
             getAttribute: k => (k in el.attrs ? el.attrs[k] : null),
             setAttribute: (k, v) => { el.attrs[k] = v; },
             removeAttribute: k => { delete el.attrs[k]; },
             hasAttribute: k => k in el.attrs,
             contains: () => false,
             cloneNode: () => makeEl(),
-            querySelector: () => null,
-            querySelectorAll: () => [],
+            querySelector: sel => { counts.elementQueries++; elSelectors.push(sel); return null; },
+            querySelectorAll: sel => { counts.elementQueries++; elSelectors.push(sel); return []; },
+            getElementsByClassName: () => { counts.getElementsBy++; return []; },
+            getElementsByTagName: () => { counts.getElementsBy++; return []; },
+            laidOut: false,
+            getClientRects: () => { counts.layoutReads++; return el.laidOut ? [{}] : []; },
             get offsetParent() { counts.offsetParent++; return null; },
-            getBoundingClientRect: () => ({ top: 0, left: 0, right: 0, bottom: 0,
-                                            width: 0, height: 0 }),
+            getBoundingClientRect: () => { counts.layoutReads++;
+                                           return { top: 0, left: 0, right: 0, bottom: 0,
+                                                    width: 0, height: 0 }; },
             dataset: {},
             textContent: '', innerHTML: ''
         };
@@ -123,14 +137,15 @@ function build(opts) {
         },
         navigator: { userAgent: 'Mozilla/5.0 (Windows NT 10.0)', language: 'en' },
         innerWidth: 1920, innerHeight: 1080,
-        requestAnimationFrame: fn => { timers.push({ fn: fn, ms: 16 }); return timers.length; },
+        requestAnimationFrame: fn => { counts.rafCalls++; timers.push({ fn: fn, ms: 16 }); return timers.length; },
         setTimeout: (fn, ms) => { timers.push({ fn: fn, ms: ms }); return timers.length; },
         clearTimeout: id => { if (timers[id - 1]) timers[id - 1].cancelled = true; },
         setInterval: (fn, ms) => { timers.push({ fn: fn, ms: ms, repeating: true });
                                    return timers.length; },
         clearInterval: id => { if (timers[id - 1]) timers[id - 1].cancelled = true; },
         fetch: () => new Promise(() => {}),   // never resolves: no async work in a tick
-        getComputedStyle: () => ({ backgroundColor: 'rgb(16, 16, 16)', display: 'block' }),
+        getComputedStyle: () => { counts.layoutReads++;
+                                  return { backgroundColor: 'rgb(16, 16, 16)', display: 'block' }; },
         history: { pushState() {}, replaceState() {} },
         JSON: {
             parse: function (s) { counts.jsonParse++; return JSON.parse(s); },
@@ -138,8 +153,12 @@ function build(opts) {
         },
         document: {
             addEventListener() {}, removeEventListener() {},
-            querySelector: sel => { counts.querySelector++; selectors.push(sel); return null; },
-            querySelectorAll: sel => { counts.querySelectorAll++; selectors.push(sel); return []; },
+            querySelector: sel => { counts.querySelector++; selectors.push(sel);
+                                    return present[sel] || null; },
+            querySelectorAll: sel => { counts.querySelectorAll++; selectors.push(sel);
+                                       return present[sel] ? [present[sel]] : []; },
+            getElementsByClassName: () => { counts.getElementsBy++; return []; },
+            getElementsByTagName: () => { counts.getElementsBy++; return []; },
             getElementById: id => { counts.getElementById++; return byId[id] || null; },
             // Forces layout in a real browser, so it is counted like offsetParent.
             elementFromPoint: () => { counts.offsetParent++; return null; },
@@ -186,10 +205,11 @@ function build(opts) {
     function reset() {
         Object.keys(counts).forEach(k => { counts[k] = 0; });
         selectors.length = 0;
+        elSelectors.length = 0;
         storageKeys.length = 0;
     }
 
-    return { plugin, counts, selectors, storageKeys, reset, sandbox };
+    return { plugin, counts, selectors, elSelectors, storageKeys, reset, sandbox, makeEl, present, byId };
 }
 
 main();
@@ -339,6 +359,88 @@ ok('no full-document walk while a profile is active'
 // them full-document walks.
 ok('a tick with a profile active runs one document query, the OSD watch ('
    + liveTotal.toFixed(1) + ')', liveTotal <= 1);
+
+console.log('\n── The same, with a header and a button actually on the page ───');
+
+// R-1279. Every fixture above answers null to every query, so the paths that only run when
+// a header exists — the cached container's re-check, the bubble's placement — were never
+// measured at all. Here the page has Jellyfin's right-hand header container, laid out, and
+// the plugin puts its button in it.
+function populated(location) {
+    const e = build({});
+    e.plugin._switcherPrefs = { askOnStartup: false, location: location };
+    e.plugin._panicLinkAvailable = false;
+    e.plugin._libraryArtLoaded = true;
+    e.plugin.isProfileSessionActive = () => true;
+    const header = e.makeEl();
+    header.laidOut = true;
+    // A header that remembers what was put in it. A container whose contains() is always
+    // false makes the plugin think its button drifted out, and re-insert it on every tick.
+    const kids = [];
+    header.appendChild = c => { kids.push(c); if (c && c.id) e.byId[c.id] = c; return c; };
+    header.contains = c => kids.indexOf(c) >= 0;
+    e.present['.headerRight'] = header;
+    e.plugin.checkRoute();
+    e.plugin._headerAnchorWaitFrom = 0;
+    e.plugin.checkRoute();
+    e.reset();
+    for (let i = 0; i < TICKS; i++) e.plugin.checkRoute();
+    return e;
+}
+const pop = populated('button');
+const popHeader = pop.present['.headerRight'];
+ok('the populated fixture really found the header (otherwise it measures nothing)',
+   pop.plugin._headerContainer === popHeader);
+const popDoc = (pop.counts.querySelector + pop.counts.querySelectorAll) / TICKS;
+console.log('  per tick, populated: ' + popDoc.toFixed(2) + ' document queries, '
+            + (pop.counts.elementQueries / TICKS).toFixed(2) + ' element queries, '
+            + (pop.counts.layoutReads / TICKS).toFixed(2) + ' layout reads, '
+            + (pop.counts.getElementsBy / TICKS).toFixed(2) + ' getElementsBy*, '
+            + (pop.counts.rafCalls / TICKS).toFixed(2) + ' requestAnimationFrame');
+ok('populated: a tick runs one document query, the OSD watch (' + popDoc.toFixed(2) + ')',
+   popDoc <= 1);
+ok('populated: a tick queries no element (' + (pop.counts.elementQueries / TICKS).toFixed(2)
+   + (pop.elSelectors.length ? ': ' + pop.elSelectors.slice(0, 3).join(' | ') : '') + ')',
+   pop.counts.elementQueries === 0);
+ok('populated: a tick calls no getElementsBy*', pop.counts.getElementsBy === 0);
+// The cached container is re-checked for layout once every three seconds, and 100 ticks of
+// a synchronous loop take far less than that, so a layout read per tick is a regression.
+ok('populated: a tick reads no layout (' + (pop.counts.layoutReads / TICKS).toFixed(2) + ')',
+   pop.counts.layoutReads === 0);
+ok('populated: a tick schedules no animation frame (' + (pop.counts.rafCalls / TICKS).toFixed(2)
+   + ')', pop.counts.rafCalls === 0);
+const popMenu = populated('menu');
+ok('populated, menu mode: a tick queries no element ('
+   + (popMenu.counts.elementQueries / TICKS).toFixed(2) + ')',
+   popMenu.counts.elementQueries === 0);
+ok('populated, menu mode: a tick reads no layout ('
+   + (popMenu.counts.layoutReads / TICKS).toFixed(2) + ')', popMenu.counts.layoutReads === 0);
+ok('populated, menu mode: no animation frame, no getElementsBy*',
+   popMenu.counts.rafCalls === 0 && popMenu.counts.getElementsBy === 0);
+
+// A page that stays hidden (server dashboard, playback). Once the 160 ms fade has finished
+// the button is display:none; the next tick must see that and leave it alone, not start the
+// fade and its timer again twice a second for as long as the page is open (R-1248).
+const hid = populated('button');
+hid.sandbox.location.hash = '#/dashboard';
+hid.sandbox.location.href = 'https://jf.local/web/#/dashboard';
+hid.plugin.checkRoute();
+const hidBubble = hid.byId['profiles-floating-bubble'];
+ok('hidden page: the button exists to be hidden', !!hidBubble);
+hid.sandbox.__timers.filter(function (t) { return t.ms === 160 && !t.cancelled; })
+    .forEach(function (t) { t.cancelled = true; t.fn(); });
+ok('hidden page: the fade finished and the button is display:none',
+   !!hidBubble && hidBubble.style.display === 'none');
+const before = hid.sandbox.__timers.length;
+for (let i = 0; i < 20; i++) hid.plugin.checkRoute();
+ok('hidden page: 20 more ticks start no new fade or timer ('
+   + (hid.sandbox.__timers.length - before) + ')', hid.sandbox.__timers.length === before);
+
+// The element-level counters for the earlier fixtures too: the unpopulated page is the
+// other way a tick can be cheap by accident.
+ok('unpopulated: no element query, layout read, getElementsBy* or animation frame per tick',
+   env.counts.elementQueries === 0 && env.counts.layoutReads === 0
+   && env.counts.getElementsBy === 0 && env.counts.rafCalls === 0);
 
 console.log('\n── The startup grace, which is the other phase ─────────────────');
 
