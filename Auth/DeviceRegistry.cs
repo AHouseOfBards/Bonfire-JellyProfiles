@@ -757,7 +757,7 @@ namespace Jellyfin.Profiles.Auth
             // Outside the lock: it takes a snapshot, and sends on its own task.
             if (isNew && ownerId != Guid.Empty)
             {
-                Mail.Notifications.NewDevice(ownerId, string.IsNullOrWhiteSpace(deviceName) ? (client ?? string.Empty) : deviceName!, logger);
+                Mail.Notifications.NewDevice(ownerId, deviceId ?? string.Empty, string.IsNullOrWhiteSpace(deviceName) ? (client ?? string.Empty) : deviceName!, logger);
             }
         }
 

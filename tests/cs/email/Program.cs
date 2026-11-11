@@ -447,11 +447,24 @@ Ok("in the account's language", note?.Subject == "Nouvel appareil connecté à B
 Device("dev-kitchen", "Kitchen tablet", MAIN);
 Ok("the same device again is not new", Sent() == before + 1);
 Device("dev-bedroom", "Bedroom TV", MAIN);
-Ok("a second new device within 15 minutes is not a second mail", Sent() == before + 1);
+Ok("a second, different new device right after is mailed too (R-1056)", Sent() == before + 2 && Last().Body.Contains("Bedroom TV"), (Sent() - before) + "");
 Device("dev-other-1", "Phone", OTHER);
-Ok("another household's device goes to that household", Sent() == before + 2 && Last().To == "other@example.com");
+Ok("another household's device goes to that household", Sent() == before + 3 && Last().To == "other@example.com");
 Device("dev-nobody", "Phone", Guid.NewGuid());
-Ok("an account without an address gets nothing", Sent() == before + 2);
+Ok("an account without an address gets nothing", Sent() == before + 3);
+
+// One client must not be able to mail the household without limit by making up device ids.
+var beforeFlood = Sent();
+for (var i = 0; i < 20; i++) Device("dev-flood-" + i, "Flood " + i, MAIN);
+Ok("a flood of made-up devices is capped per account (R-1056)", Sent() - beforeFlood <= 3, (Sent() - beforeFlood) + " mails");
+
+// A device name is set by the client. It is cut and stripped before it goes in a mail.
+before = Sent();
+Device("dev-evil", "Phone\r\n\r\nYour account is locked, sign in at http://evil.example/login to fix it " + new string('x', 300), OTHER);
+note = Last();
+Ok("a long, multi-line device name is mailed", Sent() == before + 1 && note.To == "other@example.com", (Sent() - before) + "");
+Ok("with its line breaks removed (R-1059)", note != null && !Regex.IsMatch(note.Body, @"Phone\s*[\r\n]+\s*[\r\n]*Your account"), note?.Body);
+Ok("and cut short, so the rest never arrives (R-1059)", note != null && !note.Body.Contains("evil.example") && !note.Body.Contains("xxxxx"), note?.Body);
 
 // A profile's PIN locked: the notice is the main account's.
 before = Sent();
@@ -459,6 +472,25 @@ notesType.GetMethod("PinLocked", Any).Invoke(null, new object[] { KID2, "Littles
 note = Last();
 Ok("a profile's locked PIN is mailed to its main account", Sent() == before + 1 && note.To == "other@example.com"
    && note.Body.Contains("Littlest"), note?.To + " " + note?.Body);
+
+// Two profiles locked in the same quarter-hour are two notices (R-1057).
+var KID3 = Guid.NewGuid(); world.Add(KID3, "Third_kid"); Map(KID3, OTHER, "Third");
+before = Sent();
+notesType.GetMethod("PinLocked", Any).Invoke(null, new object[] { KID3, "Third", null });
+note = Last();
+Ok("a second profile locked soon after the first is mailed too (R-1057)", Sent() == before + 1 && note.Body.Contains("Third"), (Sent() - before) + "");
+notesType.GetMethod("PinLocked", Any).Invoke(null, new object[] { KID3, "Third", null });
+Ok("the same profile again is not (R-1057)", Sent() == before + 1);
+
+// A send that fails must not use up the quiet period (R-1058).
+var KID4 = Guid.NewGuid(); world.Add(KID4, "Fourth_kid"); Map(KID4, OTHER, "Fourth");
+before = Sent();
+onSend = m => new Exception("mail server down");
+notesType.GetMethod("PinLocked", Any).Invoke(null, new object[] { KID4, "Fourth", null });
+Drain();
+onSend = null;
+notesType.GetMethod("PinLocked", Any).Invoke(null, new object[] { KID4, "Fourth", null });
+Ok("the next event is mailed after a failed send (R-1058)", Sent() == before + 1 && Last().Body.Contains("Fourth"), (Sent() - before) + "");
 
 // The main PIN locked through a real route: wrong PINs until it refuses.
 before = Sent();
