@@ -256,6 +256,27 @@ function freshAccount() {
             'settings ' + (calls.settings - before) + ', grid ' + calls.grid.length);
     }
 
+    // R-1217: Sharing's focus timer (250 ms) ran even when the user had already left for
+    // another screen, and took focus on it. It must honour its navigation ticket.
+    {
+        PP.showSettingsMenu = () => { calls.settings++; };
+        PP.loadBonfireStatus = () => {};
+        const timers = [];
+        const realTimeout = env.sandbox.setTimeout;
+        env.sandbox.setTimeout = (fn) => { timers.push(fn); return 0; };
+        PP.showBonfireModal();
+        env.sandbox.setTimeout = realTimeout;
+        const asked = [];
+        const realQuery = content.querySelector;
+        content.querySelector = function (sel) { asked.push(sel); return realQuery.call(content, sel); };
+        PP.navIsCurrent = () => false;
+        timers.forEach(fn => fn());
+        content.querySelector = realQuery;
+        PP.navIsCurrent = () => true;
+        ok('Sharing\'s focus timer does nothing once the screen has moved on (R-1217)',
+            timers.length > 0 && !asked.some(s => /^input, button/.test(s)), asked.join(' | '));
+    }
+
     // ── 5. What left the profile form ────────────────────────────────────────────────
     console.log('\n── The profile form only ticks devices ────────────────────────');
 

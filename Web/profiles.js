@@ -9307,6 +9307,13 @@
                 this.initTVCheckboxes(content);
                 this._focusFirstOnTv(content);
                 this.initTagEditors(content);
+            })
+            .catch(err => {
+                // As Edit does: a failed read of the lists the form is built from used to
+                // leave the Add button doing nothing at all (R-1215).
+                if (!this.navIsCurrent(ticket)) return;
+                this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.loadProfileDetails'))));
+                this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
             });
         },
 
@@ -9323,7 +9330,13 @@
 
             Promise.all([
                 this.fetchSharedFormData(apiClient, masterState),
-                fetch(userUrl, { headers: this.getAuthHeaders(masterState.token) }).then(res => res.json())
+                fetch(userUrl, { headers: this.getAuthHeaders(masterState.token) }).then(res => {
+                    // A refusal has no Policy: read as {} it ticked every library and the
+                    // next save wrote them as a fixed list (R-1222).
+                    if (res.status === 401) { this.handleSessionExpired(); return Promise.reject({ handled: true }); }
+                    if (!res.ok) return Promise.reject(new Error('Users/' + res.status));
+                    return res.json();
+                })
             ])
             .then(([shared, userDetails]) => [shared.libraries, userDetails, shared.devices, shared.libraryTags, shared.avatarLibrary, shared.ratings])
             .then(([libraries, userDetails, devices, libraryTags, avatarLibrary, ratings]) => {
@@ -9810,6 +9823,7 @@
                 this.initTagEditors(content);
             })
             .catch(err => {
+                if (err && err.handled) return;
                 this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.loadProfileDetails'))));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
             });
@@ -9856,6 +9870,9 @@
 
             // Auto-focus first focusable element for TV D-pad navigation
             setTimeout(() => {
+                // The ticket taken above: the user may have left for another screen in the
+                // 250 ms, and focus would be stolen onto it (R-1217).
+                if (!this.navIsCurrent(navTicket)) return;
                 // Never a Remove button: focus fills a button, and the first thing on the
                 // screen read as a filled primary action (P2-102).
                 const first = content.querySelector('input, button:not(.links-remove):not(.links-leave)');

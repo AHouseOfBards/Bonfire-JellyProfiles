@@ -91,6 +91,44 @@ const show = s => (s ? JSON.stringify({ r: s.body.maxParentalRating, f: s.body.e
 (async () => {
     console.log('\n── Edit a profile ──────────────────────────────────────────────');
 
+    // R-1222: a refused Users/{id} read has no Policy; read as {} it ticked every library
+    // and saved them as a fixed list. A refusal must show the error and draw no form.
+    for (const status of [500, 403]) {
+        const env = setup({});
+        const alerts = [];
+        env.PP.showAlert = (title, body) => alerts.push(body);
+        env.setRespond((url) => /^Users\//.test(url)
+            ? { status: status, body: {} }
+            : { status: 200, body: {} });
+        env.PP.showEditProfileModal(Object.assign({}, KID));
+        await env.settle();
+        ok('a ' + status + ' on the profile\'s own read draws no edit form', !env.content.querySelector('#edit-submit-btn'));
+        ok('and says so', alerts.length === 1);
+    }
+    // R-1215: Add had no .catch, so a failed /libraries left the button doing nothing.
+    {
+        const env = setup({});
+        const alerts = [];
+        let grids = 0;
+        env.PP.showAlert = (title, body) => alerts.push(body);
+        env.PP.fetchAndRenderProfiles = () => { grids++; };
+        env.PP.fetchSharedFormData = () => Promise.reject(new Error('x'));
+        env.PP.showAddProfileModal();
+        await env.settle();
+        ok('Add Profile says so when the shared read fails', alerts.length === 1);
+        ok('and goes back to the profiles', grids === 1);
+    }
+    {
+        const env = setup({});
+        let expired = 0;
+        env.PP.handleSessionExpired = () => { expired++; };
+        env.PP.showAlert = () => {};
+        env.setRespond((url) => /^Users\//.test(url) ? { status: 401, body: {} } : { status: 200, body: {} });
+        env.PP.showEditProfileModal(Object.assign({}, KID));
+        await env.settle();
+        ok('a 401 on it signs out instead of an error', expired === 1);
+    }
+
     let sent = await edit(KID, { MaxParentalRating: null, EnableAllFolders: true }, c => tick(c, false));
     ok('Save posts', !!sent);
     ok('"No restrictions" is sent as "" (null now keeps the old limit)', !!sent && sent.body.maxParentalRating === '', show(sent));
