@@ -2450,8 +2450,10 @@ namespace Jellyfin.Profiles.Controllers
         /// </para>
         /// <para>
         /// Same shape as <see cref="PublishLocales"/>: a plain replace on an exact literal.
-        /// If the marker is ever edited away this does nothing and the plugin renders
-        /// unstyled — loud and immediate, unlike a literal that truncates in silence.
+        /// If the marker is ever edited away, or the stylesheet resource is missing from the
+        /// build, this returns the script unchanged without a log line, and that script is
+        /// cached until restart: the plugin renders unstyled. Visible on the first page load,
+        /// unlike a literal that truncates in silence, but not announced by the server.
         /// </para>
         /// </summary>
         internal static string PublishStyles(string js)
@@ -4285,10 +4287,12 @@ namespace Jellyfin.Profiles.Controllers
         //
         // What it does NOT do is widen anyone's access to content. Library access, parental
         // ratings and tag filters are all enforced in Jellyfin's own user policy server-side,
-        // and /switch still demands the target profile's PIN. The real exposure is narrower
-        // and worth stating plainly: the gate is what stands between "signed in as the master
-        // account" and "must pick a profile", so anyone who knows the code can skip that
-        // prompt on a device already signed in to the master account.
+        // and /switch still demands the target profile's PIN. It DOES turn off what Bonfire
+        // itself adds on top (IsPanicDisabled is read by LimitsProvider, MaintenanceGate,
+        // ProxySwitcher, ViewingTracker, QuickConnectAuthorize and the PIN sign-in provider):
+        // viewing limits stop applying, the maintenance cover lifts, the proxy picker stops
+        // being served, and PIN sign-in is declined. Anyone who knows the code can also skip
+        // the profile prompt on a device already signed in to the master account.
         //
         // Hence: off by default, hashed like a PIN, validated only here, rate limited hard,
         // and logged loudly.

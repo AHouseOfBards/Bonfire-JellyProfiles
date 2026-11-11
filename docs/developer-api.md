@@ -2143,9 +2143,10 @@ state plus `told` and `stopped`, the number of apps messaged and stopped.
 ## Emergency disable
 
 Turns Bonfire's client script off until Jellyfin restarts, for when Bonfire is what's making
-the interface unusable. It doesn't open other profiles or loosen any restriction. It does
-skip the profile screen, so on a device signed in to a main account, the code gives that
-account.
+the interface unusable. It doesn't open other profiles or loosen Jellyfin's own library,
+rating or tag restrictions. It does turn off everything Bonfire adds: viewing limits, the
+maintenance cover, the proxy picker, PIN sign-in and the profile screen. On a device signed
+in to a main account, the code gives that account.
 
 ### `POST /plugins/profiles/panic`
 
