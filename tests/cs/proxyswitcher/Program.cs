@@ -70,6 +70,7 @@ var mwType = asm.GetType("Jellyfin.Profiles.ProfilesIndexMiddleware", true);
 var hasher = asm.GetType("Jellyfin.Profiles.Auth.PinHasher", true);
 var switcher = asm.GetType("Jellyfin.Profiles.Auth.ProxySwitcher");
 var panicField = pluginType.GetField("_panicDisabled", BindingFlags.Static | BindingFlags.NonPublic);
+Ok("the emergency-disable switch is still found by name (a rename must fail here, not skip its checks)", panicField != null);
 
 var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-proxyswitcher-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(tempDir);

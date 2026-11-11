@@ -61,6 +61,7 @@ var mapType = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true
 var devType = asm.GetType("Jellyfin.Profiles.Configuration.KnownDevice", true);
 var mwType = asm.GetType("Jellyfin.Profiles.ProfilesIndexMiddleware", true);
 var panicField = pluginType.GetField("_panicDisabled", BindingFlags.Static | BindingFlags.NonPublic);
+Ok("the emergency-disable switch is still found by name (a rename must fail here, not skip its checks)", panicField != null);
 
 var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-savedsignins-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(tempDir);
