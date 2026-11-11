@@ -66,8 +66,12 @@ const COMPARE = `(async function (A) {
     if (control) {
       // A rounded box's corner pixels outside its curve are the backdrop, not the control: they
       // differ with the ornaments on by definition, and no fill can change that. Skipped,
-      // with a pixel of margin for the antialiased edge.
-      var rad = Math.min(parseFloat(cs.borderTopLeftRadius) || 0, r.width / 2, r.height / 2) * k + 1.5;
+      // with two CSS pixels of margin for the antialiased curve. A pixel and a half was not
+      // enough: the 17rem PIN box on bloom failed on 17 pixels, every one on the line of its
+      // bottom curves and none inside, and widening the margin to 2.5 device pixels still left
+      // ten of them on that line. The straight edges keep their one device pixel below, and the
+      // build before the opaque fills (c7eee21^) still fails 20 here, as it did.
+      var rad = Math.min(parseFloat(cs.borderTopLeftRadius) || 0, r.width / 2, r.height / 2) * k + 2 * k;
       var bx0 = r.left * k, bx1 = r.right * k, by0 = r.top * k, by1 = r.bottom * k;
       for (y = y0; y < y1; y++) for (x = x0; x < x1; x++) {
         var qx = x + 0.5 < bx0 + rad ? bx0 + rad - x - 0.5 : x + 0.5 > bx1 - rad ? x + 0.5 - (bx1 - rad) : 0;

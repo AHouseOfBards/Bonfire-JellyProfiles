@@ -102,7 +102,7 @@ const ADMIN = {
         basic: ['annCancel', 'annMessage', 'annSave', 'annSeverity', 'emailFrom', 'emailHost', 'emailPassword', 'emailPort', 'emailSave', 'emailSecurity', 'emailTest', 'emailTestTo', 'emailUsername', 'mntClose', 'mntMessage', 'mntOpen', 'mntReopen', 'mntStop', 'mntUntil'],
         more: ['annEnds', 'annStarts']
     },
-    activity: { basic: ['auditClear', 'auditDownload', 'auditFilter', 'auditFrom', 'auditTo'], more: [] },
+    activity: { basic: ['auditClear', 'auditDelete', 'auditDownload', 'auditFilter', 'auditFrom', 'auditTo'], more: [] },
     troubleshoot: {
         basic: ['copyReportBtn', 'reportText'],
         more: ['exportConfigBtn', 'faqOpenClientScript', 'importConfigBtn', 'importConfigFile']
