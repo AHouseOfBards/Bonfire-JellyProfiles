@@ -108,7 +108,9 @@ namespace Jellyfin.Profiles
         {
             if (jellyfin == null || string.IsNullOrWhiteSpace(country)) return new List<RatingChoice>();
             var key = country.Trim().ToUpperInvariant();
-            if (Cache.TryGetValue(key, out var cached)) return cached;
+            // A copy each time: the cache is shared by every request, so a caller that sorts
+            // or trims what it got would change the answer for the next one.
+            if (Cache.TryGetValue(key, out var cached)) return new List<RatingChoice>(cached);
 
             var found = new List<RatingChoice>();
             try
@@ -142,7 +144,7 @@ namespace Jellyfin.Profiles
             }
 
             Cache[key] = found;
-            return found;
+            return new List<RatingChoice>(found);
         }
 
         private static JsonElement? Prop(JsonElement e, string name)
