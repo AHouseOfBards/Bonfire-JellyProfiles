@@ -115,6 +115,21 @@ const profile = { profileUserId: 'abc', requiresPin: true, lockoutMinutes: 5 };
     await settle(); await settle();
     ok('with no cache it retries later instead of giving up', h.timers.length > 0, h.timers.length + ' timers');
 
+    // R-1189: a second reload ladder cancels the first one's pending step.
+    h = load();
+    h.sandbox.window.location.replace = () => {};
+    h.sandbox.window.location.reload = () => {};
+    h.sandbox.window.removeEventListener = () => {};
+    h.PP._reloadWithFallback('#/home');
+    h.PP._reloadWithFallback('#/home');
+    ok('two ladders leave one step pending', h.timers.filter(t => t.live).length === 1, h.timers.filter(t => t.live).length + ' pending');
+
+    // R-1189: on a hash-routed build only the home route is home.
+    const homeAt = (hash) => { h = load(); h.sandbox.window.location.hash = hash; return h.PP.isHomeRoute(); };
+    ok('#/home.html is home', homeAt('#/home.html') === true);
+    ok('#!/home.html?topParentId=x is home', homeAt('#!/home.html?topParentId=x') === true);
+    ok('a search for "home" is not home', homeAt('#/search.html?query=home') === false);
+
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);
 })();

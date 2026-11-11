@@ -3646,7 +3646,9 @@
             return (
                 hash === '' ||
                 hash === '#/' ||
-                hash.includes('home') ||
+                // The route segment, not any hash containing the word: a search for
+                // "home" is '#/search.html?query=home' (R-1189).
+                /^#!?\/home(\.html)?([?\/]|$)/.test(hash) ||
                 path.endsWith('/home') ||
                 path.endsWith('/home.html') ||
                 // If there is no hash and we are at /web/index.html or root
@@ -3771,6 +3773,9 @@
             // reveals the page and leaves the viewer able to try another profile, so a
             // ladder that never unbinds leaves a pair of listeners behind per attempt.
             this._releaseReloadGuards();
+            // A second call while a ladder is still climbing would otherwise leave the
+            // first one's timer running, and two ladders navigate twice (R-1189).
+            if (this._reloadTimer) clearTimeout(this._reloadTimer);
             const stop = () => { if (this._reloadTimer) clearTimeout(this._reloadTimer); };
             this._reloadGuards = stop;
             window.addEventListener('pagehide', stop);
