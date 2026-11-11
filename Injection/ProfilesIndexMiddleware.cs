@@ -157,15 +157,18 @@ namespace Jellyfin.Profiles
             // authentication and Jellyfin hands a provider nothing about the request.
             // See Auth/RequestDevice.cs.
             //
-            // Only on user routes. The first version did this on EVERY request, and the
-            // parse is a quote-aware character scan with a UrlDecode and a closure — on a
+            // Only on a POST under /Users/. The first version did this on EVERY request, and
+            // the parse is a quote-aware character scan with a UrlDecode and a closure — on a
             // server streaming to forty people that is thousands of pointless scans a
             // minute, on requests for video segments and images that can never reach an
-            // authentication provider. Everything that can is a POST under /Users/:
-            // AuthenticateByName, the obsolete {userId}/Authenticate that forwards to it,
-            // and the password change that verifies the old one. A substring check on a
-            // string we already hold replaces the scan for everything else.
-            if (IsUserRoute(context))
+            // authentication provider. The second narrowed it to user routes of any method,
+            // which still cost every /Users GET an address check, two header parses and
+            // three AsyncLocal sets. The readers are the PIN provider and the session
+            // listener, and only a POST can reach them: AuthenticateByName, the obsolete
+            // {userId}/Authenticate that forwards to it, and the password change that
+            // verifies the old one. Other routes that start a session (the switch and the
+            // picker) record their own note and are not under /Users.
+            if (HttpMethods.IsPost(context.Request.Method) && IsUserRoute(context))
             {
                 // Whether Jellyfin puts the caller at home, decided here because the provider
                 // is handed nothing about the request: the address after Jellyfin's known
@@ -198,10 +201,7 @@ namespace Jellyfin.Profiles
                 // method, so it flows down to the PIN provider, which marks a PIN or an empty
                 // box, and to the session listener, which then only refreshes the device's
                 // record. Started in a helper it would not flow back out.
-                if (HttpMethods.IsPost(context.Request.Method))
-                {
-                    Auth.RequestDevice.BeginSignIn();
-                }
+                Auth.RequestDevice.BeginSignIn();
             }
 
             // Closed for maintenance: anyone but an administrator is answered here. Before the

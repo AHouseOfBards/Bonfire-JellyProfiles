@@ -638,6 +638,52 @@ if (cleanedFlag != null)
     Check("a served one does", (int)cleanedFlag.GetValue(null) == 1);
 }
 
+Console.WriteLine();
+Console.WriteLine("── The sign-in capture runs only for requests that can sign somebody in ──");
+
+// RequestDevice is read by the authentication provider and the session listener, and by
+// nothing on a GET. The capture is an address check, two header parses and three
+// AsyncLocal sets, and a client browsing makes tens of /Users GETs a page, so an ordinary
+// read must not pay it. Every POST under /Users still does: AuthenticateByName, the
+// obsolete {id}/Authenticate and the password change that verifies the old one.
+async Task<(string Device, string Client, bool HasNote)> Captured(string verb, string path)
+{
+    Jellyfin.Profiles.Auth.RequestDevice.Capture(null, null, false);
+    (string, string, bool) seenInside = (null, null, false);
+    await Run(path, ctx =>
+    {
+        seenInside = (Jellyfin.Profiles.Auth.RequestDevice.Current,
+            Jellyfin.Profiles.Auth.RequestDevice.Client,
+            Jellyfin.Profiles.Auth.RequestDevice.SignIn != null);
+        ctx.Response.StatusCode = 200;
+        return Task.CompletedTask;
+    }, c =>
+    {
+        c.Request.Method = verb;
+        c.Request.Headers["Authorization"] =
+            "MediaBrowser Client=\"Jellyfin Web\", Device=\"Chrome\", DeviceId=\"dev-123\", Version=\"10.11.0\"";
+    });
+    return seenInside;
+}
+
+foreach (var read in new[] { "/Users/11111111111111111111111111111111/Items", "/Users/Me", "/Users/Public" })
+{
+    var got = await Captured("GET", read);
+    Check("GET " + read + " does not capture the device", got.Device == null && got.Client == null);
+    Check("GET " + read + " does not start a sign-in note", !got.HasNote);
+}
+
+foreach (var signIn in new[] { "/Users/AuthenticateByName", "/Users/11111111111111111111111111111111/Authenticate",
+    "/Users/11111111111111111111111111111111/Password", "/users/authenticatebyname" })
+{
+    var got = await Captured("POST", signIn);
+    Check("POST " + signIn + " captures the device and the app", got.Device == "dev-123" && got.Client == "Jellyfin Web");
+    Check("POST " + signIn + " starts a sign-in note", got.HasNote);
+}
+
+var postElsewhere = await Captured("POST", "/Sessions/Playing/Progress");
+Check("a POST outside /Users does not capture", postElsewhere.Device == null && !postElsewhere.HasNote);
+
 try { Directory.Delete(tempDir, true); } catch { /* best effort */ }
 
 Console.WriteLine();
