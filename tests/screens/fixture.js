@@ -61,6 +61,45 @@ function clearLogoPng(rgb) {
         chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
 
+// A theme's background picture at its brightest: one solid colour, 1280x720, so whatever
+// shows behind the switcher's text is that colour under the theme's dimming layer and
+// nothing else. Built here for the same reason as the logos. With no colour, a landscape
+// (a sunset sky over two ranges of hills) for the screenshots, where a flat grey would
+// not show what a picture looks like.
+function solidPng(rgb) {
+    const zlib = require('zlib');
+    const W = 1280, H = 720;
+    const raw = Buffer.alloc((W * 3 + 1) * H);
+    const mix = (a, b, f) => a.map((v, i) => Math.round(v + (b[i] - v) * f));
+    for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+            let k = rgb;
+            if (!k) {
+                const far = 430 + 40 * Math.sin(x / 160) + 20 * Math.sin(x / 47);
+                const near = 540 + 60 * Math.sin(x / 230 + 2) + 15 * Math.sin(x / 31);
+                k = y > near ? mix([40, 52, 30], [20, 26, 16], (y - near) / (H - near))
+                    : y > far ? [74, 70, 88]
+                    : y < 300 ? mix([58, 96, 170], [236, 140, 90], y / 300) : mix([236, 140, 90], [250, 200, 120], (y - 300) / 160);
+            }
+            const o = y * (W * 3 + 1) + 1 + x * 3;
+            raw[o] = k[0]; raw[o + 1] = k[1]; raw[o + 2] = k[2];
+        }
+    }
+    const crcTable = [];
+    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; crcTable[n] = c >>> 0; }
+    const crc = b => { let c = 0xffffffff; for (const x of b) c = crcTable[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+    const chunk = (type, data) => {
+        const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+        const td = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+        const c = Buffer.alloc(4); c.writeUInt32BE(crc(td));
+        return Buffer.concat([len, td, c]);
+    };
+    const ihdr = Buffer.alloc(13);
+    ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4); ihdr[8] = 8; ihdr[9] = 2;
+    return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr),
+        chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+
 /** The served script, with the bootstrap swapped for a handle the scenes can call. */
 function bundle(src) {
     const js = lib.readClientBundle(src || fs.readFileSync(path.join(ROOT, 'Web', 'profiles.js'), 'utf8'));
@@ -123,6 +162,13 @@ function start(port, options) {
         if (clear) {
             const v = parseInt(clear[2], 16);
             return send(200, 'image/png', clearLogoPng(v === 0xe8 ? [232, 120, 48] : [v, v, v]));
+        }
+        // Background pictures (scenes.js ?photo=): "ff"... is white, "00"... black, "12"... a
+        // landscape. Any other name is left unanswered, which is a picture that fails to load.
+        const photo = /^\/plugins\/profiles\/themes\/backgrounds\/(([0-9a-f]{2})\2{15})\.png$/.exec(url.pathname);
+        if (photo) {
+            const v = parseInt(photo[2], 16);
+            return send(200, 'image/png', solidPng(v === 0x12 ? null : [v, v, v]));
         }
         const material =/^\/fixture\/(material-icons\.woff2)$/.exec(url.pathname);
         if (material && opts.materialIcons && fs.existsSync(opts.materialIcons)) {

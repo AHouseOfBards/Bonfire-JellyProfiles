@@ -344,6 +344,19 @@
             if (!P) throw new Error('the client script did not load');
             P.injectStyles();
             P.applyDeviceClasses();
+            // ?photo=<file>&dim=0.8: the theme as a custom one with that background picture,
+            // given to the client the way GET themes?part=custom gives it. fixture.js serves
+            // a solid picture for a name made of one repeated hex pair ("ff"... is white) and
+            // nothing for any other, which is a picture that fails.
+            if (q.get('photo')) {
+                var base = window.BonfireThemePreview.builtIns().filter(function (t) { return t.id === THEME; })[0];
+                base.id = 'photo-' + THEME;
+                base.name = { text: 'Photo' };
+                base.aliases = [];
+                base.background.image = { file: q.get('photo'), dim: Number(q.get('dim') || 0.8) };
+                P.useCustomThemes({ themes: [base], fonts: [], hidden: [] }, false);
+                THEME = base.id;
+            }
             // What loadSwitcherPrefs does with the server's answer: the theme, the fonts.
             P._setThemeSettings({ theme: THEME, defaultTheme: 'bonfire', allowProfileThemes: true });
             var run = SCENES[SCENE];
