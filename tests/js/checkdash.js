@@ -94,20 +94,30 @@ if (repeated.length) {
 // had already turned legacy authorization off.
 //
 // Both Web files are scanned, not just this one: profiles.js is clean today and the
-// point is that it stays that way. Comments and the header name inside a string that
-// is only ever *read* are not what this looks for — it looks for a request being
-// built with one.
+// point is that it stays that way. Comments are not read (they explain why the names are
+// gone), but any mention in code is: the first version only matched `'X-Emby-Token':` as
+// an object key, so headers['x-emby-token'] = t, headers.set('X-Emby-Token', t), a
+// lower-case key or a template string all built the same request past it (R-1284).
+// Nothing in the client has a reason to name these headers at all, so naming one fails.
 const LEGACY_AUTH = [
-    ['X-Emby-Token', /['"`]X-Emby-Token['"`]\s*:/g],
-    ['X-MediaBrowser-Token', /['"`]X-MediaBrowser-Token['"`]\s*:/g],
-    ['X-Emby-Authorization', /['"`]X-Emby-Authorization['"`]\s*:/g],
-    ['api_key query parameter', /[?&]api_key=/g],
-    ['the Emby authorization scheme', /['"`]Emby Client=/g]
+    ['X-Emby-Token', /x-emby-token/gi],
+    ['X-MediaBrowser-Token', /x-mediabrowser-token/gi],
+    ['X-Emby-Authorization', /x-emby-authorization/gi],
+    ['api_key query parameter', /\bapi_key\b/gi],
+    ['the Emby authorization scheme', /\bEmby\s+(?:Client|UserId|Device)\s*=/gi]
 ];
+
+// Whole-line comments out and nothing else. Stripping a trailing comment or a block would
+// need a tokenizer: a regex literal or a string holding `//` or `/*` would swallow real
+// code and hide a header from this check, which is the weakening this avoids. A mention
+// after code on the same line is therefore still reported.
+function codeOnly(s) {
+    return s.split('\n').filter(l => !/^\s*(?:\/\/|\*|\/\*|<!--)/.test(l)).join('\n');
+}
 
 const authOffenders = [];
 for (const file of [L.dashboardPath(), L.profilesPath()]) {
-    const src = fs.readFileSync(file, 'utf8');
+    const src = codeOnly(fs.readFileSync(file, 'utf8'));
     const name = file.split(/[\\/]/).pop();
     for (const [what, re] of LEGACY_AUTH) {
         re.lastIndex = 0;

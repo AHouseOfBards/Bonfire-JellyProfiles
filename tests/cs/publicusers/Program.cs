@@ -232,6 +232,32 @@ Ok("and ours is added alongside", merged.Contains("Bardkids", StringComparison.O
 var mergedParsed = JsonSerializer.Deserialize<UserDto[]>(merged, JsonDefaults.PascalCaseOptions);
 Ok("the merged list is two users", mergedParsed.Length == 2, mergedParsed.Length.ToString());
 
+// R-1284: tests/js/publicusers.js can only say the source has no "Remove"; a rename or an
+// alias gets past it. This is the behaviour: several entries, with fields we know nothing
+// of, come back byte for byte and in order, and ours is last. Removing, filtering,
+// rewriting or reordering any of them fails here whatever the code is called.
+var theirs = new[]
+{
+    "{\"Name\":\"first\",\"Id\":\"11111111111111111111111111111111\",\"Extra\":{\"n\":[1,2,3]}}",
+    "{\"Name\":\"second\",\"Id\":\"22222222222222222222222222222222\",\"HasPassword\":true}",
+    "{\"Name\":\"third\",\"Id\":\"33333333333333333333333333333333\"}",
+    "{\"Name\":\"no id at all\"}"
+};
+var kept = Run("application/json; profile=\"PascalCase\"", "[" + string.Join(",", theirs) + "]");
+var keptArray = kept == null ? null : System.Text.Json.Nodes.JsonNode.Parse(kept)?.AsArray();
+Ok("a longer list comes back with ours added", keptArray != null && keptArray.Count == theirs.Length + 1,
+   keptArray == null ? "null" : keptArray.Count.ToString());
+for (int i = 0; i < theirs.Length; i++)
+{
+    Ok("entry " + (i + 1) + " of " + theirs.Length + " is unchanged and in its place",
+       keptArray != null && keptArray.Count > i
+       && keptArray[i].ToJsonString() == System.Text.Json.Nodes.JsonNode.Parse(theirs[i]).ToJsonString(),
+       keptArray != null && keptArray.Count > i ? keptArray[i].ToJsonString() : "missing");
+}
+Ok("and ours is the last one",
+   keptArray != null && keptArray.Count == theirs.Length + 1
+   && keptArray[theirs.Length]["Name"]?.GetValue<string>() == "Bardkids");
+
 // Already present by id: adding a second copy would show one person twice on the
 // sign-in screen, which on a public-users server is the normal case for the master.
 var dup = "[{\"Name\":\"Bardkids\",\"Id\":\"8e3cdfa579a84bb9bd9a0e96b7dc974a\"}]";

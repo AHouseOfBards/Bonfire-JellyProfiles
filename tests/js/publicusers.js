@@ -62,8 +62,14 @@ console.log('\n── it adds, and never removes ──────────�
 // The whole safety argument. Filtering would mean every one of the server's users depends
 // on our code being right; adding means the worst case is that nothing appears.
 ok('the injector only ever appends to the array', /array\.Add\(/.test(inj));
+// Not the proof, only a tripwire for the obvious. A regex cannot follow an alias or a
+// rename, so the proof is tests/cs/publicusers: four entries with fields we know nothing
+// of come back byte for byte, in order, with ours last. The patterns here are wide on
+// purpose: any receiver, any Remove*/Clear/Insert, the array replaced, or LINQ that filters it.
 ok('and never removes from it',
-   !/array\.Remove|\.RemoveAt\(|array\.Clear\(/.test(inj),
+   !/\.(?:Remove\w*|Clear|Insert\w*)\s*\(/.test(inj)
+   && !/\barray\s*=[^=>]/.test(inj)
+   && !/\barray\s*\.\s*(?:Where|Except|Skip|Take|Distinct|OfType)\s*\(/.test(inj),
    'removing from this list would decide who may sign in');
 
 console.log('\n── every failure returns what Jellyfin produced ─────────────────');
@@ -86,7 +92,11 @@ console.log('\n── the shape it writes ────────────�
 // Hand-rolling a UserDto is how a client ends up unable to parse its own login screen,
 // and GetUserDto is also what fills HasPassword from the authentication provider.
 ok('the DTO comes from Jellyfin, not from us', /userManager\.GetUserDto\(/.test(inj));
-ok('and nothing constructs a UserDto by hand', !/new UserDto/.test(inj));
+// Qualified (new MediaBrowser.Model.Dto.UserDto) and target-typed (UserDto x = new())
+// forms count too: the bare `new UserDto` was one using-directive away from missing both.
+ok('and nothing constructs a UserDto by hand',
+   !/\bnew\s+(?:[\w.]+\.)?UserDto\b/.test(inj)
+   && !/\bUserDto\??\s+\w+\s*=\s*new\s*\(/.test(inj));
 
 // Jellyfin serves this endpoint in two casings by content negotiation. Assuming one would
 // hand some clients an array whose last entries they silently cannot read.
