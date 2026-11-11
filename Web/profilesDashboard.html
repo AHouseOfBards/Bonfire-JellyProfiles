@@ -1580,6 +1580,7 @@
                 'admin.households.set': 'Set',
                 'admin.households.reset': 'Reset',
                 'admin.households.limitFailed': 'Couldn\'t update the profile limit.',
+                'admin.households.limitRange': 'Enter a number from 1 to 20.',
                 'admin.households.subOne': '1 profile',
                 'admin.households.subMany': '{count} profiles',
                 'admin.households.noSubs': 'No profiles',
@@ -2866,9 +2867,7 @@
                     page.querySelectorAll('.save-limit-btn').forEach(function (btn) {
                         btn.addEventListener('click', function () {
                             const userId = btn.getAttribute('data-id');
-                            const input = page.querySelector('.user-limit-input[data-id="' + userId + '"]');
-                            const limit = parseInt(input.value, 10);
-                            setProfileLimit(page, userId, limit);
+                            saveLimitFromBox(page, userId);
                         });
                     });
 
@@ -3230,6 +3229,20 @@
                     console.error("Failed to load audit logs:", err);
                     container.innerHTML = '<div class="listItem jpf-list-pad jpf-error"><div class="listItemBody">' + escapeHtml(t('admin.audit.loadFailed')) + '</div></div>';
                 });
+            }
+
+            // An empty or odd box used to parse to NaN, which JSON writes as null, and the
+            // server reads null as "remove the override". Set must never mean Reset, so
+            // anything but a whole number from 1 to 20 stops here with the range.
+            function saveLimitFromBox(page, userId) {
+                const input = page.querySelector('.user-limit-input[data-id="' + userId + '"]');
+                const raw = String(input.value).trim();
+                const limit = /^\d{1,3}$/.test(raw) ? parseInt(raw, 10) : NaN;
+                if (!(limit >= 1 && limit <= 20)) {
+                    Dashboard.alert({ message: t('admin.households.limitRange'), title: t('admin.error') });
+                    return;
+                }
+                setProfileLimit(page, userId, limit);
             }
 
             function setProfileLimit(page, userId, maxProfiles) {

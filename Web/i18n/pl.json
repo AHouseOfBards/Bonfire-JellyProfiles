@@ -826,6 +826,7 @@
   "admin.households.set": "Ustaw",
   "admin.households.reset": "Resetuj",
   "admin.households.limitFailed": "Nie udało się zmienić limitu profili.",
+  "admin.households.limitRange": "Wpisz liczbę od 1 do 20.",
   "admin.households.subOne": "1 profil",
   "admin.households.subMany": "Profile: {count}",
   "admin.households.noSubs": "Brak profili",

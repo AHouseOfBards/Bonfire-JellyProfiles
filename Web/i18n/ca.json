@@ -826,6 +826,7 @@
   "admin.households.set": "Fixa",
   "admin.households.reset": "Restableix",
   "admin.households.limitFailed": "No s'ha pogut canviar el límit de perfils.",
+  "admin.households.limitRange": "Introdueix un nombre de 1 a 20.",
   "admin.households.subOne": "1 perfil",
   "admin.households.subMany": "{count} perfils",
   "admin.households.noSubs": "Sense perfils",

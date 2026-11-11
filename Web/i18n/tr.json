@@ -837,6 +837,7 @@
   "admin.households.set": "Ayarla",
   "admin.households.reset": "Sıfırla",
   "admin.households.limitFailed": "Profil sınırı değiştirilemedi.",
+  "admin.households.limitRange": "1 ile 20 arasında bir sayı girin.",
   "admin.households.subOne": "1 profil",
   "admin.households.subMany": "{count} profil",
   "admin.households.noSubs": "Profil yok",
