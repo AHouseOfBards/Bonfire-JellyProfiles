@@ -428,6 +428,9 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
                t => t["colors"]!["accentFocus"] = "#5a2a10", "colors.onAccent", "contrast");
         Caught("second-button text on its see-through fill",
                t => t["parts"]!["button2"]!["text"] = "#a07040", "parts.button2.text", "contrast");
+        // R-1077: the add tile's label was never checked against its fill.
+        Caught("add-tile text too close to its fill",
+               t => t["parts"]!["addTile"]!["text"] = "#202020", "parts.addTile.text", "contrast");
         Caught("an error colour that is blue", t => t["colors"]!["danger"] = "#3366ff", "colors.danger", "hue");
         Caught("a warning colour that is green", t => t["colors"]!["warning"] = "#33cc33", "colors.warning", "hue");
         Caught("a font Bonfire does not serve", t => t["type"]!["font"]!["family"] = "Comic Sans MS", "type.font.family", "font");

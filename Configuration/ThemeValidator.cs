@@ -33,6 +33,15 @@ namespace Jellyfin.Profiles.Configuration
     /// each stop of each layer, one at a time. An average would let a gradient that is
     /// unreadable at one end pass on the strength of the other.
     /// </para>
+    /// <para>
+    /// The pairs are the ones where the theme names both the text and what it sits on: the
+    /// colours against the background, text1 against the panel, onAccent against both
+    /// accents, and the text of button2, its focus, the add tile (resting and focused) and
+    /// the input against their fills. Not checked, on purpose: the card, the sheet, the
+    /// surfaces and the borders. They carry no text of their own; the text drawn on them is
+    /// the colours above, already held against the background they sit on, and a border or
+    /// line is decoration, not something read.
+    /// </para>
     /// </summary>
     public static class ThemeValidator
     {
@@ -562,10 +571,10 @@ namespace Jellyfin.Profiles.Configuration
                 var add = Obj(o["addTile"], "parts.addTile", true, "fill", "border", "text", "focusFill");
                 if (add != null)
                 {
-                    Color(add, "parts.addTile", "fill", true);
+                    Keep("addTile.fill", Color(add, "parts.addTile", "fill", true));
                     Border(add, "parts.addTile", "border", true);
-                    Color(add, "parts.addTile", "text", true);
-                    Color(add, "parts.addTile", "focusFill", true);
+                    Keep("addTile.text", Color(add, "parts.addTile", "text", true));
+                    Keep("addTile.focusFill", Color(add, "parts.addTile", "focusFill", true));
                 }
 
                 var card = Obj(o["card"], "parts.card", true, "fill", "line");
@@ -764,6 +773,9 @@ namespace Jellyfin.Profiles.Configuration
 
                 OnPart("button2.text", "button2.fill", "parts.button2.text");
                 OnPart("button2.focus.text", "button2.focus.fill", "parts.button2.focus.text");
+                // The "add profile" tile's label, resting and focused (the same text on both).
+                OnPart("addTile.text", "addTile.fill", "parts.addTile.text");
+                OnPart("addTile.text", "addTile.focusFill", "parts.addTile.text");
                 if (parts.TryGetValue("input.fill", out _))
                 {
                     parts["input.text"] = c["text1"];
